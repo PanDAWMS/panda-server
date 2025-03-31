@@ -283,7 +283,7 @@ class MetricsModule(BaseModule):
         task_queued_time = get_task_queued_time(tmp_str)
         # record queuing duration
         if jedi_task_id and task_queued_time:
-            tmp_log.debug(f"to record queuing period")
+            tmp_log.debug("to record queuing period")
             # get job metrics dict
             tmp_success, job_metrics = self.get_workload_metrics(jedi_task_id, panda_id)
             if not tmp_success:
@@ -366,7 +366,7 @@ class MetricsModule(BaseModule):
                 tmp_log.error(err_str)
                 return False
             # unset activated time
-            tmp_log.debug(f"unset activated time")
+            tmp_log.debug("unset activated time")
             sql_update = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET activatedTime=NULL WHERE jediTaskID=:jediTaskID AND activatedTime IS NOT NULL "
             var_map = {":jediTaskID": jedi_task_id}
             self.cur.execute(sql_update + comment, var_map)
@@ -408,18 +408,18 @@ class MetricsModule(BaseModule):
                 self.conn.begin()
             # sql to get metrics
             sql = (
-                f"SELECT SUM(is_finished),SUM(is_failed),SUM(HS06SEC*is_finished),SUM(HS06SEC*is_failed) "
-                f"FROM ("
-                f"SELECT PandaID, HS06SEC, CASE WHEN jobStatus='finished' THEN 1 ELSE 0 END is_finished, "
-                f"CASE WHEN jobStatus='failed' THEN 1 ELSE 0 END is_failed "
+                "SELECT SUM(is_finished),SUM(is_failed),SUM(HS06SEC*is_finished),SUM(HS06SEC*is_failed) "
+                "FROM ("
+                "SELECT PandaID, HS06SEC, CASE WHEN jobStatus='finished' THEN 1 ELSE 0 END is_finished, "
+                "CASE WHEN jobStatus='failed' THEN 1 ELSE 0 END is_failed "
                 f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
-                f"WHERE jediTaskID=:jediTaskID AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-                f"UNION "
-                f"SELECT PandaID, HS06SEC, CASE WHEN jobStatus='finished' THEN 1 ELSE 0 END is_finished, "
-                f"CASE WHEN jobStatus='failed' THEN 1 ELSE 0 END is_failed "
+                "WHERE jediTaskID=:jediTaskID AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+                "UNION "
+                "SELECT PandaID, HS06SEC, CASE WHEN jobStatus='finished' THEN 1 ELSE 0 END is_finished, "
+                "CASE WHEN jobStatus='failed' THEN 1 ELSE 0 END is_failed "
                 f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
-                f"WHERE jediTaskID=:jediTaskID AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-                f")"
+                "WHERE jediTaskID=:jediTaskID AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+                ")"
             )
             var_map = {
                 ":jediTaskID": task_id,

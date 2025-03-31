@@ -504,7 +504,7 @@ class MiscStandaloneModule(BaseModule):
             varMap[":jediTaskID"] = jediTaskID
             varMap[":status"] = "ready"
             self.cur.execute(sql + comment, varMap)
-            res = self.cur.rowcount
+
             # get datasetIDs for master
             varMap = {}
             varMap[":jediTaskID"] = jediTaskID
@@ -1032,7 +1032,7 @@ class MiscStandaloneModule(BaseModule):
                 dataset = DatasetSpec()
                 dataset.pack(res[0])
                 return dataset
-            tmp_log.error(f"dataset not found")
+            tmp_log.error("dataset not found")
             return None
         except Exception:
             # roll back
@@ -1236,10 +1236,10 @@ class MiscStandaloneModule(BaseModule):
                 self.conn.begin()
                 # select
                 self.cur.arraysize = 10000
-                retS = self.cur.execute(sql0 + comment, varMap)
+                _ = self.cur.execute(sql0 + comment, varMap)
                 resS = self.cur.fetchall()
                 # update
-                retU = self.cur.execute(sql1 + comment, varMap)
+                _ = self.cur.execute(sql1 + comment, varMap)
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
@@ -1283,11 +1283,10 @@ class MiscStandaloneModule(BaseModule):
                 self.conn.begin()
                 # select
                 self.cur.arraysize = 10000
-                retS = self.cur.execute(sql0 + comment, varMap)
+                _ = self.cur.execute(sql0 + comment, varMap)
                 resS = self.cur.fetchall()
                 # update
-                retList = []
-                retU = self.cur.execute(sql1 + comment, varMap)
+                _ = self.cur.execute(sql1 + comment, varMap)
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
@@ -1592,8 +1591,6 @@ class MiscStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.updateUnmergedDatasets */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         # get PandaID which produced unmerged files
-        umPandaIDs = []
-        umCheckedIDs = []
         # sql to get file counts
         sqlGFC = "SELECT status,PandaID,outPandaID FROM ATLAS_PANDA.JEDI_Dataset_Contents "
         sqlGFC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND PandaID IS NOT NULL "
@@ -2456,7 +2453,6 @@ class MiscStandaloneModule(BaseModule):
                     self.cur.execute(sqlD + comment, varMap)
                     resD = self.cur.fetchall()
                     subDatasets = []
-                    subDatasetID = None
                     for destinationDBlock, datasetID in resD:
                         if destinationDBlock in ngDatasets:
                             continue
@@ -2464,7 +2460,7 @@ class MiscStandaloneModule(BaseModule):
                             continue
                         checkedDS.add(destinationDBlock)
                         subDatasets.append(destinationDBlock)
-                        subDatasetID = datasetID
+
                     if subDatasets == []:
                         continue
                     # get merging PandaID which uses sub dataset
@@ -3066,7 +3062,7 @@ class MiscStandaloneModule(BaseModule):
             sqlD = f"SELECT datasetName,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type IN ("
 
             # Old API expects comma separated types, while new API is taking directly a tuple of dataset types
-            if type(dataset_types) == str:
+            if isinstance(dataset_types, str):
                 dataset_types = dataset_types.split(",")
 
             for tmp_type in dataset_types:
@@ -3223,9 +3219,9 @@ class MiscStandaloneModule(BaseModule):
                 # sql to query request of the dataset
                 status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.reusable_statuses, prefix=":status")
                 sql_query = (
-                    f"SELECT request_id "
+                    "SELECT request_id "
                     f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
-                    f"WHERE dataset=:dataset "
+                    "WHERE dataset=:dataset "
                     f"AND status IN ({status_var_names_str}) "
                 )
                 var_map = {":dataset": dc_req_spec.dataset}
@@ -3246,7 +3242,7 @@ class MiscStandaloneModule(BaseModule):
                     sql_insert_request = (
                         f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_requests ({dc_req_spec.columnNames()}) "
                         f"{dc_req_spec.bindValuesExpression()} "
-                        f"RETURNING request_id INTO :new_request_id "
+                        "RETURNING request_id INTO :new_request_id "
                     )
                     var_map = dc_req_spec.valuesMap(useSeq=True)
                     var_map[":new_request_id"] = self.cur.var(varNUMBER)
@@ -3257,9 +3253,9 @@ class MiscStandaloneModule(BaseModule):
                     raise RuntimeError("the_request_id is None")
                 # sql to query relation
                 sql_rel_query = (
-                    f"SELECT request_id, task_id "
+                    "SELECT request_id, task_id "
                     f"FROM {panda_config.schemaJEDI}.data_carousel_relations "
-                    f"WHERE request_id=:request_id AND task_id=:task_id "
+                    "WHERE request_id=:request_id AND task_id=:task_id "
                 )
                 var_map = {":request_id": the_request_id, ":task_id": task_id}
                 self.cur.execute(sql_rel_query + comment, var_map)
@@ -3270,7 +3266,7 @@ class MiscStandaloneModule(BaseModule):
                 else:
                     # sql to insert relation
                     sql_insert_relation = (
-                        f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_relations (request_id, task_id) " f"VALUES(:request_id, :task_id) "
+                        f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_relations (request_id, task_id) " "VALUES(:request_id, :task_id) "
                     )
                     self.cur.execute(sql_insert_relation + comment, var_map)
                     n_rel_inserted += 1
@@ -3329,9 +3325,7 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # sql to query queued requests with gshare and priority info from related tasks
-            sql_query_req = (
-                f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status=:status "
-            )
+            sql_query_req = f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " "WHERE status=:status "
             var_map = {":status": DataCarouselRequestStatus.queued}
             self.cur.execute(sql_query_req + comment, var_map)
             res_list = self.cur.fetchall()
@@ -3342,9 +3336,9 @@ class MiscStandaloneModule(BaseModule):
                     dc_req_spec.pack(res)
                     # query info of related tasks
                     sql_query_tasks = (
-                        f"SELECT t.jediTaskID, t.gshare, COALESCE(t.currentPriority, t.taskPriority) "
+                        "SELECT t.jediTaskID, t.gshare, COALESCE(t.currentPriority, t.taskPriority) "
                         f"FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.JEDI_Tasks t "
-                        f"WHERE rel.request_id=:request_id AND rel.task_id=t.jediTaskID "
+                        "WHERE rel.request_id=:request_id AND rel.task_id=t.jediTaskID "
                     )
                     var_map = {":request_id": dc_req_spec.request_id}
                     self.cur.execute(sql_query_tasks + comment, var_map)
@@ -3386,9 +3380,9 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             # sql to query queued requests with gshare and priority info from related tasks
             sql_query_id = (
-                f"SELECT rel.request_id, rel.task_id "
+                "SELECT rel.request_id, rel.task_id "
                 f"FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.JEDI_Tasks t "
-                f"WHERE rel.task_id=t.jediTaskID "
+                "WHERE rel.task_id=t.jediTaskID "
             )
             var_map = {}
             if status_filter_list:
@@ -3414,7 +3408,7 @@ class MiscStandaloneModule(BaseModule):
                         sql_query_requests = (
                             f"SELECT {DataCarouselRequestSpec.columnNames()} "
                             f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
-                            f"WHERE request_id=:request_id "
+                            "WHERE request_id=:request_id "
                         )
                         var_map = {":request_id": request_id}
                         self.cur.execute(sql_query_requests + comment, var_map)
@@ -3455,8 +3449,8 @@ class MiscStandaloneModule(BaseModule):
             sql_query_req = (
                 f"SELECT {DataCarouselRequestSpec.columnNames()} "
                 f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
-                f"WHERE status=:status "
-                f"AND ( check_time IS NULL OR check_time<=:check_time_max ) "
+                "WHERE status=:status "
+                "AND ( check_time IS NULL OR check_time<=:check_time_max ) "
             )
             now_time = naive_utcnow()
             var_map = {":status": DataCarouselRequestStatus.staging, ":check_time_max": now_time - datetime.timedelta(minutes=time_limit_minutes)}
@@ -3464,7 +3458,7 @@ class MiscStandaloneModule(BaseModule):
             res_list = self.cur.fetchall()
             if res_list:
                 now_time = naive_utcnow()
-                sql_update = f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests " f"SET check_time=:check_time " f"WHERE request_id=:request_id "
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests " "SET check_time=:check_time " "WHERE request_id=:request_id "
                 for res in res_list:
                     # make request spec
                     dc_req_spec = DataCarouselRequestSpec()
@@ -3498,8 +3492,7 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # sql to delete terminated requests
-            now_time = naive_utcnow()
-            sql_delete_req = f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id " f"AND status IN (:status1, :status2) "
+            sql_delete_req = f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " "WHERE request_id=:request_id " "AND status IN (:status1, :status2) "
             var_map_base = {
                 ":status1": DataCarouselRequestStatus.done,
                 ":status2": DataCarouselRequestStatus.cancelled,
@@ -3514,7 +3507,7 @@ class MiscStandaloneModule(BaseModule):
             # sql to delete relations
             sql_delete_rel = (
                 f"DELETE {panda_config.schemaJEDI}.data_carousel_relations rel "
-                f"WHERE rel.request_id NOT IN "
+                "WHERE rel.request_id NOT IN "
                 f"(SELECT req.request_id FROM {panda_config.schemaJEDI}.data_carousel_requests req) "
             )
             self.cur.execute(sql_delete_rel + comment, {})
@@ -3542,9 +3535,7 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             # sql to delete terminated requests
             now_time = naive_utcnow()
-            sql_delete_req = (
-                f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status IN (:status1, :status2) " f"AND end_time<=:end_time_max "
-            )
+            sql_delete_req = f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " "WHERE status IN (:status1, :status2) " "AND end_time<=:end_time_max "
             var_map = {
                 ":status1": DataCarouselRequestStatus.done,
                 ":status2": DataCarouselRequestStatus.cancelled,
@@ -3555,7 +3546,7 @@ class MiscStandaloneModule(BaseModule):
             # sql to delete relations
             sql_delete_rel = (
                 f"DELETE {panda_config.schemaJEDI}.data_carousel_relations rel "
-                f"WHERE rel.request_id NOT IN "
+                "WHERE rel.request_id NOT IN "
                 f"(SELECT req.request_id FROM {panda_config.schemaJEDI}.data_carousel_requests req) "
             )
             self.cur.execute(sql_delete_rel + comment, {})
@@ -3586,8 +3577,8 @@ class MiscStandaloneModule(BaseModule):
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.active_statuses, prefix=":old_status")
             sql_update = (
                 f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
-                f"SET status=:new_status, end_time=:now_time, modification_time=:now_time "
-                f"WHERE request_id=:request_id "
+                "SET status=:new_status, end_time=:now_time, modification_time=:now_time "
+                "WHERE request_id=:request_id "
                 f"AND status IN ({status_var_names_str}) "
             )
             var_map = {
@@ -3599,9 +3590,9 @@ class MiscStandaloneModule(BaseModule):
             self.cur.execute(sql_update + comment, var_map)
             ret_req = self.cur.rowcount
             if not ret_req:
-                tmp_log.warning(f"already terminated; cannot be cancelled ; skipped")
+                tmp_log.warning("already terminated; cannot be cancelled ; skipped")
             else:
-                tmp_log.debug(f"cancelled request")
+                tmp_log.debug("cancelled request")
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -3626,9 +3617,9 @@ class MiscStandaloneModule(BaseModule):
             now_time = naive_utcnow()
             sql_update = (
                 f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
-                f"SET status=:new_status, end_time=:now_time, modification_time=:now_time "
-                f"WHERE request_id=:request_id "
-                f"AND status=:old_status "
+                "SET status=:new_status, end_time=:now_time, modification_time=:now_time "
+                "WHERE request_id=:request_id "
+                "AND status=:old_status "
             )
             var_map = {
                 ":request_id": request_id,
@@ -3639,9 +3630,9 @@ class MiscStandaloneModule(BaseModule):
             self.cur.execute(sql_update + comment, var_map)
             ret_req = self.cur.rowcount
             if not ret_req:
-                tmp_log.warning(f"not done; cannot be retired ; skipped")
+                tmp_log.warning("not done; cannot be retired ; skipped")
             else:
-                tmp_log.debug(f"retired request")
+                tmp_log.debug("retired request")
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -3657,7 +3648,6 @@ class MiscStandaloneModule(BaseModule):
     # resubmit a data carousel request
     def resubmit_data_carousel_request_JEDI(self, request_id):
         comment = " /* JediDBProxy.resubmit_data_carousel_request_JEDI */"
-        to_resubmit = False
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id}")
         tmp_log.debug("start")
         try:
@@ -3669,7 +3659,7 @@ class MiscStandaloneModule(BaseModule):
             sql_query_req = (
                 f"SELECT {DataCarouselRequestSpec.columnNames()} "
                 f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
-                f"WHERE request_id=:request_id "
+                "WHERE request_id=:request_id "
                 f"AND status IN ({status_var_names_str}) "
             )
             var_map = {":request_id": request_id}
@@ -3694,8 +3684,8 @@ class MiscStandaloneModule(BaseModule):
                 new_status = DataCarouselRequestStatus.cancelled
                 sql_update = (
                     f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
-                    f"SET status=:new_status, end_time=:now_time, modification_time=:now_time "
-                    f"WHERE request_id=:request_id "
+                    "SET status=:new_status, end_time=:now_time, modification_time=:now_time "
+                    "WHERE request_id=:request_id "
                 )
                 var_map = {
                     ":request_id": request_id,
@@ -3705,18 +3695,18 @@ class MiscStandaloneModule(BaseModule):
                 self.cur.execute(sql_update + comment, var_map)
                 ret_req = self.cur.rowcount
                 if not ret_req:
-                    tmp_log.warning(f"cannot be cancelled ; skipped")
+                    tmp_log.warning("cannot be cancelled ; skipped")
                     # roll back
                     self._rollback()
                     return False
                 else:
-                    tmp_log.debug(f"cancelled request")
+                    tmp_log.debug("cancelled request")
             elif dc_req_spec.status == DataCarouselRequestStatus.done:
                 new_status = DataCarouselRequestStatus.retired
                 sql_update = (
                     f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
-                    f"SET status=:new_status, modification_time=:now_time "
-                    f"WHERE request_id=:request_id "
+                    "SET status=:new_status, modification_time=:now_time "
+                    "WHERE request_id=:request_id "
                 )
                 var_map = {
                     ":request_id": request_id,
@@ -3726,12 +3716,12 @@ class MiscStandaloneModule(BaseModule):
                 self.cur.execute(sql_update + comment, var_map)
                 ret_req = self.cur.rowcount
                 if not ret_req:
-                    tmp_log.warning(f"cannot be retired ; skipped")
+                    tmp_log.warning("cannot be retired ; skipped")
                     # roll back
                     self._rollback()
                     return False
                 else:
-                    tmp_log.debug(f"retired request")
+                    tmp_log.debug("retired request")
             else:
                 (f"already {dc_req_spec.status} ; skipped")
             # resubmit new request
@@ -3739,7 +3729,7 @@ class MiscStandaloneModule(BaseModule):
             sql_insert_request = (
                 f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_requests ({dc_req_spec_to_resubmit.columnNames()}) "
                 f"{dc_req_spec_to_resubmit.bindValuesExpression()} "
-                f"RETURNING request_id INTO :new_request_id "
+                "RETURNING request_id INTO :new_request_id "
             )
             var_map = dc_req_spec_to_resubmit.valuesMap(useSeq=True)
             var_map[":new_request_id"] = self.cur.var(varNUMBER)
@@ -3750,7 +3740,7 @@ class MiscStandaloneModule(BaseModule):
             tmp_log.debug(f"resubmitted request with new_request_id={new_request_id}")
             # sql to update relations according to the relations of the old request
             sql_update_relations = (
-                f"UPDATE {panda_config.schemaJEDI}.data_carousel_relations " f"SET request_id=:new_request_id " f"WHERE request_id=:old_request_id "
+                f"UPDATE {panda_config.schemaJEDI}.data_carousel_relations " "SET request_id=:new_request_id " "WHERE request_id=:old_request_id "
             )
             var_map = {":new_request_id": new_request_id, ":old_request_id": request_id}
             self.cur.execute(sql_update_relations + comment, var_map)
@@ -3837,7 +3827,6 @@ class MiscStandaloneModule(BaseModule):
         # last update time
         tmpLog = self.create_tagged_logger(comment, f"vo={vo}")
         tmpLog.debug("start")
-        now_ts = naive_utcnow()
         try:
             retVal = None
             # sql to get all jediTaskID and datasetID of input
@@ -4395,7 +4384,6 @@ class MiscStandaloneModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_taskid}")
         try:
             self.conn.begin()
-            retVal = False
             # sql to update
             sqlC = f"UPDATE {panda_config.schemaMETA}.userCacheUsage SET creationTime=CURRENT_DATE WHERE fileName=:fileName "
             varMap = {}

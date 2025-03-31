@@ -430,7 +430,7 @@ class TaskEventModule(BaseModule):
                     job_processID = int(job_processID)
                     attemptNr = int(attemptNr)
                 except Exception:
-                    tmp_log.error(f"wrongly formatted eventRangeID")
+                    tmp_log.error("wrongly formatted eventRangeID")
                     retList.append(False)
                     continue
                 # get event status
@@ -462,10 +462,7 @@ class TaskEventModule(BaseModule):
                     iSkipped += 1
                     tmp_log.debug(f"<eventRangeID={eventRangeID}> eventStatus={eventStatus} skipped")
                     continue
-                # core count
-                coreCount = eventDict.get("coreCount")
-                # CPU consumption
-                cpuConsumptionTime = eventDict.get("cpuConsumptionTime")
+
                 # objectstore ID
                 objstoreID = eventDict.get("objstoreID")
                 # error code
@@ -2543,9 +2540,9 @@ class TaskEventModule(BaseModule):
             input_type_bindings = ",".join(f":type{i}" for i in range(len(input_types)))
 
             sql_get_memory_stats = (
-                f"SELECT ramCount, count(*) "
+                "SELECT ramCount, count(*) "
                 f"FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabC "
-                f"WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID AND tabD.jediTaskID=:jediTaskID "
+                "WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID AND tabD.jediTaskID=:jediTaskID "
                 f"AND tabD.type IN ({input_type_bindings}) AND tabD.masterID IS NULL GROUP BY ramCount"
             )
 
@@ -2608,7 +2605,7 @@ class TaskEventModule(BaseModule):
 
                 sql_get_update_ram_job = (
                     f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET ramCount=:ramCount "
-                    f"WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND ramCount<:ramCount "
+                    "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND ramCount<:ramCount "
                 )
 
                 self.cur.execute(sql_get_update_ram_job + comment, var_map)
@@ -2721,12 +2718,12 @@ class TaskEventModule(BaseModule):
 
                 # Ops could have increased task RamCount through direct DB access. In this case don't do anything
                 if taskRamCount > minimumRam:
-                    tmp_log.debug(f"task ramcount has already been increased and is higher than minimumRam. Skipping")
+                    tmp_log.debug("task ramcount has already been increased and is higher than minimumRam. Skipping")
                     return True
 
                 # skip if already at largest limit
                 if jobRamCount >= minimumRam:
-                    tmp_log.debug(f"job ramcount is larger than minimumRam. Skipping")
+                    tmp_log.debug("job ramcount is larger than minimumRam. Skipping")
                     return True
                 else:
                     nextLimit = minimumRam
@@ -3058,7 +3055,7 @@ class TaskEventModule(BaseModule):
     def setSiteForEsMerge(self, jobSpec, isFakeCJ, methodName, comment):
         comment = " /* DBProxy.setSiteForEsMerge */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
-        tmp_log.debug(f"looking for ES merge site")
+        tmp_log.debug("looking for ES merge site")
         # merge on OS
         isMergeAtOS = EventServiceUtils.isMergeAtOS(jobSpec.specialHandling)
         # check where merge is done
@@ -3304,7 +3301,7 @@ class TaskEventModule(BaseModule):
     def setScoreSiteToEs(self, jobSpec, methodName, comment):
         comment = " /* DBProxy.setScoreSiteToEs */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
-        tmp_log.debug(f"looking for single-core site")
+        tmp_log.debug("looking for single-core site")
         # get score PQ in the nucleus associated to the site to run the small ES job
         sqlSN = "SELECT /* use_json_type */ ps2.panda_site_name "
         sqlSN += "FROM ATLAS_PANDA.panda_site ps1, ATLAS_PANDA.panda_site ps2, ATLAS_PANDA.schedconfig_json sc "
@@ -3468,7 +3465,7 @@ class TaskEventModule(BaseModule):
                 sql2 = """ SELECT LAST_INSERT_ID() """
                 self.cur.execute(sql2 + comment, {})
                 (nextval,) = self.cur.fetchone()
-                sqlT += "( :nextval ,".format(schemaDEFT)
+                sqlT += "( :nextval ,"
                 varMap[":nextval"] = nextval
             sqlT += ":status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,:priority,:current_priority,"
             if parent_tid is None:
@@ -3578,7 +3575,7 @@ class TaskEventModule(BaseModule):
                         goForward = False
                         retVal = f"jediTaskID={jediTaskID} is already queued for outDS={taskParamsJson['taskName']}. "
                         retVal += "You cannot submit duplicated tasks. "
-                        tmp_log.debug(f"skip since old task is already queued in DEFT")
+                        tmp_log.debug("skip since old task is already queued in DEFT")
                         errorCode = 1
                 else:
                     # task is already in JEDI table
@@ -3600,7 +3597,7 @@ class TaskEventModule(BaseModule):
                         retVal += "Or you can retry the task once it goes into running/finished/failed/done. "
                         retVal += "Note that retry != resubmission according to "
                         retVal += "https://twiki.cern.ch/twiki/bin/view/PanDA/PandaJEDI#Task_retry_and_resubmission "
-                        tmp_log.debug(f"skip since old task is not yet finalized")
+                        tmp_log.debug("skip since old task is not yet finalized")
                         errorCode = 2
                     else:
                         # extract several params for incremental execution
@@ -4427,7 +4424,7 @@ class TaskEventModule(BaseModule):
             varMap = jobSpec.valuesMap(useSeq=True)
             varMap[":newPandaID"] = self.cur.var(varNUMBER)
             # insert
-            retI = self.cur.execute(sql1 + comment, varMap)
+            _ = self.cur.execute(sql1 + comment, varMap)
             # set PandaID
             val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
             jobSpec.PandaID = int(val)

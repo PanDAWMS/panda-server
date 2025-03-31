@@ -2012,19 +2012,19 @@ class JobComplexModule(BaseModule):
         tmp_log.debug("start")
         try:
             sql_running_and_submitted = (
-                f"SELECT /*+ RESULT_CACHE */ COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
+                "SELECT /*+ RESULT_CACHE */ COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
                 f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
-                f"WHERE COMPUTINGSITE = :computingsite "
-                f"AND jobstatus IN ('running', 'starting') "
-                f"GROUP BY COMPUTINGSITE"
+                "WHERE COMPUTINGSITE = :computingsite "
+                "AND jobstatus IN ('running', 'starting') "
+                "GROUP BY COMPUTINGSITE"
             )
 
             sql_running = (
-                f"SELECT /*+ RESULT_CACHE */ COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
+                "SELECT /*+ RESULT_CACHE */ COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
                 f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
-                f"WHERE COMPUTINGSITE = :computingsite "
-                f"AND jobstatus = 'running' "
-                f"GROUP BY COMPUTINGSITE"
+                "WHERE COMPUTINGSITE = :computingsite "
+                "AND jobstatus = 'running' "
+                "GROUP BY COMPUTINGSITE"
             )
 
             var_map = {":computingsite": computingsite}
@@ -3996,7 +3996,7 @@ class JobComplexModule(BaseModule):
                                 varMap = job.valuesMap(useSeq=True)
                                 varMap[":newPandaID"] = self.cur.var(varNUMBER)
                                 # insert
-                                retI = self.cur.execute(sql1 + comment, varMap)
+                                _ = self.cur.execute(sql1 + comment, varMap)
                                 # set PandaID
                                 val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
                                 job.PandaID = int(val)
@@ -4181,7 +4181,6 @@ class JobComplexModule(BaseModule):
                 varMap[":attemptNr"] = fileSpec.attemptNr
             # set file status
             if fileSpec.type in ["input", "pseudo_input"]:
-                hasInput = True
                 updateAttemptNr = True
                 if (
                     (
@@ -4468,7 +4467,6 @@ class JobComplexModule(BaseModule):
                     async_params["exec_order"] += 1
                 # sql to update nFiles info
                 toUpdateFlag = False
-                eventsToRead = False
                 sqlJediDS = "UPDATE ATLAS_PANDA.JEDI_Datasets SET "
                 for tmpStatKey in tmpContentsStat:
                     tmpStatVal = tmpContentsStat[tmpStatKey]
@@ -4902,7 +4900,7 @@ class JobComplexModule(BaseModule):
             jobSpec.Files = []
             # check if event service job
             if not EventServiceUtils.isEventServiceJob(jobSpec):
-                tmp_log.debug(f"no event service job")
+                tmp_log.debug("no event service job")
                 # commit
                 if useCommit:
                     if not self._commit():
@@ -4930,7 +4928,7 @@ class JobComplexModule(BaseModule):
             ):
                 pass
             else:
-                tmp_log.debug(f"JEDI is not used")
+                tmp_log.debug("JEDI is not used")
                 # commit
                 if useCommit:
                     if not self._commit():
@@ -4953,7 +4951,7 @@ class JobComplexModule(BaseModule):
                 varMap[":fileID"] = lockFileSpec.fileID
                 tmp_log.debug(f"locking {str(varMap)}")
                 self.cur.execute(sqlLIF + comment, varMap)
-                tmp_log.debug(f"locked")
+                tmp_log.debug("locked")
             # change event status processed by jumbo jobs
             nRowDoneJumbo = 0
             nRowFailedJumbo = 0
@@ -5197,7 +5195,7 @@ class JobComplexModule(BaseModule):
                 doMerging = False
             # do nothing since other consumers are still running
             if otherRunning:
-                tmp_log.debug(f"do nothing as other consumers are still running")
+                tmp_log.debug("do nothing as other consumers are still running")
                 # commit
                 if useCommit:
                     if not self._commit():
@@ -5212,7 +5210,7 @@ class JobComplexModule(BaseModule):
             # all failed
             if doMerging and not hasDoneRange:
                 # fail immediately
-                tmp_log.debug(f"all event ranges failed")
+                tmp_log.debug("all event ranges failed")
                 # commit
                 if useCommit:
                     if not self._commit():
@@ -5221,7 +5219,7 @@ class JobComplexModule(BaseModule):
                 return retValue
             # fail immediately if not all events were done in the largest attemptNr
             if (jobSpec.attemptNr >= jobSpec.maxAttempt and not (doMerging and hasDoneRange)) or (doMerging and nRowFatal > 0):
-                tmp_log.debug(f"no more retry since not all events were done in the largest attemptNr")
+                tmp_log.debug("no more retry since not all events were done in the largest attemptNr")
                 # check if there is active consumer
                 sqlAC = "SELECT COUNT(*) FROM ("
                 sqlAC += "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
@@ -5250,7 +5248,7 @@ class JobComplexModule(BaseModule):
                 return retValue
             # no merging for inaction ES jobs
             if doMerging and nRowDoneJumbo == 0 and nRowDone == 0 and not job.allOkEvents():
-                tmp_log.debug(f"skip merge generation since nDone=0")
+                tmp_log.debug("skip merge generation since nDone=0")
                 retValue = 5, None
                 return retValue
             # change waiting file status
@@ -5371,7 +5369,7 @@ class JobComplexModule(BaseModule):
                         break
             if doMerging and currentJobStatus == "assigned":
                 # send merge jobs to activated since input data don't have to move
-                tmp_log.debug(f"sending to activated")
+                tmp_log.debug("sending to activated")
                 jobSpec.jobStatus = "activated"
             elif currentJobStatus in ["defined", "assigned", "waiting", "pending"]:
                 jobSpec.jobStatus = currentJobStatus
@@ -5518,7 +5516,7 @@ class JobComplexModule(BaseModule):
                 varMap[":newPandaID"] = self.cur.var(varNUMBER)
                 # insert
                 if not noNewJob:
-                    retI = self.cur.execute(sql1 + comment, varMap)
+                    _ = self.cur.execute(sql1 + comment, varMap)
                     # set PandaID
                     val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
                     jobSpec.PandaID = int(val)

@@ -1604,7 +1604,6 @@ class TaskComplexModule(BaseModule):
             self.cur.execute(sqlRT + comment, varMap)
             resList = self.cur.fetchall()
             retTasks = []
-            allTasks = []
             taskStatList = []
             for jediTaskID, taskStatus, eventService, site, useJumbo, splitRule in resList:
                 taskStatList.append((jediTaskID, taskStatus, eventService, site, useJumbo, splitRule))
@@ -1869,7 +1868,6 @@ class TaskComplexModule(BaseModule):
             taskDatasetMap = {}
             taskStatusMap = {}
             jediTaskIDList = []
-            taskAvalancheMap = {}
             taskUserPrioMap = {}
             taskPrioMap = {}
             taskUseJumboMap = {}
@@ -2341,7 +2339,6 @@ class TaskComplexModule(BaseModule):
                         varMap[":f_type"] = "pseudo_input"
                         self.cur.execute(sqlNRH + comment, varMap)
                         resNRH = self.cur.fetchall()
-                        numWorkersHPO = {}
                         totalNumWorkersHPO = 0
                         for tmpNumWorkersHPO, datasetIdHPO in resNRH:
                             totalNumWorkersHPO += tmpNumWorkersHPO
@@ -2546,7 +2543,7 @@ class TaskComplexModule(BaseModule):
                                 tmp_var_map = MERGE_TYPES_var_map
                             varMap.update(tmp_var_map)
                             if not fullSimulation:
-                                sqlDS += f"AND nFilesToBeUsed >= nFilesUsed "
+                                sqlDS += "AND nFilesToBeUsed >= nFilesUsed "
                             sqlDS += f"AND type IN ({tmp_var_names_str}) "
                             if simTasks is None:
                                 sqlDS += "AND status=:dsStatus "
@@ -3901,7 +3898,7 @@ class TaskComplexModule(BaseModule):
                             sqlTU += "SET status=:status,"
                         else:
                             if taskOldStatus is None:
-                                tmpLog.error("jediTaskID={0} has oldStatus=None and status={1} for ".format(jediTaskID, taskStatus, commandStr))
+                                tmpLog.error("jediTaskID={jediTaskID} has oldStatus=None and status={taskStatus} for {commandStr}")
                                 isOK = False
                             sqlTU += "SET status=oldStatus,"
                         if taskStatus in ["paused"] or sync_action_only:
@@ -4090,10 +4087,7 @@ class TaskComplexModule(BaseModule):
             sqlTK = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlTK += "SET modificationtime=CURRENT_DATE,frozenTime=CURRENT_DATE "
             sqlTK += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
-            # sql to check the number of finished files
-            sqlND = f"SELECT SUM(nFilesFinished) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlND += f"WHERE jediTaskID=:jediTaskID AND type IN ({INPUT_TYPES_var_str}) "
-            sqlND += "AND masterID IS NULL "
+
             # start transaction
             self.conn.begin()
             self.cur.execute(sqlTL + comment, varMap)
@@ -4118,16 +4112,7 @@ class TaskComplexModule(BaseModule):
                     # if timeout
                     if not parentRunning and timeoutDate is not None and frozenTime is not None and frozenTime < timeoutDate:
                         timeoutFlag = True
-                        # check the number of finished files
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap.update(INPUT_TYPES_var_map)
-                        self.cur.execute(sqlND + comment, varMap)
-                        tmpND = self.cur.fetchone()
-                        if tmpND is not None and tmpND[0] is not None and tmpND[0] > 0:
-                            abortingFlag = False
-                        else:
-                            abortingFlag = True
+
                         # go to exhausted
                         varMap = {}
                         varMap[":jediTaskID"] = jediTaskID
@@ -4404,7 +4389,6 @@ class TaskComplexModule(BaseModule):
                 else:
                     # get failure metrics
                     failure_metrics = get_metrics_module(self).get_task_failure_metrics(jediTaskID, False)
-                    var_map = {}
                     # check max attempts
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
@@ -4845,19 +4829,19 @@ class TaskComplexModule(BaseModule):
             if scope != "pseudo_dataset":
                 sqlUF = (
                     f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-                    f"SET status=:new_status "
-                    f"WHERE jediTaskID=:jediTaskID "
-                    f"AND status=:old_status "
+                    "SET status=:new_status "
+                    "WHERE jediTaskID=:jediTaskID "
+                    "AND status=:old_status "
                 )
                 sqlUF_with_lfn = sqlUF + "AND scope=:scope AND lfn=:lfn "
                 sqlUF_with_fileID = sqlUF + "AND fileID=:fileID "
             else:
                 sqlUF = (
                     f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-                    f"SET status=:new_status "
-                    f"WHERE jediTaskID=:jediTaskID "
-                    f"AND status=:old_status "
-                    f"AND scope IS NULL "
+                    "SET status=:new_status "
+                    "WHERE jediTaskID=:jediTaskID "
+                    "AND status=:old_status "
+                    "AND scope IS NULL "
                 )
                 sqlUF_with_lfn = sqlUF + "AND lfn like :lfn "
                 sqlUF_with_fileID = sqlUF + "AND fileID=:fileID "
@@ -4875,7 +4859,6 @@ class TaskComplexModule(BaseModule):
             varMap[":new_status"] = "pending"
             resGD = self.cur.fetchall()
             primaryID = None
-            params_key_list = []
             var_map_datasetids = {}
             dsid_var_names_str = ""
             if len(resGD) > 0:

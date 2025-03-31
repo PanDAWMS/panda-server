@@ -149,7 +149,7 @@ class JobStandaloneModule(BaseModule):
                         tmp_log.debug("message queue/topic not configured")
                 tmp_log.debug("done")
                 return True
-            except Exception as e:
+            except Exception:
                 # roll back
                 self._rollback()
                 if iTry + 1 < nTry:
@@ -186,7 +186,7 @@ class JobStandaloneModule(BaseModule):
                 n = self.cur.rowcount
                 if n == 0:
                     # already killed
-                    tmp_log.debug(f"Not found")
+                    tmp_log.debug("Not found")
                 else:
                     # update files
                     for file in job.Files:
@@ -420,7 +420,7 @@ class JobStandaloneModule(BaseModule):
                 res = self.cur.fetchone()
                 # not found
                 if res is None:
-                    raise RuntimeError(f"Not found for SELECT")
+                    raise RuntimeError("Not found for SELECT")
                 # instantiate Job
                 job = JobSpec()
                 job.pack(res)
@@ -554,7 +554,7 @@ class JobStandaloneModule(BaseModule):
                         # set metadata
                         job.metadata = resMeta
                         return job
-                tmp_log.debug(f"not found")
+                tmp_log.debug("not found")
                 return None
             except Exception:
                 # roll back
@@ -792,7 +792,6 @@ class JobStandaloneModule(BaseModule):
                 compactDN = dn
             debugStr = "debug"
             retStr = ""
-            retCode = False
             # loop over tables
             for table in ["ATLAS_PANDA.jobsDefined4", "ATLAS_PANDA.jobsActive4"]:
                 varMap = {}
@@ -1272,7 +1271,7 @@ class JobStandaloneModule(BaseModule):
         excluded_states = ["merging"]
 
         # sql template for jobs table
-        sql_template = f"SELECT computingSite, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, jobStatus"
+        sql_template = "SELECT computingSite, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, jobStatus"
         # sql template for statistics table (materialized view)
         sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
         sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
@@ -1568,22 +1567,22 @@ class JobStandaloneModule(BaseModule):
 
         # Construct the SQL query for active jobs
         sql_active = (
-            f"SELECT /* use_json_type */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
-            f"FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+            "SELECT /* use_json_type */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
+            "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             f"WHERE prodSourceLabel IN (:prodSourceLabelManaged, {prod_source_labels}) "
-            f"AND computingSite=tabS.panda_queue "
-            f"GROUP BY jobStatus, tabS.data.cloud, processingType"
+            "AND computingSite=tabS.panda_queue "
+            "GROUP BY jobStatus, tabS.data.cloud, processingType"
         )
 
         # Construct the SQL query for archived jobs
         sql_archived = (
-            f"SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
-            f"jobStatus, COUNT(*), tabS.data.cloud, processingType "
-            f"FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+            "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
+            "jobStatus, COUNT(*), tabS.data.cloud, processingType "
+            "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             f"WHERE prodSourceLabel IN (:prodSourceLabelManaged, {prod_source_labels}) "
-            f"AND modificationTime > :modificationTime "
-            f"AND computingSite = tabS.panda_queue "
-            f"GROUP BY jobStatus, tabS.data.cloud, processingType"
+            "AND modificationTime > :modificationTime "
+            "AND computingSite = tabS.panda_queue "
+            "GROUP BY jobStatus, tabS.data.cloud, processingType"
         )
 
         # sql for materialized view
@@ -1729,7 +1728,7 @@ class JobStandaloneModule(BaseModule):
                                 pass
                             job.addFile(file)
                         return job
-                tmp_log.debug(f"not found")
+                tmp_log.debug("not found")
                 return None
             except Exception:
                 # roll back
@@ -2025,7 +2024,6 @@ class JobStandaloneModule(BaseModule):
                 varMap[":type2"] = "pseudo_input"
                 self.cur.execute(sqlF + comment, varMap)
                 resF = self.cur.fetchall()
-                firstDatasetID = None
                 fileIDsMap = {}
                 for datasetID, fileID in resF:
                     if datasetID not in fileIDsMap:
@@ -2062,7 +2060,7 @@ class JobStandaloneModule(BaseModule):
                         break
                     elif resC[0] != "merging":
                         # not in merging
-                        tmp_log.debug("pre-merge job in {0} != merging".format(tmpPandaID, resC[0]))
+                        tmp_log.debug(f"pre-merge job in {tmpPandaID}: {resC[0]} != merging")
                         retVal = False
                         retMsg = tmpPandaID
                         break
@@ -2501,17 +2499,17 @@ class JobStandaloneModule(BaseModule):
                 )
                 if labels is not None:
                     sqlGR += "AND prodSourceLabel IN ("
-                    for l in labels:
-                        k = f":l_{l}"
-                        varMap[k] = l
+                    for label in labels:
+                        k = f":l_{label}"
+                        varMap[k] = label
                         sqlGR += f"{k},"
                     sqlGR = sqlGR[:-1]
                     sqlGR += ") "
                 if anti_labels is not None:
                     sqlGR += "AND prodSourceLabel NOT IN ("
-                    for l in anti_labels:
-                        k = f":al_{l}"
-                        varMap[k] = l
+                    for anti_label in anti_labels:
+                        k = f":al_{anti_label}"
+                        varMap[k] = anti_label
                         sqlGR += f"{k},"
                     sqlGR = sqlGR[:-1]
                     sqlGR += ") "

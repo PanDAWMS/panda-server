@@ -86,7 +86,7 @@ class WorkerModule(BaseModule):
 
             tmp_log.debug("done")
             return True, "OK"
-        except Exception as e:
+        except Exception:
             self._rollback()
             self.dump_error_message(tmp_log)
             return False, "database error"
@@ -449,7 +449,7 @@ class WorkerModule(BaseModule):
                 )
                 tmp_log.debug(f"Accepting {resource_types_under_target} resource types to respect mean memory target")
             else:
-                tmp_log.debug(f"Accepting all resource types as under memory target")
+                tmp_log.debug("Accepting all resource types as under memory target")
 
         for job_type in worker_stats[harvester_id]:
             workers_queued.setdefault(job_type, {})
@@ -910,13 +910,16 @@ class WorkerModule(BaseModule):
                 sqlCJ += "ATLAS_PANDA.Harvester_Rel_Jobs_Workers r,ATLAS_PANDA.jobsActive4 j  "
                 sqlCJ += "WHERE r.harvesterID=:harvesterID AND r.workerID=:workerID "
                 sqlCJ += "AND j.PandaID=r.PandaID AND NOT j.jobStatus IN (:holding) "
+
                 sqlJAC = "SELECT jobStatus,prodSourceLabel,attemptNr FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID  "
-                sqlJAA = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
+
                 sqlJAE = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag,"
                 sqlJAE += "startTime=(CASE WHEN jobStatus=:starting THEN NULL ELSE startTime END) "
                 sqlJAE += "WHERE PandaID=:PandaID "
+
                 sqlJSE = "UPDATE {0} SET supErrorCode=:code,supErrorDiag=:diag,stateChangeTime=CURRENT_DATE "
                 sqlJSE += "WHERE PandaID=:PandaID AND NOT jobStatus IN (:finished) AND modificationTime>CURRENT_DATE-30"
+
                 varMap = dict()
                 varMap[":harvesterID"] = harvesterID
                 varMap[":workerID"] = workerData["workerID"]

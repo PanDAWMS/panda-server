@@ -1,3 +1,5 @@
+# flake8: noqa: F401
+
 """
 proxy for database connection
 

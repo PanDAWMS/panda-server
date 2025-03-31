@@ -4,7 +4,7 @@ import random
 import re
 import traceback
 from collections import namedtuple
-from dataclasses import MISSING, InitVar, asdict, dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
@@ -256,7 +256,7 @@ def get_resubmit_request_spec(dc_req_spec: DataCarouselRequestSpec) -> DataCarou
     Returns:
         DataCarouselRequestSpec|None : spec of the request to resubmit, or None if failed
     """
-    tmp_log = LogWrapper(logger, f"get_resubmit_request_spec")
+    tmp_log = LogWrapper(logger, "get_resubmit_request_spec")
     try:
         # make new request spec
         now_time = naive_utcnow()
@@ -383,15 +383,15 @@ class DataCarouselInterface(object):
             last_update_ts = self._last_update_ts_dict[nickname]
             if last_update_ts is None or (now_time - last_update_ts) >= timedelta(minutes=time_limit_minutes):
                 # get DC config from DB
-                res_dict = self.taskBufferIF.getConfigValue("data_carousel", f"DATA_CAROUSEL_CONFIG", "jedi", "atlas")
+                res_dict = self.taskBufferIF.getConfigValue("data_carousel", "DATA_CAROUSEL_CONFIG", "jedi", "atlas")
                 if res_dict is None:
-                    tmp_log.error(f"got None from DB ; skipped")
+                    tmp_log.error("got None from DB ; skipped")
                     return
                 # check schema version
                 try:
                     schema_version = res_dict["metadata"]["schema_version"]
                 except KeyError:
-                    tmp_log.error(f"failed to get metadata.schema_version ; skipped")
+                    tmp_log.error("failed to get metadata.schema_version ; skipped")
                     return
                 else:
                     if schema_version != DC_CONFIG_SCHEMA_VERSION:
@@ -400,7 +400,7 @@ class DataCarouselInterface(object):
                 # get config data
                 dc_config_data_dict = res_dict.get("data")
                 if dc_config_data_dict is None:
-                    tmp_log.error(f"got empty config data; skipped")
+                    tmp_log.error("got empty config data; skipped")
                     return
                 # update
                 self.dc_config_map = DataCarouselMainConfig(**dc_config_data_dict)
@@ -420,7 +420,7 @@ class DataCarouselInterface(object):
             list[int]|None : list of jediTaskID of related tasks, or None if failed
         """
         # tmp_log = LogWrapper(logger, f"_get_related_tasks request_id={request_id}")
-        sql = f"SELECT task_id " f"FROM {panda_config.schemaJEDI}.data_carousel_relations " f"WHERE request_id=:request_id " f"ORDER BY task_id "
+        sql = "SELECT task_id " f"FROM {panda_config.schemaJEDI}.data_carousel_relations " "WHERE request_id=:request_id " "ORDER BY task_id "
         var_map = {":request_id": request_id}
         res = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
         if res is not None:
@@ -501,7 +501,7 @@ class DataCarouselInterface(object):
             else:
                 rse_expression_list.append(rule["rse_expression"])
         filtered_replicas_map = {"tape": [], "datadisk": []}
-        has_datadisk_replica = len(replicas_map["datadisk"]) > 0
+        # has_datadisk_replica = len(replicas_map["datadisk"]) > 0
         has_disk_replica = len(replicas_map["disk"]) > 0
         for replica in replicas_map["tape"]:
             if replica in rse_expression_list:
@@ -536,14 +536,14 @@ class DataCarouselInterface(object):
             collection_meta = self.ddmIF.getDatasetMetaData(collection, ignore_missing=True)
             if collection_meta["state"] == "missing":
                 # DID not found
-                tmp_log.warning(f"DID not found")
+                tmp_log.warning("DID not found")
                 return None
             did_type = collection_meta["did_type"]
             if did_type == "CONTAINER":
                 # is container, get datasets inside
                 dataset_list = self.ddmIF.listDatasetsInContainer(collection)
                 if dataset_list is None:
-                    tmp_log.warning(f"cannot list datasets in this container")
+                    tmp_log.warning("cannot list datasets in this container")
                 else:
                     ret_list = dataset_list
             elif did_type == "DATASET":
@@ -564,7 +564,7 @@ class DataCarouselInterface(object):
         Returns:
             set[str] | None : set of source tapes if successful; None if failed with exception
         """
-        tmp_log = LogWrapper(logger, f"_get_active_source_tapes")
+        tmp_log = LogWrapper(logger, "_get_active_source_tapes")
         try:
             active_source_tapes_set = {tape for tape, tape_config in self.dc_config_map.source_tapes_config.items() if tape_config.active}
         except Exception:
@@ -581,7 +581,7 @@ class DataCarouselInterface(object):
         Returns:
             set[str] | None : set of source RSEs if successful; None if failed with exception
         """
-        tmp_log = LogWrapper(logger, f"_get_active_source_tapes")
+        tmp_log = LogWrapper(logger, "_get_active_source_tapes")
         try:
             active_source_tapes = self._get_active_source_tapes()
             active_source_rses_set = set()
@@ -643,7 +643,7 @@ class DataCarouselInterface(object):
                 # condiser unfound if no active source tape
                 if not rse_set:
                     source_type = None
-                    tmp_log.warning(f"all its source tapes are inactive")
+                    tmp_log.warning("all its source tapes are inactive")
                 # dataset pinning
                 if all_disk_repli_ruleless:
                     # replica on disks but without rule to pin on datadisk; to pin the dataset to datadisk
@@ -877,7 +877,7 @@ class DataCarouselInterface(object):
         Returns:
             polars.DataFrame|None : dataframe of current Data Carousel requests table if successful, or None if failed
         """
-        sql = f"SELECT {','.join(DataCarouselRequestSpec.attributes)} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"ORDER BY request_id "
+        sql = f"SELECT {','.join(DataCarouselRequestSpec.attributes)} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " "ORDER BY request_id "
         var_map = {}
         res = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
         if res is not None:
@@ -1149,7 +1149,7 @@ class DataCarouselInterface(object):
             source_replica_expression = f"{SRC_REPLI_EXPR_PREFIX}|{dc_req_spec.source_rse}"
         else:
             # no source_rse; unexpected
-            tmp_log.warning(f"source_rse is None ; skipped")
+            tmp_log.warning("source_rse is None ; skipped")
             return
         # get source physical tape
         try:
@@ -1176,7 +1176,7 @@ class DataCarouselInterface(object):
         # destination expression
         if dc_req_spec.get_parameter("to_pin"):
             # to pin; use the simple to pin destination
-            tmp_log.debug(f"has to_pin")
+            tmp_log.debug("has to_pin")
             expression = TO_PIN_DST_REPLI_EXPR
         else:
             # destination_expression from DC config
@@ -1224,7 +1224,7 @@ class DataCarouselInterface(object):
                 tmp_log.debug(f"submitted DDM rule ddm_rule_id={ddm_rule_id}")
             else:
                 # failed to submit
-                tmp_log.warning(f"failed to submitted DDM rule ; skipped")
+                tmp_log.warning("failed to submitted DDM rule ; skipped")
                 return is_ok
         # update request to be staging
         now_time = naive_utcnow()
@@ -1254,12 +1254,12 @@ class DataCarouselInterface(object):
         # cancel
         ret = self.taskBufferIF.cancel_data_carousel_request_JEDI(request_id)
         if ret:
-            tmp_log.debug(f"cancelled")
+            tmp_log.debug("cancelled")
         elif ret == 0:
-            tmp_log.debug(f"already terminated; skipped")
+            tmp_log.debug("already terminated; skipped")
         else:
-            tmp_log.error(f"failed to cancel")
-        # return
+            tmp_log.error("failed to cancel")
+
         return ret
 
     def retire_request(self, request_id: int, by: str = "manual", reason: str | None = None) -> bool | None:
@@ -1278,11 +1278,11 @@ class DataCarouselInterface(object):
         # cancel
         ret = self.taskBufferIF.retire_data_carousel_request_JEDI(request_id)
         if ret:
-            tmp_log.debug(f"retired")
+            tmp_log.debug("retired")
         elif ret == 0:
-            tmp_log.debug(f"cannot retire; skipped")
+            tmp_log.debug("cannot retire; skipped")
         else:
-            tmp_log.error(f"failed to retire")
+            tmp_log.error("failed to retire")
         # return
         return ret
 
@@ -1326,9 +1326,9 @@ class DataCarouselInterface(object):
             tmp_log.error(f"ddm_rule_id={ddm_rule_id} rule not found")
             tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
             if tmp_ret is not None:
-                tmp_log.debug(f"updated DB about rule not found")
+                tmp_log.debug("updated DB about rule not found")
             else:
-                tmp_log.error(f"failed to update DB ; skipped")
+                tmp_log.error("failed to update DB ; skipped")
             # try to cancel or retire request
             if dc_req_spec.status == DataCarouselRequestStatus.staging:
                 # requests staging but DDM rule not found; to cancel
@@ -1436,7 +1436,7 @@ class DataCarouselInterface(object):
                         n_done_tasks += 1
                 tmp_log.debug(f"updated staged files for {n_done_tasks}/{len(task_id_list)} related tasks")
             else:
-                tmp_log.warning(f"failed to get related tasks; skipped")
+                tmp_log.warning("failed to get related tasks; skipped")
             # return
             return True
         except Exception:
@@ -1449,9 +1449,9 @@ class DataCarouselInterface(object):
         tmp_log = LogWrapper(logger, "check_staging_requests")
         dc_req_specs = self.taskBufferIF.get_data_carousel_staging_requests_JEDI()
         if dc_req_specs is None:
-            tmp_log.warning(f"failed to query requests to check ; skipped")
+            tmp_log.warning("failed to query requests to check ; skipped")
         elif not dc_req_specs:
-            tmp_log.debug(f"got no requests to check ; skipped")
+            tmp_log.debug("got no requests to check ; skipped")
         for dc_req_spec in dc_req_specs:
             try:
                 to_update = False
@@ -1690,29 +1690,29 @@ class DataCarouselInterface(object):
                     # done requests
                     ret = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(done_requests_set))
                     if ret is None:
-                        tmp_log.warning(f"failed to delete done requests; skipped")
+                        tmp_log.warning("failed to delete done requests; skipped")
                     else:
                         tmp_log.debug(f"deleted {ret} done requests older than {done_age_limit_days} days or rule not found")
                 if cancelled_requests_set:
                     # cancelled requests
                     ret = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(cancelled_requests_set))
                     if ret is None:
-                        tmp_log.warning(f"failed to delete cancelled requests; skipped")
+                        tmp_log.warning("failed to delete cancelled requests; skipped")
                     else:
                         tmp_log.debug(f"deleted {ret} cancelled requests")
                 if retired_requests_set:
                     # retired requests
                     ret = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(retired_requests_set))
                     if ret is None:
-                        tmp_log.warning(f"failed to delete retired requests; skipped")
+                        tmp_log.warning("failed to delete retired requests; skipped")
                     else:
                         tmp_log.debug(f"deleted {ret} retired requests")
             else:
-                tmp_log.debug(f"no terminated requests to delete; skipped")
+                tmp_log.debug("no terminated requests to delete; skipped")
             # clean up outdated requests
             ret_outdated = self.taskBufferIF.clean_up_data_carousel_requests_JEDI(time_limit_days=outdated_age_limit_days)
             if ret_outdated is None:
-                tmp_log.warning(f"failed to delete outdated requests; skipped")
+                tmp_log.warning("failed to delete outdated requests; skipped")
             else:
                 tmp_log.debug(f"deleted {ret_outdated} outdated requests older than {outdated_age_limit_days} days")
         except Exception:
@@ -1789,12 +1789,12 @@ class DataCarouselInterface(object):
                     tmp_log.debug(f"related tasks: {task_id_list}")
                     for task_id in task_id_list:
                         self._submit_idds_stagein_request(task_id, dc_req_spec_resubmitted)
-                    tmp_log.debug(f"submitted corresponding iDDS requests for related tasks")
+                    tmp_log.debug("submitted corresponding iDDS requests for related tasks")
                 else:
-                    tmp_log.warning(f"failed to get related tasks; skipped to submit iDDS requests")
+                    tmp_log.warning("failed to get related tasks; skipped to submit iDDS requests")
         elif dc_req_spec_resubmitted is False:
-            tmp_log.warning(f"request not found or not resubmittable; skipped")
+            tmp_log.warning("request not found or not resubmittable; skipped")
         else:
-            tmp_log.error(f"failed to resubmit")
+            tmp_log.error("failed to resubmit")
         # return
         return dc_req_spec_resubmitted

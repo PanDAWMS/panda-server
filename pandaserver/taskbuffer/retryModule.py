@@ -43,7 +43,7 @@ def safe_match(pattern, message):
     """
     Wrapper around re.search with simple exception handling
     """
-    tmp_log = LogWrapper(_logger, f"safe_match")
+    tmp_log = LogWrapper(_logger, "safe_match")
 
     matches = False
     try:
@@ -68,7 +68,7 @@ def conditions_apply(
     Checks that the error regexp, architecture, release and work queue of rule and job match,
     only in case the attributes are defined for the rule
     """
-    tmp_log = LogWrapper(_logger, f"conditions_apply")
+    tmp_log = LogWrapper(_logger, "conditions_apply")
     tmp_log.debug(f"Start {locals()}")
     if (
         (errordiag_rule and not safe_match(errordiag_rule, errordiag_job))
@@ -87,7 +87,7 @@ def compare_strictness(rule1, rule2):
     """
     Return 1 if rule1 is stricter, 0 if equal, -1 if rule2 is stricter
     """
-    tmp_log = LogWrapper(_logger, f"compare_strictness")
+    tmp_log = LogWrapper(_logger, "compare_strictness")
     tmp_log.debug("Start")
     rule1_weight = 0
     if rule1["architecture"]:
@@ -122,7 +122,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
          resolve into the strictest rule, in our example (limit_retry = 5)
     - Bad intended rules, e.g. (action=limit_retry, maxAttempt=5) vs (action=limit_retry, maxAttempt=7, release=X):
     """
-    tmp_log = LogWrapper(_logger, f"preprocess_rules")
+    tmp_log = LogWrapper(_logger, "preprocess_rules")
     tmp_log.debug("Start")
     filtered_rules = []
     limit_retry_rule = {}
@@ -461,7 +461,7 @@ def classify_error(task_buffer, job_id, job_errors):
     var_map = []
     status, rules = task_buffer.querySQLS(sql, var_map)
     if not rules:
-        tmp_log.debug(f"No error classification rules defined in the database")
+        tmp_log.debug("No error classification rules defined in the database")
         return None
 
     # Iterate job errors and rules to find a match
@@ -479,13 +479,13 @@ def classify_error(task_buffer, job_id, job_errors):
                 tmp_log.debug(f"Job classified with rule {rule_id}: ({err_source}, {err_code}, {err_diag}) as {rule_class} (active: {active})")
                 return rule_id, rule_source, rule_code, rule_diag, rule_class, active
 
-    tmp_log.debug(f"No matching rule found")
+    tmp_log.debug("No matching rule found")
     return None
 
 
 @timeit
 def apply_error_classification_logic(task_buffer, job):
-    tmp_log = LogWrapper(_logger, f"apply_error_classification_logic")
+    tmp_log = LogWrapper(_logger, "apply_error_classification_logic")
 
     # Find the error source and getting the code, diag, and source
     job_errors = get_job_error_details(job)

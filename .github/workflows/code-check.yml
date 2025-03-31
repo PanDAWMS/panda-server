@@ -1,0 +1,29 @@
+name: Flake8 Check
+
+on: [pull_request]
+
+jobs:
+  check-syntax:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install flake8
+      run: pip install flake8
+
+    - name: Run flake8 on changed files
+      run: |
+        files=$(git diff --name-only origin/master...HEAD -- '*.py')
+        if [ -n "$files" ]; then
+          echo "$files" | xargs flake8
+        else
+          echo "No Python files changed."
+        fi

@@ -3673,28 +3673,28 @@ class EntityModule(BaseModule):
 
         # sql to query on pre-cached job statistics tables, creating a single result set with active gshares and resource workqueues
         sql_get_active_combinations = f"""
-            WITH gshare_results AS ( 
-            SELECT /*+ RESULT_CACHE */ gshare AS name, resource_type 
-            FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS 
-            WHERE vo=:vo 
-            UNION 
-            SELECT /*+ RESULT_CACHE */ gshare AS name, resource_type 
-            FROM {panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS 
-            WHERE vo=:vo 
-            ), wq_results AS ( 
-            SELECT jwq.QUEUE_NAME AS name, jss.resource_type 
-            FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS jss 
-            JOIN {panda_config.schemaPANDA}.JEDI_WORK_QUEUE jwq ON jss.WORKQUEUE_ID = jwq.QUEUE_ID 
-            WHERE jwq.QUEUE_FUNCTION = 'Resource' AND jss.vo=:vo AND jwq.vo=:vo 
-            UNION 
-            SELECT jwq.QUEUE_NAME AS name, jss.resource_type 
-            FROM {panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS jss 
-            JOIN {panda_config.schemaPANDA}.JEDI_WORK_QUEUE jwq ON jss.WORKQUEUE_ID = jwq.QUEUE_ID 
-            WHERE jwq.QUEUE_FUNCTION = 'Resource' AND jss.vo=:vo AND jwq.vo=:vo 
-            ) 
-            SELECT name, resource_type FROM gshare_results 
-            UNION 
-            SELECT name, resource_type FROM wq_results 
+            WITH gshare_results AS (
+            SELECT /*+ RESULT_CACHE */ gshare AS name, resource_type
+            FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS
+            WHERE vo=:vo
+            UNION
+            SELECT /*+ RESULT_CACHE */ gshare AS name, resource_type
+            FROM {panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS
+            WHERE vo=:vo
+            ), wq_results AS (
+            SELECT jwq.QUEUE_NAME AS name, jss.resource_type
+            FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS jss
+            JOIN {panda_config.schemaPANDA}.JEDI_WORK_QUEUE jwq ON jss.WORKQUEUE_ID = jwq.QUEUE_ID
+            WHERE jwq.QUEUE_FUNCTION = 'Resource' AND jss.vo=:vo AND jwq.vo=:vo
+            UNION
+            SELECT jwq.QUEUE_NAME AS name, jss.resource_type
+            FROM {panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS jss
+            JOIN {panda_config.schemaPANDA}.JEDI_WORK_QUEUE jwq ON jss.WORKQUEUE_ID = jwq.QUEUE_ID
+            WHERE jwq.QUEUE_FUNCTION = 'Resource' AND jss.vo=:vo AND jwq.vo=:vo
+            )
+            SELECT name, resource_type FROM gshare_results
+            UNION
+            SELECT name, resource_type FROM wq_results
             GROUP BY name, resource_type
         """
 

@@ -9,29 +9,23 @@ import uuid
 
 import numpy
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandacommon.pandautils.PandaUtils import (
-    batched,
-    get_sql_IN_bind_variables,
-    naive_utcnow,
-)
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
-from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMBER
+from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediDatasetSpec import (
     INPUT_TYPES_var_map,
     INPUT_TYPES_var_str,
-    JediDatasetSpec,
     MERGE_TYPES_var_map,
     MERGE_TYPES_var_str,
     PROCESS_TYPES_var_map,
     PROCESS_TYPES_var_str,
 )
 from pandaserver.taskbuffer.JediFileSpec import JediFileSpec
-from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec, is_msg_driven
-from pandaserver.taskbuffer.JobSpec import JobSpec, get_task_queued_time
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 
 # Module class to define task related methods that are used by TaskComplex methods
@@ -249,7 +243,7 @@ class TaskUtilsModule(BaseModule):
             if nJumbo > maxJumbo:
                 tmpLog.debug(f"False since nJumbo={nJumbo} > maxJumbo={maxJumbo}")
                 return False
-            tmpLog.debug("True since nJumbo={0} < maxJumbo={1} and nEvents={0} > minEventsJumbo={1}".format(nJumbo, maxJumbo, nEvents, minEvents))
+            tmpLog.debug(f"True since nJumbo={nJumbo} < maxJumbo={maxJumbo} and nEvents={nEvents} > minEventsJumbo={minEvents}")
             return True
         except Exception:
             # roll back
@@ -1183,7 +1177,7 @@ class TaskUtilsModule(BaseModule):
             if taskSpec.status != "exhausted":
                 memory_leak_core_max = self.getConfigValue("dbproxy", f"SCOUT_MEM_LEAK_PER_CORE_{taskSpec.prodSourceLabel}", "jedi")
                 memory_leak_core = scoutData.get("memory_leak_core")
-                memory_leak_x2 = scoutData.get("memory_leak_x2")  # TODO: decide what to do with it
+                # memory_leak_x2 = scoutData.get("memory_leak_x2")  # TODO: decide what to do with it
                 if memory_leak_core and memory_leak_core_max and memory_leak_core > memory_leak_core_max:
                     errMsg = f"#ATM #KV action=set_exhausted since reason=scout_memory_leak {memory_leak_core} is larger than {memory_leak_core_max}"
                     tmpLog.info(errMsg)
@@ -1538,7 +1532,7 @@ class TaskUtilsModule(BaseModule):
         comment = " /* JediDBProxy.killChildTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
-        retTasks = []
+
         try:
             # sql to get child tasks
             sqlGT = f"SELECT jediTaskID,status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
