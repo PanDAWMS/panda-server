@@ -55,7 +55,7 @@ class TaskEvaluationDB(object):
         # sql
         sql_query_taskid = "SELECT jediTaskID FROM ATLAS_PANDA.Task_Evaluation WHERE metric = :metric"
         sql_update = (
-            "UPDATE ATLAS_PANDA.Task_Evaluation " "SET value_json = :patch_value_json, timestamp = :timestamp " "WHERE jediTaskID=:taskID AND metric=:metric "
+            "UPDATE ATLAS_PANDA.Task_Evaluation SET value_json = :patch_value_json, timestamp = :timestamp WHERE jediTaskID=:taskID AND metric=:metric "
         )
         sql_insert = "INSERT INTO ATLAS_PANDA.Task_Evaluation VALUES (:taskID, :metric, :patch_value_json, :timestamp)"
         # now
