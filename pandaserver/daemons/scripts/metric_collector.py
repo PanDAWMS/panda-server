@@ -160,7 +160,7 @@ class MetricsDB(object):
             "SET value_json = :patch_value_json , timestamp = :timestamp "
             "WHERE computingSite=:site AND gshare=:gshare AND metric=:metric "
         )
-        sql_insert = "INSERT INTO ATLAS_PANDA.Metrics " "VALUES (:site, :gshare, :metric, :patch_value_json, :timestamp)"
+        sql_insert = "INSERT INTO ATLAS_PANDA.Metrics VALUES (:site, :gshare, :metric, :patch_value_json, :timestamp)"
         # now
         now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # var map template
