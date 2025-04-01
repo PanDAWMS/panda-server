@@ -2069,6 +2069,7 @@ class JobComplexModule(BaseModule):
         prod_user_id,
         task_id,
         average_memory_limit,
+        remaining_time,
     ):
         get_val_map = {":oldJobStatus": "activated", ":computingSite": site_name}
 
@@ -2081,6 +2082,10 @@ class JobComplexModule(BaseModule):
         if disk_space not in [0, "0"]:
             sql_where_clause += "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
             get_val_map[":maxDiskCount"] = disk_space
+
+        if remaining_time > 0:
+            sql_where_clause += "AND (maxWalltime IS NULL OR maxWalltime<=:maxWalltime) "
+            get_val_map[":maxWalltime"] = remaining_time
 
         if background is True:
             sql_where_clause += "AND jobExecutionID=1 "
@@ -2162,6 +2167,7 @@ class JobComplexModule(BaseModule):
         jobType,
         is_gu,
         via_topic,
+        remaining_time,
     ):
         """
         1. Construct where clause (sql_where_clause) based on applicable filters for request
@@ -2220,6 +2226,7 @@ class JobComplexModule(BaseModule):
             prod_user_id=prodUserID,
             task_id=taskID,
             average_memory_limit=average_memory_limit,
+            remaining_time=remaining_time,
         )
 
         # get the sorting criteria (global shares, age, etc.)

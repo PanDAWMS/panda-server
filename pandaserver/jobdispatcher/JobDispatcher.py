@@ -159,6 +159,7 @@ class JobDispatcher:
         schedulerID,
         jobType,
         via_topic,
+        remaining_time,
         tmpLog,
     ):
         t_getJob_start = time.time()
@@ -201,6 +202,7 @@ class JobDispatcher:
             jobType,
             is_gu,
             via_topic,
+            remaining_time,
         )
 
         if isinstance(tmpWrapper.result, list):
@@ -865,6 +867,7 @@ def getJob(
     schedulerID=None,
     jobType=None,
     viaTopic=None,
+    remaining_time=None,
 ):
     tmpLog = LogWrapper(_logger, f"getJob {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
     tmpLog.debug(siteName)
@@ -886,7 +889,7 @@ def getJob(
         getProxyKey = True
     else:
         getProxyKey = False
-    # convert mem and diskSpace
+    # convert mem, diskSpace, remaining_time
     try:
         mem = int(float(mem))
         if mem < 0:
@@ -899,6 +902,10 @@ def getJob(
             diskSpace = 0
     except Exception:
         diskSpace = 0
+    try:
+        remaining_time = max(0, int(remaining_time))
+    except Exception:
+        remaining_time = 0
     if background == "True":
         background = True
     else:
@@ -913,7 +920,7 @@ def getJob(
         f"c_group={countryGroup},w_group={workingGroup},{allowOtherCountry},taskID={taskID},DN={realDN},"
         f"role={prodManager},FQAN={str(fqans)},json={req.acceptJson()},"
         f"bg={background},rt={resourceType},harvester_id={harvester_id},worker_id={worker_id},"
-        f"schedulerID={schedulerID},jobType={jobType},viaTopic={viaTopic}"
+        f"schedulerID={schedulerID},jobType={jobType},viaTopic={viaTopic} remaining_time={remaining_time}"
     )
     try:
         dummyNumSlots = int(nJobs)
@@ -954,6 +961,7 @@ def getJob(
         schedulerID,
         jobType,
         viaTopic,
+        remaining_time,
         tmpLog,
     )
 
