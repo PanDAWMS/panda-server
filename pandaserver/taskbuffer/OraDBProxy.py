@@ -1,3 +1,5 @@
+# flake8: noqa: F401
+
 """
 proxy for database connection
 
@@ -48,7 +50,6 @@ else:
 
 warnings.filterwarnings("ignore")
 
-# logger
 _logger = PandaLogger().getLogger("DBProxy")
 _loggerFiltered = PandaLogger().getLogger("DBProxyFiltered")
 

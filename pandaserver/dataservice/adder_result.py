@@ -3,10 +3,12 @@ Class to represent the result of the Adder operation
 
 """
 
+
 class AdderResult:
     """
     Class to represent the result of the Adder operation.
     """
+
     # slot
     __slot__ = ("statusCode", "transferringFiles")
 

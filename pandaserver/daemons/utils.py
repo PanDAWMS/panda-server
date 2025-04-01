@@ -69,7 +69,6 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
     # pid of the worker
     my_pid = os.getpid()
     my_full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{my_pid}"
-    # logger to log in file
     base_logger = logger_utils.setup_logger("daemons")
     tmp_log = logger_utils.make_logger(base_logger, f"worker_pid={my_pid}")
     tmp_log.info("daemon worker start")
@@ -387,7 +386,6 @@ class DaemonMaster(object):
 
     # constructor
     def __init__(self, logger, n_workers=1, n_dbconn=1, worker_lifetime=28800, use_tbif=False):
-        # logger
         self.logger = logger
         # number of daemon worker processes
         self.n_workers = n_workers
@@ -649,7 +647,7 @@ class DaemonMaster(object):
         # warning about delayed scripts
         if n_super_delayed_dems > 0 and (
             ((last_warn_super_delayed_ts := self.global_state_map.get("last_warn_super_delayed_ts")) is None or now_ts - last_warn_super_delayed_ts >= 300)
-            or n_super_delayed_dems != (last_n_super_delayed_dems := self.global_state_map.get("last_n_super_delayed_dems"))
+            or n_super_delayed_dems != (self.global_state_map.get("last_n_super_delayed_dems"))
         ):
             self.logger.warning(f"{n_super_delayed_dems} delayed scripts")
             self.global_state_map["last_warn_super_delayed_ts"] = now_ts

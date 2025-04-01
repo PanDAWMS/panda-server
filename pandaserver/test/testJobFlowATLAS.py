@@ -9,6 +9,7 @@ You can run the test as
 $ nosetests test_job_flow_ATLAS.py
 $ python test_job_flow_ATLAS.py
 """
+
 import socket
 import sys
 import time
@@ -23,9 +24,10 @@ except ImportError:
 
 import hashlib
 
-import pandaserver.userinterface.Client as Client
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+
+import pandaserver.userinterface.Client as Client
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
@@ -292,7 +294,7 @@ def testFlow():
     # Step 2: Check the state of the jobs. They should all be in state 'activated'
     # TODO: Improve and wait for the jobs in defined state
     time.sleep(10)  # It takes usually 7 seconds on the testbed
-    jobInfoList = test.getStatus(["defined", "activated"])
+    _ = test.getStatus(["defined", "activated"])
 
     # Step 3: Get the job (PanDA server believes the pilot got the job)
     time.sleep(1)

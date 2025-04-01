@@ -9,7 +9,6 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
 
-# logger
 _logger = PandaLogger().getLogger("MailUtils")
 
 
@@ -96,10 +95,10 @@ Report Panda problems of any sort to
 
   the eGroup for help request
     hn-atlas-dist-analysis-help@cern.ch
-    
-  the Discourse forum for distributed computing help  
+
+  the Discourse forum for distributed computing help
     https://atlas-talk.web.cern.ch/c/distributed-computing-help
-    
+
   the Panda JIRA for software bug
     https://its.cern.ch/jira/browse/ATLASPANDA
 """

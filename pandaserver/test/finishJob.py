@@ -8,6 +8,7 @@ from http.client import HTTPSConnection
 from urllib.parse import urlencode
 
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
@@ -59,14 +60,7 @@ for tmpFile in job.Files:
             outFileName.append(tmpFile.lfn)
     if tmpFile.type in ["output", "log"]:
         fileList = []
-        if False:  # tmpFile.type == 'output':# and iOut > 0:
-            for i in range(8):
-                newFile = copy.copy(tmpFile)
-                newFile.lfn += f"._00{i}"
-                fileList.append(newFile)
-            # continue
-        else:
-            fileList.append(tmpFile)
+        fileList.append(tmpFile)
         iOut += 1
         for file in fileList:
             file.GUID = str(uuid.uuid4())

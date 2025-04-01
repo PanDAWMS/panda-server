@@ -334,6 +334,8 @@ class WrappedCursor(object):
         return ret
 
     def _returningIntoOracle(self, returningInputData, varDict, cur, dryRun=False):
+        import oracledb
+
         # returningInputData=[{'returning': 'PandaID', 'into': ':newPandaID'}, {'returning': 'row_ID', 'into': ':newRowID'}]
         result = ""
         if returningInputData is not None:
@@ -373,7 +375,7 @@ class WrappedCursor(object):
         # returningInputData=[{'returning': 'PandaID', 'into': ':newPandaID'}, {'returning': 'row_ID', 'into': ':newRowID'}]
         result = int(0)
         if len(returningInputData) == 1:
-            ret = self.cur.execute(""" SELECT LAST_INSERT_ID() """)
+            self.cur.execute(""" SELECT LAST_INSERT_ID() """)
             (result,) = self.cur.fetchone()
             if returningInputData is not None:
                 try:
@@ -397,14 +399,14 @@ class WrappedCursor(object):
         self.cur.arraysize = arraysize
         return self.cur.fetchmany()
 
-    # fetchall
+    # fetchone
     def fetchone(self):
         return self.cur.fetchone()
 
     # var
     def var(self, dataType, *args, **kwargs):
         if self.backend == "mysql":
-            return apply(dataType, [0])
+            return dataType(0)
         elif self.backend == "postgres":
             return None
         else:

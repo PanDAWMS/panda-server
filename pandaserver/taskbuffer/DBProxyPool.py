@@ -14,11 +14,11 @@ import time
 from threading import Lock
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import OraDBProxy as DBProxy
 from pandaserver.taskbuffer.ConBridge import ConBridge
 
-# logger
 _logger = PandaLogger().getLogger("DBProxyPool")
 
 

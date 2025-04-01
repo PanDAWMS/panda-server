@@ -51,7 +51,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list of tupes with (status, command). When unsuccessful, the message field contains the error message and data an error code.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list of tuples with (status, command). When unsuccessful, the message field contains the error message and data an error code.
     """
     tmp_logger = LogWrapper(_logger, f"get_status job_ids={job_ids} timeout={timeout}")
     tmp_logger.debug("Start")
@@ -68,7 +68,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
 
     # No result
     if not isinstance(timed_method.result, list):
-        tmp_logger.debug(f"Failed")
+        tmp_logger.debug("Failed")
         return generate_response(False, message="failed", data={"code": Protocol.SC_Failed})
 
     # Success
@@ -78,7 +78,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_description(self, job_ids: List[int]) -> Dict:
+def get_description(req: PandaRequest, job_ids: List[int]) -> Dict:
     """
     Get description of a job.
 
@@ -96,7 +96,7 @@ def get_description(self, job_ids: List[int]) -> Dict:
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list with job descriptions. When unsuccessful, the message field contains the error message and data an error code.
     """
-    tmp_logger = LogWrapper(_logger, f"get_description")
+    tmp_logger = LogWrapper(_logger, "get_description")
     tmp_logger.debug("Start")
 
     try:
@@ -131,12 +131,11 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
     Args:
         req(PandaRequest): internally generated request object containing the env variables.
         job_ids (List[int]): List of PanDA job IDs.
-        timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list with job descriptions. When unsuccessful, the message field contains the error message and data an error code.
     """
-    tmp_logger = LogWrapper(_logger, f"get_description_including_archive")
+    tmp_logger = LogWrapper(_logger, "get_description_including_archive")
     tmp_logger.debug("Start")
 
     try:
@@ -158,7 +157,7 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int = None) -> Dict:
+def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int = 30) -> Dict:
     """
     Get execution script for a job.
 
@@ -171,7 +170,7 @@ def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
         job_id (int): PanDA job ID
-        timeout (int, optional): The timeout value. Defaults to 60.
+        days (int, optional): The number of days to look for the job_id. Defaults to `30`.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field will contain `{"script": script}`. When unsuccessful, the message field contains the error message and data an error code.
@@ -263,12 +262,12 @@ def kill(req, job_ids: List[int], code: int = None, use_email_as_id: bool = Fals
     is_production_manager = has_production_role(req)
     fqans = get_fqan(req)
 
-    tmp_logger = LogWrapper(_logger, f"kill")
+    tmp_logger = LogWrapper(_logger, "kill")
     tmp_logger.debug(f"Start user: {user} code: {code} is_production_manager: {is_production_manager} fqans: {fqans} job_ids: {job_ids}")
 
     # Get the user's email address if use_email_as_id is set
     if use_email_as_id:
-        email = get_email_address(user)
+        email = get_email_address(user, tmp_logger)
         if email:
             user = email
 
@@ -305,7 +304,7 @@ def reassign(req: PandaRequest, job_ids: List[int]):
     tmp_logger.debug("Start")
     # taskBuffer.reassignJobs always returns True
     global_task_buffer.reassignJobs(job_ids)
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(True)
 
 
@@ -393,7 +392,7 @@ def submit(req: PandaRequest, jobs: str):
     Returns:
         dict: The system response `{"success": success, "message": message}`.
     """
-    tmp_logger = LogWrapper(_logger, f"submit")
+    tmp_logger = LogWrapper(_logger, "submit")
     user = get_dn(req)
     fqans = get_fqan(req)
     is_production_role = has_production_role(req)

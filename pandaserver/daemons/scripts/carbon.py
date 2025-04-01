@@ -3,11 +3,11 @@ import time
 
 from pandacommon.pandalogger import logger_utils
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 from pandaserver.configurator import Carbon as carbon_module
 from pandaserver.configurator.Carbon import CarbonEmissions
 
-# logger
 base_logger = carbon_module._logger
 
 

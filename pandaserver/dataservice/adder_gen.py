@@ -73,7 +73,6 @@ class AdderGen:
         self.adder_plugin = None
         self.add_result = None
         self.adder_plugin_class = None
-        # logger
         self.logger = LogWrapper(_logger, str(self.job_id))
 
     # main

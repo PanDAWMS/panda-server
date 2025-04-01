@@ -17,7 +17,6 @@ from pandaserver.taskbuffer import EventServiceUtils, retryModule
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.SupErrors import SupErrors
 
-# logger
 _logger = PandaLogger().getLogger("Watcher")
 
 

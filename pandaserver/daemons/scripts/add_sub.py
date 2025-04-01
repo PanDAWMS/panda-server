@@ -1,9 +1,6 @@
 import datetime
-import glob
-import os
 import re
 import sys
-import threading
 import time
 import traceback
 
@@ -17,7 +14,6 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
-# logger
 _logger = PandaLogger().getLogger("add_sub")
 
 

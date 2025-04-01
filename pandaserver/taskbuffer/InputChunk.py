@@ -263,7 +263,6 @@ class InputChunk:
     def getOneSiteCandidateForJumbo(self, ngSites):
         # get total weight
         totalWeight = 0
-        weightList = []
         siteCandidateList = list(self.siteCandidatesJumbo.values())
         newSiteCandidateList = []
         for siteCandidate in siteCandidateList:

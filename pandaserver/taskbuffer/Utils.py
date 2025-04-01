@@ -92,7 +92,7 @@ def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
     """
 
     tmp_log = LogWrapper(_logger, f"putFile-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
-    tmp_log.debug(f"start")
+    tmp_log.debug("start")
 
     # check if using secure connection and the proxy is not limited
     if not Protocol.isSecure(panda_request):

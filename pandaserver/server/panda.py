@@ -1,5 +1,5 @@
 #!/usr/bin/python
-
+# flake8: noqa: F401
 """
 entry point
 

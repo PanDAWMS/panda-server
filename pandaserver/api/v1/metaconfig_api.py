@@ -43,7 +43,7 @@ def get_banned_users(req: PandaRequest) -> dict:
         dict: The system response `{"success": success, "message": message, "data": data}`.
               When successful, the data field contains the banned users in the format `{"user1": False, "user2": False}`
     """
-    tmp_logger = LogWrapper(_logger, f"get_banned_users")
+    tmp_logger = LogWrapper(_logger, "get_banned_users")
 
     tmp_logger.debug("Start")
     success, users = global_task_buffer.get_ban_users()
@@ -72,7 +72,7 @@ def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict:
 
     """
 
-    tmp_logger = LogWrapper(_logger, f"get_site_specs")
+    tmp_logger = LogWrapper(_logger, "get_site_specs")
     tmp_logger.debug("Start")
 
     site_specs = {}
@@ -108,7 +108,7 @@ def get_resource_types(req: PandaRequest):
               When successful, the data field contains a list of resource types.
     """
 
-    tmp_logger = LogWrapper(_logger, f"get_resource_types")
+    tmp_logger = LogWrapper(_logger, "get_resource_types")
     tmp_logger.debug("Start")
 
     resource_types = global_task_buffer.getResourceTypes()

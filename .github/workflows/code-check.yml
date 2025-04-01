@@ -1,9 +1,9 @@
-name: Syntax Check
+name: Flake8 Check
 
 on: [pull_request]
 
 jobs:
-  check-syntax:
+  check-flake8:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,14 +16,22 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Check syntax of changed files
+    - name: Install flake8
+      run: pip install flake8
+
+    - name: Create flake8 config on the fly
+      run: |
+        echo "[flake8]" > flake8.ini
+        echo "ignore = E501,U100,W503,F403,F405,W605,E203" >> flake8.ini
+
+    - name: Run flake8 on changed files
       run: |
         files=$(git diff --name-only origin/master...HEAD -- '*.py')
         error=0
         if [ -n "$files" ]; then
           for file in $files; do
             if [ -f "$file" ]; then
-              python -m py_compile "$file" || error=1
+              flake8 "$file" --config=flake8.ini || error=1
             else
               echo "File $file was deleted."
             fi

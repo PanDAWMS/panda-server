@@ -144,7 +144,7 @@ class WorkQueueMapper:
             if ret_str != "":
                 new_ret_str = f"eval with VO={vo} "
                 for tmp_param_key, tmp_param_val in param_map.items():
-                    new_ret_str += "{0}={1} failed for {0}".format(tmp_param_key, tmp_param_val, ret_str)
+                    new_ret_str += f"{tmp_param_key}={tmp_param_val} failed with {ret_str}"
                 ret_str = new_ret_str
 
         # no queue matched to selection parameters

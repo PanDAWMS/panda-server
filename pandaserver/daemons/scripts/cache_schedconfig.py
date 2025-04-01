@@ -18,7 +18,6 @@ from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
 
-# logger
 _logger = PandaLogger().getLogger("cache_schedconfig")
 
 # default destination directory
@@ -275,7 +274,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         # stop taskBuffer if created inside this script
         if tbuf is None:
             taskBuffer.cleanup(requester=requester_id)
-    except Exception as e:
+    except Exception:
         err_str = traceback.format_exc()
         _logger.error(f"failed to copy files: {err_str}")
     # done

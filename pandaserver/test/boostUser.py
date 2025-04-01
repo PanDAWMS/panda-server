@@ -10,7 +10,6 @@ from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 # initialize DB using dummy connection
 initializer.init()
 
-# logger
 _logger = PandaLogger().getLogger("boostUser")
 _logger.debug("================= start ==================")
 

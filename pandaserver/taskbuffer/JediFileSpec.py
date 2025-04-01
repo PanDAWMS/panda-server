@@ -4,7 +4,6 @@ file specification for JEDI
 """
 
 import re
-import types
 
 from pandaserver.taskbuffer.FileSpec import FileSpec as JobFileSpec
 

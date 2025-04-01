@@ -22,7 +22,6 @@ from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
-# logger
 _logger = PandaLogger().getLogger("ConBridge")
 
 
@@ -42,7 +41,7 @@ class Terminator(threading.Thread):
     def run(self):
         # watching control socket
         try:
-            rcvSize = self.consock.recv(1)
+            _ = self.consock.recv(1)
         except Exception:
             pass
         # get PID

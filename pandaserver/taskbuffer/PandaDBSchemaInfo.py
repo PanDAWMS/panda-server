@@ -5,7 +5,6 @@ Please always keep this version number up to date.
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-# logger
 _logger = PandaLogger().getLogger("DBSchema")
 
 

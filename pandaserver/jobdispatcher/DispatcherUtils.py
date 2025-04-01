@@ -2,6 +2,7 @@ import os
 import sys
 
 import requests
+
 from pandaserver.config import panda_config
 
 
@@ -24,7 +25,7 @@ def getSecretKey(pandaID):
         tmpDict = res.json()
         statusCode = tmpDict["errorCode"]
         secretKey = tmpDict["secretKey"]
-        if tmpDict["errorCode"] == 0:
+        if statusCode == 0:
             # succeeded
             return secretKey, ""
         else:

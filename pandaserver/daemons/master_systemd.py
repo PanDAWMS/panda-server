@@ -1,14 +1,9 @@
-import argparse
-import grp
 import logging
 import os
-import pwd
 import signal
 import sys
 
-import daemon
-import lockfile
-from pandaserver.config import daemon_config, panda_config
+from pandaserver.config import daemon_config
 from pandaserver.daemons.utils import END_SIGNALS, DaemonMaster
 
 
@@ -43,18 +38,6 @@ def main():
 
     # get logger
     main_log = get_logger()
-
-    # parse option
-    parser = argparse.ArgumentParser()
-
-    if "PANDA_NO_ROOT" in os.environ:
-        uid = None
-        gid = None
-    else:
-        uname = getattr(daemon_config, "uname", "nobody")
-        gname = getattr(daemon_config, "gname", "nobody")
-        uid = pwd.getpwnam(uname).pw_uid
-        gid = grp.getgrnam(gname).gr_gid
 
     n_workers = getattr(daemon_config, "n_proc", 1)
     n_dbconn = getattr(daemon_config, "n_dbconn", 1)

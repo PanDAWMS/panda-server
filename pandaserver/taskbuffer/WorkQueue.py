@@ -5,8 +5,6 @@ work queue specification
 
 import re
 
-from pandaserver.taskbuffer.GlobalShares import Share
-
 RESOURCE = "Resource"
 ACTIVE_FUNCTIONS = [RESOURCE]
 
@@ -182,6 +180,9 @@ class WorkQueue(object):
 
     # evaluate in python
     def evaluate(self, param_map):
+        # Default return value
+        ret_var = False
+
         # only active queues are evaluated
         if self.isActive():
             # normal queue
@@ -200,8 +201,7 @@ class WorkQueue(object):
             exec(f"ret_var = {self.evalString}", globals())
             return self, ret_var
 
-        # return False
-        return self, False
+        return self, ret_var
 
     # check if active
     def isActive(self):

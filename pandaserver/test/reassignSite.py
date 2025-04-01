@@ -1,6 +1,5 @@
 import datetime
 import optparse
-import re
 
 import pandaserver.userinterface.Client as Client
 from pandaserver.config import panda_config

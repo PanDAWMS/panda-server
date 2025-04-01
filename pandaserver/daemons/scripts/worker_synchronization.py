@@ -4,10 +4,10 @@ import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.Utils import create_shards
 
-# logger
 _logger = PandaLogger().getLogger("worker_sync")
 
 

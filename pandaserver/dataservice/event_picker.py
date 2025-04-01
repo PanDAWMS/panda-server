@@ -16,7 +16,6 @@ from pandaserver.dataservice import dyn_data_distributer
 from pandaserver.srvcore import CoreUtils
 from pandaserver.userinterface import Client
 
-# logger
 _logger = PandaLogger().getLogger("event_picker")
 
 
@@ -44,7 +43,6 @@ class EventPicker:
         self.site_mapper = siteMapper
         self.ignore_error = ignoreError
         self.event_picking_file_name = evpFileName
-        # logger
         self.logger = LogWrapper(_logger)
         self.pd2p = dyn_data_distributer.DynDataDistributer([], self.site_mapper, token=" ")
         self.user_dataset_name = ""

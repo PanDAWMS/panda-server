@@ -3,9 +3,9 @@ import traceback
 from pathlib import Path
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 
-# logger
 _logger = PandaLogger().getLogger("cache_pilot_config")
 
 # list of source files to be copied
@@ -31,7 +31,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         for source_file in source_file_list:
             dest_file_path = shutil.copy(source_file, dest_dir_path)
             _logger.debug(f"copied {source_file} to {dest_file_path}")
-    except Exception as e:
+    except Exception:
         err_str = traceback.format_exc()
         _logger.error(f"failed to copy files: {err_str}")
     # done
