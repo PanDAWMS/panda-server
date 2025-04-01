@@ -38,6 +38,8 @@ AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 SRC_REPLI_EXPR_PREFIX = "rse_type=DISK"
 # destination replica expression for datasets to pin (with replica on disk but without rule to stay on datadisk)
 TO_PIN_DST_REPLI_EXPR = "type=DATADISK"
+# source or destination replica expression for available RSEs (exclude downtime)
+AVAIL_REPLI_EXPR_SUFFIX = "&availability_write&availability_read"
 
 # DDM rule lifetime in day to keep
 STAGING_LIFETIME_DAYS = 15
@@ -122,6 +124,7 @@ class DataCarouselRequestSpec(SpecBase):
             "excluded_dst_list" (list[str]): list of excluded destination RSEs
             "rule_unfound" (bool): DDM rule not found
             "to_pin" (bool): whether to pin the dataset
+            "suggested_dst_list" (list[str]): list of suggested destination RSEs
 
         Returns:
             dict : dict of parameters if it is JSON or empty dict if null
@@ -353,10 +356,10 @@ class DataCarouselInterface(object):
                 tape_rses = self.ddmIF.list_rses("rse_type=TAPE")
                 if tape_rses is not None:
                     self.tape_rses = list(tape_rses)
-                datadisk_rses = self.ddmIF.list_rses("type=DATADISK")
+                datadisk_rses = self.ddmIF.list_rses(f"type=DATADISK{AVAIL_REPLI_EXPR_SUFFIX}")
                 if datadisk_rses is not None:
                     self.datadisk_rses = list(datadisk_rses)
-                disk_rses = self.ddmIF.list_rses("rse_type=DISK")
+                disk_rses = self.ddmIF.list_rses(f"rse_type=DISK{AVAIL_REPLI_EXPR_SUFFIX}")
                 if disk_rses is not None:
                     self.disk_rses = list(disk_rses)
                 # tmp_log.debug(f"TAPE: {self.tape_rses} ; DATADISK: {self.datadisk_rses} ; DISK: {self.disk_rses}")
@@ -486,9 +489,10 @@ class DataCarouselInterface(object):
             dataset (str): dataset name
 
         Returns:
-            dict : filtered replicas map
+            dict : filtered replicas map (rules considered)
             str | None : staging rule, None if not existing
-            bool: whether all replicas on datadisk are without rules
+            bool : whether all replicas on datadisk are without rules
+            dict : original replicas map
         """
         replicas_map = self._get_full_replicas_per_type(dataset)
         rules = self.ddmIF.list_did_rules(dataset, all_accounts=True)
@@ -512,7 +516,7 @@ class DataCarouselInterface(object):
             if staging_rule is not None or replica in rse_expression_list:
                 filtered_replicas_map["datadisk"].append(replica)
         all_disk_repli_ruleless = has_disk_replica and len(filtered_replicas_map["datadisk"]) == 0
-        return filtered_replicas_map, staging_rule, all_disk_repli_ruleless
+        return filtered_replicas_map, staging_rule, all_disk_repli_ruleless, replicas_map
 
     def _get_datasets_from_collection(self, collection: str) -> list[str] | None:
         """
@@ -601,7 +605,9 @@ class DataCarouselInterface(object):
         else:
             return active_source_rses_set
 
-    def _get_source_type_of_dataset(self, dataset: str, active_source_rses_set: set | None = None) -> tuple[(str | None), (set | None), (str | None), bool]:
+    def _get_source_type_of_dataset(
+        self, dataset: str, active_source_rses_set: set | None = None
+    ) -> tuple[(str | None), (set | None), (str | None), bool, list]:
         """
         Get source type and permanent (tape or datadisk) RSEs of a dataset
 
@@ -614,6 +620,7 @@ class DataCarouselInterface(object):
             set | None : set of permanent RSEs, otherwise None
             str | None : staging rule if existing, otherwise None
             bool : whether to pin the dataset
+            list : list of suggested destination RSEs; currently only datadisks with full replicas to pin
         """
         tmp_log = LogWrapper(logger, f"_get_source_type_of_dataset dataset={dataset}")
         try:
@@ -621,11 +628,12 @@ class DataCarouselInterface(object):
             source_type = None
             rse_set = None
             to_pin = False
+            suggested_destination_rses_set = set()
             # get active source rses
             if active_source_rses_set is None:
                 active_source_rses_set = self._get_active_source_rses()
             # get filtered replicas and staging rule of the dataset
-            filtered_replicas_map, staging_rule, all_disk_repli_ruleless = self._get_filtered_replicas(dataset)
+            filtered_replicas_map, staging_rule, all_disk_repli_ruleless, orig_replicas_map = self._get_filtered_replicas(dataset)
             # algorithm
             if filtered_replicas_map["datadisk"]:
                 # replicas already on datadisk and with rule
@@ -648,11 +656,12 @@ class DataCarouselInterface(object):
                 if all_disk_repli_ruleless:
                     # replica on disks but without rule to pin on datadisk; to pin the dataset to datadisk
                     to_pin = True
+                    suggested_destination_rses_set |= set(orig_replicas_map["datadisk"])
             else:
                 # no replica found on tape nor on datadisk (can be on transient disk); skip
                 pass
             # return
-            return (source_type, rse_set, staging_rule, to_pin)
+            return (source_type, rse_set, staging_rule, to_pin, list(suggested_destination_rses_set))
         except Exception as e:
             # other unexpected errors
             raise e
@@ -749,6 +758,7 @@ class DataCarouselInterface(object):
                 "to_skip_ds_list": [],
                 "tape_ds_list": [],
                 "datadisk_ds_list": [],
+                "to_pin_ds_list": [],
                 "unfound_ds_list": [],
             }
             # get active source rses
@@ -781,7 +791,7 @@ class DataCarouselInterface(object):
                         tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
                         continue
                     # get source type and RSEs
-                    source_type, rse_set, staging_rule, to_pin = self._get_source_type_of_dataset(dataset, active_source_rses_set)
+                    source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
                     if source_type == "datadisk":
                         # replicas already on datadisk; skip
                         ret_map["datadisk_ds_list"].append(dataset)
@@ -794,10 +804,13 @@ class DataCarouselInterface(object):
                         tmp_log.debug(f"dataset={dataset} on tapes {list(rse_set)} ; choosing one")
                         # choose source RSE
                         _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
-                        prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin)
+                        prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
                         tmp_log.debug(f"got prestaging: {prestaging_tuple}")
                         # add to prestage
                         ret_prestaging_list.append(prestaging_tuple)
+                        # dataset to pin
+                        if to_pin:
+                            ret_map["to_pin_ds_list"].append(dataset)
                     else:
                         # no replica found on tape nor on datadisk; skip
                         ret_map["unfound_ds_list"].append(dataset)
@@ -833,7 +846,7 @@ class DataCarouselInterface(object):
         # fill dc request spec for each input dataset
         dc_req_spec_list = []
         now_time = naive_utcnow()
-        for dataset, source_rse, ddm_rule_id, to_pin in prestaging_list:
+        for dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list in prestaging_list:
             dc_req_spec = DataCarouselRequestSpec()
             dc_req_spec.dataset = dataset
             dataset_meta = self.ddmIF.getDatasetMetaData(dataset)
@@ -861,6 +874,8 @@ class DataCarouselInterface(object):
                 dc_req_spec.status = DataCarouselRequestStatus.staging
                 dc_req_spec.start_time = now_time
                 dc_req_spec.set_parameter("reuse_rule", True)
+            if suggested_dst_list:
+                dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
             # append to list
             dc_req_spec_list.append(dc_req_spec)
         # insert dc requests for the task
@@ -1128,6 +1143,51 @@ class DataCarouselInterface(object):
         # return
         return ret_list
 
+    def _choose_destination_rse(self, expression: str, suggested_dst_list: list | None = None) -> str | None:
+        """
+        Choose a destination (datadisk) RSE based on the destination RSE expression
+
+        Args:
+            expression (set): destination RSE expression
+            suggested_dst_list (list|None): list of suggested destination list; RSEs in the list will be prioritized
+
+        Returns:
+            str | None : destination RSE chosen, None if failed
+        """
+        tmp_log = LogWrapper(logger, f"_choose_destination_rse expression={expression} suggested_dst_list={suggested_dst_list}")
+        try:
+            # initialize
+            destination_rse = None
+            rse_set = set()
+            # get RSEs from DDM
+            the_rses = self.ddmIF.list_rses(expression)
+            if the_rses is not None:
+                rse_set = set(the_rses)
+            # exclude RSEs in excluded_destinations from config
+            if excluded_destinations_set := set(self.dc_config_map.excluded_destinations):
+                rse_set -= excluded_destinations_set
+            # prioritize RSEs in suggested_dst_list
+            if suggested_dst_list and (prioritized_rse_set := set(suggested_dst_list) & rse_set):
+                rse_set = prioritized_rse_set
+            # get the list
+            rse_list = list(rse_set)
+            # tmp_log.debug(f"choosing destination_rse from {rse_list}")
+            # choose destination RSE
+            if rse_list:
+                if len(rse_list) == 1:
+                    destination_rse = rse_list[0]
+                else:
+                    destination_rse = random.choice(rse_list)
+                # tmp_log.debug(f"chose destination_rse={destination_rse}")
+            else:
+                tmp_log.warning(f"no destination_rse match; skipped")
+            # return
+            return destination_rse
+        except Exception as e:
+            # other unexpected errors
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return
+
     def _submit_ddm_rule(self, dc_req_spec: DataCarouselRequestSpec) -> str | None:
         """
         Submit DDM replication rule to stage the dataset of the request
@@ -1140,6 +1200,7 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, f"_submit_ddm_rule request_id={dc_req_spec.request_id}")
         # initialize
+        tmp_dst_expr = None
         expression = None
         lifetime = None
         weight = None
@@ -1177,14 +1238,28 @@ class DataCarouselInterface(object):
         if dc_req_spec.get_parameter("to_pin"):
             # to pin; use the simple to pin destination
             tmp_log.debug(f"has to_pin")
-            expression = TO_PIN_DST_REPLI_EXPR
+            tmp_dst_expr = TO_PIN_DST_REPLI_EXPR
         else:
             # destination_expression from DC config
-            expression = source_tape_config.destination_expression
+            tmp_dst_expr = source_tape_config.destination_expression
         # adjust destination_expression according to excluded_dst_list
         if excluded_dst_list := dc_req_spec.get_parameter("excluded_dst_list"):
             for excluded_dst_rse in excluded_dst_list:
-                expression += f"\\{excluded_dst_rse}"
+                tmp_dst_expr += f"\\{excluded_dst_rse}"
+        # add expression suffix for available RSEs
+        tmp_dst_expr += AVAIL_REPLI_EXPR_SUFFIX
+        # get suggested_dst_list
+        suggested_dst_list = dc_req_spec.get_parameter("suggested_dst_list")
+        # choose a destination RSE
+        destination_rse = self._choose_destination_rse(expression=tmp_dst_expr, suggested_dst_list=suggested_dst_list)
+        if destination_rse is not None:
+            # got a destination RSE
+            expression = str(destination_rse)
+            tmp_log.debug(f"chose destination RSE to be {destination_rse}")
+        else:
+            # no match of destination RSE; return None and stay queued
+            tmp_log.error(f"failed to choose destination RSE; skipped")
+            return
         # submit ddm staging rule
         ddm_rule_id = self.ddmIF.make_staging_rule(
             dataset_name=dc_req_spec.dataset,
