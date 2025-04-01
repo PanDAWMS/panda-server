@@ -4387,6 +4387,7 @@ class TaskComplexModule(BaseModule):
                 max_job_failure_rate = self.getConfigValue("retry_task", f"MAX_JOB_FAILURE_RATE_{prod_source_label}", "jedi")
                 max_failed_hep_score_rate = self.getConfigValue("retry_task", f"MAX_FAILED_HEP_SCORE_RATE_{prod_source_label}", "jedi")
                 max_failed_hep_score_hours = self.getConfigValue("retry_task", f"MAX_FAILED_HEP_SCORE_HOURS_{prod_source_label}", "jedi")
+                min_cpu_efficiency = self.getConfigValue("retry_task", f"MIN_CPU_EFFICIENCY_{prod_source_label}", "jedi")
                 newTaskStatus = None
                 newErrorDialog = None
                 if taskOldStatus == "done" and commStr == "retry" and statusCheck:
@@ -4404,7 +4405,8 @@ class TaskComplexModule(BaseModule):
                 else:
                     # get failure metrics
                     failure_metrics = get_metrics_module(self).get_task_failure_metrics(jediTaskID, False)
-                    var_map = {}
+                    # get scout metrics
+                    scout_metics_ok, scout_metrics, scout_metrics_extra = get_task_utils_module(self).getScoutJobData_JEDI(jediTaskID)
                     # check max attempts
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
@@ -4417,7 +4419,7 @@ class TaskComplexModule(BaseModule):
                     resMAX = self.cur.fetchone()
                     if task_max_attempt is not None and task_attempt_number >= task_max_attempt > 0:
                         # too many attempts
-                        msg_str = f"exhausted since too many task attempts more than {task_max_attempt} are forbidden"
+                        msg_str = f"exhausted upon retry since too many task attempts more than {task_max_attempt} are forbidden"
                         tmpLog.debug(msg_str)
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
@@ -4428,7 +4430,7 @@ class TaskComplexModule(BaseModule):
                     ):
                         # failed HEP score hours are too large
                         msg_val = str(failure_metrics["failed_hep_score_hour"])
-                        msg_str = f"exhausted since HEP score hours used by failed jobs ({msg_val} hours) exceed {max_failed_hep_score_hours} hours"
+                        msg_str = f"exhausted upon retry since HEP score hours used by failed jobs ({msg_val} hours) exceed {max_failed_hep_score_hours} hours"
                         tmpLog.debug(msg_str)
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
@@ -4440,7 +4442,7 @@ class TaskComplexModule(BaseModule):
                     ):
                         # failed HEP score hours are too large
                         msg_val = str(failure_metrics["failed_hep_score_ratio"])
-                        msg_str = f"exhausted since failed/total HEP score rate ({msg_val}) exceeds {max_failed_hep_score_rate}"
+                        msg_str = f"exhausted upon retry since failed/total HEP score rate ({msg_val}) exceeds {max_failed_hep_score_rate}"
                         tmpLog.debug(msg_str)
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
@@ -4452,7 +4454,7 @@ class TaskComplexModule(BaseModule):
                     ):
                         # high failure rate
                         msg_val = str(failure_metrics["single_failure_rate"])
-                        msg_str = f"exhausted since single job failure rate ({msg_val}) is higher than {max_job_failure_rate}"
+                        msg_str = f"exhausted upon retry since single job failure rate ({msg_val}) is higher than {max_job_failure_rate}"
                         tmpLog.debug(msg_str)
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
@@ -4462,6 +4464,18 @@ class TaskComplexModule(BaseModule):
                         tmpLog.debug(msgStr)
                         newTaskStatus = taskOldStatus
                         newErrorDialog = msgStr
+                    elif (
+                        min_cpu_efficiency is not None
+                        and scout_metics_ok
+                        and scout_metrics_extra.get("minCpuEfficiency") is not None
+                        and min_cpu_efficiency > scout_metrics_extra.get("minCpuEfficiency")
+                    ):
+                        # inefficient CPU usage
+                        msg_val = scout_metrics_extra.get("minCpuEfficiency")
+                        msg_str = f"exhausted upon retry since average CPU efficiency across finished jobs ({msg_val}%) is less than {min_cpu_efficiency}%"
+                        tmpLog.debug(msg_str)
+                        newTaskStatus = "exhausted"
+                        newErrorDialog = msg_str
                     else:
                         # get input datasets
                         varMap = {}
