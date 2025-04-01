@@ -867,6 +867,7 @@ class TaskBuffer:
         jobType,
         is_gu,
         via_topic,
+        remaining_time,
     ):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
@@ -891,6 +892,7 @@ class TaskBuffer:
             jobType,
             is_gu,
             via_topic,
+            remaining_time,
         )
         t_after = time.time()
         t_total = t_after - t_before

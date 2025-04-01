@@ -69,6 +69,7 @@ def acquire_jobs(
     scheduler_id: str = None,
     job_type: str = None,
     via_topic: bool = None,
+    remaining_time=None,
 ) -> dict:
     """
     Acquire jobs
@@ -100,6 +101,7 @@ def acquire_jobs(
         job_type(str, optional): Job type, e.g. `user`, `unified`, ... This is necessary on top of the `prodsourcelabel`
                                  to disambiguate the cases of test jobs that can be production or analysis. Optional and defaults to `None`.
         via_topic(bool, optional): Topic for message broker. Optional and defaults to `None`.
+        remaining_time(int, optional): Remaining walltime. Optional and defaults to `None`.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. The data is a list of job dictionaries.
@@ -143,12 +145,18 @@ def acquire_jobs(
     except (ValueError, TypeError):
         disk_space = 0
 
+    # convert remaining time
+    try:
+        remaining_time = max(0, remaining_time)
+    except (ValueError, TypeError):
+        remaining_time = 0
+
     tmp_logger.debug(
         f"{site_name}, n_jobs={n_jobs}, memory={memory}, disk={disk_space}, source_label={prod_source_label}, "
         f"node={node}, ce={computing_element}, user={prod_user_id}, proxy={get_proxy_key}, "
         f"task_id={task_id}, DN={real_dn}, role={is_production_manager}, "
         f"bg={background}, rt={resource_type}, harvester_id={harvester_id}, worker_id={worker_id}, "
-        f"scheduler_id={scheduler_id}, job_type={job_type}, via_topic={via_topic}"
+        f"scheduler_id={scheduler_id}, job_type={job_type}, via_topic={via_topic} remaining_time={remaining_time}"
     )
 
     # log the acquire_jobs as it's used for site activity metrics
@@ -189,6 +197,7 @@ def acquire_jobs(
         job_type,
         is_grandly_unified,
         via_topic,
+        remaining_time,
     )
 
     # Time-out
