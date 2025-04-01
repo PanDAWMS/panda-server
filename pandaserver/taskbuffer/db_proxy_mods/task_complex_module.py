@@ -5,6 +5,7 @@ import os
 import random
 import re
 import sys
+import traceback
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import (
@@ -4406,7 +4407,12 @@ class TaskComplexModule(BaseModule):
                     # get failure metrics
                     failure_metrics = get_metrics_module(self).get_task_failure_metrics(jediTaskID, False)
                     # get scout metrics
-                    scout_metics_ok, scout_metrics, scout_metrics_extra = get_task_utils_module(self).getScoutJobData_JEDI(jediTaskID)
+                    try:
+                        scout_metics_ok, scout_metrics, scout_metrics_extra = get_task_utils_module(self).getScoutJobData_JEDI(jediTaskID)
+                    except Exception as e:
+                        tmpLog.debug(f"Failed to get scout metrics: {str(e)} {traceback.format_exc()}")
+                        scout_metics_ok = False
+                        scout_metrics_extra = {}
                     # check max attempts
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
