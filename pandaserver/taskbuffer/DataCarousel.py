@@ -8,17 +8,22 @@ from dataclasses import MISSING, InitVar, asdict, dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-import idds.common.constants
-import idds.common.utils
-import polars as pl
-from idds.client.client import Client as iDDS_Client
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.base import SpecBase
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
+from pandaserver.dataservice.ddm import rucioAPI
 
+import polars as pl  # isort:skip
+
+import idds.common.constants  # isort:skip
+import idds.common.utils  # isort:skip
+from idds.client.client import Client as iDDS_Client  # isort:skip
+
+
+# main logger
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
@@ -303,10 +308,10 @@ class DataCarouselInterface(object):
     """
 
     # constructor
-    def __init__(self, taskbufferIF, ddmIF):
+    def __init__(self, taskbufferIF, *args, **kwargs):
         # attributes
         self.taskBufferIF = taskbufferIF
-        self.ddmIF = ddmIF
+        self.ddmIF = rucioAPI
         self.tape_rses = []
         self.datadisk_rses = []
         self.disk_rses = []
@@ -465,7 +470,7 @@ class DataCarouselInterface(object):
             dict : map in form of datasets: jobParameters
         """
         # tmp_log = LogWrapper(logger, f"_get_full_replicas_per_type dataset={dataset}")
-        ds_repli_dict = self.ddmIF.convertOutListDatasetReplicas(dataset, skip_incomplete_element=True)
+        ds_repli_dict = self.ddmIF.convert_list_dataset_replicas(dataset, skip_incomplete_element=True)
         tape_replicas = []
         datadisk_replicas = []
         disk_replicas = []
@@ -537,7 +542,7 @@ class DataCarouselInterface(object):
             tmp_log = LogWrapper(logger, f"_get_datasets_from_collections collection={collection}")
             # check the collection
             ret_list = []
-            collection_meta = self.ddmIF.getDatasetMetaData(collection, ignore_missing=True)
+            collection_meta = self.ddmIF.get_dataset_matadata(collection, ignore_missing=True)
             if collection_meta["state"] == "missing":
                 # DID not found
                 tmp_log.warning(f"DID not found")
@@ -545,7 +550,7 @@ class DataCarouselInterface(object):
             did_type = collection_meta["did_type"]
             if did_type == "CONTAINER":
                 # is container, get datasets inside
-                dataset_list = self.ddmIF.listDatasetsInContainer(collection)
+                dataset_list = self.ddmIF.list_datasets_in_container(collection)
                 if dataset_list is None:
                     tmp_log.warning(f"cannot list datasets in this container")
                 else:
@@ -849,7 +854,7 @@ class DataCarouselInterface(object):
         for dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list in prestaging_list:
             dc_req_spec = DataCarouselRequestSpec()
             dc_req_spec.dataset = dataset
-            dataset_meta = self.ddmIF.getDatasetMetaData(dataset)
+            dataset_meta = self.ddmIF.get_dataset_matadata(dataset)
             dc_req_spec.total_files = dataset_meta["length"]
             dc_req_spec.dataset_size = dataset_meta["bytes"]
             dc_req_spec.staged_files = 0
@@ -1350,7 +1355,7 @@ class DataCarouselInterface(object):
             bool|None : True for success, None otherwise
         """
         tmp_log = LogWrapper(logger, f"retire_request request_id={request_id} by={by}" + (f" reason={reason}" if reason else " "))
-        # cancel
+        # retire
         ret = self.taskBufferIF.retire_data_carousel_request_JEDI(request_id)
         if ret:
             tmp_log.debug(f"retired")
