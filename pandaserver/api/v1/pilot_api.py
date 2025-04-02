@@ -645,14 +645,18 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
     success = False
     message = ""
     data = []
+
     try:
         for job_dict in job_list:
-            job_id = job_dict["jobId"]
-            del job_dict["jobId"]
-            status = job_dict["state"]
-            del job_dict["state"]
-            if "metaData" in job_dict:
-                job_dict["metaData"] = str(job_dict["metaData"])
+            job_id = job_dict["job_id"]
+            del job_dict["job_id"]
+
+            status = job_dict["job_status"]
+            del job_dict["job_status"]
+
+            if "meta_data" in job_dict:
+                job_dict["meta_data"] = str(job_dict["meta_data"])
+
             tmp_ret = update_job(req, job_id, status, **job_dict)
             data.append(tmp_ret)
         success = True
