@@ -1013,7 +1013,7 @@ def main(tbuf=None, **kwargs):
                         _logger.debug(f"skip non sub {name}")
                         continue
                     _logger.debug(f"delete sub {name}")
-                    if name.startswith("user.") or name.startswith("group.") or name.startswith("hc_test.") or name.startswith("panda.um."):
+                    if name.startswith("user.") or name.startswith("group.") or name.startswith("hc_test."):
                         dsExists = False
                     else:
                         dsExists = True
