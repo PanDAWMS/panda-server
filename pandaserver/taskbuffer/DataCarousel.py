@@ -1497,7 +1497,7 @@ class DataCarouselInterface(object):
             dataset = dc_req_spec.dataset
             scope, dsname = self.ddmIF.extract_scope(dataset)
             # get lfn of files in the dataset from DDM
-            lfn_set = self.ddmIF.getFilesInDataset(dataset, ignoreUnknown=True, lfn_only=True)
+            lfn_set = self.ddmIF.get_files_in_dataset(dataset, ignoreUnknown=True, lfn_only=True)
             # make filenames_dict for updateInputFilesStaged_JEDI
             filenames_dict = {}
             dummy_value_tuple = (None, None)

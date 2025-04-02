@@ -4,6 +4,7 @@ Module to provide primitive methods for DDM
 """
 
 import hashlib
+import json
 import re
 import sys
 import traceback
@@ -11,6 +12,7 @@ from typing import Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 from rucio.client import Client as RucioClient
 from rucio.common.exception import (
     DataIdentifierAlreadyExists,
@@ -42,7 +44,8 @@ class RucioAPI:
         """
         Initialize RucioAPI instance
         """
-        pass
+        self.blacklist_endpoints = []
+        self.bad_endpoint_read = []
 
     # extract scope
     def extract_scope(self, dataset_name: str, strip_slash: bool = False) -> tuple:
@@ -937,22 +940,63 @@ class RucioAPI:
         scope, name = self.extract_scope(raw_name, strip_slash=True)
         return f"{scope}:{name}"
 
+    # update blacklist
+    def update_blackList(self):
+        method_name = "update_blackList"
+        tmp_log = LogWrapper(_logger, method_name)
+        # check freshness
+        timeNow = naive_utcnow()
+        if self.lastUpdateBL is not None and timeNow - self.lastUpdateBL < self.timeIntervalBL:
+            return
+        self.lastUpdateBL = timeNow
+        # get json
+        try:
+            tmp_log.debug("start")
+            with open("/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmblacklisting.json") as f:
+                ddd = json.load(f)
+                self.blacklist_endpoints = [k for k in ddd if "write_wan" in ddd[k] and ddd[k]["write_wan"]["status"]["value"] == "OFF"]
+                self.bad_endpoint_read = [k for k in ddd if "read_wan" in ddd[k] and ddd[k]["read_wan"]["status"]["value"] == "OFF"]
+            tmp_log.debug(f"{len(self.blacklist_endpoints)} bad endpoints for write, {len(self.bad_endpoint_read)} bad endpoints for read")
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+        return
+
+    # get bad endpoints for read
+    def get_bad_endpoint_read(self):
+        self.update_blackList()
+        return self.bad_endpoint_read
+
+    # wrapper for list_content
+    def wp_list_content(self, client, scope, dsn):
+        if dsn.endswith("/"):
+            dsn = dsn[:-1]
+        ret_list = []
+        # get contents
+        for data in client.list_content(scope, dsn):
+            if data["type"] == "CONTAINER":
+                ret_list += self.wp_list_content(client, data["scope"], data["name"])
+            elif data["type"] == "DATASET":
+                ret_list.append(f"{data['scope']}:{data['name']}")
+            else:
+                pass
+        return ret_list
+
     # convert output of rucio list_dataset_replicas
-    def convert_list_dataset_replicas(self, dataset_name, usefileLookup=False, use_vp=False, skip_incomplete_element=False):
+    def convert_list_dataset_replicas(self, dataset_name, use_file_lookup=False, use_vp=False, skip_incomplete_element=False):
         retMap = {}
         # get rucio API
         client = RucioClient()
         # get scope and name
         scope, dsn = self.extract_scope(dataset_name, strip_slash=True)
         # get replicas
-        itr = client.list_dataset_replicas(scope, dsn, deep=usefileLookup)
+        itr = client.list_dataset_replicas(scope, dsn, deep=use_file_lookup)
         items = []
         for item in itr:
             if "vp" not in item:
                 item["vp"] = False
             items.append(item)
         # deep lookup if shallow gave nothing
-        if items == [] and not usefileLookup:
+        if items == [] and not use_file_lookup:
             itr = client.list_dataset_replicas(scope, dsn, deep=True)
             for item in itr:
                 if "vp" not in item:
@@ -1067,6 +1111,86 @@ class RucioAPI:
                 tmpRet = {}
                 tmpRet["state"] = "missing"
                 return tmpRet
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+
+    # get files in dataset
+    def get_files_in_dataset(self, dataset_name, ski_duplicate=True, ignore_unknown=False, long_format=False, lfn_only=False):
+        method_name = "get_files_in_dataset"
+        method_name += f" <dataset_name={dataset_name}>"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # get Rucio API
+            client = RucioClient()
+            # extract scope from dataset
+            scope, dsn = self.extract_scope(dataset_name)
+            if dsn.endswith("/"):
+                dsn = dsn[:-1]
+            # get length
+            tmpMeta = client.get_metadata(scope, dsn)
+            # get files
+            fileMap = {}
+            baseLFNmap = {}
+            fileSet = set()
+            for x in client.list_files(scope, dsn, long=long_format):
+                # convert to old dict format
+                lfn = str(x["name"])
+                if lfn_only:
+                    fileSet.add(lfn)
+                    continue
+                attrs = {}
+                attrs["lfn"] = lfn
+                attrs["chksum"] = "ad:" + str(x["adler32"])
+                attrs["md5sum"] = attrs["chksum"]
+                attrs["checksum"] = attrs["chksum"]
+                attrs["fsize"] = x["bytes"]
+                attrs["filesize"] = attrs["fsize"]
+                attrs["scope"] = str(x["scope"])
+                attrs["events"] = str(x["events"])
+                if long_format:
+                    attrs["lumiblocknr"] = str(x["lumiblocknr"])
+                guid = str(f"{x['guid'][0:8]}-{x['guid'][8:12]}-{x['guid'][12:16]}-{x['guid'][16:20]}-{x['guid'][20:32]}")
+                attrs["guid"] = guid
+                # skip duplicated files
+                if ski_duplicate:
+                    # extract base LFN and attempt number
+                    baseLFN = re.sub("(\.(\d+))$", "", lfn)
+                    attNr = re.sub(baseLFN + "\.*", "", lfn)
+                    if attNr == "":
+                        # without attempt number
+                        attNr = -1
+                    else:
+                        attNr = int(attNr)
+                    # compare attempt numbers
+                    addMap = False
+                    if baseLFN in baseLFNmap:
+                        # use larger attempt number
+                        oldMap = baseLFNmap[baseLFN]
+                        if oldMap["attNr"] < attNr:
+                            del fileMap[oldMap["guid"]]
+                            addMap = True
+                    else:
+                        addMap = True
+                    # append
+                    if not addMap:
+                        continue
+                    baseLFNmap[baseLFN] = {"guid": guid, "attNr": attNr}
+                fileMap[guid] = attrs
+            if lfn_only:
+                return_list = fileSet
+            else:
+                return_list = fileMap
+            tmp_log.debug(f"done len={len(return_list)} meta={tmpMeta['length']}")
+            if tmpMeta["length"] and tmpMeta["length"] > len(return_list):
+                err_msg = f"file list length mismatch len={len(return_list)} != meta={tmpMeta['length']}"
+                tmp_log.error(err_msg)
+                return None
+            return return_list
+        except DataIdentifierNotFound as e:
+            if ignore_unknown:
+                return {}
+            errType = e
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
 
