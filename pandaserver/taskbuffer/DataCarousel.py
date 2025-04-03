@@ -8,17 +8,22 @@ from dataclasses import MISSING, InitVar, asdict, dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-import idds.common.constants
-import idds.common.utils
-import polars as pl
-from idds.client.client import Client as iDDS_Client
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.base import SpecBase
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
+from pandaserver.dataservice.ddm import rucioAPI
 
+import polars as pl  # isort:skip
+
+import idds.common.constants  # isort:skip
+import idds.common.utils  # isort:skip
+from idds.client.client import Client as iDDS_Client  # isort:skip
+
+
+# main logger
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
@@ -303,10 +308,10 @@ class DataCarouselInterface(object):
     """
 
     # constructor
-    def __init__(self, taskbufferIF, ddmIF):
+    def __init__(self, taskbufferIF, *args, **kwargs):
         # attributes
         self.taskBufferIF = taskbufferIF
-        self.ddmIF = ddmIF
+        self.ddmIF = rucioAPI
         self.tape_rses = []
         self.datadisk_rses = []
         self.disk_rses = []
@@ -465,7 +470,7 @@ class DataCarouselInterface(object):
             dict : map in form of datasets: jobParameters
         """
         # tmp_log = LogWrapper(logger, f"_get_full_replicas_per_type dataset={dataset}")
-        ds_repli_dict = self.ddmIF.convertOutListDatasetReplicas(dataset, skip_incomplete_element=True)
+        ds_repli_dict = self.ddmIF.convert_list_dataset_replicas(dataset, skip_incomplete_element=True)
         tape_replicas = []
         datadisk_replicas = []
         disk_replicas = []
@@ -537,7 +542,7 @@ class DataCarouselInterface(object):
             tmp_log = LogWrapper(logger, f"_get_datasets_from_collections collection={collection}")
             # check the collection
             ret_list = []
-            collection_meta = self.ddmIF.getDatasetMetaData(collection, ignore_missing=True)
+            collection_meta = self.ddmIF.get_dataset_matadata(collection, ignore_missing=True)
             if collection_meta["state"] == "missing":
                 # DID not found
                 tmp_log.warning(f"DID not found")
@@ -545,7 +550,7 @@ class DataCarouselInterface(object):
             did_type = collection_meta["did_type"]
             if did_type == "CONTAINER":
                 # is container, get datasets inside
-                dataset_list = self.ddmIF.listDatasetsInContainer(collection)
+                dataset_list = self.ddmIF.list_datasets_in_container(collection)
                 if dataset_list is None:
                     tmp_log.warning(f"cannot list datasets in this container")
                 else:
@@ -849,7 +854,7 @@ class DataCarouselInterface(object):
         for dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list in prestaging_list:
             dc_req_spec = DataCarouselRequestSpec()
             dc_req_spec.dataset = dataset
-            dataset_meta = self.ddmIF.getDatasetMetaData(dataset)
+            dataset_meta = self.ddmIF.get_dataset_matadata(dataset)
             dc_req_spec.total_files = dataset_meta["length"]
             dc_req_spec.dataset_size = dataset_meta["bytes"]
             dc_req_spec.staged_files = 0
@@ -1186,7 +1191,7 @@ class DataCarouselInterface(object):
         except Exception as e:
             # other unexpected errors
             tmp_log.error(f"got error ; {traceback.format_exc()}")
-            return
+            return None
 
     def _submit_ddm_rule(self, dc_req_spec: DataCarouselRequestSpec) -> str | None:
         """
@@ -1211,7 +1216,7 @@ class DataCarouselInterface(object):
         else:
             # no source_rse; unexpected
             tmp_log.warning(f"source_rse is None ; skipped")
-            return
+            return None
         # get source physical tape
         try:
             # source_rse is RSE
@@ -1222,18 +1227,18 @@ class DataCarouselInterface(object):
         except Exception:
             # other unexpected errors
             tmp_log.error(f"got error ; {traceback.format_exc()}")
-            return
+            return None
         # parameters about this tape source from DC config
         try:
             source_tape_config = self.dc_config_map.source_tapes_config[source_tape]
         except (KeyError, AttributeError):
             # no destination_expression for this tape; skipped
             tmp_log.warning(f"failed to get destination_expression from config; skipped ; {traceback.format_exc()}")
-            return
+            return None
         except Exception:
             # other unexpected errors
             tmp_log.error(f"got error ; {traceback.format_exc()}")
-            return
+            return None
         # destination expression
         if dc_req_spec.get_parameter("to_pin"):
             # to pin; use the simple to pin destination
@@ -1259,7 +1264,7 @@ class DataCarouselInterface(object):
         else:
             # no match of destination RSE; return None and stay queued
             tmp_log.error(f"failed to choose destination RSE; skipped")
-            return
+            return None
         # submit ddm staging rule
         ddm_rule_id = self.ddmIF.make_staging_rule(
             dataset_name=dc_req_spec.dataset,
@@ -1350,7 +1355,7 @@ class DataCarouselInterface(object):
             bool|None : True for success, None otherwise
         """
         tmp_log = LogWrapper(logger, f"retire_request request_id={request_id} by={by}" + (f" reason={reason}" if reason else " "))
-        # cancel
+        # retire
         ret = self.taskBufferIF.retire_data_carousel_request_JEDI(request_id)
         if ret:
             tmp_log.debug(f"retired")
@@ -1492,7 +1497,7 @@ class DataCarouselInterface(object):
             dataset = dc_req_spec.dataset
             scope, dsname = self.ddmIF.extract_scope(dataset)
             # get lfn of files in the dataset from DDM
-            lfn_set = self.ddmIF.getFilesInDataset(dataset, ignoreUnknown=True, lfn_only=True)
+            lfn_set = self.ddmIF.get_files_in_dataset(dataset, ignore_unknown=True, lfn_only=True)
             # make filenames_dict for updateInputFilesStaged_JEDI
             filenames_dict = {}
             dummy_value_tuple = (None, None)
@@ -1516,6 +1521,7 @@ class DataCarouselInterface(object):
             return True
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
 
     def check_staging_requests(self):
         """
