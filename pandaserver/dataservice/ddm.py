@@ -3,6 +3,7 @@ Module to provide primitive methods for DDM
 
 """
 
+import datetime
 import hashlib
 import json
 import re
@@ -44,8 +45,13 @@ class RucioAPI:
         """
         Initialize RucioAPI instance
         """
+        # list of blacklisted endpoints
         self.blacklist_endpoints = []
         self.bad_endpoint_read = []
+        # time of last update for blacklist
+        self.blacklist_last_update = None
+        # how frequently update DN/token map
+        self.update_interval = datetime.timedelta(seconds=60 * 10)
 
     # extract scope
     def extract_scope(self, dataset_name: str, strip_slash: bool = False) -> tuple:
@@ -946,9 +952,9 @@ class RucioAPI:
         tmp_log = LogWrapper(_logger, method_name)
         # check freshness
         timeNow = naive_utcnow()
-        if self.lastUpdateBL is not None and timeNow - self.lastUpdateBL < self.timeIntervalBL:
+        if self.blacklist_last_update is not None and timeNow - self.blacklist_last_update < self.update_interval:
             return
-        self.lastUpdateBL = timeNow
+        self.blacklist_last_update = timeNow
         # get json
         try:
             tmp_log.debug("start")
@@ -1236,7 +1242,7 @@ class RucioAPI:
                         break
             # make new rule
             if ruleID is None:
-                rule = client.add_replication_rule(
+                rule_id_list = client.add_replication_rule(
                     dids=dids,
                     copies=1,
                     rse_expression=expression,
@@ -1251,7 +1257,7 @@ class RucioAPI:
                     asynchronous=False,
                     source_replica_expression=source_replica_expression,
                 )
-                ruleID = rule["id"]
+                ruleID = rule_id_list[0]
                 tmp_log.debug(f"made new rule : ID={ruleID}")
         except Exception as e:
             tmp_log.error(f"failed to make staging rule with {str(e)} {traceback.format_exc()}")

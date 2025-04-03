@@ -1191,7 +1191,7 @@ class DataCarouselInterface(object):
         except Exception as e:
             # other unexpected errors
             tmp_log.error(f"got error ; {traceback.format_exc()}")
-            return
+            return None
 
     def _submit_ddm_rule(self, dc_req_spec: DataCarouselRequestSpec) -> str | None:
         """
@@ -1216,7 +1216,7 @@ class DataCarouselInterface(object):
         else:
             # no source_rse; unexpected
             tmp_log.warning(f"source_rse is None ; skipped")
-            return
+            return None
         # get source physical tape
         try:
             # source_rse is RSE
@@ -1227,18 +1227,18 @@ class DataCarouselInterface(object):
         except Exception:
             # other unexpected errors
             tmp_log.error(f"got error ; {traceback.format_exc()}")
-            return
+            return None
         # parameters about this tape source from DC config
         try:
             source_tape_config = self.dc_config_map.source_tapes_config[source_tape]
         except (KeyError, AttributeError):
             # no destination_expression for this tape; skipped
             tmp_log.warning(f"failed to get destination_expression from config; skipped ; {traceback.format_exc()}")
-            return
+            return None
         except Exception:
             # other unexpected errors
             tmp_log.error(f"got error ; {traceback.format_exc()}")
-            return
+            return None
         # destination expression
         if dc_req_spec.get_parameter("to_pin"):
             # to pin; use the simple to pin destination
@@ -1264,7 +1264,7 @@ class DataCarouselInterface(object):
         else:
             # no match of destination RSE; return None and stay queued
             tmp_log.error(f"failed to choose destination RSE; skipped")
-            return
+            return None
         # submit ddm staging rule
         ddm_rule_id = self.ddmIF.make_staging_rule(
             dataset_name=dc_req_spec.dataset,
@@ -1497,7 +1497,7 @@ class DataCarouselInterface(object):
             dataset = dc_req_spec.dataset
             scope, dsname = self.ddmIF.extract_scope(dataset)
             # get lfn of files in the dataset from DDM
-            lfn_set = self.ddmIF.get_files_in_dataset(dataset, ignoreUnknown=True, lfn_only=True)
+            lfn_set = self.ddmIF.get_files_in_dataset(dataset, ignore_unknown=True, lfn_only=True)
             # make filenames_dict for updateInputFilesStaged_JEDI
             filenames_dict = {}
             dummy_value_tuple = (None, None)
@@ -1521,6 +1521,7 @@ class DataCarouselInterface(object):
             return True
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
 
     def check_staging_requests(self):
         """
