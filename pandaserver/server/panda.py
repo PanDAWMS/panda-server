@@ -351,7 +351,7 @@ def module_mapping(version, api_module):
         "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},  # legacy API uses globals instead of a particular module
         "v1": {
             "creds": {"module": cred_api_v1, "allowed_methods": cred_api_v1_methods},
-            "events": {"module": event_api_v1, "allowed_methods": event_api_v1_methods},
+            "event": {"module": event_api_v1, "allowed_methods": event_api_v1_methods},
             "file_server": {"module": file_server_api_v1, "allowed_methods": file_server_api_v1_methods},
             "harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods},
             "idds": {"module": idds_api_v1, "allowed_methods": idds_api_v1_methods},
