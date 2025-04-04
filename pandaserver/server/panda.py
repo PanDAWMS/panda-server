@@ -184,6 +184,7 @@ taskBuffer.init(
 if panda_config.nDBConnection != 0:
     # initialize all the API modules
     cred_api_v1.init_task_buffer(taskBuffer)
+    event_api_v1.init_task_buffer(taskBuffer)
     file_server_api_v1.init_task_buffer(taskBuffer)
     harvester_api_v1.init_task_buffer(taskBuffer)
     # IDDS API does not need to be initialized. idds_server_api_v1.init_task_buffer(taskBuffer)
