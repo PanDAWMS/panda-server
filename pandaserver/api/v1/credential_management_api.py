@@ -176,7 +176,7 @@ def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str)
 
     # check permission
     global_dispatch_parameter_cache.update()
-    allowed_keys = global_dispatch_parameter_cache.get("allow_keyPair", [])
+    allowed_keys = global_dispatch_parameter_cache.get("allowKeyPair", [])
     if compact_dn not in allowed_keys:
         # permission denied
         tmp_msg = f"Failed since '{compact_dn}' not authorized with 'k' in {panda_config.schemaMETA}.USERS.GRIDPREF"
