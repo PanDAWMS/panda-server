@@ -746,6 +746,39 @@ class JediTaskSpec(object):
 
     commandStatusMap = classmethod(commandStatusMap)
 
+    # qualifiers for retry command
+    def get_retry_command_qualifiers(
+        cls,
+        no_child_retry: bool = False,
+        discard_events: bool = False,
+        disable_staging_mode: bool = False,
+        keep_gshare_priority: bool = False,
+        ignore_hard_exhausted: bool = False,
+    ) -> list:
+        """
+        Get the list of qualifiers for the retry command.
+        :param no_child_retry: If True, retry will not be attempted on child tasks.
+        :param discard_events: If True, events will be discarded.
+        :param disable_staging_mode: If True, staging mode will be disabled.
+        :param keep_gshare_priority: If True, current gshare and priority will be kept.
+        :param ignore_hard_exhausted: If True, the limits for hard exhausted will be ignored.
+        :return: A list of qualifiers.
+        """
+        qualifiers = []
+        if no_child_retry:
+            qualifiers.append("sole")
+        if discard_events:
+            qualifiers.append("discard")
+        if disable_staging_mode:
+            qualifiers.append("staged")
+        if keep_gshare_priority:
+            qualifiers.append("keep")
+        if ignore_hard_exhausted:
+            qualifiers.append("transcend")
+        return qualifiers
+
+    get_retry_command_qualifiers = classmethod(get_retry_command_qualifiers)
+
     # set error dialog
     def setErrDiag(self, diag, append=False, prepend=False):
         # check if message can be encoded with UTF-8

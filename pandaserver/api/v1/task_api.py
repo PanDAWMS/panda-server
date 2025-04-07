@@ -19,6 +19,7 @@ from pandaserver.api.v1.common import (
     request_validation,
 )
 from pandaserver.srvcore.panda_request import PandaRequest
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("api_task")
@@ -39,9 +40,11 @@ def retry(
     req: PandaRequest,
     task_id: int,
     new_parameters: str = None,
-    no_child_retry: bool = None,
-    disable_staging_mode: bool = None,
-    keep_gshare_priority: bool = None,
+    no_child_retry: bool = False,
+    discard_events: bool = False,
+    disable_staging_mode: bool = False,
+    keep_gshare_priority: bool = False,
+    ignore_hard_exhausted: bool = False,
 ) -> Dict[str, Any]:
     """
     Task retry
@@ -58,8 +61,10 @@ def retry(
         new_parameters(Dict, optional): a json dictionary with the new parameters for rerunning the task. The new parameters are merged with the existing ones.
                                         The parameters are the attributes in the JediTaskSpec object (https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jedicore/JediTaskSpec.py).
         no_child_retry(bool, optional): if True, the child tasks are not retried
+        discard_events(bool, optional): if True, events will be discarded
         disable_staging_mode(bool, optional): if True, the task skips staging state and directly goes to subsequent state
         keep_gshare_priority(bool, optional): if True, the task keeps current gshare and priority
+        ignore_hard_exhausted(bool, optional): if True, the task ignores the limits for hard exhausted state and can be retried even if it is very faulty
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
@@ -93,17 +98,12 @@ def retry(
         except Exception as e:
             ret = 1, f"new parameter conversion failed with {str(e)}"
     else:
+        # disable ignore_hard_exhausted if not production_role
+        if not production_role and ignore_hard_exhausted:
+            ignore_hard_exhausted = False
         # get command qualifier
-        qualifier = ""
-        for com_key, com_param in [
-            ("sole", no_child_retry),
-            ("discard", no_child_retry),
-            ("staged", disable_staging_mode),
-            ("keep", keep_gshare_priority),
-        ]:
-            if com_param:
-                qualifier += f"{com_key} "
-        qualifier = qualifier.strip()
+        qualifier = JediTaskSpec.get_retry_command_qualifiers(no_child_retry, discard_events, disable_staging_mode, keep_gshare_priority, ignore_hard_exhausted)
+        qualifier = " ".join(qualifier)
         # normal retry
         ret = global_task_buffer.sendCommandTaskPanda(
             task_id,
@@ -557,7 +557,7 @@ def avalanche(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def reload_input(req: PandaRequest, task_id: int) -> Dict[str, Any]:
+def reload_input(req: PandaRequest, task_id: int, ignore_hard_exhausted: bool = False) -> Dict[str, Any]:
     """
     Reload input
 
@@ -570,6 +570,7 @@ def reload_input(req: PandaRequest, task_id: int) -> Dict[str, Any]:
     Args:
         req(PandaRequest): internally generated request object
         task_id(int): JEDI Task ID
+        ignore_hard_exhausted(bool, optional): ignore the limits for hard exhausted
 
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
@@ -587,7 +588,15 @@ def reload_input(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         tmp_logger.error("Failed due to invalid task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
-    ret = global_task_buffer.sendCommandTaskPanda(task_id, user, is_production_role, "incexec", comComment="{}", propeErrorCode=True)
+    # allow ignore_hard_exhausted only for production role
+    if not is_production_role and ignore_hard_exhausted:
+        ignore_hard_exhausted = False
+
+    # specify ignore_hard_exhausted as a command qualifier in command's comment
+    com_qualifier = JediTaskSpec.get_retry_command_qualifiers(ignore_hard_exhausted=ignore_hard_exhausted)
+    com_comment = json.dumps([{}, com_qualifier])
+
+    ret = global_task_buffer.sendCommandTaskPanda(task_id, user, is_production_role, "incexec", comComment=com_comment, propeErrorCode=True)
     data, message = ret
     success = data == 0
 

@@ -4289,10 +4289,13 @@ class TaskComplexModule(BaseModule):
         discardEvents=False,
         release_unstaged=False,
         keep_share_priority=False,
+        ignore_hard_exhausted=False,
     ):
         comment = " /* JediDBProxy.retryTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmpLog.debug(f"start command={commStr} retryChildTasks={retryChildTasks}")
+        tmpLog.debug(
+            f"start command={commStr} retry_child={retryChildTasks} discard_events={discardEvents} release_unstaged={release_unstaged} keep_share_priority={keep_share_priority} ignore_hard_exhausted={ignore_hard_exhausted}"
+        )
         newTaskStatus = None
         retried_tasks = []
         # check command
@@ -4423,14 +4426,15 @@ class TaskComplexModule(BaseModule):
                     varMap.update(INPUT_TYPES_var_map)
                     self.cur.execute(sqlMAX + comment, varMap)
                     resMAX = self.cur.fetchone()
-                    if task_max_attempt is not None and task_attempt_number >= task_max_attempt > 0:
+                    if not ignore_hard_exhausted and task_max_attempt is not None and task_attempt_number >= task_max_attempt > 0:
                         # too many attempts
                         msg_str = f"exhausted upon retry since too many task attempts more than {task_max_attempt} are forbidden"
                         tmpLog.debug(msg_str)
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
                     elif (
-                        max_failed_hep_score_hours is not None
+                        not ignore_hard_exhausted
+                        and max_failed_hep_score_hours is not None
                         and failure_metrics
                         and failure_metrics["failed_hep_score_hour"] >= max_failed_hep_score_hours > 0
                     ):
@@ -4441,7 +4445,8 @@ class TaskComplexModule(BaseModule):
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
                     elif (
-                        max_failed_hep_score_rate is not None
+                        not ignore_hard_exhausted
+                        and max_failed_hep_score_rate is not None
                         and failure_metrics
                         and failure_metrics["failed_hep_score_ratio"] is not None
                         and failure_metrics["failed_hep_score_ratio"] >= max_failed_hep_score_rate > 0
@@ -4453,7 +4458,8 @@ class TaskComplexModule(BaseModule):
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
                     elif (
-                        max_job_failure_rate is not None
+                        not ignore_hard_exhausted
+                        and max_job_failure_rate is not None
                         and failure_metrics
                         and failure_metrics["single_failure_rate"] is not None
                         and failure_metrics["single_failure_rate"] >= max_job_failure_rate > 0
@@ -4464,14 +4470,21 @@ class TaskComplexModule(BaseModule):
                         tmpLog.debug(msg_str)
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
-                    elif job_max_attempt is not None and resMAX is not None and resMAX[0] is not None and resMAX[0] >= job_max_attempt:
+                    elif (
+                        not ignore_hard_exhausted
+                        and job_max_attempt is not None
+                        and resMAX is not None
+                        and resMAX[0] is not None
+                        and resMAX[0] >= job_max_attempt
+                    ):
                         # too many job attempts
                         msgStr = f"{commStr} was rejected due to too many attempts ({resMAX[0]} >= {job_max_attempt}) for some jobs"
                         tmpLog.debug(msgStr)
                         newTaskStatus = taskOldStatus
                         newErrorDialog = msgStr
                     elif (
-                        min_cpu_efficiency is not None
+                        not ignore_hard_exhausted
+                        and min_cpu_efficiency is not None
                         and scout_metics_ok
                         and scout_metrics_extra.get("minCpuEfficiency") is not None
                         and min_cpu_efficiency > scout_metrics_extra.get("minCpuEfficiency")
@@ -4783,9 +4796,7 @@ class TaskComplexModule(BaseModule):
                     self.cur.execute(sqlUO + comment, varMap)
                 # retry or reactivate child tasks
                 if retryChildTasks and newTaskStatus != taskOldStatus and taskStatus != "exhausted" and newTaskStatus != "exhausted":
-                    _, tmp_retried_tasks = get_task_utils_module(self).retryChildTasks_JEDI(
-                        jediTaskID, keep_share_priority=keep_share_priority, useCommit=False
-                    )
+                    _, tmp_retried_tasks = self.retryChildTasks_JEDI(jediTaskID, keep_share_priority=keep_share_priority, useCommit=False)
                     retried_tasks += tmp_retried_tasks
             if useCommit:
                 # commit
@@ -4801,6 +4812,112 @@ class TaskComplexModule(BaseModule):
             # error
             self.dump_error_message(tmpLog)
             return None, None, retried_tasks
+
+    # retry child tasks
+    def retryChildTasks_JEDI(self, jediTaskID, keep_share_priority=False, ignore_hard_exhausted=False, useCommit=True):
+        comment = " /* JediDBProxy.retryChildTasks_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
+        tmpLog.debug("start")
+        retried_tasks = []
+        try:
+            # sql to get output datasets of parent task
+            sqlPD = f"SELECT datasetName,containerName FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+            sqlPD += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
+            # sql to get child tasks
+            sqlGT = f"SELECT jediTaskID,status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+            sqlGT += "WHERE parent_tid=:jediTaskID AND parent_tid<>jediTaskID "
+            # sql to get input datasets of child task
+            sqlRD = f"SELECT datasetID,datasetName FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+            sqlRD += f"WHERE jediTaskID=:jediTaskID AND type IN ({PROCESS_TYPES_var_str}) "
+            # sql to change task status
+            sqlCT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+            sqlCT += "SET status=:status,errorDialog=NULL,stateChangeTime=CURRENT_DATE "
+            sqlCT += "WHERE jediTaskID=:jediTaskID "
+            # sql to set mutable to dataset status
+            sqlMD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+            sqlMD += "SET state=:state,stateCheckTime=CURRENT_DATE "
+            sqlMD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            # sql to set dataset status
+            sqlCD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+            sqlCD += "SET status=:status "
+            sqlCD += "WHERE jediTaskID=:jediTaskID AND type=:type "
+            # begin transaction
+            if useCommit:
+                self.conn.begin()
+            # get output datasets of parent task
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            varMap[":type1"] = "output"
+            varMap[":type2"] = "log"
+            self.cur.execute(sqlPD + comment, varMap)
+            resList = self.cur.fetchall()
+            parentDatasets = set()
+            for tmpDS, tmpDC in resList:
+                parentDatasets.add(tmpDS)
+                parentDatasets.add(tmpDC)
+            # get child tasks
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            self.cur.execute(sqlGT + comment, varMap)
+            resList = self.cur.fetchall()
+            for cJediTaskID, cTaskStatus in resList:
+                # not to retry if child task is aborted/broken
+                if cTaskStatus in ["aborted", "toabort", "aborting", "broken", "tobroken", "failed"]:
+                    tmpLog.debug(f"not to retry child jediTaskID={cJediTaskID} in {cTaskStatus}")
+                    continue
+                # get input datasets of child task
+                varMap = {}
+                varMap[":jediTaskID"] = cJediTaskID
+                varMap.update(PROCESS_TYPES_var_map)
+                self.cur.execute(sqlRD + comment, varMap)
+                dsList = self.cur.fetchall()
+                inputReady = False
+                for datasetID, datasetName in dsList:
+                    # set dataset status to mutable
+                    if datasetName in parentDatasets or datasetName.split(":")[-1] in parentDatasets:
+                        varMap = {}
+                        varMap[":jediTaskID"] = cJediTaskID
+                        varMap[":datasetID"] = datasetID
+                        varMap[":state"] = "mutable"
+                        self.cur.execute(sqlMD + comment, varMap)
+                        inputReady = True
+                # set task status
+                if not inputReady:
+                    # set task status to registered since dataset is not ready
+                    varMap = {}
+                    varMap[":jediTaskID"] = cJediTaskID
+                    varMap[":status"] = "registered"
+                    self.cur.execute(sqlCT + comment, varMap)
+                    # add missing record_task_status_change and push_task_status_message updates
+                    self.record_task_status_change(cJediTaskID)
+                    self.push_task_status_message(None, cJediTaskID, varMap[":status"])
+                    tmpLog.debug(f"set status of child jediTaskID={cJediTaskID} to {varMap[':status']}")
+                elif cTaskStatus not in ["ready", "running", "scouting", "scouted"]:
+                    # incexec child task
+                    tmpLog.debug(f"incremental execution for child jediTaskID={cJediTaskID}")
+                    _, _, tmp_retried_tasks = self.retryTask_JEDI(
+                        cJediTaskID,
+                        "incexec",
+                        useCommit=False,
+                        statusCheck=False,
+                        keep_share_priority=keep_share_priority,
+                        ignore_hard_exhausted=ignore_hard_exhausted,
+                    )
+                    retried_tasks += tmp_retried_tasks
+            # commit
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+            # return
+            tmpLog.debug("done")
+            return True, retried_tasks
+        except Exception:
+            # roll back
+            if useCommit:
+                self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return False, retried_tasks
 
     # record retry history
     def recordRetryHistory_JEDI(self, jediTaskID, oldNewPandaIDs, relationType):
