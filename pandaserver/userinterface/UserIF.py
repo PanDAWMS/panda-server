@@ -1019,6 +1019,7 @@ def retryTask(
     discardEvents = resolve_true(discardEvents)
     disable_staging_mode = resolve_true(disable_staging_mode)
     keep_gshare_priority = resolve_true(keep_gshare_priority)
+    ignore_hard_exhausted = resolve_true(ignore_hard_exhausted)
 
     # check security
     if not isSecure(req):
