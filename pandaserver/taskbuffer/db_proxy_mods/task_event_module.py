@@ -3671,17 +3671,8 @@ class TaskEventModule(BaseModule):
                                 varMap[":jediTaskID"] = jediTaskID
                                 varMap[":ramCount"] = newRamCount
                                 self.cur.execute(sqlRAMT + comment, varMap)
-                            # delete command just in case
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            self.cur.execute(sqlDC + comment, varMap)
                             # insert command
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":comm_cmd"] = "incexec"
-                            varMap[":comm_owner"] = "DEFT"
-                            varMap[":comm_parameters"] = json.dumps(newTaskParams)
-                            self.cur.execute(sqlIC + comment, varMap)
+                            self.sendCommandTaskPanda(jediTaskID, dn, True, "incexec", json.dumps(newTaskParams), useCommit=False)
                             tmp_log.info(f"{varMap[':comm_cmd']} jediTaskID={jediTaskID} with {str(newTaskParams)}")
                             retVal = "reactivation accepted. "
                             retVal += f"jediTaskID={jediTaskID} (currently in {taskStatus} state) will be re-executed with old and/or new input"
@@ -3848,6 +3839,7 @@ class TaskEventModule(BaseModule):
                     if taskStatus not in [
                         "finished",
                         "failed",
+                        "aborted",
                         "done",
                         "exhausted",
                     ]:
