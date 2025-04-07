@@ -78,7 +78,7 @@ def acquire_jobs(
 
     API details:
         HTTP Method: POST
-        Path: /pilot/v1/acquire_jobs
+        Path: /v1/pilot/acquire_jobs
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
@@ -377,7 +377,7 @@ def update_job(
 
     API details:
         HTTP Method: POST
-        Path: /pilot/v1/update_job
+        Path: /v1/pilot/update_job
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -626,7 +626,7 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
 
     API details:
         HTTP Method: POST
-        Path: /pilot/v1/update_jobs_bulk
+        Path: /v1/pilot/update_jobs_bulk
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -680,7 +680,7 @@ def update_worker_status(req: PandaRequest, worker_id, harvester_id, status, tim
 
     API details:
         HTTP Method: POST
-        Path: /pilot/v1/update_worker_status
+        Path: /v1/pilot/update_worker_status
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
@@ -747,7 +747,7 @@ def update_worker_node(
 
     API details:
         HTTP Method: POST
-        Path: /pilot/v1/update_worker_node
+        Path: /v1/pilot/update_worker_node
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.

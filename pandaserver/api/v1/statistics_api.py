@@ -31,7 +31,7 @@ def job_stats_by_cloud(req: PandaRequest, type: str = "production") -> Dict[str,
 
     API details:
         HTTP Method: GET
-        Path: /statistics/v1/job_stats_by_cloud
+        Path: /v1/statistics/job_stats_by_cloud
 
     Args:
         req(PandaRequest): internally generated request object
@@ -65,7 +65,7 @@ def production_job_stats_by_cloud_and_processing_type(req: PandaRequest) -> Dict
 
     API details:
         HTTP Method: GET
-        Path: /statistics/v1/production_job_stats_by_cloud_and_processing_type
+        Path: /v1/statistics/production_job_stats_by_cloud_and_processing_type
 
     Args:
         req(PandaRequest): internally generated request object
@@ -94,7 +94,7 @@ def active_job_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
 
     API details:
         HTTP Method: GET
-        Path: /statistics/v1/active_job_stats_by_site
+        Path: /v1/statistics/active_job_stats_by_site
 
     Args:
         req(PandaRequest): internally generated request object
@@ -122,7 +122,7 @@ def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int = No
 
     API details:
         HTTP Method: GET
-        Path: /statistics/v1/job_stats_by_site_and_resource_type
+        Path: /v1/statistics/job_stats_by_site_and_resource_type
 
     Args:
         req(PandaRequest): internally generated request object
@@ -155,7 +155,7 @@ def job_stats_by_site_share_and_resource_type(req: PandaRequest, time_window: in
 
     API details:
         HTTP Method: GET
-        Path: /statistics/v1/retry
+        Path: /v1/statistics/retry
 
     Args:
         req(PandaRequest): internally generated request object

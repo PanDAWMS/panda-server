@@ -88,7 +88,7 @@ def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_jedi_log
+        Path: /v1/file_server/upload_jedi_log
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -156,7 +156,7 @@ def update_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/update_jedi_log
+        Path: /v1/file_server/update_jedi_log
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -199,7 +199,7 @@ def download_jedi_log(req: PandaRequest, log_name: str, offset: int = 0) -> str:
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/download_jedi_log
+        Path: /v1/file_server/download_jedi_log
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -244,7 +244,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_cache_file
+        Path: /v1/file_server/upload_cache_file
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -385,7 +385,7 @@ def touch_cache_file(req: PandaRequest, file_name: str) -> Dict:
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/touch_cache_file
+        Path: /v1/file_server/touch_cache_file
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -418,7 +418,7 @@ def delete_cache_file(req: PandaRequest, file_name: str) -> Dict:
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/delete_cache_file
+        Path: /v1/file_server/delete_cache_file
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -448,7 +448,7 @@ def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/register_cache_file
+        Path: /v1/file_server/register_cache_file
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -487,7 +487,7 @@ def validate_cache_file(req: PandaRequest, file_size: int, checksum: str) -> Dic
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/validate_cache_file
+        Path: /v1/file_server/validate_cache_file
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -532,7 +532,7 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_hpo_checkpoint
+        Path: /v1/file_server/upload_hpo_checkpoint
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -593,7 +593,7 @@ def delete_hpo_checkpoint(req: PandaRequest, task_id: str, sub_id: str) -> Dict:
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/delete_hpo_checkpoint
+        Path: /v1/file_server/delete_hpo_checkpoint
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -628,7 +628,7 @@ def upload_file_recovery_request(req: PandaRequest, task_id: int, dry_run: bool 
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_file_recovery_request
+        Path: /v1/file_server/upload_file_recovery_request
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -679,7 +679,7 @@ def upload_workflow_request(req: PandaRequest, data: str, dry_run: bool = False,
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_workflow_request
+        Path: /v1/file_server/upload_workflow_request
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -767,7 +767,7 @@ def upload_event_picking_request(
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_event_picking_request
+        Path: /v1/file_server/upload_event_picking_request
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
