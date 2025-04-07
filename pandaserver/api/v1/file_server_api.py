@@ -628,7 +628,7 @@ def upload_file_recovery_request(req: PandaRequest, task_id: int, dry_run: bool 
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_jedi_log
+        Path: /file_server/v1/upload_file_recovery_request
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -679,7 +679,7 @@ def upload_workflow_request(req: PandaRequest, data: str, dry_run: bool = False,
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_jedi_log
+        Path: /file_server/v1/upload_workflow_request
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -767,7 +767,7 @@ def upload_event_picking_request(
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_jedi_log
+        Path: /file_server/v1/upload_event_picking_request
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
