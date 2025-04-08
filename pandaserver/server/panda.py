@@ -389,13 +389,16 @@ def application(environ, start_response):
     cont_length = int(environ.get("CONTENT_LENGTH", 0))
     request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
 
-    # json app means the content type is application/json,
-    # while json body requires additionally to be a PUT or POST request, where the body is json encoded
-    json_app = environ.get("CONTENT_TYPE", None) == "application/json"
-    json_body = environ.get("CONTENT_TYPE", None) == "application/json" and request_method in ["PUT", "POST"]
-
     # see if we are on the new or old APIs
     new_api = is_new_api(api_module)
+
+    # json app means the content type is application/json,
+    # while json body requires additionally to be a PUT or POST request, where the body is json encoded
+    if new_api:
+        json_app = environ.get("CONTENT_TYPE", None) == "application/json" or environ.get("HTTP_ACCEPT", None) == "application/json"
+    else:
+        json_app = environ.get("CONTENT_TYPE", None) == "application/json"
+    json_body = environ.get("CONTENT_TYPE", None) == "application/json" and request_method in ["PUT", "POST"]
 
     # Content encoding specifies whether the body is compressed through gzip or others.
     # No encoding usually means the body is not compressed
