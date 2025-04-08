@@ -1201,8 +1201,8 @@ class RucioAPI:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
 
     # list datasets in container
-    def list_datasets_in_container(self, container_name):
-        method_name = "list_datasets_in_container"
+    def list_datasets_in_container_JEDI(self, container_name):
+        method_name = "list_datasets_in_container_JEDI"
         method_name += f" <container_name={container_name}>"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")

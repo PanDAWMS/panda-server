@@ -550,7 +550,7 @@ class DataCarouselInterface(object):
             did_type = collection_meta["did_type"]
             if did_type == "CONTAINER":
                 # is container, get datasets inside
-                dataset_list = self.ddmIF.list_datasets_in_container(collection)
+                dataset_list = self.ddmIF.list_datasets_in_container_JEDI(collection)
                 if dataset_list is None:
                     tmp_log.warning(f"cannot list datasets in this container")
                 else:
