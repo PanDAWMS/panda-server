@@ -328,13 +328,13 @@ class TaskUtilsModule(BaseModule):
 
         # sql to get normal scout job data from Panda
         sqlSCDN = "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
-        sqlSCDN += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, jobMetrics, nEvents, "
+        sqlSCDN += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
         sqlSCDN += "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
         sqlSCDN += f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
         sqlSCDN += "WHERE PandaID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
         sqlSCDN += "UNION "
         sqlSCDN += "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
-        sqlSCDN += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, jobMetrics, nEvents, "
+        sqlSCDN += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
         sqlSCDN += "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
         sqlSCDN += f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
         sqlSCDN += "WHERE PandaID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
@@ -342,13 +342,13 @@ class TaskUtilsModule(BaseModule):
 
         # sql to get ES scout job data from Panda
         sqlSCDE = "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
-        sqlSCDE += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, jobMetrics, nEvents, "
+        sqlSCDE += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
         sqlSCDE += "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
         sqlSCDE += f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
         sqlSCDE += "WHERE jobsetID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
         sqlSCDE += "UNION "
         sqlSCDE += "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
-        sqlSCDE += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, jobMetrics, nEvents, "
+        sqlSCDE += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
         sqlSCDE += "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
         sqlSCDE += f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
         sqlSCDE += "WHERE jobsetID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
@@ -659,7 +659,7 @@ class TaskUtilsModule(BaseModule):
                         endTime,
                         computingSite,
                         maxPSS,
-                        jobMetrics,
+                        specialHandling,
                         nEvents,
                         totRBYTES,
                         totWBYTES,
@@ -668,10 +668,12 @@ class TaskUtilsModule(BaseModule):
                         memory_leak_x2,
                     ) = oneResData
 
+                    # event service job
+                    is_event_service = eventServiceJob == EventServiceUtils.esJobFlagNumber and not EventServiceUtils.isJobCloningSH(specialHandling)
                     # add inputSize and nEvents
                     if pandaID not in inFSizeMap:
                         inFSizeMap[pandaID] = totalFSize
-                    if pandaID not in inEventsMap or eventServiceJob == EventServiceUtils.esJobFlagNumber:
+                    if pandaID not in inEventsMap or is_event_service:
                         inEventsMap[pandaID] = nEvents
                     totInSizeMap[pandaID] = inputFileByte
 
@@ -702,7 +704,7 @@ class TaskUtilsModule(BaseModule):
 
                     # output size
                     tmpWorkSize = 0
-                    if eventServiceJob != EventServiceUtils.esJobFlagNumber:
+                    if not is_event_service:
                         try:
                             try:
                                 # add size of intermediate files
