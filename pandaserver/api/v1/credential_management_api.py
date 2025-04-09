@@ -119,7 +119,7 @@ def get_user_secrets(req: PandaRequest, keys: List[str] = None) -> dict:
 
     API details:
         HTTP Method: POST
-        Path: /v1/creds/set_user_secrets
+        Path: /v1/creds/get_user_secrets
 
     Args:
         req(PandaRequest): internally generated request object
