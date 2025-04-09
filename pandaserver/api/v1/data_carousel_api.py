@@ -69,13 +69,22 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
     success, message, data = False, "", None
     time_start = naive_utcnow()
 
+    # acquire lock
+    full_pid = global_data_carousel_interface.acquire_global_dc_lock(timeout_sec=10, lock_expiration_sec=300)
+    if full_pid is None:
+        # timeout
+        err_msg = f"timed out without getting lock"
+        tmp_logger.error(err_msg)
+        success, message = False, err_msg
+        return generate_response(success, message, data)
+
     dc_req_spec = None
     if request_id is not None:
         # specified by request_id
-        dc_req_spec = global_data_carousel_interface._get_request_by_id(request_id)
+        dc_req_spec = global_data_carousel_interface.get_request_by_id(request_id)
     elif request_id is None and dataset is not None:
         # specified by dataset
-        dc_req_spec = global_data_carousel_interface._get_request_by_dataset(dataset)
+        dc_req_spec = global_data_carousel_interface.get_request_by_dataset(dataset)
 
     if dc_req_spec is not None:
         dc_req_spec_resubmitted = global_data_carousel_interface.resubmit_request(dc_req_spec.request_id, submit_idds_request=True, exclude_prev_dst=True)
@@ -90,6 +99,9 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
         err_msg = f"failed to get corresponding request"
         tmp_logger.error(err_msg)
         success, message = False, err_msg
+
+    # release lock
+    global_data_carousel_interface.release_global_dc_lock(full_pid)
 
     time_delta = naive_utcnow() - time_start
     tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
@@ -123,13 +135,22 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
     success, message, data = False, "", None
     time_start = naive_utcnow()
 
+    # acquire lock
+    full_pid = global_data_carousel_interface.acquire_global_dc_lock(timeout_sec=10, lock_expiration_sec=300)
+    if full_pid is None:
+        # timeout
+        err_msg = f"timed out without getting lock"
+        tmp_logger.error(err_msg)
+        success, message = False, err_msg
+        return generate_response(success, message, data)
+
     dc_req_spec = None
     if request_id is not None:
         # specified by request_id
-        dc_req_spec = global_data_carousel_interface._get_request_by_id(request_id)
+        dc_req_spec = global_data_carousel_interface.get_request_by_id(request_id)
     elif request_id is None and dataset is not None:
         # specified by dataset
-        dc_req_spec = global_data_carousel_interface._get_request_by_dataset(dataset)
+        dc_req_spec = global_data_carousel_interface.get_request_by_dataset(dataset)
 
     if dc_req_spec is not None:
         ret = global_data_carousel_interface.change_request_source_rse(dc_req_spec)
@@ -144,6 +165,9 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
         err_msg = f"failed to get corresponding request"
         tmp_logger.error(err_msg)
         success, message = False, err_msg
+
+    # release lock
+    global_data_carousel_interface.release_global_dc_lock(full_pid)
 
     time_delta = naive_utcnow() - time_start
     tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
@@ -180,10 +204,10 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
 #     dc_req_spec = None
 #     if request_id is not None:
 #         # specified by request_id
-#         dc_req_spec = global_data_carousel_interface._get_request_by_id(request_id)
+#         dc_req_spec = global_data_carousel_interface.get_request_by_id(request_id)
 #     elif request_id is None and dataset is not None:
 #         # specified by dataset
-#         dc_req_spec = global_data_carousel_interface._get_request_by_dataset(dataset)
+#         dc_req_spec = global_data_carousel_interface.get_request_by_dataset(dataset)
 
 #     if dc_req_spec is not None:
 #         ret = global_data_carousel_interface.change_request_source_rse(dc_req_spec)

@@ -1,7 +1,10 @@
 import functools
 import json
+import os
 import random
 import re
+import socket
+import time
 import traceback
 from collections import namedtuple
 from dataclasses import MISSING, InitVar, asdict, dataclass, field
@@ -28,6 +31,9 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 # ==============================================================
+
+# global DC lock component name
+GLOBAL_DC_LOCK_NAME = "DataCarousel"
 
 # schema version of database config
 DC_CONFIG_SCHEMA_VERSION = 1
@@ -337,12 +343,69 @@ class DataCarouselInterface(object):
         Decorator to call _refresh_all_attributes before the method
         """
 
+        # wrapper
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
             self._refresh_all_attributes()
             return func(self, *args, **kwargs)
 
+        # return
         return wrapper
+
+    def acquire_global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30) -> str | None:
+        """
+        Acquire global Data Carousel lock in DB
+
+        Args:
+            timeout_sec (int): timeout in seconds for blocking to retry
+            lock_expiration_sec (int): age of lock in seconds to be considered expired and can be acquired immediately
+
+        Returns:
+            str|None : full process ID of this process if got lock; None if timeout
+        """
+        tmp_log = LogWrapper(logger, "_acquire_global_dc_lock")
+        # full pid for the lock
+        full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
+        # time the retry loop
+        start_mono_time = time.monotonic()
+        while time.monotonic() - start_mono_time <= timeout_sec:
+            # try to get the lock
+            got_lock = self.taskBufferIF.lockProcess_PANDA(
+                component=GLOBAL_DC_LOCK_NAME,
+                pid=full_pid,
+                time_limit=lock_expiration_sec / 60.0,
+            )
+            if got_lock:
+                # got the lock; return
+                tmp_log.debug(f"got lock by full_pid={full_pid}")
+                return full_pid
+            else:
+                # did not get lock; retry
+                time.sleep(0.05)
+        # timeout
+        tmp_log.debug(f"timed out; skipped")
+        return None
+
+    def release_global_dc_lock(self, full_pid: str):
+        """
+        Release global Data Carousel lock in DB
+
+        Args:
+            full_pid (str): full process ID which acquired the lock
+        """
+        tmp_log = LogWrapper(logger, "_release_global_dc_lock")
+        # try to release the lock
+        ret = self.taskBufferIF.unlockProcess_PANDA(
+            component=GLOBAL_DC_LOCK_NAME,
+            pid=full_pid,
+        )
+        if ret:
+            # released the lock
+            tmp_log.debug(f"released lock")
+        else:
+            # failed to release lock; skip
+            tmp_log.error(f"failed to released lock; skipped")
+        return ret
 
     def _update_rses(self, time_limit_minutes: int | float = 30):
         """
@@ -421,7 +484,7 @@ class DataCarouselInterface(object):
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
 
-    def _get_request_by_id(self, request_id: int) -> DataCarouselRequestSpec | None:
+    def get_request_by_id(self, request_id: int) -> DataCarouselRequestSpec | None:
         """
         Get the spec of the request specified by request_id
 
@@ -431,7 +494,7 @@ class DataCarouselInterface(object):
         Returns:
             DataCarouselRequestSpec|None : spec of the request, or None if failed
         """
-        tmp_log = LogWrapper(logger, f"_get_request_by_id request_id={request_id}")
+        tmp_log = LogWrapper(logger, f"get_request_by_id request_id={request_id}")
         sql = f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id "
         var_map = {":request_id": request_id}
         res_list = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
@@ -447,7 +510,7 @@ class DataCarouselInterface(object):
             tmp_log.warning("no request found; skipped")
             return None
 
-    def _get_request_by_dataset(self, dataset: str) -> DataCarouselRequestSpec | None:
+    def get_request_by_dataset(self, dataset: str) -> DataCarouselRequestSpec | None:
         """
         Get the reusable request (not in cancelled or retired) of the dataset
 
@@ -457,7 +520,7 @@ class DataCarouselInterface(object):
         Returns:
             DataCarouselRequestSpec|None : spec of the request of dataset, or None if failed
         """
-        tmp_log = LogWrapper(logger, f"_get_request_by_dataset dataset={dataset}")
+        tmp_log = LogWrapper(logger, f"get_request_by_dataset dataset={dataset}")
         status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.reusable_statuses, prefix=":status")
         sql = (
             f"SELECT {DataCarouselRequestSpec.columnNames()} "
@@ -1355,6 +1418,12 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, f"stage_request request_id={dc_req_spec.request_id}")
         is_ok = False
+        # renew dc_req_spec from DB
+        dc_req_spec = self.get_request_by_id(dc_req_spec)
+        # skip if not queued
+        if dc_req_spec.status != DataCarouselRequestStatus.queued:
+            tmp_log.warning(f"status={dc_req_spec.status} not queued; skipped")
+            return is_ok, dc_req_spec
         # check existing DDM rule of the dataset
         if (ddm_rule_id := dc_req_spec.ddm_rule_id) is not None:
             # DDM rule exists; no need to submit
