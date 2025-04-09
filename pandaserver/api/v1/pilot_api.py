@@ -730,14 +730,15 @@ def update_worker_node(
     site: str,
     host_name: str,
     cpu_model: str,
-    n_logical_cpus: int,
-    n_sockets: int,
-    cores_per_socket: int,
-    threads_per_core: int,
-    cpu_architecture: str,
-    cpu_architecture_level: str,
-    clock_speed: float,
-    total_memory: int,
+    n_logical_cpus: int = None,
+    n_sockets: int = None,
+    cores_per_socket: int = None,
+    threads_per_core: int = None,
+    cpu_architecture: str = None,
+    cpu_architecture_level: str = None,
+    clock_speed: float = None,
+    total_memory: int = None,
+    total_local_disk: int = None,
     timeout: int = 60,
 ):
     """
@@ -753,16 +754,17 @@ def update_worker_node(
         req(PandaRequest): Internally generated request object containing the environment variables.
         site(str): Site name (e.g. ATLAS site name, not PanDA queue).
         host_name(str): Host name. In the case of reporting in format `slot@worker_node.example.com`, the slot ID will be parsed out.
-        cpu_model(str): CPU model, e.g. `AMD EPYC 7351`
-        n_logical_cpus(int): Number of logical CPUs: n_sockets * cores_per_socket * threads_per_core.
-                             When SMT is enabled, this is the number of threads. Otherwise it is the number of cores.
-        n_sockets(int): Number of sockets.
-        cores_per_socket(int): Number of cores per socket.
-        threads_per_core(int): Number of threads per core. When SMT is disabled, this is 1. Otherwise a number > 1.
-        cpu_architecture(str): CPU architecture, e.g. `x86_64`
-        cpu_architecture_level(str): CPU architecture level, e.g. `x86-64-v3`
-        clock_speed(float): Clock speed in GHz.
-        total_memory(int): Total memory in MB.
+        cpu_model(str): CPU model, e.g. `AMD EPYC 7351`.
+        n_logical_cpus(int, optional): Number of logical CPUs: n_sockets * cores_per_socket * threads_per_core.
+                             When SMT is enabled, this is the number of threads. Otherwise it is the number of cores. Optional, defaults to `None`.
+        n_sockets(int, optional): Number of sockets. Optional, defaults to `None`.
+        cores_per_socket(int, optional): Number of cores per socket. Optional, defaults to `None`.
+        threads_per_core(int, optional): Number of threads per core. When SMT is disabled, this is 1. Otherwise a number > 1. Optional, defaults to `None`.
+        cpu_architecture(str, optional): CPU architecture, e.g. `x86_64`. Optional, defaults to `None`.
+        cpu_architecture_level(str, optional): CPU architecture level, e.g. `x86-64-v3`. Optional, defaults to `None`.
+        clock_speed(float, optional): Clock speed in MHz. Optional, defaults to `None`.
+        total_memory(int, optional): Total memory in MB. Optional, defaults to `None`.
+        total_local_disk(int, optional): Total disk space in GB. Optional, defaults to `None`.
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -784,6 +786,7 @@ def update_worker_node(
         cpu_architecture_level,
         clock_speed,
         total_memory,
+        total_local_disk,
     )
 
     if timed_method.result == Protocol.TimeOutToken:  # timeout

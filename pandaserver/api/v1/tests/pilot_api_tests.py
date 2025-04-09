@@ -114,6 +114,7 @@ class TestPilotAPI(unittest.TestCase):
             "cpu_architecture_level": "x86_64-v3",
             "clock_speed": 2.7,
             "total_memory": 3350,
+            "total_local_disk": 75,
         }
 
         status, output = self.http_client.post(url, data)

@@ -726,6 +726,7 @@ class TaskBuffer:
         cpu_architecture_level,
         clock_speed,
         total_memory,
+        total_local_disk,
     ):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
@@ -742,6 +743,7 @@ class TaskBuffer:
             cpu_architecture_level,
             clock_speed,
             total_memory,
+            total_local_disk,
         )
         # release proxy
         self.proxyPool.putProxy(proxy)
