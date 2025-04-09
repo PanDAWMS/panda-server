@@ -57,7 +57,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
     tmp_logger.debug("Start")
 
     # The task buffer method expect a comma separated list of job_ids
-    job_ids_str = ",".join(job_ids)
+    job_ids_str = ",".join([str(job_id) for job_id in job_ids])
     timed_method = TimedMethod(global_task_buffer.checkJobStatus, timeout)
     timed_method.run(job_ids_str)
 
