@@ -254,12 +254,13 @@ class DataCarouselMainConfig:
 # ===========
 
 
-def get_resubmit_request_spec(dc_req_spec: DataCarouselRequestSpec) -> DataCarouselRequestSpec | None:
+def get_resubmit_request_spec(dc_req_spec: DataCarouselRequestSpec, exclude_prev_dst: bool = False) -> DataCarouselRequestSpec | None:
     """
     Get a new request spec to resubmit according to original request spec
 
     Args:
         dc_req_spec (DataCarouselRequestSpec): oringal spec of the request
+        exclude_prev_dst (bool): whether to exclude previous destination
 
     Returns:
         DataCarouselRequestSpec|None : spec of the request to resubmit, or None if failed
@@ -284,13 +285,16 @@ def get_resubmit_request_spec(dc_req_spec: DataCarouselRequestSpec) -> DataCarou
         # parameters according to original requests
         # orig_parameter_map = dc_req_spec.parameter_map
         # orig_excluded_dst_set = set(orig_parameter_map.get("excluded_dst_list", []))
+        excluded_dst_set = set()
+        if exclude_prev_dst:
+            # exclude previous destination
+            excluded_dst_set.add(dc_req_spec.destination_rse)
         # TODO: mechanism to exclude problematic source or destination RSE (need approach to store historical datasets/RSEs)
         dc_req_spec_to_resubmit.parameter_map = {
             "resub_from": dc_req_spec.request_id,
             "prev_src": dc_req_spec.source_rse,
             "prev_dst": dc_req_spec.destination_rse,
-            # "excluded_dst_list": list(orig_excluded_dst_set.add(dc_req_spec.destination_rse)),
-            "excluded_dst_list": [dc_req_spec.destination_rse],  # default to be previous destination
+            "excluded_dst_list": list(excluded_dst_set),
         }
         # return
         tmp_log.debug(f"got resubmit request spec for request_id={dc_req_spec.request_id}")
@@ -416,6 +420,65 @@ class DataCarouselInterface(object):
                 self._last_update_ts_dict[nickname] = naive_utcnow()
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+
+    def _get_request_by_id(self, request_id: int) -> DataCarouselRequestSpec | None:
+        """
+        Get the spec of the request specified by request_id
+
+        Args:
+            request_id (int): request_id of the request
+
+        Returns:
+            DataCarouselRequestSpec|None : spec of the request, or None if failed
+        """
+        tmp_log = LogWrapper(logger, f"_get_request_by_id request_id={request_id}")
+        sql = f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id "
+        var_map = {":request_id": request_id}
+        res_list = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
+        if res_list is not None:
+            if len(res_list) > 1:
+                tmp_log.error("more than one requests; unexpected")
+            else:
+                for res in res_list:
+                    dc_req_spec = DataCarouselRequestSpec()
+                    dc_req_spec.pack(res)
+                    return dc_req_spec
+        else:
+            tmp_log.warning("no request found; skipped")
+            return None
+
+    def _get_request_by_dataset(self, dataset: str) -> DataCarouselRequestSpec | None:
+        """
+        Get the reusable request (not in cancelled or retired) of the dataset
+
+        Args:
+            dataset (str): dataset name
+
+        Returns:
+            DataCarouselRequestSpec|None : spec of the request of dataset, or None if failed
+        """
+        tmp_log = LogWrapper(logger, f"_get_request_by_dataset dataset={dataset}")
+        status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.reusable_statuses, prefix=":status")
+        sql = (
+            f"SELECT {DataCarouselRequestSpec.columnNames()} "
+            f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
+            f"WHERE dataset=:dataset "
+            f"AND status IN ({status_var_names_str}) "
+        )
+        var_map = {":dataset": dataset}
+        var_map.update(status_var_map)
+        res_list = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
+        if res_list is not None:
+            if len(res_list) > 1:
+                tmp_log.error("more than one reusable requests; unexpected")
+            else:
+                for res in res_list:
+                    dc_req_spec = DataCarouselRequestSpec()
+                    dc_req_spec.pack(res)
+                    return dc_req_spec
+        else:
+            tmp_log.warning("no reusable request; skipped")
+            return None
 
     def _get_related_tasks(self, request_id: int) -> list[int] | None:
         """
@@ -1279,7 +1342,7 @@ class DataCarouselInterface(object):
         return ddm_rule_id
 
     @refresh
-    def stage_request(self, dc_req_spec: DataCarouselRequestSpec) -> bool:
+    def stage_request(self, dc_req_spec: DataCarouselRequestSpec) -> tuple[bool, DataCarouselRequestSpec]:
         """
         Stage the dataset of the request and update request status to staging
 
@@ -1288,6 +1351,7 @@ class DataCarouselInterface(object):
 
         Returns:
             bool : True for success, False otherwise
+            DataCarouselRequestSpec : updated spec of the request
         """
         tmp_log = LogWrapper(logger, f"stage_request request_id={dc_req_spec.request_id}")
         is_ok = False
@@ -1305,7 +1369,7 @@ class DataCarouselInterface(object):
             else:
                 # failed to submit
                 tmp_log.warning(f"failed to submitted DDM rule ; skipped")
-                return is_ok
+                return is_ok, dc_req_spec
         # update request to be staging
         now_time = naive_utcnow()
         dc_req_spec.status = DataCarouselRequestStatus.staging
@@ -1316,55 +1380,7 @@ class DataCarouselInterface(object):
             dc_req_spec = ret
             is_ok = True
         # return
-        return is_ok
-
-    def cancel_request(self, request_id: int, by: str = "manual", reason: str | None = None) -> bool | None:
-        """
-        Cancel a request
-
-        Args:
-            request_id (int): reqeust_id of the request to cancel
-            by (str): annotation of the caller of this method; default is "manual"
-            reason (str|None): annotation of the reason for cancelling
-
-        Returns:
-            bool|None : True for success, None otherwise
-        """
-        tmp_log = LogWrapper(logger, f"cancel_request request_id={request_id} by={by}" + (f" reason={reason}" if reason else " "))
-        # cancel
-        ret = self.taskBufferIF.cancel_data_carousel_request_JEDI(request_id)
-        if ret:
-            tmp_log.debug(f"cancelled")
-        elif ret == 0:
-            tmp_log.debug(f"already terminated; skipped")
-        else:
-            tmp_log.error(f"failed to cancel")
-        # return
-        return ret
-
-    def retire_request(self, request_id: int, by: str = "manual", reason: str | None = None) -> bool | None:
-        """
-        Retire a done request so that it will not be reused
-
-        Args:
-            request_id (int): reqeust_id of the request to retire
-            by (str): annotation of the caller of this method; default is "manual"
-            reason (str|None): annotation of the reason for retiring
-
-        Returns:
-            bool|None : True for success, None otherwise
-        """
-        tmp_log = LogWrapper(logger, f"retire_request request_id={request_id} by={by}" + (f" reason={reason}" if reason else " "))
-        # retire
-        ret = self.taskBufferIF.retire_data_carousel_request_JEDI(request_id)
-        if ret:
-            tmp_log.debug(f"retired")
-        elif ret == 0:
-            tmp_log.debug(f"cannot retire; skipped")
-        else:
-            tmp_log.error(f"failed to retire")
-        # return
-        return ret
+        return is_ok, dc_req_spec
 
     def _refresh_ddm_rule(self, rule_id: str, lifetime: int) -> bool:
         """
@@ -1379,6 +1395,60 @@ class DataCarouselInterface(object):
         """
         set_map = {"lifetime": lifetime}
         ret = self.ddmIF.update_rule_by_id(rule_id, set_map)
+        return ret
+
+    def cancel_request(self, dc_req_spec: DataCarouselRequestSpec, by: str = "manual", reason: str | None = None) -> bool | None:
+        """
+        Cancel a request
+        Set corresponding DDM rule to be about to expired (in 5 sec)
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): spec of the request to cancel
+            by (str): annotation of the caller of this method; default is "manual"
+            reason (str|None): annotation of the reason for cancelling
+
+        Returns:
+            bool|None : True for success, None otherwise
+        """
+        tmp_log = LogWrapper(logger, f"cancel_request request_id={dc_req_spec.request_id} by={by}" + (f" reason={reason}" if reason else " "))
+        # cancel
+        ret = self.taskBufferIF.cancel_data_carousel_request_JEDI(dc_req_spec.request_id)
+        if ret:
+            tmp_log.debug(f"cancelled")
+        elif ret == 0:
+            tmp_log.debug(f"already terminated; skipped")
+        else:
+            tmp_log.error(f"failed to cancel")
+        # expire DDM rule
+        if dc_req_spec.ddm_rule_id:
+            short_time = 5
+            self._refresh_ddm_rule(ddm_rule_id, short_time)
+        # return
+        return ret
+
+    def retire_request(self, dc_req_spec: DataCarouselRequestSpec, by: str = "manual", reason: str | None = None) -> bool | None:
+        """
+        Retire a done request so that it will not be reused
+        Set corresponding DDM rule to be about to expired (in 5 sec)
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): spec of the request to cancel
+            by (str): annotation of the caller of this method; default is "manual"
+            reason (str|None): annotation of the reason for retiring
+
+        Returns:
+            bool|None : True for success, None otherwise
+        """
+        tmp_log = LogWrapper(logger, f"retire_request request_id={dc_req_spec.request_id} by={by}" + (f" reason={reason}" if reason else " "))
+        # retire
+        ret = self.taskBufferIF.retire_data_carousel_request_JEDI(dc_req_spec.request_id)
+        if ret:
+            tmp_log.debug(f"retired")
+        elif ret == 0:
+            tmp_log.debug(f"cannot retire; skipped")
+        else:
+            tmp_log.error(f"failed to retire")
+        # return
         return ret
 
     def refresh_ddm_rule_of_request(self, dc_req_spec: DataCarouselRequestSpec, lifetime_days: int, force_refresh: bool = False, by: str = "unknown") -> bool:
@@ -1412,10 +1482,10 @@ class DataCarouselInterface(object):
             # try to cancel or retire request
             if dc_req_spec.status == DataCarouselRequestStatus.staging:
                 # requests staging but DDM rule not found; to cancel
-                self.cancel_request(dc_req_spec.request_id, by=by, reason="rule_unfound")
+                self.cancel_request(dc_req_spec, by=by, reason="rule_unfound")
             elif dc_req_spec.status == DataCarouselRequestStatus.done:
                 # requests done but DDM rule not found; to retire
-                self.retire_request(dc_req_spec.request_id, by=by, reason="rule_unfound")
+                self.retire_request(dc_req_spec, by=by, reason="rule_unfound")
             return ret
         elif the_rule is None:
             # got error when getting the rule
@@ -1551,10 +1621,10 @@ class DataCarouselInterface(object):
                     # try to cancel or retire request
                     if dc_req_spec.status == DataCarouselRequestStatus.staging:
                         # requests staging but DDM rule not found; to cancel
-                        self.cancel_request(dc_req_spec.request_id, by="watchdog", reason="rule_unfound")
+                        self.cancel_request(dc_req_spec, by="watchdog", reason="rule_unfound")
                     elif dc_req_spec.status == DataCarouselRequestStatus.done:
                         # requests done but DDM rule not found; to retire
-                        self.retire_request(dc_req_spec.request_id, by="watchdog", reason="rule_unfound")
+                        self.retire_request(dc_req_spec, by="watchdog", reason="rule_unfound")
                     continue
                 elif the_rule is None:
                     # got error when getting the rule
@@ -1739,7 +1809,7 @@ class DataCarouselInterface(object):
                     done_requests_set.add(request_id)
                 elif dc_req_spec.status == DataCarouselRequestStatus.staging:
                     # requests staging while related tasks all terminated; to cancel (to clean up in next cycle)
-                    self.cancel_request(request_id, by=by, reason="staging_while_all_tasks_ended")
+                    self.cancel_request(dc_req_spec, by=by, reason="staging_while_all_tasks_ended")
                 elif dc_req_spec.status == DataCarouselRequestStatus.cancelled:
                     # requests cancelled; to clean up
                     cancelled_requests_set.add(request_id)
@@ -1751,7 +1821,7 @@ class DataCarouselInterface(object):
                 dc_req_spec = active_tasks_requests_map[request_id]
                 if dc_req_spec.status == DataCarouselRequestStatus.staging and dc_req_spec.get_parameter("rule_unfound"):
                     # requests staging but DDM rule not found; to cancel
-                    self.cancel_request(request_id, by=by, reason="rule_unfound")
+                    self.cancel_request(dc_req_spec, by=by, reason="rule_unfound")
             # delete ddm rules of terminated requests of terminated tasks
             for request_id in done_requests_set | cancelled_requests_set | retired_requests_set:
                 dc_req_spec = terminated_tasks_requests_map[request_id]
@@ -1840,7 +1910,9 @@ class DataCarouselInterface(object):
         # return
         return ret
 
-    def resubmit_request(self, request_id: int, submit_idds_request=True, by: str = "manual", reason: str | None = None) -> DataCarouselRequestSpec | None:
+    def resubmit_request(
+        self, orig_dc_req_spec: DataCarouselRequestSpec, submit_idds_request=True, exclude_prev_dst: bool = False, by: str = "manual", reason: str | None = None
+    ) -> DataCarouselRequestSpec | None:
         """
         Resubmit a request by ending the old request and submitting a new request
         The request status must be in staging, done, cancelled, retired
@@ -1848,34 +1920,93 @@ class DataCarouselInterface(object):
         Return the spec of newly resubmitted request
 
         Args:
-            request_id (int): request_id of the request to resubmit from
+            orig_dc_req_spec (DataCarouselRequestSpec): original spec of the request to resubmit from
             submit_idds_request (bool): whether to submit corresponding iDDS request; default is True
+            exclude_prev_dst (bool): whether to exclude previous destination
             by (str): annotation of the caller of this method; default is "manual"
             reason (str|None): annotation of the reason for resubmitting
 
         Returns:
             DataCarouselRequestSpec|None : spec of the resubmitted reqeust spec if success, None otherwise
         """
-        tmp_log = LogWrapper(logger, f"resubmit_request orig_request_id={request_id} by={by}" + (f" reason={reason}" if reason else " "))
+        tmp_log = LogWrapper(
+            logger,
+            f"resubmit_request orig_request_id={orig_dc_req_spec.request_id} exclude_prev_dst={exclude_prev_dst} by={by}"
+            + (f" reason={reason}" if reason else " "),
+        )
+        # initialized
+        dc_req_spec_resubmitted = None
         # resubmit
-        dc_req_spec_resubmitted = self.taskBufferIF.resubmit_data_carousel_request_JEDI(request_id)
+        dc_req_spec_resubmitted = self.taskBufferIF.resubmit_data_carousel_request_JEDI(orig_dc_req_spec.request_id, exclude_prev_dst)
         if dc_req_spec_resubmitted:
             new_request_id = dc_req_spec_resubmitted.request_id
             tmp_log.debug(f"resubmitted request_id={new_request_id}")
-            if submit_idds_request:
-                # to submit iDDS staging requests
-                # get all tasks related to this request
-                task_id_list = self._get_related_tasks(new_request_id)
-                if task_id_list:
-                    tmp_log.debug(f"related tasks: {task_id_list}")
-                    for task_id in task_id_list:
-                        self._submit_idds_stagein_request(task_id, dc_req_spec_resubmitted)
-                    tmp_log.debug(f"submitted corresponding iDDS requests for related tasks")
-                else:
-                    tmp_log.warning(f"failed to get related tasks; skipped to submit iDDS requests")
+            # expire DDM rule of original request
+            if orig_dc_req_spec.ddm_rule_id:
+                short_time = 5
+                self._refresh_ddm_rule(orig_dc_req_spec.ddm_rule_id, short_time)
+            # stage the resubmitted request immediately without queuing
+            is_ok, dc_req_spec_resubmitted = self.stage_request(dc_req_spec_resubmitted)
+            if is_ok:
+                if submit_idds_request:
+                    # to submit iDDS staging requests
+                    # get all tasks related to this request
+                    task_id_list = self._get_related_tasks(new_request_id)
+                    if task_id_list:
+                        tmp_log.debug(f"related tasks: {task_id_list}")
+                        for task_id in task_id_list:
+                            self._submit_idds_stagein_request(task_id, dc_req_spec_resubmitted)
+                        tmp_log.debug(f"submitted corresponding iDDS requests for related tasks")
+                    else:
+                        tmp_log.warning(f"failed to get related tasks; skipped to submit iDDS requests")
+            else:
+                tmp_log.warning(f"failed to stage resubmitted request_id={new_request_id}; skipped")
         elif dc_req_spec_resubmitted is False:
             tmp_log.warning(f"request not found or not resubmittable; skipped")
         else:
             tmp_log.error(f"failed to resubmit")
         # return
         return dc_req_spec_resubmitted
+
+    def _unset_ddm_rule_source_rse(self, rule_id: str) -> bool:
+        """
+        Unset source_replica_expression of a DDM rule
+
+        Args:
+            rule_id (str): DDM rule ID
+
+        Returns:
+            bool : True for success, False otherwise
+        """
+        set_map = {"source_replica_expression": None}
+        ret = self.ddmIF.update_rule_by_id(rule_id, set_map)
+        return ret
+
+    def change_request_source_rse(self, dc_req_spec: DataCarouselRequestSpec) -> bool | None:
+        """
+        Change source RSE
+        If the request is staging, unset source_replica_expression of its DDM rule
+        If still queued, re-choose the source_rse to be another tape
+        Skipped if the request is not staging or queued
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): spec of the request
+
+        Returns:
+            bool|None : True for success, False for failure, None if skipped
+        """
+        tmp_log = LogWrapper(logger, f"change_request_source_rse request_id={dc_req_spec.request_id}")
+        ret = None
+        if dc_req_spec.status == DataCarouselRequestStatus.queued:
+            # re-choose source_rse for queued request
+            pass
+        elif dc_req_spec.status == DataCarouselRequestStatus.staging:
+            # unset source_replica_expression of DDM rule for staging request
+            tmp_ret = self._unset_ddm_rule_source_rse(dc_req_spec.ddm_rule_id)
+            if tmp_ret:
+                tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} done")
+                ret = True
+            else:
+                tmp_log.error(f"ddm_rule_id={dc_req_spec.ddm_rule_id} got {tmp_ret}; skipped")
+                ret = False
+        return ret
