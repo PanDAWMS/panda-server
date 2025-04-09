@@ -123,7 +123,7 @@ def get_user_secrets(req: PandaRequest, keys: List[str] = None) -> dict:
 
     Args:
         req(PandaRequest): internally generated request object
-        keys(List[str]): List of keys to reference the secrets to retrieve
+        keys(list of str): List of keys to reference the secrets to retrieve
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the user secrets. When unsuccessful, the message field contains the error message.

@@ -47,7 +47,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        job_ids(List[int]): list of PanDA job IDs.
+        job_ids(list of int): list of PanDA job IDs.
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -90,7 +90,7 @@ def get_description(self, job_ids: List[int]) -> Dict:
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        job_ids (List[int]): List of PanDA job IDs.
+        job_ids (list of int): List of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -130,7 +130,7 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables.
-        job_ids (List[int]): List of PanDA job IDs.
+        job_ids (list of int): List of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
