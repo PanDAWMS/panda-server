@@ -127,9 +127,8 @@ class Setupper(threading.Thread):
                     tmp_log.debug("post execute plugin")
                     setupper_plugin.post_run()
                     tmp_log.debug("done plugin")
-                except Exception:
-                    error_type, error_value = sys.exc_info()[:2]
-                    tmp_log.error(f"plugin failed with {error_type}:{error_value}")
+                except Exception as e:
+                    tmp_log.error(f"plugin failed with {str(e)} {traceback.format_exc()}")
             tmp_log.debug("end")
         except Exception as error:
             tmp_log.error(f"failed with {str(error)} {traceback.format_exc()}")
