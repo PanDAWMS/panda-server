@@ -1070,6 +1070,7 @@ class WorkerModule(BaseModule):
         cpu_architecture_level,
         clock_speed,
         total_memory,
+        total_local_disk,
     ):
         comment = " /* DBProxy.update_worker_node */"
         method_name = comment.split(" ")[-2].split(".")[-1]
@@ -1092,8 +1093,7 @@ class WorkerModule(BaseModule):
             var_map = {":site": site, ":host_name": host_name, ":cpu_model": cpu_model}
 
             sql = (
-                "SELECT site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
-                "cpu_architecture, cpu_architecture_level, clock_speed, total_memory "
+                "SELECT site, host_name, cpu_model "
                 "FROM ATLAS_PANDA.worker_node "
                 "WHERE site=:site AND host_name=:host_name AND cpu_model=:cpu_model "
                 "FOR UPDATE NOWAIT"
@@ -1129,16 +1129,17 @@ class WorkerModule(BaseModule):
                 ":cpu_architecture_level": cpu_architecture_level,
                 ":clock_speed": clock_speed,
                 ":total_memory": total_memory,
+                ":total_local_disk": total_local_disk,
                 ":last_seen": timestamp_utc,
             }
 
             sql = (
                 "INSERT INTO ATLAS_PANDA.worker_node "
                 "(site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
-                "cpu_architecture, cpu_architecture_level, clock_speed, total_memory, last_seen) "
+                "cpu_architecture, cpu_architecture_level, clock_speed, total_memory, total_local_disk, last_seen) "
                 "VALUES "
                 "(:site, :host_name, :cpu_model, :n_logical_cpus, :n_sockets, :cores_per_socket, :threads_per_core, "
-                ":cpu_architecture, :cpu_architecture_level, :clock_speed, :total_memory, :last_seen)"
+                ":cpu_architecture, :cpu_architecture_level, :clock_speed, :total_memory, :total_local_disk, :last_seen)"
             )
 
             self.cur.execute(sql + comment, var_map)
