@@ -334,7 +334,7 @@ def update_job(
     meta_data: str = "",
     cpu_conversion_factor: float = None,
     trans_exit_code: str = None,
-    pilot_error_code: str = None,
+    pilot_error_code: int = None,
     pilot_error_diag: str = None,
     exe_error_code: int = None,
     exe_error_diag: str = None,
@@ -393,7 +393,7 @@ def update_job(
         pilot_id(str, optional): Pilot ID. Optional, defaults to `None`
         batch_id(str, optional): Batch ID. Optional, defaults to `None`
         trans_exit_code(str, optional): Transformation exit code. Optional, defaults to `None`
-        pilot_error_code(str, optional): Pilot error code. Optional, defaults to `None`
+        pilot_error_code(int, optional): Pilot error code. Optional, defaults to `None`
         pilot_error_diag(str, optional): Pilot error message. Optional, defaults to `None`
         exe_error_code(int, optional): Execution error code. Optional, defaults to `None`
         exe_error_diag(str, optional): Execution error message. Optional, defaults to `None`
