@@ -47,7 +47,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        job_ids(List[int]): list of PanDA job IDs.
+        job_ids(list of int): list of PanDA job IDs.
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -57,7 +57,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
     tmp_logger.debug("Start")
 
     # The task buffer method expect a comma separated list of job_ids
-    job_ids_str = ",".join(job_ids)
+    job_ids_str = ",".join([str(job_id) for job_id in job_ids])
     timed_method = TimedMethod(global_task_buffer.checkJobStatus, timeout)
     timed_method.run(job_ids_str)
 
@@ -90,7 +90,7 @@ def get_description(self, job_ids: List[int]) -> Dict:
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        job_ids (List[int]): List of PanDA job IDs.
+        job_ids (list of int): List of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -130,7 +130,7 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables.
-        job_ids (List[int]): List of PanDA job IDs.
+        job_ids (list of int): List of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:

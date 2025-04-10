@@ -230,6 +230,12 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                             param_value = int(float(param_value))
                         elif origin is list and args:
                             element_type = args[0]  # Get the type inside List[<type>]
+
+                            # If only one element, convert it to a list
+                            if isinstance(param_value, str):
+                                param_value = [param_value]
+
+                            # Convert the elements of the list to the expected type
                             if element_type is int:
                                 param_value = [int(float(i)) for i in param_value]  # Convert list items to int
                             elif element_type is float:
