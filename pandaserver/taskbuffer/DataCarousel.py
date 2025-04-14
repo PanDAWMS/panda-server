@@ -7,6 +7,7 @@ import socket
 import time
 import traceback
 from collections import namedtuple
+from contextlib import contextmanager
 from dataclasses import MISSING, InitVar, asdict, dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
@@ -14,7 +15,7 @@ from typing import Any, Dict, List
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.base import SpecBase
-from pandacommon.pandautils.PandaUtils import naive_utcnow
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
@@ -352,7 +353,7 @@ class DataCarouselInterface(object):
 
         return wrapper
 
-    def acquire_global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30) -> str | None:
+    def _acquire_global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30) -> str | None:
         """
         Acquire global Data Carousel lock in DB
 
@@ -384,18 +385,21 @@ class DataCarouselInterface(object):
         tmp_log.debug(f"timed out; skipped")
         return None
 
-    def release_global_dc_lock(self, full_pid: str):
+    def _release_global_dc_lock(self, full_pid: str | None):
         """
         Release global Data Carousel lock in DB
 
         Args:
-            full_pid (str): full process ID which acquired the lock
+            full_pid (str|None): full process ID which acquired the lock; if None, use self.full_pid
         """
-        tmp_log = LogWrapper(logger, f"_release_global_dc_lock pid={self.full_pid}")
+        tmp_log = LogWrapper(logger, f"_release_global_dc_lock pid={full_pid}")
+        # get full_pid
+        if full_pid is None:
+            full_pid = self.full_pid
         # try to release the lock
         ret = self.taskBufferIF.unlockProcess_PANDA(
             component=GLOBAL_DC_LOCK_NAME,
-            pid=self.full_pid,
+            pid=full_pid,
         )
         if ret:
             # released the lock
@@ -404,6 +408,23 @@ class DataCarouselInterface(object):
             # failed to release lock; skip
             tmp_log.error(f"failed to released lock; skipped")
         return ret
+
+    @contextmanager
+    def global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30):
+        """
+        Context manager for global Data Carousel lock in DB
+
+        Args:
+            timeout_sec (int): timeout in seconds for blocking to retry
+            lock_expiration_sec (int): age of lock in seconds to be considered expired and can be acquired immediately
+        """
+        # tmp_log = LogWrapper(logger, f"global_dc_lock pid={self.full_pid}")
+        # try to release the lock
+        full_pid = self._acquire_global_dc_lock(timeout_sec, lock_expiration_sec)
+        try:
+            yield
+        finally:
+            self._release_global_dc_lock(full_pid)
 
     def _update_rses(self, time_limit_minutes: int | float = 30):
         """
