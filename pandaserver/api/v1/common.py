@@ -4,8 +4,8 @@ import sys
 import threading
 import time
 from functools import wraps
-from types import ModuleType
-from typing import get_args, get_origin
+from types import ModuleType, UnionType
+from typing import Union, get_args, get_origin
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
@@ -251,7 +251,7 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                         return generate_response(False, message=message)
 
                 # Check type
-                if origin:  # Handle generics (e.g., List[int])
+                if origin and (origin is not Union and origin is not UnionType):  # Handle generics (e.g., List[int])
                     if not isinstance(param_value, origin):
                         message = f"Type error: '{param_name}' must be of type {origin.__name__}, got {type(param_value).__name__}."
                         tmp_logger.error(message)
