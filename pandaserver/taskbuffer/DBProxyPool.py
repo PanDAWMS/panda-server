@@ -11,9 +11,11 @@ except ImportError:
 import os
 import random
 import time
+from contextlib import contextmanager
 from threading import Lock
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import OraDBProxy as DBProxy
 from pandaserver.taskbuffer.ConBridge import ConBridge
@@ -76,6 +78,15 @@ class DBProxyPool:
     # put back a proxy
     def putProxy(self, proxy):
         self.proxyList.put(proxy)
+
+    # context manager for getting DBProxy
+    @contextmanager
+    def get(self):
+        proxy = self.getProxy()
+        try:
+            yield proxy
+        finally:
+            self.putProxy(proxy)
 
     # cleanup
     def cleanup(self):
