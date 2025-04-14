@@ -422,7 +422,7 @@ class DataCarouselInterface(object):
         # try to release the lock
         full_pid = self._acquire_global_dc_lock(timeout_sec, lock_expiration_sec)
         try:
-            yield
+            yield full_pid
         finally:
             self._release_global_dc_lock(full_pid)
 
