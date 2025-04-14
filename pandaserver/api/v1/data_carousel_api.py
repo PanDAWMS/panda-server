@@ -96,7 +96,7 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
             success, message = False, err_msg
         else:
             success = True
-            data = {"request_id": dc_req_spec.request_id, "new_request_id": dc_req_spec_resubmitted.request_id}
+            data = {"request_id": dc_req_spec.request_id, "new_request_id": dc_req_spec_resubmitted.request_id, "dataset": dc_req_spec_resubmitted.dataset}
     else:
         err_msg = f"failed to get corresponding request"
         tmp_logger.error(err_msg)
@@ -162,7 +162,7 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
             success, message = False, err_msg
         else:
             success = True
-            data = {"request_id": dc_req_spec.request_id, "ddm_rule_id": dc_req_spec.ddm_rule_id}
+            data = {"request_id": dc_req_spec.request_id, "dataset": dc_req_spec.dataset, "ddm_rule_id": dc_req_spec.ddm_rule_id}
     else:
         err_msg = f"failed to get corresponding request"
         tmp_logger.error(err_msg)
@@ -188,7 +188,7 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
 
     API details:
         HTTP Method: POST
-        Path: /v1/data_carousel/change_staging_source
+        Path: /v1/data_carousel/force_to_staging
 
     Args:
         req(PandaRequest): internally generated request object
@@ -198,7 +198,7 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"change_staging_source request_id={request_id} dataset={dataset}")
+    tmp_logger = LogWrapper(_logger, f"force_to_staging request_id={request_id} dataset={dataset}")
     tmp_logger.debug("Start")
     success, message, data = False, "", None
     time_start = naive_utcnow()
@@ -228,7 +228,7 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
             success, message = False, err_msg
         else:
             success = True
-            data = {"request_id": dc_req_spec.request_id, "status": dc_req_spec.status, "ddm_rule_id": dc_req_spec.ddm_rule_id}
+            data = {"request_id": dc_req_spec.request_id, "dataset": dc_req_spec.dataset, "status": dc_req_spec.status, "ddm_rule_id": dc_req_spec.ddm_rule_id}
     else:
         err_msg = f"failed to get corresponding request"
         tmp_logger.error(err_msg)
