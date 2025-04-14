@@ -327,6 +327,8 @@ class DataCarouselInterface(object):
         self.disk_rses = []
         self.dc_config_map = None
         self._last_update_ts_dict = {}
+        # full pid
+        self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
         # refresh
         self._refresh_all_attributes()
 
@@ -343,13 +345,11 @@ class DataCarouselInterface(object):
         Decorator to call _refresh_all_attributes before the method
         """
 
-        # wrapper
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
             self._refresh_all_attributes()
             return func(self, *args, **kwargs)
 
-        # return
         return wrapper
 
     def acquire_global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30) -> str | None:
@@ -363,22 +363,20 @@ class DataCarouselInterface(object):
         Returns:
             str|None : full process ID of this process if got lock; None if timeout
         """
-        tmp_log = LogWrapper(logger, "_acquire_global_dc_lock")
-        # full pid for the lock
-        full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
+        tmp_log = LogWrapper(logger, f"_acquire_global_dc_lock pid={self.full_pid}")
         # time the retry loop
         start_mono_time = time.monotonic()
         while time.monotonic() - start_mono_time <= timeout_sec:
             # try to get the lock
             got_lock = self.taskBufferIF.lockProcess_PANDA(
                 component=GLOBAL_DC_LOCK_NAME,
-                pid=full_pid,
+                pid=self.full_pid,
                 time_limit=lock_expiration_sec / 60.0,
             )
             if got_lock:
                 # got the lock; return
-                tmp_log.debug(f"got lock by full_pid={full_pid}")
-                return full_pid
+                tmp_log.debug(f"got lock")
+                return self.full_pid
             else:
                 # did not get lock; retry
                 time.sleep(0.05)
@@ -393,11 +391,11 @@ class DataCarouselInterface(object):
         Args:
             full_pid (str): full process ID which acquired the lock
         """
-        tmp_log = LogWrapper(logger, "_release_global_dc_lock")
+        tmp_log = LogWrapper(logger, f"_release_global_dc_lock pid={self.full_pid}")
         # try to release the lock
         ret = self.taskBufferIF.unlockProcess_PANDA(
             component=GLOBAL_DC_LOCK_NAME,
-            pid=full_pid,
+            pid=self.full_pid,
         )
         if ret:
             # released the lock
@@ -1405,7 +1403,7 @@ class DataCarouselInterface(object):
         return ddm_rule_id
 
     @refresh
-    def stage_request(self, dc_req_spec: DataCarouselRequestSpec) -> tuple[bool, DataCarouselRequestSpec]:
+    def stage_request(self, dc_req_spec: DataCarouselRequestSpec) -> tuple[bool, str | None, DataCarouselRequestSpec]:
         """
         Stage the dataset of the request and update request status to staging
 
@@ -1414,15 +1412,18 @@ class DataCarouselInterface(object):
 
         Returns:
             bool : True for success, False otherwise
+            str|None : error message
             DataCarouselRequestSpec : updated spec of the request
         """
         tmp_log = LogWrapper(logger, f"stage_request request_id={dc_req_spec.request_id}")
         is_ok = False
+        err_msg = None
         # renew dc_req_spec from DB
-        dc_req_spec = self.get_request_by_id(dc_req_spec)
+        dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
         # skip if not queued
         if dc_req_spec.status != DataCarouselRequestStatus.queued:
-            tmp_log.warning(f"status={dc_req_spec.status} not queued; skipped")
+            err_msg = f"status={dc_req_spec.status} not queued; skipped"
+            tmp_log.warning(err_msg)
             return is_ok, dc_req_spec
         # check existing DDM rule of the dataset
         if (ddm_rule_id := dc_req_spec.ddm_rule_id) is not None:
@@ -1437,7 +1438,8 @@ class DataCarouselInterface(object):
                 tmp_log.debug(f"submitted DDM rule ddm_rule_id={ddm_rule_id}")
             else:
                 # failed to submit
-                tmp_log.warning(f"failed to submitted DDM rule ; skipped")
+                err_msg = f"failed to submitted DDM rule ; skipped"
+                tmp_log.warning(err_msg)
                 return is_ok, dc_req_spec
         # update request to be staging
         now_time = naive_utcnow()
@@ -1449,7 +1451,7 @@ class DataCarouselInterface(object):
             dc_req_spec = ret
             is_ok = True
         # return
-        return is_ok, dc_req_spec
+        return is_ok, err_msg, dc_req_spec
 
     def _refresh_ddm_rule(self, rule_id: str, lifetime: int) -> bool:
         """
@@ -2015,7 +2017,7 @@ class DataCarouselInterface(object):
                 short_time = 5
                 self._refresh_ddm_rule(orig_dc_req_spec.ddm_rule_id, short_time)
             # stage the resubmitted request immediately without queuing
-            is_ok, dc_req_spec_resubmitted = self.stage_request(dc_req_spec_resubmitted)
+            is_ok, _, dc_req_spec_resubmitted = self.stage_request(dc_req_spec_resubmitted)
             if is_ok:
                 if submit_idds_request:
                     # to submit iDDS staging requests
