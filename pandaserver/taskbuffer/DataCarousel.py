@@ -1983,7 +1983,7 @@ class DataCarouselInterface(object):
 
     def resubmit_request(
         self, orig_dc_req_spec: DataCarouselRequestSpec, submit_idds_request=True, exclude_prev_dst: bool = False, by: str = "manual", reason: str | None = None
-    ) -> DataCarouselRequestSpec | None:
+    ) -> tuple[DataCarouselRequestSpec | None, str | None]:
         """
         Resubmit a request by ending the old request and submitting a new request
         The request status must be in staging, done, cancelled, retired
@@ -1999,6 +1999,7 @@ class DataCarouselInterface(object):
 
         Returns:
             DataCarouselRequestSpec|None : spec of the resubmitted reqeust spec if success, None otherwise
+            str|None : error message
         """
         tmp_log = LogWrapper(
             logger,
@@ -2007,6 +2008,7 @@ class DataCarouselInterface(object):
         )
         # initialized
         dc_req_spec_resubmitted = None
+        err_msg = None
         # resubmit
         dc_req_spec_resubmitted = self.taskBufferIF.resubmit_data_carousel_request_JEDI(orig_dc_req_spec.request_id, exclude_prev_dst)
         if dc_req_spec_resubmitted:
@@ -2031,13 +2033,16 @@ class DataCarouselInterface(object):
                     else:
                         tmp_log.warning(f"failed to get related tasks; skipped to submit iDDS requests")
             else:
-                tmp_log.warning(f"failed to stage resubmitted request_id={new_request_id}; skipped")
+                err_msg = f"failed to stage resubmitted request_id={new_request_id}; skipped"
+                tmp_log.warning(err_msg)
         elif dc_req_spec_resubmitted is False:
-            tmp_log.warning(f"request not found or not resubmittable; skipped")
+            err_msg = f"request not found or not resubmittable; skipped"
+            tmp_log.warning(err_msg)
         else:
-            tmp_log.error(f"failed to resubmit")
+            err_msg = f"failed to resubmit"
+            tmp_log.error(err_msg)
         # return
-        return dc_req_spec_resubmitted
+        return dc_req_spec_resubmitted, err_msg
 
     def _unset_ddm_rule_source_rse(self, rule_id: str) -> bool:
         """
