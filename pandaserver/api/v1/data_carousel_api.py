@@ -86,9 +86,7 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
             dc_req_spec = global_data_carousel_interface.get_request_by_dataset(dataset)
 
         if dc_req_spec is not None:
-            dc_req_spec_resubmitted, err_msg = global_data_carousel_interface.resubmit_request(
-                dc_req_spec.request_id, submit_idds_request=True, exclude_prev_dst=True
-            )
+            dc_req_spec_resubmitted, err_msg = global_data_carousel_interface.resubmit_request(dc_req_spec, submit_idds_request=True, exclude_prev_dst=True)
             if not dc_req_spec_resubmitted:
                 err_msg = f"failed to resubmit request_id={dc_req_spec.request_id}"
                 tmp_logger.error(err_msg)

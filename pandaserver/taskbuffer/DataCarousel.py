@@ -1445,7 +1445,7 @@ class DataCarouselInterface(object):
         if dc_req_spec.status != DataCarouselRequestStatus.queued:
             err_msg = f"status={dc_req_spec.status} not queued; skipped"
             tmp_log.warning(err_msg)
-            return is_ok, dc_req_spec
+            return is_ok, err_msg, dc_req_spec
         # check existing DDM rule of the dataset
         if (ddm_rule_id := dc_req_spec.ddm_rule_id) is not None:
             # DDM rule exists; no need to submit
@@ -1461,7 +1461,7 @@ class DataCarouselInterface(object):
                 # failed to submit
                 err_msg = f"failed to submitted DDM rule ; skipped"
                 tmp_log.warning(err_msg)
-                return is_ok, dc_req_spec
+                return is_ok, err_msg, dc_req_spec
         # update request to be staging
         now_time = naive_utcnow()
         dc_req_spec.status = DataCarouselRequestStatus.staging
