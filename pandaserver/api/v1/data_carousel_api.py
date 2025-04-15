@@ -110,7 +110,7 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
     """
     Change source of staging
 
-    The current active staging request stays, and source_replica_expression of its DDM rule is unset so new source can be tried
+    The current active staging request stays, and source_replica_expression of its DDM rule is unset so new source can be tried.
     The reqeusts can be specified by request_id or dataset (if both exist, request_id is taken).
     Requires a secure connection production role.
 
@@ -170,8 +170,9 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
     """
-    Force queued request of a dataset to skip the queue and go to staging immediately
+    Force to staging
 
+    The request will skip the queue and go to staging immediately (will submit DDM rules).
     Only effective on queued requests.
     The reqeusts can be specified by request_id or dataset (if both exist, request_id is taken).
     Requires a secure connection production role.
