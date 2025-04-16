@@ -276,6 +276,10 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
 
     Gets the status for a list of jobs. Requires a secure connection.
 
+    API details:
+        HTTP Method: GET
+        Path: /v1/pilot/get_job_status
+
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
         job_ids(list of int): list of job IDs.
@@ -457,12 +461,15 @@ def update_job(
 
     # aborting message
     if job_id == "NULL":
-        return Protocol.Response(Protocol.SC_Success).encode(acceptJson=True)
+        response = Protocol.Response(Protocol.SC_Invalid)
+        return generate_response(success=False, message="job_id is NULL", data=response.data)
 
-    # check status
+    # check the job status is valid
     if job_status not in VALID_JOB_STATES:
-        tmp_logger.warning(f"invalid job_status={job_status} for updateJob")
-        return Protocol.Response(Protocol.SC_Success).encode(acceptJson=True)
+        message = f"Invalid job status: {job_status}"
+        tmp_logger.warning(message)
+        response = Protocol.Response(Protocol.SC_Invalid)
+        return generate_response(success=False, message=message, data=response.data)
 
     # create the job parameter map
     param = {}
@@ -558,7 +565,7 @@ def update_job(
         if len(ret) > 0 and not ret[0]:
             message = "Failed to add meta_data"
             tmp_logger.debug(message)
-            return generate_response(False, message)
+            return generate_response(True, message, data={"StatusCode": Protocol.SC_Failed, "ErrorDiag": message})
 
     # add stdout
     if stdout != "":
@@ -584,17 +591,19 @@ def update_job(
     # time-out
     if timed_method.result == Protocol.TimeOutToken:
         message = "Timed out"
-        tmp_logger.debug(message)
-        return generate_response(False, message=message)
+        tmp_logger.error(message)
+        response = Protocol.Response(Protocol.SC_TimeOut)
+        return generate_response(True, message=message, data=response.data)
 
     # no result
     if not timed_method.result:
         message = "Database error"
-        tmp_logger.debug(message)
-        return generate_response(False, message=message)
+        tmp_logger.error(message)
+        response = Protocol.Response(Protocol.SC_Failed)
+        return generate_response(True, message=message, data=response.data)
 
     # generate the response with the result
-    data = {}
+    data = {"StatusCode": Protocol.SC_Success}
     result = timed_method.result
 
     # set the secrets
