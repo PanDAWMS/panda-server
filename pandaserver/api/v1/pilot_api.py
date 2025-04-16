@@ -276,6 +276,10 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
 
     Gets the status for a list of jobs. Requires a secure connection.
 
+    API details:
+        HTTP Method: GET
+        Path: /v1/pilot/get_job_status
+
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
         job_ids(list of int): list of job IDs.
