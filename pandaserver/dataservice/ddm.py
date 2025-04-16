@@ -1064,6 +1064,7 @@ class RucioAPI:
                     ret_list.append(rse)
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
         tmp_log.debug(f"got {ret_list}")
         return ret_list
 
@@ -1085,6 +1086,7 @@ class RucioAPI:
                     ret_list.append(rule)
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
         tmp_log.debug(f"got {len(ret_list)} rules")
         return ret_list
 
@@ -1119,6 +1121,7 @@ class RucioAPI:
                 return tmpRet
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
 
     # get files in dataset
     def get_files_in_dataset(self, dataset_name, ski_duplicate=True, ignore_unknown=False, long_format=False, lfn_only=False):
@@ -1199,6 +1202,7 @@ class RucioAPI:
             errType = e
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
 
     # list datasets in container
     def list_datasets_in_container_JEDI(self, container_name):
@@ -1217,6 +1221,7 @@ class RucioAPI:
             return dsList
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
 
     # make staging rule
     def make_staging_rule(self, dataset_name, expression, activity, lifetime=None, weight=None, notify="N", source_replica_expression=None):
@@ -1261,6 +1266,7 @@ class RucioAPI:
                 tmp_log.debug(f"made new rule : ID={ruleID}")
         except Exception as e:
             tmp_log.error(f"failed to make staging rule with {str(e)} {traceback.format_exc()}")
+            return None
         tmp_log.debug("done")
         return ruleID
 
@@ -1277,6 +1283,7 @@ class RucioAPI:
             client.update_replication_rule(rule_id, set_map)
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
         tmp_log.debug("done")
         return True
 
@@ -1297,6 +1304,7 @@ class RucioAPI:
                 return False
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
         tmp_log.debug(f"got rule")
         return rule
 
@@ -1315,6 +1323,7 @@ class RucioAPI:
             ret = list(res)
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
         tmp_log.debug(f"got replica locks")
         return ret
 
@@ -1335,6 +1344,7 @@ class RucioAPI:
                 return False
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
         tmp_log.debug(f"deleted, return {ret}")
         return ret
 

@@ -1514,7 +1514,7 @@ class DataCarouselInterface(object):
         # expire DDM rule
         if dc_req_spec.ddm_rule_id:
             short_time = 5
-            self._refresh_ddm_rule(ddm_rule_id, short_time)
+            self._refresh_ddm_rule(dc_req_spec.ddm_rule_id, short_time)
         # return
         return ret
 
