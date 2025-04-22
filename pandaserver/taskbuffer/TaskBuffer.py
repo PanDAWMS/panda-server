@@ -3086,6 +3086,11 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    # update input files stage-in done (according to message from iDDS, called by other methods, etc.)
+    def updateInputFilesStaged_JEDI(self, jeditaskid, scope, filenames_dict, chunk_size=500, by=None, check_scope=True):
+        with self.proxyPool.get() as proxy:
+            return proxy.updateInputFilesStaged_JEDI(jeditaskid, scope, filenames_dict, chunk_size, by, check_scope)
+
     # insert data carousel requests
     def insert_data_carousel_requests_JEDI(self, task_id, dc_req_specs):
         with self.proxyPool.get() as proxy:
