@@ -4961,7 +4961,7 @@ class TaskComplexModule(BaseModule):
             return False
 
     # update input files stage-in done (according to message from iDDS, called by other methods, etc.)
-    def updateInputFilesStaged_JEDI(self, jeditaskid, scope, filenames_dict, chunk_size=500, by=None):
+    def updateInputFilesStaged_JEDI(self, jeditaskid, scope, filenames_dict, chunk_size=500, by=None, check_scope=True):
         comment = " /* JediDBProxy.updateInputFilesStaged_JEDI */"
         tmp_tag = f"jediTaskID={jeditaskid}"
         if by:
@@ -4986,7 +4986,9 @@ class TaskComplexModule(BaseModule):
                     f"WHERE jediTaskID=:jediTaskID "
                     f"AND status=:old_status "
                 )
-                sqlUF_with_lfn = sqlUF + "AND scope=:scope AND lfn=:lfn "
+                sqlUF_with_lfn = sqlUF + "AND lfn=:lfn "
+                if check_scope:
+                    sqlUF_with_lfn += "AND scope=:scope "
                 sqlUF_with_fileID = sqlUF + "AND fileID=:fileID "
             else:
                 sqlUF = (
@@ -5006,7 +5008,7 @@ class TaskComplexModule(BaseModule):
             self.cur.execute(sqlGD + comment, varMap)
             varMap = dict()
             varMap[":jediTaskID"] = jeditaskid
-            if scope != "pseudo_dataset":
+            if scope != "pseudo_dataset" and check_scope:
                 varMap[":scope"] = scope
             varMap[":old_status"] = "staging"
             varMap[":new_status"] = "pending"

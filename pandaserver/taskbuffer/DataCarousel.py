@@ -1671,7 +1671,7 @@ class DataCarouselInterface(object):
                 # tmp_log.debug(f"related tasks: {task_id_list}")
                 n_done_tasks = 0
                 for task_id in task_id_list:
-                    ret = self.taskBufferIF.updateInputFilesStaged_JEDI(task_id, scope, filenames_dict, by="DataCarousel")
+                    ret = self.taskBufferIF.updateInputFilesStaged_JEDI(task_id, scope, filenames_dict, by="DataCarousel", check_scope=False)
                     if ret is None:
                         tmp_log.warning(f"failed to update files for task_id={task_id} ; skipped")
                     else:
