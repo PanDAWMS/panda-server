@@ -3086,6 +3086,11 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    # get JEDI task with jediTaskID
+    def getTaskWithID_JEDI(self, jediTaskID, fullFlag=False, lockTask=False, pid=None, lockInterval=None, clearError=False):
+        with self.proxyPool.get() as proxy:
+            return proxy.getTaskWithID_JEDI(jediTaskID, fullFlag, lockTask, pid, lockInterval, clearError)
+
     # update input files stage-in done (according to message from iDDS, called by other methods, etc.)
     def updateInputFilesStaged_JEDI(self, jeditaskid, scope, filenames_dict, chunk_size=500, by=None, check_scope=True):
         with self.proxyPool.get() as proxy:
