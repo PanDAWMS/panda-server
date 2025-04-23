@@ -98,6 +98,8 @@ RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
 
+LimitRequestBody 10737418240   # 10G
+
 <Directory "@@install_purelib@@/pandaserver/server">
 
    <Limit GET POST>
@@ -127,6 +129,8 @@ RewriteRule .* - [F]
 
 Listen ${PANDA_SERVER_CONF_PORT_SSL}
 <VirtualHost *:${PANDA_SERVER_CONF_PORT_SSL}>
+
+LimitRequestBody 10737418240   # 10G
 
 RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
