@@ -945,13 +945,13 @@ class DataCarouselInterface(object):
                     if source_type == "datadisk":
                         # replicas already on datadisk; skip
                         ret_map["datadisk_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} already has replica on datadisks {list(rse_set)} ; skipped")
+                        tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
                         continue
                     elif source_type == "tape":
                         # replicas only on tape
                         got_on_tape = True
                         ret_map["tape_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} on tapes {list(rse_set)} ; choosing one")
+                        tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
                         # choose source RSE
                         _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
                         prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
@@ -2095,22 +2095,27 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, f"change_request_source_rse request_id={dc_req_spec.request_id}")
         ret = None
+        rse_set = set()
         if dc_req_spec.status == DataCarouselRequestStatus.queued:
             # re-choose source_rse for queued request
             active_source_rses_set = self._get_active_source_rses()
             dataset = dc_req_spec.dataset
             source_type, rse_set_orig, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
             # exclude original source RSE if possible
-            rse_set = rse_set_orig.discard(dc_req_spec.source_rse)
+            if rse_set_orig:
+                rse_set = rse_set_orig.discard(dc_req_spec.source_rse)
             # check
-            if source_type == "datadisk":
+            if not rse_set:
+                # no availible source RSE
+                tmp_log.warning(f"dataset={dataset} has no other source RSE available; skipped")
+                ret = False
+            elif source_type == "datadisk":
                 # replicas already on datadisk; skip
-                tmp_log.debug(f"dataset={dataset} already has replica on datadisks {list(rse_set)} ; skipped")
+                tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
                 ret = False
             elif source_type == "tape":
                 # replicas only on tape
-                got_on_tape = True
-                tmp_log.debug(f"dataset={dataset} on tapes {list(rse_set)} ; choosing one")
+                tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
                 # choose source RSE
                 _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
                 # fill new attributes
