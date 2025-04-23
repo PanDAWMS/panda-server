@@ -2079,7 +2079,7 @@ class DataCarouselInterface(object):
         ret = self.ddmIF.update_rule_by_id(rule_id, set_map)
         return ret
 
-    def change_request_source_rse(self, dc_req_spec: DataCarouselRequestSpec) -> bool | None:
+    def change_request_source_rse(self, dc_req_spec: DataCarouselRequestSpec) -> tuple[bool | None, DataCarouselRequestSpec]:
         """
         Change source RSE
         If the request is staging, unset source_replica_expression of its DDM rule
@@ -2091,12 +2091,50 @@ class DataCarouselInterface(object):
 
         Returns:
             bool|None : True for success, False for failure, None if skipped
+            DataCarouselRequestSpec|None: spec of the request after changing source
         """
         tmp_log = LogWrapper(logger, f"change_request_source_rse request_id={dc_req_spec.request_id}")
         ret = None
         if dc_req_spec.status == DataCarouselRequestStatus.queued:
             # re-choose source_rse for queued request
-            pass
+            active_source_rses_set = self._get_active_source_rses()
+            dataset = dc_req_spec.dataset
+            source_type, rse_set_orig, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
+            # exclude original source RSE if possible
+            rse_set = rse_set_orig.discard(dc_req_spec.source_rse)
+            # check
+            if source_type == "datadisk":
+                # replicas already on datadisk; skip
+                tmp_log.debug(f"dataset={dataset} already has replica on datadisks {list(rse_set)} ; skipped")
+                ret = False
+            elif source_type == "tape":
+                # replicas only on tape
+                got_on_tape = True
+                tmp_log.debug(f"dataset={dataset} on tapes {list(rse_set)} ; choosing one")
+                # choose source RSE
+                _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                # fill new attributes
+                dc_req_spec.source_rse = new_source_rse
+                dc_req_spec.ddm_rule_id = ddm_rule_id
+                if to_pin:
+                    dc_req_spec.set_parameter("to_pin", True)
+                if suggested_dst_list:
+                    dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
+                # update DB
+                tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                if tmp_ret is not None:
+                    dc_req_spec = tmp_ret
+                    tmp_log.info(
+                        f"updated DB about change source; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id} , to_pin={to_pin} , suggested_dst_list={suggested_dst_list}"
+                    )
+                    ret = True
+                else:
+                    tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB ; skipped")
+                    ret = False
+            else:
+                # no replica found on tape nor on datadisk; skip
+                tmp_log.debug(f"dataset={dataset} has no replica on any tape or datadisk ; skipped")
+                ret = False
         elif dc_req_spec.status == DataCarouselRequestStatus.staging:
             # unset source_replica_expression of DDM rule for staging request
             tmp_ret = self._unset_ddm_rule_source_rse(dc_req_spec.ddm_rule_id)
@@ -2106,4 +2144,4 @@ class DataCarouselInterface(object):
             else:
                 tmp_log.error(f"ddm_rule_id={dc_req_spec.ddm_rule_id} got {tmp_ret}; skipped")
                 ret = False
-        return ret
+        return ret, dc_req_spec
