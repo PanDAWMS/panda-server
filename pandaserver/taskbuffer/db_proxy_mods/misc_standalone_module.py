@@ -3655,10 +3655,10 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # resubmit a data carousel request
-    def resubmit_data_carousel_request_JEDI(self, request_id):
+    def resubmit_data_carousel_request_JEDI(self, request_id, exclude_prev_dst=False):
         comment = " /* JediDBProxy.resubmit_data_carousel_request_JEDI */"
         to_resubmit = False
-        tmp_log = self.create_tagged_logger(comment, f"request_id={request_id}")
+        tmp_log = self.create_tagged_logger(comment, f"request_id={request_id} exclude_prev_dst={exclude_prev_dst}")
         tmp_log.debug("start")
         try:
             # start transaction
@@ -3683,7 +3683,7 @@ class MiscStandaloneModule(BaseModule):
                 break
             # prepare new request spec to resubmit
             if dc_req_spec:
-                dc_req_spec_to_resubmit = get_resubmit_request_spec(dc_req_spec)
+                dc_req_spec_to_resubmit = get_resubmit_request_spec(dc_req_spec, exclude_prev_dst)
             else:
                 # roll back
                 self._rollback()
