@@ -2065,21 +2065,21 @@ class DataCarouselInterface(object):
         # return
         return dc_req_spec_resubmitted, err_msg
 
-    def _unset_ddm_rule_source_rse(self, rule_id: str) -> bool:
-        """
-        Unset source_replica_expression of a DDM rule
+    # def _unset_ddm_rule_source_rse(self, rule_id: str) -> bool:
+    #     """
+    #     Unset source_replica_expression of a DDM rule
 
-        Args:
-            rule_id (str): DDM rule ID
+    #     Args:
+    #         rule_id (str): DDM rule ID
 
-        Returns:
-            bool : True for success, False otherwise
-        """
-        set_map = {"source_replica_expression": None}
-        ret = self.ddmIF.update_rule_by_id(rule_id, set_map)
-        return ret
+    #     Returns:
+    #         bool : True for success, False otherwise
+    #     """
+    #     set_map = {"source_replica_expression": None}
+    #     ret = self.ddmIF.update_rule_by_id(rule_id, set_map)
+    #     return ret
 
-    def change_request_source_rse(self, dc_req_spec: DataCarouselRequestSpec) -> tuple[bool | None, DataCarouselRequestSpec]:
+    def change_request_source_rse(self, dc_req_spec: DataCarouselRequestSpec, cancel_fts: bool = False) -> tuple[bool | None, DataCarouselRequestSpec]:
         """
         Change source RSE
         If the request is staging, unset source_replica_expression of its DDM rule
@@ -2088,6 +2088,7 @@ class DataCarouselInterface(object):
 
         Args:
             dc_req_spec (DataCarouselRequestSpec): spec of the request
+            cancel_fts (bool): whether to cancel current FTS requests on DDM
 
         Returns:
             bool|None : True for success, False for failure, None if skipped
@@ -2142,7 +2143,10 @@ class DataCarouselInterface(object):
                 ret = False
         elif dc_req_spec.status == DataCarouselRequestStatus.staging:
             # unset source_replica_expression of DDM rule for staging request
-            tmp_ret = self._unset_ddm_rule_source_rse(dc_req_spec.ddm_rule_id)
+            set_map = {"source_replica_expression": None}
+            if cancel_fts:
+                set_map.update({"cancel_requests": True, "state": "STUCK"})
+            tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, set_map)
             if tmp_ret:
                 tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} done")
                 ret = True

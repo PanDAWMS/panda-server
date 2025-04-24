@@ -131,7 +131,7 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def change_staging_source(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+def change_staging_source(req: PandaRequest, request_id: int | None = None, dataset: str | None = None, cancel_fts: bool = False) -> dict:
     """
     Change source of staging
 
@@ -149,6 +149,7 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
         req(PandaRequest): internally generated request object
         request_id (int|None): request_id of the staging request, e.g. `123`
         dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
+        cancel_fts (bool): whether to cancel current FTS requests on DDM
 
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
@@ -182,7 +183,7 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
                 tmp_logger.warning(err_msg)
                 success, message = False, err_msg
             else:
-                ret, dc_req_spec = global_dcif.change_request_source_rse(dc_req_spec)
+                ret, dc_req_spec = global_dcif.change_request_source_rse(dc_req_spec, cancel_fts)
                 if not ret:
                     err_msg = f"failed to change source request_id={dc_req_spec.request_id}"
                     tmp_logger.error(err_msg)
