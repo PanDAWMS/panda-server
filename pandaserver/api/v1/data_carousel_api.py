@@ -149,12 +149,12 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
         req(PandaRequest): internally generated request object
         request_id (int|None): request_id of the staging request, e.g. `123`
         dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
-        cancel_fts (bool): whether to cancel current FTS requests on DDM
+        cancel_fts (bool): whether to cancel current FTS requests on DDM, False by default
 
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"change_staging_source request_id={request_id} dataset={dataset}")
+    tmp_logger = LogWrapper(_logger, f"change_staging_source request_id={request_id} dataset={dataset} cancel_fts={cancel_fts}")
     tmp_logger.debug("Start")
     success, message, data = False, "", None
     time_start = naive_utcnow()
