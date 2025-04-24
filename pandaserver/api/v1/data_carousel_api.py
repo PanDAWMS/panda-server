@@ -177,7 +177,7 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
         if dc_req_spec is not None:
             status = dc_req_spec.status
             orig_source_rse = dc_req_spec.source_rse
-            if status not in [DataCarouselRequestStatus.queued, DataCarouselRequestStatus.queued]:
+            if status not in [DataCarouselRequestStatus.queued, DataCarouselRequestStatus.staging]:
                 err_msg = f"request_id={dc_req_spec.request_id} status={status} not queued or staging; skipped"
                 tmp_logger.warning(err_msg)
                 success, message = False, err_msg
