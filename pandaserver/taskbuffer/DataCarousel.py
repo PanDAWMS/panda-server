@@ -836,23 +836,29 @@ class DataCarouselInterface(object):
             # initialize
             ddm_rule_id = None
             source_rse = None
+            random_choose = False
             # whether with existing staging rule
             if staging_rule:
                 # with existing staging rule ; prepare to reuse it
                 ddm_rule_id = staging_rule["id"]
                 # extract source RSE from rule
                 source_replica_expression = staging_rule["source_replica_expression"]
-                for rse in rse_set:
-                    # match tape rses with source_replica_expression
-                    tmp_match = re.search(rse, source_replica_expression)
-                    if tmp_match is not None:
-                        source_rse = rse
-                        break
-                if source_rse is None:
-                    # direct regex search from source_replica_expression; reluctant as source_replica_expression can be messy
-                    tmp_match = re.search(rf"{SRC_REPLI_EXPR_PREFIX}\|([A-Za-z0-9-_]+)", source_replica_expression)
-                    if tmp_match is not None:
-                        source_rse = tmp_match.group(1)
+                if source_replica_expression is not None:
+                    for rse in rse_set:
+                        # match tape rses with source_replica_expression
+                        tmp_match = re.search(rse, source_replica_expression)
+                        if tmp_match is not None:
+                            source_rse = rse
+                            break
+                    if source_rse is None:
+                        # direct regex search from source_replica_expression; reluctant as source_replica_expression can be messy
+                        tmp_match = re.search(rf"{SRC_REPLI_EXPR_PREFIX}\|([A-Za-z0-9-_]+)", source_replica_expression)
+                        if tmp_match is not None:
+                            source_rse = tmp_match.group(1)
+                else:
+                    # no source_replica_expression of the rule; choose any source
+                    tmp_log.warning(f"ddm_rule_id={ddm_rule_id} without source_replica_expression; choosing a random source_rse")
+                    random_choose = True
                 if source_rse is None:
                     # still not getting source RSE from rule; unexpected
                     tmp_log.error(f"ddm_rule_id={ddm_rule_id} cannot get source_rse from source_replica_expression: {source_replica_expression}")
@@ -863,7 +869,10 @@ class DataCarouselInterface(object):
                     self._refresh_ddm_rule(ddm_rule_id, 86400 * DONE_LIFETIME_DAYS)
                     tmp_log.debug(f"ddm_rule_id={ddm_rule_id} refreshed rule to be {DONE_LIFETIME_DAYS} days long")
             else:
-                # no existing staging rule ; prepare info for new submission
+                # no existing staging rule; to choose randomly
+                random_choose = True
+            if random_choose:
+                # no existing staging rule or cannot get from source_replica_expression; choose source_rse randomly
                 rse_list = list(rse_set)
                 # choose source RSE
                 if len(rse_list) == 1:
