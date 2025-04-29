@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 
 # to run the tests with a real Data Carousel request ID or dataset name by setting the environment variable
-REQUEST_ID = int(os.environ.get("REQUEST_ID", -1))
-DATASET = str(os.environ.get("DATASET", ""))
+REQUEST_ID = int(os.environ.get("REQUEST_ID", None))
+DATASET = str(os.environ.get("DATASET", None))
 
 
 class TestDataCarouselAPI(unittest.TestCase):
