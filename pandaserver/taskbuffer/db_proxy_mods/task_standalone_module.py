@@ -3903,7 +3903,7 @@ class TaskStandaloneModule(BaseModule):
                                 varMap[":status"] = "starting"
                                 varMap[":resource_type"] = resource_type
                                 varMap[":computingsite"] = siteid
-                                sql = f"SELECT /*+ RESULT_CACHE */ njobs FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
+                                sql = f"SELECT /*+ RESULT_CACHE */ SUM(njobs) FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
                                 sql += "WHERE vo=:vo AND resource_type=:resource_type AND jobstatus=:status AND computingsite=:computingsite "
                                 if workqueue.is_global_share:
                                     sql += "AND gshare=:gshare "
@@ -3925,7 +3925,8 @@ class TaskStandaloneModule(BaseModule):
                                 retMap = retMapStatic
                             if resource_type not in retMap:
                                 retMap[resource_type] = 0
-                            retMap[resource_type] += num
+                            if num:
+                                retMap[resource_type] += num
             # return
             tmpLog.debug(f"got static={str(retMapStatic)} dynamic={str(retMapDynamic)}")
             return retMapStatic, retMapDynamic
