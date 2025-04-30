@@ -1279,9 +1279,12 @@ class DataCarouselInterface(object):
                     ["request_id", "source_rse", "jediTaskID", "gshare_and_rank", "task_priority", "total_files", "cum_total_files", "to_pin"]
                 )
                 tmp_log.debug(f"  source_tape={source_tape} , quota_size={quota_size} : \n{tmp_to_print_df}")
-            # filter requests to respect the tape quota size; at most one request can reach or exceed quota size
+            # filter requests to respect the tape quota size; at most one request can reach or exceed quota size if quota size > 0
             to_stage_df = pl.concat(
-                [tmp_queued_df.filter(pl.col("cum_total_files") < quota_size), tmp_queued_df.filter(pl.col("cum_total_files") >= quota_size).head(1)]
+                [
+                    tmp_queued_df.filter(pl.col("cum_total_files") < quota_size),
+                    tmp_queued_df.filter((pl.col("cum_total_files") >= quota_size) & (quota_size > 0)).head(1),
+                ]
             )
             # append the requests to ret_list
             to_pin_request_id_list = to_pin_df.select(["request_id"]).to_dict(as_series=False)["request_id"]
