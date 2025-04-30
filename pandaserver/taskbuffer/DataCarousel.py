@@ -855,15 +855,15 @@ class DataCarouselInterface(object):
                         tmp_match = re.search(rf"{SRC_REPLI_EXPR_PREFIX}\|([A-Za-z0-9-_]+)", source_replica_expression)
                         if tmp_match is not None:
                             source_rse = tmp_match.group(1)
+                    if source_rse is None:
+                        # still not getting source RSE from rule; unexpected
+                        tmp_log.error(f"ddm_rule_id={ddm_rule_id} cannot get source_rse from source_replica_expression: {source_replica_expression}")
+                    else:
+                        tmp_log.debug(f"already staging with ddm_rule_id={ddm_rule_id} source_rse={source_rse}")
                 else:
                     # no source_replica_expression of the rule; choose any source
-                    tmp_log.warning(f"ddm_rule_id={ddm_rule_id} without source_replica_expression; choosing a random source_rse")
+                    tmp_log.warning(f"already staging with ddm_rule_id={ddm_rule_id} without source_replica_expression; to choose a random source_rse")
                     random_choose = True
-                if source_rse is None:
-                    # still not getting source RSE from rule; unexpected
-                    tmp_log.error(f"ddm_rule_id={ddm_rule_id} cannot get source_rse from source_replica_expression: {source_replica_expression}")
-                else:
-                    tmp_log.debug(f"already staging with ddm_rule_id={ddm_rule_id} source_rse={source_rse}")
                 # keep alive the rule
                 if (rule_expiration_time := staging_rule["expires_at"]) and (rule_expiration_time - naive_utcnow()) < timedelta(days=DONE_LIFETIME_DAYS):
                     self._refresh_ddm_rule(ddm_rule_id, 86400 * DONE_LIFETIME_DAYS)
@@ -1279,9 +1279,12 @@ class DataCarouselInterface(object):
                     ["request_id", "source_rse", "jediTaskID", "gshare_and_rank", "task_priority", "total_files", "cum_total_files", "to_pin"]
                 )
                 tmp_log.debug(f"  source_tape={source_tape} , quota_size={quota_size} : \n{tmp_to_print_df}")
-            # filter requests to respect the tape quota size; at most one request can reach or exceed quota size
+            # filter requests to respect the tape quota size; at most one request can reach or exceed quota size if quota size > 0
             to_stage_df = pl.concat(
-                [tmp_queued_df.filter(pl.col("cum_total_files") < quota_size), tmp_queued_df.filter(pl.col("cum_total_files") >= quota_size).head(1)]
+                [
+                    tmp_queued_df.filter(pl.col("cum_total_files") < quota_size),
+                    tmp_queued_df.filter((pl.col("cum_total_files") >= quota_size) & (quota_size > 0)).head(1),
+                ]
             )
             # append the requests to ret_list
             to_pin_request_id_list = to_pin_df.select(["request_id"]).to_dict(as_series=False)["request_id"]
