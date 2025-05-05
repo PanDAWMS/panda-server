@@ -137,7 +137,7 @@ class DataCarouselRequestSpec(SpecBase):
             "rule_unfound" (bool): DDM rule not found
             "to_pin" (bool): whether to pin the dataset
             "suggested_dst_list" (list[str]): list of suggested destination RSEs
-            "remove_rule_when_done" (bool): remove DDM rule asap when request done to save disk space
+            "remove_when_done" (bool): remove request and DDM rule asap when request done to save disk space
 
         Returns:
             dict : dict of parameters if it is JSON or empty dict if null
@@ -1044,9 +1044,9 @@ class DataCarouselInterface(object):
                 dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
             # options
             if options:
-                if options.get("remove_rule_when_done"):
+                if options.get("remove_when_done"):
                     # remove rule when done
-                    dc_req_spec.set_parameter("remove_rule_when_done", True)
+                    dc_req_spec.set_parameter("remove_when_done", True)
             # append to list
             dc_req_spec_list.append(dc_req_spec)
         # insert dc requests for the task
@@ -1951,9 +1951,9 @@ class DataCarouselInterface(object):
                 if dc_req_spec.status == DataCarouselRequestStatus.done and (
                     (dc_req_spec.end_time and dc_req_spec.end_time < now_time - timedelta(days=done_age_limit_days))
                     or dc_req_spec.get_parameter("rule_unfound")
-                    or dc_req_spec.get_parameter("remove_rule_when_done")
+                    or dc_req_spec.get_parameter("remove_when_done")
                 ):
-                    # requests done, and old enough or DDM rule not found or to remove asap; to clean up
+                    # requests done, and old enough or DDM rule not found or to remove when done; to clean up
                     done_requests_set.add(request_id)
                 elif dc_req_spec.status == DataCarouselRequestStatus.staging:
                     # requests staging while related tasks all terminated; to cancel (to clean up in next cycle)
@@ -1996,7 +1996,7 @@ class DataCarouselInterface(object):
                     if ret is None:
                         tmp_log.warning(f"failed to delete done requests; skipped")
                     else:
-                        tmp_log.debug(f"deleted {ret} done requests older than {done_age_limit_days} days or rule_unfound or remove_rule_when_done")
+                        tmp_log.debug(f"deleted {ret} done requests older than {done_age_limit_days} days or rule_unfound or remove_when_done")
                 if cancelled_requests_set:
                     # cancelled requests
                     ret = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(cancelled_requests_set))
