@@ -3146,6 +3146,11 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.resubmit_data_carousel_request_JEDI(request_id, exclude_prev_dst)
 
+    # gets statistics on the number of jobs with a specific status for each nucleus at each site
+    def get_num_jobs_with_status_by_nucleus(self, vo, job_status):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_num_jobs_with_status_by_nucleus(vo, job_status)
+
 
 # Singleton
 taskBuffer = TaskBuffer()
