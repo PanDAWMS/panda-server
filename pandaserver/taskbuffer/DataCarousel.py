@@ -61,6 +61,9 @@ DONE_LIFETIME_DAYS = 30
 TO_REFRESH_MAX_LIFETIME_DAYS = 7
 TO_REFRESH_MIN_LIFETIME_HOURS = 2
 
+# maximum quota of files for fair share queue before normal queue
+QUEUE_FAIR_SHARE_MAX_QUOTA = 10000
+
 # polars config
 pl.Config.set_ascii_tables(True)
 pl.Config.set_tbl_hide_dataframe_shape(True)
@@ -1275,9 +1278,7 @@ class DataCarouselInterface(object):
             # fill dummy cumulative sum (0) for reqeusts to pin
             to_pin_df = to_pin_df.with_columns(cum_total_files=pl.lit(0, dtype=pl.datatypes.Int64), cum_dataset_size=pl.lit(0, dtype=pl.datatypes.Int64))
             # fair share for gshares
-            if True and not tmp_queued_df.is_empty():
-                # initial quota
-                fair_share_init_quota = 10000
+            if True and not tmp_queued_df.is_empty() and (fair_share_init_quota := min(QUEUE_FAIR_SHARE_MAX_QUOTA, max(quota_size, 0))) > 0:
                 queued_gshare_list = tmp_queued_df.select("gshare").unique().to_dict()["gshare"]
                 n_queued_gshare = len(queued_gshare_list)
                 # fair share quota per gshare
@@ -1285,6 +1286,7 @@ class DataCarouselInterface(object):
                 # initialize dataframe with schema
                 fair_share_queued_df = None
                 unchosen_queued_df = None
+                more_fair_shared_queued_df = tmp_queued_df.clear()
                 # fair share quota to distribute to each gshare
                 for gshare in queued_gshare_list:
                     per_gshare_df = tmp_queued_df.filter(pl.col("gshare") == gshare)
@@ -1301,9 +1303,10 @@ class DataCarouselInterface(object):
                     )
                 # remaining fair share quota to distribute again
                 fair_share_remaining_quota = fair_share_init_quota - fair_share_queued_df.select("total_files").sum().to_dict()["total_files"][0]
-                unchosen_queued_df = unchosen_queued_df.sort(["cum_tot_files_in_gshare", "gshare_rank"], descending=[False, False])
-                unchosen_queued_df = unchosen_queued_df.with_columns(tmp_cum_total_files=pl.col("total_files").cum_sum())
-                more_fair_shared_queued_df = unchosen_queued_df.filter(pl.col("tmp_cum_total_files") <= fair_share_remaining_quota)
+                if fair_share_remaining_quota > 0:
+                    unchosen_queued_df = unchosen_queued_df.sort(["cum_tot_files_in_gshare", "gshare_rank"], descending=[False, False])
+                    unchosen_queued_df = unchosen_queued_df.with_columns(tmp_cum_total_files=pl.col("total_files").cum_sum())
+                    more_fair_shared_queued_df = unchosen_queued_df.filter(pl.col("tmp_cum_total_files") <= fair_share_remaining_quota)
                 # fill back to all queued requests
                 tmp_queued_df = pl.concat(
                     [fair_share_queued_df.select(tmp_queued_df.columns), more_fair_shared_queued_df.select(tmp_queued_df.columns), tmp_queued_df]
