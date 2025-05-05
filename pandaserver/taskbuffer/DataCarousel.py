@@ -1866,6 +1866,37 @@ class DataCarouselInterface(object):
         # summary
         tmp_log.debug(f"resumed {n_resumed_tasks} tasks")
 
+    def _get_orphan_requests(self) -> list[DataCarouselRequestSpec] | None:
+        """
+        Get orphan requests, which are active and without any tasks related
+
+        Returns:
+            list[DataCarouselRequestSpec]|None : list of orphan requests, or None if failure
+        """
+        tmp_log = LogWrapper(logger, f"_get_orphan_requests")
+        status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.active_statuses, prefix=":status")
+        sql = (
+            f"SELECT {DataCarouselRequestSpec.columnNames()} "
+            f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
+            f"WHERE request_id NOT IN "
+            f"(SELECT rel.request_id FROM {panda_config.schemaJEDI}.data_carousel_relations rel)"
+            f"AND status IN ({status_var_names_str}) "
+        )
+        var_map = {}
+        var_map.update(status_var_map)
+        res_list = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
+        if res_list:
+            ret_list = []
+            for res in res_list:
+                dc_req_spec = DataCarouselRequestSpec()
+                dc_req_spec.pack(res)
+                ret_list.append(dc_req_spec)
+            tmp_log.debug(f"got {len(ret_list)} orphan request")
+            return ret_list
+        else:
+            tmp_log.debug("no orphan request; skipped")
+            return None
+
     def clean_up_requests(
         self, done_age_limit_days: int | float = DONE_LIFETIME_DAYS, outdated_age_limit_days: int | float = DONE_LIFETIME_DAYS, by: str = "watchdog"
     ):
@@ -1926,6 +1957,11 @@ class DataCarouselInterface(object):
                 if dc_req_spec.status == DataCarouselRequestStatus.staging and dc_req_spec.get_parameter("rule_unfound"):
                     # requests staging but DDM rule not found; to cancel
                     self.cancel_request(dc_req_spec, by=by, reason="rule_unfound")
+            # cancel orphan reqeusts
+            orphan_requests = self._get_orphan_requests()
+            if orphan_requests:
+                for dc_req_spec in orphan_requests:
+                    self.cancel_request(dc_req_spec, by=by, reason="orphan")
             # delete ddm rules of terminated requests of terminated tasks
             for request_id in done_requests_set | cancelled_requests_set | retired_requests_set:
                 dc_req_spec = terminated_tasks_requests_map[request_id]
