@@ -1886,10 +1886,12 @@ class DataCarouselInterface(object):
         var_map.update(status_var_map)
         res_list = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
         if res_list:
+            ret_list = []
             for res in res_list:
                 dc_req_spec = DataCarouselRequestSpec()
                 dc_req_spec.pack(res)
-            tmp_log.debug(f"got {len(res_list)} orphan request")
+                ret_list.append(dc_req_spec)
+            tmp_log.debug(f"got {len(ret_list)} orphan request")
             return res_list
         else:
             tmp_log.debug("no orphan request; skipped")
