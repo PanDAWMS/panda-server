@@ -3498,12 +3498,12 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # sql to delete terminated requests
-            now_time = naive_utcnow()
-            sql_delete_req = f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id " f"AND status IN (:status1, :status2) "
-            var_map_base = {
-                ":status1": DataCarouselRequestStatus.done,
-                ":status2": DataCarouselRequestStatus.cancelled,
-            }
+            status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.final_statuses, prefix=":status")
+            sql_delete_req = (
+                f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id " f"AND status IN ({status_var_names_str}) "
+            )
+            var_map_base = {}
+            var_map_base.update(status_var_map)
             var_map_list = []
             for request_id in request_id_list:
                 var_map = var_map_base.copy()
@@ -3542,14 +3542,12 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             # sql to delete terminated requests
             now_time = naive_utcnow()
+            status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.final_statuses, prefix=":status")
             sql_delete_req = (
-                f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status IN (:status1, :status2) " f"AND end_time<=:end_time_max "
+                f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status IN ({status_var_names_str}) " f"AND end_time<=:end_time_max "
             )
-            var_map = {
-                ":status1": DataCarouselRequestStatus.done,
-                ":status2": DataCarouselRequestStatus.cancelled,
-                ":end_time_max": now_time - datetime.timedelta(days=time_limit_days),
-            }
+            var_map = {":end_time_max": now_time - datetime.timedelta(days=time_limit_days)}
+            var_map.update(status_var_map)
             self.cur.execute(sql_delete_req + comment, var_map)
             ret_req = self.cur.rowcount
             # sql to delete relations
