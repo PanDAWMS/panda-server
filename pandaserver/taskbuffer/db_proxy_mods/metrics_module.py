@@ -2,6 +2,7 @@ import datetime
 import json
 import re
 import sys
+from typing import Dict
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
@@ -819,6 +820,53 @@ class MetricsModule(BaseModule):
             return True, return_map
         except Exception:
             self.dump_error_message(tmpLog)
+            return False, {}
+
+    # gets statistics on the number of jobs with a specific status for each nucleus at each site
+    def get_num_jobs_with_status_by_nucleus(self, vo: str, job_status: str) -> [bool, Dict[str, Dict[str, int]]]:
+        """
+        This function will return the number of jobs with a specific status for each nucleus at each site.
+
+        :param vo: Virtual Organization
+        :param job_status: Job status
+        :return: True/False and Dictionary with the number of jobs with a specific status for each nucleus at each site
+        """
+        comment = " /* DBProxy.get_num_jobs_with_status_by_nucleus */"
+        tmp_log = self.create_tagged_logger(comment, f" vo={vo} status={job_status}")
+        tmp_log.debug("start")
+
+        # define the var map of query parameters
+        var_map = {":vo": vo, ":job_status": job_status}
+
+        # sql to query on pre-cached job statistics table
+        sql_jt = """
+               SELECT /*+ RESULT_CACHE */ computingSite, nucleus, SUM(njobs) FROM %s
+               WHERE vo=:vo AND jobStatus=:job_status GROUP BY computingSite, nucleus
+               """
+
+        if job_status in ["transferring", "running", "activated" "holding"]:
+            table = f"{panda_config.schemaPANDA}.JOBS_SHARE_STATS"
+        else:
+            table = f"{panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS"
+
+        return_map = {}
+        try:
+            self.cur.arraysize = 10000
+            sql_exe = (sql_jt + comment) % table
+            self.cur.execute(sql_exe, var_map)
+            res = self.cur.fetchall()
+
+            # create a dict
+            for panda_site, nucleus, n_jobs in res:
+                if n_jobs:
+                    # add site
+                    return_map.setdefault(panda_site, {})
+                    # add stat per nucleus
+                    return_map[panda_site][nucleus] = n_jobs
+            tmp_log.debug("done")
+            return True, return_map
+        except Exception:
+            self.dump_error_message(tmp_log)
             return False, {}
 
 
