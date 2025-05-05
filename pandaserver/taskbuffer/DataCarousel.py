@@ -1892,7 +1892,7 @@ class DataCarouselInterface(object):
                 dc_req_spec.pack(res)
                 ret_list.append(dc_req_spec)
             tmp_log.debug(f"got {len(ret_list)} orphan request")
-            return res_list
+            return ret_list
         else:
             tmp_log.debug("no orphan request; skipped")
             return None
