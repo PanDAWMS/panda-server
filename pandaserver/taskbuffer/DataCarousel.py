@@ -1227,7 +1227,7 @@ class DataCarouselInterface(object):
             pl.col("total_files").fill_null(strategy="zero"),
             pl.col("dataset_size").fill_null(strategy="zero"),
         )
-        # join to add phycial tape
+        # join to add physical tape
         # df = df.join(source_rses_config_df.select("source_rse", "tape"), on="source_rse", how="left")
         # return final dataframe
         queued_requests_tasks_df = df
@@ -1267,13 +1267,47 @@ class DataCarouselInterface(object):
         for source_tape_stats_dict in source_tape_stats_dict_list:
             source_tape = source_tape_stats_dict["source_tape"]
             quota_size = source_tape_stats_dict["quota_size"]
-            # dataframe of the phycial tape
+            # dataframe of the physical tape
             tmp_df = queued_requests_df.filter(pl.col("source_tape") == source_tape)
             # split with to_pin and not to_pin
             to_pin_df = tmp_df.filter(pl.col("to_pin"))
             tmp_queued_df = tmp_df.filter(pl.col("to_pin").not_())
             # fill dummy cumulative sum (0) for reqeusts to pin
             to_pin_df = to_pin_df.with_columns(cum_total_files=pl.lit(0, dtype=pl.datatypes.Int64), cum_dataset_size=pl.lit(0, dtype=pl.datatypes.Int64))
+            # fair share for gshares
+            if True and not tmp_queued_df.is_empty():
+                # initial quota
+                fair_share_init_quota = 10000
+                queued_gshare_list = tmp_queued_df.select("gshare").unique().to_dict()["gshare"]
+                n_queued_gshare = len(queued_gshare_list)
+                # fair share quota per gshare
+                fair_share_quota_per_gshare = fair_share_init_quota // n_queued_gshare
+                # initialize dataframe with schema
+                fair_share_queued_df = None
+                unchosen_queued_df = None
+                # fair share quota to distribute to each gshare
+                for gshare in queued_gshare_list:
+                    per_gshare_df = tmp_queued_df.filter(pl.col("gshare") == gshare)
+                    per_gshare_df = per_gshare_df.with_columns(cum_tot_files_in_gshare=pl.col("total_files").cum_sum())
+                    if fair_share_queued_df is None:
+                        fair_share_queued_df = per_gshare_df.clear()
+                    if unchosen_queued_df is None:
+                        unchosen_queued_df = per_gshare_df.clear()
+                    fair_share_queued_df.extend(per_gshare_df.filter(pl.col("cum_tot_files_in_gshare") <= fair_share_quota_per_gshare))
+                    unchosen_queued_df.extend(
+                        per_gshare_df.filter(pl.col("cum_tot_files_in_gshare") > fair_share_quota_per_gshare).with_columns(
+                            cum_tot_files_in_gshare=pl.col("total_files").cum_sum()
+                        )
+                    )
+                # remaining fair share quota to distribute again
+                fair_share_remaining_quota = fair_share_init_quota - fair_share_queued_df.select("total_files").sum().to_dict()["total_files"][0]
+                unchosen_queued_df = unchosen_queued_df.sort(["cum_tot_files_in_gshare", "gshare_rank"], descending=[False, False])
+                unchosen_queued_df = unchosen_queued_df.with_columns(tmp_cum_total_files=pl.col("total_files").cum_sum())
+                more_fair_shared_queued_df = unchosen_queued_df.filter(pl.col("tmp_cum_total_files") <= fair_share_remaining_quota)
+                # fill back to all queued requests
+                tmp_queued_df = pl.concat(
+                    [fair_share_queued_df.select(tmp_queued_df.columns), more_fair_shared_queued_df.select(tmp_queued_df.columns), tmp_queued_df]
+                ).unique(subset=["request_id"], keep="first", maintain_order=True)
             # get cumulative sum of queued files per physical tape
             tmp_queued_df = tmp_queued_df.with_columns(cum_total_files=pl.col("total_files").cum_sum(), cum_dataset_size=pl.col("dataset_size").cum_sum())
             # number of queued requests at the physical tape
