@@ -129,7 +129,7 @@ class DataCarouselRequestSpec(SpecBase):
         """
         Get the dictionary parsed by the parameters attribute in JSON
         Possible parameters:
-            "reuse_rule" (boot): reuse DDM rule instead of submitting new one
+            "reuse_rule" (bool): reuse DDM rule instead of submitting new one
             "resub_from" (int): resubmitted from this oringal request ID
             "prev_src" (str): previous source RSE
             "prev_dst" (str): previous destination RSE
@@ -137,6 +137,7 @@ class DataCarouselRequestSpec(SpecBase):
             "rule_unfound" (bool): DDM rule not found
             "to_pin" (bool): whether to pin the dataset
             "suggested_dst_list" (list[str]): list of suggested destination RSEs
+            "remove_rule_when_done" (bool): remove DDM rule asap when request done to save disk space
 
         Returns:
             dict : dict of parameters if it is JSON or empty dict if null
@@ -988,20 +989,26 @@ class DataCarouselInterface(object):
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             raise e
 
-    def submit_data_carousel_requests(self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]]) -> bool | None:
+    def submit_data_carousel_requests(
+        self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]], options: dict | None = None
+    ) -> bool | None:
         """
         Submit data carousel requests for a task
 
         Args:
             task_id (int): JEDI task ID
             prestaging_list (list[tuple[str, str|None, str|None, bool]]): list of tuples in the form of (dataset, source_rse, ddm_rule_id)
+            options (dict|None): extra options for submission
 
         Returns:
             bool | None : True if submission successful, or None if failed
         """
         tmp_log = LogWrapper(logger, f"submit_data_carousel_requests task_id={task_id}")
         n_req_to_submit = len(prestaging_list)
-        tmp_log.debug(f"to submit {len(prestaging_list)} requests")
+        if options:
+            tmp_log.debug(f"options={options} to submit {len(prestaging_list)} requests")
+        else:
+            tmp_log.debug(f"to submit {len(prestaging_list)} requests")
         # fill dc request spec for each input dataset
         dc_req_spec_list = []
         now_time = naive_utcnow()
@@ -1035,6 +1042,11 @@ class DataCarouselInterface(object):
                 dc_req_spec.set_parameter("reuse_rule", True)
             if suggested_dst_list:
                 dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
+            # options
+            if options:
+                if options.get("remove_rule_when_done"):
+                    # remove rule when done
+                    dc_req_spec.set_parameter("remove_rule_when_done", True)
             # append to list
             dc_req_spec_list.append(dc_req_spec)
         # insert dc requests for the task
@@ -1939,8 +1951,9 @@ class DataCarouselInterface(object):
                 if dc_req_spec.status == DataCarouselRequestStatus.done and (
                     (dc_req_spec.end_time and dc_req_spec.end_time < now_time - timedelta(days=done_age_limit_days))
                     or dc_req_spec.get_parameter("rule_unfound")
+                    or dc_req_spec.get_parameter("remove_rule_when_done")
                 ):
-                    # requests done and old enough or done but DDM rule not found; to clean up
+                    # requests done, and old enough or DDM rule not found or to remove asap; to clean up
                     done_requests_set.add(request_id)
                 elif dc_req_spec.status == DataCarouselRequestStatus.staging:
                     # requests staging while related tasks all terminated; to cancel (to clean up in next cycle)
@@ -1983,7 +1996,7 @@ class DataCarouselInterface(object):
                     if ret is None:
                         tmp_log.warning(f"failed to delete done requests; skipped")
                     else:
-                        tmp_log.debug(f"deleted {ret} done requests older than {done_age_limit_days} days or rule not found")
+                        tmp_log.debug(f"deleted {ret} done requests older than {done_age_limit_days} days or rule_unfound or remove_rule_when_done")
                 if cancelled_requests_set:
                     # cancelled requests
                     ret = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(cancelled_requests_set))
