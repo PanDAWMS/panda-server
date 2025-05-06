@@ -4081,7 +4081,7 @@ class TaskComplexModule(BaseModule):
                 sqlTL += "AND currentPriority>=:minPriority "
             # sql to update tasks
             sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTU += "SET status=oldStatus,oldStatus=NULL,modificationtime=CURRENT_DATE "
+            sqlTU += "SET status=oldStatus,oldStatus=NULL "
             sqlTU += "WHERE jediTaskID=:jediTaskID AND oldStatus IS NOT NULL AND status=:oldStatus "
             # sql to timeout tasks
             sqlTO = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
