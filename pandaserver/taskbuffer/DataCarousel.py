@@ -61,6 +61,9 @@ DONE_LIFETIME_DAYS = 30
 TO_REFRESH_MAX_LIFETIME_DAYS = 7
 TO_REFRESH_MIN_LIFETIME_HOURS = 2
 
+# maximum quota of files for fair share queue before normal queue
+QUEUE_FAIR_SHARE_MAX_QUOTA = 10000
+
 # polars config
 pl.Config.set_ascii_tables(True)
 pl.Config.set_tbl_hide_dataframe_shape(True)
@@ -129,7 +132,7 @@ class DataCarouselRequestSpec(SpecBase):
         """
         Get the dictionary parsed by the parameters attribute in JSON
         Possible parameters:
-            "reuse_rule" (boot): reuse DDM rule instead of submitting new one
+            "reuse_rule" (bool): reuse DDM rule instead of submitting new one
             "resub_from" (int): resubmitted from this oringal request ID
             "prev_src" (str): previous source RSE
             "prev_dst" (str): previous destination RSE
@@ -137,6 +140,7 @@ class DataCarouselRequestSpec(SpecBase):
             "rule_unfound" (bool): DDM rule not found
             "to_pin" (bool): whether to pin the dataset
             "suggested_dst_list" (list[str]): list of suggested destination RSEs
+            "remove_when_done" (bool): remove request and DDM rule asap when request done to save disk space
 
         Returns:
             dict : dict of parameters if it is JSON or empty dict if null
@@ -988,20 +992,26 @@ class DataCarouselInterface(object):
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             raise e
 
-    def submit_data_carousel_requests(self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]]) -> bool | None:
+    def submit_data_carousel_requests(
+        self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]], options: dict | None = None
+    ) -> bool | None:
         """
         Submit data carousel requests for a task
 
         Args:
             task_id (int): JEDI task ID
             prestaging_list (list[tuple[str, str|None, str|None, bool]]): list of tuples in the form of (dataset, source_rse, ddm_rule_id)
+            options (dict|None): extra options for submission
 
         Returns:
             bool | None : True if submission successful, or None if failed
         """
         tmp_log = LogWrapper(logger, f"submit_data_carousel_requests task_id={task_id}")
         n_req_to_submit = len(prestaging_list)
-        tmp_log.debug(f"to submit {len(prestaging_list)} requests")
+        if options:
+            tmp_log.debug(f"options={options} to submit {len(prestaging_list)} requests")
+        else:
+            tmp_log.debug(f"to submit {len(prestaging_list)} requests")
         # fill dc request spec for each input dataset
         dc_req_spec_list = []
         now_time = naive_utcnow()
@@ -1035,6 +1045,11 @@ class DataCarouselInterface(object):
                 dc_req_spec.set_parameter("reuse_rule", True)
             if suggested_dst_list:
                 dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
+            # options
+            if options:
+                if options.get("remove_when_done"):
+                    # remove rule when done
+                    dc_req_spec.set_parameter("remove_when_done", True)
             # append to list
             dc_req_spec_list.append(dc_req_spec)
         # insert dc requests for the task
@@ -1215,7 +1230,7 @@ class DataCarouselInterface(object):
             pl.col("total_files").fill_null(strategy="zero"),
             pl.col("dataset_size").fill_null(strategy="zero"),
         )
-        # join to add phycial tape
+        # join to add physical tape
         # df = df.join(source_rses_config_df.select("source_rse", "tape"), on="source_rse", how="left")
         # return final dataframe
         queued_requests_tasks_df = df
@@ -1255,13 +1270,47 @@ class DataCarouselInterface(object):
         for source_tape_stats_dict in source_tape_stats_dict_list:
             source_tape = source_tape_stats_dict["source_tape"]
             quota_size = source_tape_stats_dict["quota_size"]
-            # dataframe of the phycial tape
+            # dataframe of the physical tape
             tmp_df = queued_requests_df.filter(pl.col("source_tape") == source_tape)
             # split with to_pin and not to_pin
             to_pin_df = tmp_df.filter(pl.col("to_pin"))
             tmp_queued_df = tmp_df.filter(pl.col("to_pin").not_())
             # fill dummy cumulative sum (0) for reqeusts to pin
             to_pin_df = to_pin_df.with_columns(cum_total_files=pl.lit(0, dtype=pl.datatypes.Int64), cum_dataset_size=pl.lit(0, dtype=pl.datatypes.Int64))
+            # fair share for gshares
+            if True and not tmp_queued_df.is_empty() and (fair_share_init_quota := min(QUEUE_FAIR_SHARE_MAX_QUOTA, max(quota_size, 0))) > 0:
+                queued_gshare_list = tmp_queued_df.select("gshare").unique().to_dict()["gshare"]
+                n_queued_gshare = len(queued_gshare_list)
+                # fair share quota per gshare
+                fair_share_quota_per_gshare = fair_share_init_quota // n_queued_gshare
+                # initialize dataframe with schema
+                fair_share_queued_df = None
+                unchosen_queued_df = None
+                more_fair_shared_queued_df = tmp_queued_df.clear()
+                # fair share quota to distribute to each gshare
+                for gshare in queued_gshare_list:
+                    per_gshare_df = tmp_queued_df.filter(pl.col("gshare") == gshare)
+                    per_gshare_df = per_gshare_df.with_columns(cum_tot_files_in_gshare=pl.col("total_files").cum_sum())
+                    if fair_share_queued_df is None:
+                        fair_share_queued_df = per_gshare_df.clear()
+                    if unchosen_queued_df is None:
+                        unchosen_queued_df = per_gshare_df.clear()
+                    fair_share_queued_df.extend(per_gshare_df.filter(pl.col("cum_tot_files_in_gshare") <= fair_share_quota_per_gshare))
+                    unchosen_queued_df.extend(
+                        per_gshare_df.filter(pl.col("cum_tot_files_in_gshare") > fair_share_quota_per_gshare).with_columns(
+                            cum_tot_files_in_gshare=pl.col("total_files").cum_sum()
+                        )
+                    )
+                # remaining fair share quota to distribute again
+                fair_share_remaining_quota = fair_share_init_quota - fair_share_queued_df.select("total_files").sum().to_dict()["total_files"][0]
+                if fair_share_remaining_quota > 0:
+                    unchosen_queued_df = unchosen_queued_df.sort(["cum_tot_files_in_gshare", "gshare_rank"], descending=[False, False])
+                    unchosen_queued_df = unchosen_queued_df.with_columns(tmp_cum_total_files=pl.col("total_files").cum_sum())
+                    more_fair_shared_queued_df = unchosen_queued_df.filter(pl.col("tmp_cum_total_files") <= fair_share_remaining_quota)
+                # fill back to all queued requests
+                tmp_queued_df = pl.concat(
+                    [fair_share_queued_df.select(tmp_queued_df.columns), more_fair_shared_queued_df.select(tmp_queued_df.columns), tmp_queued_df]
+                ).unique(subset=["request_id"], keep="first", maintain_order=True)
             # get cumulative sum of queued files per physical tape
             tmp_queued_df = tmp_queued_df.with_columns(cum_total_files=pl.col("total_files").cum_sum(), cum_dataset_size=pl.col("dataset_size").cum_sum())
             # number of queued requests at the physical tape
@@ -1939,8 +1988,9 @@ class DataCarouselInterface(object):
                 if dc_req_spec.status == DataCarouselRequestStatus.done and (
                     (dc_req_spec.end_time and dc_req_spec.end_time < now_time - timedelta(days=done_age_limit_days))
                     or dc_req_spec.get_parameter("rule_unfound")
+                    or dc_req_spec.get_parameter("remove_when_done")
                 ):
-                    # requests done and old enough or done but DDM rule not found; to clean up
+                    # requests done, and old enough or DDM rule not found or to remove when done; to clean up
                     done_requests_set.add(request_id)
                 elif dc_req_spec.status == DataCarouselRequestStatus.staging:
                     # requests staging while related tasks all terminated; to cancel (to clean up in next cycle)
@@ -1983,7 +2033,7 @@ class DataCarouselInterface(object):
                     if ret is None:
                         tmp_log.warning(f"failed to delete done requests; skipped")
                     else:
-                        tmp_log.debug(f"deleted {ret} done requests older than {done_age_limit_days} days or rule not found")
+                        tmp_log.debug(f"deleted {ret} done requests older than {done_age_limit_days} days or rule_unfound or remove_when_done")
                 if cancelled_requests_set:
                     # cancelled requests
                     ret = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(cancelled_requests_set))
