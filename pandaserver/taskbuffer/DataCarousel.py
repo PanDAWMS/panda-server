@@ -142,7 +142,7 @@ class DataCarouselRequestSpec(SpecBase):
             "suggested_dst_list" (list[str]): list of suggested destination RSEs
             "remove_when_done" (bool): remove request and DDM rule asap when request done to save disk space
             "init_task_id": (int): task_id of the task which initiates the request
-            "init_task_gshare": (int): original gshare of the task which initiates the request, for statistics
+            "init_task_gshare": (str): original gshare of the task which initiates the request, for statistics
 
         Returns:
             dict : dict of parameters if it is JSON or empty dict if null
@@ -1360,7 +1360,7 @@ class DataCarouselInterface(object):
                 request_id = request_dict["request_id"]
                 extra_params = {
                     "init_task_id": request_dict["jediTaskID"],
-                    "init_task_gshare": request_dict["request_id"],
+                    "init_task_gshare": request_dict["gshare"],
                 }
                 dc_req_spec = request_id_spec_map.get(request_id)
                 if dc_req_spec:
