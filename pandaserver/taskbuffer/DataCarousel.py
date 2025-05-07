@@ -141,6 +141,8 @@ class DataCarouselRequestSpec(SpecBase):
             "to_pin" (bool): whether to pin the dataset
             "suggested_dst_list" (list[str]): list of suggested destination RSEs
             "remove_when_done" (bool): remove request and DDM rule asap when request done to save disk space
+            "init_task_id": (int): task_id of the task which initiates the request
+            "init_task_gshare": (int): original gshare of the task which initiates the request, for statistics
 
         Returns:
             dict : dict of parameters if it is JSON or empty dict if null
@@ -183,6 +185,17 @@ class DataCarouselRequestSpec(SpecBase):
         """
         tmp_dict = self.parameter_map
         tmp_dict[param] = value
+        self.parameter_map = tmp_dict
+
+    def update_parameters(self, params: dict):
+        """
+        Update values of parameters with a dict and store in parameters attribute in JSON
+
+        Args:
+            params (dict): dict of parameter names and values to set
+        """
+        tmp_dict = self.parameter_map
+        tmp_dict.update(params)
         self.parameter_map = tmp_dict
 
 
@@ -1237,7 +1250,7 @@ class DataCarouselInterface(object):
         return queued_requests_tasks_df
 
     @refresh
-    def get_requests_to_stage(self, *args, **kwargs) -> list[DataCarouselRequestSpec]:
+    def get_requests_to_stage(self, *args, **kwargs) -> list[tuple[DataCarouselRequestSpec, dict]]:
         """
         Get the queued requests which should proceed to get staging
 
@@ -1245,7 +1258,7 @@ class DataCarouselInterface(object):
             ? (?): ?
 
         Returns:
-            list[DataCarouselRequestSpec] : list of requests to stage
+            list[tuple[DataCarouselRequestSpec, dict]] : list of requests to stage and dict of extra parameters to set before to stage
         """
         tmp_log = LogWrapper(logger, "get_requests_to_stage")
         ret_list = []
@@ -1337,16 +1350,21 @@ class DataCarouselInterface(object):
             )
             # append the requests to ret_list
             to_pin_request_id_list = to_pin_df.select(["request_id"]).to_dict(as_series=False)["request_id"]
-            to_stage_request_id_list = to_stage_df.select(["request_id"]).to_dict(as_series=False)["request_id"]
+            to_stage_request_list = to_stage_df.select(["request_id", "jediTaskID", "gshare"]).to_dicts()
             for request_id in to_pin_request_id_list:
                 dc_req_spec = request_id_spec_map.get(request_id)
                 if dc_req_spec:
-                    ret_list.append(dc_req_spec)
+                    ret_list.append((dc_req_spec, None))
             to_stage_count = 0
-            for request_id in to_stage_request_id_list:
+            for request_dict in to_stage_request_list:
+                request_id = request_dict["request_id"]
+                extra_params = {
+                    "init_task_id": request_dict["jediTaskID"],
+                    "init_task_gshare": request_dict["request_id"],
+                }
                 dc_req_spec = request_id_spec_map.get(request_id)
                 if dc_req_spec:
-                    ret_list.append(dc_req_spec)
+                    ret_list.append((dc_req_spec, extra_params))
                     to_stage_count += 1
             if n_total:
                 tmp_log.debug(f"source_tape={source_tape} got {to_stage_count}/{n_queued} requests to stage, {n_to_pin} requests to pin")
@@ -1485,12 +1503,13 @@ class DataCarouselInterface(object):
         return ddm_rule_id
 
     @refresh
-    def stage_request(self, dc_req_spec: DataCarouselRequestSpec) -> tuple[bool, str | None, DataCarouselRequestSpec]:
+    def stage_request(self, dc_req_spec: DataCarouselRequestSpec, extra_params: dict | None = None) -> tuple[bool, str | None, DataCarouselRequestSpec]:
         """
         Stage the dataset of the request and update request status to staging
 
         Args:
             dc_req_spec (DataCarouselRequestSpec): spec of the request
+            extra_params (dict|None): extra parameters of the request to set; None if nothing to set
 
         Returns:
             bool : True for success, False otherwise
@@ -1523,6 +1542,9 @@ class DataCarouselInterface(object):
                 err_msg = f"failed to submitted DDM rule ; skipped"
                 tmp_log.warning(err_msg)
                 return is_ok, err_msg, dc_req_spec
+        # update extra parameters
+        if extra_params:
+            dc_req_spec.update_parameters(extra_params)
         # update request to be staging
         now_time = naive_utcnow()
         dc_req_spec.status = DataCarouselRequestStatus.staging
