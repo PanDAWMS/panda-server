@@ -1130,19 +1130,23 @@ class DataCarouselInterface(object):
         if dc_req_df is None:
             return None
         dc_req_df = dc_req_df.filter(pl.col("status") == DataCarouselRequestStatus.staging)
+        # get columns from parameters
+        dc_req_df = dc_req_df.with_columns(
+            init_task_gshare=pl.col("parameters").str.json_path_match(r"$.init_task_gshare"),
+        )
         # get source tapes and RSEs config dataframes
         source_tapes_config_df = self._get_source_tapes_config_dataframe()
         # source_rses_config_df = self._get_source_rses_config_dataframe()
         # dataframe of staging requests with physical tapes
         # dc_req_full_df = dc_req_df.join(source_rses_config_df.select("source_rse", "tape"), on="source_rse", how="left")
         dc_req_full_df = dc_req_df
-        # dataframe of source RSE stats; add remaining_files
+        # dataframe of source RSE stats; add staging_files as the remaining files to finish
         source_rse_stats_df = (
             dc_req_full_df.select(
                 "source_tape",
                 "total_files",
                 "staged_files",
-                (pl.col("total_files") - pl.col("staged_files")).alias("remaining_files"),
+                (pl.col("total_files") - pl.col("staged_files")).alias("staging_files"),
             )
             .group_by("source_tape")
             .sum()
@@ -1152,12 +1156,28 @@ class DataCarouselInterface(object):
         df = df.with_columns(
             pl.col("total_files").fill_null(strategy="zero"),
             pl.col("staged_files").fill_null(strategy="zero"),
-            pl.col("remaining_files").fill_null(strategy="zero"),
+            pl.col("staging_files").fill_null(strategy="zero"),
         )
-        df = df.with_columns(quota_size=(pl.col("max_size") - pl.col("remaining_files")))
-        # return final dataframe
+        df = df.with_columns(quota_size=(pl.col("max_size") - pl.col("staging_files")))
         source_tape_stats_df = df
-        return source_tape_stats_df
+        # another dataframe of source RSE stats broken down by gshare
+        source_rse_gshare_stats_df = (
+            dc_req_full_df.select(
+                "source_tape",
+                "init_task_gshare",
+                "total_files",
+                "staged_files",
+                (pl.col("total_files") - pl.col("staged_files")).alias("staging_files"),
+            )
+            .group_by(["source_tape", "init_task_gshare"])
+            .sum()
+        ).with_columns(
+            pl.col("total_files").fill_null(strategy="zero"),
+            pl.col("staged_files").fill_null(strategy="zero"),
+            pl.col("staging_files").fill_null(strategy="zero"),
+        )
+        # return final dataframes
+        return source_tape_stats_df, source_rse_gshare_stats_df
 
     def _get_gshare_stats(self) -> dict:
         """
@@ -1266,16 +1286,16 @@ class DataCarouselInterface(object):
         if queued_requests is None:
             return ret_list
         # get stats of tapes
-        source_tape_stats_df = self._get_source_tape_stats_dataframe()
+        source_tape_stats_df, source_rse_gshare_stats_df = self._get_source_tape_stats_dataframe()
+        # tmp_log.debug(f"source_tape_stats_df: \n{source_tape_stats_df}")
+        # tmp_log.debug(f"source_rse_gshare_stats_df: \n{source_rse_gshare_stats_df}")
         source_tape_stats_dict_list = source_tape_stats_df.to_dicts()
         # map of request_id and dc_req_spec of queued requests
         request_id_spec_map = {dc_req_spec.request_id: dc_req_spec for dc_req_spec, _ in queued_requests}
         # get dataframe of queued requests and tasks
         queued_requests_tasks_df = self._queued_requests_tasks_to_dataframe(queued_requests)
         # sort queued requests : by to_pin, gshare_rank, task_priority, jediTaskID, request_id
-        df = queued_requests_tasks_df.sort(
-            ["to_pin", "gshare_rank", "task_priority", "jediTaskID", "request_id"], descending=[True, False, True, False, False], nulls_last=True
-        )
+        df = queued_requests_tasks_df.sort(["to_pin", "gshare_rank", "task_priority", "request_id"], descending=[True, False, True, False], nulls_last=True)
         # get unique requests with the sorted order
         df = df.unique(subset=["request_id"], keep="first", maintain_order=True)
         # evaluate per tape
@@ -1293,33 +1313,57 @@ class DataCarouselInterface(object):
             # fair share for gshares
             if True and not tmp_queued_df.is_empty() and (fair_share_init_quota := min(QUEUE_FAIR_SHARE_MAX_QUOTA, max(quota_size, 0))) > 0:
                 queued_gshare_list = tmp_queued_df.select("gshare").unique().to_dict()["gshare"]
-                n_queued_gshare = len(queued_gshare_list)
-                # fair share quota per gshare
-                fair_share_quota_per_gshare = fair_share_init_quota // n_queued_gshare
+                tmp_source_rse_gshare_stats_list = (
+                    source_rse_gshare_stats_df.filter((pl.col("source_tape") == source_tape)).select("init_task_gshare", "staging_files").to_dicts()
+                )
+                gshare_staging_files_map = {x["init_task_gshare"]: x["staging_files"] for x in tmp_source_rse_gshare_stats_list}
+                n_queued_gshares = len(queued_gshare_list)
+                n_staging_files_of_gshares = sum([gshare_staging_files_map.get(gshare, 0) for gshare in queued_gshare_list])
+                # fair share quota per gshare and the virtual one including remaing staging files
+                fair_share_quota_per_gshare = fair_share_init_quota // n_queued_gshares
+                virtual_fair_share_quota_per_gshare = (fair_share_init_quota + n_staging_files_of_gshares) // n_queued_gshares
+                # list of gshares to stage by exluding gshares already having remaining staging files exceeding fair_share_quota_per_gshare
+                to_stage_gshare_list = [
+                    gshare for gshare in queued_gshare_list if gshare_staging_files_map.get(gshare, 0) < virtual_fair_share_quota_per_gshare
+                ]
+                n_gshares_to_stage = len(to_stage_gshare_list)
                 # initialize dataframe with schema
                 fair_share_queued_df = None
                 unchosen_queued_df = None
                 more_fair_shared_queued_df = tmp_queued_df.clear()
                 # fair share quota to distribute to each gshare
-                for gshare in queued_gshare_list:
+                for gshare in to_stage_gshare_list:
+                    # remaining_fair_share_quota_of_gshare = fair_share_quota_per_gshare - gshare_staging_files_map.get(gshare, 0)
+                    n_staging_files = gshare_staging_files_map.get(gshare, 0)
                     per_gshare_df = tmp_queued_df.filter(pl.col("gshare") == gshare)
-                    per_gshare_df = per_gshare_df.with_columns(cum_tot_files_in_gshare=pl.col("total_files").cum_sum())
+                    per_gshare_df = per_gshare_df.with_columns(
+                        cum_tot_files_in_gshare=(pl.col("total_files").cum_sum() + pl.lit(n_staging_files, dtype=pl.datatypes.Int64))
+                    )
                     if fair_share_queued_df is None:
                         fair_share_queued_df = per_gshare_df.clear()
                     if unchosen_queued_df is None:
                         unchosen_queued_df = per_gshare_df.clear()
                     fair_share_queued_df.extend(per_gshare_df.filter(pl.col("cum_tot_files_in_gshare") <= fair_share_quota_per_gshare))
-                    unchosen_queued_df.extend(
-                        per_gshare_df.filter(pl.col("cum_tot_files_in_gshare") > fair_share_quota_per_gshare).with_columns(
-                            cum_tot_files_in_gshare=pl.col("total_files").cum_sum()
-                        )
-                    )
+                    unchosen_queued_df.extend(per_gshare_df.filter(pl.col("cum_tot_files_in_gshare") > fair_share_quota_per_gshare))
                 # remaining fair share quota to distribute again
-                fair_share_remaining_quota = fair_share_init_quota - fair_share_queued_df.select("total_files").sum().to_dict()["total_files"][0]
+                n_fair_share_files_to_stage = fair_share_queued_df.select("total_files").sum().to_dict()["total_files"][0]
+                fair_share_remaining_quota = fair_share_init_quota - n_fair_share_files_to_stage
                 if fair_share_remaining_quota > 0:
                     unchosen_queued_df = unchosen_queued_df.sort(["cum_tot_files_in_gshare", "gshare_rank"], descending=[False, False])
                     unchosen_queued_df = unchosen_queued_df.with_columns(tmp_cum_total_files=pl.col("total_files").cum_sum())
                     more_fair_shared_queued_df = unchosen_queued_df.filter(pl.col("tmp_cum_total_files") <= fair_share_remaining_quota)
+                    # get one more request among gshares which are not yet staging (may exceed fair_share_remaining_quota)
+                    not_yet_staging_gshares_set = (
+                        set(to_stage_gshare_list)
+                        - set(fair_share_queued_df.select("gshare").unique().to_dict()["gshare"])
+                        - set(more_fair_shared_queued_df.select("gshare").unique().to_dict()["gshare"])
+                    )
+                    if not_yet_staging_gshares_set:
+                        lucky_gshare = random.choice(list(not_yet_staging_gshares_set))
+                        tmp_lucky_df = unchosen_queued_df.filter(
+                            (pl.col("gshare") == lucky_gshare) & (pl.col("tmp_cum_total_files") > fair_share_remaining_quota)
+                        ).head(1)
+                        more_fair_shared_queued_df.extend(tmp_lucky_df)
                 # fill back to all queued requests
                 tmp_queued_df = pl.concat(
                     [fair_share_queued_df.select(tmp_queued_df.columns), more_fair_shared_queued_df.select(tmp_queued_df.columns), tmp_queued_df]
