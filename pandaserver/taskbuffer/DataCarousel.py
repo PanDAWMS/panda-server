@@ -1171,6 +1171,7 @@ class DataCarouselInterface(object):
             )
             .group_by(["source_tape", "init_task_gshare"])
             .sum()
+            .sort(["source_tape", "init_task_gshare"], nulls_last=True)
         ).with_columns(
             pl.col("total_files").fill_null(strategy="zero"),
             pl.col("staged_files").fill_null(strategy="zero"),
@@ -1283,12 +1284,13 @@ class DataCarouselInterface(object):
         tmp_log = LogWrapper(logger, "get_requests_to_stage")
         ret_list = []
         queued_requests = self.taskBufferIF.get_data_carousel_queued_requests_JEDI()
-        if queued_requests is None:
+        if queued_requests is None or not queued_requests:
+            tmp_log.debug(f"no requests to stage or to pin ; skipped")
             return ret_list
         # get stats of tapes
         source_tape_stats_df, source_rse_gshare_stats_df = self._get_source_tape_stats_dataframe()
         # tmp_log.debug(f"source_tape_stats_df: \n{source_tape_stats_df}")
-        # tmp_log.debug(f"source_rse_gshare_stats_df: \n{source_rse_gshare_stats_df}")
+        tmp_log.debug(f"source_rse_gshare_stats_df: \n{source_rse_gshare_stats_df}")
         source_tape_stats_dict_list = source_tape_stats_df.to_dicts()
         # map of request_id and dc_req_spec of queued requests
         request_id_spec_map = {dc_req_spec.request_id: dc_req_spec for dc_req_spec, _ in queued_requests}
