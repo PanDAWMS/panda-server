@@ -833,7 +833,7 @@ class DataCarouselInterface(object):
             # other unexpected errors
             raise e
 
-    def _choose_tape_source_rse(self, dataset: str, rse_set: set, staging_rule) -> tuple[str, (str | None), (str | None)]:
+    def _choose_tape_source_rse(self, dataset: str, rse_set: set, staging_rule, no_cern: bool = True) -> tuple[str, (str | None), (str | None)]:
         """
         Choose a TAPE source RSE
         If with exsiting staging rule, then get source RSE from it
@@ -842,6 +842,7 @@ class DataCarouselInterface(object):
             dataset (str): dataset name
             rse_set (set): set of TAPE source RSE set to choose from
             staging_rule: DDM staging rule
+            no_cern: skip CERN-PROD RSE whenever possible if True
 
         Returns:
             str: the dataset name
@@ -896,7 +897,8 @@ class DataCarouselInterface(object):
                     source_rse = rse_list[0]
                 else:
                     non_CERN_rse_list = [rse for rse in rse_list if "CERN-PROD" not in rse]
-                    if non_CERN_rse_list:
+                    if non_CERN_rse_list and no_cern:
+                        # choose non-CERN-PROD source RSE
                         source_rse = random.choice(non_CERN_rse_list)
                     else:
                         source_rse = random.choice(rse_list)
@@ -2284,7 +2286,7 @@ class DataCarouselInterface(object):
                 # replicas only on tape
                 tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
                 # choose source RSE
-                _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule, no_cern=False)
                 # fill new attributes
                 dc_req_spec.source_rse = new_source_rse
                 dc_req_spec.ddm_rule_id = ddm_rule_id
