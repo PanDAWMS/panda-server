@@ -1,3 +1,4 @@
+import copy
 import functools
 import json
 import os
@@ -2272,7 +2273,8 @@ class DataCarouselInterface(object):
             source_type, rse_set_orig, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
             # exclude original source RSE if possible
             if rse_set_orig:
-                rse_set = rse_set_orig.discard(dc_req_spec.source_rse)
+                rse_set = copy.copy(rse_set_orig)
+                rse_set.discard(dc_req_spec.source_rse)
             # check
             if not rse_set:
                 # no availible source RSE
@@ -2286,7 +2288,7 @@ class DataCarouselInterface(object):
                 # replicas only on tape
                 tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
                 # choose source RSE
-                _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule, no_cern=False)
+                _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
                 # fill new attributes
                 dc_req_spec.source_rse = new_source_rse
                 dc_req_spec.ddm_rule_id = ddm_rule_id
