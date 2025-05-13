@@ -1273,7 +1273,7 @@ class RucioAPI:
     # update replication rule by rule ID
     def update_rule_by_id(self, rule_id, set_map):
         method_name = "update_rule_by_id"
-        method_name = f"{method_name} rule_id={rule_id}"
+        method_name = f"{method_name} rule_id={rule_id} set_map={set_map}"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
         try:
