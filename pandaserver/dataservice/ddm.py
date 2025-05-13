@@ -1273,7 +1273,7 @@ class RucioAPI:
     # update replication rule by rule ID
     def update_rule_by_id(self, rule_id, set_map):
         method_name = "update_rule_by_id"
-        method_name = f"{method_name} rule_id={rule_id}"
+        method_name = f"{method_name} rule_id={rule_id} set_map={set_map}"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
         try:
@@ -1300,8 +1300,11 @@ class RucioAPI:
             rule = client.get_replication_rule(rule_id)
         except RuleNotFound as e:
             if allow_missing:
-                tmp_log.debug(e)
+                tmp_log.warning(e)
                 return False
+            else:
+                tmp_log.error(f"got error ; {traceback.format_exc()}")
+                return None
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
