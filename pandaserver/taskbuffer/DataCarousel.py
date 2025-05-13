@@ -308,7 +308,7 @@ def get_resubmit_request_spec(dc_req_spec: DataCarouselRequestSpec, exclude_prev
         dc_req_spec_to_resubmit.source_rse = dc_req_spec.source_rse
         dc_req_spec_to_resubmit.source_tape = dc_req_spec.source_tape
         # parameters according to original requests
-        # orig_parameter_map = dc_req_spec.parameter_map
+        orig_parameter_map = dc_req_spec.parameter_map
         # orig_excluded_dst_set = set(orig_parameter_map.get("excluded_dst_list", []))
         excluded_dst_set = set()
         if exclude_prev_dst:
@@ -320,6 +320,8 @@ def get_resubmit_request_spec(dc_req_spec: DataCarouselRequestSpec, exclude_prev
             "prev_src": dc_req_spec.source_rse,
             "prev_dst": dc_req_spec.destination_rse,
             "excluded_dst_list": list(excluded_dst_set),
+            "init_task_id": orig_parameter_map.get("init_task_id"),
+            "init_task_gshare": orig_parameter_map.get("init_task_gshare"),
         }
         # return
         tmp_log.debug(f"got resubmit request spec for request_id={dc_req_spec.request_id}")
