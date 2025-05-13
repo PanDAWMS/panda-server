@@ -1300,7 +1300,7 @@ class RucioAPI:
             rule = client.get_replication_rule(rule_id)
         except RuleNotFound as e:
             if allow_missing:
-                tmp_log.debug(e)
+                tmp_log.warning(e)
                 return False
             else:
                 tmp_log.error(f"got error ; {traceback.format_exc()}")
