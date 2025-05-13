@@ -1302,6 +1302,9 @@ class RucioAPI:
             if allow_missing:
                 tmp_log.debug(e)
                 return False
+            else:
+                tmp_log.error(f"got error ; {traceback.format_exc()}")
+                return None
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
