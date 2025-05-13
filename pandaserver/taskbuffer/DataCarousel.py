@@ -1133,16 +1133,17 @@ class DataCarouselInterface(object):
         if dc_req_df is None:
             return None
         dc_req_df = dc_req_df.filter(pl.col("status") == DataCarouselRequestStatus.staging)
-        # get columns from parameters
+        # get columns from parameters; note that str.json_path_match() always casts to string
         dc_req_df = dc_req_df.with_columns(
+            to_pin_str=pl.col("parameters").str.json_path_match(r"$.to_pin").fill_null(False),
             init_task_gshare=pl.col("parameters").str.json_path_match(r"$.init_task_gshare"),
         )
         # get source tapes and RSEs config dataframes
         source_tapes_config_df = self._get_source_tapes_config_dataframe()
         # source_rses_config_df = self._get_source_rses_config_dataframe()
-        # dataframe of staging requests with physical tapes
+        # dataframe of staging requests with physical tapes, ignoring to_pin requests
         # dc_req_full_df = dc_req_df.join(source_rses_config_df.select("source_rse", "tape"), on="source_rse", how="left")
-        dc_req_full_df = dc_req_df
+        dc_req_full_df = dc_req_df.filter(pl.col("to_pin_str") != "true")
         # dataframe of source RSE stats; add staging_files as the remaining files to finish
         source_rse_stats_df = (
             dc_req_full_df.select(
@@ -1293,7 +1294,7 @@ class DataCarouselInterface(object):
         # get stats of tapes
         source_tape_stats_df, source_rse_gshare_stats_df = self._get_source_tape_stats_dataframe()
         # tmp_log.debug(f"source_tape_stats_df: \n{source_tape_stats_df}")
-        tmp_log.debug(f"source_rse_gshare_stats_df: \n{source_rse_gshare_stats_df}")
+        tmp_log.debug(f"source_rse_gshare_stats_df: \n{source_rse_gshare_stats_df.select(['source_tape', 'init_task_gshare', 'total_files', 'staging_files'])}")
         source_tape_stats_dict_list = source_tape_stats_df.to_dicts()
         # map of request_id and dc_req_spec of queued requests
         request_id_spec_map = {dc_req_spec.request_id: dc_req_spec for dc_req_spec, _ in queued_requests}
