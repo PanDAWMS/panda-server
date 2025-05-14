@@ -912,6 +912,24 @@ class DataCarouselInterface(object):
             # other unexpected errors
             raise e
 
+    def _get_source_tape_from_rse(self, source_rse: str) -> str:
+        """
+        Get the source tape of a source RSE
+
+        Args:
+            source_rse (str): name of the source RSE
+
+        Returns:
+            str : source tape
+        """
+        try:
+            # source_rse is RSE
+            source_tape = self.dc_config_map.source_rses_config[source_rse].tape
+        except KeyError:
+            # source_rse is physical tape
+            source_tape = source_rse
+        return source_tape
+
     @refresh
     def get_input_datasets_to_prestage(self, task_id: int, task_params_map: dict, dsname_list: list | None = None) -> tuple[list, dict]:
         """
@@ -1043,14 +1061,7 @@ class DataCarouselInterface(object):
             dc_req_spec.staged_size = 0
             dc_req_spec.ddm_rule_id = ddm_rule_id
             dc_req_spec.source_rse = source_rse
-            try:
-                # source_rse is RSE
-                source_tape = self.dc_config_map.source_rses_config[dc_req_spec.source_rse].tape
-            except KeyError:
-                # source_rse is physical tape
-                source_tape = dc_req_spec.source_rse
-            finally:
-                dc_req_spec.source_tape = source_tape
+            dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
             if to_pin:
                 # to pin the dataset; set to_pin in parameter
                 dc_req_spec.set_parameter("to_pin", True)
@@ -1495,11 +1506,7 @@ class DataCarouselInterface(object):
             return None
         # get source physical tape
         try:
-            # source_rse is RSE
-            source_tape = self.dc_config_map.source_rses_config[dc_req_spec.source_rse].tape
-        except KeyError:
-            # source_rse is physical tape
-            source_tape = dc_req_spec.source_rse
+            source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
         except Exception:
             # other unexpected errors
             tmp_log.error(f"got error ; {traceback.format_exc()}")
@@ -2295,6 +2302,7 @@ class DataCarouselInterface(object):
                 # fill new attributes
                 dc_req_spec.source_rse = new_source_rse
                 dc_req_spec.ddm_rule_id = ddm_rule_id
+                dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
                 if to_pin:
                     dc_req_spec.set_parameter("to_pin", True)
                 if suggested_dst_list:
