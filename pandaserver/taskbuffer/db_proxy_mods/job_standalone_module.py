@@ -2481,13 +2481,13 @@ class JobStandaloneModule(BaseModule):
     def listJobOutputReport(self, only_unlocked, time_limit, limit, grace_period, labels, anti_labels):
         comment = " /* DBProxy.listJobOutputReport */"
         tmp_log = self.create_tagged_logger(comment)
-        tmp_log.debug(f"start label={str(labels)} anti_label={str(anti_labels)}")
+        tmp_log.debug(f"start label={str(labels)} limit={limit} anti_label={str(anti_labels)}")
         try:
             retVal = None
             if only_unlocked:
                 # try to get only records unlocked or with expired lock
                 varMap = {}
-                varMap[":limit"] = limit
+                varMap[":limit"] = limit * 10
                 varMap[":lockedTime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=time_limit)
                 varMap[":timeStamp"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(seconds=grace_period)
                 # sql to get record
@@ -2520,7 +2520,14 @@ class JobStandaloneModule(BaseModule):
                 self.conn.begin()
                 # check
                 self.cur.execute(sqlGR + comment, varMap)
+                separator = limit // 10
                 retVal = self.cur.fetchall()
+                # shuffle tail to avoid conflict
+                ret_head = retVal[:separator]
+                ret_tail = retVal[separator:]
+                random.shuffle(ret_tail)
+                retVal = ret_head + ret_tail
+                retVal = retVal[:limit]
                 tmp_log.debug(f"listed {len(retVal)} unlocked records")
             else:
                 # sql to select
