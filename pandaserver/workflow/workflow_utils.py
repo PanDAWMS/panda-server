@@ -626,6 +626,164 @@ def set_workflow_outputs(node_list, all_parents=None):
             set_workflow_outputs(node.sub_nodes, all_parents)
 
 
+# convert parameter names to parent IDs
+def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map):
+    for item in ["left", "right"]:
+        param = getattr(condition_item, item)
+        if isinstance(param, str):
+            m = re.search(r"^[^\[]+\[(\d+)\]", param)
+            if m:
+                param = param.split("[")[0]
+                idx = int(m.group(1))
+            else:
+                idx = None
+            isOK = False
+            for tmp_name, tmp_data in input_data.items():
+                if param == tmp_name.split("/")[-1]:
+                    isOK = True
+                    if isinstance(tmp_data["parent_id"], list):
+                        if idx is not None:
+                            setattr(condition_item, item, id_map[tmp_data["parent_id"][idx]])
+                        else:
+                            setattr(condition_item, item, id_map[tmp_data["parent_id"]])
+                    else:
+                        setattr(condition_item, item, id_map[tmp_data["parent_id"]])
+                    break
+            if not isOK:
+                raise ReferenceError(f"unresolved paramter {param} in the condition string")
+        elif isinstance(param, ConditionItem):
+            convert_params_in_condition_to_parent_ids(param, input_data, id_map)
+
+
+# resolve nodes
+def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_name, log_stream):
+    for k in root_inputs:
+        kk = k.split("#")[-1]
+        if kk in data:
+            root_inputs[k] = data[kk]
+    tmp_to_real_id_map = {}
+    resolved_map = {}
+    all_nodes = []
+    for node in node_list:
+        # resolve input
+        for tmp_name, tmp_data in node.inputs.items():
+            if not tmp_data["source"]:
+                continue
+            if isinstance(tmp_data["source"], list):
+                tmp_sources = tmp_data["source"]
+                if "parent_id" in tmp_data:
+                    tmp_parent_ids = tmp_data["parent_id"]
+                    tmp_parent_ids += [None] * (len(tmp_sources) - len(tmp_parent_ids))
+                else:
+                    tmp_parent_ids = [None] * len(tmp_sources)
+            else:
+                tmp_sources = [tmp_data["source"]]
+                if "parent_id" in tmp_data:
+                    tmp_parent_ids = [tmp_data["parent_id"]]
+                else:
+                    tmp_parent_ids = [None] * len(tmp_sources)
+            for tmp_source, tmp_parent_id in zip(tmp_sources, tmp_parent_ids):
+                isOK = False
+                # check root input
+                if tmp_source in root_inputs:
+                    node.is_head = True
+                    node.set_input_value(tmp_name, tmp_source, root_inputs[tmp_source])
+                    continue
+                # check parent output
+                for i in node.parents:
+                    for r_node in resolved_map[i]:
+                        if tmp_source in r_node.outputs:
+                            node.set_input_value(
+                                tmp_name,
+                                tmp_source,
+                                r_node.outputs[tmp_source]["value"],
+                            )
+                            isOK = True
+                            break
+                    if isOK:
+                        break
+                if isOK:
+                    continue
+                # check resolved parent outputs
+                if tmp_parent_id is not None:
+                    values = [list(r_node.outputs.values())[0]["value"] for r_node in resolved_map[tmp_parent_id]]
+                    if len(values) == 1:
+                        values = values[0]
+                    node.set_input_value(tmp_name, tmp_source, values)
+                    continue
+        # scatter
+        if node.scatter:
+            # resolve scattered parameters
+            scatters = None
+            sc_nodes = []
+            for item in node.scatter:
+                if scatters is None:
+                    scatters = [{item: v} for v in node.inputs[item]["value"]]
+                else:
+                    [i.update({item: v}) for i, v in zip(scatters, node.inputs[item]["value"])]
+            for idx, item in enumerate(scatters):
+                sc_node = copy.deepcopy(node)
+                for k, v in item.items():
+                    sc_node.inputs[k]["value"] = v
+                for tmp_node in sc_node.sub_nodes:
+                    tmp_node.scatter_index = idx
+                    tmp_node.upper_root_inputs = sc_node.root_inputs
+                sc_nodes.append(sc_node)
+        else:
+            sc_nodes = [node]
+        # loop over scattered nodes
+        for sc_node in sc_nodes:
+            all_nodes.append(sc_node)
+            # set real node ID
+            resolved_map.setdefault(sc_node.id, [])
+            tmp_to_real_id_map.setdefault(sc_node.id, set())
+            # resolve parents
+            real_parens = set()
+            for i in sc_node.parents:
+                real_parens |= tmp_to_real_id_map[i]
+            sc_node.parents = real_parens
+            if sc_node.is_head:
+                sc_node.parents |= parent_ids
+            if sc_node.is_leaf:
+                resolved_map[sc_node.id].append(sc_node)
+                tmp_to_real_id_map[sc_node.id].add(serial_id)
+                sc_node.id = serial_id
+                serial_id += 1
+            else:
+                serial_id, sub_tail_nodes, sc_node.sub_nodes = resolve_nodes(
+                    sc_node.sub_nodes,
+                    sc_node.root_inputs,
+                    sc_node.convert_dict_inputs(),
+                    serial_id,
+                    sc_node.parents,
+                    out_ds_name,
+                    log_stream,
+                )
+                resolved_map[sc_node.id] += sub_tail_nodes
+                tmp_to_real_id_map[sc_node.id] |= set([n.id for n in sub_tail_nodes])
+                sc_node.id = serial_id
+                serial_id += 1
+            # convert parameters to parent IDs in conditions
+            if sc_node.condition:
+                convert_params_in_condition_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
+            # resolve outputs
+            if sc_node.is_leaf:
+                for tmp_name, tmp_data in sc_node.outputs.items():
+                    tmp_data["value"] = f"{out_ds_name}_{sc_node.id:03d}_{sc_node.name}"
+                    # add loop count for nodes in a loop
+                    if sc_node.in_loop:
+                        tmp_data["value"] += ".___idds___num_run___"
+    # return tails
+    tail_nodes = []
+    for node in all_nodes:
+        if node.is_tail:
+            if node.is_tail:
+                tail_nodes.append(node)
+            else:
+                tail_nodes += resolved_map[node.id]
+    return serial_id, tail_nodes, all_nodes
+
+
 # condition item
 class ConditionItem(object):
     def __init__(self, left, right=None, operator=None):

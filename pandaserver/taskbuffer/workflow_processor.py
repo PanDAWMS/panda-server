@@ -177,7 +177,7 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                             yaml = YAML(typ="safe", pure=True)
                             data = yaml.load(workflow_input)
                         # noinspection DuplicatedCode
-                        s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(), ops["data"]["outDS"], tmpLog)
+                        s_id, t_nodes, nodes = workflow_utils.resolve_nodes(nodes, root_in, data, 0, set(), ops["data"]["outDS"], tmpLog)
                         workflow_utils.set_workflow_outputs(nodes)
                         id_node_map = workflow_utils.get_node_id_map(nodes)
                         [node.resolve_params(ops["data"]["taskParams"], id_node_map) for node in nodes]
@@ -197,7 +197,7 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                         nodes, root_in = parser.parse_nodes()
                         data = dict()
                         # noinspection DuplicatedCode
-                        s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(), ops["data"]["outDS"], tmpLog)
+                        s_id, t_nodes, nodes = workflow_utils.resolve_nodes(nodes, root_in, data, 0, set(), ops["data"]["outDS"], tmpLog)
                         workflow_utils.set_workflow_outputs(nodes)
                         id_node_map = workflow_utils.get_node_id_map(nodes)
                         [node.resolve_params(ops["data"]["taskParams"], id_node_map) for node in nodes]

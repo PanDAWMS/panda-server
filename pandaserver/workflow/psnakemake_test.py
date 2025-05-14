@@ -5,14 +5,15 @@ import logging
 import os
 import sys
 
-from pandaserver.workflow.pcwl_utils import resolve_nodes
+from snakeparser import Parser
+
 from pandaserver.workflow.workflow_utils import (
     convert_nodes_to_workflow,
     dump_nodes,
     get_node_id_map,
+    resolve_nodes,
     set_workflow_outputs,
 )
-from snakeparser import Parser
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG)
 
