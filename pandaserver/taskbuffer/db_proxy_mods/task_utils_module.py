@@ -894,6 +894,7 @@ class TaskUtilsModule(BaseModule):
                 returnMap["outDiskUnit"] = "kBPerEvent"
             else:
                 returnMap["outDiskUnit"] = "kB"
+
         if walltimeList != []:
             maxWallTime = max(walltimeList)
             extraInfo["maxCpuConsumptionTime"] = maxWallTime
@@ -913,6 +914,7 @@ class TaskUtilsModule(BaseModule):
             if returnMap["walltime"] > limitWallTime:
                 returnMap["walltime"] = limitWallTime
         returnMap["walltimeUnit"] = "kSI2kseconds"
+
         if cpuTimeList != []:
             maxCpuTime, origValues = CoreUtils.percentile(cpuTimeList, cpuTimeRank, cpuTimeDict)
             for origValue in origValues:
@@ -932,12 +934,14 @@ class TaskUtilsModule(BaseModule):
                 returnMap["cpuTimeUnit"] = "HS06sPerEvent"
             maxCpuTime = int(math.ceil(maxCpuTime))
             returnMap["cpuTime"] = maxCpuTime
+
         if ioIntentList != []:
             maxIoIntent = max(ioIntentList)
             addTag(jobTagMap, ioIntentDict, maxIoIntent, "ioIntensity")
             maxIoIntent = int(math.ceil(maxIoIntent))
             returnMap["ioIntensity"] = maxIoIntent
             returnMap["ioIntensityUnit"] = "kBPerS"
+
         if diskIoList != []:
             aveDiskIo = sum(diskIoList) // len(diskIoList)
             aveDiskIo = int(math.ceil(aveDiskIo))
@@ -945,12 +949,15 @@ class TaskUtilsModule(BaseModule):
                 aveDiskIo = min(aveDiskIo, capOnDiskIO)
             returnMap["diskIO"] = aveDiskIo
             returnMap["diskIOUnit"] = "kBPerS"
+
         if leak_list:
             ave_leak = int(math.ceil(sum(leak_list) / len(leak_list)))
             returnMap["memory_leak_core"] = ave_leak
+
         if leak_x2_list:
             ave_leak_x2 = int(math.ceil(sum(leak_x2_list) / len(leak_x2_list)))
             returnMap["memory_leak_x2"] = ave_leak_x2
+
         if memSizeList != []:
             memVal, origValues = CoreUtils.percentile(memSizeList, ramCountRank, memSizeDict)
             for origValue in origValues:
@@ -970,6 +977,7 @@ class TaskUtilsModule(BaseModule):
             else:
                 returnMap["ramUnit"] = "MB"
                 returnMap["ramCount"] = memVal
+
         if workSizeList != []:
             median = max(workSizeList)
             returnMap["workDiskCount"] = int(median)
@@ -977,10 +985,12 @@ class TaskUtilsModule(BaseModule):
             # use preset value if larger
             if preWorkDiskCount is not None and preWorkDiskCount > returnMap["workDiskCount"]:
                 returnMap["workDiskCount"] = preWorkDiskCount
+
         if cpuEffList != []:
             minCpuEfficiency = int(numpy.median(cpuEffList))
             addTag(jobTagMap, cpuEffDict, minCpuEfficiency, "cpuEfficiency")
             extraInfo["minCpuEfficiency"] = minCpuEfficiency
+
         nShortJobs = 0
         nShortJobsWithCtoS = 0
         nTotalForShort = 0
@@ -1143,6 +1153,7 @@ class TaskUtilsModule(BaseModule):
                 sqlTSL += " WHERE jediTaskID=:jediTaskID "
                 tmpLog.debug(sqlTSL + comment + str(varMap))
                 self.cur.execute(sqlTSL + comment, varMap)
+
         # set average merge job data
         mergeScoutSucceeded = None
         if taskSpec.mergeOutput():
@@ -1162,6 +1173,7 @@ class TaskUtilsModule(BaseModule):
                 sqlTSD += " WHERE jediTaskID=:jediTaskID "
                 tmpLog.debug(sqlTSD + comment + str(varMap))
                 self.cur.execute(sqlTSD + comment, varMap)
+
         # go to exhausted if necessary
         nNewJobsCutoff = 20
         if useExhausted and scoutSucceeded and extraInfo["nNewJobs"] > nNewJobsCutoff:
