@@ -707,7 +707,7 @@ class DataCarouselInterface(object):
             tmp_log = LogWrapper(logger, f"_get_datasets_from_collections collection={collection}")
             # check the collection
             ret_list = []
-            collection_meta = self.ddmIF.get_dataset_matadata(collection, ignore_missing=True)
+            collection_meta = self.ddmIF.get_dataset_metadata(collection, ignore_missing=True)
             if collection_meta["state"] == "missing":
                 # DID not found
                 tmp_log.warning(f"DID not found")
@@ -1054,7 +1054,7 @@ class DataCarouselInterface(object):
         for dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list in prestaging_list:
             dc_req_spec = DataCarouselRequestSpec()
             dc_req_spec.dataset = dataset
-            dataset_meta = self.ddmIF.get_dataset_matadata(dataset)
+            dataset_meta = self.ddmIF.get_dataset_metadata(dataset)
             dc_req_spec.total_files = dataset_meta["length"]
             dc_req_spec.dataset_size = dataset_meta["bytes"]
             dc_req_spec.staged_files = 0
