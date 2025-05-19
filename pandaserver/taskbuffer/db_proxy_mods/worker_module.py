@@ -295,6 +295,7 @@ class WorkerModule(BaseModule):
         comment = " /* DBProxy.get_average_memory_workers */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
+
         try:
             # sql to calculate the average memory for the queue - harvester_id combination
             # "* 1" in sj.data.blah * 1 is required to notify postgres the data type is an int since json element is
@@ -436,9 +437,13 @@ class WorkerModule(BaseModule):
             tmp_log.error("No harvester instance assigned or not in statistics")
             return {}
 
+        # There is the case where the grid has no workloads and running HIMEM jobs is better than running no jobs
+        ignore_meanrss = self.getConfigValue("meanrss", "IGNORE_MEANRSS")
+        tmp_log.debug(f"Accepting all resource types since meanrss throttling is ignored")
+
         # If the site defined a memory target, calculate the memory requested by running and queued workers
         resource_types_under_target = []
-        if average_memory_target:
+        if ignore_meanrss != True and average_memory_target:
             average_memory_workers_running_submitted, average_memory_workers_running = self.get_average_memory_workers(
                 queue, harvester_id, average_memory_target
             )

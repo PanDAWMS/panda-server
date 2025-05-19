@@ -2186,12 +2186,17 @@ class JobComplexModule(BaseModule):
         else:
             maxAttemptIDx = 10
 
+        # There is the case where the grid has no workloads and running HIMEM jobs is better than running no jobs
+        ignore_meanrss = self.getConfigValue("meanrss", "IGNORE_MEANRSS")
+
         # get the configuration for maximum workers of each type
         is_push_queue = False
         average_memory_target = None
         average_memory_limit = None
         pq_data_des = get_entity_module(self).get_config_for_pq(siteName)
-        if not pq_data_des:
+        if ignore_meanrss == True:
+            tmp_log.debug("Ignoring meanrss limit and accepting any job")
+        elif not pq_data_des:
             tmp_log.debug("Error retrieving queue configuration from DB, limits can not be applied")
         else:
             try:
