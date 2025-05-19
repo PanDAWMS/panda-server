@@ -707,7 +707,7 @@ class DataCarouselInterface(object):
             tmp_log = LogWrapper(logger, f"_get_datasets_from_collections collection={collection}")
             # check the collection
             ret_list = []
-            collection_meta = self.ddmIF.get_dataset_matadata(collection, ignore_missing=True)
+            collection_meta = self.ddmIF.get_dataset_metadata(collection, ignore_missing=True)
             if collection_meta["state"] == "missing":
                 # DID not found
                 tmp_log.warning(f"DID not found")
@@ -1028,6 +1028,31 @@ class DataCarouselInterface(object):
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             raise e
 
+    def _fill_total_files_and_size(self, dc_req_spec: DataCarouselRequestSpec) -> bool | None:
+        """
+        Fill total files and dataset size of the Data Carousel request spec
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): Data Carousel request spec
+
+        Returns:
+            bool|None : True if successful, None if getting None from DDM, False if error occurs
+        """
+        try:
+            tmp_log = LogWrapper(logger, f"_fill_total_files_and_size request_id={dc_req_spec.request_id}")
+            # get dataset metadata
+            dataset_meta = self.ddmIF.get_dataset_metadata(dc_req_spec.dataset)
+            # fill
+            dc_req_spec.total_files = dataset_meta["length"]
+            dc_req_spec.dataset_size = dataset_meta["bytes"]
+            if dc_req_spec.total_files is not None:
+                return True
+            else:
+                return None
+        except Exception as e:
+            tmp_log.error(f"failed to fill total files and size; {e}")
+            return False
+
     def submit_data_carousel_requests(
         self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]], options: dict | None = None
     ) -> bool | None:
@@ -1054,9 +1079,7 @@ class DataCarouselInterface(object):
         for dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list in prestaging_list:
             dc_req_spec = DataCarouselRequestSpec()
             dc_req_spec.dataset = dataset
-            dataset_meta = self.ddmIF.get_dataset_matadata(dataset)
-            dc_req_spec.total_files = dataset_meta["length"]
-            dc_req_spec.dataset_size = dataset_meta["bytes"]
+            self._fill_total_files_and_size(dc_req_spec)
             dc_req_spec.staged_files = 0
             dc_req_spec.staged_size = 0
             dc_req_spec.ddm_rule_id = ddm_rule_id
@@ -1394,16 +1417,13 @@ class DataCarouselInterface(object):
             n_to_pin = len(to_pin_df)
             n_total = n_queued + n_to_pin
             # print dataframe in log
+            tmp_to_print_df = None
             if n_total:
                 tmp_to_print_df = pl.concat([to_pin_df, tmp_queued_df])
                 tmp_to_print_df = tmp_to_print_df.select(
                     ["request_id", "source_rse", "jediTaskID", "gshare", "gshare_rank", "task_priority", "total_files", "cum_total_files", "to_pin"]
                 )
                 tmp_to_print_df = tmp_to_print_df.with_columns(gshare_and_rank=pl.concat_str([pl.col("gshare"), pl.col("gshare_rank")], separator=" : "))
-                tmp_to_print_df = tmp_to_print_df.select(
-                    ["request_id", "source_rse", "jediTaskID", "gshare_and_rank", "task_priority", "total_files", "cum_total_files", "to_pin"]
-                )
-                tmp_log.debug(f"  source_tape={source_tape} , quota_size={quota_size} : \n{tmp_to_print_df}")
             # filter requests to respect the tape quota size; at most one request can reach or exceed quota size if quota size > 0
             to_stage_df = pl.concat(
                 [
@@ -1429,6 +1449,18 @@ class DataCarouselInterface(object):
                 if dc_req_spec:
                     ret_list.append((dc_req_spec, extra_params))
                     to_stage_count += 1
+            if tmp_to_print_df is not None and not (to_pin_df.is_empty() and to_stage_df.is_empty()):
+                tmp_to_print_df = tmp_to_print_df.with_columns(
+                    result=pl.when(pl.col("request_id").is_in(to_pin_df.select(["request_id"])))
+                    .then(pl.lit("pin"))
+                    .when(pl.col("request_id").is_in(to_stage_df.select(["request_id"])))
+                    .then(pl.lit("stage"))
+                    .otherwise(pl.lit(" "))
+                )
+                tmp_to_print_df = tmp_to_print_df.select(
+                    ["request_id", "source_rse", "jediTaskID", "gshare_and_rank", "task_priority", "total_files", "cum_total_files", "result"]
+                )
+                tmp_log.debug(f"  source_tape={source_tape} , quota_size={quota_size} : \n{tmp_to_print_df}")
             if n_total:
                 tmp_log.debug(f"source_tape={source_tape} got {to_stage_count}/{n_queued} requests to stage, {n_to_pin} requests to pin")
         tmp_log.debug(f"totally got {len(ret_list)} requests to stage or to pin")
@@ -1585,6 +1617,13 @@ class DataCarouselInterface(object):
             err_msg = f"status={dc_req_spec.status} not queued; skipped"
             tmp_log.warning(err_msg)
             return is_ok, err_msg, dc_req_spec
+        # retry to get DDM dataset metadata and skip if total_files is still None
+        if dc_req_spec.total_files is None:
+            _got = self._fill_total_files_and_size(dc_req_spec)
+            if not _got:
+                err_msg = f"total_files and dataset_size are still None; skipped"
+                tmp_log.warning(err_msg)
+                return is_ok, err_msg, dc_req_spec
         # check existing DDM rule of the dataset
         if (ddm_rule_id := dc_req_spec.ddm_rule_id) is not None:
             # DDM rule exists; no need to submit
