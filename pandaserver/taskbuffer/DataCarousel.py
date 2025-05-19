@@ -1449,7 +1449,7 @@ class DataCarouselInterface(object):
                 if dc_req_spec:
                     ret_list.append((dc_req_spec, extra_params))
                     to_stage_count += 1
-            if tmp_to_print_df is not None and to_stage_count > 0:
+            if tmp_to_print_df is not None and not (to_pin_df.is_empty() and to_stage_df.is_empty()):
                 tmp_to_print_df = tmp_to_print_df.with_columns(
                     result=pl.when(pl.col("request_id").is_in(to_pin_df.select(["request_id"])))
                     .then(pl.lit("pin"))
