@@ -439,6 +439,7 @@ class WorkerModule(BaseModule):
 
         # There is the case where the grid has no workloads and running HIMEM jobs is better than running no jobs
         ignore_meanrss = self.getConfigValue("meanrss", "IGNORE_MEANRSS")
+        tmp_log.debug(f"Accepting all resource types since meanrss throttling is ignored")
 
         # If the site defined a memory target, calculate the memory requested by running and queued workers
         resource_types_under_target = []
