@@ -568,7 +568,7 @@ class TaskComplexModule(BaseModule):
             # sql to get fileID
             sqlFID = f"SELECT {panda_config.schemaJEDI}.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM "
             sqlFID += "(SELECT level FROM dual CONNECT BY level<=:nIDs) "
-            # sql to update file status
+            # sql to update file counts
             sqlFU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:status "
             sqlFU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             # sql to get master status
@@ -2349,7 +2349,7 @@ class TaskComplexModule(BaseModule):
         sql_check_files += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         sql_check_dataset = f"SELECT nFilesUsed,nFilesToBeUsed,nFilesFinished,nFilesFailed FROM {panda_config.schemaJEDI}.JEDI_Datasets "
         sql_check_dataset += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-        # sql to update file stat of datasets with empty requirements
+        # sql to update file counts of datasets with empty requirements
         sql_update_dataset_n_used_files = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=:nFilesUsed "
         sql_update_dataset_n_used_files += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         sql_update_dataset_n_unprocessed_files = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesToBeUsed=:nFilesToBeUsed "
@@ -2589,7 +2589,7 @@ class TaskComplexModule(BaseModule):
         ds_with_fake_co_jumbo: set,
     ) -> tuple[list, int]:
         """
-        Read unprocessed input files, duplicate secondary files if nessesary, and update file status in the dataset.
+        Read unprocessed input files, duplicate secondary files if necessary, and update file counts in the dataset.
 
         :param comment: Comment for SQL queries.
         :param tmp_log: Logger object.
@@ -2661,7 +2661,7 @@ class TaskComplexModule(BaseModule):
             "jediTaskID=:jediTaskID AND datasetID=:datasetID AND is_waiting IS NULL ",
             sql_read_files_ignore_ram,
         )
-        # sql to update file status
+        # sql to update file counts
         sql_update_file_status = "UPDATE /*+ INDEX_RS_ASC(JEDI_DATASET_CONTENTS (JEDI_DATASET_CONTENTS.JEDITASKID JEDI_DATASET_CONTENTS.DATASETID JEDI_DATASET_CONTENTS.FILEID)) */ {0}.JEDI_Dataset_Contents SET status=:nStatus ".format(
             panda_config.schemaJEDI
         )
@@ -2891,7 +2891,7 @@ class TaskComplexModule(BaseModule):
                         f"null={n_files_null_panda_id} inconsistent={n_files_inconsistent_panda_id}"
                     )
 
-                    # update file status
+                    # update file counts
                     for tmp_file_spec in file_spec_list:
                         # lock files
                         if not is_dry_run and tmp_dataset_spec.toKeepTrack():
@@ -3000,7 +3000,7 @@ class TaskComplexModule(BaseModule):
                     and tmp_num_already_read_files != 0
                     and not (use_jumbo == JediTaskSpec.enum_useJumbo["lack"] and orig_n_files_unprocessed == 0)
                 ):
-                    # update file stat in dataset
+                    # update file counts in dataset
                     n_files_used = tmp_dataset_spec.nFilesUsed + total_already_read_files_map[dataset_id]
                     tmp_dataset_spec.nFilesUsed = n_files_used
                     var_map = {}
@@ -5378,7 +5378,7 @@ class TaskComplexModule(BaseModule):
             varMap[":type2"] = "pseudo_input"
             # sql to get datasetIDs
             sqlGD = f"SELECT datasetID,masterID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
-            # sql to update file status
+            # sql to update file counts
             if scope != "pseudo_dataset":
                 sqlUF = (
                     f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
@@ -5422,7 +5422,7 @@ class TaskComplexModule(BaseModule):
                 var_map_datasetids.update(dsid_var_map)
             else:
                 to_update_files = False
-            # set sqls to update file status
+            # set sqls to update file counts
             datesetid_list_str = f"AND datasetID IN ({dsid_var_names_str}) "
             sqlUF_without_ID = sqlUF_with_lfn + datesetid_list_str
             # update files
