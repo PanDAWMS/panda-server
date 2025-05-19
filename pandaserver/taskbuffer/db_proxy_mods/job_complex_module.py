@@ -2195,7 +2195,7 @@ class JobComplexModule(BaseModule):
         average_memory_limit = None
         pq_data_des = get_entity_module(self).get_config_for_pq(siteName)
         if ignore_meanrss == True:
-            tmp_log.debug("meanrss is ignore")
+            tmp_log.debug("Ignoring meanrss limit and accepting any job")
         elif not pq_data_des:
             tmp_log.debug("Error retrieving queue configuration from DB, limits can not be applied")
         else:
