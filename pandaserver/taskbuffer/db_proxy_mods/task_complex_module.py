@@ -36,6 +36,7 @@ from pandaserver.taskbuffer.JediDatasetSpec import (
 )
 from pandaserver.taskbuffer.JediFileSpec import JediFileSpec
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec, is_msg_driven
+from pandaserver.taskbuffer.WorkQueue import WorkQueue
 
 
 # Module class to define task related methods that use other modules' methods
@@ -1685,1322 +1686,1721 @@ class TaskComplexModule(BaseModule):
             self.dump_error_message(tmpLog)
             return failedRet
 
+    # get tasks and datasets with unprocessed inputs
+    def _get_tasks_datasets_with_unprocessed_inputs(
+        self,
+        comment: str,
+        tmp_log: LogWrapper,
+        vo: str,
+        work_queue: WorkQueue,
+        prod_source_label: str,
+        cloud_name: str,
+        attr_name_for_group_by: str | None,
+        time_limit: datetime.datetime,
+        min_priority: int | None,
+        simulation_with_file_stat: bool,
+        target_datasets: list | None,
+        merge_un_throttled: bool | None,
+        resource_name: str,
+        target_tasks: list | None,
+    ) -> list:
+        """
+        Get tasks and datasets with unprocessed inputs.
+
+        :param comment: Comment for SQL queries.
+        :param tmp_log: Logger object.
+        :param vo: The VO name.
+        :param work_queue: Work queue object.
+        :param prod_source_label: Production source label.
+        :param cloud_name: Cloud name.
+        :param attr_name_for_group_by: Attribute name for aggregation.
+        :param time_limit: Time window for task selection.
+        :param min_priority: Minimum task priority.
+        :param simulation_with_file_stat: Whether to read files by ignoring file counts of the dataset for dry run.
+        :param target_datasets: Targeted dataset IDs.
+        :param merge_un_throttled: Whether to read tasks with unprocessed unmerged inputs even if enough tasks have been already read.
+        :param resource_name: Resource name.
+        :param target_tasks: Target task IDs in actual run.
+        :return: A list of task and dataset attributes.
+        """
+        # get tasks/datasets
+        if not target_tasks:
+            var_map = {}
+            var_map[":vo"] = vo
+            if prod_source_label not in [None, "", "any"]:
+                var_map[":prodSourceLabel"] = prod_source_label
+            if cloud_name not in [None, "", "any"]:
+                var_map[":cloud"] = cloud_name
+            var_map[":dsStatus1"] = "ready"
+            var_map[":dsStatus2"] = "done"
+            var_map[":dsOKStatus1"] = "ready"
+            var_map[":dsOKStatus2"] = "done"
+            var_map[":dsOKStatus3"] = "defined"
+            var_map[":dsOKStatus4"] = "registered"
+            var_map[":dsOKStatus5"] = "failed"
+            var_map[":dsOKStatus6"] = "finished"
+            var_map[":dsOKStatus7"] = "removed"
+            var_map[":dsStatusRemoved"] = "removed"
+            var_map[":timeLimit"] = time_limit
+            var_map[":useJumboLack"] = JediTaskSpec.enum_useJumbo["lack"]
+            sql = "SELECT tabT.jediTaskID,datasetID,currentPriority,nFilesToBeUsed-nFilesUsed,tabD.type,tabT.status,"
+            sql += f"tabT.{attr_name_for_group_by},nFiles,nEvents,nFilesWaiting,tabT.useJumbo "
+            sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
+            sql += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
+            sql += "AND tabT.vo=:vo "
+            if work_queue.is_global_share:
+                sql += "AND gshare=:wq_name "
+                sql += f"AND workqueue_id NOT IN (SELECT queue_id FROM {panda_config.schemaJEDI}.jedi_work_queue WHERE queue_function = 'Resource') "
+                var_map[":wq_name"] = work_queue.queue_name
+            else:
+                sql += "AND workQueue_ID=:wq_id "
+                var_map[":wq_id"] = work_queue.queue_id
+            if resource_name:
+                sql += "AND resource_type=:resource_name "
+                var_map[":resource_name"] = resource_name
+            if prod_source_label not in [None, "", "any"]:
+                sql += "AND prodSourceLabel=:prodSourceLabel "
+            if cloud_name not in [None, "", "any"]:
+                sql += "AND tabT.cloud=:cloud "
+            tstat_var_names_str, tstat_var_map = get_sql_IN_bind_variables(JediTaskSpec.statusForJobGenerator(), prefix=":tstat_", value_as_suffix=True)
+            sql += f"AND tabT.status IN ({tstat_var_names_str}) "
+            var_map.update(tstat_var_map)
+            sql += "AND tabT.lockedBy IS NULL "
+            sql += "AND tabT.modificationTime<:timeLimit "
+            sql += "AND "
+            sql += "(tabT.useJumbo=:useJumboLack "
+            if merge_un_throttled is True:
+                tmp_var_names_str = MERGE_TYPES_var_str
+                tmp_var_map = MERGE_TYPES_var_map
+            else:
+                tmp_var_names_str = PROCESS_TYPES_var_str
+                tmp_var_map = PROCESS_TYPES_var_map
+            var_map.update(tmp_var_map)
+            sql += f"OR (nFilesToBeUsed > nFilesUsed AND tabD.status<>:dsStatusRemoved AND type IN ({tmp_var_names_str})) "
+            if merge_un_throttled is True:
+                sql += f"OR (tabT.useJumbo IS NOT NULL AND nFilesWaiting IS NOT NULL AND nFilesToBeUsed>(nFilesUsed+nFilesWaiting) AND type IN ({INPUT_TYPES_var_str})) "
+                var_map.update(INPUT_TYPES_var_map)
+            sql += ") "
+            sql += "AND tabD.status IN (:dsStatus1,:dsStatus2) "
+            sql += "AND masterID IS NULL "
+            if min_priority is not None:
+                var_map[":minPriority"] = min_priority
+                sql += "AND currentPriority>=:minPriority "
+            sql += "AND NOT EXISTS "
+            sql += f"(SELECT 1 FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+            sql += f"WHERE {panda_config.schemaJEDI}.JEDI_Datasets.jediTaskID=tabT.jediTaskID "
+            if merge_un_throttled is True:
+                tmp_var_names_str = MERGE_TYPES_var_str
+            else:
+                tmp_var_names_str = PROCESS_TYPES_var_str
+            sql += f"AND type IN ({tmp_var_names_str}) "
+            sql += "AND NOT status IN (:dsOKStatus1,:dsOKStatus2,:dsOKStatus3,:dsOKStatus4,:dsOKStatus5,:dsOKStatus6,:dsOKStatus7)) "
+            sql += "ORDER BY currentPriority DESC,jediTaskID "
+        else:
+            var_map = {}
+            if not simulation_with_file_stat:
+                sql = "SELECT tabT.jediTaskID,datasetID,currentPriority,nFilesToBeUsed-nFilesUsed,tabD.type,tabT.status,"
+                sql += f"tabT.{attr_name_for_group_by},nFiles,nEvents,nFilesWaiting,tabT.useJumbo "
+            else:
+                sql = "SELECT tabT.jediTaskID,datasetID,currentPriority,nFilesToBeUsed,tabD.type,tabT.status,"
+                sql += f"tabT.{attr_name_for_group_by},nFiles,nEvents,nFilesWaiting,tabT.useJumbo "
+            sql += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT,{panda_config.schemaJEDI}.JEDI_Datasets tabD "
+            tasks_to_loop = target_tasks
+            sql += "WHERE tabT.jediTaskID=tabD.jediTaskID "
+            taskid_var_names_str, taskid_var_map = get_sql_IN_bind_variables(tasks_to_loop, prefix=":jediTaskID")
+            sql += f"AND tabT.jediTaskID IN ({taskid_var_names_str}) "
+            var_map.update(taskid_var_map)
+            sql += f"AND type IN ({PROCESS_TYPES_var_str}) "
+            var_map.update(PROCESS_TYPES_var_map)
+            sql += "AND masterID IS NULL "
+            if target_datasets is not None:
+                dsid_var_names_str, dsid_var_map = get_sql_IN_bind_variables(target_datasets, prefix=":datasetID")
+                sql += f"AND tabD.datasetID IN ({dsid_var_names_str}) "
+                var_map.update(dsid_var_map)
+            if not simulation_with_file_stat:
+                var_map[":dsStatusRemoved"] = "removed"
+                sql += "AND nFilesToBeUsed > nFilesUsed AND tabD.status<>:dsStatusRemoved "
+        # begin transaction
+        self.conn.begin()
+        self.cur.arraysize = 100000
+        # select
+        tmp_log.debug(sql + comment + str(var_map))
+        self.cur.execute(sql + comment, var_map)
+        res_list = self.cur.fetchall()
+        # commit
+        if not self._commit():
+            raise RuntimeError("Commit error")
+        return res_list
+
+    # make dictionaries for tasks and datasets with unprocessed inputs
+    def _make_dicts_tasks_datasets_with_unprocessed_inputs(
+        self, res_list: list, tmp_log: LogWrapper, work_queue: WorkQueue, is_peeking: bool, super_high_prio_task_ratio: int | None, set_group_by_attr: bool
+    ) -> tuple[dict, dict, list, dict, dict, dict] | int:
+        """
+        Make dictionaries for tasks and datasets with unprocessed inputs
+
+        :param res_list: List of tasks and datasets with unprocessed inputs.
+        :param tmp_log: Logger object.
+        :param work_queue: Work queue object.
+        :param is_peeking: Whether to peek at the highest priority among waiting tasks without any interventions.
+        :param super_high_prio_task_ratio: Ratio for superhigh priority tasks.
+        :param set_group_by_attr: Whether to aggregate tasks by an attribute.
+        :return: Various dictionaries of tasks and datasets for later processing.
+        """
+        # make return
+        task_dataset_map = {}
+        task_status_map = {}
+        jedi_task_id_list = []
+        task_user_prio_map = {}
+        task_prio_map = {}
+        task_with_jumbo_map = {}
+        task_group_by_attr_map = {}
+        express_attr = "express_group_by"
+        task_merge_map = {}
+        for (
+            jedi_task_id,
+            dataset_id,
+            current_priority,
+            n_files_unprocessed,
+            dataset_type,
+            task_status,
+            group_by_name,
+            total_input_files,
+            total_input_events,
+            n_files_waiting,
+            use_jumbo,
+        ) in res_list:
+            tmp_log.debug(
+                "jediTaskID={0} datasetID={1} tmpNumFiles={2} type={3} prio={4} useJumbo={5} nFilesWaiting={6}".format(
+                    jedi_task_id, dataset_id, n_files_unprocessed, dataset_type, current_priority, use_jumbo, n_files_waiting
+                )
+            )
+
+            # return the max priority for peeking mode
+            if is_peeking:
+                return current_priority
+            # make task-status mapping
+            task_status_map[jedi_task_id] = task_status
+            # make task-useJumbo mapping
+            task_with_jumbo_map[jedi_task_id] = use_jumbo
+            # make task and group-by attribute mapping
+            task_group_by_attr_map[jedi_task_id] = group_by_name
+            # make task-dataset mapping
+            if jedi_task_id not in task_dataset_map:
+                task_dataset_map[jedi_task_id] = []
+            data = (dataset_id, n_files_unprocessed, dataset_type, total_input_files, total_input_events, n_files_waiting, use_jumbo)
+            if dataset_type in JediDatasetSpec.getMergeProcessTypes():
+                task_dataset_map[jedi_task_id].insert(0, data)
+            else:
+                task_dataset_map[jedi_task_id].append(data)
+            # overwrite group-by name to be a single value if WQ has a share
+            if work_queue is not None and work_queue.queue_share is not None and not set_group_by_attr:
+                group_by_name = ""
+            elif current_priority >= JobUtils.priorityTasksToJumpOver:
+                # use a special value to collect superhigh prio tasks into one group
+                group_by_name = express_attr
+            # increase priority so that scouts do not wait behind the bulk
+            if task_status in ["scouting"]:
+                current_priority += 1
+            # make task-prio mapping
+            task_prio_map[jedi_task_id] = current_priority
+            if group_by_name not in task_user_prio_map:
+                task_user_prio_map[group_by_name] = {}
+            if current_priority not in task_user_prio_map[group_by_name]:
+                task_user_prio_map[group_by_name][current_priority] = []
+            if jedi_task_id not in task_user_prio_map[group_by_name][current_priority]:
+                task_user_prio_map[group_by_name][current_priority].append(jedi_task_id)
+            task_merge_map.setdefault(jedi_task_id, True)
+            if dataset_type not in JediDatasetSpec.getMergeProcessTypes():
+                task_merge_map[jedi_task_id] = False
+        # sort tasks by priority per group
+        sorted_tasks_per_group = {}
+        for group_by_name in task_user_prio_map.keys():
+            # use high priority tasks first
+            priority_list = sorted(task_user_prio_map[group_by_name].keys())
+            priority_list.reverse()
+            for current_priority in priority_list:
+                tmp_merge_tasks = []
+                sorted_tasks_per_group.setdefault(group_by_name, [])
+                # randomize superhigh prio tasks to avoid that multiple threads try to get the same tasks
+                if group_by_name == express_attr:
+                    random.shuffle(task_user_prio_map[group_by_name][current_priority])
+                for jedi_task_id in task_user_prio_map[group_by_name][current_priority]:
+                    if task_merge_map[jedi_task_id]:
+                        tmp_merge_tasks.append(jedi_task_id)
+                    else:
+                        sorted_tasks_per_group[group_by_name].append(jedi_task_id)
+                sorted_tasks_per_group[group_by_name] = tmp_merge_tasks + sorted_tasks_per_group[group_by_name]
+        # shuffle tasks to avoid too many tasks coming from a few groups
+        group_by_name_list = list(sorted_tasks_per_group.keys())
+        random.shuffle(group_by_name_list)
+        tmp_log.debug(f"{len(group_by_name_list)} groupBy values for {len(task_dataset_map)} tasks")
+        if express_attr in sorted_tasks_per_group:
+            use_super_high = True
+        else:
+            use_super_high = False
+        n_pick_up = 10
+        while group_by_name_list:
+            # pickup one task from each group
+            for group_by_name in group_by_name_list:
+                if not sorted_tasks_per_group[group_by_name]:
+                    group_by_name_list.remove(group_by_name)
+                else:
+                    # add high prio tasks first
+                    if use_super_high and express_attr in sorted_tasks_per_group and random.randint(1, 100) <= super_high_prio_task_ratio:
+                        tmp_group_by_attr_list = [express_attr]
+                    else:
+                        tmp_group_by_attr_list = []
+                    # add normal tasks
+                    tmp_group_by_attr_list.append(group_by_name)
+                    for tmp_group_by_attr in tmp_group_by_attr_list:
+                        for _ in range(n_pick_up):
+                            if len(sorted_tasks_per_group[tmp_group_by_attr]) > 0:
+                                jedi_task_id = sorted_tasks_per_group[tmp_group_by_attr].pop(0)
+                                jedi_task_id_list.append(jedi_task_id)
+                                # add next task if contains only unmerged inputs
+                                if not task_merge_map[jedi_task_id]:
+                                    break
+                            else:
+                                break
+        return task_dataset_map, task_status_map, jedi_task_id_list, task_prio_map, task_with_jumbo_map, task_group_by_attr_map
+
+    # read a task with unprocessed inputs
+    def _read_task_with_unprocessed_inputs(
+        self,
+        jedi_task_id: int,
+        task_status_map: dict,
+        locked_tasks: list,
+        tmp_log: LogWrapper,
+        comment: str,
+        pid: str,
+        locked_by_another: list,
+        is_dry_run: bool,
+        ignore_lock: bool,
+        task_dataset_map: dict,
+        contain_merging: bool,
+        ds_with_fake_co_jumbo: set,
+        time_limit: datetime.datetime,
+        target_tasks: list | None,
+    ) -> tuple[bool, JediTaskSpec | None, list, list]:
+        """
+        Read a task with unprocessed inputs
+
+        :param jedi_task_id: JEDI task ID.
+        :param task_status_map: Mapping of task status.
+        :param locked_tasks: List of locked tasks.
+        :param tmp_log: Logger object.
+        :param comment: Comment for SQL queries.
+        :param pid: Process ID.
+        :param locked_by_another: List of tasks locked by another process.
+        :param is_dry_run: Whether it is a dry run.
+        :param ignore_lock: Whether to ignore the lock.
+        :param task_dataset_map: Mapping of tasks and datasets.
+        :param contain_merging: Whether the task contains unmerged inputs.
+        :param ds_with_fake_co_jumbo: Set of datasets with fake co-jumbo.
+        :param time_limit: Time limit for locking tasks.
+        :param target_tasks: List of targeted tasks.
+        :return Tuple of (flag to skip, task specification, updated locked task list, updated locked by another list, updated task list).
+        """
+
+        # sql to read a task
+        sql_read_task = f"SELECT {JediTaskSpec.columnNames()} "
+        sql_read_task += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+        sql_read_task += "WHERE jediTaskID=:jediTaskID AND status=:statusInDB "
+        if not ignore_lock:
+            sql_read_task += "AND lockedBy IS NULL "
+        if not is_dry_run:
+            sql_read_task += "FOR UPDATE NOWAIT "
+        # sql to read a locked task
+        sql_read_locked_task = f"SELECT {JediTaskSpec.columnNames()} "
+        sql_read_locked_task += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+        sql_read_locked_task += "WHERE jediTaskID=:jediTaskID AND status=:statusInDB AND lockedBy=:newLockedBy "
+        if not is_dry_run:
+            sql_read_locked_task += "FOR UPDATE NOWAIT "
+        # sql to lock task
+        sql_to_lock_task = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks  "
+        sql_to_lock_task += "SET lockedBy=:newLockedBy,lockedTime=CURRENT_DATE,modificationTime=CURRENT_DATE "
+        sql_to_lock_task += "WHERE jediTaskID=:jediTaskID AND status=:status AND lockedBy IS NULL AND modificationTime<:timeLimit "
+        # sql to check files
+        sel_check_files = (
+            f"SELECT nFilesToBeUsed-nFilesUsed FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        )
+        # read task
+        to_skip = False
+        orig_task_spec = None
+        try:
+            # read task
+            var_map = {}
+            var_map[":jediTaskID"] = jedi_task_id
+            var_map[":statusInDB"] = task_status_map[jedi_task_id]
+            if jedi_task_id not in locked_tasks:
+                tmp_log.debug(sql_read_task + comment + str(var_map))
+                self.cur.execute(sql_read_task + comment, var_map)
+            else:
+                var_map[":newLockedBy"] = pid
+                tmp_log.debug(sql_read_locked_task + comment + str(var_map))
+                self.cur.execute(sql_read_locked_task + comment, var_map)
+            tmp_res = self.cur.fetchone()
+            # locked by another
+            if tmp_res is None:
+                to_skip = True
+                tmp_log.debug(f"skip locked jediTaskID={jedi_task_id}")
+                locked_by_another.append(jedi_task_id)
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                return to_skip, orig_task_spec, locked_tasks, locked_by_another
+            else:
+                orig_task_spec = JediTaskSpec()
+                orig_task_spec.pack(tmp_res)
+            # check nFiles in datasets
+            if not is_dry_run and not ignore_lock and not target_tasks:
+                to_skip = False
+                for tmp_item in task_dataset_map[jedi_task_id]:
+                    tmp_dataset_id, n_files_unprocessed = tmp_item[:2]
+                    var_map = {}
+                    var_map[":jediTaskID"] = jedi_task_id
+                    var_map[":datasetID"] = tmp_dataset_id
+                    self.cur.execute(sel_check_files + comment, var_map)
+                    (newNumFiles,) = self.cur.fetchone()
+                    tmp_log.debug(f"jediTaskID={jedi_task_id} datasetID={tmp_dataset_id} nFilesToBeUsed-nFilesUsed old:{n_files_unprocessed} new:{newNumFiles}")
+                    if n_files_unprocessed > newNumFiles:
+                        tmp_log.debug(f"skip jediTaskID={jedi_task_id} since nFilesToBeUsed-nFilesUsed decreased")
+                        locked_by_another.append(jedi_task_id)
+                        to_skip = True
+                        break
+                if to_skip:
+                    if not self._commit():
+                        raise RuntimeError("Commit error")
+                    return to_skip, orig_task_spec, locked_tasks, locked_by_another
+            # skip fake co-jumbo for scouting
+            if not contain_merging and len(ds_with_fake_co_jumbo) > 0 and orig_task_spec.useScout() and not orig_task_spec.isPostScout():
+                to_skip = True
+                tmp_log.debug(f"skip scouting jumbo jediTaskID={jedi_task_id}")
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                return to_skip, orig_task_spec, locked_tasks, locked_by_another
+            # lock task
+            if not is_dry_run and jedi_task_id not in locked_tasks:
+                var_map = {}
+                var_map[":jediTaskID"] = jedi_task_id
+                var_map[":newLockedBy"] = pid
+                var_map[":status"] = task_status_map[jedi_task_id]
+                var_map[":timeLimit"] = time_limit
+                tmp_log.debug(sql_to_lock_task + comment + str(var_map))
+                self.cur.execute(sql_to_lock_task + comment, var_map)
+                n_row = self.cur.rowcount
+                if n_row != 1:
+                    tmp_log.debug(f"failed to lock jediTaskID={jedi_task_id}")
+                    locked_by_another.append(jedi_task_id)
+                    to_skip = True
+                    if not self._commit():
+                        raise RuntimeError("Commit error")
+                    return to_skip, orig_task_spec, locked_tasks, locked_by_another
+                # list of locked tasks
+                if jedi_task_id not in locked_tasks:
+                    locked_tasks.append(jedi_task_id)
+            return to_skip, orig_task_spec, locked_tasks, locked_by_another
+        except Exception:
+            err_type, err_value = sys.exc_info()[:2]
+            if self.isNoWaitException(err_value):
+                # resource busy and acquire with NOWAIT specified
+                to_skip = True
+                tmp_log.debug(f"skip locked with NOWAIT jediTaskID={jedi_task_id}")
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                return to_skip, orig_task_spec, locked_tasks, locked_by_another
+            else:
+                # failed with something else
+                raise err_type(err_value)
+
+    # check a task with unprocessed inputs
+    def _check_task_with_unprocessed_inputs(
+        self, jedi_task_id: int, comment: str, tmp_log: LogWrapper, original_task_spec: JediTaskSpec, is_dry_run: bool
+    ) -> tuple[bool, int | None, dict | None]:
+        """
+        Check a task with unprocessed inputs. Count the number of available files when the task avalanches. Change userName for user tasks. Get the number of HPO workers and finish the task if enough workers have been done.
+
+        :param jedi_task_id: JEDI task ID.
+        :param comment: Comment for SQL queries.
+        :param tmp_log: Logger object.
+        :param original_task_spec: Original task specification.
+        :param is_dry_run: Whether it is a dry run.
+        :return: Tuple of (flag to skip, the number of files for avalanche, dict for the number of HPO samples)
+        """
+        # sql to count the number of files for avalanche
+        sql_avalanche = f"SELECT SUM(nFiles-nFilesToBeUsed) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+        sql_avalanche += f"WHERE jediTaskID=:jediTaskID AND type IN ({INPUT_TYPES_var_str}) "
+        sql_avalanche += "AND masterID IS NULL "
+        # sql to read DN
+        sql_dn = f"SELECT dn FROM {panda_config.schemaMETA}.users WHERE name=:name "
+        # sql to update task status
+        sql_update_task_status = (
+            "UPDATE {0}.JEDI_Tasks " "SET lockedBy=NULL,lockedTime=NULL,status=:status,errorDialog=:err " "WHERE jediTaskID=:jediTaskID "
+        ).format(panda_config.schemaJEDI)
+        # sql to get number of events
+        sql_get_n_events = (
+            "SELECT COUNT(*),datasetID FROM {0}.JEDI_Events " "WHERE jediTaskID=:jediTaskID AND status=:eventStatus " "GROUP BY datasetID "
+        ).format(panda_config.schemaJEDI)
+        # sql to get number of ready HPO workers
+        sql_get_n_hpo_workers = (
+            "SELECT COUNT(*),datasetID FROM ("
+            "(SELECT j.PandaID,f.datasetID FROM {0}.jobsDefined4 j, {0}.filesTable4 f "
+            "WHERE j.jediTaskID=:jediTaskID AND f.PandaID=j.PandaID AND f.type=:f_type "
+            "UNION "
+            "SELECT j.PandaID,f.datasetID FROM {0}.jobsActive4 j, {0}.filesTable4 f "
+            "WHERE j.jediTaskID=:jediTaskID AND f.PandaID=j.PandaID AND f.type=:f_type) "
+            "MINUS "
+            "SELECT PandaID,datasetID FROM {1}.JEDI_Events "
+            "WHERE  jediTaskID=:jediTaskID AND "
+            "status IN (:esSent,:esRunning)"
+            ") GROUP BY datasetID"
+        ).format(panda_config.schemaPANDA, panda_config.schemaJEDI)
+        # sql to set frozenTime
+        sql_update_frozen_time = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET frozenTime=:frozenTime WHERE jediTaskID=:jediTaskID "
+
+        to_skip = False
+        num_avalanche = None
+        num_hpo_workers = None
+        # count the number of files for avalanche
+        if not to_skip:
+            var_map = {}
+            var_map[":jediTaskID"] = jedi_task_id
+            var_map.update(INPUT_TYPES_var_map)
+            tmp_log.debug(sql_avalanche + comment + str(var_map))
+            self.cur.execute(sql_avalanche + comment, var_map)
+            tmp_res = self.cur.fetchone()
+            tmp_log.debug(str(tmp_res))
+            if tmp_res is None:
+                # no file info
+                to_skip = True
+                tmp_log.error("skipped since failed to get number of files for avalanche")
+                return to_skip, num_avalanche, num_hpo_workers
+            else:
+                (num_avalanche,) = tmp_res
+        # change userName for analysis
+        if not to_skip:
+            # for analysis use DN as userName
+            if original_task_spec.prodSourceLabel in ["user"]:
+                var_map = {}
+                var_map[":name"] = original_task_spec.userName
+                tmp_log.debug(sql_dn + comment + str(var_map))
+                self.cur.execute(sql_dn + comment, var_map)
+                tmp_res = self.cur.fetchone()
+                tmp_log.debug(tmp_res)
+                if tmp_res is None:
+                    # no user info
+                    to_skip = True
+                    tmp_log.error(f"skipped since failed to get DN for {original_task_spec.userName} jediTaskID={jedi_task_id}")
+                else:
+                    original_task_spec.origUserName = original_task_spec.userName
+                    (original_task_spec.userName,) = tmp_res
+                    if original_task_spec.userName in ["", None]:
+                        # DN is empty
+                        to_skip = True
+                        err_msg = f"{original_task_spec.origUserName} has an empty DN"
+                        tmp_log.error(f"{err_msg} for jediTaskID={jedi_task_id}")
+                        var_map = {}
+                        var_map[":jediTaskID"] = jedi_task_id
+                        var_map[":status"] = "tobroken"
+                        var_map[":err"] = err_msg
+                        self.cur.execute(sql_update_task_status + comment, var_map)
+                    else:
+                        # reset the change to preserve userName
+                        original_task_spec.resetChangedAttr("userName")
+                if to_skip:
+                    if not self._commit():
+                        raise RuntimeError("Commit error")
+                    return to_skip, num_avalanche, num_hpo_workers
+        # checks for HPO
+        if not to_skip and not is_dry_run:
+            if original_task_spec.is_hpo_workflow():
+                # number of HPO jobs
+                num_max_hpo_jobs = original_task_spec.get_max_num_jobs()
+                if num_max_hpo_jobs is not None:
+                    sql_n_hpo_jobs = f"SELECT total_req_jobs FROM {panda_config.schemaDEFT}.T_TASK "
+                    sql_n_hpo_jobs += "WHERE taskid=:taskid "
+                    var_map = {}
+                    var_map[":taskID"] = jedi_task_id
+                    self.cur.execute(sql_n_hpo_jobs + comment, var_map)
+                    (tmp_num_hpo_jobs,) = self.cur.fetchone()
+                    if tmp_num_hpo_jobs >= num_max_hpo_jobs:
+                        var_map = {}
+                        var_map[":jediTaskID"] = jedi_task_id
+                        var_map[":status"] = original_task_spec.status
+                        var_map[":err"] = "skipped max number of HPO jobs reached"
+                        self.cur.execute(sql_update_task_status + comment, var_map)
+                        tmp_log.debug(f"jediTaskID={jedi_task_id} to finish due to maxNumHpoJobs={num_max_hpo_jobs} numHpoJobs={tmp_num_hpo_jobs}")
+                        if not self._commit():
+                            raise RuntimeError("Commit error")
+                        # send finish command
+                        get_task_event_module(self).sendCommandTaskPanda(
+                            jedi_task_id, "HPO task finished since max_num_jobs reached", True, "finish", comQualifier="soft"
+                        )
+                        to_skip = True
+                        return to_skip, num_avalanche, num_hpo_workers
+                # get number of active samples
+                var_map = {}
+                var_map[":jediTaskID"] = jedi_task_id
+                var_map[":eventStatus"] = EventServiceUtils.ST_ready
+                self.cur.execute(sql_get_n_events + comment, var_map)
+                tmp_res = self.cur.fetchall()
+                num_hpo_workers = {}
+                total_num_events_hpo = 0
+                for tmp_num_events_hpo, dataset_id_hpo in tmp_res:
+                    num_hpo_workers[dataset_id_hpo] = tmp_num_events_hpo
+                    total_num_events_hpo += tmp_num_events_hpo
+                # subtract ready workers
+                var_map = {}
+                var_map[":jediTaskID"] = jedi_task_id
+                var_map[":esSent"] = EventServiceUtils.ST_sent
+                var_map[":esRunning"] = EventServiceUtils.ST_running
+                var_map[":f_type"] = "pseudo_input"
+                self.cur.execute(sql_get_n_hpo_workers + comment, var_map)
+                tmp_res = self.cur.fetchall()
+                total_num_workers_hpo = 0
+                for tmp_num_workers_hpo, dataset_id_hpo in tmp_res:
+                    total_num_workers_hpo += tmp_num_workers_hpo
+                    if dataset_id_hpo in num_hpo_workers:
+                        num_hpo_workers[dataset_id_hpo] -= tmp_num_workers_hpo
+                # go to pending if no events (samples)
+                if not [i for i in num_hpo_workers.values() if i > 0]:
+                    var_map = {}
+                    var_map[":jediTaskID"] = jedi_task_id
+                    var_map[":status"] = original_task_spec.status
+                    if not num_hpo_workers:
+                        var_map[":err"] = "skipped since no HP points to evaluate"
+                    else:
+                        var_map[":err"] = "skipped since enough HPO jobs are running or scheduled"
+                    self.cur.execute(sql_update_task_status + comment, var_map)
+                    # set frozenTime
+                    if total_num_events_hpo + total_num_workers_hpo == 0 and original_task_spec.frozenTime is None:
+                        var_map = {}
+                        var_map[":jediTaskID"] = jedi_task_id
+                        var_map[":frozenTime"] = naive_utcnow()
+                        self.cur.execute(sql_update_frozen_time + comment, var_map)
+                    elif total_num_events_hpo + total_num_workers_hpo > 0 and original_task_spec.frozenTime is not None:
+                        var_map = {}
+                        var_map[":jediTaskID"] = jedi_task_id
+                        var_map[":frozenTime"] = None
+                        self.cur.execute(sql_update_frozen_time + comment, var_map)
+                    tmp_log.debug(
+                        f"HPO jediTaskID={jedi_task_id} skipped due to nSamplesToEvaluate={total_num_events_hpo} nReadyWorkers={total_num_workers_hpo}"
+                    )
+                    if not self._commit():
+                        raise RuntimeError("Commit error")
+                    # terminate if inactive for long time
+                    wait_interval = 24
+                    if (
+                        total_num_events_hpo + total_num_workers_hpo == 0
+                        and original_task_spec.frozenTime is not None
+                        and naive_utcnow() - original_task_spec.frozenTime > datetime.timedelta(hours=wait_interval)
+                    ):
+                        # send finish command
+                        get_task_event_module(self).sendCommandTaskPanda(
+                            jedi_task_id, "HPO task finished since inactive for one day", True, "finish", comQualifier="soft"
+                        )
+                    to_skip = True
+                    return to_skip, num_avalanche, num_hpo_workers
+        return to_skip, num_avalanche, num_hpo_workers
+
+    # get memory requirements of unprocessed inputs
+    def _get_memory_requirements_unprocessed_inputs(
+        self,
+        comment: str,
+        tmp_log: LogWrapper,
+        jedi_task_id: int,
+        dataset_id: int,
+        dataset_type: str,
+        primary_dataset_id: int,
+        simulation_with_file_stat: bool,
+        orig_n_files_unprocessed: int,
+        use_jumbo: bool,
+        datasets_with_fake_co_jumbo: set,
+    ) -> tuple[bool, list]:
+        """
+        Get memory requirements of unprocessed inputs and fix file counts of the dataset if necessary
+
+        :param comment: Comment for SQL queries.
+        :param tmp_log: Logger object.
+        :param jedi_task_id: JEDI task ID.
+        :param dataset_id: Dataset ID.
+        :param dataset_type: Dataset type.
+        :param primary_dataset_id: Primary dataset ID.
+        :param simulation_with_file_stat: Whether to read files by ignoring file counts of the dataset.
+        :param orig_n_files_unprocessed: The number of files to be read.
+        :param use_jumbo: The task uses jumbo jobs.
+        :param datasets_with_fake_co_jumbo: Set of datasets with fake co-jumbo.
+
+        :return: Tuple of (flag to skip, memory requirements).
+        """
+        # sql to read memory requirements of files in dataset
+        sql_read_memory = f"""SELECT ramCount FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents
+                   WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID """
+        if not simulation_with_file_stat:
+            sql_read_memory += """AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt)
+                        AND (maxFailure IS NULL OR failedAttempt<maxFailure) """
+        sql_read_memory += "GROUP BY ramCount "
+        # sql to read memory requirements for fake co-jumbo
+        sql_read_memory_for_co_jumbo = re.sub(
+            "jediTaskID=:jediTaskID AND datasetID=:datasetID ", "jediTaskID=:jediTaskID AND datasetID=:datasetID AND is_waiting IS NULL ", sql_read_memory
+        )
+        # sql to check datasets and files with empty requirements
+        sql_check_files = f"SELECT status,attemptNr,maxAttempt,failedAttempt,maxFailure FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+        sql_check_files += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_check_dataset = f"SELECT nFilesUsed,nFilesToBeUsed,nFilesFinished,nFilesFailed FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+        sql_check_dataset += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        # sql to update file stat of datasets with empty requirements
+        sql_update_dataset_n_used_files = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=:nFilesUsed "
+        sql_update_dataset_n_used_files += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_update_dataset_n_unprocessed_files = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesToBeUsed=:nFilesToBeUsed "
+        sql_update_dataset_n_unprocessed_files += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        # sql to update datasets with empty requirements
+        sql_update_dataset_status = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status "
+        sql_update_dataset_status += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        to_skip = False
+        # See if there are different memory requirements that need to be mapped to different chunks
+        var_map = {}
+        var_map[":jediTaskID"] = jedi_task_id
+        var_map[":datasetID"] = dataset_id
+        if not simulation_with_file_stat:
+            if use_jumbo == JediTaskSpec.enum_useJumbo["lack"] and orig_n_files_unprocessed == 0:
+                var_map[":status"] = "running"
+            else:
+                var_map[":status"] = "ready"
+        self.cur.arraysize = 100000
+        # figure out if there are different memory requirements in the dataset
+        if dataset_id not in datasets_with_fake_co_jumbo or use_jumbo == JediTaskSpec.enum_useJumbo["lack"]:
+            self.cur.execute(sql_read_memory + comment, var_map)
+        else:
+            self.cur.execute(sql_read_memory_for_co_jumbo + comment, var_map)
+        memory_requirements = [req[0] for req in self.cur.fetchall()]  # Unpack resultset
+
+        # Group 0 and NULL memReqs
+        if 0 in memory_requirements and None in memory_requirements:
+            memory_requirements.remove(None)
+
+        tmp_log.debug(f"memory requirements for files in jediTaskID={jedi_task_id} datasetID={dataset_id} type={dataset_type} are: {memory_requirements}")
+        if not memory_requirements:
+            to_skip = True
+            tmp_log.debug(f"skip jediTaskID={jedi_task_id} datasetID={primary_dataset_id} since memory requirements are empty")
+            var_map = dict()
+            var_map[":jediTaskID"] = jedi_task_id
+            var_map[":datasetID"] = primary_dataset_id
+            self.cur.execute(sql_check_dataset + comment, var_map)
+            tmp_n_files_used, tmp_n_files_to_be_used, tmp_n_files_finished, tmp_n_files_failed = self.cur.fetchone()
+            var_map = dict()
+            var_map[":jediTaskID"] = jedi_task_id
+            var_map[":datasetID"] = primary_dataset_id
+            self.cur.execute(sql_check_files + comment, var_map)
+            tmp_res = self.cur.fetchall()
+            n_done = 0
+            n_finished = 0
+            n_failed = 0
+            n_active = 0
+            n_running = 0
+            n_ready = 0
+            n_unknown = 0
+            n_lost = 0
+            for tmp_file_status, tmp_file_attempt_nr, tmp_file_max_attempt, tmp_file_failed_attempt, tmp_file_max_failure in tmp_res:
+                if tmp_file_status in ["missing", "lost"]:
+                    n_lost += 1
+                elif tmp_file_status in ["finished", "failed", "cancelled"] or (
+                    tmp_file_status == "ready"
+                    and (tmp_file_attempt_nr >= tmp_file_max_attempt or (tmp_file_max_failure and tmp_file_failed_attempt >= tmp_file_max_failure))
+                ):
+                    n_done += 1
+                    if tmp_file_status == "finished":
+                        n_finished += 1
+                    else:
+                        n_failed += 1
+                else:
+                    n_active += 1
+                    if tmp_file_status in ["running", "merging", "picked"]:
+                        n_running += 1
+                    elif tmp_file_status == "ready":
+                        n_ready += 1
+                    else:
+                        n_unknown += 1
+            tmp_msg = "jediTaskID={} datasetID={} to check due to empty memory requirements :" " nDone={} nActive={} nReady={} ".format(
+                jedi_task_id, primary_dataset_id, n_done, n_active, n_ready
+            )
+            tmp_msg += f"nRunning={n_running} nFinished={n_finished} nFailed={n_failed} nUnknown={n_unknown} nLost={n_lost} "
+            tmp_msg += "ds.nFilesUsed={} nFilesToBeUsed={} ds.nFilesFinished={} " "ds.nFilesFailed={}".format(
+                tmp_n_files_used, tmp_n_files_to_be_used, tmp_n_files_finished, tmp_n_files_failed
+            )
+            tmp_log.debug(tmp_msg)
+            if tmp_n_files_used < tmp_n_files_to_be_used and tmp_n_files_to_be_used > 0 and n_unknown == 0:
+                var_map = dict()
+                var_map[":jediTaskID"] = jedi_task_id
+                var_map[":datasetID"] = primary_dataset_id
+                var_map[":nFilesUsed"] = n_done + n_active
+                self.cur.execute(sql_update_dataset_n_used_files + comment, var_map)
+                tmp_log.debug(
+                    "jediTaskID={} datasetID={} set nFilesUsed={} from {} "
+                    "to fix empty memory req".format(jedi_task_id, primary_dataset_id, var_map[":nFilesUsed"], tmp_n_files_used)
+                )
+            if tmp_n_files_to_be_used > n_done + n_running + n_ready:
+                var_map = dict()
+                var_map[":jediTaskID"] = jedi_task_id
+                var_map[":datasetID"] = primary_dataset_id
+                var_map[":nFilesToBeUsed"] = n_done + n_running + n_ready
+                self.cur.execute(sql_update_dataset_n_unprocessed_files + comment, var_map)
+                tmp_log.debug(
+                    "jediTaskID={} datasetID={} set nFilesToBeUsed={} from {} "
+                    "to fix empty memory req ".format(jedi_task_id, primary_dataset_id, var_map[":nFilesToBeUsed"], tmp_n_files_to_be_used)
+                )
+            if n_active == 0:
+                var_map = dict()
+                var_map[":jediTaskID"] = jedi_task_id
+                var_map[":datasetID"] = primary_dataset_id
+                var_map[":status"] = "finished"
+                self.cur.execute(sql_update_dataset_status + comment, var_map)
+                tmp_log.debug(f"jediTaskID={jedi_task_id} datasetID={primary_dataset_id} set status=finished to fix empty memory requirements")
+        return to_skip, memory_requirements
+
+    # get datasets with unprocessed inputs
+    def _get_datasets_with_unprocessed_inputs(
+        self,
+        comment: str,
+        tmp_log: LogWrapper,
+        input_chunk_list: list,
+        task_spec: JediTaskSpec,
+        jedi_task_id: int,
+        dataset_id: int,
+        dataset_type: str,
+        dataset_id_list: list,
+        is_dry_run: bool,
+        simulation_with_file_stat: bool,
+        num_avalanche: int,
+        read_min_files: bool,
+    ) -> tuple[bool, list, list]:
+        """
+        Add datasets to input chunks, append secondary dataset IDs, and return updated input chunks and dataset IDs.
+
+        :param comment: Comment for SQL queries.
+        :param tmp_log: Logger object.
+        :param input_chunk_list: List of input chunks.
+        :param task_spec: Task specification.
+        :param jedi_task_id: JEDI task ID.
+        :param dataset_id: Dataset ID.
+        :param dataset_type: Dataset type.
+        :param dataset_id_list: List of dataset IDs.
+        :param is_dry_run: Whether it is a dry run.
+        :param simulation_with_file_stat: Whether to read files by ignoring file counts of the dataset.
+        :param num_avalanche: Number of files for avalanche.
+        :param read_min_files: Whether to read minimum files.
+        :return: Tuple of (flag to skip, dataset IDs, input chunks).
+        """
+        to_skip = False
+        # sql to read secondary dataset IDs
+        sql_read_secondary_dataset_ids = f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
+        # sql to read datasets
+        sql_read_datasets = f"SELECT {JediDatasetSpec.columnNames()} "
+        sql_read_datasets += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+        sql_read_datasets += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        if not is_dry_run:
+            sql_read_datasets += "FOR UPDATE NOWAIT "
+        # append secondary dataset IDs
+        var_map = {}
+        if dataset_type not in JediDatasetSpec.getMergeProcessTypes():
+            # for normal process
+            tmp_var_names_str = INPUT_TYPES_var_str
+            tmp_var_map = INPUT_TYPES_var_map
+        else:
+            # for merge process
+            tmp_var_names_str = MERGE_TYPES_var_str
+            tmp_var_map = MERGE_TYPES_var_map
+        var_map.update(tmp_var_map)
+        if not simulation_with_file_stat:
+            sql_read_secondary_dataset_ids += f"AND nFilesToBeUsed >= nFilesUsed "
+        sql_read_secondary_dataset_ids += f"AND type IN ({tmp_var_names_str}) "
+        if not is_dry_run:
+            sql_read_secondary_dataset_ids += "AND status=:dsStatus "
+            var_map[":dsStatus"] = "ready"
+        sql_read_secondary_dataset_ids += "AND masterID=:masterID "
+        var_map[":jediTaskID"] = jedi_task_id
+        var_map[":masterID"] = dataset_id
+        self.cur.execute(sql_read_secondary_dataset_ids + comment, var_map)
+        tmp_res = self.cur.fetchall()
+        for (tmp_dataset_id,) in tmp_res:
+            dataset_id_list.append(tmp_dataset_id)
+        # read datasets
+        for dataset_id in dataset_id_list:
+            var_map = {}
+            var_map[":jediTaskID"] = jedi_task_id
+            var_map[":datasetID"] = dataset_id
+            try:
+                for input_chunk in input_chunk_list:
+                    # select
+                    self.cur.execute(sql_read_datasets + comment, var_map)
+                    tmp_res = self.cur.fetchone()
+                    dataset_spec = JediDatasetSpec()
+                    dataset_spec.pack(tmp_res)
+                    # change stream name for merging
+                    if dataset_spec.type in JediDatasetSpec.getMergeProcessTypes():
+                        # change OUTPUT to IN
+                        dataset_spec.streamName = re.sub("^OUTPUT", "TRN_OUTPUT", dataset_spec.streamName)
+                        # change LOG to INLOG
+                        dataset_spec.streamName = re.sub("^LOG", "TRN_LOG", dataset_spec.streamName)
+                    # add to InputChunk
+                    if dataset_spec.isMaster():
+                        input_chunk.addMasterDS(dataset_spec)
+                    else:
+                        input_chunk.addSecondaryDS(dataset_spec)
+            except Exception:
+                err_type, err_value = sys.exc_info()[:2]
+                if self.isNoWaitException(err_value):
+                    # resource busy and acquire with NOWAIT specified
+                    to_skip = True
+                    tmp_log.debug(f"skip locked jediTaskID={jedi_task_id} datasetID={dataset_id}")
+                else:
+                    # failed with something else
+                    raise err_type(err_value)
+        # flag input chunks to use scout
+        if (num_avalanche == 0 and not input_chunk_list[0].isMutableMaster()) or not task_spec.useScout() or read_min_files:
+            for input_chunk in input_chunk_list:
+                input_chunk.setUseScout(False)
+        else:
+            for input_chunk in input_chunk_list:
+                input_chunk.setUseScout(True)
+        return to_skip, dataset_id_list, input_chunk_list
+
+    # read unprocessed input files
+    def _read_unprocessed_inputs(
+        self,
+        comment: str,
+        tmp_log: LogWrapper,
+        input_chunk_list: list,
+        task_spec: JediTaskSpec,
+        jedi_task_id: int,
+        dataset_id_list: list,
+        total_input_files: int,
+        total_input_events: int,
+        typical_num_files_map: dict | None,
+        max_num_jobs: int | None,
+        is_dry_run: bool,
+        read_min_files: bool,
+        max_files_per_task: int,
+        simulation_with_file_stat: bool,
+        n_files_unprocessed: int,
+        primary_dataset_id: int,
+        use_jumbo: bool,
+        orig_n_files_unprocessed: int,
+        ds_with_fake_co_jumbo: set,
+    ) -> tuple[list, int]:
+        """
+        Read unprocessed input files, duplicate secondary files if nessesary, and update file status in the dataset.
+
+        :param comment: Comment for SQL queries.
+        :param tmp_log: Logger object.
+        :param input_chunk_list: List of input chunks.
+        :param task_spec: Task specification.
+        :param jedi_task_id: JEDI task ID.
+        :param dataset_id_list: List of dataset IDs.
+        :param total_input_files: Total number of input files.
+        :param total_input_events: Total number of input events.
+        :param typical_num_files_map: Map of typical number of files.
+        :param max_num_jobs: Maximum number of jobs.
+        :param is_dry_run: Whether it is a dry run.
+        :param read_min_files: Whether to read minimum files.
+        :param max_files_per_task: Maximum number of files per task.
+        :param simulation_with_file_stat: Whether to read files by ignoring file counts of the dataset.
+        :param n_files_unprocessed: The number of files to be read.
+        :param primary_dataset_id: Primary dataset ID.
+        :param use_jumbo: The task uses jumbo jobs.
+        :param orig_n_files_unprocessed: The number of files to be read, which could be different from n_files_unprocessed for (co) jumbo jobs
+        :param ds_with_fake_co_jumbo: Set of datasets with fake co-jumbo.
+        :return: Tuple of (input chunks, the typical number of files per job).
+        """
+        # sql to read files
+        sql_read_files = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
+        sql_read_files += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+        sql_read_files += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        if not simulation_with_file_stat:
+            sql_read_files += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
+            sql_read_files += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
+            sql_read_files += "AND ramCount=:ramCount "
+        sql_read_files += "ORDER BY {0}) "
+        sql_read_files += "WHERE rownum <= {1}"
+
+        # sql to read files for fake co-jumbo
+        sql_read_files_co_jumbo = re.sub(
+            "jediTaskID=:jediTaskID AND datasetID=:datasetID ", "jediTaskID=:jediTaskID AND datasetID=:datasetID AND is_waiting IS NULL ", sql_read_files
+        )
+        # For the cases where the ram count is not set
+        sql_read_files_empty_ram = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
+        sql_read_files_empty_ram += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+        sql_read_files_empty_ram += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        if not simulation_with_file_stat:
+            sql_read_files_empty_ram += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
+            sql_read_files_empty_ram += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
+            sql_read_files_empty_ram += "AND (ramCount IS NULL OR ramCount=0) "
+        sql_read_files_empty_ram += "ORDER BY {0}) "
+        sql_read_files_empty_ram += "WHERE rownum <= {1}"
+
+        # sql to read files for fake co-jumbo for the cases where the ram count is not set
+        sql_read_files_co_jumbo_empty_ram = re.sub(
+            "jediTaskID=:jediTaskID AND datasetID=:datasetID ",
+            "jediTaskID=:jediTaskID AND datasetID=:datasetID AND is_waiting IS NULL ",
+            sql_read_files_empty_ram,
+        )
+
+        # sql to read files without ramcount
+        sql_read_files_ignore_ram = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
+        sql_read_files_ignore_ram += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+        sql_read_files_ignore_ram += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        if not simulation_with_file_stat:
+            sql_read_files_ignore_ram += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
+            sql_read_files_ignore_ram += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
+        sql_read_files_ignore_ram += "ORDER BY {0}) "
+        sql_read_files_ignore_ram += "WHERE rownum <= {1}"
+
+        # sql to read files for fake co-jumbo without ramcount
+        sql_read_files_co_jumbo_ignore_ram = re.sub(
+            "jediTaskID=:jediTaskID AND datasetID=:datasetID ",
+            "jediTaskID=:jediTaskID AND datasetID=:datasetID AND is_waiting IS NULL ",
+            sql_read_files_ignore_ram,
+        )
+        # sql to update file status
+        sql_update_file_status = "UPDATE /*+ INDEX_RS_ASC(JEDI_DATASET_CONTENTS (JEDI_DATASET_CONTENTS.JEDITASKID JEDI_DATASET_CONTENTS.DATASETID JEDI_DATASET_CONTENTS.FILEID)) */ {0}.JEDI_Dataset_Contents SET status=:nStatus ".format(
+            panda_config.schemaJEDI
+        )
+        sql_update_file_status += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:oStatus "
+        # sql to update file usage info in dataset
+        sql_update_file_stat = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=:nFilesUsed "
+
+        sql_update_file_stat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+
+        # determine how many files to read
+
+        # set the typical number of files per job first
+        typical_num_files_per_job = 5
+        if task_spec.getNumFilesPerJob() is not None:
+            # the number of files is specified
+            typical_num_files_per_job = task_spec.getNumFilesPerJob()
+        elif task_spec.getNumEventsPerJob() is not None:
+            typical_num_files_per_job = 1
+            try:
+                if task_spec.getNumEventsPerJob() > (total_input_events // total_input_files):
+                    typical_num_files_per_job = task_spec.getNumEventsPerJob() * total_input_files // total_input_events
+            except Exception:
+                pass
+            if typical_num_files_per_job < 1:
+                typical_num_files_per_job = 1
+        elif typical_num_files_map is not None and task_spec.processingType in typical_num_files_map and typical_num_files_map[task_spec.processingType] > 0:
+            # based on typical usage
+            typical_num_files_per_job = typical_num_files_map[task_spec.processingType]
+        tmp_log.debug(f"jediTaskID={jedi_task_id} typicalNumFilesPerJob={typical_num_files_per_job}")
+        # define the upper limit on the number of files to read in this cycle
+        if max_num_jobs is not None and not input_chunk_list[0].isMerging and not input_chunk_list[0].useScout():
+            max_files_to_read_this_cycle = min(max_files_per_task, typical_num_files_per_job * max_num_jobs + 10)
+        else:
+            max_files_to_read_this_cycle = max_files_per_task
+        # set a lower limit to avoid too many small chunks
+        if not is_dry_run:
+            max_files_to_read_this_cycle = max(max_files_to_read_this_cycle, 100)
+        # define the number of master files to read
+        n_master_files_to_read = min(max_files_to_read_this_cycle, n_files_unprocessed)
+        if max_files_to_read_this_cycle > n_files_unprocessed:
+            # reading with a fix size of block
+            read_block = False
+        else:
+            read_block = True
+
+        # read files
+        total_already_read_files_map = {}
+        total_events_map = {}
+        max_secondary_files_to_read_with_event_ratio = 10000
+        # loop over all input chunks
+        for input_chunk in input_chunk_list:
+            # check if sequence numbers need to be consistent with masters
+            to_be_used_with_same_master = False
+            if (task_spec.getNumFilesPerJob() or task_spec.getNumEventsPerJob()) and not task_spec.dynamicNumEvents():
+                for dataset_id in dataset_id_list:
+                    tmp_dataset_spec = input_chunk.getDatasetWithID(dataset_id)
+                    if tmp_dataset_spec.isSeqNumber():
+                        to_be_used_with_same_master = True
+                        break
+            # loop over all dataset IDs
+            panda_ids_used_by_master = set()
+            panda_ids_used_by_master_list = []
+            for dataset_id in dataset_id_list:
+                total_already_read_files_map.setdefault(dataset_id, 0)
+                total_events_map.setdefault(dataset_id, [])
+                tmp_dataset_spec = input_chunk.getDatasetWithID(dataset_id)
+                # determine the number of files to read for this dataset
+                if tmp_dataset_spec.isMaster():
+                    max_files_to_read_for_this_dataset = n_master_files_to_read
+                else:
+                    # for secondaries
+                    if task_spec.useLoadXML() or tmp_dataset_spec.isNoSplit() or tmp_dataset_spec.getEventRatio() is not None:
+                        max_files_to_read_for_this_dataset = max_secondary_files_to_read_with_event_ratio
+                    elif tmp_dataset_spec.getNumFilesPerJob() is not None:
+                        max_files_to_read_for_this_dataset = n_master_files_to_read * tmp_dataset_spec.getNumFilesPerJob()
+                    else:
+                        max_files_to_read_for_this_dataset = tmp_dataset_spec.getNumMultByRatio(n_master_files_to_read)
+                # minimum read
+                if read_min_files:
+                    max_files_to_read_for_this_dataset = min(max_files_to_read_for_this_dataset, 10)
+                # number of files to read for the chunk
+                if tmp_dataset_spec.isMaster():
+                    num_files_to_read_for_the_chunk = max_files_to_read_for_this_dataset - total_already_read_files_map[dataset_id]
+                elif input_chunk.isEmpty:
+                    num_files_to_read_for_the_chunk = 0
+                else:
+                    num_files_to_read_for_the_chunk = max_files_to_read_for_this_dataset
+                # determine file sorting policy
+                if tmp_dataset_spec.isSeqNumber():
+                    order_by_policy = "fileID"
+                elif not tmp_dataset_spec.isMaster() and task_spec.reuseSecOnDemand() and not input_chunk.isMerging:
+                    order_by_policy = "fileID"
+                elif task_spec.respectLumiblock() or task_spec.orderByLB():
+                    order_by_policy = "lumiBlockNr,lfn"
+                elif not task_spec.useLoadXML():
+                    order_by_policy = "fileID"
+                else:
+                    order_by_policy = "boundaryID"
+                # repeat file reading to duplicate secondly file records if necessary
+                tmp_num_already_read_files = 0
+                tmp_num_waiting_files = 0
+                for i_duplication_cycle in range(5000):  # avoid infinite loop just in case
+                    tmp_log.debug(
+                        f"jediTaskID={jedi_task_id} to read {num_files_to_read_for_the_chunk} files from datasetID={dataset_id} in attmpt={i_duplication_cycle + 1} "
+                        f"with ramCount={input_chunk.ramCount} orderBy={order_by_policy} isSEQ={tmp_dataset_spec.isSeqNumber()} "
+                        f"same_master={to_be_used_with_same_master}"
+                    )
+                    var_map = {}
+                    var_map[":datasetID"] = dataset_id
+                    var_map[":jediTaskID"] = jedi_task_id
+                    if not tmp_dataset_spec.toKeepTrack():
+                        if not simulation_with_file_stat:
+                            var_map[":status"] = "ready"
+                        if primary_dataset_id not in ds_with_fake_co_jumbo:
+                            self.cur.execute(
+                                sql_read_files_ignore_ram.format(order_by_policy, num_files_to_read_for_the_chunk - tmp_num_already_read_files) + comment,
+                                var_map,
+                            )
+                        else:
+                            self.cur.execute(
+                                sql_read_files_co_jumbo_ignore_ram.format(order_by_policy, num_files_to_read_for_the_chunk - tmp_num_already_read_files)
+                                + comment,
+                                var_map,
+                            )
+                    else:
+                        if not simulation_with_file_stat:
+                            if use_jumbo == JediTaskSpec.enum_useJumbo["lack"] and orig_n_files_unprocessed == 0:
+                                var_map[":status"] = "running"
+                            else:
+                                var_map[":status"] = "ready"
+                            if input_chunk.ramCount not in (None, 0):
+                                var_map[":ramCount"] = input_chunk.ramCount
+                        # safety margin to read enough sequential numbers, which is required since sequential numbers can become
+                        # ready after the cycle reading master files is done
+                        if tmp_dataset_spec.isSeqNumber() and to_be_used_with_same_master and num_files_to_read_for_the_chunk > tmp_num_already_read_files:
+                            if task_spec.inputPreStaging():
+                                # use larger margin for data carousel since all sequence numbers are ready even if master files are not yet staged-in
+                                safety_margin = 200000
+                            else:
+                                safety_margin = 100
+                        else:
+                            safety_margin = 0
+                        if input_chunk.ramCount not in (None, 0):
+                            if primary_dataset_id not in ds_with_fake_co_jumbo or use_jumbo == JediTaskSpec.enum_useJumbo["lack"]:
+                                self.cur.execute(
+                                    sql_read_files.format(order_by_policy, num_files_to_read_for_the_chunk - tmp_num_already_read_files + safety_margin)
+                                    + comment,
+                                    var_map,
+                                )
+                            else:
+                                self.cur.execute(
+                                    sql_read_files_co_jumbo.format(
+                                        order_by_policy, num_files_to_read_for_the_chunk - tmp_num_already_read_files + safety_margin
+                                    )
+                                    + comment,
+                                    var_map,
+                                )
+                        else:  # We group inputChunk.ramCount None and 0 together
+                            if primary_dataset_id not in ds_with_fake_co_jumbo or use_jumbo == JediTaskSpec.enum_useJumbo["lack"]:
+                                self.cur.execute(
+                                    sql_read_files_empty_ram.format(
+                                        order_by_policy, num_files_to_read_for_the_chunk - tmp_num_already_read_files + safety_margin
+                                    )
+                                    + comment,
+                                    var_map,
+                                )
+                            else:
+                                self.cur.execute(
+                                    sql_read_files_co_jumbo_empty_ram.format(
+                                        order_by_policy, num_files_to_read_for_the_chunk - tmp_num_already_read_files + safety_margin
+                                    )
+                                    + comment,
+                                    var_map,
+                                )
+
+                    # read files
+                    tmp_res_list = self.cur.fetchall()
+                    file_spec_list = []
+                    file_spec_map_with_panda_id = {}
+                    file_spec_list_with_no_panda_id = []
+                    file_spec_list_reserved = []
+                    n_files_proper_panda_id = 0
+                    n_files_null_panda_id = 0
+                    n_files_inconsistent_panda_id = 0
+                    for res_file in tmp_res_list:
+                        # make FileSpec
+                        tmp_file_spec = JediFileSpec()
+                        tmp_file_spec.pack(res_file)
+                        # sort sequential numbers based on old PandaIDs
+                        if tmp_dataset_spec.isSeqNumber() and to_be_used_with_same_master:
+                            if tmp_file_spec.PandaID is not None:
+                                if tmp_file_spec.PandaID in panda_ids_used_by_master:
+                                    file_spec_map_with_panda_id[tmp_file_spec.PandaID] = tmp_file_spec
+                                else:
+                                    # reserve the sequential number
+                                    # as it may be used
+                                    # when primary files don't have enough sequential numbers
+                                    file_spec_list_reserved.append(tmp_file_spec)
+                            else:
+                                file_spec_list_with_no_panda_id.append(tmp_file_spec)
+                        else:
+                            file_spec_list.append(tmp_file_spec)
+                            n_files_proper_panda_id += 1
+                    # sort sequential numbers consistently with master's PandaIDs
+                    if tmp_dataset_spec.isSeqNumber() and to_be_used_with_same_master:
+                        used_panda_ids = set()
+                        for tmp_panda_id in panda_ids_used_by_master_list:
+                            if tmp_panda_id is not None and tmp_panda_id in used_panda_ids:
+                                continue
+                            if tmp_panda_id is not None and tmp_panda_id in file_spec_map_with_panda_id:
+                                file_spec_list.append(file_spec_map_with_panda_id[tmp_panda_id])
+                                n_files_proper_panda_id += 1
+                            else:
+                                # take sequential numbers which are not used by master
+                                if file_spec_list_with_no_panda_id:
+                                    file_spec_list.append(file_spec_list_with_no_panda_id.pop(0))
+                                    n_files_null_panda_id += 1
+                                elif file_spec_list_reserved:
+                                    file_spec_list.append(file_spec_list_reserved.pop(0))
+                                    n_files_inconsistent_panda_id += 1
+                            # to ignore duplicated master's PandaIDs
+                            if tmp_panda_id is not None:
+                                used_panda_ids.add(tmp_panda_id)
+
+                    tmp_log.debug(
+                        f"jediTaskID={jedi_task_id} datasetID={dataset_id} old PandaID: proper={n_files_proper_panda_id} "
+                        f"null={n_files_null_panda_id} inconsistent={n_files_inconsistent_panda_id}"
+                    )
+
+                    # update file status
+                    for tmp_file_spec in file_spec_list:
+                        # lock files
+                        if not is_dry_run and tmp_dataset_spec.toKeepTrack():
+                            var_map = {}
+                            var_map[":jediTaskID"] = tmp_file_spec.jediTaskID
+                            var_map[":datasetID"] = tmp_file_spec.datasetID
+                            var_map[":fileID"] = tmp_file_spec.fileID
+                            var_map[":nStatus"] = "picked"
+                            var_map[":oStatus"] = "ready"
+                            self.cur.execute(sql_update_file_status + comment, var_map)
+                            n_file_row = self.cur.rowcount
+                            if n_file_row != 1 and not (use_jumbo == JediTaskSpec.enum_useJumbo["lack"] and orig_n_files_unprocessed == 0):
+                                tmp_log.debug(f"skip fileID={tmp_file_spec.fileID} already used by another")
+                                continue
+                        # add to InputChunk
+                        tmp_dataset_spec.addFile(tmp_file_spec)
+                        total_already_read_files_map[dataset_id] += 1
+                        tmp_num_already_read_files += 1
+                        total_events_map[dataset_id].append(tmp_file_spec.getEffectiveNumEvents())
+                        if tmp_file_spec.is_waiting == "Y":
+                            tmp_num_waiting_files += 1
+
+                    # escape the duplication look since it is not requested
+                    if (
+                        not task_spec.reuseSecOnDemand()
+                        or tmp_dataset_spec.isMaster()
+                        or task_spec.useLoadXML()
+                        or tmp_dataset_spec.isNoSplit()
+                        or tmp_dataset_spec.toMerge()
+                        or input_chunk.ramCount not in (None, 0)
+                    ):
+                        break
+                    # escape since enough files were read
+                    if tmp_num_already_read_files >= num_files_to_read_for_the_chunk and tmp_dataset_spec.getEventRatio() is None:
+                        break
+                    # check if enough events were read
+                    total_secondary_events = 0
+                    index_secondary_files = 0
+                    secondary_has_enough_events = False
+                    if tmp_dataset_spec.getEventRatio() is not None:
+                        secondary_has_enough_events = True
+                        for n_events_in_a_master_file in total_events_map[input_chunk.masterDataset.datasetID]:
+                            target_n_events = n_events_in_a_master_file * tmp_dataset_spec.getEventRatio()
+                            target_n_events = int(math.ceil(target_n_events))
+                            if target_n_events <= 0:
+                                target_n_events = 1
+                            # count number of secondary events per master file
+                            tmp_n_secondary_events = 0
+                            for tmp_n in total_events_map[dataset_id][index_secondary_files:]:
+                                tmp_n_secondary_events += tmp_n
+                                index_secondary_files += 1
+                                if tmp_n_secondary_events >= target_n_events:
+                                    total_secondary_events += target_n_events
+                                    break
+                            if tmp_n_secondary_events < target_n_events:
+                                secondary_has_enough_events = False
+                                break
+                        if not secondary_has_enough_events:
+                            # read more files without making duplication
+                            if tmp_num_already_read_files >= num_files_to_read_for_the_chunk:
+                                num_files_to_read_for_the_chunk += max_secondary_files_to_read_with_event_ratio
+                                continue
+                    if secondary_has_enough_events:
+                        break
+
+                    # duplicate files on demand
+                    tmp_str = f"jediTaskID={jedi_task_id} try to increase files for datasetID={tmp_dataset_spec.datasetID} "
+                    tmp_str += f"since only {tmp_num_already_read_files}/{num_files_to_read_for_the_chunk} files were read "
+                    if tmp_dataset_spec.getEventRatio() is not None:
+                        tmp_str += "or {0} events is less than {1}*{2} ".format(
+                            total_secondary_events, tmp_dataset_spec.getEventRatio(), sum(total_events_map[input_chunk.masterDataset.datasetID])
+                        )
+                    tmp_log.debug(tmp_str)
+                    if not tmp_dataset_spec.isSeqNumber():
+                        n_new_rec = get_task_utils_module(self).duplicateFilesForReuse_JEDI(tmp_dataset_spec)
+                        tmp_log.debug(f"jediTaskID={jedi_task_id} {n_new_rec} files were duplicated")
+                    else:
+                        n_new_rec = get_task_utils_module(self).increaseSeqNumber_JEDI(
+                            tmp_dataset_spec, num_files_to_read_for_the_chunk - tmp_num_already_read_files
+                        )
+                        tmp_log.debug(f"jediTaskID={jedi_task_id} {n_new_rec} seq nums were added")
+                    if n_new_rec == 0:
+                        break
+
+                # collect old PandaIDs of master files to check with PandaIDs of sequential numbers later
+                if tmp_dataset_spec.isMaster() and to_be_used_with_same_master:
+                    # sort by PandaID and move PandaID=None to the end, to avoid
+                    #  * master: 1 1 None None 2 2 -> seq: 1 None None
+                    #  * master: 1 2 1 2 -> seq: 1 1
+                    #  when getting corresponding sequence numbers for nFilesPeroJob=2
+                    tmp_dataset_spec.sort_files_by_panda_ids()
+                    panda_ids_used_by_master_list = [f.PandaID for f in tmp_dataset_spec.Files]
+                    panda_ids_used_by_master = set(panda_ids_used_by_master_list)
+
+                if tmp_dataset_spec.isMaster() and tmp_num_already_read_files == 0:
+                    input_chunk.isEmpty = True
+
+                if total_already_read_files_map[dataset_id] == 0:
+                    # no input files
+                    if not read_min_files or not tmp_dataset_spec.isPseudo():
+                        tmp_log.debug(f"jediTaskID={jedi_task_id} datasetID={dataset_id} has no files to be processed")
+                        break
+                elif (
+                    not is_dry_run
+                    and tmp_dataset_spec.toKeepTrack()
+                    and tmp_num_already_read_files != 0
+                    and not (use_jumbo == JediTaskSpec.enum_useJumbo["lack"] and orig_n_files_unprocessed == 0)
+                ):
+                    # update file stat in dataset
+                    n_files_used = tmp_dataset_spec.nFilesUsed + total_already_read_files_map[dataset_id]
+                    tmp_dataset_spec.nFilesUsed = n_files_used
+                    var_map = {}
+                    var_map[":jediTaskID"] = jedi_task_id
+                    var_map[":datasetID"] = dataset_id
+                    var_map[":nFilesUsed"] = n_files_used
+                    self.cur.execute(sql_update_file_stat + comment, var_map)
+                tmp_log.debug(
+                    "jediTaskID={2} datasetID={0} has {1} files to be processed for ramCount={3}".format(
+                        dataset_id, tmp_num_already_read_files, jedi_task_id, input_chunk.ramCount
+                    )
+                )
+                # set flag if it is a block read
+                if tmp_dataset_spec.isMaster():
+                    if read_block and total_already_read_files_map[dataset_id] == max_files_to_read_for_this_dataset:
+                        input_chunk.readBlock = True
+                    else:
+                        input_chunk.readBlock = False
+        return input_chunk_list, typical_num_files_per_job
+
     # get tasks to be processed
     def getTasksToBeProcessed_JEDI(
         self,
-        pid,
-        vo,
-        workQueue,
-        prodSourceLabel,
-        cloudName,
-        nTasks=50,
-        nFiles=100,
-        isPeeking=False,
-        simTasks=None,
-        minPriority=None,
-        maxNumJobs=None,
-        typicalNumFilesMap=None,
-        fullSimulation=False,
-        simDatasets=None,
-        mergeUnThrottled=None,
-        readMinFiles=False,
-        numNewTaskWithJumbo=0,
-        resource_name=None,
-        ignore_lock=False,
-        target_tasks=None,
-    ):
-        comment = " /* JediDBProxy.getTasksToBeProcessed_JEDI */"
-        timeNow = naive_utcnow().strftime("%Y/%m/%d %H:%M:%S")
-        if simTasks is not None:
-            tmpLog = self.create_tagged_logger(comment, f"jediTasks={str(simTasks)}")
-        elif target_tasks:
-            tmpLog = self.create_tagged_logger(comment, f"jediTasks={str(target_tasks)}")
-        elif workQueue is None:
-            tmpLog = self.create_tagged_logger(comment, f"vo={vo} queue={None} cloud={cloudName} pid={pid} {timeNow}")
-        else:
-            tmpLog = self.create_tagged_logger(comment, f"vo={vo} queue={workQueue.queue_name} cloud={cloudName} pid={pid} {timeNow}")
-        tmpLog.debug(f"start label={prodSourceLabel} nTasks={nTasks} nFiles={nFiles} minPriority={minPriority}")
-        tmpLog.debug(f"maxNumJobs={maxNumJobs} typicalNumFilesMap={str(typicalNumFilesMap)}")
-        tmpLog.debug(f"simTasks={str(simTasks)} mergeUnThrottled={str(mergeUnThrottled)}")
-        tmpLog.debug(f"numNewTaskWithJumbo={numNewTaskWithJumbo}")
+        pid: str,
+        vo: str,
+        workQueue: WorkQueue,
+        prodSourceLabel: str,
+        cloudName: str,
+        nTasks: int = 50,
+        nFiles: int = 100,
+        isPeeking: bool = False,
+        simTasks: list | None = None,
+        minPriority: int | None = None,
+        maxNumJobs: int | None = None,
+        typicalNumFilesMap: dict | None = None,
+        fullSimulation: bool | None = False,
+        simDatasets: list | None = None,
+        mergeUnThrottled: bool | None = None,
+        readMinFiles: bool = False,
+        numNewTaskWithJumbo: int = 0,
+        resource_name: str | None = None,
+        ignore_lock: bool = False,
+        target_tasks: list | None = None,
+        is_dry_run: bool = False,
+    ) -> list | int | None:
+        """
+        Get tasks to generate jobs.
+        This method is also used for task brokerage and job throttler.
 
-        memStart = CoreUtils.getMemoryUsage()
-        tmpLog.debug(f"memUsage start {memStart} MB pid={os.getpid()}")
+        :param pid: Process ID.
+        :param vo: Virtual organization.
+        :param workQueue: Work queue object.
+        :param prodSourceLabel: Production source label.
+        :param cloudName: Cloud name.
+        :param nTasks: Max number of tasks to read.
+        :param nFiles: Max number of files per task.
+        :param isPeeking: Whether for job throttler to peek at the highest priority among waiting tasks without any interventions.
+        :param simTasks: The list of tasks to read for dry run without locking them.
+        :param minPriority: Minimum priority of tasks to read.
+        :param maxNumJobs: Maximum number of jobs to generate.
+        :param typicalNumFilesMap: Map of the typical number of input files per work type.
+        :param fullSimulation: Whether to read files by ignoring file counts of the dataset for dry run.
+        :param simDatasets: The list of datasets to read for dry run without locking them.
+        :param mergeUnThrottled: Whether to read tasks with unprocessed unmerged inputs even if enough tasks have been already read.
+        :param readMinFiles: Whether to read minimum files for task brokerage.
+        :param numNewTaskWithJumbo: The Number of new tasks with jumbo jobs while the total number of running tasks with jumbo jobs is limited.
+        :param resource_name: Resource name.
+        :param ignore_lock: Whether to ignore lock when reading tasks.
+        :param target_tasks: The list of tasks to read for message-driven processing or dry run.
+        :param is_dry_run: Whether to read tasks for dry run.
+
+        :return: List of tasks to generate jobs, the highest priority among waiting tasks if isPeeking is True, or None in case of failure.
+        """
+        comment = " /* JediDBProxy.getTasksToBeProcessed_JEDI */"
+        time_now = naive_utcnow().strftime("%Y/%m/%d %H:%M:%S")
+        if simTasks is not None:
+            target_tasks = simTasks
+            is_dry_run = True
+        if target_tasks:
+            tmp_log = self.create_tagged_logger(comment, f"jediTasks={str(target_tasks)}")
+        elif workQueue is None:
+            tmp_log = self.create_tagged_logger(comment, f"vo={vo} queue={None} cloud={cloudName} pid={pid} {time_now}")
+        else:
+            tmp_log = self.create_tagged_logger(comment, f"vo={vo} queue={workQueue.queue_name} cloud={cloudName} pid={pid} {time_now}")
+        tmp_log.debug(f"start label={prodSourceLabel} nTasks={nTasks} nFiles={nFiles} minPriority={minPriority}")
+        tmp_log.debug(f"max_num_jobs={maxNumJobs} typicalNumFilesMap={str(typicalNumFilesMap)}")
+        tmp_log.debug(f"is_dry_run={is_dry_run} mergeUnThrottled={str(mergeUnThrottled)} readMinFiles={readMinFiles}")
+        tmp_log.debug(f"numNewTaskWithJumbo={numNewTaskWithJumbo}")
+
+        mem_start = CoreUtils.getMemoryUsage()
+        tmp_log.debug(f"memUsage start {mem_start} MB pid={os.getpid()}")
         # return value for failure
-        failedRet = None
+        failed_return = None
         # set max number of jobs if undefined
         if maxNumJobs is None:
-            tmpLog.debug(f"set maxNumJobs={maxNumJobs} since undefined ")
-        superHighPrioTaskRatio = self.getConfigValue("dbproxy", "SUPER_HIGH_PRIO_TASK_RATIO", "jedi")
-        if superHighPrioTaskRatio is None:
-            superHighPrioTaskRatio = 30
+            tmp_log.debug(f"set max_num_jobs={maxNumJobs} since undefined ")
+        super_high_prio_task_ratio = self.getConfigValue("dbproxy", "SUPER_HIGH_PRIO_TASK_RATIO", "jedi")
+        if super_high_prio_task_ratio is None:
+            super_high_prio_task_ratio = 30
         # time limit to avoid duplication
         if hasattr(self.jedi_config.jobgen, "lockInterval"):
-            lockInterval = self.jedi_config.jobgen.lockInterval
+            lock_interval = self.jedi_config.jobgen.lockInterval
         else:
-            lockInterval = 10
-        timeLimit = naive_utcnow() - datetime.timedelta(minutes=lockInterval)
+            lock_interval = 10
+        time_limit = naive_utcnow() - datetime.timedelta(minutes=lock_interval)
         try:
             # attribute for GROUP BY
             if workQueue is not None:
-                attrNameForGroupBy = self.getConfigValue("jobgen", f"GROUPBYATTR_{workQueue.queue_name}", "jedi")
+                attr_name_for_group_by = self.getConfigValue("jobgen", f"GROUPBYATTR_{workQueue.queue_name}", "jedi")
             else:
-                attrNameForGroupBy = None
-            if attrNameForGroupBy is None or attrNameForGroupBy not in JediTaskSpec.attributes:
-                attrNameForGroupBy = "userName"
-                setGroupByAttr = False
+                attr_name_for_group_by = None
+            if attr_name_for_group_by is None or attr_name_for_group_by not in JediTaskSpec.attributes:
+                attr_name_for_group_by = "userName"
+                set_group_by_attr = False
             else:
-                setGroupByAttr = True
-            # sql to get tasks/datasets
-            if not simTasks and not target_tasks:
-                varMap = {}
-                varMap[":vo"] = vo
-                if prodSourceLabel not in [None, "", "any"]:
-                    varMap[":prodSourceLabel"] = prodSourceLabel
-                if cloudName not in [None, "", "any"]:
-                    varMap[":cloud"] = cloudName
-                varMap[":dsStatus1"] = "ready"
-                varMap[":dsStatus2"] = "done"
-                varMap[":dsOKStatus1"] = "ready"
-                varMap[":dsOKStatus2"] = "done"
-                varMap[":dsOKStatus3"] = "defined"
-                varMap[":dsOKStatus4"] = "registered"
-                varMap[":dsOKStatus5"] = "failed"
-                varMap[":dsOKStatus6"] = "finished"
-                varMap[":dsOKStatus7"] = "removed"
-                varMap[":dsStatusRemoved"] = "removed"
-                varMap[":timeLimit"] = timeLimit
-                varMap[":useJumboLack"] = JediTaskSpec.enum_useJumbo["lack"]
-                sql = "SELECT tabT.jediTaskID,datasetID,currentPriority,nFilesToBeUsed-nFilesUsed,tabD.type,tabT.status,"
-                sql += f"tabT.{attrNameForGroupBy},nFiles,nEvents,nFilesWaiting,tabT.useJumbo "
-                sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-                sql += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
-                sql += "AND tabT.vo=:vo "
-                if workQueue.is_global_share:
-                    sql += "AND gshare=:wq_name "
-                    sql += f"AND workqueue_id NOT IN (SELECT queue_id FROM {panda_config.schemaJEDI}.jedi_work_queue WHERE queue_function = 'Resource') "
-                    varMap[":wq_name"] = workQueue.queue_name
-                else:
-                    sql += "AND workQueue_ID=:wq_id "
-                    varMap[":wq_id"] = workQueue.queue_id
-                if resource_name:
-                    sql += "AND resource_type=:resource_name "
-                    varMap[":resource_name"] = resource_name
-                if prodSourceLabel not in [None, "", "any"]:
-                    sql += "AND prodSourceLabel=:prodSourceLabel "
-                if cloudName not in [None, "", "any"]:
-                    sql += "AND tabT.cloud=:cloud "
-                tstat_var_names_str, tstat_var_map = get_sql_IN_bind_variables(JediTaskSpec.statusForJobGenerator(), prefix=":tstat_", value_as_suffix=True)
-                sql += f"AND tabT.status IN ({tstat_var_names_str}) "
-                varMap.update(tstat_var_map)
-                sql += "AND tabT.lockedBy IS NULL "
-                sql += "AND tabT.modificationTime<:timeLimit "
-                sql += "AND "
-                sql += "(tabT.useJumbo=:useJumboLack "
-                if mergeUnThrottled is True:
-                    tmp_var_names_str = MERGE_TYPES_var_str
-                    tmp_var_map = MERGE_TYPES_var_map
-                else:
-                    tmp_var_names_str = PROCESS_TYPES_var_str
-                    tmp_var_map = PROCESS_TYPES_var_map
-                varMap.update(tmp_var_map)
-                sql += f"OR (nFilesToBeUsed > nFilesUsed AND tabD.status<>:dsStatusRemoved AND type IN ({tmp_var_names_str})) "
-                if mergeUnThrottled is True:
-                    sql += f"OR (tabT.useJumbo IS NOT NULL AND nFilesWaiting IS NOT NULL AND nFilesToBeUsed>(nFilesUsed+nFilesWaiting) AND type IN ({INPUT_TYPES_var_str})) "
-                    varMap.update(INPUT_TYPES_var_map)
-                sql += ") "
-                sql += "AND tabD.status IN (:dsStatus1,:dsStatus2) "
-                sql += "AND masterID IS NULL "
-                if minPriority is not None:
-                    varMap[":minPriority"] = minPriority
-                    sql += "AND currentPriority>=:minPriority "
-                sql += "AND NOT EXISTS "
-                sql += f"(SELECT 1 FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-                sql += f"WHERE {panda_config.schemaJEDI}.JEDI_Datasets.jediTaskID=tabT.jediTaskID "
-                if mergeUnThrottled is True:
-                    tmp_var_names_str = MERGE_TYPES_var_str
-                else:
-                    tmp_var_names_str = PROCESS_TYPES_var_str
-                sql += f"AND type IN ({tmp_var_names_str}) "
-                sql += "AND NOT status IN (:dsOKStatus1,:dsOKStatus2,:dsOKStatus3,:dsOKStatus4,:dsOKStatus5,:dsOKStatus6,:dsOKStatus7)) "
-                sql += "ORDER BY currentPriority DESC,jediTaskID "
-            else:
-                varMap = {}
-                if not fullSimulation:
-                    sql = "SELECT tabT.jediTaskID,datasetID,currentPriority,nFilesToBeUsed-nFilesUsed,tabD.type,tabT.status,"
-                    sql += f"tabT.{attrNameForGroupBy},nFiles,nEvents,nFilesWaiting,tabT.useJumbo "
-                else:
-                    sql = "SELECT tabT.jediTaskID,datasetID,currentPriority,nFilesToBeUsed,tabD.type,tabT.status,"
-                    sql += f"tabT.{attrNameForGroupBy},nFiles,nEvents,nFilesWaiting,tabT.useJumbo "
-                sql += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT,{panda_config.schemaJEDI}.JEDI_Datasets tabD "
-                if simTasks:
-                    tasks_to_loop = simTasks
-                else:
-                    tasks_to_loop = target_tasks
-                sql += "WHERE tabT.jediTaskID=tabD.jediTaskID "
-                taskid_var_names_str, taskid_var_map = get_sql_IN_bind_variables(tasks_to_loop, prefix=":jediTaskID")
-                sql += f"AND tabT.jediTaskID IN ({taskid_var_names_str}) "
-                varMap.update(taskid_var_map)
-                sql += f"AND type IN ({PROCESS_TYPES_var_str}) "
-                varMap.update(PROCESS_TYPES_var_map)
-                sql += "AND masterID IS NULL "
-                if simDatasets is not None:
-                    dsid_var_names_str, dsid_var_map = get_sql_IN_bind_variables(simDatasets, prefix=":datasetID")
-                    sql += f"AND tabD.datasetID IN ({dsid_var_names_str}) "
-                    varMap.update(dsid_var_map)
-                if not fullSimulation:
-                    varMap[":dsStatusRemoved"] = "removed"
-                    sql += "AND nFilesToBeUsed > nFilesUsed AND tabD.status<>:dsStatusRemoved "
-            # begin transaction
-            self.conn.begin()
-            self.cur.arraysize = 100000
-            # select
-            tmpLog.debug(sql + comment + str(varMap))
-            self.cur.execute(sql + comment, varMap)
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
+                set_group_by_attr = True
+            # get tasks and datasets with unprocessed inputs
+            res_list = self._get_tasks_datasets_with_unprocessed_inputs(
+                comment,
+                tmp_log,
+                vo,
+                workQueue,
+                prodSourceLabel,
+                cloudName,
+                attr_name_for_group_by,
+                time_limit,
+                minPriority,
+                fullSimulation,
+                simDatasets,
+                mergeUnThrottled,
+                resource_name,
+                target_tasks,
+            )
+
             # no tasks
-            if resList == [] and isPeeking:
+            if res_list == [] and isPeeking:
                 return 0
 
-            # make return
-            returnMap = {}
-            taskDatasetMap = {}
-            taskStatusMap = {}
-            jediTaskIDList = []
-            taskAvalancheMap = {}
-            taskUserPrioMap = {}
-            taskPrioMap = {}
-            taskUseJumboMap = {}
-            taskUserMap = {}
-            expressAttr = "express_group_by"
-            taskMergeMap = {}
-            for (
-                jediTaskID,
-                datasetID,
-                currentPriority,
-                tmpNumFiles,
-                datasetType,
-                taskStatus,
-                groupByAttr,
-                tmpNumInputFiles,
-                tmpNumInputEvents,
-                tmpNumFilesWaiting,
-                useJumbo,
-            ) in resList:
-                tmpLog.debug(
-                    "jediTaskID={0} datasetID={1} tmpNumFiles={2} type={3} prio={4} useJumbo={5} nFilesWaiting={6}".format(
-                        jediTaskID, datasetID, tmpNumFiles, datasetType, currentPriority, useJumbo, tmpNumFilesWaiting
-                    )
-                )
+            # make dictionaries with tasks and datasets
+            tmp_ret = self._make_dicts_tasks_datasets_with_unprocessed_inputs(
+                res_list, tmp_log, workQueue, isPeeking, super_high_prio_task_ratio, set_group_by_attr
+            )
+            if isPeeking:
+                return tmp_ret
 
-                # just return the max priority
-                if isPeeking:
-                    return currentPriority
-                # make task-status mapping
-                taskStatusMap[jediTaskID] = taskStatus
-                # make task-useJumbo mapping
-                taskUseJumboMap[jediTaskID] = useJumbo
-                # task and usermap
-                taskUserMap[jediTaskID] = groupByAttr
-                # make task-dataset mapping
-                if jediTaskID not in taskDatasetMap:
-                    taskDatasetMap[jediTaskID] = []
-                data = (datasetID, tmpNumFiles, datasetType, tmpNumInputFiles, tmpNumInputEvents, tmpNumFilesWaiting, useJumbo)
-                if datasetType in JediDatasetSpec.getMergeProcessTypes():
-                    taskDatasetMap[jediTaskID].insert(0, data)
-                else:
-                    taskDatasetMap[jediTaskID].append(data)
-                # use single value if WQ has a share
-                if workQueue is not None and workQueue.queue_share is not None and not setGroupByAttr:
-                    groupByAttr = ""
-                elif currentPriority >= JobUtils.priorityTasksToJumpOver:
-                    # use special name for super high prio tasks
-                    groupByAttr = expressAttr
-                # increase priority so that scouts do not wait behind the bulk
-                if taskStatus in ["scouting"]:
-                    currentPriority += 1
-                # make task-prio mapping
-                taskPrioMap[jediTaskID] = currentPriority
-                if groupByAttr not in taskUserPrioMap:
-                    taskUserPrioMap[groupByAttr] = {}
-                if currentPriority not in taskUserPrioMap[groupByAttr]:
-                    taskUserPrioMap[groupByAttr][currentPriority] = []
-                if jediTaskID not in taskUserPrioMap[groupByAttr][currentPriority]:
-                    taskUserPrioMap[groupByAttr][currentPriority].append(jediTaskID)
-                taskMergeMap.setdefault(jediTaskID, True)
-                if datasetType not in JediDatasetSpec.getMergeProcessTypes():
-                    taskMergeMap[jediTaskID] = False
-            # make user-task mapping
-            userTaskMap = {}
-            for groupByAttr in taskUserPrioMap.keys():
-                # use high priority tasks first
-                priorityList = sorted(taskUserPrioMap[groupByAttr].keys())
-                priorityList.reverse()
-                for currentPriority in priorityList:
-                    tmpMergeTasks = []
-                    userTaskMap.setdefault(groupByAttr, [])
-                    # randomize super high prio tasks to avoid that multiple threads try to get the same tasks
-                    if groupByAttr == expressAttr:
-                        random.shuffle(taskUserPrioMap[groupByAttr][currentPriority])
-                    for jediTaskID in taskUserPrioMap[groupByAttr][currentPriority]:
-                        if taskMergeMap[jediTaskID]:
-                            tmpMergeTasks.append(jediTaskID)
-                        else:
-                            userTaskMap[groupByAttr].append(jediTaskID)
-                    userTaskMap[groupByAttr] = tmpMergeTasks + userTaskMap[groupByAttr]
-            # make list
-            groupByAttrList = list(userTaskMap.keys())
-            random.shuffle(groupByAttrList)
-            tmpLog.debug(f"{len(groupByAttrList)} groupBy values for {len(taskDatasetMap)} tasks")
-            if expressAttr in userTaskMap:
-                useSuperHigh = True
-            else:
-                useSuperHigh = False
-            nPickUp = 10
-            while groupByAttrList != []:
-                # pickup one task from each groupByAttr
-                for groupByAttr in groupByAttrList:
-                    if userTaskMap[groupByAttr] == []:
-                        groupByAttrList.remove(groupByAttr)
-                    else:
-                        # add high prio tasks first
-                        if useSuperHigh and expressAttr in userTaskMap and random.randint(1, 100) <= superHighPrioTaskRatio:
-                            tmpGroupByAttrList = [expressAttr]
-                        else:
-                            tmpGroupByAttrList = []
-                        # add normal tasks
-                        tmpGroupByAttrList.append(groupByAttr)
-                        for tmpGroupByAttr in tmpGroupByAttrList:
-                            for iPickUp in range(nPickUp):
-                                if len(userTaskMap[tmpGroupByAttr]) > 0:
-                                    jediTaskID = userTaskMap[tmpGroupByAttr].pop(0)
-                                    jediTaskIDList.append(jediTaskID)
-                                    # add next task if only pmerge
-                                    if not taskMergeMap[jediTaskID]:
-                                        break
-                                else:
-                                    break
-            # sql to read task
-            sqlRT = f"SELECT {JediTaskSpec.columnNames()} "
-            sqlRT += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlRT += "WHERE jediTaskID=:jediTaskID AND status=:statusInDB "
-            if not ignore_lock:
-                sqlRT += "AND lockedBy IS NULL "
-            if simTasks is None:
-                sqlRT += "FOR UPDATE NOWAIT "
-            # sql to read locked task
-            sqlRL = f"SELECT {JediTaskSpec.columnNames()} "
-            sqlRL += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlRL += "WHERE jediTaskID=:jediTaskID AND status=:statusInDB AND lockedBy=:newLockedBy "
-            if simTasks is None:
-                sqlRL += "FOR UPDATE NOWAIT "
-            # sql to lock task
-            sqlLock = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks  "
-            sqlLock += "SET lockedBy=:newLockedBy,lockedTime=CURRENT_DATE,modificationTime=CURRENT_DATE "
-            sqlLock += "WHERE jediTaskID=:jediTaskID AND status=:status AND lockedBy IS NULL AND modificationTime<:timeLimit "
-            # sql to update task status
-            sqlPDG = ("UPDATE {0}.JEDI_Tasks " "SET lockedBy=NULL,lockedTime=NULL,status=:status,errorDialog=:err " "WHERE jediTaskID=:jediTaskID ").format(
-                panda_config.schemaJEDI
-            )
-            # sql to read template
-            sqlJobP = f"SELECT jobParamsTemplate FROM {panda_config.schemaJEDI}.JEDI_JobParams_Template WHERE jediTaskID=:jediTaskID "
-            # sql to read datasets
-            sqlRD = f"SELECT {JediDatasetSpec.columnNames()} "
-            sqlRD += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlRD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            if simTasks is None:
-                sqlRD += "FOR UPDATE NOWAIT "
-            # sql to read files
-            sqlFR = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
-            sqlFR += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-            sqlFR += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            if not fullSimulation:
-                sqlFR += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
-                sqlFR += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
-                sqlFR += "AND ramCount=:ramCount "
-            sqlFR += "ORDER BY {0}) "
-            sqlFR += "WHERE rownum <= {1}"
+            task_dataset_map, task_status_map, jedi_task_id_list, task_prio_map, task_with_jumbo_map, task_group_by_attr_map = tmp_ret
 
-            # sql to read files for fake co-jumbo
-            sqlCJ_FR = re.sub(
-                "jediTaskID=:jediTaskID AND datasetID=:datasetID ", "jediTaskID=:jediTaskID AND datasetID=:datasetID AND is_waiting IS NULL ", sqlFR
-            )
-            # For the cases where the ram count is not set
-            sqlFR_RCNull = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
-            sqlFR_RCNull += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-            sqlFR_RCNull += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            if not fullSimulation:
-                sqlFR_RCNull += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
-                sqlFR_RCNull += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
-                sqlFR_RCNull += "AND (ramCount IS NULL OR ramCount=0) "
-            sqlFR_RCNull += "ORDER BY {0}) "
-            sqlFR_RCNull += "WHERE rownum <= {1}"
-
-            # sql to read files for fake co-jumbo for the cases where the ram count is not set
-            sqlCJ_FR_RCNull = re.sub(
-                "jediTaskID=:jediTaskID AND datasetID=:datasetID ", "jediTaskID=:jediTaskID AND datasetID=:datasetID AND is_waiting IS NULL ", sqlFR_RCNull
-            )
-
-            # sql to read files without ramcount
-            sqlFRNR = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
-            sqlFRNR += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-            sqlFRNR += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            if not fullSimulation:
-                sqlFRNR += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
-                sqlFRNR += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
-            sqlFRNR += "ORDER BY {0}) "
-            sqlFRNR += "WHERE rownum <= {1}"
-
-            # sql to read files for fake co-jumbo without ramcount
-            sqlCJ_FRNR = re.sub(
-                "jediTaskID=:jediTaskID AND datasetID=:datasetID ", "jediTaskID=:jediTaskID AND datasetID=:datasetID AND is_waiting IS NULL ", sqlFRNR
-            )
-            # sql to read memory requirements of files in dataset
-            sqlRM = f"""SELECT ramCount FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents
-                       WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID """
-            if not fullSimulation:
-                sqlRM += """AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt)
-                            AND (maxFailure IS NULL OR failedAttempt<maxFailure) """
-            sqlRM += "GROUP BY ramCount "
-            # sql to read memory requirements for fake co-jumbo
-            sqlCJ_RM = re.sub(
-                "jediTaskID=:jediTaskID AND datasetID=:datasetID ", "jediTaskID=:jediTaskID AND datasetID=:datasetID AND is_waiting IS NULL ", sqlRM
-            )
-            # sql to update file status
-            sqlFU = "UPDATE /*+ INDEX_RS_ASC(JEDI_DATASET_CONTENTS (JEDI_DATASET_CONTENTS.JEDITASKID JEDI_DATASET_CONTENTS.DATASETID JEDI_DATASET_CONTENTS.FILEID)) */ {0}.JEDI_Dataset_Contents SET status=:nStatus ".format(
-                panda_config.schemaJEDI
-            )
-            sqlFU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:oStatus "
-            # sql to update file usage info in dataset
-            sqlDU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=:nFilesUsed "
-
-            sqlDU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            sqlDU += "RETURNING nFilesUsed,nFilesTobeUsed INTO :newnFilesUsed,:newnFilesTobeUsed "
-            # sql to read DN
-            sqlDN = f"SELECT dn FROM {panda_config.schemaMETA}.users WHERE name=:name "
-            # sql to count the number of files for avalanche
-            sqlAV = f"SELECT SUM(nFiles-nFilesToBeUsed) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlAV += f"WHERE jediTaskID=:jediTaskID AND type IN ({INPUT_TYPES_var_str}) "
-            sqlAV += "AND masterID IS NULL "
-            # sql to check datasets with empty requirements
-            sqlCER = f"SELECT status,attemptNr,maxAttempt,failedAttempt,maxFailure FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlCER += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            sqlCDD = f"SELECT nFilesUsed,nFilesToBeUsed,nFilesFinished,nFilesFailed FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlCDD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            # sql to update datasets with empty requirements
-            sqlUER = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status "
-            sqlUER += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            # sql to update datasets with empty requirements
-            sqlUFU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=:nFilesUsed "
-            sqlUFU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            sqlUFB = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesToBeUsed=:nFilesToBeUsed "
-            sqlUFB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            # sql to get number of events
-            sqlGNE = ("SELECT COUNT(*),datasetID FROM {0}.JEDI_Events " "WHERE jediTaskID=:jediTaskID AND status=:eventStatus " "GROUP BY datasetID ").format(
-                panda_config.schemaJEDI
-            )
-            # sql to get number of ready HPO workers
-            sqlNRH = (
-                "SELECT COUNT(*),datasetID FROM ("
-                "(SELECT j.PandaID,f.datasetID FROM {0}.jobsDefined4 j, {0}.filesTable4 f "
-                "WHERE j.jediTaskID=:jediTaskID AND f.PandaID=j.PandaID AND f.type=:f_type "
-                "UNION "
-                "SELECT j.PandaID,f.datasetID FROM {0}.jobsActive4 j, {0}.filesTable4 f "
-                "WHERE j.jediTaskID=:jediTaskID AND f.PandaID=j.PandaID AND f.type=:f_type) "
-                "MINUS "
-                "SELECT PandaID,datasetID FROM {1}.JEDI_Events "
-                "WHERE  jediTaskID=:jediTaskID AND "
-                "status IN (:esSent,:esRunning)"
-                ") GROUP BY datasetID"
-            ).format(panda_config.schemaPANDA, panda_config.schemaJEDI)
-            # sql to set frozenTime
-            sqlFZT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET frozenTime=:frozenTime WHERE jediTaskID=:jediTaskID "
-            # sql to check files
-            selCKF = f"SELECT nFilesToBeUsed-nFilesUsed FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            # loop over all tasks
-            iTasks = 0
-            lockedTasks = []
-            lockedByAnother = []
-            memoryExceed = False
-            for tmpIdxTask, jediTaskID in enumerate(jediTaskIDList):
+            # loop over all tasks to make return
+            i_tasks = 0
+            locked_tasks_list = []
+            locked_tasks_by_another_list = []
+            memory_exceed = False
+            return_map = {}
+            for tmpIdxTask, jediTaskID in enumerate(jedi_task_id_list):
                 # process only merging if enough jobs are already generated
-                dsWithfakeCoJumbo = set()
-                containMerging = False
-                if (maxNumJobs is not None and maxNumJobs <= 0) or taskUseJumboMap[jediTaskID] == JediTaskSpec.enum_useJumbo["pending"] or mergeUnThrottled:
-                    for datasetID, tmpNumFiles, datasetType, tmpNumInputFiles, tmpNumInputEvents, tmpNumFilesWaiting, useJumbo in taskDatasetMap[jediTaskID]:
-                        if datasetType in JediDatasetSpec.getMergeProcessTypes():
-                            # pmerge
-                            containMerging = True
-                            if useJumbo is None or useJumbo == JediTaskSpec.enum_useJumbo["disabled"]:
+                dataset_with_fake_co_jumbo = set()
+                contain_merging = False
+                if (maxNumJobs is not None and maxNumJobs <= 0) or task_with_jumbo_map[jediTaskID] == JediTaskSpec.enum_useJumbo["pending"] or mergeUnThrottled:
+                    for dataset_id, n_files_unprocessed, dataset_type, total_input_files, total_input_events, n_files_waiting, use_jumbo in task_dataset_map[
+                        jediTaskID
+                    ]:
+                        if dataset_type in JediDatasetSpec.getMergeProcessTypes():
+                            # internal merging
+                            contain_merging = True
+                            if use_jumbo is None or use_jumbo == JediTaskSpec.enum_useJumbo["disabled"]:
                                 break
                         elif (
-                            useJumbo is None
-                            or useJumbo == JediTaskSpec.enum_useJumbo["disabled"]
-                            or (tmpNumFiles - tmpNumFilesWaiting <= 0 and useJumbo != JediTaskSpec.enum_useJumbo["lack"])
+                            use_jumbo is None
+                            or use_jumbo == JediTaskSpec.enum_useJumbo["disabled"]
+                            or (n_files_unprocessed - n_files_waiting <= 0 and use_jumbo != JediTaskSpec.enum_useJumbo["lack"])
                         ):
                             # no jumbo or no more co-jumbo
                             pass
-                        elif useJumbo in [JediTaskSpec.enum_useJumbo["running"], JediTaskSpec.enum_useJumbo["pending"], JediTaskSpec.enum_useJumbo["lack"]] or (
-                            useJumbo == JediTaskSpec.enum_useJumbo["waiting"] and numNewTaskWithJumbo > 0
-                        ):
+                        elif use_jumbo in [
+                            JediTaskSpec.enum_useJumbo["running"],
+                            JediTaskSpec.enum_useJumbo["pending"],
+                            JediTaskSpec.enum_useJumbo["lack"],
+                        ] or (use_jumbo == JediTaskSpec.enum_useJumbo["waiting"] and numNewTaskWithJumbo > 0):
                             # jumbo with fake co-jumbo
-                            dsWithfakeCoJumbo.add(datasetID)
-                    if not containMerging and len(dsWithfakeCoJumbo) == 0:
-                        tmpLog.debug(
-                            f"skipping no pmerge or jumbo jediTaskID={jediTaskID} {tmpIdxTask}/{len(jediTaskIDList)}/{iTasks} prio={taskPrioMap[jediTaskID]}"
+                            dataset_with_fake_co_jumbo.add(dataset_id)
+                    if not contain_merging and len(dataset_with_fake_co_jumbo) == 0:
+                        tmp_log.debug(
+                            f"skipping no pmerge or jumbo jediTaskID={jediTaskID} {tmpIdxTask}/{len(jedi_task_id_list)}/{i_tasks} prio={task_prio_map[jediTaskID]}"
                         )
 
                         continue
-                tmpLog.debug(
-                    f"getting jediTaskID={jediTaskID} {tmpIdxTask}/{len(jediTaskIDList)}/{iTasks} prio={taskPrioMap[jediTaskID]} by={taskUserMap[jediTaskID]}"
+                tmp_log.debug(
+                    f"getting jediTaskID={jediTaskID} {tmpIdxTask}/{len(jedi_task_id_list)}/{i_tasks} prio={task_prio_map[jediTaskID]} by={task_group_by_attr_map[jediTaskID]}"
                 )
                 # locked by another
-                if jediTaskID in lockedByAnother:
-                    tmpLog.debug(f"skip locked by another jediTaskID={jediTaskID}")
+                if jediTaskID in locked_tasks_by_another_list:
+                    tmp_log.debug(f"skip locked by another jediTaskID={jediTaskID}")
                     continue
                 # begin transaction
                 self.conn.begin()
                 # read task
-                toSkip = False
-                try:
-                    # read task
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":statusInDB"] = taskStatusMap[jediTaskID]
-                    if jediTaskID not in lockedTasks:
-                        tmpLog.debug(sqlRT + comment + str(varMap))
-                        self.cur.execute(sqlRT + comment, varMap)
-                    else:
-                        varMap[":newLockedBy"] = pid
-                        tmpLog.debug(sqlRL + comment + str(varMap))
-                        self.cur.execute(sqlRL + comment, varMap)
-                    resRT = self.cur.fetchone()
-                    # locked by another
-                    if resRT is None:
-                        toSkip = True
-                        tmpLog.debug(f"skip locked jediTaskID={jediTaskID}")
-                        lockedByAnother.append(jediTaskID)
-                        if not self._commit():
-                            raise RuntimeError("Commit error")
-                        continue
-                    else:
-                        origTaskSpec = JediTaskSpec()
-                        origTaskSpec.pack(resRT)
-                    # check nFiles in datasets
-                    if simTasks is None and not ignore_lock and not target_tasks:
-                        toSkip = False
-                        for tmp_item in taskDatasetMap[jediTaskID]:
-                            datasetID, tmpNumFiles = tmp_item[:2]
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":datasetID"] = datasetID
-                            self.cur.execute(selCKF + comment, varMap)
-                            (newNumFiles,) = self.cur.fetchone()
-                            tmpLog.debug(f"jediTaskID={jediTaskID} datasetID={datasetID} nFilesToBeUsed-nFilesUsed old:{tmpNumFiles} new:{newNumFiles}")
-                            if tmpNumFiles > newNumFiles:
-                                tmpLog.debug(f"skip jediTaskID={jediTaskID} since nFilesToBeUsed-nFilesUsed decreased")
-                                lockedByAnother.append(jediTaskID)
-                                toSkip = True
-                                break
-                        if toSkip:
-                            if not self._commit():
-                                raise RuntimeError("Commit error")
-                            continue
-                    # skip fake co-jumbo for scouting
-                    if not containMerging and len(dsWithfakeCoJumbo) > 0 and origTaskSpec.useScout() and not origTaskSpec.isPostScout():
-                        toSkip = True
-                        tmpLog.debug(f"skip scouting jumbo jediTaskID={jediTaskID}")
-                        if not self._commit():
-                            raise RuntimeError("Commit error")
-                        continue
-                    # lock task
-                    if simTasks is None and jediTaskID not in lockedTasks:
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":newLockedBy"] = pid
-                        varMap[":status"] = taskStatusMap[jediTaskID]
-                        varMap[":timeLimit"] = timeLimit
-                        tmpLog.debug(sqlLock + comment + str(varMap))
-                        self.cur.execute(sqlLock + comment, varMap)
-                        nRow = self.cur.rowcount
-                        if nRow != 1:
-                            tmpLog.debug(f"failed to lock jediTaskID={jediTaskID}")
-                            lockedByAnother.append(jediTaskID)
-                            toSkip = True
-                            if not self._commit():
-                                raise RuntimeError("Commit error")
-                            continue
-                        # list of locked tasks
-                        if jediTaskID not in lockedTasks:
-                            lockedTasks.append(jediTaskID)
-                except Exception:
-                    errType, errValue = sys.exc_info()[:2]
-                    if self.isNoWaitException(errValue):
-                        # resource busy and acquire with NOWAIT specified
-                        toSkip = True
-                        tmpLog.debug(f"skip locked with NOWAIT jediTaskID={jediTaskID}")
-                        if not self._commit():
-                            raise RuntimeError("Commit error")
-                        continue
-                    else:
-                        # failed with something else
-                        raise errType(errValue)
-                # count the number of files for avalanche
-                if not toSkip:
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap.update(INPUT_TYPES_var_map)
-                    tmpLog.debug(sqlAV + comment + str(varMap))
-                    self.cur.execute(sqlAV + comment, varMap)
-                    resAV = self.cur.fetchone()
-                    tmpLog.debug(str(resAV))
-                    if resAV is None:
-                        # no file info
-                        toSkip = True
-                        tmpLog.error("skipped since failed to get number of files for avalanche")
-                    else:
-                        (numAvalanche,) = resAV
-                # change userName for analysis
-                if not toSkip:
-                    # for analysis use DN as userName
-                    if origTaskSpec.prodSourceLabel in ["user"]:
-                        varMap = {}
-                        varMap[":name"] = origTaskSpec.userName
-                        tmpLog.debug(sqlDN + comment + str(varMap))
-                        self.cur.execute(sqlDN + comment, varMap)
-                        resDN = self.cur.fetchone()
-                        tmpLog.debug(resDN)
-                        if resDN is None:
-                            # no user info
-                            toSkip = True
-                            tmpLog.error(f"skipped since failed to get DN for {origTaskSpec.userName} jediTaskID={jediTaskID}")
-                        else:
-                            origTaskSpec.origUserName = origTaskSpec.userName
-                            (origTaskSpec.userName,) = resDN
-                            if origTaskSpec.userName in ["", None]:
-                                # DN is empty
-                                toSkip = True
-                                err_msg = f"{origTaskSpec.origUserName} has an empty DN"
-                                tmpLog.error(f"{err_msg} for jediTaskID={jediTaskID}")
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":status"] = "tobroken"
-                                varMap[":err"] = err_msg
-                                self.cur.execute(sqlPDG + comment, varMap)
-                                if not self._commit():
-                                    raise RuntimeError("Commit error")
-                                continue
-                            else:
-                                # reset change to not update userName
-                                origTaskSpec.resetChangedAttr("userName")
-                # checks for HPO
-                numEventsHPO = None
-                if not toSkip and simTasks is None:
-                    if origTaskSpec.is_hpo_workflow():
-                        # number of jobs
-                        numMaxHpoJobs = origTaskSpec.get_max_num_jobs()
-                        if numMaxHpoJobs is not None:
-                            sqlNTJ = f"SELECT total_req_jobs FROM {panda_config.schemaDEFT}.T_TASK "
-                            sqlNTJ += "WHERE taskid=:taskid "
-                            varMap = {}
-                            varMap[":taskID"] = jediTaskID
-                            self.cur.execute(sqlNTJ + comment, varMap)
-                            (tmpNumHpoJobs,) = self.cur.fetchone()
-                            if tmpNumHpoJobs >= numMaxHpoJobs:
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":status"] = origTaskSpec.status
-                                varMap[":err"] = "skipped max number of HPO jobs reached"
-                                self.cur.execute(sqlPDG + comment, varMap)
-                                tmpLog.debug(f"jediTaskID={jediTaskID} to finish due to maxNumHpoJobs={numMaxHpoJobs} numHpoJobs={tmpNumHpoJobs}")
-                                if not self._commit():
-                                    raise RuntimeError("Commit error")
-                                # send finish command
-                                get_task_event_module(self).sendCommandTaskPanda(
-                                    jediTaskID, "HPO task finished since maxNumJobs reached", True, "finish", comQualifier="soft"
-                                )
-                                continue
-                        # get number of active samples
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":eventStatus"] = EventServiceUtils.ST_ready
-                        self.cur.execute(sqlGNE + comment, varMap)
-                        resGNE = self.cur.fetchall()
-                        numEventsHPO = {}
-                        totalNumEventsHPO = 0
-                        for tmpNumEventsHPO, datasetIdHPO in resGNE:
-                            numEventsHPO[datasetIdHPO] = tmpNumEventsHPO
-                            totalNumEventsHPO += tmpNumEventsHPO
-                        # subtract ready workers
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":esSent"] = EventServiceUtils.ST_sent
-                        varMap[":esRunning"] = EventServiceUtils.ST_running
-                        varMap[":f_type"] = "pseudo_input"
-                        self.cur.execute(sqlNRH + comment, varMap)
-                        resNRH = self.cur.fetchall()
-                        numWorkersHPO = {}
-                        totalNumWorkersHPO = 0
-                        for tmpNumWorkersHPO, datasetIdHPO in resNRH:
-                            totalNumWorkersHPO += tmpNumWorkersHPO
-                            if datasetIdHPO in numEventsHPO:
-                                numEventsHPO[datasetIdHPO] -= tmpNumWorkersHPO
-                        # go to pending if no events (samples)
-                        if not [i for i in numEventsHPO.values() if i > 0]:
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":status"] = origTaskSpec.status
-                            if not numEventsHPO:
-                                varMap[":err"] = "skipped since no HP points to evaluate"
-                            else:
-                                varMap[":err"] = "skipped since enough HPO jobs are running or scheduled"
-                            self.cur.execute(sqlPDG + comment, varMap)
-                            # set frozenTime
-                            if totalNumEventsHPO + totalNumWorkersHPO == 0 and origTaskSpec.frozenTime is None:
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":frozenTime"] = naive_utcnow()
-                                self.cur.execute(sqlFZT + comment, varMap)
-                            elif totalNumEventsHPO + totalNumWorkersHPO > 0 and origTaskSpec.frozenTime is not None:
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":frozenTime"] = None
-                                self.cur.execute(sqlFZT + comment, varMap)
-                            tmpLog.debug(
-                                f"HPO jediTaskID={jediTaskID} skipped due to nSamplesToEvaluate={totalNumEventsHPO} nReadyWorkers={totalNumWorkersHPO}"
-                            )
-                            if not self._commit():
-                                raise RuntimeError("Commit error")
-                            # terminate if inactive for long time
-                            waitInterval = 24
-                            if (
-                                totalNumEventsHPO + totalNumWorkersHPO == 0
-                                and origTaskSpec.frozenTime is not None
-                                and naive_utcnow() - origTaskSpec.frozenTime > datetime.timedelta(hours=waitInterval)
-                            ):
-                                # send finish command
-                                get_task_event_module(self).sendCommandTaskPanda(
-                                    jediTaskID, "HPO task finished since inactive for one day", True, "finish", comQualifier="soft"
-                                )
-                            continue
+                to_skip_task, orig_task_spec, locked_tasks_list, locked_tasks_by_another_list = self._read_task_with_unprocessed_inputs(
+                    jediTaskID,
+                    task_status_map,
+                    locked_tasks_list,
+                    tmp_log,
+                    comment,
+                    pid,
+                    locked_tasks_by_another_list,
+                    is_dry_run,
+                    ignore_lock,
+                    task_dataset_map,
+                    contain_merging,
+                    dataset_with_fake_co_jumbo,
+                    time_limit,
+                    target_tasks,
+                )
+                if to_skip_task:
+                    continue
+                # count the number of files for avalanche, check username, and get the number of samples for HPO tasks
+                to_skip_task, num_avalanche, num_hpo_samples = self._check_task_with_unprocessed_inputs(
+                    jediTaskID, comment, tmp_log, orig_task_spec, is_dry_run
+                )
+                if to_skip_task:
+                    continue
                 # read datasets
-                if not toSkip:
-                    iDsPerTask = 0
-                    nDsPerTask = 10
-                    taskWithNewJumbo = False
-                    for datasetID, tmpNumFiles, datasetType, tmpNumInputFiles, tmpNumInputEvents, tmpNumFilesWaiting, useJumbo in taskDatasetMap[jediTaskID]:
-                        primaryDatasetID = datasetID
-                        datasetIDs = [datasetID]
-                        taskSpec = copy.copy(origTaskSpec)
-                        origTmpNumFiles = tmpNumFiles
+                if not to_skip_task:
+                    i_ds_per_task = 0
+                    n_ds_per_task = 10
+                    task_with_new_jumbo = False
+                    for dataset_id, n_files_unprocessed, dataset_type, total_input_files, total_input_events, n_files_waiting, use_jumbo in task_dataset_map[
+                        jediTaskID
+                    ]:
+                        primary_dataset_id = dataset_id
+                        dataset_id_list = [dataset_id]
+                        task_spec = copy.copy(orig_task_spec)
+                        orig_n_files_unprocessed = n_files_unprocessed
                         # reduce NumInputFiles for HPO to avoid redundant workers
-                        if numEventsHPO is not None:
-                            if datasetID not in numEventsHPO or numEventsHPO[datasetID] <= 0:
+                        if num_hpo_samples is not None:
+                            if dataset_id not in num_hpo_samples or num_hpo_samples[dataset_id] <= 0:
                                 continue
-                            if tmpNumFiles > numEventsHPO[datasetID]:
-                                tmpNumFiles = numEventsHPO[datasetID]
+                            if n_files_unprocessed > num_hpo_samples[dataset_id]:
+                                n_files_unprocessed = num_hpo_samples[dataset_id]
                         # See if there are different memory requirements that need to be mapped to different chuncks
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":datasetID"] = datasetID
-                        if not fullSimulation:
-                            if useJumbo == JediTaskSpec.enum_useJumbo["lack"] and origTmpNumFiles == 0:
-                                varMap[":status"] = "running"
-                            else:
-                                varMap[":status"] = "ready"
-                        self.cur.arraysize = 100000
-                        # figure out if there are different memory requirements in the dataset
-                        if datasetID not in dsWithfakeCoJumbo or useJumbo == JediTaskSpec.enum_useJumbo["lack"]:
-                            self.cur.execute(sqlRM + comment, varMap)
-                        else:
-                            self.cur.execute(sqlCJ_RM + comment, varMap)
-                        memReqs = [req[0] for req in self.cur.fetchall()]  # Unpack resultset
+                        to_skip_dataset, memory_requirements = self._get_memory_requirements_unprocessed_inputs(
+                            comment,
+                            tmp_log,
+                            jediTaskID,
+                            dataset_id,
+                            dataset_type,
+                            primary_dataset_id,
+                            fullSimulation,
+                            orig_n_files_unprocessed,
+                            use_jumbo,
+                            dataset_with_fake_co_jumbo,
+                        )
 
-                        # Group 0 and NULL memReqs
-                        if 0 in memReqs and None in memReqs:
-                            memReqs.remove(None)
-
-                        tmpLog.debug(f"memory requirements for files in jediTaskID={jediTaskID} datasetID={datasetID} type={datasetType} are: {memReqs}")
-                        if not memReqs:
-                            tmpLog.debug(f"skip jediTaskID={jediTaskID} datasetID={primaryDatasetID} since memory requirements are empty")
-                            varMap = dict()
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":datasetID"] = primaryDatasetID
-                            self.cur.execute(sqlCDD + comment, varMap)
-                            cdd_nFilesUsed, cdd_nFilesToBeUsed, cdd_nFilesFinished, cdd_nFilesFailed = self.cur.fetchone()
-                            varMap = dict()
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":datasetID"] = primaryDatasetID
-                            self.cur.execute(sqlCER + comment, varMap)
-                            resCER = self.cur.fetchall()
-                            nDone = 0
-                            nFinished = 0
-                            nFailed = 0
-                            nActive = 0
-                            nRunning = 0
-                            nReady = 0
-                            nUnknown = 0
-                            nLost = 0
-                            for cer_status, cer_attemptNr, cer_maxAttempt, cer_failedAttempt, cer_maxFailure in resCER:
-                                if cer_status in ["missing", "lost"]:
-                                    nLost += 1
-                                elif cer_status in ["finished", "failed", "cancelled"] or (
-                                    cer_status == "ready" and (cer_attemptNr >= cer_maxAttempt or (cer_maxFailure and cer_failedAttempt >= cer_maxFailure))
-                                ):
-                                    nDone += 1
-                                    if cer_status == "finished":
-                                        nFinished += 1
+                        # make InputChunks by ram count
+                        input_chunk_list = []
+                        if not to_skip_dataset:
+                            if not to_skip_dataset:
+                                for tmp_mem in memory_requirements:
+                                    input_chunk_list.append(InputChunk(task_spec, ramCount=tmp_mem))
+                                # merging
+                                if dataset_type in JediDatasetSpec.getMergeProcessTypes():
+                                    for input_chunk in input_chunk_list:
+                                        input_chunk.isMerging = True
+                                elif (
+                                    use_jumbo in [JediTaskSpec.enum_useJumbo["running"], JediTaskSpec.enum_useJumbo["pending"]]
+                                    or (use_jumbo == JediTaskSpec.enum_useJumbo["waiting"] and numNewTaskWithJumbo > 0)
+                                ) and n_files_unprocessed > n_files_waiting:
+                                    # set jumbo flag only to the first chunk
+                                    if dataset_id in dataset_with_fake_co_jumbo:
+                                        if orig_task_spec.useScout() and not orig_task_spec.isPostScout():
+                                            tmp_log.debug(f"skip jediTaskID={jediTaskID} datasetID={primary_dataset_id} due to jumbo for scouting")
+                                            continue
+                                        input_chunk_list[0].useJumbo = "fake"
                                     else:
-                                        nFailed += 1
+                                        input_chunk_list[0].useJumbo = "full"
+                                    # overwrite tmpNumFiles
+                                    n_files_unprocessed -= n_files_waiting
+                                    if use_jumbo == JediTaskSpec.enum_useJumbo["waiting"]:
+                                        task_with_new_jumbo = True
+                                elif use_jumbo == JediTaskSpec.enum_useJumbo["lack"]:
+                                    input_chunk_list[0].useJumbo = "only"
+                                    n_files_unprocessed = 1
                                 else:
-                                    nActive += 1
-                                    if cer_status in ["running", "merging", "picked"]:
-                                        nRunning += 1
-                                    elif cer_status == "ready":
-                                        nReady += 1
-                                    else:
-                                        nUnknown += 1
-                            tmpMsg = "jediTaskID={} datasetID={} to check due to empty memory requirements :" " nDone={} nActive={} nReady={} ".format(
-                                jediTaskID, primaryDatasetID, nDone, nActive, nReady
-                            )
-                            tmpMsg += f"nRunning={nRunning} nFinished={nFinished} nFailed={nFailed} nUnknown={nUnknown} nLost={nLost} "
-                            tmpMsg += "ds.nFilesUsed={} nFilesToBeUsed={} ds.nFilesFinished={} " "ds.nFilesFailed={}".format(
-                                cdd_nFilesUsed, cdd_nFilesToBeUsed, cdd_nFilesFinished, cdd_nFilesFailed
-                            )
-                            tmpLog.debug(tmpMsg)
-                            if cdd_nFilesUsed < cdd_nFilesToBeUsed and cdd_nFilesToBeUsed > 0 and nUnknown == 0:
-                                varMap = dict()
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = primaryDatasetID
-                                varMap[":nFilesUsed"] = nDone + nActive
-                                self.cur.execute(sqlUFU + comment, varMap)
-                                tmpLog.debug(
-                                    "jediTaskID={} datasetID={} set nFilesUsed={} from {} "
-                                    "to fix empty memory req".format(jediTaskID, primaryDatasetID, varMap[":nFilesUsed"], cdd_nFilesUsed)
-                                )
-                            if cdd_nFilesToBeUsed > nDone + nRunning + nReady:
-                                varMap = dict()
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = primaryDatasetID
-                                varMap[":nFilesToBeUsed"] = nDone + nRunning + nReady
-                                self.cur.execute(sqlUFB + comment, varMap)
-                                tmpLog.debug(
-                                    "jediTaskID={} datasetID={} set nFilesToBeUsed={} from {} "
-                                    "to fix empty memory req ".format(jediTaskID, primaryDatasetID, varMap[":nFilesToBeUsed"], cdd_nFilesToBeUsed)
-                                )
-                            if nActive == 0:
-                                varMap = dict()
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = primaryDatasetID
-                                varMap[":status"] = "finished"
-                                self.cur.execute(sqlUER + comment, varMap)
-                                tmpLog.debug(f"jediTaskID={jediTaskID} datasetID={primaryDatasetID} set status=finished to fix empty memory requirements")
-                            continue
-                        else:
-                            # make InputChunks by ram count
-                            inputChunks = []
-                            for memReq in memReqs:
-                                inputChunks.append(InputChunk(taskSpec, ramCount=memReq))
-                            # merging
-                            if datasetType in JediDatasetSpec.getMergeProcessTypes():
-                                for inputChunk in inputChunks:
-                                    inputChunk.isMerging = True
-                            elif (
-                                useJumbo in [JediTaskSpec.enum_useJumbo["running"], JediTaskSpec.enum_useJumbo["pending"]]
-                                or (useJumbo == JediTaskSpec.enum_useJumbo["waiting"] and numNewTaskWithJumbo > 0)
-                            ) and tmpNumFiles > tmpNumFilesWaiting:
-                                # set jumbo flag only to the first chunk
-                                if datasetID in dsWithfakeCoJumbo:
-                                    if origTaskSpec.useScout() and not origTaskSpec.isPostScout():
-                                        tmpLog.debug(f"skip jediTaskID={jediTaskID} datasetID={primaryDatasetID} due to jumbo for scouting")
+                                    # only process merging or jumbo if enough jobs are already generated
+                                    if maxNumJobs is not None and maxNumJobs <= 0:
+                                        tmp_log.debug(f"skip jediTaskID={jediTaskID} datasetID={primary_dataset_id} due to non-merge + enough jobs")
                                         continue
-                                    inputChunks[0].useJumbo = "fake"
-                                else:
-                                    inputChunks[0].useJumbo = "full"
-                                # overwrite tmpNumFiles
-                                tmpNumFiles -= tmpNumFilesWaiting
-                                if useJumbo == JediTaskSpec.enum_useJumbo["waiting"]:
-                                    taskWithNewJumbo = True
-                            elif useJumbo == JediTaskSpec.enum_useJumbo["lack"]:
-                                inputChunks[0].useJumbo = "only"
-                                tmpNumFiles = 1
-                            else:
-                                # only process merging or jumbo if enough jobs are already generated
-                                if maxNumJobs is not None and maxNumJobs <= 0:
-                                    tmpLog.debug(f"skip jediTaskID={jediTaskID} datasetID={primaryDatasetID} due to non-merge + enough jobs")
-                                    continue
-                        # read secondary dataset IDs
-                        if not toSkip:
-                            # sql to get seconday dataset list
-                            sqlDS = f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
-                            varMap = {}
-                            if datasetType not in JediDatasetSpec.getMergeProcessTypes():
-                                # for normal process
-                                tmp_var_names_str = INPUT_TYPES_var_str
-                                tmp_var_map = INPUT_TYPES_var_map
-                            else:
-                                # for merge process
-                                tmp_var_names_str = MERGE_TYPES_var_str
-                                tmp_var_map = MERGE_TYPES_var_map
-                            varMap.update(tmp_var_map)
-                            if not fullSimulation:
-                                sqlDS += f"AND nFilesToBeUsed >= nFilesUsed "
-                            sqlDS += f"AND type IN ({tmp_var_names_str}) "
-                            if simTasks is None:
-                                sqlDS += "AND status=:dsStatus "
-                                varMap[":dsStatus"] = "ready"
-                            sqlDS += "AND masterID=:masterID "
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":masterID"] = datasetID
-                            # select
-                            self.cur.execute(sqlDS + comment, varMap)
-                            resSecDsList = self.cur.fetchall()
-                            for (tmpDatasetID,) in resSecDsList:
-                                datasetIDs.append(tmpDatasetID)
-                        # read dataset
-                        if not toSkip:
-                            for datasetID in datasetIDs:
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = datasetID
-                                try:
-                                    for inputChunk in inputChunks:
-                                        # select
-                                        self.cur.execute(sqlRD + comment, varMap)
-                                        resRD = self.cur.fetchone()
-                                        datasetSpec = JediDatasetSpec()
-                                        datasetSpec.pack(resRD)
-                                        # change stream name for merging
-                                        if datasetSpec.type in JediDatasetSpec.getMergeProcessTypes():
-                                            # change OUTPUT to IN
-                                            datasetSpec.streamName = re.sub("^OUTPUT", "TRN_OUTPUT", datasetSpec.streamName)
-                                            # change LOG to INLOG
-                                            datasetSpec.streamName = re.sub("^LOG", "TRN_LOG", datasetSpec.streamName)
-                                        # add to InputChunk
-                                        if datasetSpec.isMaster():
-                                            inputChunk.addMasterDS(datasetSpec)
-                                        else:
-                                            inputChunk.addSecondaryDS(datasetSpec)
-                                except Exception:
-                                    errType, errValue = sys.exc_info()[:2]
-                                    if self.isNoWaitException(errValue):
-                                        # resource busy and acquire with NOWAIT specified
-                                        toSkip = True
-                                        tmpLog.debug(f"skip locked jediTaskID={jediTaskID} datasetID={datasetID}")
-                                    else:
-                                        # failed with something else
-                                        raise errType(errValue)
-                            # set useScout
-                            if (numAvalanche == 0 and not inputChunks[0].isMutableMaster()) or not taskSpec.useScout() or readMinFiles:
-                                for inputChunk in inputChunks:
-                                    inputChunk.setUseScout(False)
-                            else:
-                                for inputChunk in inputChunks:
-                                    inputChunk.setUseScout(True)
+
+                        # read datasets
+                        if not to_skip_dataset:
+                            to_skip_dataset, dataset_id_list, input_chunk_list = self._get_datasets_with_unprocessed_inputs(
+                                comment,
+                                tmp_log,
+                                input_chunk_list,
+                                task_spec,
+                                jediTaskID,
+                                dataset_id,
+                                dataset_type,
+                                dataset_id_list,
+                                is_dry_run,
+                                fullSimulation,
+                                num_avalanche,
+                                readMinFiles,
+                            )
+
                         # read job params and files
-                        if not toSkip:
+                        if not to_skip_dataset:
+                            # sql to read template
+                            sql_read_job_param_template = (
+                                f"SELECT jobParamsTemplate FROM {panda_config.schemaJEDI}.JEDI_JobParams_Template WHERE jediTaskID=:jediTaskID "
+                            )
                             # read template to generate job parameters
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            self.cur.execute(sqlJobP + comment, varMap)
+                            var_map = {":jediTaskID": jediTaskID}
+                            self.cur.execute(sql_read_job_param_template + comment, var_map)
                             for (clobJobP,) in self.cur:
                                 if clobJobP is not None:
-                                    taskSpec.jobParamsTemplate = clobJobP
+                                    task_spec.jobParamsTemplate = clobJobP
                                 break
-                            # typical number of files
-                            typicalNumFilesPerJob = 5
-                            if taskSpec.getNumFilesPerJob() is not None:
-                                # the number of files is specified
-                                typicalNumFilesPerJob = taskSpec.getNumFilesPerJob()
-                            elif taskSpec.getNumEventsPerJob() is not None:
-                                typicalNumFilesPerJob = 1
-                                try:
-                                    if taskSpec.getNumEventsPerJob() > (tmpNumInputEvents // tmpNumInputFiles):
-                                        typicalNumFilesPerJob = taskSpec.getNumEventsPerJob() * tmpNumInputFiles // tmpNumInputEvents
-                                except Exception:
-                                    pass
-                                if typicalNumFilesPerJob < 1:
-                                    typicalNumFilesPerJob = 1
-                            elif (
-                                typicalNumFilesMap is not None
-                                and taskSpec.processingType in typicalNumFilesMap
-                                and typicalNumFilesMap[taskSpec.processingType] > 0
-                            ):
-                                # typical usage
-                                typicalNumFilesPerJob = typicalNumFilesMap[taskSpec.processingType]
-                            tmpLog.debug(f"jediTaskID={jediTaskID} typicalNumFilesPerJob={typicalNumFilesPerJob}")
-                            # max number of files based on typical usage
-                            if maxNumJobs is not None and not inputChunks[0].isMerging and not inputChunks[0].useScout():
-                                maxNumFiles = min(nFiles, typicalNumFilesPerJob * maxNumJobs + 10)
-                            else:
-                                maxNumFiles = nFiles
-                            # set lower limit to avoid too fine slashing
-                            lowerLimitOnMaxNumFiles = 100
-                            if maxNumFiles < lowerLimitOnMaxNumFiles and simTasks is None:
-                                maxNumFiles = lowerLimitOnMaxNumFiles
                             # read files
-                            readBlock = False
-                            if maxNumFiles > tmpNumFiles:
-                                maxMasterFilesTobeRead = tmpNumFiles
-                            else:
-                                # reading with a fix size of block
-                                readBlock = True
-                                maxMasterFilesTobeRead = maxNumFiles
-                            iFiles = {}
-                            totalEvents = {}
-                            maxFilesTobeReadWithEventRatio = 10000
-                            for inputChunk in inputChunks:
-                                # check if sequence numbers need to be consistent with masters
-                                to_be_used_with_same_master = False
-                                if (taskSpec.getNumFilesPerJob() or taskSpec.getNumEventsPerJob()) and not taskSpec.dynamicNumEvents():
-                                    for datasetID in datasetIDs:
-                                        tmpDatasetSpec = inputChunk.getDatasetWithID(datasetID)
-                                        if tmpDatasetSpec.isSeqNumber():
-                                            to_be_used_with_same_master = True
-                                            break
-                                panda_ids_used_by_master = set()
-                                panda_ids_used_by_master_list = []
-                                for datasetID in datasetIDs:
-                                    iFiles.setdefault(datasetID, 0)
-                                    totalEvents.setdefault(datasetID, [])
-                                    # get DatasetSpec
-                                    tmpDatasetSpec = inputChunk.getDatasetWithID(datasetID)
-                                    # the number of files to be read
-                                    if tmpDatasetSpec.isMaster():
-                                        maxFilesTobeRead = maxMasterFilesTobeRead
-                                    else:
-                                        # for secondaries
-                                        if taskSpec.useLoadXML() or tmpDatasetSpec.isNoSplit() or tmpDatasetSpec.getEventRatio() is not None:
-                                            maxFilesTobeRead = maxFilesTobeReadWithEventRatio
-                                        elif tmpDatasetSpec.getNumFilesPerJob() is not None:
-                                            maxFilesTobeRead = maxMasterFilesTobeRead * tmpDatasetSpec.getNumFilesPerJob()
-                                        else:
-                                            maxFilesTobeRead = tmpDatasetSpec.getNumMultByRatio(maxMasterFilesTobeRead)
-                                    # minimum read
-                                    if readMinFiles:
-                                        maxFilesForMinRead = 10
-                                        if maxFilesTobeRead > maxFilesForMinRead:
-                                            maxFilesTobeRead = maxFilesForMinRead
-                                    # number of files to read in this cycle
-                                    if tmpDatasetSpec.isMaster():
-                                        numFilesTobeReadInCycle = maxFilesTobeRead - iFiles[datasetID]
-                                    elif inputChunk.isEmpty:
-                                        numFilesTobeReadInCycle = 0
-                                    else:
-                                        numFilesTobeReadInCycle = maxFilesTobeRead
-                                    if tmpDatasetSpec.isSeqNumber():
-                                        orderBy = "fileID"
-                                    elif not tmpDatasetSpec.isMaster() and taskSpec.reuseSecOnDemand() and not inputChunk.isMerging:
-                                        orderBy = "fileID"
-                                    elif taskSpec.respectLumiblock() or taskSpec.orderByLB():
-                                        orderBy = "lumiBlockNr,lfn"
-                                    elif not taskSpec.useLoadXML():
-                                        orderBy = "fileID"
-                                    else:
-                                        orderBy = "boundaryID"
-                                    # read files to make FileSpec
-                                    iFiles_tmp = 0
-                                    iFilesWaiting = 0
-                                    for iDup in range(5000):  # avoid infinite loop just in case
-                                        tmpLog.debug(
-                                            f"jediTaskID={jediTaskID} to read {numFilesTobeReadInCycle} files from datasetID={datasetID} in attmpt={iDup + 1} "
-                                            f"with ramCount={inputChunk.ramCount} orderBy={orderBy} isSEQ={tmpDatasetSpec.isSeqNumber()} "
-                                            f"same_master={to_be_used_with_same_master}"
-                                        )
-                                        varMap = {}
-                                        varMap[":datasetID"] = datasetID
-                                        varMap[":jediTaskID"] = jediTaskID
-                                        if not tmpDatasetSpec.toKeepTrack():
-                                            if not fullSimulation:
-                                                varMap[":status"] = "ready"
-                                            if primaryDatasetID not in dsWithfakeCoJumbo:
-                                                self.cur.execute(sqlFRNR.format(orderBy, numFilesTobeReadInCycle - iFiles_tmp) + comment, varMap)
-                                            else:
-                                                self.cur.execute(sqlCJ_FRNR.format(orderBy, numFilesTobeReadInCycle - iFiles_tmp) + comment, varMap)
-                                        else:
-                                            if not fullSimulation:
-                                                if useJumbo == JediTaskSpec.enum_useJumbo["lack"] and origTmpNumFiles == 0:
-                                                    varMap[":status"] = "running"
-                                                else:
-                                                    varMap[":status"] = "ready"
-                                                if inputChunk.ramCount not in (None, 0):
-                                                    varMap[":ramCount"] = inputChunk.ramCount
-                                            # safety margin to read enough sequential numbers, which is required since sequential numbers can become
-                                            # ready after the cycle reading master files is done
-                                            if tmpDatasetSpec.isSeqNumber() and to_be_used_with_same_master and numFilesTobeReadInCycle > iFiles_tmp:
-                                                if taskSpec.inputPreStaging():
-                                                    # use larger margin for data carousel since all sequence numbers are ready even if master files are not yet staged-in
-                                                    safety_margin = 200000
-                                                else:
-                                                    safety_margin = 100
-                                            else:
-                                                safety_margin = 0
-                                            if inputChunk.ramCount not in (None, 0):
-                                                if primaryDatasetID not in dsWithfakeCoJumbo or useJumbo == JediTaskSpec.enum_useJumbo["lack"]:
-                                                    self.cur.execute(
-                                                        sqlFR.format(orderBy, numFilesTobeReadInCycle - iFiles_tmp + safety_margin) + comment, varMap
-                                                    )
-                                                else:
-                                                    self.cur.execute(
-                                                        sqlCJ_FR.format(orderBy, numFilesTobeReadInCycle - iFiles_tmp + safety_margin) + comment, varMap
-                                                    )
-                                            else:  # We group inputChunk.ramCount None and 0 together
-                                                if primaryDatasetID not in dsWithfakeCoJumbo or useJumbo == JediTaskSpec.enum_useJumbo["lack"]:
-                                                    self.cur.execute(
-                                                        sqlFR_RCNull.format(orderBy, numFilesTobeReadInCycle - iFiles_tmp + safety_margin) + comment, varMap
-                                                    )
-                                                else:
-                                                    self.cur.execute(
-                                                        sqlCJ_FR_RCNull.format(orderBy, numFilesTobeReadInCycle - iFiles_tmp + safety_margin) + comment, varMap
-                                                    )
+                            input_chunk_list, typical_num_files_per_job = self._read_unprocessed_inputs(
+                                comment,
+                                tmp_log,
+                                input_chunk_list,
+                                task_spec,
+                                jediTaskID,
+                                dataset_id_list,
+                                total_input_files,
+                                total_input_events,
+                                typicalNumFilesMap,
+                                maxNumJobs,
+                                is_dry_run,
+                                readMinFiles,
+                                nFiles,
+                                fullSimulation,
+                                n_files_unprocessed,
+                                primary_dataset_id,
+                                use_jumbo,
+                                orig_n_files_unprocessed,
+                                dataset_with_fake_co_jumbo,
+                            )
 
-                                        # create FileSpec first to check PandaID
-                                        resFileList = self.cur.fetchall()
-                                        file_spec_list = []
-                                        file_spec_map_with_panda_id = {}
-                                        file_spec_list_with_no_panda_id = []
-                                        file_spec_list_reserved = []
-                                        n_files_proper_panda_id = 0
-                                        n_files_null_panda_id = 0
-                                        n_files_inconsistent_panda_id = 0
-                                        for resFile in resFileList:
-                                            # make FileSpec
-                                            tmpFileSpec = JediFileSpec()
-                                            tmpFileSpec.pack(resFile)
-                                            # sort sequential numbers depending on old PandaIDs
-                                            if tmpDatasetSpec.isSeqNumber() and to_be_used_with_same_master:
-                                                if tmpFileSpec.PandaID is not None:
-                                                    if tmpFileSpec.PandaID in panda_ids_used_by_master:
-                                                        file_spec_map_with_panda_id[tmpFileSpec.PandaID] = tmpFileSpec
-                                                    else:
-                                                        # reserve the sequential number which may be used when master files don't have enough sequential numbers
-                                                        file_spec_list_reserved.append(tmpFileSpec)
-                                                else:
-                                                    file_spec_list_with_no_panda_id.append(tmpFileSpec)
-                                            else:
-                                                file_spec_list.append(tmpFileSpec)
-                                                n_files_proper_panda_id += 1
-                                        if tmpDatasetSpec.isSeqNumber() and to_be_used_with_same_master:
-                                            # sort sequential numbers consistently with master's PandaIDs
-                                            used_panda_ids = set()
-                                            for tmp_panda_id in panda_ids_used_by_master_list:
-                                                if tmp_panda_id is not None and tmp_panda_id in used_panda_ids:
-                                                    continue
-                                                if tmp_panda_id is not None and tmp_panda_id in file_spec_map_with_panda_id:
-                                                    file_spec_list.append(file_spec_map_with_panda_id[tmp_panda_id])
-                                                    n_files_proper_panda_id += 1
-                                                else:
-                                                    # take sequential numbers which are not used by master
-                                                    if file_spec_list_with_no_panda_id:
-                                                        file_spec_list.append(file_spec_list_with_no_panda_id.pop(0))
-                                                        n_files_null_panda_id += 1
-                                                    elif file_spec_list_reserved:
-                                                        file_spec_list.append(file_spec_list_reserved.pop(0))
-                                                        n_files_inconsistent_panda_id += 1
-                                                # to ignore duplicated master's PandaIDs
-                                                if tmp_panda_id is not None:
-                                                    used_panda_ids.add(tmp_panda_id)
-
-                                        tmpLog.debug(
-                                            f"jediTaskID={jediTaskID} datasetID={datasetID} old PandaID: proper={n_files_proper_panda_id} "
-                                            f"null={n_files_null_panda_id} inconsistent={n_files_inconsistent_panda_id}"
-                                        )
-
-                                        # update file status
-                                        for tmpFileSpec in file_spec_list:
-                                            # lock files
-                                            if simTasks is None and tmpDatasetSpec.toKeepTrack():
-                                                varMap = {}
-                                                varMap[":jediTaskID"] = tmpFileSpec.jediTaskID
-                                                varMap[":datasetID"] = tmpFileSpec.datasetID
-                                                varMap[":fileID"] = tmpFileSpec.fileID
-                                                varMap[":nStatus"] = "picked"
-                                                varMap[":oStatus"] = "ready"
-                                                self.cur.execute(sqlFU + comment, varMap)
-                                                nFileRow = self.cur.rowcount
-                                                if nFileRow != 1 and not (useJumbo == JediTaskSpec.enum_useJumbo["lack"] and origTmpNumFiles == 0):
-                                                    tmpLog.debug(f"skip fileID={tmpFileSpec.fileID} already used by another")
-                                                    continue
-                                            # add to InputChunk
-                                            tmpDatasetSpec.addFile(tmpFileSpec)
-                                            iFiles[datasetID] += 1
-                                            iFiles_tmp += 1
-                                            totalEvents[datasetID].append(tmpFileSpec.getEffectiveNumEvents())
-                                            if tmpFileSpec.is_waiting == "Y":
-                                                iFilesWaiting += 1
-
-                                        # no reuse
-                                        if (
-                                            not taskSpec.reuseSecOnDemand()
-                                            or tmpDatasetSpec.isMaster()
-                                            or taskSpec.useLoadXML()
-                                            or tmpDatasetSpec.isNoSplit()
-                                            or tmpDatasetSpec.toMerge()
-                                            or inputChunk.ramCount not in (None, 0)
-                                        ):
-                                            break
-                                        # enough files were read
-                                        if iFiles_tmp >= numFilesTobeReadInCycle and tmpDatasetSpec.getEventRatio() is None:
-                                            break
-                                        # check if enough events were read
-                                        totEvtSecond = 0
-                                        secIndex = 0
-                                        enoughSecondary = False
-                                        if tmpDatasetSpec.getEventRatio() is not None:
-                                            enoughSecondary = True
-                                            for evtMaster in totalEvents[inputChunk.masterDataset.datasetID]:
-                                                targetEvents = evtMaster * tmpDatasetSpec.getEventRatio()
-                                                targetEvents = int(math.ceil(targetEvents))
-                                                if targetEvents <= 0:
-                                                    targetEvents = 1
-                                                # count number of secondary events per master file
-                                                subTotEvtSecond = 0
-                                                for evtSecond in totalEvents[datasetID][secIndex:]:
-                                                    subTotEvtSecond += evtSecond
-                                                    secIndex += 1
-                                                    if subTotEvtSecond >= targetEvents:
-                                                        totEvtSecond += targetEvents
-                                                        break
-                                                if subTotEvtSecond < targetEvents:
-                                                    enoughSecondary = False
-                                                    break
-                                            if not enoughSecondary:
-                                                # read more files without making duplication
-                                                if iFiles_tmp >= numFilesTobeReadInCycle:
-                                                    numFilesTobeReadInCycle += maxFilesTobeReadWithEventRatio
-                                                    continue
-                                        if enoughSecondary:
-                                            break
-                                        # duplicate files for reuse
-                                        tmpStr = f"jediTaskID={jediTaskID} try to increase files for datasetID={tmpDatasetSpec.datasetID} "
-                                        tmpStr += f"since only {iFiles_tmp}/{numFilesTobeReadInCycle} files were read "
-                                        if tmpDatasetSpec.getEventRatio() is not None:
-                                            tmpStr += "or {0} events is less than {1}*{2} ".format(
-                                                totEvtSecond, tmpDatasetSpec.getEventRatio(), sum(totalEvents[inputChunk.masterDataset.datasetID])
-                                            )
-                                        tmpLog.debug(tmpStr)
-                                        if not tmpDatasetSpec.isSeqNumber():
-                                            nNewRec = get_task_utils_module(self).duplicateFilesForReuse_JEDI(tmpDatasetSpec)
-                                            tmpLog.debug(f"jediTaskID={jediTaskID} {nNewRec} files were duplicated")
-                                        else:
-                                            nNewRec = get_task_utils_module(self).increaseSeqNumber_JEDI(tmpDatasetSpec, numFilesTobeReadInCycle - iFiles_tmp)
-                                            tmpLog.debug(f"jediTaskID={jediTaskID} {nNewRec} seq nums were added")
-                                        if nNewRec == 0:
-                                            break
-
-                                    # get old PandaIDs of master files to check with PandaIDs of sequential numbers later
-                                    if tmpDatasetSpec.isMaster() and to_be_used_with_same_master:
-                                        # sort by PandaID and move PandaID=None to the end, to avoid
-                                        #  * master: 1 1 None None 2 2 -> seq: 1 None None
-                                        #  * master: 1 2 1 2 -> seq: 1 1
-                                        #  when getting corresponding sequence numbers for nFilesPeroJob=2
-                                        tmpDatasetSpec.sort_files_by_panda_ids()
-                                        panda_ids_used_by_master_list = [f.PandaID for f in tmpDatasetSpec.Files]
-                                        panda_ids_used_by_master = set(panda_ids_used_by_master_list)
-
-                                    if tmpDatasetSpec.isMaster() and iFiles_tmp == 0:
-                                        inputChunk.isEmpty = True
-
-                                    if iFiles[datasetID] == 0:
-                                        # no input files
-                                        if not readMinFiles or not tmpDatasetSpec.isPseudo():
-                                            tmpLog.debug(f"jediTaskID={jediTaskID} datasetID={datasetID} has no files to be processed")
-                                            # toSkip = True
-                                            break
-                                    elif (
-                                        simTasks is None
-                                        and tmpDatasetSpec.toKeepTrack()
-                                        and iFiles_tmp != 0
-                                        and not (useJumbo == JediTaskSpec.enum_useJumbo["lack"] and origTmpNumFiles == 0)
-                                    ):
-                                        # update nFilesUsed in DatasetSpec
-                                        nFilesUsed = tmpDatasetSpec.nFilesUsed + iFiles[datasetID]
-                                        tmpDatasetSpec.nFilesUsed = nFilesUsed
-                                        varMap = {}
-                                        varMap[":jediTaskID"] = jediTaskID
-                                        varMap[":datasetID"] = datasetID
-                                        varMap[":nFilesUsed"] = nFilesUsed
-                                        varMap[":newnFilesUsed"] = self.cur.var(varNUMBER)
-                                        varMap[":newnFilesTobeUsed"] = self.cur.var(varNUMBER)
-                                        self.cur.execute(sqlDU + comment, varMap)
-                                        # newnFilesUsed = int(varMap[':newnFilesUsed'].getvalue())
-                                        # newnFilesTobeUsed = int(varMap[':newnFilesTobeUsed'].getvalue())
-                                    tmpLog.debug(
-                                        "jediTaskID={2} datasetID={0} has {1} files to be processed for ramCount={3}".format(
-                                            datasetID, iFiles_tmp, jediTaskID, inputChunk.ramCount
-                                        )
-                                    )
-                                    # set flag if it is a block read
-                                    if tmpDatasetSpec.isMaster():
-                                        if readBlock and iFiles[datasetID] == maxFilesTobeRead:
-                                            inputChunk.readBlock = True
-                                        else:
-                                            inputChunk.readBlock = False
-                        # add to return
-                        if not toSkip:
-                            if jediTaskID not in returnMap:
-                                returnMap[jediTaskID] = []
-                                iTasks += 1
-                            for inputChunk in inputChunks:
-                                if not inputChunk.isEmpty:
-                                    returnMap[jediTaskID].append((taskSpec, cloudName, inputChunk))
-                                    iDsPerTask += 1
+                            # add to return
+                            if jediTaskID not in return_map:
+                                return_map[jediTaskID] = []
+                                i_tasks += 1
+                            for input_chunk in input_chunk_list:
+                                if not input_chunk.isEmpty:
+                                    return_map[jediTaskID].append((task_spec, cloudName, input_chunk))
+                                    i_ds_per_task += 1
                                 # reduce the number of jobs
-                                if maxNumJobs is not None and not inputChunk.isMerging:
-                                    maxNumJobs -= int(math.ceil(float(len(inputChunk.masterDataset.Files)) / float(typicalNumFilesPerJob)))
-                        else:
-                            tmpLog.debug(f"escape due to toSkip for jediTaskID={jediTaskID} datasetID={primaryDatasetID}")
-                            break
-                        if iDsPerTask > nDsPerTask:
-                            break
+                                if maxNumJobs is not None and not input_chunk.isMerging:
+                                    maxNumJobs -= int(math.ceil(float(len(input_chunk.masterDataset.Files)) / float(typical_num_files_per_job)))
+                            if i_ds_per_task > n_ds_per_task:
+                                tmp_log.debug(f"escape due to too many datasets to process")
+                                break
+
                         if maxNumJobs is not None and maxNumJobs <= 0:
                             pass
                         # memory check
                         try:
-                            memLimit = 1 * 1024
-                            memNow = CoreUtils.getMemoryUsage()
-                            tmpLog.debug(f"memUsage now {memNow} MB pid={os.getpid()}")
-                            if memNow - memStart > memLimit:
-                                tmpLog.warning(f"memory limit exceeds {memNow}-{memStart} > {memLimit} MB : jediTaskID={jediTaskID}")
-                                memoryExceed = True
+                            mem_limit = 1 * 1024
+                            mem_now = CoreUtils.getMemoryUsage()
+                            tmp_log.debug(f"memUsage now {mem_now} MB pid={os.getpid()}")
+                            if mem_now - mem_start > mem_limit:
+                                tmp_log.warning(f"memory limit exceeds {mem_now}-{mem_start} > {mem_limit} MB : jediTaskID={jediTaskID}")
+                                memory_exceed = True
                                 break
                         except Exception:
                             pass
-                    if taskWithNewJumbo:
+                    if task_with_new_jumbo:
                         numNewTaskWithJumbo -= 1
-                if not toSkip:
+                if not to_skip_task:
                     # commit
                     if not self._commit():
                         raise RuntimeError("Commit error")
                 else:
-                    tmpLog.debug(f"rollback for jediTaskID={jediTaskID}")
+                    tmp_log.debug(f"rollback for jediTaskID={jediTaskID}")
                     # roll back
                     self._rollback()
                 # enough tasks
-                if iTasks >= nTasks:
+                if i_tasks >= nTasks:
                     break
                 # already read enough files to generate jobs
                 if maxNumJobs is not None and maxNumJobs <= 0:
                     pass
                 # memory limit exceeds
-                if memoryExceed:
+                if memory_exceed:
                     break
-            tmpLog.debug(f"returning {iTasks} tasks")
+            tmp_log.debug(f"returning {i_tasks} tasks")
             # change map to list
-            returnList = []
-            for tmpJediTaskID, tmpTaskDsList in returnMap.items():
-                returnList.append((tmpJediTaskID, tmpTaskDsList))
-            tmpLog.debug(f"memUsage end {CoreUtils.getMemoryUsage()} MB pid={os.getpid()}")
-            return returnList
+            return_list = []
+            for tmpJediTaskID, tmpTaskDsList in return_map.items():
+                return_list.append((tmpJediTaskID, tmpTaskDsList))
+            tmp_log.debug(f"memUsage end {CoreUtils.getMemoryUsage()} MB pid={os.getpid()}")
+            return return_list
         except Exception:
             # roll back
             self._rollback()
             # error
-            self.dump_error_message(tmpLog)
-            return failedRet
+            self.dump_error_message(tmp_log)
+            return failed_return
 
     # set scout job data to tasks
     def setScoutJobDataToTasks_JEDI(self, vo, prodSourceLabel, site_mapper):
