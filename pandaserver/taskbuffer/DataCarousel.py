@@ -1028,6 +1028,31 @@ class DataCarouselInterface(object):
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             raise e
 
+    def _fill_total_files_and_size(self, dc_req_spec: DataCarouselRequestSpec) -> bool | None:
+        """
+        Fill total files and dataset size of the Data Carousel request spec
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): Data Carousel request spec
+
+        Returns:
+            bool|None : True if successful, None if getting None from DDM, False if error occurs
+        """
+        try:
+            tmp_log = LogWrapper(logger, f"_fill_total_files_and_size request_id={dc_req_spec.request_id}")
+            # get dataset metadata
+            dataset_meta = self.ddmIF.get_dataset_metadata(dc_req_spec.dataset)
+            # fill
+            dc_req_spec.total_files = dataset_meta["length"]
+            dc_req_spec.dataset_size = dataset_meta["bytes"]
+            if dc_req_spec.total_files is not None:
+                return True
+            else:
+                return None
+        except Exception as e:
+            tmp_log.error(f"failed to fill total files and size; {e}")
+            return False
+
     def submit_data_carousel_requests(
         self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]], options: dict | None = None
     ) -> bool | None:
@@ -1054,9 +1079,7 @@ class DataCarouselInterface(object):
         for dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list in prestaging_list:
             dc_req_spec = DataCarouselRequestSpec()
             dc_req_spec.dataset = dataset
-            dataset_meta = self.ddmIF.get_dataset_metadata(dataset)
-            dc_req_spec.total_files = dataset_meta["length"]
-            dc_req_spec.dataset_size = dataset_meta["bytes"]
+            self._fill_total_files_and_size(dc_req_spec)
             dc_req_spec.staged_files = 0
             dc_req_spec.staged_size = 0
             dc_req_spec.ddm_rule_id = ddm_rule_id
@@ -1585,6 +1608,13 @@ class DataCarouselInterface(object):
             err_msg = f"status={dc_req_spec.status} not queued; skipped"
             tmp_log.warning(err_msg)
             return is_ok, err_msg, dc_req_spec
+        # retry to get DDM dataset metadata and skip if total_files is still None
+        if dc_req_spec.total_files is None:
+            _got = self._fill_total_files_and_size(dc_req_spec)
+            if not _got:
+                err_msg = f"total_files and dataset_size are still None; skipped"
+                tmp_log.warning(err_msg)
+                return is_ok, err_msg, dc_req_spec
         # check existing DDM rule of the dataset
         if (ddm_rule_id := dc_req_spec.ddm_rule_id) is not None:
             # DDM rule exists; no need to submit
