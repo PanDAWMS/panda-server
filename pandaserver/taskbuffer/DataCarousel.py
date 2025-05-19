@@ -1417,16 +1417,13 @@ class DataCarouselInterface(object):
             n_to_pin = len(to_pin_df)
             n_total = n_queued + n_to_pin
             # print dataframe in log
+            tmp_to_print_df = None
             if n_total:
                 tmp_to_print_df = pl.concat([to_pin_df, tmp_queued_df])
                 tmp_to_print_df = tmp_to_print_df.select(
                     ["request_id", "source_rse", "jediTaskID", "gshare", "gshare_rank", "task_priority", "total_files", "cum_total_files", "to_pin"]
                 )
                 tmp_to_print_df = tmp_to_print_df.with_columns(gshare_and_rank=pl.concat_str([pl.col("gshare"), pl.col("gshare_rank")], separator=" : "))
-                tmp_to_print_df = tmp_to_print_df.select(
-                    ["request_id", "source_rse", "jediTaskID", "gshare_and_rank", "task_priority", "total_files", "cum_total_files", "to_pin"]
-                )
-                tmp_log.debug(f"  source_tape={source_tape} , quota_size={quota_size} : \n{tmp_to_print_df}")
             # filter requests to respect the tape quota size; at most one request can reach or exceed quota size if quota size > 0
             to_stage_df = pl.concat(
                 [
@@ -1452,6 +1449,18 @@ class DataCarouselInterface(object):
                 if dc_req_spec:
                     ret_list.append((dc_req_spec, extra_params))
                     to_stage_count += 1
+            if tmp_to_print_df is not None and to_stage_count > 0:
+                tmp_to_print_df = tmp_to_print_df.with_columns(
+                    result=pl.when(pl.col("request_id").is_in(to_pin_df.select(["request_id"])))
+                    .then(pl.lit("pin"))
+                    .when(pl.col("request_id").is_in(to_stage_df.select(["request_id"])))
+                    .then(pl.lit("stage"))
+                    .otherwise(pl.lit(" "))
+                )
+                tmp_to_print_df = tmp_to_print_df.select(
+                    ["request_id", "source_rse", "jediTaskID", "gshare_and_rank", "task_priority", "total_files", "cum_total_files", "result"]
+                )
+                tmp_log.debug(f"  source_tape={source_tape} , quota_size={quota_size} : \n{tmp_to_print_df}")
             if n_total:
                 tmp_log.debug(f"source_tape={source_tape} got {to_stage_count}/{n_queued} requests to stage, {n_to_pin} requests to pin")
         tmp_log.debug(f"totally got {len(ret_list)} requests to stage or to pin")
