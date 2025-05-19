@@ -21,9 +21,6 @@ from pandaserver.workflow.snakeparser import Parser
 _logger = PandaLogger().getLogger("workflow_processor")
 
 
-SUPPORTED_WORKFLOW_LANGUAGES = ["cwl", "snakemake"]
-
-
 # process workflow
 class WorkflowProcessor(object):
     # constructor
@@ -173,19 +170,34 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                 if is_OK:
                     tmpLog.info("parse workflow")
                     workflow_name = None
-                    if (wf_lang := ops["data"]["language"]) in SUPPORTED_WORKFLOW_LANGUAGES:
-                        if wf_lang == "cwl":
-                            workflow_name = ops["data"].get("workflow_name")
-                            nodes, root_in = pcwl_utils.parse_workflow_file(ops["data"]["workflowSpecFile"], tmpLog)
-                            with open(ops["data"]["workflowInputFile"]) as workflow_input:
-                                yaml = YAML(typ="safe", pure=True)
-                                data = yaml.load(workflow_input)
-                        elif wf_lang == "snakemake":
-                            parser = Parser(ops["data"]["workflowSpecFile"], logger=tmpLog)
-                            nodes, root_in = parser.parse_nodes()
-                            data = dict()
-                        # resolve nodes
-                        s_id, t_nodes, nodes = workflow_utils.resolve_nodes(nodes, root_in, data, 0, set(), ops["data"]["outDS"], tmpLog)
+                    if ops["data"]["language"] == "cwl":
+                        workflow_name = ops["data"].get("workflow_name")
+                        nodes, root_in = pcwl_utils.parse_workflow_file(ops["data"]["workflowSpecFile"], tmpLog)
+                        with open(ops["data"]["workflowInputFile"]) as workflow_input:
+                            yaml = YAML(typ="safe", pure=True)
+                            data = yaml.load(workflow_input)
+                        # noinspection DuplicatedCode
+                        s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(), ops["data"]["outDS"], tmpLog)
+                        workflow_utils.set_workflow_outputs(nodes)
+                        id_node_map = workflow_utils.get_node_id_map(nodes)
+                        [node.resolve_params(ops["data"]["taskParams"], id_node_map) for node in nodes]
+                        dump_str = "the description was internally converted as follows\n" + workflow_utils.dump_nodes(nodes)
+                        tmpLog.info(dump_str)
+                        for node in nodes:
+                            s_check, o_check = node.verify()
+                            tmp_str = f"Verification failure in ID:{node.id} {o_check}"
+                            if not s_check:
+                                tmpLog.error(tmp_str)
+                                dump_str += tmp_str
+                                dump_str += "\n"
+                                is_fatal = True
+                                is_OK = False
+                    elif ops["data"]["language"] == "snakemake":
+                        parser = Parser(ops["data"]["workflowSpecFile"], logger=tmpLog)
+                        nodes, root_in = parser.parse_nodes()
+                        data = dict()
+                        # noinspection DuplicatedCode
+                        s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(), ops["data"]["outDS"], tmpLog)
                         workflow_utils.set_workflow_outputs(nodes)
                         id_node_map = workflow_utils.get_node_id_map(nodes)
                         [node.resolve_params(ops["data"]["taskParams"], id_node_map) for node in nodes]

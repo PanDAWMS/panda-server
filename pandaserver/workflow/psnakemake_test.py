@@ -7,11 +7,11 @@ import sys
 
 from snakeparser import Parser
 
+from pandaserver.workflow.pcwl_utils import resolve_nodes
 from pandaserver.workflow.workflow_utils import (
     convert_nodes_to_workflow,
     dump_nodes,
     get_node_id_map,
-    resolve_nodes,
     set_workflow_outputs,
 )
 
