@@ -7,6 +7,7 @@ import traceback
 import uuid
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
@@ -441,7 +442,7 @@ class JobComplexModule(BaseModule):
                         sqlJWU += "WHERE PandaID=:PandaID "
                         varMap = {
                             ":PandaID": pandaID,
-                            ":lastUpdate": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+                            ":lastUpdate": naive_utcnow(),
                         }
                         self.cur.execute(sqlJWU + comment, varMap)
                         nRow = self.cur.rowcount
@@ -507,7 +508,7 @@ class JobComplexModule(BaseModule):
         nTry = 3
         for iTry in range(nTry):
             try:
-                job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                job.modificationTime = naive_utcnow()
                 # set stateChangeTime for defined->assigned
                 if inJobsDefined:
                     job.stateChangeTime = job.modificationTime
@@ -823,7 +824,7 @@ class JobComplexModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
 
         tmp_log.debug(f"code={code} role={prodManager} user={user} wg={wgProdRole} opts={killOpts}")
-        timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        timeStart = naive_utcnow()
         # check PandaID
         try:
             int(pandaID)
@@ -995,7 +996,7 @@ class JobComplexModule(BaseModule):
                 oldJobStatus = job.jobStatus
                 # error code
                 if job.jobStatus != "failed":
-                    currentTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                    currentTime = naive_utcnow()
                     # set status etc. for non-failed jobs
                     if job.endTime in [None, "NULL"]:
                         job.endTime = currentTime
@@ -1052,7 +1053,7 @@ class JobComplexModule(BaseModule):
                         job.jobStatus = "cancelled"
                 else:
                     # keep status for failed jobs
-                    job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                    job.modificationTime = naive_utcnow()
                     if code == "7":
                         # retried by server
                         job.taskBufferErrorCode = ErrorCode.EC_Retried
@@ -1121,7 +1122,7 @@ class JobComplexModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            timeDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart
+            timeDelta = naive_utcnow() - timeStart
             tmp_log.debug(f"com={flagCommand} kill={flagKilled} time={timeDelta.seconds}")
             # record status change
             try:
@@ -1142,7 +1143,7 @@ class JobComplexModule(BaseModule):
             self.dump_error_message(tmp_log)
             # roll back
             self._rollback()
-            timeDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart
+            timeDelta = naive_utcnow() - timeStart
             tmp_log.debug(f"time={timeDelta.seconds}")
             if getUserInfo:
                 return False, {}
@@ -1243,7 +1244,7 @@ class JobComplexModule(BaseModule):
         comment = " /* DBProxy.archiveJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID} jediTaskID={job.jediTaskID}")
         tmp_log.debug(f"start status={job.jobStatus} label={job.prodSourceLabel} " f"type={job.processingType} async_params={async_params}")
-        start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        start_time = naive_utcnow()
         if fromJobsDefined or fromJobsWaiting:
             sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
@@ -1354,7 +1355,7 @@ class JobComplexModule(BaseModule):
                                 continue
                             # error code
                             dJob.jobStatus = "cancelled"
-                            dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                            dJob.endTime = naive_utcnow()
                             dJob.taskBufferErrorCode = ErrorCode.EC_Kill
                             dJob.taskBufferErrorDiag = "killed by Panda server : upstream job failed"
                             dJob.modificationTime = dJob.endTime
@@ -1665,7 +1666,7 @@ class JobComplexModule(BaseModule):
                     raise RuntimeError(f"PandaID={job.PandaID} already deleted")
                 else:
                     # insert
-                    job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                    job.modificationTime = naive_utcnow()
                     job.stateChangeTime = job.modificationTime
                     if job.endTime == "NULL":
                         job.endTime = job.modificationTime
@@ -1860,7 +1861,7 @@ class JobComplexModule(BaseModule):
                         )
                 except Exception:
                     tmp_log.error("recordStatusChange in archiveJob")
-                exec_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+                exec_time = naive_utcnow() - start_time
                 tmp_log.debug("done OK. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
                 return True, ddmIDs, ddmAttempt, newJob
             except Exception:
@@ -1869,7 +1870,7 @@ class JobComplexModule(BaseModule):
                     self._rollback(True)
                 # error
                 self.dump_error_message(tmp_log)
-                exec_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+                exec_time = naive_utcnow() - start_time
                 tmp_log.debug("done NG. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
                 if not useCommit:
                     raise RuntimeError("archiveJob failed")
@@ -2176,7 +2177,7 @@ class JobComplexModule(BaseModule):
         4. Pack the files and if jobs are AES also the event ranges
         """
         comment = " /* DBProxy.getJobs */"
-        timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        timeStart = naive_utcnow()
         tmp_log = self.create_tagged_logger(comment, f"{siteName} {datetime.datetime.isoformat(timeStart)}")
         tmp_log.debug("Start")
 
@@ -2258,7 +2259,7 @@ class JobComplexModule(BaseModule):
                     tmpSiteID = siteName
                     # get file lock
                     tmp_log.debug("lock")
-                    if (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart) < timeLimit:
+                    if (naive_utcnow() - timeStart) < timeLimit:
                         toGetPandaIDs = True
                         pandaIDs = []
                         specialHandlingMap = {}
@@ -2373,7 +2374,7 @@ class JobComplexModule(BaseModule):
                                                     "workerID": worker_id,
                                                     "nJobs": 1,
                                                     "status": "running",
-                                                    "lastUpdate": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+                                                    "lastUpdate": naive_utcnow(),
                                                 }
                                             ],
                                             useCommit=False,
@@ -2408,7 +2409,7 @@ class JobComplexModule(BaseModule):
                                             varMap[":harvesterID"] = harvester_id
                                             varMap[":workerID"] = worker_id
                                             varMap[":PandaID"] = tmpPandaID
-                                            varMap[":lastUpdate"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                                            varMap[":lastUpdate"] = naive_utcnow()
                                             if resJWC is None:
                                                 # insert
                                                 self.cur.execute(sqlJWI + comment, varMap)
@@ -2866,7 +2867,7 @@ class JobComplexModule(BaseModule):
 
         # host and time information
         job.modificationHost = self.hostname
-        job.creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        job.creationTime = naive_utcnow()
         job.modificationTime = job.creationTime
         job.stateChangeTime = job.creationTime
         job.prodDBUpdateTime = job.creationTime
@@ -3469,7 +3470,7 @@ class JobComplexModule(BaseModule):
         comment = " /* DBProxy.bulk_insert_new_jobs */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
         try:
-            start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            start_time = naive_utcnow()
             tmp_log.debug("start")
             sql_key_list = ["job", "event", "file", "dynamic", "t_task", "meta", "jobparams", "retry_history", "state_change", "jedi_input"]
             self.conn.begin()
@@ -3532,7 +3533,7 @@ class JobComplexModule(BaseModule):
             # send messages
             for (job, _), special_handling in zip(return_list, special_handling_list):
                 self.push_job_status_message(job, job.PandaID, job.jobStatus, job.jediTaskID, special_handling)
-            exec_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+            exec_time = naive_utcnow() - start_time
             tmp_log.debug("done OK. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
             return True, return_list, es_jobset_map
         except Exception:
@@ -3540,7 +3541,7 @@ class JobComplexModule(BaseModule):
             self._rollback()
             # error
             self.dump_error_message(tmp_log)
-            exec_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+            exec_time = naive_utcnow() - start_time
             tmp_log.debug("done NG. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
             return False, None, None
 
@@ -3849,7 +3850,7 @@ class JobComplexModule(BaseModule):
                         # reset job
                         job.jobStatus = "activated"
                         job.startTime = None
-                        job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                        job.modificationTime = naive_utcnow()
                         job.attemptNr = job.attemptNr + 1
                         if usePilotRetry:
                             job.currentPriority -= 10
@@ -4003,7 +4004,7 @@ class JobComplexModule(BaseModule):
                                 sql1 += " RETURNING PandaID INTO :newPandaID"
                                 # set parentID
                                 job.parentID = job.PandaID
-                                job.creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                                job.creationTime = naive_utcnow()
                                 job.modificationTime = job.creationTime
                                 varMap = job.valuesMap(useSeq=True)
                                 varMap[":newPandaID"] = self.cur.var(varNUMBER)
@@ -4740,7 +4741,7 @@ class JobComplexModule(BaseModule):
                 job = JobSpec()
                 job.pack(res[0])
                 job.jobStatus = "failed"
-                job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                job.modificationTime = naive_utcnow()
                 # delete
                 self.cur.execute(sql2 + comment, varMap)
                 n = self.cur.rowcount
@@ -4820,9 +4821,9 @@ class JobComplexModule(BaseModule):
         ret = dict()
         try:
             if time_window is None:
-                time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
+                time_floor = naive_utcnow() - datetime.timedelta(hours=12)
             else:
-                time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=int(time_window))
+                time_floor = naive_utcnow() - datetime.timedelta(minutes=int(time_window))
 
             sql_var_list = [
                 (sql_defined, {}),
@@ -5318,7 +5319,7 @@ class JobComplexModule(BaseModule):
                     hasFatalRange = True
             # reset job attributes
             jobSpec.startTime = None
-            jobSpec.creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            jobSpec.creationTime = naive_utcnow()
             jobSpec.modificationTime = jobSpec.creationTime
             jobSpec.stateChangeTime = jobSpec.creationTime
             jobSpec.prodDBUpdateTime = jobSpec.creationTime

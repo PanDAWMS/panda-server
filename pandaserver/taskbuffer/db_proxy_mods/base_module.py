@@ -591,7 +591,7 @@ class BaseModule:
             tmp_log = self.create_tagged_logger(comment)
             # push job status change
             try:
-                now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                now_time = naive_utcnow()
                 now_ts = int(now_time.timestamp())
                 # init
                 inputs = []
@@ -660,7 +660,7 @@ class BaseModule:
             ":topic": topic,
             ":PandaID": panda_id,
             ":taskID": task_id,
-            ":creationTime": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+            ":creationTime": naive_utcnow(),
             ":execution_order": exec_order,
             ":data": json.dumps((sql, var_map)),
         }

@@ -5,6 +5,7 @@ import sys
 from typing import Dict
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
@@ -242,9 +243,7 @@ class MetricsModule(BaseModule):
             # add duration
             task_metrics.setdefault("queuingPeriods", [])
             if len(task_metrics["queuingPeriods"]) < 10000:
-                task_metrics["queuingPeriods"].append(
-                    {"start": queued_time, "end": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None), "status": task_status}
-                )
+                task_metrics["queuingPeriods"].append({"start": queued_time, "end": naive_utcnow(), "status": task_status})
                 tmp_success = self.set_workload_metrics(jedi_task_id, None, task_metrics, False)
                 if not tmp_success:
                     err_str = f"failed to update task metrics for jediTaskId={jedi_task_id}"
@@ -301,7 +300,7 @@ class MetricsModule(BaseModule):
             else:
                 job_metrics["queuingPeriod"] = {
                     "start": task_queued_time,
-                    "end": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+                    "end": naive_utcnow(),
                     "status": job_status,
                 }
                 tmp_success = self.set_workload_metrics(jedi_task_id, panda_id, job_metrics, False)
@@ -357,7 +356,7 @@ class MetricsModule(BaseModule):
             task_metrics["activePeriod"].append(
                 {
                     "start": activated_time,
-                    "end": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+                    "end": naive_utcnow(),
                     "status": task_status,
                 }
             )

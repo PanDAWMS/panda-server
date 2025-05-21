@@ -9,6 +9,7 @@ from threading import Lock
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
@@ -76,7 +77,7 @@ class TaskBuffer:
 
     # get SiteMapper
     def get_site_mapper(self):
-        time_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        time_now = naive_utcnow()
         if self.last_update_site_mapper is None or datetime.datetime.now(datetime.timezone.utc).replace(
             tzinfo=None
         ) - self.last_update_site_mapper > datetime.timedelta(minutes=10):
@@ -1745,7 +1746,7 @@ class TaskBuffer:
             second=int(match.group(6)),
         )
         # max range is 3 months
-        maxRange = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=30)
+        maxRange = naive_utcnow() - datetime.timedelta(days=30)
         if timeRange < maxRange:
             timeRange = maxRange
         # get proxy

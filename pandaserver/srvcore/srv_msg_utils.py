@@ -1,12 +1,14 @@
 import datetime
 import json
 
+from pandacommon.pandautils.PandaUtils import naive_utcnow
+
 
 # make message
 def make_message(msg_type, **kwargs):
     msg_dict = {"msg_type": msg_type}
     msg_dict.update(kwargs)
-    msg_dict["timestamp"] = int(datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).timestamp())
+    msg_dict["timestamp"] = int(naive_utcnow().timestamp())
     return json.dumps(msg_dict)
 
 

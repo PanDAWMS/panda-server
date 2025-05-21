@@ -9,6 +9,7 @@ import traceback
 import requests
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 from pandacommon.pandautils.thread_utils import GenericThread
 from urllib3.exceptions import InsecureRequestWarning
 
@@ -191,7 +192,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # finalize failed jobs
     _logger.debug("check stuck merging jobs")
     try:
-        timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=2)
+        timeLimit = naive_utcnow() - datetime.timedelta(hours=2)
         # get PandaIDs
         var_map = {}
         var_map[":prodSourceLabel"] = "managed"
@@ -288,7 +289,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     _logger.debug(f"timeout : {str(workflow_timeout_map)}")
 
     # check heartbeat for analysis jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=workflow_timeout_map["analysis"])
+    timeLimit = naive_utcnow() - datetime.timedelta(hours=workflow_timeout_map["analysis"])
     var_map = {}
     var_map[":modificationTime"] = timeLimit
     var_map[":prodSourceLabel1"] = "panda"
@@ -311,7 +312,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             thr.join()
 
     # check heartbeat for analysis jobs in transferring
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=workflow_timeout_map["analysis"])
+    timeLimit = naive_utcnow() - datetime.timedelta(hours=workflow_timeout_map["analysis"])
     var_map = {}
     var_map[":modificationTime"] = timeLimit
     var_map[":prodSourceLabel1"] = "panda"
@@ -331,7 +332,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             thr.join()
 
     # check heartbeat for sent jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=30)
+    timeLimit = naive_utcnow() - datetime.timedelta(minutes=30)
     var_map = {}
     var_map[":jobStatus"] = "sent"
     var_map[":modificationTime"] = timeLimit
@@ -350,7 +351,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             thr.join()
 
     # check heartbeat for 'holding' analysis/ddm jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=3)
+    timeLimit = naive_utcnow() - datetime.timedelta(hours=3)
     # get XMLs
     xmlIDs = set()
     # xmlFiles = os.listdir(panda_config.logdir)
@@ -387,7 +388,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # check heartbeat for high prio production jobs
     timeOutVal = 3
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=timeOutVal)
+    timeLimit = naive_utcnow() - datetime.timedelta(hours=timeOutVal)
     sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND currentPriority>:pLimit "
     sql += "AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime))"
     var_map = {}
@@ -417,7 +418,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     if not timeOutVal:
         timeOutVal = 48
     timeOutVal *= 60
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=timeOutVal)
+    timeLimit = naive_utcnow() - datetime.timedelta(minutes=timeOutVal)
     sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime))"
     var_map = {}
     var_map[":modificationTime"] = timeLimit
@@ -466,7 +467,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             sqlX += f"AND s.data.workflow={tmp_key} "
             var_map[tmp_key] = workflow
         timeOutVal = workflow_timeout_map[workflow]
-        timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=timeOutVal)
+        timeLimit = naive_utcnow() - datetime.timedelta(hours=timeOutVal)
         var_map[":modificationTime"] = timeLimit
         status, res = taskBuffer.querySQLS(sqlX, var_map)
         if res is None:
@@ -491,7 +492,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     _memoryCheck("reassign")
 
     # kill long-waiting jobs in defined table
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=7)
+    timeLimit = naive_utcnow() - datetime.timedelta(days=7)
     status, res = taskBuffer.querySQLS(
         "SELECT PandaID,cloud,prodSourceLabel FROM ATLAS_PANDA.jobsDefined4 WHERE creationTime<:creationTime",
         {":creationTime": timeLimit},
@@ -507,7 +508,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         Client.killJobs(jobs, 2)
 
     # kill long-waiting jobs in active table
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=7)
+    timeLimit = naive_utcnow() - datetime.timedelta(days=7)
     var_map = {}
     var_map[":jobStatus"] = "activated"
     var_map[":creationTime"] = timeLimit
@@ -641,8 +642,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     inactiveTimeLimitSite = 2
     inactiveTimeLimitJob = 4
     inactivePrioLimit = 800
-    timeLimitSite = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=inactiveTimeLimitSite)
-    timeLimitJob = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=inactiveTimeLimitJob)
+    timeLimitSite = naive_utcnow() - datetime.timedelta(hours=inactiveTimeLimitSite)
+    timeLimitJob = naive_utcnow() - datetime.timedelta(hours=inactiveTimeLimitJob)
     # get PandaIDs
     sql = "SELECT distinct computingSite FROM ATLAS_PANDA.jobsActive4 "
     sql += "WHERE prodSourceLabel=:prodSourceLabel "
@@ -723,7 +724,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     if not timeoutValue:
         timeoutValue = 4
     timeoutValue *= 60
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=timeoutValue)
+    timeLimit = naive_utcnow() - datetime.timedelta(minutes=timeoutValue)
     # get PandaIDs
     status, res = taskBuffer.lockJobsForReassign(
         "ATLAS_PANDA.jobsDefined4",
@@ -752,7 +753,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             iJob += nJob
 
     # reassign stalled defined build and non-JEDI jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=timeoutValue)
+    timeLimit = naive_utcnow() - datetime.timedelta(minutes=timeoutValue)
     var_map = {}
     var_map[":jobStatus"] = "defined"
     var_map[":prodSourceLabel_p"] = "panda"
@@ -772,7 +773,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         _logger.debug(f"reassign stalled defined build and non-JEDI jobs with timeout {timeoutValue}min ({str(jobs)})")
 
     # reassign long-waiting jobs in defined table
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
+    timeLimit = naive_utcnow() - datetime.timedelta(hours=12)
     status, res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4", timeLimit, [], ["managed"], [], [], [], True)
     jediJobs = []
     if res is not None:
@@ -792,7 +793,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             iJob += nJob
 
     # reassign too long activated jobs in active table
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=2)
+    timeLimit = naive_utcnow() - datetime.timedelta(days=2)
     status, res = taskBuffer.lockJobsForReassign(
         "ATLAS_PANDA.jobsActive4",
         timeLimit,
@@ -833,7 +834,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             iJob += nJob
 
     # reassign too long starting jobs in active table
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=48)
+    timeLimit = naive_utcnow() - datetime.timedelta(hours=48)
     status, res = taskBuffer.lockJobsForReassign(
         "ATLAS_PANDA.jobsActive4",
         timeLimit,
@@ -866,7 +867,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             iJob += nJob
 
     # kill too long-standing analysis jobs in active table
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=7)
+    timeLimit = naive_utcnow() - datetime.timedelta(days=7)
     var_map = {}
     var_map[":prodSourceLabel1"] = "test"
     var_map[":prodSourceLabel2"] = "panda"
@@ -886,7 +887,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         _logger.debug(f"killJobs for Anal Active ({str(jobs)})")
 
     # kill too long pending jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=1)
+    timeLimit = naive_utcnow() - datetime.timedelta(hours=1)
     var_map = {}
     var_map[":jobStatus"] = "pending"
     var_map[":creationTime"] = timeLimit
@@ -909,7 +910,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 iJob += nJob
 
     # kick waiting ES merge jobs which were generated from fake co-jumbo
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=10)
+    timeLimit = naive_utcnow() - datetime.timedelta(minutes=10)
     var_map = {}
     var_map[":jobStatus"] = "waiting"
     var_map[":creationTime"] = timeLimit
@@ -935,7 +936,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 iJob += nJob
 
     # kill too long waiting jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=1)
+    timeLimit = naive_utcnow() - datetime.timedelta(hours=1)
     var_map = {}
     var_map[":jobStatus"] = "waiting"
     var_map[":creationTime"] = timeLimit
@@ -958,7 +959,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 iJob += nJob
 
     # kill too long running ES jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=24)
+    timeLimit = naive_utcnow() - datetime.timedelta(hours=24)
     var_map = {}
     var_map[":jobStatus1"] = "running"
     var_map[":jobStatus2"] = "starting"
@@ -987,7 +988,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             iJob += nJob
 
     # kill too long running ES merge jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=24)
+    timeLimit = naive_utcnow() - datetime.timedelta(hours=24)
     var_map = {}
     var_map[":jobStatus1"] = "running"
     var_map[":jobStatus2"] = "starting"
@@ -1018,8 +1019,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         timeoutVal = 12
     _logger.debug(f"timeout value : {timeoutVal}h")
     try:
-        normalTimeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=timeoutVal)
-        sortTimeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=3)
+        normalTimeLimit = naive_utcnow() - datetime.timedelta(hours=timeoutVal)
+        sortTimeLimit = naive_utcnow() - datetime.timedelta(hours=3)
         sql = (
             "WITH p AS ("
             "SELECT MIN(PandaID) PandaID,jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType,workingGroup "
@@ -1105,7 +1106,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         sqlJJ += "AND jobDefinitionID=:jobDefID AND computingSite=:computingSite "
         timeoutMap = {}
         if resList != []:
-            recentRuntimeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=3)
+            recentRuntimeLimit = naive_utcnow() - datetime.timedelta(hours=3)
             # loop over all user/jobID combinations
             iComb = 0
             nComb = len(resList)
@@ -1144,9 +1145,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         if workingGroup not in timeoutMap:
                             tmp_timeoutVal = taskBuffer.getConfigValue("rebroker", f"ANALY_TIMEOUT_{workingGroup}")
                             if tmp_timeoutVal:
-                                timeoutMap[workingGroup] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(
-                                    hours=tmp_timeoutVal
-                                )
+                                timeoutMap[workingGroup] = naive_utcnow() - datetime.timedelta(hours=tmp_timeoutVal)
                             else:
                                 timeoutMap[workingGroup] = normalTimeLimit
                         tmp_normalTimeLimit = timeoutMap[workingGroup]
@@ -1205,7 +1204,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         _logger.error(f"rebrokerage failed with {str(e)} : {traceback.format_exc()}")
 
     # kill too long running jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=21)
+    timeLimit = naive_utcnow() - datetime.timedelta(days=21)
     status, res = taskBuffer.querySQLS(
         "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE creationTime<:creationTime",
         {":creationTime": timeLimit},
@@ -1238,7 +1237,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             time.sleep(10)
 
     # kill too long throttled jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=7)
+    timeLimit = naive_utcnow() - datetime.timedelta(days=7)
     var_map = {}
     var_map[":jobStatus"] = "throttled"
     var_map[":creationTime"] = timeLimit
@@ -1259,7 +1258,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     _logger.debug("kill invalid pmerge")
     var_map = {}
     var_map[":processingType"] = "pmerge"
-    var_map[":timeLimit"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=30)
+    var_map[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=30)
     sql = "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.jobsDefined4 WHERE processingType=:processingType AND modificationTime<:timeLimit "
     sql += "UNION "
     sql += "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.jobsActive4 WHERE processingType=:processingType AND modificationTime<:timeLimit "
@@ -1289,7 +1288,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     _memoryCheck("delete XML")
 
     # delete old files in DA cache
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=7)
+    timeLimit = naive_utcnow() - datetime.timedelta(days=7)
     files = os.listdir(panda_config.cache_dir)
     for file in files:
         # skip special test file
@@ -1321,7 +1320,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # sandbox
     _logger.debug("Touch sandbox")
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=1)
+    timeLimit = naive_utcnow() - datetime.timedelta(days=1)
     sqlC = (
         "SELECT hostName,fileName,creationTime,userName FROM ATLAS_PANDAMETA.userCacheUsage "
         "WHERE creationTime>:timeLimit AND creationTime>modificationTime "
@@ -1345,8 +1344,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 taskBuffer.querySQLS(sqlU, var_map)
 
     _logger.debug("Check sandbox")
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=1)
-    expireLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=30)
+    timeLimit = naive_utcnow() - datetime.timedelta(days=1)
+    expireLimit = naive_utcnow() - datetime.timedelta(days=30)
     sqlD = "DELETE FROM ATLAS_PANDAMETA.userCacheUsage WHERE userName=:userName AND fileName=:fileName "
     nRange = 100
     for i in range(nRange):

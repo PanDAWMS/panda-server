@@ -351,7 +351,7 @@ class MiscStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={taskID}")
         tmp_log.debug("start")
 
-        timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        timeNow = naive_utcnow()
         timeLimit = timeNow - datetime.timedelta(minutes=30)
 
         # update the task if it was not already updated in the last 30 minutes (avoid continuous recalculation)
@@ -889,7 +889,7 @@ class MiscStandaloneModule(BaseModule):
         sql1 += DatasetSpec.bindValuesExpression()
         sql2 = f"SELECT name FROM {tablename} WHERE vuid=:vuid "
         # time information
-        dataset.creationdate = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        dataset.creationdate = naive_utcnow()
         dataset.modificationdate = dataset.creationdate
         try:
             # subtype
@@ -1056,7 +1056,7 @@ class MiscStandaloneModule(BaseModule):
             for dataset in datasets:
                 tmp_log.debug(f"dataset={dataset.name} status={dataset.status})")
                 # time information
-                dataset.modificationdate = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                dataset.modificationdate = naive_utcnow()
                 # update
                 varMap = dataset.valuesMap()
                 varMap[":vuid"] = dataset.vuid
@@ -1424,7 +1424,7 @@ class MiscStandaloneModule(BaseModule):
             # get token keys
             token_keys = {}
             sql = f"SELECT dn, credname FROM {panda_config.schemaMETA}.proxykey WHERE expires>:limit ORDER BY expires DESC "
-            var_map = {":limit": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)}
+            var_map = {":limit": naive_utcnow()}
             self.cur.execute(sql + comment, var_map)
             res_list = self.cur.fetchall()
             for client_name, token_key in res_list:
@@ -2841,7 +2841,7 @@ class MiscStandaloneModule(BaseModule):
                 varMap[":workqueue_id"] = workqueue_id
                 varMap[":resource_name"] = resource_name
                 varMap[":component"] = component
-                varMap[":lockedTime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=time_limit)
+                varMap[":lockedTime"] = naive_utcnow() - datetime.timedelta(minutes=time_limit)
                 self.cur.execute(sqlCT + comment, varMap)
                 resCT = self.cur.fetchone()
             else:
@@ -2958,7 +2958,7 @@ class MiscStandaloneModule(BaseModule):
             varMap[":workqueue_id"] = workqueue_id
             varMap[":resource_name"] = resource_name
             varMap[":component"] = component
-            varMap[":lockedTime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=time_limit)
+            varMap[":lockedTime"] = naive_utcnow() - datetime.timedelta(minutes=time_limit)
             self.cur.execute(sqlCT + comment, varMap)
             resCT = self.cur.fetchone()
             if resCT is not None:
@@ -3126,7 +3126,7 @@ class MiscStandaloneModule(BaseModule):
                 sql = f"SELECT DISTINCT PandaID FROM {panda_config.schemaPANDA}.SQL_QUEUE WHERE topic=:topic AND creationTime<:timeLimit"
                 varMap = {
                     ":topic": SQL_QUEUE_TOPIC_async_dataset_update,
-                    ":timeLimit": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=1),
+                    ":timeLimit": naive_utcnow() - datetime.timedelta(minutes=1),
                 }
                 # start transaction
                 self.conn.begin()
