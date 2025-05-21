@@ -5,6 +5,8 @@ import socket
 import sys
 import time
 import traceback
+from contextlib import contextmanager
+from typing import Any, Generator
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -472,6 +474,37 @@ class BaseModule:
                 # wait for reconnection
                 time.sleep(1)
                 self.connect(reconnect=True)
+
+    # transaction as a context manager
+    @contextmanager
+    def transaction(self, name: str) -> Generator[tuple[Any, Any]]:
+        """
+        Context manager for transaction
+
+        Args:
+            name (str): name of the transaction to be shown in the log
+
+        Yields:
+            Any: the cursor object for executing SQL commands
+            Any: the logger object for logging in DBProxy
+        """
+        comment = " /* DBProxy.transaction */"
+        try:
+            tmp_log = self.create_tagged_logger(comment, tag=name)
+            tmp_log.debug("start")
+            # begin transaction
+            self.conn.begin()
+            # cursor and logger for the with block
+            yield (self.cur, tmp_log)
+            # commit transaction
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug("done")
+        except Exception as e:
+            # roll back
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            raise e
 
     # record status change
     def recordStatusChange(self, pandaID, jobStatus, jobInfo=None, infoMap={}, useCommit=True, no_late_bulk_exec=True, extracted_sqls=None):
