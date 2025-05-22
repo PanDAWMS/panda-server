@@ -448,7 +448,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     self.logger.debug(f"sleep {attempt}/{max_attempt}")
                     time.sleep(10)
             if not is_ok:
-                disp_error[dispatch_data_block] = f"setupper.setup_source() could not register dispatch_data_block with {err_str.split('\n')[-1]}"
+                tmp_str = err_str.split("\n")[-1]
+                disp_error[dispatch_data_block] = f"setupper.setup_source() could not register dispatch_data_block with {tmp_str}"
                 continue
             tmp_logger.debug(out)
             new_out = out
