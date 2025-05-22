@@ -7,7 +7,7 @@ import traceback
 import uuid
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandacommon.pandautils.PandaUtils import naive_utcnow
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
@@ -2978,13 +2978,9 @@ class JobComplexModule(BaseModule):
                 varMap[":pandaID"] = oldPandaIDs[0]
                 sqlOrigin = f"SELECT originPandaID FROM {panda_config.schemaJEDI}.JEDI_Job_Retry_History "
                 sqlOrigin += "WHERE jediTaskID=:jediTaskID AND newPandaID=:pandaID "
-                sqlOrigin += "AND (relationType IS NULL OR NOT relationType IN ("
-                for tmpType in EventServiceUtils.relationTypesForJS:
-                    tmpKey = f":{tmpType}"
-                    sqlOrigin += f"{tmpKey},"
-                    varMap[tmpKey] = tmpType
-                sqlOrigin = sqlOrigin[:-1]
-                sqlOrigin += ")) "
+                type_var_names_str, type_var_map = get_sql_IN_bind_variables(EventServiceUtils.relationTypesForJS, prefix=":", value_as_suffix=True)
+                sqlOrigin += f"AND (relationType IS NULL OR NOT relationType IN ({type_var_names_str}) "
+                varMap.update(type_var_map)
                 self.cur.execute(sqlOrigin + comment, varMap)
                 resOrigin = self.cur.fetchone()
                 if resOrigin is not None:
@@ -3554,13 +3550,9 @@ class JobComplexModule(BaseModule):
         varMap[":newPandaID"] = pandaID
         sqlFJ = f"SELECT MIN(originPandaID) FROM {panda_config.schemaJEDI}.JEDI_Job_Retry_History "
         sqlFJ += "WHERE jediTaskID=:jediTaskID AND newPandaID=:newPandaID "
-        sqlFJ += "AND (relationType IS NULL OR NOT relationType IN ("
-        for tmpType in EventServiceUtils.relationTypesForJS:
-            tmpKey = f":{tmpType}"
-            sqlFJ += f"{tmpKey},"
-            varMap[tmpKey] = tmpType
-        sqlFJ = sqlFJ[:-1]
-        sqlFJ += ")) "
+        type_var_names_str, type_var_map = get_sql_IN_bind_variables(EventServiceUtils.relationTypesForJS, prefix=":", value_as_suffix=True)
+        sqlFJ += f"AND (relationType IS NULL OR NOT relationType IN ({type_var_names_str}) "
+        varMap.update(type_var_map)
         cur.execute(sqlFJ + comment, varMap)
         resT = cur.fetchone()
         retList = []

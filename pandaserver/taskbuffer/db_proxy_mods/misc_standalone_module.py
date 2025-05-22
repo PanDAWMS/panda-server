@@ -270,25 +270,19 @@ class MiscStandaloneModule(BaseModule):
             varMap[":pandaID"] = jobID
 
             # Bind the files
-            f = 0
-            for fileID in input_fileIDs:
-                varMap[f":file{f}"] = fileID
-                f += 1
-            file_bindings = ",".join(f":file{i}" for i in range(len(input_fileIDs)))
+            file_var_names_str, file_var_map = get_sql_IN_bind_variables(input_fileIDs, prefix=":file")
+            varMap.update(file_var_map)
 
             # Bind the datasets
-            d = 0
-            for datasetID in input_datasetIDs:
-                varMap[f":dataset{d}"] = datasetID
-                d += 1
-            dataset_bindings = ",".join(f":dataset{i}" for i in range(len(input_fileIDs)))
+            ds_var_names_str, ds_var_map = get_sql_IN_bind_variables(input_datasetIDs, prefix=":dataset")
+            varMap.update(ds_var_map)
 
             sql_select = f"""
             SELECT jdc.fileid, jdc.nevents, jdc.startevent, jdc.endevent
             FROM ATLAS_PANDA.JEDI_Dataset_Contents jdc, ATLAS_PANDA.JEDI_Datasets jd
             WHERE jdc.JEDITaskID = :taskID
-            AND jdc.datasetID IN ({dataset_bindings})
-            AND jdc.fileID IN ({file_bindings})
+            AND jdc.datasetID IN ({ds_var_names_str})
+            AND jdc.fileID IN ({file_var_names_str})
             AND jd.datasetID = jdc.datasetID
             AND jd.masterID IS NULL
             AND jdc.pandaID = :pandaID
@@ -2211,25 +2205,19 @@ class MiscStandaloneModule(BaseModule):
                 varMap[":pandaID"] = jobID
 
                 # Bind the files
-                f = 0
-                for fileID in input_fileIDs:
-                    varMap[f":file{f}"] = fileID
-                    f += 1
-                file_bindings = ",".join(f":file{i}" for i in range(len(input_fileIDs)))
+                file_var_names_str, file_var_map = get_sql_IN_bind_variables(input_fileIDs, prefix=":file")
+                varMap.update(file_var_map)
 
                 # Bind the datasets
-                d = 0
-                for datasetID in input_datasetIDs:
-                    varMap[f":dataset{d}"] = datasetID
-                    d += 1
-                dataset_bindings = ",".join(f":dataset{i}" for i in range(len(input_fileIDs)))
+                ds_var_names_str, ds_var_map = get_sql_IN_bind_variables(input_datasetIDs, prefix=":dataset")
+                varMap.update(ds_var_map)
 
                 # Get the minimum maxAttempt value of the files
                 sql_select = f"""
                 select min(maxattempt) from ATLAS_PANDA.JEDI_Dataset_Contents
                 WHERE JEDITaskID = :taskID
-                AND datasetID IN ({dataset_bindings})
-                AND fileID IN ({file_bindings})
+                AND datasetID IN ({ds_var_names_str})
+                AND fileID IN ({file_var_names_str})
                 AND pandaID = :pandaID
                 """
                 self.cur.execute(sql_select + comment, varMap)
@@ -2246,8 +2234,8 @@ class MiscStandaloneModule(BaseModule):
                     UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
                     SET maxAttempt=:maxAttempt
                     WHERE JEDITaskID = :taskID
-                    AND datasetID IN ({dataset_bindings})
-                    AND fileID IN ({file_bindings})
+                    AND datasetID IN ({ds_var_names_str})
+                    AND fileID IN ({file_var_names_str})
                     AND pandaID = :pandaID
                     """
 
@@ -2289,25 +2277,19 @@ class MiscStandaloneModule(BaseModule):
                 }
 
                 # Bind the files
-                file_bindings = []
-                for index, file_id in enumerate(input_file_ids):
-                    var_map[f":file{index}"] = file_id
-                    file_bindings.append(f":file{index}")
-                file_bindings_str = ",".join(file_bindings)
+                file_var_names_str, file_var_map = get_sql_IN_bind_variables(input_file_ids, prefix=":file")
+                var_map.update(file_var_map)
 
                 # Bind the datasets
-                dataset_bindings = []
-                for index, dataset_id in enumerate(input_dataset_ids):
-                    var_map[f":dataset{index}"] = dataset_id
-                    dataset_bindings.append(f":dataset{index}")
-                dataset_bindings_str = ",".join(dataset_bindings)
+                ds_var_names_str, ds_var_map = get_sql_IN_bind_variables(input_dataset_ids, prefix=":dataset")
+                var_map.update(ds_var_map)
 
                 sql_update = f"""
                 UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
                 SET maxFailure = maxFailure + 1
                 WHERE JEDITaskID = :taskID
-                AND datasetID IN ({dataset_bindings_str})
-                AND fileID IN ({file_bindings_str})
+                AND datasetID IN ({ds_var_names_str})
+                AND fileID IN ({file_var_names_str})
                 AND pandaID = :pandaID
                 """
 
@@ -2357,18 +2339,15 @@ class MiscStandaloneModule(BaseModule):
                     varMap[":keepTrack"] = 1
 
                     # Bind the files
-                    f = 0
-                    for fileID in input_fileIDs:
-                        varMap[f":file{f}"] = fileID
-                        f += 1
-                    file_bindings = ",".join(f":file{i}" for i in range(len(input_fileIDs)))
+                    file_var_names_str, file_var_map = get_sql_IN_bind_variables(input_fileIDs, prefix=":file")
+                    varMap.update(file_var_map)
 
                     sql_update = f"""
                     UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
                     SET maxAttempt=attemptNr
                     WHERE JEDITaskID = :taskID
                     AND datasetID=:datasetID
-                    AND fileID IN ({file_bindings})
+                    AND fileID IN ({file_var_names_str})
                     AND maxAttempt IS NOT NULL AND attemptNr IS NOT NULL
                     AND maxAttempt > attemptNr
                     AND (maxFailure IS NULL OR failedAttempt IS NULL OR maxFailure > failedAttempt)
@@ -2512,13 +2491,9 @@ class MiscStandaloneModule(BaseModule):
                 sqlJ += "FROM {0}.{1} j, {0}.Datasets d ".format(panda_config.schemaPANDA, tableName)
                 sqlJ += "WHERE vo=:vo AND prodSourceLabel=:label "
                 if statusList is not None:
-                    sqlJ += "AND jobStatus IN ("
-                    for tmpStat in statusList:
-                        tmpKey = f":jobStat_{tmpStat}"
-                        sqlJ += f"{tmpKey},"
-                        varMap[tmpKey] = tmpStat
-                    sqlJ = sqlJ[:-1]
-                    sqlJ += ") "
+                    jobstat_var_names_str, jobstat_var_map = get_sql_IN_bind_variables(statusList, prefix=":jobStat_", value_as_suffix=True)
+                    sqlJ += f"AND jobStatus IN ({jobstat_var_names_str}) "
+                    varMap.update(jobstat_var_map)
                 sqlJ += "AND dispatchDBlock IS NOT NULL "
                 sqlJ += "AND d.name=j.dispatchDBlock AND d.modificationDate>CURRENT_DATE-14 "
                 sqlJ += "AND d.type=:dType "
@@ -3063,17 +3038,13 @@ class MiscStandaloneModule(BaseModule):
         try:
             varMap = {}
             varMap[":jediTaskID"] = task_id
-            sqlD = f"SELECT datasetName,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type IN ("
-
+            sqlD = f"SELECT datasetName,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
             # Old API expects comma separated types, while new API is taking directly a tuple of dataset types
             if type(dataset_types) == str:
                 dataset_types = dataset_types.split(",")
-
-            for tmp_type in dataset_types:
-                sqlD += f":{tmp_type},"
-                varMap[f":{tmp_type}"] = tmp_type
-            sqlD = sqlD[:-1]
-            sqlD += ") "
+            dstype_var_names_str, dstype_var_map = get_sql_IN_bind_variables(dataset_types, prefix=":", value_as_suffix=True)
+            sqlD += f"AND type IN ({dstype_var_names_str}) "
+            varMap.update(dstype_var_map)
             sqlS = f"SELECT lfn,scope,fileID,status FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
             sqlS += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID ORDER BY fileID "
             retVal = []

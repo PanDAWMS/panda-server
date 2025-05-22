@@ -9,7 +9,7 @@ import traceback
 import requests
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandautils.PandaUtils import naive_utcnow
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 from pandacommon.pandautils.thread_utils import GenericThread
 from urllib3.exceptions import InsecureRequestWarning
 
@@ -453,15 +453,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         sqlX = sql
         if workflow == "production":
             if len(workflows) > 2:
-                sqlX += "AND (s.data.workflow IS NULL OR s.data.workflow NOT IN ("
-                for ng_workflow in workflows:
-                    if ng_workflow in ["production", "analysis"]:
-                        continue
-                    tmp_key = f":w_{ng_workflow}"
-                    var_map[tmp_key] = ng_workflow
-                    sqlX += f"{tmp_key},"
-                sqlX = sqlX[:-1]
-                sqlX += ")) "
+                ng_workflow_var_names_str, ng_workflow_var_map = get_sql_IN_bind_variables(workflows, prefix=":w_", value_as_suffix=True)
+                sqlX += f"AND (s.data.workflow IS NULL OR s.data.workflow NOT IN ({ng_workflow_var_names_str}) "
+                var_map.update(ng_workflow_var_map)
         else:
             tmp_key = f":w_{workflow}"
             sqlX += f"AND s.data.workflow={tmp_key} "

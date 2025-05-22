@@ -5,7 +5,7 @@ import re
 import time
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandacommon.pandautils.PandaUtils import naive_utcnow
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
@@ -940,55 +940,25 @@ class JobStandaloneModule(BaseModule):
             varMap = {}
             varMap[":modificationTime"] = timeLimit
             if statList != []:
-                sql += "AND jobStatus IN ("
-                tmpIdx = 0
-                for tmpStat in statList:
-                    tmpKey = f":stat{tmpIdx}"
-                    varMap[tmpKey] = tmpStat
-                    sql += f"{tmpKey},"
-                    tmpIdx += 1
-                sql = sql[:-1]
-                sql += ") "
+                stat_var_names_str, stat_var_map = get_sql_IN_bind_variables(statList, prefix=":stat")
+                sql += f"AND jobStatus IN ({stat_var_names_str}) "
+                varMap.update(stat_var_map)
             if labels != []:
-                sql += "AND prodSourceLabel IN ("
-                tmpIdx = 0
-                for tmpStat in labels:
-                    tmpKey = f":label{tmpIdx}"
-                    varMap[tmpKey] = tmpStat
-                    sql += f"{tmpKey},"
-                    tmpIdx += 1
-                sql = sql[:-1]
-                sql += ") "
+                label_var_names_str, label_var_map = get_sql_IN_bind_variables(labels, prefix=":label")
+                sql += f"AND prodSourceLabel IN ({label_var_names_str}) "
+                varMap.update(label_var_map)
             if processTypes != []:
-                sql += "AND processingType IN ("
-                tmpIdx = 0
-                for tmpStat in processTypes:
-                    tmpKey = f":processType{tmpIdx}"
-                    varMap[tmpKey] = tmpStat
-                    sql += f"{tmpKey},"
-                    tmpIdx += 1
-                sql = sql[:-1]
-                sql += ") "
+                ptype_var_names_str, ptype_var_map = get_sql_IN_bind_variables(processTypes, prefix=":processType")
+                sql += f"AND processingType IN ({ptype_var_names_str}) "
+                varMap.update(ptype_var_map)
             if sites != []:
-                sql += "AND computingSite IN ("
-                tmpIdx = 0
-                for tmpStat in sites:
-                    tmpKey = f":site{tmpIdx}"
-                    varMap[tmpKey] = tmpStat
-                    sql += f"{tmpKey},"
-                    tmpIdx += 1
-                sql = sql[:-1]
-                sql += ") "
+                site_var_names_str, site_var_map = get_sql_IN_bind_variables(sites, prefix=":site")
+                sql += f"AND computingSite IN ({site_var_names_str}) "
+                varMap.update(site_var_map)
             if clouds != []:
-                sql += "AND cloud IN ("
-                tmpIdx = 0
-                for tmpStat in clouds:
-                    tmpKey = f":cloud{tmpIdx}"
-                    varMap[tmpKey] = tmpStat
-                    sql += f"{tmpKey},"
-                    tmpIdx += 1
-                sql = sql[:-1]
-                sql += ") "
+                cloud_var_names_str, cloud_var_map = get_sql_IN_bind_variables(clouds, prefix=":cloud")
+                sql += f"AND cloud IN ({cloud_var_names_str}) "
+                varMap.update(cloud_var_map)
             if onlyReassignable:
                 sql += "AND (relocationFlag IS NULL OR relocationFlag<>:relocationFlag) "
                 varMap[":relocationFlag"] = 2
@@ -2501,21 +2471,13 @@ class JobStandaloneModule(BaseModule):
                     "AND timeStamp<:timeStamp ".format(panda_config.schemaPANDA)
                 )
                 if labels is not None:
-                    sqlGR += "AND prodSourceLabel IN ("
-                    for l in labels:
-                        k = f":l_{l}"
-                        varMap[k] = l
-                        sqlGR += f"{k},"
-                    sqlGR = sqlGR[:-1]
-                    sqlGR += ") "
+                    label_var_names_str, label_var_map = get_sql_IN_bind_variables(labels, prefix=":l_", value_as_suffix=True)
+                    sqlGR += f"AND prodSourceLabel IN ({label_var_names_str}) "
+                    varMap.update(label_var_map)
                 if anti_labels is not None:
-                    sqlGR += "AND prodSourceLabel NOT IN ("
-                    for l in anti_labels:
-                        k = f":al_{l}"
-                        varMap[k] = l
-                        sqlGR += f"{k},"
-                    sqlGR = sqlGR[:-1]
-                    sqlGR += ") "
+                    anti_label_var_names_str, anti_label_var_map = get_sql_IN_bind_variables(anti_labels, prefix=":al_", value_as_suffix=True)
+                    sqlGR += f"AND prodSourceLabel NOT IN ({anti_label_var_names_str}) "
+                    varMap.update(anti_label_var_map)
                 sqlGR += "ORDER BY timeStamp " ") " "WHERE rownum<=:limit "
                 # start transaction
                 self.conn.begin()

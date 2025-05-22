@@ -8,7 +8,7 @@ import traceback
 import uuid
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandacommon.pandautils.PandaUtils import naive_utcnow
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
@@ -2537,17 +2537,15 @@ class TaskEventModule(BaseModule):
 
             # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
             var_map = {":jediTaskID": jedi_task_id}
-            i = 0
-            for input_type in input_types:
-                var_map[f":type{i}"] = input_type
-                i += 1
-            input_type_bindings = ",".join(f":type{i}" for i in range(len(input_types)))
+
+            input_type_var_names_str, input_type_var_map = get_sql_IN_bind_variables(input_types, prefix=":type")
+            var_map.update(input_type_var_map)
 
             sql_get_memory_stats = (
                 f"SELECT ramCount, count(*) "
                 f"FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabC "
                 f"WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID AND tabD.jediTaskID=:jediTaskID "
-                f"AND tabD.type IN ({input_type_bindings}) AND tabD.masterID IS NULL GROUP BY ramCount"
+                f"AND tabD.type IN ({input_type_var_names_str}) AND tabD.masterID IS NULL GROUP BY ramCount"
             )
 
             self.cur.execute(sql_get_memory_stats + comment, var_map)
@@ -2688,11 +2686,9 @@ class TaskEventModule(BaseModule):
                     # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
-                    i = 0
-                    for input_type in input_types:
-                        varMap[f":type{i}"] = input_type
-                        i += 1
-                    input_type_bindings = ",".join(f":type{i}" for i in range(len(input_types)))
+
+                    input_type_var_names_str, input_type_var_map = get_sql_IN_bind_variables(input_types, prefix=":type")
+                    varMap.update(input_type_var_map)
 
                     sqlMS = """
                              SELECT ramCount, count(*)
@@ -2704,7 +2700,7 @@ class TaskEventModule(BaseModule):
                              AND tabD.masterID IS NULL
                              GROUP BY ramCount
                              """.format(
-                        panda_config.schemaJEDI, input_type_bindings
+                        panda_config.schemaJEDI, input_type_var_names_str
                     )
 
                     self.cur.execute(sqlMS + comment, varMap)
@@ -3506,25 +3502,25 @@ class TaskEventModule(BaseModule):
                     "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA "
                     "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
                     "AND tabT.prodSourceLabel=:prodSourceLabel AND tabT.userName=:userName "
-                    "AND tabT.status IN ("
                 ).format(panda_config.schemaJEDI)
                 varMapTot = {}
                 varMapTot[":prodSourceLabel"] = taskParamsJson["prodSourceLabel"]
                 varMapTot[":userName"] = taskParamsJson["userName"]
-                for st in [
-                    "registered",
-                    "defined",
-                    "ready",
-                    "scouting",
-                    "running",
-                    "paused",
-                    "throttled",
-                ]:
-                    key = f":{st}"
-                    sqlTOT += f"{key},"
-                    varMapTot[key] = st
-                sqlTOT = sqlTOT[:-1]
-                sqlTOT += ") "
+                st_var_names_str, st_var_map = get_sql_IN_bind_variables(
+                    [
+                        "registered",
+                        "defined",
+                        "ready",
+                        "scouting",
+                        "running",
+                        "paused",
+                        "throttled",
+                    ],
+                    prefix=":",
+                    value_as_suffix=True,
+                )
+                sqlTOT += f"AND tabT.status IN ({st_var_names_str}) "
+                varMapTot.update(st_var_map)
                 self.cur.execute(sqlTOT + comment, varMapTot)
                 resTOT = self.cur.fetchone()
                 if resTOT is not None and resTOT[0] > max_n_tasks:

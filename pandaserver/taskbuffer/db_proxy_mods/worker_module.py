@@ -5,7 +5,7 @@ import re
 import sys
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandacommon.pandautils.PandaUtils import naive_utcnow
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
@@ -532,9 +532,9 @@ class WorkerModule(BaseModule):
 
             # if we need to filter on resource types
             if resource_types_under_target:
-                resource_type_string = ", ".join([f":{item}" for item in resource_types_under_target])
-                sql += f"   AND resource_type IN ({resource_type_string}) "
-                var_map.update({f":{item}": item for item in resource_types_under_target})
+                rtype_var_names_str, rtype_var_map = get_sql_IN_bind_variables(resource_types_under_target, prefix=":", value_as_suffix=True)
+                sql += f"   AND resource_type IN ({rtype_var_names_str}) "
+                var_map.update(rtype_var_map)
 
             sql += "ORDER BY currentpriority DESC"
             self.cur.execute(sql + comment, var_map)

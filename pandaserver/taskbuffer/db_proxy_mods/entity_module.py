@@ -149,15 +149,10 @@ class EntityModule(BaseModule):
 
         elif type(parents) in (list, tuple):
             # Get the children of a list of shares
-            i = 0
             var_map = {}
-            for parent in parents:
-                key = f":parent{i}"
-                var_map[key] = parent
-                i += 1
-
-            parentBindings = ",".join(f":parent{i}" for i in range(len(parents)))
-            sql += f"WHERE parent IN ({parentBindings})"
+            parent_var_names_str, parent_var_map = get_sql_IN_bind_variables(parents, prefix=":parent")
+            sql += f"WHERE parent IN ({parent_var_names_str})"
+            var_map.update(parent_var_map)
 
         self.cur.execute(sql + comment, var_map)
         resList = self.cur.fetchall()
