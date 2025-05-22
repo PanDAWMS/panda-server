@@ -6,7 +6,6 @@ import sys
 import time
 import traceback
 from contextlib import contextmanager
-from typing import Any, Generator
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -477,7 +476,7 @@ class BaseModule:
 
     # transaction as a context manager
     @contextmanager
-    def transaction(self, name: str) -> Generator[tuple[Any, Any]]:
+    def transaction(self, name: str):
         """
         Context manager for transaction
 
