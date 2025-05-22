@@ -34,7 +34,7 @@ def get_banned_users(req: PandaRequest) -> dict:
 
     API details:
         HTTP Method: GET
-        Path: /metaconfig/v1/get_banned_users
+        Path: /v1/metaconfig/get_banned_users
 
     Args:
         req(PandaRequest): internally generated request object
@@ -60,7 +60,7 @@ def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict:
 
     API details:
         HTTP Method: GET
-        Path: /metaconfig/v1/get_site_specs
+        Path: /v1/metaconfig/get_site_specs
 
     Args:
         req(PandaRequest): internally generated request object
@@ -98,7 +98,7 @@ def get_resource_types(req: PandaRequest):
 
     API details:
         HTTP Method: GET
-        Path: /metaconfig/v1/get_resource_types
+        Path: /v1/metaconfig/get_resource_types
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.

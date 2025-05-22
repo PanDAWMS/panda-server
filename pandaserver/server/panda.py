@@ -25,6 +25,8 @@ from werkzeug.formparser import parse_form_data
 
 import pandaserver.taskbuffer.ErrorCode
 from pandaserver.api.v1 import credential_management_api as cred_api_v1
+from pandaserver.api.v1 import data_carousel_api as data_carousel_api_v1
+from pandaserver.api.v1 import event_api as event_api_v1
 from pandaserver.api.v1 import file_server_api as file_server_api_v1
 from pandaserver.api.v1 import harvester_api as harvester_api_v1
 from pandaserver.api.v1 import idds_api as idds_api_v1
@@ -156,6 +158,8 @@ LATEST = "1"
 # generate the allowed methods dynamically with all function names present in the API modules,
 # excluding functions imported from other modules or the init_task_buffer function
 cred_api_v1_methods = extract_allowed_methods(cred_api_v1)
+data_carousel_api_v1_methods = extract_allowed_methods(data_carousel_api_v1)
+event_api_v1_methods = extract_allowed_methods(event_api_v1)
 file_server_api_v1_methods = extract_allowed_methods(file_server_api_v1)
 harvester_api_v1_methods = extract_allowed_methods(harvester_api_v1)
 idds_api_v1_methods = extract_allowed_methods(idds_api_v1)
@@ -182,6 +186,8 @@ taskBuffer.init(
 if panda_config.nDBConnection != 0:
     # initialize all the API modules
     cred_api_v1.init_task_buffer(taskBuffer)
+    data_carousel_api_v1.init_task_buffer(taskBuffer)
+    event_api_v1.init_task_buffer(taskBuffer)
     file_server_api_v1.init_task_buffer(taskBuffer)
     harvester_api_v1.init_task_buffer(taskBuffer)
     # IDDS API does not need to be initialized. idds_server_api_v1.init_task_buffer(taskBuffer)
@@ -349,6 +355,8 @@ def module_mapping(version, api_module):
         "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},  # legacy API uses globals instead of a particular module
         "v1": {
             "creds": {"module": cred_api_v1, "allowed_methods": cred_api_v1_methods},
+            "data_carousel": {"module": data_carousel_api_v1, "allowed_methods": data_carousel_api_v1_methods},
+            "event": {"module": event_api_v1, "allowed_methods": event_api_v1_methods},
             "file_server": {"module": file_server_api_v1, "allowed_methods": file_server_api_v1_methods},
             "harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods},
             "idds": {"module": idds_api_v1, "allowed_methods": idds_api_v1_methods},
@@ -385,13 +393,16 @@ def application(environ, start_response):
     cont_length = int(environ.get("CONTENT_LENGTH", 0))
     request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
 
-    # json app means the content type is application/json,
-    # while json body requires additionally to be a PUT or POST request, where the body is json encoded
-    json_app = environ.get("CONTENT_TYPE", None) == "application/json"
-    json_body = environ.get("CONTENT_TYPE", None) == "application/json" and request_method in ["PUT", "POST"]
-
     # see if we are on the new or old APIs
     new_api = is_new_api(api_module)
+
+    # json app means the content type is application/json,
+    # while json body requires additionally to be a PUT or POST request, where the body is json encoded
+    if new_api:
+        json_app = environ.get("CONTENT_TYPE", None) == "application/json" or environ.get("HTTP_ACCEPT", None) == "application/json"
+    else:
+        json_app = environ.get("CONTENT_TYPE", None) == "application/json"
+    json_body = environ.get("CONTENT_TYPE", None) == "application/json" and request_method in ["PUT", "POST"]
 
     # Content encoding specifies whether the body is compressed through gzip or others.
     # No encoding usually means the body is not compressed

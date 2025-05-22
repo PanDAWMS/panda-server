@@ -295,6 +295,7 @@ class WorkerModule(BaseModule):
         comment = " /* DBProxy.get_average_memory_workers */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
+
         try:
             # sql to calculate the average memory for the queue - harvester_id combination
             # "* 1" in sj.data.blah * 1 is required to notify postgres the data type is an int since json element is
@@ -436,9 +437,13 @@ class WorkerModule(BaseModule):
             tmp_log.error("No harvester instance assigned or not in statistics")
             return {}
 
+        # There is the case where the grid has no workloads and running HIMEM jobs is better than running no jobs
+        ignore_meanrss = self.getConfigValue("meanrss", "IGNORE_MEANRSS")
+        tmp_log.debug(f"Accepting all resource types since meanrss throttling is ignored")
+
         # If the site defined a memory target, calculate the memory requested by running and queued workers
         resource_types_under_target = []
-        if average_memory_target:
+        if ignore_meanrss != True and average_memory_target:
             average_memory_workers_running_submitted, average_memory_workers_running = self.get_average_memory_workers(
                 queue, harvester_id, average_memory_target
             )
@@ -1070,6 +1075,7 @@ class WorkerModule(BaseModule):
         cpu_architecture_level,
         clock_speed,
         total_memory,
+        total_local_disk,
     ):
         comment = " /* DBProxy.update_worker_node */"
         method_name = comment.split(" ")[-2].split(".")[-1]
@@ -1092,8 +1098,7 @@ class WorkerModule(BaseModule):
             var_map = {":site": site, ":host_name": host_name, ":cpu_model": cpu_model}
 
             sql = (
-                "SELECT site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
-                "cpu_architecture, cpu_architecture_level, clock_speed, total_memory "
+                "SELECT site, host_name, cpu_model "
                 "FROM ATLAS_PANDA.worker_node "
                 "WHERE site=:site AND host_name=:host_name AND cpu_model=:cpu_model "
                 "FOR UPDATE NOWAIT"
@@ -1129,16 +1134,17 @@ class WorkerModule(BaseModule):
                 ":cpu_architecture_level": cpu_architecture_level,
                 ":clock_speed": clock_speed,
                 ":total_memory": total_memory,
+                ":total_local_disk": total_local_disk,
                 ":last_seen": timestamp_utc,
             }
 
             sql = (
                 "INSERT INTO ATLAS_PANDA.worker_node "
                 "(site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
-                "cpu_architecture, cpu_architecture_level, clock_speed, total_memory, last_seen) "
+                "cpu_architecture, cpu_architecture_level, clock_speed, total_memory, total_local_disk, last_seen) "
                 "VALUES "
                 "(:site, :host_name, :cpu_model, :n_logical_cpus, :n_sockets, :cores_per_socket, :threads_per_core, "
-                ":cpu_architecture, :cpu_architecture_level, :clock_speed, :total_memory, :last_seen)"
+                ":cpu_architecture, :cpu_architecture_level, :clock_speed, :total_memory, :total_local_disk, :last_seen)"
             )
 
             self.cur.execute(sql + comment, var_map)

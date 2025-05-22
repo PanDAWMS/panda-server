@@ -20,6 +20,7 @@ from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id, resolve_bool
 from pandaserver.taskbuffer import JobUtils, PrioUtil
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
 
 try:
@@ -370,8 +371,12 @@ class UserIF:
         return ret
 
     # reload input
-    def reloadInput(self, jediTaskID, user, prodRole):
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID, user, prodRole, "incexec", comComment="{}", properErrorCode=True)
+    def reloadInput(self, jediTaskID, user, prodRole, ignore_hard_exhausted):
+        if not prodRole and ignore_hard_exhausted:
+            ignore_hard_exhausted = False
+        com_qualifier = JediTaskSpec.get_retry_command_qualifiers(ignore_hard_exhausted=ignore_hard_exhausted)
+        com_comment = json.dumps([{}, com_qualifier])
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID, user, prodRole, "incexec", comComment=com_comment, properErrorCode=True)
         return ret
 
     # retry task
@@ -386,6 +391,7 @@ class UserIF:
         discardEvents,
         disable_staging_mode,
         keep_gshare_priority,
+        ignore_hard_exhausted,
     ):
         # retry with new params
         if newParams is not None:
@@ -413,16 +419,12 @@ class UserIF:
                 err_type, err_value = sys.exc_info()[:2]
                 ret = 1, f"server error with {err_type}:{err_value}"
         else:
-            com_qualifier = ""
-            for com_key, com_param in [
-                ("sole", noChildRetry),
-                ("discard", discardEvents),
-                ("staged", disable_staging_mode),
-                ("keep", keep_gshare_priority),
-            ]:
-                if com_param:
-                    com_qualifier += f"{com_key} "
-            com_qualifier = com_qualifier.strip()
+            if not prodRole and ignore_hard_exhausted:
+                ignore_hard_exhausted = False
+            com_qualifier = JediTaskSpec.get_retry_command_qualifiers(
+                noChildRetry, discardEvents, disable_staging_mode, keep_gshare_priority, ignore_hard_exhausted
+            )
+            com_qualifier = " ".join(com_qualifier)
             # normal retry
             ret = self.taskBuffer.sendCommandTaskPanda(
                 jediTaskID,
@@ -1010,12 +1012,14 @@ def retryTask(
     discardEvents=None,
     disable_staging_mode=None,
     keep_gshare_priority=None,
+    ignore_hard_exhausted=None,
 ):
     properErrorCode = resolve_true(properErrorCode)
     noChildRetry = resolve_true(noChildRetry)
     discardEvents = resolve_true(discardEvents)
     disable_staging_mode = resolve_true(disable_staging_mode)
     keep_gshare_priority = resolve_true(keep_gshare_priority)
+    ignore_hard_exhausted = resolve_true(ignore_hard_exhausted)
 
     # check security
     if not isSecure(req):
@@ -1045,6 +1049,7 @@ def retryTask(
         discardEvents,
         disable_staging_mode,
         keep_gshare_priority,
+        ignore_hard_exhausted,
     )
     return WrappedPickle.dumps(ret)
 
@@ -1112,7 +1117,7 @@ def finishTask(req, jediTaskID=None, properErrorCode=None, soft=None, broadcast=
 
 
 # reload input
-def reloadInput(req, jediTaskID, properErrorCode=None):
+def reloadInput(req, jediTaskID, properErrorCode=None, ignore_hard_exhausted=None):
     properErrorCode = resolve_true(properErrorCode)
     # check security
     if not isSecure(req):
@@ -1131,8 +1136,8 @@ def reloadInput(req, jediTaskID, properErrorCode=None):
     except Exception:
         error_code = CODE_LOGIC if properErrorCode else False
         return WrappedPickle.dumps((error_code, MESSAGE_TASK_ID))
-
-    ret = userIF.reloadInput(jediTaskID, user, is_production_role)
+    ignore_hard_exhausted = resolve_true(ignore_hard_exhausted)
+    ret = userIF.reloadInput(jediTaskID, user, is_production_role, ignore_hard_exhausted)
     return WrappedPickle.dumps(ret)
 
 

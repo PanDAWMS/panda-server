@@ -2,6 +2,7 @@
 find candidate site to distribute input datasets
 
 """
+
 import datetime
 import fnmatch
 import re
@@ -652,7 +653,7 @@ class DynDataDistributer:
         tmp_logger.debug(f"list_datasets_by_guids {str(guids)}")
 
         res_for_failure = (False, {})
-        res_for_fatal = (False, {"isFatal": True}, [])
+        res_for_fatal = (False, {"isFatal": True})
 
         # get size of datasets
         for attempt in range(max_attempts):

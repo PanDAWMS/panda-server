@@ -21,6 +21,11 @@ from pandaserver.taskbuffer import (
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMBER
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.FileSpec import FileSpec
+from pandaserver.taskbuffer.JediDatasetSpec import (
+    INPUT_TYPES_var_map,
+    INPUT_TYPES_var_str,
+)
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
 try:
@@ -3843,6 +3848,7 @@ class TaskEventModule(BaseModule):
                     if taskStatus not in [
                         "finished",
                         "failed",
+                        "aborted",
                         "done",
                         "exhausted",
                     ]:
@@ -4460,6 +4466,462 @@ class TaskEventModule(BaseModule):
             # error
             self.dump_error_message(tmp_log)
             return 0
+
+    # get active jumbo jobs for a task
+    def getActiveJumboJobs_JEDI(self, jediTaskID):
+        comment = " /* JediDBProxy.getActiveJumboJobs_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
+        tmpLog.debug("start")
+        try:
+            # sql
+            sql = "SELECT PandaID,jobStatus,computingSite "
+            sql += f"FROM {panda_config.schemaPANDA}.jobsDefined4 "
+            sql += "WHERE jediTaskID=:jediTaskID AND eventService=:jumboJob "
+            sql += "UNION "
+            sql += "SELECT PandaID,jobStatus,computingSite "
+            sql += f"FROM {panda_config.schemaPANDA}.jobsActive4 "
+            sql += "WHERE jediTaskID=:jediTaskID AND eventService=:jumboJob "
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            varMap[":jumboJob"] = EventServiceUtils.jumboJobFlagNumber
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sql + comment, varMap)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            retMap = {}
+            for pandaID, jobStatus, computingSite in resList:
+                if jobStatus in ["transferring", "holding"]:
+                    continue
+                retMap[pandaID] = {"status": jobStatus, "site": computingSite}
+            tmpLog.debug(str(retMap))
+            return retMap
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return {}
+
+    # set useJumbo flag
+    def setUseJumboFlag_JEDI(self, jediTaskID, statusStr):
+        comment = " /* JediDBProxy.setUseJumboFlag_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} status={statusStr}")
+        tmpLog.debug("start")
+        try:
+            # check current flag
+            sqlCF = f"SELECT useJumbo FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+            sqlCF += "WHERE jediTaskID=:jediTaskID "
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlCF + comment, varMap)
+            (curStr,) = self.cur.fetchone()
+            # check files
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            sqlFF = f"SELECT nFilesToBeUsed-nFilesUsed-nFilesWaiting FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+            sqlFF += "WHERE jediTaskID=:jediTaskID "
+            sqlFF += f"AND type IN ({INPUT_TYPES_var_str}) "
+            varMap.update(INPUT_TYPES_var_map)
+            sqlFF += "AND masterID IS NULL "
+            self.cur.execute(sqlFF + comment, varMap)
+            (nFiles,) = self.cur.fetchone()
+            # disallow some transition
+            retVal = True
+            if statusStr == "pending" and curStr == JediTaskSpec.enum_useJumbo["lack"]:
+                # to prevent from changing lack to pending
+                statusStr = "lack"
+                tmpLog.debug(f"changed to {statusStr} since to pending is not allowed")
+                retVal = False
+            elif statusStr == "running" and curStr == JediTaskSpec.enum_useJumbo["pending"]:
+                # to running from pending only when all files are used
+                if nFiles != 0:
+                    statusStr = "pending"
+                    tmpLog.debug(f"changed to {statusStr} since nFiles={nFiles}")
+                    retVal = False
+            elif statusStr == "pending" and curStr == JediTaskSpec.enum_useJumbo["running"]:
+                # to pending from running only when some files are available
+                if nFiles == 0:
+                    statusStr = "running"
+                    tmpLog.debug(f"changed to {statusStr} since nFiles == 0")
+                    retVal = False
+            # set jumbo
+            sqlDJ = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET useJumbo=:status "
+            sqlDJ += "WHERE jediTaskID=:jediTaskID "
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            varMap[":status"] = JediTaskSpec.enum_useJumbo[statusStr]
+            self.cur.execute(sqlDJ + comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmpLog.debug(f"set {curStr} -> {varMap[':status']}")
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return False
+
+    # get number of tasks with running jumbo jobs
+    def getNumTasksWithRunningJumbo_JEDI(self, vo, prodSourceLabel, cloudName, workqueue):
+        comment = " /* JediDBProxy.getNumTasksWithRunningJumbo_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} cloud={cloudName} queue={workqueue.queue_name}")
+        tmpLog.debug("start")
+        try:
+            # get tasks
+            sqlDJ = f"SELECT task_count FROM {panda_config.schemaJEDI}.MV_RUNNING_JUMBO_TASK_COUNT "
+            sqlDJ += "WHERE vo=:vo AND prodSourceLabel=:label AND cloud=:cloud "
+            sqlDJ += "AND useJumbo in (:useJumbo1,:useJumbo2) AND status IN (:st1,:st2,:st3) "
+            varMap = {}
+            varMap[":vo"] = vo
+            varMap[":label"] = prodSourceLabel
+            varMap[":cloud"] = cloudName
+            if workqueue.is_global_share:
+                sqlDJ += "AND gshare =:gshare "
+                sqlDJ += f"AND workqueue_id NOT IN (SELECT queue_id FROM {panda_config.schemaJEDI}.jedi_work_queue WHERE queue_function = 'Resource') "
+                varMap[":gshare"] = workqueue.queue_name
+            else:
+                sqlDJ += "AND workQueue_ID =:queue_id "
+                varMap[":queue_id"] = workqueue.queue_id
+            varMap[":st1"] = "running"
+            varMap[":st2"] = "pending"
+            varMap[":st3"] = "ready"
+            varMap[":useJumbo1"] = JediTaskSpec.enum_useJumbo["running"]
+            varMap[":useJumbo2"] = JediTaskSpec.enum_useJumbo["pending"]
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlDJ + comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            res = self.cur.fetchone()
+            if res is None:
+                nTasks = 0
+            else:
+                nTasks = res[0]
+            # return
+            tmpLog.debug(f"got {nTasks} tasks")
+            return nTasks
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return 0
+
+    # get number of unprocessed events
+    def getNumUnprocessedEvents_JEDI(self, vo, prodSourceLabel, criteria, neg_criteria):
+        comment = " /* JediDBProxy.getNumUnprocessedEvents_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
+        tmpLog.debug(f"start with criteria={str(criteria)} neg={str(neg_criteria)}")
+        try:
+            # get num events
+            varMap = {}
+            varMap[":vo"] = vo
+            varMap[":label"] = prodSourceLabel
+            varMap[":type"] = "input"
+            sqlDJ = "SELECT SUM(nEvents),MAX(creationDate) FROM ("
+            sqlDJ += "SELECT CASE tabD.nFiles WHEN 0 THEN 0 ELSE tabD.nEvents*(tabD.nFiles-tabD.nFilesUsed)/tabD.nFiles END nEvents,"
+            sqlDJ += "tabT.creationDate creationDate "
+            sqlDJ += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
+            sqlDJ += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+            sqlDJ += "AND tabT.jediTaskID=tabD.jediTaskID "
+            sqlDJ += "AND tabT.vo=:vo AND tabT.prodSourceLabel=:label "
+            sqlDJ += "AND tabT.status IN (:st1,:st2,:st3,:st4,:st5,:st6,:st7) AND tabD.type=:type AND tabD.masterID IS NULL "
+            for key, val in criteria.items():
+                sqlDJ += "AND tabT.{0}=:{0} ".format(key)
+                varMap[f":{key}"] = val
+            for key, val in neg_criteria.items():
+                sqlDJ += "AND tabT.{0}<>:neg_{0} ".format(key)
+                varMap[f":neg_{key}"] = val
+            sqlDJ += ") "
+            varMap[":st1"] = "running"
+            varMap[":st2"] = "pending"
+            varMap[":st3"] = "ready"
+            varMap[":st4"] = "scouting"
+            varMap[":st5"] = "registered"
+            varMap[":st6"] = "defined"
+            varMap[":st7"] = "assigning"
+            # sql to get pending tasks
+            sqlPD = "SELECT COUNT(1) "
+            sqlPD += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
+            sqlPD += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+            sqlPD += "AND tabT.vo=:vo AND tabT.prodSourceLabel=:label "
+            sqlPD += "AND tabT.status IN (:st1,:st2) "
+            for key, val in criteria.items():
+                sqlPD += "AND tabT.{0}=:{0} ".format(key)
+            # get num events
+            self.conn.begin()
+            self.cur.execute(sqlDJ + comment, varMap)
+            nEvents, lastTaskTime = self.cur.fetchone()
+            if nEvents is None:
+                nEvents = 0
+            # get num of pending tasks
+            varMap = dict()
+            varMap[":vo"] = vo
+            varMap[":label"] = prodSourceLabel
+            varMap[":st1"] = "pending"
+            varMap[":st2"] = "registered"
+            for key, val in criteria.items():
+                varMap[f":{key}"] = val
+            self.cur.execute(sqlPD + comment, varMap)
+            (nPending,) = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmpLog.debug(f"got nEvents={nEvents} lastTaskTime={lastTaskTime} nPendingTasks={nPending}")
+            return nEvents, lastTaskTime, nPending
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return None, None, None
+
+    # get tasks with jumbo jobs
+    def getTaskWithJumbo_JEDI(self, vo, prodSourceLabel):
+        comment = " /* JediDBProxy.getTaskWithJumbo_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
+        tmpLog.debug("start")
+        try:
+            # sql to get tasks
+            sqlAV = "SELECT t.jediTaskID,t.status,t.splitRule,t.useJumbo,d.nEvents,t.currentPriority,"
+            sqlAV += "d.nFiles,d.nFilesFinished,d.nFilesFailed,t.site,d.nEventsUsed "
+            sqlAV += "FROM {0}.JEDI_Tasks t,{0}.JEDI_Datasets d ".format(panda_config.schemaJEDI)
+            sqlAV += "WHERE t.prodSourceLabel=:prodSourceLabel AND t.vo=:vo AND t.useJumbo IS NOT NULL "
+            sqlAV += "AND t.status IN (:s1,:s2,:s3,:s4,:s5) "
+            sqlAV += "AND d.jediTaskID=t.jediTaskID "
+            sqlAV += f"AND d.type IN ({INPUT_TYPES_var_str}) "
+            sqlAV += "AND d.masterID IS NULL "
+            # sql to get event stat info
+            sqlFR = "SELECT /*+ INDEX_RS_ASC(c (JEDI_DATASET_CONTENTS.JEDITASKID JEDI_DATASET_CONTENTS.DATASETID JEDI_DATASET_CONTENTS.FILEID)) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) NO_INDEX(tab JEDI_EVENTS_PANDAID_STATUS_IDX)*/ "
+            sqlFR += "tab.status,COUNT(*) "
+            sqlFR += "FROM {0}.JEDI_Events tab,{0}.JEDI_Dataset_Contents c ".format(panda_config.schemaJEDI)
+            sqlFR += "WHERE tab.jediTaskID=:jediTaskID AND c.jediTaskID=tab.jediTaskID AND c.datasetid=tab.datasetID "
+            sqlFR += "AND c.fileID=tab.fileID AND c.status<>:status "
+            sqlFR += "GROUP BY tab.status "
+            # sql to get jumbo jobs
+            sqlUO = f"SELECT computingSite,jobStatus FROM {panda_config.schemaPANDA}.jobsDefined4 "
+            sqlUO += "WHERE jediTaskID=:jediTaskID AND eventService=:eventService "
+            sqlUO += "UNION "
+            sqlUO += f"SELECT computingSite,jobStatus FROM {panda_config.schemaPANDA}.jobsActive4 "
+            sqlUO += "WHERE jediTaskID=:jediTaskID AND eventService=:eventService "
+            sqlUO += "UNION "
+            sqlUO += f"SELECT computingSite,jobStatus FROM {panda_config.schemaPANDA}.jobsArchived4 "
+            sqlUO += "WHERE jediTaskID=:jediTaskID AND eventService=:eventService "
+            sqlUO += "AND modificationTime>CURRENT_DATE-1 "
+            self.conn.begin()
+            # get tasks
+            varMap = dict()
+            varMap[":vo"] = vo
+            varMap[":prodSourceLabel"] = prodSourceLabel
+            varMap[":s1"] = "running"
+            varMap[":s2"] = "pending"
+            varMap[":s3"] = "scouting"
+            varMap[":s4"] = "ready"
+            varMap[":s5"] = "scouted"
+            varMap.update(INPUT_TYPES_var_map)
+            self.cur.execute(sqlAV + comment, varMap)
+            resAV = self.cur.fetchall()
+            tmpLog.debug("got tasks")
+            tasksWithJumbo = dict()
+            for jediTaskID, taskStatus, splitRule, useJumbo, nEvents, currentPriority, nFiles, nFilesFinished, nFilesFailed, taskSite, nEventsUsed in resAV:
+                tasksWithJumbo[jediTaskID] = dict()
+                taskData = tasksWithJumbo[jediTaskID]
+                taskData["taskStatus"] = taskStatus
+                taskData["nEvents"] = nEvents
+                taskData["useJumbo"] = useJumbo
+                taskData["currentPriority"] = currentPriority
+                taskData["site"] = taskSite
+                taskSpec = JediTaskSpec()
+                taskSpec.useJumbo = useJumbo
+                taskSpec.splitRule = splitRule
+                taskData["nJumboJobs"] = taskSpec.getNumJumboJobs()
+                taskData["maxJumboPerSite"] = taskSpec.getMaxJumboPerSite()
+                taskData["nFiles"] = nFiles
+                taskData["nFilesDone"] = nFilesFinished + nFilesFailed
+                # get event stat info
+                varMap = dict()
+                varMap[":jediTaskID"] = jediTaskID
+                varMap[":status"] = "finished"
+                self.cur.execute(sqlFR + comment, varMap)
+                resFR = self.cur.fetchall()
+                tmpLog.debug(f"got event stat info for jediTaskID={jediTaskID}")
+                nEventsDone = nEventsUsed
+                nEventsRunning = 0
+                for eventStatus, eventCount in resFR:
+                    if eventStatus in [EventServiceUtils.ST_done, EventServiceUtils.ST_finished, EventServiceUtils.ST_merged]:
+                        nEventsDone += eventCount
+                    elif eventStatus in [EventServiceUtils.ST_sent, EventServiceUtils.ST_running]:
+                        nEventsRunning += eventCount
+                taskData["nEventsDone"] = nEventsDone
+                taskData["nEventsRunning"] = nEventsRunning
+                # get jumbo jobs
+                varMap = dict()
+                varMap[":jediTaskID"] = jediTaskID
+                varMap[":eventService"] = EventServiceUtils.jumboJobFlagNumber
+                self.cur.execute(sqlUO + comment, varMap)
+                resUO = self.cur.fetchall()
+                tmpLog.debug(f"got jumbo jobs for jediTaskID={jediTaskID}")
+                taskData["jumboJobs"] = dict()
+                for computingSite, jobStatus in resUO:
+                    taskData["jumboJobs"].setdefault(computingSite, dict())
+                    taskData["jumboJobs"][computingSite].setdefault(jobStatus, 0)
+                    taskData["jumboJobs"][computingSite][jobStatus] += 1
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmpLog.debug(f"done with {str(tasksWithJumbo)}")
+            return tasksWithJumbo
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return dict()
+
+    # kick pending tasks with jumbo jobs
+    def kickPendingTasksWithJumbo_JEDI(self, jediTaskID):
+        comment = " /* JediDBProxy.kickPendingTasksWithJumbo_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
+        tmpLog.debug("start")
+        try:
+            # sql to kick
+            sqlAV = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+            sqlAV += "SET useJumbo=:useJumboL "
+            sqlAV += "WHERE jediTaskID=:jediTaskID AND useJumbo IN (:useJumboP,:useJumboR) "
+            sqlAV += "AND status IN (:statusR,:statusP) AND lockedBy IS NULL "
+            self.conn.begin()
+            # get tasks
+            varMap = dict()
+            varMap[":jediTaskID"] = jediTaskID
+            varMap[":statusP"] = "pending"
+            varMap[":statusR"] = "running"
+            varMap[":useJumboL"] = JediTaskSpec.enum_useJumbo["lack"]
+            varMap[":useJumboP"] = JediTaskSpec.enum_useJumbo["pending"]
+            varMap[":useJumboR"] = JediTaskSpec.enum_useJumbo["running"]
+            self.cur.execute(sqlAV + comment, varMap)
+            nDone = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmpLog.debug(f"kicked with {nDone}")
+            return nDone
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return None
+
+    # reset input to re-generate co-jumbo jobs
+    def resetInputToReGenCoJumbo_JEDI(self, jediTaskID):
+        comment = " /* JediDBProxy.resetInputToReGenCoJumbo_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
+        tmpLog.debug("start")
+        try:
+            nReset = 0
+            # sql to get JDI files
+            sqlF = "SELECT c.datasetID,c.fileID FROM {0}.JEDI_Datasets d, {0}.JEDI_Dataset_Contents c ".format(panda_config.schemaJEDI)
+            sqlF += "WHERE d.jediTaskID=:jediTaskID "
+            sqlF += f"AND d.type IN ({INPUT_TYPES_var_str}) "
+            sqlF += "AND d.masterID IS NULL "
+            sqlF += "AND c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID AND c.status=:status "
+            # sql to get PandaIDs
+            sqlP = f"SELECT PandaID FROM {panda_config.schemaPANDA}.filesTable4 "
+            sqlP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileid=:fileID "
+            sqlP += "ORDER BY PandaID DESC "
+            # sql to check jobs
+            sqlJ = f"SELECT 1 FROM {panda_config.schemaPANDA}.jobsDefined4 WHERE PandaID=:PandaID "
+            sqlJ += "UNION "
+            sqlJ += f"SELECT 1 FROM {panda_config.schemaPANDA}.jobsActive4 WHERE PandaID=:PandaID "
+            # sql to get files
+            sqlFL = f"SELECT datasetID,fileID FROM {panda_config.schemaPANDA}.filesTable4 "
+            sqlFL += "WHERE PandaID=:PandaID "
+            sqlFL += f"AND type IN ({INPUT_TYPES_var_str}) "
+            # sql to update files
+            sqlUF = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+            sqlUF += "SET status=:newStatus,proc_status=:proc_status,attemptNr=attemptNr+1,maxAttempt=maxAttempt+1,"
+            sqlUF += "maxFailure=(CASE WHEN maxFailure IS NULL THEN NULL ELSE maxFailure+1 END) "
+            sqlUF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlUF += "AND status=:oldStatus AND keepTrack=:keepTrack "
+            # sql to update datasets
+            sqlUD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+            sqlUD += "SET nFilesUsed=nFilesUsed-1 WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            self.conn.begin()
+            # get JEDI files
+            varMap = dict()
+            varMap[":jediTaskID"] = jediTaskID
+            varMap[":status"] = "running"
+            varMap.update(INPUT_TYPES_var_map)
+            self.cur.execute(sqlF + comment, varMap)
+            resF = self.cur.fetchall()
+            # get PandaIDs
+            for datasetID, fileID in resF:
+                varMap = dict()
+                varMap[":jediTaskID"] = jediTaskID
+                varMap[":datasetID"] = datasetID
+                varMap[":fileID"] = fileID
+                self.cur.execute(sqlP + comment, varMap)
+                resP = self.cur.fetchall()
+                # check jobs
+                hasJob = False
+                for (PandaID,) in resP:
+                    varMap = dict()
+                    varMap[":PandaID"] = PandaID
+                    self.cur.execute(sqlJ + comment, varMap)
+                    resJ = self.cur.fetchone()
+                    if resJ is not None:
+                        hasJob = True
+                        break
+                # get files
+                if not hasJob:
+                    varMap = dict()
+                    varMap[":PandaID"] = PandaID
+                    varMap.update(INPUT_TYPES_var_map)
+                    self.cur.execute(sqlFL + comment, varMap)
+                    resFL = self.cur.fetchall()
+                    # update file
+                    for f_datasetID, f_fileID in resFL:
+                        varMap = dict()
+                        varMap[":jediTaskID"] = jediTaskID
+                        varMap[":datasetID"] = f_datasetID
+                        varMap[":fileID"] = f_fileID
+                        varMap[":oldStatus"] = "running"
+                        varMap[":newStatus"] = "ready"
+                        varMap[":proc_status"] = "ready"
+                        varMap[":keepTrack"] = 1
+                        self.cur.execute(sqlUF + comment, varMap)
+                        nRow = self.cur.rowcount
+                        tmpLog.debug(f"reset datasetID={f_datasetID} fileID={f_fileID} with {nRow}")
+                        if nRow > 0:
+                            varMap = dict()
+                            varMap[":jediTaskID"] = jediTaskID
+                            varMap[":datasetID"] = f_datasetID
+                            self.cur.execute(sqlUD + comment, varMap)
+                            nReset += 1
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmpLog.debug(f"done with {nReset}")
+            return nReset
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return None
 
 
 # get task event module

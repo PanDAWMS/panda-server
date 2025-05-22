@@ -69,6 +69,7 @@ def acquire_jobs(
     scheduler_id: str = None,
     job_type: str = None,
     via_topic: bool = None,
+    remaining_time=None,
 ) -> dict:
     """
     Acquire jobs
@@ -77,7 +78,7 @@ def acquire_jobs(
 
     API details:
         HTTP Method: POST
-        Path: /pilot/v1/acquire_jobs
+        Path: /v1/pilot/acquire_jobs
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
@@ -100,6 +101,7 @@ def acquire_jobs(
         job_type(str, optional): Job type, e.g. `user`, `unified`, ... This is necessary on top of the `prodsourcelabel`
                                  to disambiguate the cases of test jobs that can be production or analysis. Optional and defaults to `None`.
         via_topic(bool, optional): Topic for message broker. Optional and defaults to `None`.
+        remaining_time(int, optional): Remaining walltime. Optional and defaults to `None`.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. The data is a list of job dictionaries.
@@ -143,12 +145,18 @@ def acquire_jobs(
     except (ValueError, TypeError):
         disk_space = 0
 
+    # convert remaining time
+    try:
+        remaining_time = max(0, remaining_time)
+    except (ValueError, TypeError):
+        remaining_time = 0
+
     tmp_logger.debug(
         f"{site_name}, n_jobs={n_jobs}, memory={memory}, disk={disk_space}, source_label={prod_source_label}, "
         f"node={node}, ce={computing_element}, user={prod_user_id}, proxy={get_proxy_key}, "
         f"task_id={task_id}, DN={real_dn}, role={is_production_manager}, "
         f"bg={background}, rt={resource_type}, harvester_id={harvester_id}, worker_id={worker_id}, "
-        f"scheduler_id={scheduler_id}, job_type={job_type}, via_topic={via_topic}"
+        f"scheduler_id={scheduler_id}, job_type={job_type}, via_topic={via_topic} remaining_time={remaining_time}"
     )
 
     # log the acquire_jobs as it's used for site activity metrics
@@ -189,6 +197,7 @@ def acquire_jobs(
         job_type,
         is_grandly_unified,
         via_topic,
+        remaining_time,
     )
 
     # Time-out
@@ -267,9 +276,13 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
 
     Gets the status for a list of jobs. Requires a secure connection.
 
+    API details:
+        HTTP Method: GET
+        Path: /v1/pilot/get_job_status
+
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
-        job_ids(List[int]): list of job IDs.
+        job_ids(list of int): list of job IDs.
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -325,7 +338,7 @@ def update_job(
     meta_data: str = "",
     cpu_conversion_factor: float = None,
     trans_exit_code: str = None,
-    pilot_error_code: str = None,
+    pilot_error_code: int = None,
     pilot_error_diag: str = None,
     exe_error_code: int = None,
     exe_error_diag: str = None,
@@ -368,7 +381,7 @@ def update_job(
 
     API details:
         HTTP Method: POST
-        Path: /pilot/v1/update_job
+        Path: /v1/pilot/update_job
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -384,7 +397,7 @@ def update_job(
         pilot_id(str, optional): Pilot ID. Optional, defaults to `None`
         batch_id(str, optional): Batch ID. Optional, defaults to `None`
         trans_exit_code(str, optional): Transformation exit code. Optional, defaults to `None`
-        pilot_error_code(str, optional): Pilot error code. Optional, defaults to `None`
+        pilot_error_code(int, optional): Pilot error code. Optional, defaults to `None`
         pilot_error_diag(str, optional): Pilot error message. Optional, defaults to `None`
         exe_error_code(int, optional): Execution error code. Optional, defaults to `None`
         exe_error_diag(str, optional): Execution error message. Optional, defaults to `None`
@@ -448,12 +461,15 @@ def update_job(
 
     # aborting message
     if job_id == "NULL":
-        return Protocol.Response(Protocol.SC_Success).encode(acceptJson=True)
+        response = Protocol.Response(Protocol.SC_Invalid)
+        return generate_response(success=False, message="job_id is NULL", data=response.data)
 
-    # check status
+    # check the job status is valid
     if job_status not in VALID_JOB_STATES:
-        tmp_logger.warning(f"invalid job_status={job_status} for updateJob")
-        return Protocol.Response(Protocol.SC_Success).encode(acceptJson=True)
+        message = f"Invalid job status: {job_status}"
+        tmp_logger.warning(message)
+        response = Protocol.Response(Protocol.SC_Invalid)
+        return generate_response(success=False, message=message, data=response.data)
 
     # create the job parameter map
     param = {}
@@ -549,7 +565,7 @@ def update_job(
         if len(ret) > 0 and not ret[0]:
             message = "Failed to add meta_data"
             tmp_logger.debug(message)
-            return generate_response(False, message)
+            return generate_response(True, message, data={"StatusCode": Protocol.SC_Failed, "ErrorDiag": message})
 
     # add stdout
     if stdout != "":
@@ -575,17 +591,19 @@ def update_job(
     # time-out
     if timed_method.result == Protocol.TimeOutToken:
         message = "Timed out"
-        tmp_logger.debug(message)
-        return generate_response(False, message=message)
+        tmp_logger.error(message)
+        response = Protocol.Response(Protocol.SC_TimeOut)
+        return generate_response(True, message=message, data=response.data)
 
     # no result
     if not timed_method.result:
         message = "Database error"
-        tmp_logger.debug(message)
-        return generate_response(False, message=message)
+        tmp_logger.error(message)
+        response = Protocol.Response(Protocol.SC_Failed)
+        return generate_response(True, message=message, data=response.data)
 
     # generate the response with the result
-    data = {}
+    data = {"StatusCode": Protocol.SC_Success}
     result = timed_method.result
 
     # set the secrets
@@ -617,7 +635,7 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
 
     API details:
         HTTP Method: POST
-        Path: /pilot/v1/update_jobs_bulk
+        Path: /v1/pilot/update_jobs_bulk
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -636,14 +654,18 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
     success = False
     message = ""
     data = []
+
     try:
         for job_dict in job_list:
-            job_id = job_dict["jobId"]
-            del job_dict["jobId"]
-            status = job_dict["state"]
-            del job_dict["state"]
-            if "metaData" in job_dict:
-                job_dict["metaData"] = str(job_dict["metaData"])
+            job_id = job_dict["job_id"]
+            del job_dict["job_id"]
+
+            status = job_dict["job_status"]
+            del job_dict["job_status"]
+
+            if "meta_data" in job_dict:
+                job_dict["meta_data"] = str(job_dict["meta_data"])
+
             tmp_ret = update_job(req, job_id, status, **job_dict)
             data.append(tmp_ret)
         success = True
@@ -667,7 +689,7 @@ def update_worker_status(req: PandaRequest, worker_id, harvester_id, status, tim
 
     API details:
         HTTP Method: POST
-        Path: /pilot/v1/update_worker_status
+        Path: /v1/pilot/update_worker_status
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
@@ -717,14 +739,15 @@ def update_worker_node(
     site: str,
     host_name: str,
     cpu_model: str,
-    n_logical_cpus: int,
-    n_sockets: int,
-    cores_per_socket: int,
-    threads_per_core: int,
-    cpu_architecture: str,
-    cpu_architecture_level: str,
-    clock_speed: float,
-    total_memory: int,
+    n_logical_cpus: int = None,
+    n_sockets: int = None,
+    cores_per_socket: int = None,
+    threads_per_core: int = None,
+    cpu_architecture: str = None,
+    cpu_architecture_level: str = None,
+    clock_speed: float = None,
+    total_memory: int = None,
+    total_local_disk: int = None,
     timeout: int = 60,
 ):
     """
@@ -734,22 +757,23 @@ def update_worker_node(
 
     API details:
         HTTP Method: POST
-        Path: /pilot/v1/update_worker_node
+        Path: /v1/pilot/update_worker_node
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
         site(str): Site name (e.g. ATLAS site name, not PanDA queue).
         host_name(str): Host name. In the case of reporting in format `slot@worker_node.example.com`, the slot ID will be parsed out.
-        cpu_model(str): CPU model, e.g. `AMD EPYC 7351`
-        n_logical_cpus(int): Number of logical CPUs: n_sockets * cores_per_socket * threads_per_core.
-                             When SMT is enabled, this is the number of threads. Otherwise it is the number of cores.
-        n_sockets(int): Number of sockets.
-        cores_per_socket(int): Number of cores per socket.
-        threads_per_core(int): Number of threads per core. When SMT is disabled, this is 1. Otherwise a number > 1.
-        cpu_architecture(str): CPU architecture, e.g. `x86_64`
-        cpu_architecture_level(str): CPU architecture level, e.g. `x86-64-v3`
-        clock_speed(float): Clock speed in GHz.
-        total_memory(int): Total memory in MB.
+        cpu_model(str): CPU model, e.g. `AMD EPYC 7351`.
+        n_logical_cpus(int, optional): Number of logical CPUs: n_sockets * cores_per_socket * threads_per_core.
+                             When SMT is enabled, this is the number of threads. Otherwise it is the number of cores. Optional, defaults to `None`.
+        n_sockets(int, optional): Number of sockets. Optional, defaults to `None`.
+        cores_per_socket(int, optional): Number of cores per socket. Optional, defaults to `None`.
+        threads_per_core(int, optional): Number of threads per core. When SMT is disabled, this is 1. Otherwise a number > 1. Optional, defaults to `None`.
+        cpu_architecture(str, optional): CPU architecture, e.g. `x86_64`. Optional, defaults to `None`.
+        cpu_architecture_level(str, optional): CPU architecture level, e.g. `x86-64-v3`. Optional, defaults to `None`.
+        clock_speed(float, optional): Clock speed in MHz. Optional, defaults to `None`.
+        total_memory(int, optional): Total memory in MB. Optional, defaults to `None`.
+        total_local_disk(int, optional): Total disk space in GB. Optional, defaults to `None`.
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -771,6 +795,7 @@ def update_worker_node(
         cpu_architecture_level,
         clock_speed,
         total_memory,
+        total_local_disk,
     )
 
     if timed_method.result == Protocol.TimeOutToken:  # timeout

@@ -16,7 +16,10 @@ from pandaserver.taskbuffer.db_proxy_mods import (
     job_standalone_module,
     metrics_module,
     misc_standalone_module,
+    task_complex_module,
     task_event_module,
+    task_standalone_module,
+    task_utils_module,
     worker_module,
 )
 from pandaserver.taskbuffer.WrappedCursor import WrappedCursor
@@ -65,6 +68,9 @@ class DBProxy(
     job_complex_module.JobComplexModule,
     job_standalone_module.JobStandaloneModule,
     misc_standalone_module.MiscStandaloneModule,
+    task_complex_module.TaskComplexModule,
+    task_standalone_module.TaskStandaloneModule,
+    task_utils_module.TaskUtilsModule,
 ):
     # constructor
     def __init__(self, useOtherError=False):
@@ -83,6 +89,8 @@ class DBProxy(
         self.add_composite_module("metrics", self)
         self.add_composite_module("worker", self)
         self.add_composite_module("task_event", self)
+        self.add_composite_module("task_utils", self)
+        self.add_composite_module("job_complex", self)
 
     # connect to DB
     def connect(

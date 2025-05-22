@@ -43,11 +43,11 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
 
     API details:
         HTTP Method: GET
-        Path: /job/v1/get_status
+        Path: /v1/job/get_status
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        job_ids(List[int]): list of PanDA job IDs.
+        job_ids(list of int): list of PanDA job IDs.
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -57,7 +57,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
     tmp_logger.debug("Start")
 
     # The task buffer method expect a comma separated list of job_ids
-    job_ids_str = ",".join(job_ids)
+    job_ids_str = ",".join([str(job_id) for job_id in job_ids])
     timed_method = TimedMethod(global_task_buffer.checkJobStatus, timeout)
     timed_method.run(job_ids_str)
 
@@ -86,11 +86,11 @@ def get_description(self, job_ids: List[int]) -> Dict:
 
     API details:
         HTTP Method: GET
-        Path: /job/v1/get_description
+        Path: /v1/job/get_description
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        job_ids (List[int]): List of PanDA job IDs.
+        job_ids (list of int): List of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -126,11 +126,11 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
 
     API details:
         HTTP Method: GET
-        Path: /job/v1/get_description_incl_archive
+        Path: /v1/job/get_description_incl_archive
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables.
-        job_ids (List[int]): List of PanDA job IDs.
+        job_ids (list of int): List of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -166,7 +166,7 @@ def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int 
 
     API details:
         HTTP Method: GET
-        Path: /job/v1/generate_offline_execution_script
+        Path: /v1/job/generate_offline_execution_script
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -197,7 +197,7 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:
 
     API details:
         HTTP Method: GET
-        Path: /job/v1/get_metadata_for_analysis_jobs
+        Path: /v1/job/get_metadata_for_analysis_jobs
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -228,7 +228,7 @@ def kill(req, job_ids: List[int], code: int = None, use_email_as_id: bool = Fals
 
     API details:
         HTTP Method: POST
-        Path: /job/v1/kill
+        Path: /v1/job/kill
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -290,7 +290,7 @@ def reassign(req: PandaRequest, job_ids: List[int]):
 
     API details:
         HTTP Method: POST
-        Path: /job/v1/reassign
+        Path: /v1/job/reassign
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -318,7 +318,7 @@ def set_command(req: PandaRequest, job_id: int, command: str):
 
     API details:
         HTTP Method: POST
-        Path: /job/v1/set_command
+        Path: /v1/job/set_command
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -344,7 +344,7 @@ def set_debug_mode(req: PandaRequest, job_id: int, mode: bool):
 
     API details:
         HTTP Method: POST
-        Path: /job/v1/set_debug_mode
+        Path: /v1/job/set_debug_mode
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -384,7 +384,7 @@ def submit(req: PandaRequest, jobs: str):
 
     API details:
         HTTP Method: POST
-        Path: /job/v1/submit
+        Path: /v1/job/submit
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables

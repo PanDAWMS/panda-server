@@ -1,0 +1,26 @@
+name: Syntax Check
+
+on: [pull_request]
+
+jobs:
+  check-syntax:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Check syntax of changed files
+      run: |
+        files=$(git diff --name-only origin/master...HEAD -- '*.py')
+        if [ -n "$files" ]; then
+          echo "$files" | xargs -n1 python -m py_compile
+        else
+          echo "No Python files changed."
+        fi

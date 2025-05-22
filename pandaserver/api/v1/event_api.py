@@ -36,7 +36,7 @@ def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: i
 
     API details:
         HTTP Method: GET
-        Path: /event/v1/get_available_event_range_count
+        Path: /v1/event/get_available_event_range_count
 
     Args:
         req(PandaRequest): internally generated request object
@@ -82,7 +82,7 @@ def get_event_range_statuses(req: PandaRequest, job_task_ids: str) -> dict:
 
     API details:
         HTTP Method: GET
-        Path: /event/v1/get_event_range_statuses
+        Path: /v1/event/get_event_range_statuses
 
     Args:
         req(PandaRequest): internally generated request object
@@ -124,7 +124,7 @@ def acquire_event_ranges(
 
     API details:
         HTTP Method: POST
-        Path: /event/v1/acquire_event_ranges
+        Path: /v1/event/acquire_event_ranges
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment.
@@ -185,7 +185,7 @@ def update_single_event_range(
 
     API details:
         HTTP Method: POST
-        Path: /event/v1/update_single_event_range
+        Path: /v1/event/update_single_event_range
 
     Args:
         req(PandaRequest): The request object containing the environment variables.
@@ -234,7 +234,7 @@ def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120
 
     API details:
         HTTP Method: POST
-        Path: /event/v1/update_event_ranges
+        Path: /v1/event/update_event_ranges
 
     Args:
         req (PandaRequest): Internally generated request object containing the environment.

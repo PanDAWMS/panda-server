@@ -19,6 +19,7 @@ from pandaserver.api.v1.common import (
     request_validation,
 )
 from pandaserver.srvcore.panda_request import PandaRequest
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("api_task")
@@ -38,10 +39,12 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 def retry(
     req: PandaRequest,
     task_id: int,
-    new_parameters: str = None,
-    no_child_retry: bool = None,
-    disable_staging_mode: bool = None,
-    keep_gshare_priority: bool = None,
+    new_parameters: dict = None,
+    no_child_retry: bool = False,
+    discard_events: bool = False,
+    disable_staging_mode: bool = False,
+    keep_gshare_priority: bool = False,
+    ignore_hard_exhausted: bool = False,
 ) -> Dict[str, Any]:
     """
     Task retry
@@ -50,7 +53,7 @@ def retry(
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/retry
+        Path: /v1/task/retry
 
     Args:
         req(PandaRequest): internally generated request object
@@ -58,8 +61,10 @@ def retry(
         new_parameters(Dict, optional): a json dictionary with the new parameters for rerunning the task. The new parameters are merged with the existing ones.
                                         The parameters are the attributes in the JediTaskSpec object (https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jedicore/JediTaskSpec.py).
         no_child_retry(bool, optional): if True, the child tasks are not retried
+        discard_events(bool, optional): if True, events will be discarded
         disable_staging_mode(bool, optional): if True, the task skips staging state and directly goes to subsequent state
         keep_gshare_priority(bool, optional): if True, the task keeps current gshare and priority
+        ignore_hard_exhausted(bool, optional): if True, the task ignores the limits for hard exhausted state and can be retried even if it is very faulty
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
@@ -93,17 +98,12 @@ def retry(
         except Exception as e:
             ret = 1, f"new parameter conversion failed with {str(e)}"
     else:
+        # disable ignore_hard_exhausted if not production_role
+        if not production_role and ignore_hard_exhausted:
+            ignore_hard_exhausted = False
         # get command qualifier
-        qualifier = ""
-        for com_key, com_param in [
-            ("sole", no_child_retry),
-            ("discard", no_child_retry),
-            ("staged", disable_staging_mode),
-            ("keep", keep_gshare_priority),
-        ]:
-            if com_param:
-                qualifier += f"{com_key} "
-        qualifier = qualifier.strip()
+        qualifier = JediTaskSpec.get_retry_command_qualifiers(no_child_retry, discard_events, disable_staging_mode, keep_gshare_priority, ignore_hard_exhausted)
+        qualifier = " ".join(qualifier)
         # normal retry
         ret = global_task_buffer.sendCommandTaskPanda(
             task_id,
@@ -130,7 +130,7 @@ def resume(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/resume
+        Path: /v1/task/resume
 
     Args:
         req(PandaRequest): internally generated request object
@@ -171,7 +171,7 @@ def release(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/release
+        Path: /v1/task/release
 
     Args:
         req(PandaRequest): internally generated request object
@@ -213,7 +213,7 @@ def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = Non
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/reassign
+        Path: /v1/task/reassign
 
     Args:
         req(PandaRequest): internally generated request object
@@ -280,7 +280,7 @@ def pause(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/pause
+        Path: /v1/task/pause
 
     Args:
         req(PandaRequest): internally generated request object
@@ -320,7 +320,7 @@ def kill(req: PandaRequest, task_id: int = None, broadcast: bool = False) -> Dic
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/kill
+        Path: /v1/task/kill
 
     Args:
         req(PandaRequest): internally generated request object
@@ -368,7 +368,7 @@ def kill_unfinished_jobs(req: PandaRequest, task_id: int, code: int = None, use_
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/kill_unfinished_jobs
+        Path: /v1/task/kill_unfinished_jobs
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -432,7 +432,7 @@ def finish(req: PandaRequest, task_id: int, soft: bool = False, broadcast: bool 
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/finish
+        Path: /v1/task/finish
 
     Args:
         req(PandaRequest): internally generated request object
@@ -487,7 +487,7 @@ def reactivate(req: PandaRequest, task_id: int, keep_attempt_nr: bool = False, t
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/reactivate
+        Path: /v1/task/reactivate
 
     Args:
         req(PandaRequest): internally generated request object
@@ -525,7 +525,7 @@ def avalanche(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/avalanche
+        Path: /v1/task/avalanche
 
     Args:
         req(PandaRequest): internally generated request object
@@ -557,7 +557,7 @@ def avalanche(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def reload_input(req: PandaRequest, task_id: int) -> Dict[str, Any]:
+def reload_input(req: PandaRequest, task_id: int, ignore_hard_exhausted: bool = False) -> Dict[str, Any]:
     """
     Reload input
 
@@ -565,11 +565,12 @@ def reload_input(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/reload_input
+        Path: /v1/task/reload_input
 
     Args:
         req(PandaRequest): internally generated request object
         task_id(int): JEDI Task ID
+        ignore_hard_exhausted(bool, optional): ignore the limits for hard exhausted
 
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
@@ -587,7 +588,15 @@ def reload_input(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         tmp_logger.error("Failed due to invalid task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
-    ret = global_task_buffer.sendCommandTaskPanda(task_id, user, is_production_role, "incexec", comComment="{}", propeErrorCode=True)
+    # allow ignore_hard_exhausted only for production role
+    if not is_production_role and ignore_hard_exhausted:
+        ignore_hard_exhausted = False
+
+    # specify ignore_hard_exhausted as a command qualifier in command's comment
+    com_qualifier = JediTaskSpec.get_retry_command_qualifiers(ignore_hard_exhausted=ignore_hard_exhausted)
+    com_comment = json.dumps([{}, com_qualifier])
+
+    ret = global_task_buffer.sendCommandTaskPanda(task_id, user, is_production_role, "incexec", comComment=com_comment, propeErrorCode=True)
     data, message = ret
     success = data == 0
 
@@ -605,7 +614,7 @@ def reassign_global_share(req: PandaRequest, task_id_list: List, share: str, rea
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/reassign_global_share
+        Path: /v1/task/reassign_global_share
 
     Args:
         req(PandaRequest): internally generated request object
@@ -641,7 +650,7 @@ def enable_jumbo_jobs(req: PandaRequest, task_id: int, jumbo_jobs_total: int, ju
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/reassign_global_share
+        Path: /v1/task/reassign_global_share
 
     Args:
         req(PandaRequest): internally generated request object
@@ -680,7 +689,7 @@ def get_jumbo_job_datasets(req: PandaRequest, from_offset: int, to_offset: int =
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/get_jumbo_job_datasets
+        Path: /v1/task/get_jumbo_job_datasets
 
     Args:
         req(PandaRequest): internally generated request object
@@ -715,7 +724,7 @@ def enable_job_cloning(
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/enable_job_cloning
+        Path: /v1/task/enable_job_cloning
 
     Args:
         req(PandaRequest): internally generated request object
@@ -744,7 +753,7 @@ def disable_job_cloning(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/disable_job_cloning
+        Path: /v1/task/disable_job_cloning
 
     Args:
         req(PandaRequest): internally generated request object
@@ -770,7 +779,7 @@ def increase_attempts(req: PandaRequest, task_id: int, increase: int) -> Dict[st
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/increase_attempts
+        Path: /v1/task/increase_attempts
 
     Args:
         req(PandaRequest): internally generated request object
@@ -817,7 +826,7 @@ def get_status(req, task_id):
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/get_status
+        Path: /v1/task/get_status
 
     Args:
         req(PandaRequest): internally generated request object
@@ -856,7 +865,7 @@ def get_details(req: PandaRequest, task_id: int, include_parameters: bool = Fals
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/get_details
+        Path: /v1/task/get_details
 
     Args:
         req(PandaRequest): internally generated request object
@@ -892,7 +901,7 @@ def change_attribute(req: PandaRequest, task_id: int, attribute_name: str, value
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/change_attribute
+        Path: /v1/task/change_attribute
 
     Args:
         req(PandaRequest): internally generated request object
@@ -942,7 +951,7 @@ def change_modification_time(req: PandaRequest, task_id: int, positive_hour_offs
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/change_modification_time
+        Path: /v1/task/change_modification_time
 
     Args:
         req(PandaRequest): internally generated request object
@@ -992,7 +1001,7 @@ def change_priority(req: PandaRequest, task_id: int, priority: int):
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/change_priority
+        Path: /v1/task/change_priority
 
     Args:
         req(PandaRequest): internally generated request object
@@ -1044,7 +1053,7 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/change_split_rule
+        Path: /v1/task/change_split_rule
 
     Args:
         req(PandaRequest): internally generated request object
@@ -1096,7 +1105,7 @@ def get_tasks_modified_since(req, since: str, dn: str = "", full: bool = False, 
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/get_tasks_modified_since
+        Path: /v1/task/get_tasks_modified_since
 
     Args:
         req(PandaRequest): internally generated request object
@@ -1159,7 +1168,7 @@ def get_datasets_and_files(req, task_id, dataset_types: List = ("input", "pseudo
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/get_datasets_and_files
+        Path: /v1/task/get_datasets_and_files
 
     Args:
         req(PandaRequest): internally generated request object
@@ -1195,7 +1204,7 @@ def get_job_ids(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/get_job_ids
+        Path: /v1/task/get_job_ids
 
     Args:
         req(PandaRequest): internally generated request object
@@ -1229,7 +1238,7 @@ def submit(req: PandaRequest, task_parameters: Dict, parent_tid: int = None) -> 
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/submit
+        Path: /v1/task/submit
 
     Args:
         req(PandaRequest): internally generated request object
@@ -1280,7 +1289,7 @@ def get_task_parameters(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/get_task_parameters
+        Path: /v1/task/get_task_parameters
 
     Args:
         req(PandaRequest): internally generated request object

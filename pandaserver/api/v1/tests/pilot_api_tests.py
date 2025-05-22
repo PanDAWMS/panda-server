@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 
 
-class TestTaskAPI(unittest.TestCase):
+class TestPilotAPI(unittest.TestCase):
     def setUp(self):
         self.http_client = HttpClient()
 
@@ -114,6 +114,7 @@ class TestTaskAPI(unittest.TestCase):
             "cpu_architecture_level": "x86_64-v3",
             "clock_speed": 2.7,
             "total_memory": 3350,
+            "total_local_disk": 75,
         }
 
         status, output = self.http_client.post(url, data)

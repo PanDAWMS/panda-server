@@ -89,7 +89,7 @@ def set_user_secrets(req: PandaRequest, key: str = None, value: str = None) -> d
 
     API details:
         HTTP Method: POST
-        Path: /secrets/v1/set_user_secrets
+        Path: /v1/creds/set_user_secrets
 
     Args:
         req(PandaRequest): internally generated request object
@@ -119,11 +119,11 @@ def get_user_secrets(req: PandaRequest, keys: List[str] = None) -> dict:
 
     API details:
         HTTP Method: POST
-        Path: /creds/v1/set_user_secrets
+        Path: /v1/creds/get_user_secrets
 
     Args:
         req(PandaRequest): internally generated request object
-        keys(List[str]): List of keys to reference the secrets to retrieve
+        keys(list of str): List of keys to reference the secrets to retrieve
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the user secrets. When unsuccessful, the message field contains the error message.
@@ -156,7 +156,7 @@ def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str)
 
     API details:
         HTTP Method: GET
-        Path: /creds/v1/get_key_pair
+        Path: /v1/creds/get_key_pair
 
     Args:
         req(PandaRequest): internally generated request object
@@ -176,7 +176,7 @@ def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str)
 
     # check permission
     global_dispatch_parameter_cache.update()
-    allowed_keys = global_dispatch_parameter_cache.get("allow_keyPair", [])
+    allowed_keys = global_dispatch_parameter_cache.get("allowKeyPair", [])
     if compact_dn not in allowed_keys:
         # permission denied
         tmp_msg = f"Failed since '{compact_dn}' not authorized with 'k' in {panda_config.schemaMETA}.USERS.GRIDPREF"
@@ -212,7 +212,7 @@ def get_proxy(req: PandaRequest, role: str = None, dn: str = None) -> dict:
 
     API details:
         HTTP Method: GET
-        Path: /creds/v1/get_proxy
+        Path: /v1/creds/get_proxy
 
     Args:
         req(PandaRequest): internally generated request object
@@ -266,7 +266,7 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str = None)
 
     API details:
         HTTP Method: GET
-        Path: /creds/v1/get_access_token
+        Path: /v1/creds/get_access_token
 
     Args:
         req(PandaRequest): internally generated request object
@@ -329,7 +329,7 @@ def get_token_key(req: PandaRequest, client_name: str) -> dict:
 
     API details:
         HTTP Method: GET
-        Path: /creds/v1/get_token_key
+        Path: /v1/creds/get_token_key
 
     Args:
         req(PandaRequest): internally generated request object

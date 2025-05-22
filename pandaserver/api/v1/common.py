@@ -4,8 +4,8 @@ import sys
 import threading
 import time
 from functools import wraps
-from types import ModuleType
-from typing import get_args, get_origin
+from types import ModuleType, UnionType
+from typing import Union, get_args, get_origin
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
@@ -230,6 +230,12 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                             param_value = int(float(param_value))
                         elif origin is list and args:
                             element_type = args[0]  # Get the type inside List[<type>]
+
+                            # If only one element, convert it to a list
+                            if isinstance(param_value, str):
+                                param_value = [param_value]
+
+                            # Convert the elements of the list to the expected type
                             if element_type is int:
                                 param_value = [int(float(i)) for i in param_value]  # Convert list items to int
                             elif element_type is float:
@@ -245,7 +251,7 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                         return generate_response(False, message=message)
 
                 # Check type
-                if origin:  # Handle generics (e.g., List[int])
+                if origin and (origin is not Union and origin is not UnionType):  # Handle generics (e.g., List[int])
                     if not isinstance(param_value, origin):
                         message = f"Type error: '{param_name}' must be of type {origin.__name__}, got {type(param_value).__name__}."
                         tmp_logger.error(message)
@@ -258,6 +264,9 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                             return generate_response(False, message=message)
                 else:
                     if not isinstance(param_value, expected_type):
+                        expected_type_str = str(expected_type)
+                        if expected_type is not Union and expected_type is not UnionType:
+                            expected_type_str = expected_type.__name__
                         message = f"Type error: '{param_name}' must be of type {expected_type.__name__}, got {type(param_value).__name__}."
                         tmp_logger.error(message)
                         return generate_response(False, message=message)

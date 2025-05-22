@@ -8,6 +8,7 @@ import traceback
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread, WeightedLists
+
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.adder_gen import AdderGen
@@ -94,6 +95,8 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
                     break
                 # lock
                 panda_id, job_status, attempt_nr, time_stamp = one_jor
+                token_str = f"pid={uniq_pid} : job={panda_id}.{attempt_nr}"
+                tmpLog.debug(f"{token_str} to lock timestamp={time_stamp}")
                 got_lock = taskBuffer.lockJobOutputReport(
                     panda_id=panda_id,
                     attempt_nr=attempt_nr,
@@ -101,17 +104,18 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
                     time_limit=lock_interval,
                 )
                 if not got_lock:
+                    tmpLog.debug(f"{token_str} skipped")
                     continue
                 # add
                 try:
                     modTime = time_stamp
                     if (timeNow - modTime) > datetime.timedelta(hours=24):
                         # last add
-                        tmpLog.debug(f"pid={uniq_pid} : last add job={panda_id}.{attempt_nr} st={job_status}")
+                        tmpLog.debug(f"{token_str} last add st={job_status}")
                         ignoreTmpError = False
                     else:
                         # usual add
-                        tmpLog.debug(f"pid={uniq_pid} : add job={panda_id}.{attempt_nr} st={job_status}")
+                        tmpLog.debug(f"{token_str} add st={job_status}")
                         ignoreTmpError = True
                     # get adder
                     adder_gen = AdderGen(
@@ -129,6 +133,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
                     n_processed += 1
                     # execute
                     adder_gen.run()
+                    tmpLog.debug(f"{token_str} done")
                     del adder_gen
                 except Exception as e:
                     tmpLog.error(f"pid={uniq_pid} : failed to run with {str(e)} {traceback.format_exc()}")
@@ -163,15 +168,15 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
     tmpLog.debug("run Adder")
 
     interval = 10
-    nLoop = 10
+    nLoop = 50
     recover_dataset_update = False
-    for iLoop in range(10):
+    for iLoop in range(nLoop):
         tmpLog.debug(f"start iLoop={iLoop}/{nLoop}")
         start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         adderThrList = []
         nThr = 10
 
-        n_jors_per_batch = 1000
+        n_jors_per_batch = 200
 
         jor_lists = WeightedLists(multiprocessing.Lock())
 
@@ -179,7 +184,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
         jor_list_others = taskBuffer.listJobOutputReport(
             only_unlocked=True,
             time_limit=lock_interval,
-            limit=n_jors_per_batch * nThr,
+            limit=random.randint(int(n_jors_per_batch * 0.5), int(n_jors_per_batch * 1.5)) * nThr,
             grace_period=gracePeriod,
             anti_labels=["user"],
         )
@@ -187,7 +192,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
         jor_list_user = taskBuffer.listJobOutputReport(
             only_unlocked=True,
             time_limit=lock_interval,
-            limit=n_jors_per_batch * nThr,
+            limit=random.randint(int(n_jors_per_batch * 0.5), int(n_jors_per_batch * 1.5)) * nThr,
             grace_period=gracePeriod,
             labels=["user"],
         )

@@ -184,10 +184,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
             tmp_logger.debug(f"{bunch_tag} took {reg_time.seconds}sec")
             tmp_logger.debug("end")
-        except Exception:
-            error_type, error_value = sys.exc_info()[:2]
-            err_str = f"run() : {error_type} {error_value}"
+        except Exception as e:
+            err_str = f"setupper.run failed with {str(e)}"
             err_str.strip()
+            for job in self.jobs:
+                if job.jobStatus not in ["failed", "cancelled"]:
+                    job.jobStatus = "failed"
+                    job.ddmErrorCode = ErrorCode.EC_Setupper
+                    job.ddmErrorDiag = err_str
             err_str += traceback.format_exc()
             tmp_logger.error(err_str)
 

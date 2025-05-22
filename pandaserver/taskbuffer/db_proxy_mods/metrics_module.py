@@ -1,6 +1,8 @@
 import datetime
 import json
+import re
 import sys
+from typing import Dict
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
@@ -395,6 +397,477 @@ class MetricsModule(BaseModule):
                 tooMany = True
         tmp_log.debug(f"too many failures : {tooMany}")
         return tooMany
+
+    # calculate failure metrics, such as single failure rate and failed HEPScore, for a task
+    def get_task_failure_metrics(self, task_id, use_commit=True):
+        comment = " /* JediDBProxy.get_task_failure_metrics */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
+        tmp_log.debug("start")
+        try:
+            # start transaction
+            if use_commit:
+                self.conn.begin()
+            # sql to get metrics
+            sql = (
+                f"SELECT SUM(is_finished),SUM(is_failed),SUM(HS06SEC*is_finished),SUM(HS06SEC*is_failed) "
+                f"FROM ("
+                f"SELECT PandaID, HS06SEC, CASE WHEN jobStatus='finished' THEN 1 ELSE 0 END is_finished, "
+                f"CASE WHEN jobStatus='failed' THEN 1 ELSE 0 END is_failed "
+                f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
+                f"WHERE jediTaskID=:jediTaskID AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+                f"UNION "
+                f"SELECT PandaID, HS06SEC, CASE WHEN jobStatus='finished' THEN 1 ELSE 0 END is_finished, "
+                f"CASE WHEN jobStatus='failed' THEN 1 ELSE 0 END is_failed "
+                f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
+                f"WHERE jediTaskID=:jediTaskID AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+                f")"
+            )
+            var_map = {
+                ":jediTaskID": task_id,
+                ":prodSourceLabel1": "managed",
+                ":prodSourceLabel2": "user",
+            }
+            self.cur.execute(sql + comment, var_map)
+            num_finished, num_failed, good_hep_score_sec, bad_hep_score_sec = self.cur.fetchone()
+            ret_dict = {
+                "num_failed": num_failed,
+                "single_failure_rate": (
+                    round(num_failed / (num_finished + num_failed), 3)
+                    if num_finished is not None and num_failed is not None and num_finished + num_failed
+                    else None
+                ),
+                "failed_hep_score_hour": int(bad_hep_score_sec / 60 / 60),
+                "failed_hep_score_ratio": (
+                    round(bad_hep_score_sec / (good_hep_score_sec + bad_hep_score_sec), 3)
+                    if good_hep_score_sec is not None and bad_hep_score_sec is not None and good_hep_score_sec + bad_hep_score_sec
+                    else None
+                ),
+            }
+            # commit
+            if use_commit:
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(f"got {ret_dict}")
+            return ret_dict
+        except Exception:
+            # roll back
+            if use_commit:
+                self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # get averaged disk IO
+    def getAvgDiskIO_JEDI(self):
+        comment = " /* JediDBProxy.getAvgDiskIO_JEDI */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("start")
+        try:
+            # sql
+            sql = f"SELECT sum(prorated_diskio_avg * njobs) / sum(njobs), computingSite FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
+            sql += "WHERE jobStatus=:jobStatus GROUP BY computingSite "
+            var_map = dict()
+            var_map[":jobStatus"] = "running"
+            # begin transaction
+            self.conn.begin()
+            self.cur.execute(sql + comment, var_map)
+            resFL = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            ret_map = dict()
+            for avg, computing_site in resFL:
+                if avg:
+                    avg = float(avg)
+                ret_map[computing_site] = avg
+            tmp_log.debug("done")
+            return ret_map
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return {}
+
+    # get carbon footprint for a task, the level has to be 'regional' or 'global'. If misspelled, it defaults to 'global'
+    def get_task_carbon_footprint(self, jedi_task_id, level):
+        comment = " /* JediDBProxy.get_task_carbon_footprint */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} n_files={level}")
+        tmp_log.debug("start")
+
+        if level == "regional":
+            gco2_column = "GCO2_REGIONAL"
+        else:
+            gco2_column = "GCO2_GLOBAL"
+
+        try:
+            sql = (
+                "SELECT jobstatus, SUM(sum_gco2) FROM ( "
+                "  SELECT jobstatus, SUM({gco2_column}) sum_gco2 FROM {active_schema}.jobsarchived4 "
+                "  WHERE jeditaskid =:jeditaskid "
+                "  GROUP BY jobstatus "
+                "  UNION "
+                "  SELECT jobstatus, SUM({gco2_column}) sum_gco2 FROM {archive_schema}.jobsarchived "
+                "  WHERE jeditaskid =:jeditaskid "
+                "  GROUP BY jobstatus)"
+                "GROUP BY jobstatus".format(gco2_column=gco2_column, active_schema=panda_config.schemaJEDI, archive_schema=panda_config.schemaPANDAARCH)
+            )
+            var_map = {":jeditaskid": jedi_task_id}
+
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sql + comment, var_map)
+            results = self.cur.fetchall()
+
+            footprint = {"total": 0}
+            data = False
+            for job_status, g_co2 in results:
+                if not g_co2:
+                    g_co2 = 0
+                else:
+                    data = True
+                footprint[job_status] = g_co2
+                footprint["total"] += g_co2
+
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+
+            tmp_log.debug(f"done: {footprint}")
+
+            if not data:
+                return None
+
+            return footprint
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # get job statistics with work queue
+    def getJobStatisticsWithWorkQueue_JEDI(self, vo, prodSourceLabel, minPriority=None, cloud=None):
+        comment = " /* DBProxy.getJobStatisticsWithWorkQueue_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} cloud={cloud}")
+        tmpLog.debug(f"start minPriority={minPriority}")
+        sql0 = "SELECT computingSite,cloud,jobStatus,workQueue_ID,COUNT(*) FROM %s "
+        sql0 += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel "
+        if cloud is not None:
+            sql0 += "AND cloud=:cloud "
+        tmpPrioMap = {}
+        if minPriority is not None:
+            sql0 += "AND currentPriority>=:minPriority "
+            tmpPrioMap[":minPriority"] = minPriority
+        sql0 += "GROUP BY computingSite,cloud,prodSourceLabel,jobStatus,workQueue_ID "
+        sqlMV = sql0
+        sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sqlMV)
+        sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
+        tables = [f"{panda_config.schemaPANDA}.jobsActive4", f"{panda_config.schemaPANDA}.jobsDefined4"]
+        if minPriority is not None:
+            # read the number of running jobs with prio<=MIN
+            tables.append(f"{panda_config.schemaPANDA}.jobsActive4")
+            sqlMVforRun = re.sub("currentPriority>=", "currentPriority<=", sqlMV)
+        varMap = {}
+        varMap[":vo"] = vo
+        varMap[":prodSourceLabel"] = prodSourceLabel
+        if cloud is not None:
+            varMap[":cloud"] = cloud
+        for tmpPrio in tmpPrioMap.keys():
+            varMap[tmpPrio] = tmpPrioMap[tmpPrio]
+        returnMap = {}
+        try:
+            iActive = 0
+            for table in tables:
+                # start transaction
+                self.conn.begin()
+                # select
+                self.cur.arraysize = 10000
+                useRunning = None
+                if table == f"{panda_config.schemaPANDA}.jobsActive4":
+                    mvTableName = f"{panda_config.schemaPANDA}.MV_JOBSACTIVE4_STATS"
+                    # first count non-running and then running if minPriority is specified
+                    if minPriority is not None:
+                        if iActive == 0:
+                            useRunning = False
+                        else:
+                            useRunning = True
+                        iActive += 1
+                    if useRunning in [None, False]:
+                        sqlExeTmp = (sqlMV + comment) % mvTableName
+                    else:
+                        sqlExeTmp = (sqlMVforRun + comment) % mvTableName
+                else:
+                    sqlExeTmp = (sql0 + comment) % table
+                self.cur.execute(sqlExeTmp, varMap)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                # create map
+                for computingSite, cloud, jobStatus, workQueue_ID, nCount in res:
+                    # count the number of non-running with prio>=MIN
+                    if useRunning is True and jobStatus != "running":
+                        continue
+                    # count the number of running with prio<=MIN
+                    if useRunning is False and jobStatus == "running":
+                        continue
+                    # add site
+                    if computingSite not in returnMap:
+                        returnMap[computingSite] = {}
+                    # add workQueue
+                    if workQueue_ID not in returnMap[computingSite]:
+                        returnMap[computingSite][workQueue_ID] = {}
+                    # add jobstatus
+                    if jobStatus not in returnMap[computingSite][workQueue_ID]:
+                        returnMap[computingSite][workQueue_ID][jobStatus] = 0
+                    # add
+                    returnMap[computingSite][workQueue_ID][jobStatus] += nCount
+            # return
+            tmpLog.debug("done")
+            return True, returnMap
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return False, {}
+
+    # get core statistics with VO and prodSourceLabel
+    def get_core_statistics(self, vo: str, prod_source_label: str) -> [bool, dict]:
+        comment = " /* DBProxy.get_core_statistics */"
+        tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prod_source_label}")
+        tmpLog.debug("start")
+        sql0 = f"SELECT /*+ RESULT_CACHE */ computingSite,jobStatus,SUM(num_of_cores) FROM {panda_config.schemaPANDA}.MV_JOBSACTIVE4_STATS "
+        sql0 += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel "
+        sql0 += "GROUP BY computingSite,cloud,prodSourceLabel,jobStatus "
+        var_map = {":vo": vo, ":prodSourceLabel": prod_source_label}
+        return_map = {}
+        try:
+            self.conn.begin()
+            # select
+            self.cur.arraysize = 10000
+            self.cur.execute(sql0 + comment, var_map)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # create map
+            for computing_site, job_status, n_core in res:
+                # add site
+                return_map.setdefault(computing_site, {})
+                # add status
+                return_map[computing_site].setdefault(job_status, 0)
+                # add num cores
+                return_map[computing_site][job_status] += n_core
+            # return
+            tmpLog.debug("done")
+            return True, return_map
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return False, {}
+
+    # get job statistics by global share
+    def getJobStatisticsByGlobalShare(self, vo, exclude_rwq):
+        """
+        :param vo: Virtual Organization
+        :param exclude_rwq: True/False. Indicates whether we want to indicate special workqueues from the statistics
+        """
+        comment = " /* DBProxy.getJobStatisticsByGlobalShare */"
+        tmpLog = self.create_tagged_logger(comment, f" vo={vo}")
+        tmpLog.debug("start")
+
+        # define the var map of query parameters
+        var_map = {":vo": vo}
+
+        # sql to query on pre-cached job statistics tables (JOBS_SHARE_STATS and JOBSDEFINED_SHARE_STATS)
+        sql_jt = """
+               SELECT /*+ RESULT_CACHE */ computingSite, jobStatus, gShare, SUM(njobs) FROM %s
+               WHERE vo=:vo
+               """
+
+        if exclude_rwq:
+            sql_jt += f"""
+               AND workqueue_id NOT IN
+               (SELECT queue_id FROM {panda_config.schemaPANDA}.jedi_work_queue WHERE queue_function = 'Resource')
+               """
+
+        sql_jt += """
+               GROUP BY computingSite, jobStatus, gshare
+               """
+
+        tables = [f"{panda_config.schemaPANDA}.JOBS_SHARE_STATS", f"{panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS"]
+
+        return_map = {}
+        try:
+            for table in tables:
+                self.cur.arraysize = 10000
+                sql_exe = (sql_jt + comment) % table
+                self.cur.execute(sql_exe, var_map)
+                res = self.cur.fetchall()
+
+                # create map
+                for panda_site, status, gshare, n_count in res:
+                    # add site
+                    return_map.setdefault(panda_site, {})
+                    # add global share
+                    return_map[panda_site].setdefault(gshare, {})
+                    # add job status
+                    return_map[panda_site][gshare].setdefault(status, 0)
+                    # increase count
+                    return_map[panda_site][gshare][status] += n_count
+
+            tmpLog.debug("done")
+            return True, return_map
+        except Exception:
+            self.dump_error_message(tmpLog)
+            return False, {}
+
+    def getJobStatisticsByResourceType(self, workqueue):
+        """
+        This function will return the job statistics for a particular workqueue, broken down by resource type
+        (SCORE, MCORE, etc.)
+        :param workqueue: workqueue object
+        """
+        comment = " /* DBProxy.getJobStatisticsByResourceType */"
+        tmpLog = self.create_tagged_logger(comment, f"workqueue={workqueue}")
+        tmpLog.debug("start")
+
+        # define the var map of query parameters
+        var_map = {":vo": workqueue.VO}
+
+        # sql to query on pre-cached job statistics tables (JOBS_SHARE_STATS and JOBSDEFINED_SHARE_STATS)
+        sql_jt = "SELECT /*+ RESULT_CACHE */ jobstatus, resource_type, SUM(njobs) FROM %s WHERE vo=:vo "
+
+        if workqueue.is_global_share:
+            sql_jt += "AND gshare=:gshare "
+            sql_jt += f"AND workqueue_id NOT IN (SELECT queue_id FROM {panda_config.schemaPANDA}.jedi_work_queue WHERE queue_function = 'Resource') "
+            var_map[":gshare"] = workqueue.queue_name
+        else:
+            sql_jt += "AND workqueue_id=:workqueue_id "
+            var_map[":workqueue_id"] = workqueue.queue_id
+
+        sql_jt += "GROUP BY jobstatus, resource_type "
+
+        tables = [f"{panda_config.schemaPANDA}.JOBS_SHARE_STATS", f"{panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS"]
+
+        return_map = {}
+        try:
+            for table in tables:
+                self.cur.arraysize = 10000
+                sql_exe = (sql_jt + comment) % table
+                self.cur.execute(sql_exe, var_map)
+                res = self.cur.fetchall()
+
+                # create map
+                for status, resource_type, n_count in res:
+                    return_map.setdefault(status, {})
+                    return_map[status][resource_type] = n_count
+
+            tmpLog.debug("done")
+            return True, return_map
+        except Exception:
+            self.dump_error_message(tmpLog)
+            return False, {}
+
+    def getJobStatisticsByResourceTypeSite(self, workqueue):
+        """
+        This function will return the job statistics per site for a particular workqueue, broken down by resource type
+        (SCORE, MCORE, etc.)
+        :param workqueue: workqueue object
+        """
+        comment = " /* DBProxy.getJobStatisticsByResourceTypeSite */"
+        tmpLog = self.create_tagged_logger(comment, f"workqueue={workqueue}")
+        tmpLog.debug("start")
+
+        # define the var map of query parameters
+        var_map = {":vo": workqueue.VO}
+
+        # sql to query on pre-cached job statistics tables (JOBS_SHARE_STATS and JOBSDEFINED_SHARE_STATS)
+        sql_jt = "SELECT /*+ RESULT_CACHE */ jobstatus, resource_type, computingSite, SUM(njobs) FROM %s WHERE vo=:vo "
+
+        if workqueue.is_global_share:
+            sql_jt += "AND gshare=:gshare "
+            sql_jt += f"AND workqueue_id NOT IN (SELECT queue_id FROM {panda_config.schemaPANDA}.jedi_work_queue WHERE queue_function = 'Resource') "
+            var_map[":gshare"] = workqueue.queue_name
+        else:
+            sql_jt += "AND workqueue_id=:workqueue_id "
+            var_map[":workqueue_id"] = workqueue.queue_id
+
+        sql_jt += "GROUP BY jobstatus, resource_type, computingSite "
+
+        tables = [f"{panda_config.schemaPANDA}.JOBS_SHARE_STATS", f"{panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS"]
+
+        return_map = {}
+        try:
+            for table in tables:
+                self.cur.arraysize = 10000
+                sql_exe = (sql_jt + comment) % table
+                self.cur.execute(sql_exe, var_map)
+                res = self.cur.fetchall()
+
+                # create map
+                for status, resource_type, computingSite, n_count in res:
+                    return_map.setdefault(computingSite, {})
+                    return_map[computingSite].setdefault(resource_type, {})
+                    return_map[computingSite][resource_type][status] = n_count
+
+            tmpLog.debug("done")
+            return True, return_map
+        except Exception:
+            self.dump_error_message(tmpLog)
+            return False, {}
+
+    # gets statistics on the number of jobs with a specific status for each nucleus at each site
+    def get_num_jobs_with_status_by_nucleus(self, vo: str, job_status: str) -> [bool, Dict[str, Dict[str, int]]]:
+        """
+        This function will return the number of jobs with a specific status for each nucleus at each site.
+
+        :param vo: Virtual Organization
+        :param job_status: Job status
+        :return: True/False and Dictionary with the number of jobs with a specific status for each nucleus at each site
+        """
+        comment = " /* DBProxy.get_num_jobs_with_status_by_nucleus */"
+        tmp_log = self.create_tagged_logger(comment, f" vo={vo} status={job_status}")
+        tmp_log.debug("start")
+
+        # define the var map of query parameters
+        var_map = {":vo": vo, ":job_status": job_status}
+
+        # sql to query on pre-cached job statistics table
+        sql_jt = """
+               SELECT /*+ RESULT_CACHE */ computingSite, nucleus, SUM(njobs) FROM %s
+               WHERE vo=:vo AND jobStatus=:job_status GROUP BY computingSite, nucleus
+               """
+
+        if job_status in ["transferring", "running", "activated" "holding"]:
+            table = f"{panda_config.schemaPANDA}.JOBS_SHARE_STATS"
+        else:
+            table = f"{panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS"
+
+        return_map = {}
+        try:
+            self.cur.arraysize = 10000
+            sql_exe = (sql_jt + comment) % table
+            self.cur.execute(sql_exe, var_map)
+            res = self.cur.fetchall()
+
+            # create a dict
+            for panda_site, nucleus, n_jobs in res:
+                if n_jobs:
+                    # add site
+                    return_map.setdefault(panda_site, {})
+                    # add stat per nucleus
+                    return_map[panda_site][nucleus] = n_jobs
+            tmp_log.debug("done")
+            return True, return_map
+        except Exception:
+            self.dump_error_message(tmp_log)
+            return False, {}
 
 
 # get metrics module

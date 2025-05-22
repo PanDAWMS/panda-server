@@ -29,7 +29,7 @@ def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
 
     API details:
         HTTP Method: GET
-        Path: /system/v1/get_attributes
+        Path: /v1/system/get_attributes
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -68,7 +68,7 @@ def get_voms_attributes(req: PandaRequest) -> Dict:
 
     API details:
         HTTP Method: GET
-        Path: /system/v1/get_voms_attributes
+        Path: /v1/system/get_voms_attributes
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -102,7 +102,7 @@ def get_user_attributes(req: PandaRequest) -> Dict:
 
     API details:
         HTTP Method: GET
-        Path: /system/v1/get_user_attributes
+        Path: /v1/system/get_user_attributes
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -170,7 +170,7 @@ def get_https_endpoint(req: PandaRequest) -> Dict:
 
     API details:
         HTTP Method: GET
-        Path: /system/v1/get_https_endpoint
+        Path: /v1/system/get_https_endpoint
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -201,7 +201,7 @@ def get_http_endpoint(req: PandaRequest) -> Dict:
 
     API details:
         HTTP Method: GET
-        Path: /system/v1/get_http_endpoint
+        Path: /v1/system/get_http_endpoint
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
@@ -232,7 +232,7 @@ def is_alive(req: PandaRequest) -> Dict:
 
     API details:
         HTTP Method: GET
-        Path: /system/v1/is_alive
+        Path: /v1/system/is_alive
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables

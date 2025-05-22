@@ -3,12 +3,17 @@ Module to provide primitive methods for DDM
 
 """
 
+import datetime
 import hashlib
+import json
 import re
 import sys
 import traceback
 from typing import Dict, List
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 from rucio.client import Client as RucioClient
 from rucio.common.exception import (
     DataIdentifierAlreadyExists,
@@ -17,10 +22,16 @@ from rucio.common.exception import (
     DuplicateContent,
     DuplicateRule,
     FileAlreadyExists,
+    InvalidObject,
+    RSENotFound,
+    RuleNotFound,
     UnsupportedOperation,
 )
 
 from pandaserver.srvcore import CoreUtils
+
+# logger
+_logger = PandaLogger().getLogger("ddm_rucio_api")
 
 
 # rucio
@@ -34,19 +45,29 @@ class RucioAPI:
         """
         Initialize RucioAPI instance
         """
-        pass
+        # list of blacklisted endpoints
+        self.blacklist_endpoints = []
+        self.bad_endpoint_read = []
+        # time of last update for blacklist
+        self.blacklist_last_update = None
+        # how frequently update DN/token map
+        self.update_interval = datetime.timedelta(seconds=60 * 10)
 
     # extract scope
-    def extract_scope(self, dataset_name: str) -> tuple:
+    def extract_scope(self, dataset_name: str, strip_slash: bool = False) -> tuple:
         """
         Extract scope from a given dataset name
 
         Parameters:
         dataset_name (str): Dataset name
+        strip_slash (bool): Wheter to strip trailing slash (about continer collection) in data_name
 
         Returns:
         tuple: A tuple containing scope and dataset name
         """
+        if strip_slash:
+            if dataset_name.endswith("/"):
+                dataset_name = re.sub("/$", "", dataset_name)
         if ":" in dataset_name:
             return dataset_name.split(":")[:2]
         scope = dataset_name.split(".")[0]
@@ -915,6 +936,420 @@ class RucioAPI:
             error_message = f"{str(error)}"
             user_info = error_message
         return return_value, user_info
+
+    #####################################
+    # Migrated from JEDI AtlasDDMClient #
+    #####################################
+
+    # get DID string as scope:name
+    def get_did_str(self, raw_name: str) -> str:
+        scope, name = self.extract_scope(raw_name, strip_slash=True)
+        return f"{scope}:{name}"
+
+    # update blacklist
+    def update_blackList(self):
+        method_name = "update_blackList"
+        tmp_log = LogWrapper(_logger, method_name)
+        # check freshness
+        timeNow = naive_utcnow()
+        if self.blacklist_last_update is not None and timeNow - self.blacklist_last_update < self.update_interval:
+            return
+        self.blacklist_last_update = timeNow
+        # get json
+        try:
+            tmp_log.debug("start")
+            with open("/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmblacklisting.json") as f:
+                ddd = json.load(f)
+                self.blacklist_endpoints = [k for k in ddd if "write_wan" in ddd[k] and ddd[k]["write_wan"]["status"]["value"] == "OFF"]
+                self.bad_endpoint_read = [k for k in ddd if "read_wan" in ddd[k] and ddd[k]["read_wan"]["status"]["value"] == "OFF"]
+            tmp_log.debug(f"{len(self.blacklist_endpoints)} bad endpoints for write, {len(self.bad_endpoint_read)} bad endpoints for read")
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+        return
+
+    # get bad endpoints for read
+    def get_bad_endpoint_read(self):
+        self.update_blackList()
+        return self.bad_endpoint_read
+
+    # wrapper for list_content
+    def wp_list_content(self, client, scope, dsn):
+        if dsn.endswith("/"):
+            dsn = dsn[:-1]
+        ret_list = []
+        # get contents
+        for data in client.list_content(scope, dsn):
+            if data["type"] == "CONTAINER":
+                ret_list += self.wp_list_content(client, data["scope"], data["name"])
+            elif data["type"] == "DATASET":
+                ret_list.append(f"{data['scope']}:{data['name']}")
+            else:
+                pass
+        return ret_list
+
+    # convert output of rucio list_dataset_replicas
+    def convert_list_dataset_replicas(self, dataset_name, use_file_lookup=False, use_vp=False, skip_incomplete_element=False):
+        retMap = {}
+        # get rucio API
+        client = RucioClient()
+        # get scope and name
+        scope, dsn = self.extract_scope(dataset_name, strip_slash=True)
+        # get replicas
+        itr = client.list_dataset_replicas(scope, dsn, deep=use_file_lookup)
+        items = []
+        for item in itr:
+            if "vp" not in item:
+                item["vp"] = False
+            items.append(item)
+        # deep lookup if shallow gave nothing
+        if items == [] and not use_file_lookup:
+            itr = client.list_dataset_replicas(scope, dsn, deep=True)
+            for item in itr:
+                if "vp" not in item:
+                    item["vp"] = False
+                items.append(item)
+        # VP
+        if use_vp:
+            itr = client.list_dataset_replicas_vp(scope, dsn)
+            for item in itr:
+                if item["vp"]:
+                    # add dummy
+                    if "length" not in item:
+                        item["length"] = 1
+                    if "available_length" not in item:
+                        item["available_length"] = 1
+                    if "bytes" not in item:
+                        item["bytes"] = 1
+                    if "available_bytes" not in item:
+                        item["available_bytes"] = 1
+                    if "site" in item and "rse" not in item:
+                        item["rse"] = item["site"]
+                    items.append(item)
+        # get blacklist
+        bad_rse_list = set(self.get_bad_endpoint_read())
+        # loop over all RSEs
+        for item in items:
+            rse = item["rse"]
+            if skip_incomplete_element and (not item["available_length"] or item["length"] != item["available_length"]):
+                continue
+            retMap[rse] = [
+                {
+                    "total": item["length"],
+                    "found": item["available_length"],
+                    "tsize": item["bytes"],
+                    "asize": item["available_bytes"],
+                    "vp": item["vp"],
+                    "immutable": 1,
+                    "read_blacklisted": rse in bad_rse_list,
+                }
+            ]
+        return retMap
+
+    # list RSEs
+    def list_rses(self, filter=None):
+        method_name = "list_rses"
+        method_name += f" filter={filter}"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        ret_list = []
+        try:
+            # get rucio API
+            client = RucioClient()
+            # get RSEs
+            result = client.list_rses(filter)
+            if result:
+                # res is a generator yielding {"rse": "name_of_rse"}
+                for x in result:
+                    rse = x["rse"]
+                    ret_list.append(rse)
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+        tmp_log.debug(f"got {ret_list}")
+        return ret_list
+
+    # list DID rules
+    def list_did_rules(self, dataset_name, all_accounts=False):
+        method_name = "list_did_rules"
+        method_name += f" dataset_name={dataset_name} all_accounts={all_accounts}"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        ret_list = []
+        try:
+            # get rucio API
+            client = RucioClient()
+            # get scope and name
+            scope, dsn = self.extract_scope(dataset_name, strip_slash=True)
+            # get rules
+            for rule in client.list_did_rules(scope=scope, name=dsn):
+                if rule["account"] == client.account or all_accounts:
+                    ret_list.append(rule)
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+        tmp_log.debug(f"got {len(ret_list)} rules")
+        return ret_list
+
+    # get dataset metadata
+    def get_dataset_metadata(self, dataset_name, ignore_missing=False):
+        # make logger
+        method_name = "get_dataset_metadata"
+        method_name = f"{method_name} dataset_name={dataset_name}"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # get rucio API
+            client = RucioClient()
+            # get scope and name
+            scope, dsn = self.extract_scope(dataset_name, strip_slash=True)
+            # get metadata
+            if dsn.endswith("/"):
+                dsn = dsn[:-1]
+            tmpRet = client.get_metadata(scope, dsn)
+            # set state
+            if tmpRet["is_open"] is True and tmpRet["did_type"] != "CONTAINER":
+                tmpRet["state"] = "open"
+            else:
+                tmpRet["state"] = "closed"
+            tmp_log.debug(str(tmpRet))
+            return tmpRet
+        except DataIdentifierNotFound as e:
+            if ignore_missing:
+                tmp_log.debug(e)
+                tmpRet = {}
+                tmpRet["state"] = "missing"
+                return tmpRet
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+
+    # get files in dataset
+    def get_files_in_dataset(self, dataset_name, ski_duplicate=True, ignore_unknown=False, long_format=False, lfn_only=False):
+        method_name = "get_files_in_dataset"
+        method_name += f" <dataset_name={dataset_name}>"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # get Rucio API
+            client = RucioClient()
+            # extract scope from dataset
+            scope, dsn = self.extract_scope(dataset_name)
+            if dsn.endswith("/"):
+                dsn = dsn[:-1]
+            # get length
+            tmpMeta = client.get_metadata(scope, dsn)
+            # get files
+            fileMap = {}
+            baseLFNmap = {}
+            fileSet = set()
+            for x in client.list_files(scope, dsn, long=long_format):
+                # convert to old dict format
+                lfn = str(x["name"])
+                if lfn_only:
+                    fileSet.add(lfn)
+                    continue
+                attrs = {}
+                attrs["lfn"] = lfn
+                attrs["chksum"] = "ad:" + str(x["adler32"])
+                attrs["md5sum"] = attrs["chksum"]
+                attrs["checksum"] = attrs["chksum"]
+                attrs["fsize"] = x["bytes"]
+                attrs["filesize"] = attrs["fsize"]
+                attrs["scope"] = str(x["scope"])
+                attrs["events"] = str(x["events"])
+                if long_format:
+                    attrs["lumiblocknr"] = str(x["lumiblocknr"])
+                guid = str(f"{x['guid'][0:8]}-{x['guid'][8:12]}-{x['guid'][12:16]}-{x['guid'][16:20]}-{x['guid'][20:32]}")
+                attrs["guid"] = guid
+                # skip duplicated files
+                if ski_duplicate:
+                    # extract base LFN and attempt number
+                    baseLFN = re.sub("(\.(\d+))$", "", lfn)
+                    attNr = re.sub(baseLFN + "\.*", "", lfn)
+                    if attNr == "":
+                        # without attempt number
+                        attNr = -1
+                    else:
+                        attNr = int(attNr)
+                    # compare attempt numbers
+                    addMap = False
+                    if baseLFN in baseLFNmap:
+                        # use larger attempt number
+                        oldMap = baseLFNmap[baseLFN]
+                        if oldMap["attNr"] < attNr:
+                            del fileMap[oldMap["guid"]]
+                            addMap = True
+                    else:
+                        addMap = True
+                    # append
+                    if not addMap:
+                        continue
+                    baseLFNmap[baseLFN] = {"guid": guid, "attNr": attNr}
+                fileMap[guid] = attrs
+            if lfn_only:
+                return_list = fileSet
+            else:
+                return_list = fileMap
+            tmp_log.debug(f"done len={len(return_list)} meta={tmpMeta['length']}")
+            if tmpMeta["length"] and tmpMeta["length"] > len(return_list):
+                err_msg = f"file list length mismatch len={len(return_list)} != meta={tmpMeta['length']}"
+                tmp_log.error(err_msg)
+                return None
+            return return_list
+        except DataIdentifierNotFound as e:
+            if ignore_unknown:
+                return {}
+            errType = e
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+
+    # list datasets in container
+    def list_datasets_in_container_JEDI(self, container_name):
+        method_name = "list_datasets_in_container_JEDI"
+        method_name += f" <container_name={container_name}>"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # get rucio
+            client = RucioClient()
+            # get scope and name
+            scope, dsn = self.extract_scope(container_name, strip_slash=True)
+            # get contents
+            dsList = self.wp_list_content(client, scope, dsn)
+            tmp_log.debug("got " + str(dsList))
+            return dsList
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+
+    # make staging rule
+    def make_staging_rule(self, dataset_name, expression, activity, lifetime=None, weight=None, notify="N", source_replica_expression=None):
+        method_name = "make_staging_rule"
+        method_name = f"{method_name} dataset_name={dataset_name} expression={expression} activity={activity} lifetime={lifetime}"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        ruleID = None
+        try:
+            if lifetime is not None:
+                lifetime = lifetime * 24 * 60 * 60
+            # get rucio API
+            client = RucioClient()
+            # get scope and name
+            scope, dsn = self.extract_scope(dataset_name, strip_slash=True)
+            # check if a replication rule already exists
+            if ruleID is None:
+                dids = [{"scope": scope, "name": dsn}]
+                for rule in client.list_did_rules(scope=scope, name=dsn):
+                    if rule["rse_expression"] == expression and rule["account"] == client.account and rule["activity"] == activity:
+                        ruleID = rule["id"]
+                        tmp_log.debug(f"rule already exists: ID={ruleID}")
+                        break
+            # make new rule
+            if ruleID is None:
+                rule_id_list = client.add_replication_rule(
+                    dids=dids,
+                    copies=1,
+                    rse_expression=expression,
+                    weight=weight,
+                    lifetime=lifetime,
+                    grouping="DATASET",
+                    account=client.account,
+                    locked=False,
+                    notify=notify,
+                    ignore_availability=False,
+                    activity=activity,
+                    asynchronous=False,
+                    source_replica_expression=source_replica_expression,
+                )
+                ruleID = rule_id_list[0]
+                tmp_log.debug(f"made new rule : ID={ruleID}")
+        except Exception as e:
+            tmp_log.error(f"failed to make staging rule with {str(e)} {traceback.format_exc()}")
+            return None
+        tmp_log.debug("done")
+        return ruleID
+
+    # update replication rule by rule ID
+    def update_rule_by_id(self, rule_id, set_map):
+        method_name = "update_rule_by_id"
+        method_name = f"{method_name} rule_id={rule_id} set_map={set_map}"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # get rucio API
+            client = RucioClient()
+            # update rule
+            client.update_replication_rule(rule_id, set_map)
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+        tmp_log.debug("done")
+        return True
+
+    # get replication rule by rule ID
+    def get_rule_by_id(self, rule_id, allow_missing=True):
+        method_name = "get_rule_by_id"
+        method_name = f"{method_name} rule_id={rule_id}"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # get rucio API
+            client = RucioClient()
+            # get rules
+            rule = client.get_replication_rule(rule_id)
+        except RuleNotFound as e:
+            if allow_missing:
+                tmp_log.warning(e)
+                return False
+            else:
+                tmp_log.error(f"got error ; {traceback.format_exc()}")
+                return None
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+        tmp_log.debug(f"got rule")
+        return rule
+
+    # list details of all replica locks for a rule by rule ID
+    def list_replica_locks_by_id(self, rule_id):
+        method_name = "list_replica_locks_by_id"
+        method_name = f"{method_name} rule_id={rule_id}"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # get rucio API
+            client = RucioClient()
+            # get generator of replica locks
+            res = client.list_replica_locks(rule_id)
+            # turn into list
+            ret = list(res)
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+        tmp_log.debug(f"got replica locks")
+        return ret
+
+    # delete replication rule by rule ID
+    def delete_replication_rule(self, rule_id, allow_missing=True):
+        method_name = "delete_replication_rule"
+        method_name = f"{method_name} rule_id={rule_id}"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            # get rucio API
+            client = RucioClient()
+            # get rules
+            ret = client.delete_replication_rule(rule_id)
+        except RuleNotFound as e:
+            if allow_missing:
+                tmp_log.debug(e)
+                return False
+        except Exception as e:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+        tmp_log.debug(f"deleted, return {ret}")
+        return ret
 
 
 # instantiate
