@@ -12,6 +12,7 @@ import time
 import traceback
 from typing import Dict, List
 
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 from rucio.common.exception import (
     DataIdentifierNotFound,
     FileConsistencyMismatch,
@@ -670,7 +671,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         for attempt_number in range(max_attempt):
             is_fatal = False
             is_failed = False
-            reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            reg_start = naive_utcnow()
             try:
                 if self.add_to_top_only:
                     reg_msg_str = f"File registration for {reg_num_files} files "
@@ -710,7 +711,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     or "unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated" in out
                 )
                 is_failed = True
-            reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start
+            reg_time = naive_utcnow() - reg_start
             self.logger.debug(f"{reg_msg_str} took {reg_time.seconds}.{reg_time.microseconds // 1000:03d} sec")
             # failed
             if is_failed or is_fatal:

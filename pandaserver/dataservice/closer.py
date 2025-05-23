@@ -9,6 +9,7 @@ from typing import Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
@@ -54,7 +55,7 @@ class Closer:
         Returns:
             bool: True if all sub datasets are done, False otherwise.
         """
-        tmp_log = LogWrapper(_logger, f"check_sub_datasets_in_jobset-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"check_sub_datasets_in_jobset-{naive_utcnow().isoformat('/')}")
         # skip already checked
         if self.all_subscription_finished is not None:
             return self.all_subscription_finished
@@ -150,7 +151,7 @@ class Closer:
         updates the dataset status and finalizes pending jobs if necessary.
         """
         try:
-            tmp_log = LogWrapper(_logger, f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}-{self.panda_id}")
+            tmp_log = LogWrapper(_logger, f"run-{naive_utcnow().isoformat('/')}-{self.panda_id}")
             tmp_log.debug(f"Start with job status: {self.job.jobStatus}")
             flag_complete = True
             final_status_dataset = []

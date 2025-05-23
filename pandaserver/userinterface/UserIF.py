@@ -12,6 +12,7 @@ import traceback
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.brokerage.SiteMapper import SiteMapper
@@ -942,7 +943,7 @@ def getFullJobStatus(req, ids):
 
 # insert task params
 def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None):
-    tmp_log = LogWrapper(_logger, f"insertTaskParams-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_log = LogWrapper(_logger, f"insertTaskParams-{naive_utcnow().isoformat('/')}")
     tmp_log.debug("start")
     properErrorCode = resolve_true(properErrorCode)
 
@@ -1494,7 +1495,7 @@ def updateWorkers(req, harvesterID, workers):
     # hostname
     host = req.get_remote_host()
     return_value = None
-    tStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    tStart = naive_utcnow()
     # convert
     try:
         data = json.loads(workers)
@@ -1503,7 +1504,7 @@ def updateWorkers(req, harvesterID, workers):
     # update
     if return_value is None:
         return_value = userIF.updateWorkers(user, host, harvesterID, data)
-    tDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - tStart
+    tDelta = naive_utcnow() - tStart
     _logger.debug(f"updateWorkers {harvesterID} took {tDelta.seconds}.{tDelta.microseconds // 1000:03d} sec")
 
     return return_value
@@ -1519,7 +1520,7 @@ def updateServiceMetrics(req, harvesterID, metrics):
 
     host = req.get_remote_host()
     return_value = None
-    tStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    tStart = naive_utcnow()
 
     # convert
     try:
@@ -1531,7 +1532,7 @@ def updateServiceMetrics(req, harvesterID, metrics):
     if return_value is None:
         return_value = userIF.updateServiceMetrics(user, host, harvesterID, data)
 
-    tDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - tStart
+    tDelta = naive_utcnow() - tStart
     _logger.debug(f"updateServiceMetrics {harvesterID} took {tDelta.seconds}.{tDelta.microseconds // 1000:03d} sec")
 
     return return_value
@@ -1680,7 +1681,7 @@ def decode_idds_enum(d):
 def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, json_outputs=None):
     tmp_log = LogWrapper(
         _logger,
-        f"relay_idds_command-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}",
+        f"relay_idds_command-{naive_utcnow().isoformat('/')}",
     )
     # check security
     if not isSecure(req):
@@ -1743,7 +1744,7 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
     try:
         tmp_log = LogWrapper(
             _logger,
-            f"execute_idds_workflow_command-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}",
+            f"execute_idds_workflow_command-{naive_utcnow().isoformat('/')}",
         )
         if kwargs:
             try:
@@ -1823,7 +1824,7 @@ def send_command_to_job(req, panda_id, com):
 
 # set user secret
 def set_user_secret(req, key=None, value=None):
-    tmp_log = LogWrapper(_logger, f"set_user_secret-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_log = LogWrapper(_logger, f"set_user_secret-{naive_utcnow().isoformat('/')}")
     # get owner
     dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
     if not dn:
@@ -1836,7 +1837,7 @@ def set_user_secret(req, key=None, value=None):
 
 # get user secrets
 def get_user_secrets(req, keys=None, get_json=None):
-    tmp_log = LogWrapper(_logger, f"get_user_secrets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_log = LogWrapper(_logger, f"get_user_secrets-{naive_utcnow().isoformat('/')}")
     # get owner
     dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
     get_json = resolve_true(get_json)

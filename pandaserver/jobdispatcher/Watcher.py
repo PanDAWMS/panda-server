@@ -10,6 +10,7 @@ import traceback
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.dataservice.closer import Closer
 from pandaserver.jobdispatcher import ErrorCode
@@ -63,7 +64,7 @@ class Watcher(threading.Thread):
                         self.logger.debug(f"escape : wrong status {job.jobStatus}")
                         return
                 # time limit
-                timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=self.sleepTime)
+                timeLimit = naive_utcnow() - datetime.timedelta(minutes=self.sleepTime)
                 if job.modificationTime < timeLimit or (job.endTime != "NULL" and job.endTime < timeLimit):
                     self.logger.debug(f"{job.jobStatus} lastmod:{str(job.modificationTime)} endtime:{str(job.endTime)}")
                     destDBList = []

@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.api.v1.common import (
     MESSAGE_TASK_ID,
@@ -1249,7 +1250,7 @@ def submit(req: PandaRequest, task_parameters: Dict, parent_tid: int = None) -> 
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
               Return code in the data field, 0 for success, others for failure.
     """
-    tmp_log = LogWrapper(_logger, f"submit {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_log = LogWrapper(_logger, f"submit {naive_utcnow().isoformat('/')}")
     tmp_log.debug("Start")
 
     user = get_dn(req)

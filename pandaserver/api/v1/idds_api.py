@@ -4,6 +4,7 @@ import traceback
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.api.v1.common import generate_response, request_validation
 from pandaserver.srvcore.CoreUtils import clean_user_id
@@ -35,7 +36,7 @@ def decode_idds_enum(d):
 def relay_idds_command(req, command_name: str, args: str = None, kwargs: str = None, manager: bool = False, json_outputs: bool = False):
     tmp_log = LogWrapper(
         _logger,
-        f"relay_idds_command-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}",
+        f"relay_idds_command-{naive_utcnow().isoformat('/')}",
     )
 
     try:
@@ -102,7 +103,7 @@ def relay_idds_command(req, command_name: str, args: str = None, kwargs: str = N
 def execute_idds_workflow_command(req, command_name: str, kwargs: str = None, json_outputs: bool = False):
     tmp_log = LogWrapper(
         _logger,
-        f"execute_idds_workflow_command-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}",
+        f"execute_idds_workflow_command-{naive_utcnow().isoformat('/')}",
     )
     try:
         if kwargs:

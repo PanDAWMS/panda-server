@@ -2,6 +2,8 @@ import datetime
 import optparse
 import re
 
+from pandacommon.pandautils.PandaUtils import naive_utcnow
+
 import pandaserver.userinterface.Client as Client
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
@@ -36,7 +38,7 @@ try:
     options.olderThan = int(options.olderThan)
 except Exception:
     pass
-timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=options.olderThan)
+timeLimit = naive_utcnow() - datetime.timedelta(hours=options.olderThan)
 varMap = {}
 if options.assigned:
     varMap[":jobStatus"] = "assigned"

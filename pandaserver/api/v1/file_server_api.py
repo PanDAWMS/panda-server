@@ -13,6 +13,7 @@ from typing import Dict
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 from werkzeug.datastructures import FileStorage
 
 from pandaserver.api.v1.common import generate_response, get_dn, request_validation
@@ -254,7 +255,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
         dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
     """
 
-    tmp_logger = LogWrapper(_logger, f"upload_cache_file-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_logger = LogWrapper(_logger, f"upload_cache_file-{naive_utcnow().isoformat('/')}")
     tmp_logger.debug(f"Start")
 
     # check if using secure connection and the proxy is not limited
@@ -640,7 +641,7 @@ def upload_file_recovery_request(req: PandaRequest, task_id: int, dry_run: bool 
     """
 
     user_name = req.subprocess_env["SSL_CLIENT_S_DN"]
-    creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+    creation_time = naive_utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
     tmp_logger = LogWrapper(_logger, f"put_file_recovery_request < task_id={task_id} >")
     tmp_logger.debug(f"Start user={user_name}")
@@ -693,7 +694,7 @@ def upload_workflow_request(req: PandaRequest, data: str, dry_run: bool = False,
     """
 
     user_name = req.subprocess_env["SSL_CLIENT_S_DN"]
-    creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+    creation_time = naive_utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
     tmp_logger = LogWrapper(_logger, "upload_workflow_request")
 
@@ -792,10 +793,10 @@ def upload_event_picking_request(
 
     user_name = req.subprocess_env["SSL_CLIENT_S_DN"]
 
-    tmp_logger = LogWrapper(_logger, f"upload_event_picking_request-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_logger = LogWrapper(_logger, f"upload_event_picking_request-{naive_utcnow().isoformat('/')}")
     tmp_logger.debug(f"Start for {user_name}")
 
-    creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+    creation_time = naive_utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
     # get total size
     content_length = _get_content_length(req, tmp_logger)

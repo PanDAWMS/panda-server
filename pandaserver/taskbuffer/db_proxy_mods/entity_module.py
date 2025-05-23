@@ -149,15 +149,10 @@ class EntityModule(BaseModule):
 
         elif type(parents) in (list, tuple):
             # Get the children of a list of shares
-            i = 0
             var_map = {}
-            for parent in parents:
-                key = f":parent{i}"
-                var_map[key] = parent
-                i += 1
-
-            parentBindings = ",".join(f":parent{i}" for i in range(len(parents)))
-            sql += f"WHERE parent IN ({parentBindings})"
+            parent_var_names_str, parent_var_map = get_sql_IN_bind_variables(parents, prefix=":parent")
+            sql += f"WHERE parent IN ({parent_var_names_str})"
+            var_map.update(parent_var_map)
 
         self.cur.execute(sql + comment, var_map)
         resList = self.cur.fetchall()
@@ -1215,7 +1210,7 @@ class EntityModule(BaseModule):
             # separate the queues to the ones we have to update (existing) and the ones we have to insert (new)
             var_map_insert = []
             var_map_update = []
-            utc_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            utc_now = naive_utcnow()
             for pq in schedconfig_dump:
                 data = json.dumps(schedconfig_dump[pq])
                 if not data:
@@ -1285,7 +1280,7 @@ class EntityModule(BaseModule):
         try:
             var_map_tags = []
 
-            utc_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            utc_now = naive_utcnow()
             for pq in sw_tags:
                 data = sw_tags[pq]
                 var_map_tags.append({":pq": pq, ":data": json.dumps(data), ":last_update": utc_now})
@@ -1361,7 +1356,7 @@ class EntityModule(BaseModule):
         sqlAll = "SELECT GETJOB, UPDATEJOB, NOJOB, GETJOBABS, UPDATEJOBABS, NOJOBABS, FLAG FROM ATLAS_PANDAMETA.SiteData WHERE HOURS = :HOURS AND SITE = :SITE"
 
         try:
-            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            timeNow = naive_utcnow()
             self.conn.begin()
             # delete old records
             varMap = {}
@@ -1638,7 +1633,7 @@ class EntityModule(BaseModule):
 
         try:
             # use offset(1000)+minutes for :HOURS
-            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            timeNow = naive_utcnow()
             nHours = 1000 + timeNow.hour * 60 + timeNow.minute
             # delete old records
             varMap = {}
@@ -2111,7 +2106,7 @@ class EntityModule(BaseModule):
         ) - self.job_prio_boost_dict_update_time < datetime.timedelta(minutes=15):
             return self.job_prio_boost_dict
         try:
-            self.job_prio_boost_dict_update_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            self.job_prio_boost_dict_update_time = naive_utcnow()
             self.job_prio_boost_dict = {}
             # get configs
             tmp_log = self.create_tagged_logger(comment)
@@ -2127,7 +2122,7 @@ class EntityModule(BaseModule):
                     # check expiration
                     if tmp_expire:
                         tmp_expire = datetime.datetime.strptime(tmp_expire, "%Y%m%d")
-                        if tmp_expire < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
+                        if tmp_expire < naive_utcnow():
                             continue
                     self.job_prio_boost_dict.setdefault(tmp_type, {})
                     self.job_prio_boost_dict[tmp_type][tmp_name] = int(tmp_prio)
@@ -2736,7 +2731,7 @@ class EntityModule(BaseModule):
 
             # store the average emissions
             tmp_log.debug(f"The grid co2 emissions were averaged to {average_emissions}")
-            utc_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            utc_now = naive_utcnow()
             var_map = {
                 ":region": "GRID",
                 ":timestamp": utc_now,
@@ -3061,7 +3056,7 @@ class EntityModule(BaseModule):
             varMap = {}
             varMap[":name"] = userName
             varMap[":email"] = emailAddr
-            varMap[":uptime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+            varMap[":uptime"] = naive_utcnow().strftime("%Y-%m-%d %H:%M:%S")
             self.cur.execute(sql + comment, varMap)
             # commit
             if not self._commit():
@@ -3118,7 +3113,7 @@ class EntityModule(BaseModule):
         try:
             # set autocommit on
             self.conn.begin()
-            time_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            time_now = naive_utcnow()
             expire_at = time_now + datetime.timedelta(hours=lifetime)
             # check if a new key was registered recently
             sql = f"SELECT 1 FROM {panda_config.schemaMETA}.proxykey WHERE dn=:dn AND expires>:limit "

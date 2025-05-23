@@ -17,6 +17,7 @@ import uuid
 from typing import Dict, List, Optional, Tuple
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 from rucio.common.exception import DataIdentifierNotFound
 
 import pandaserver.brokerage.broker
@@ -82,7 +83,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             self.memory_check()
             bunch_tag = ""
             tag_job = None
-            time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            time_start = naive_utcnow()
             if self.jobs is not None and len(self.jobs) > 0:
                 tag_job = self.jobs[0]
             elif len(self.jumbo_jobs) > 0:
@@ -181,7 +182,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # setup jumbo jobs
             self.setup_jumbo_jobs()
             self.memory_check()
-            reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
+            reg_time = naive_utcnow() - time_start
             tmp_logger.debug(f"{bunch_tag} took {reg_time.seconds}sec")
             tmp_logger.debug("end")
         except Exception as e:
@@ -447,7 +448,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     self.logger.debug(f"sleep {attempt}/{max_attempt}")
                     time.sleep(10)
             if not is_ok:
-                disp_error[dispatch_data_block] = "setupper.setup_source() could not register dispatch_data_block with {0}".format(err_str.split("\n")[-1])
+                tmp_str = err_str.split("\n")[-1]
+                disp_error[dispatch_data_block] = f"setupper.setup_source() could not register dispatch_data_block with {tmp_str}"
                 continue
             tmp_logger.debug(out)
             new_out = out

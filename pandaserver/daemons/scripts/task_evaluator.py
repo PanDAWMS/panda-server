@@ -9,6 +9,7 @@ from zlib import adler32
 
 from pandacommon.pandalogger import logger_utils
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
@@ -63,7 +64,7 @@ class TaskEvaluationDB(object):
         )
         sql_insert = """INSERT INTO ATLAS_PANDA.Task_Evaluation """ """VALUES ( """ """:taskID, :metric, :patch_value_json, :timestamp """ """) """
         # now
-        now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        now_time = naive_utcnow()
         # get existing taskID list
         res = self.tbuf.querySQL(sql_query_taskid, {":metric": metric})
         existing_taskID_list = [taskID for (taskID,) in res]
@@ -125,7 +126,7 @@ class TaskEvaluationDB(object):
             """SELECT jediTaskID, value_json """ """FROM ATLAS_PANDA.Task_Evaluation """ """WHERE metric = :metric """ """AND timestamp >= :min_timestamp """
         )
         # now
-        now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        now_time = naive_utcnow()
         # var map
         varMap = {
             ":metric": metric,
@@ -165,7 +166,7 @@ class TaskEvaluationDB(object):
             "AND te.timestamp <= :max_timestamp "
         )
         # now
-        now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        now_time = naive_utcnow()
         # var map
         varMap = {
             ":metric": metric,
@@ -220,7 +221,7 @@ class FetchData(object):
             # tmp_site_dict = dict()
             task_dict = dict()
             # now time
-            now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            now_time = naive_utcnow()
             # MetricsDB
             mdb = MetricsDB(self.tbuf)
             # get user evaluation

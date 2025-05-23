@@ -2,6 +2,8 @@ import argparse
 import datetime
 import time
 
+from pandacommon.pandautils.PandaUtils import naive_utcnow
+
 import pandaserver.userinterface.Client as Client
 
 # password
@@ -53,7 +55,7 @@ if options.forceKill:
 jobs = []
 jediJobs = []
 
-timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=options.limit)
+timeLimit = naive_utcnow() - datetime.timedelta(minutes=options.limit)
 varMap = {}
 varMap[":modificationTime"] = timeLimit
 varMap[":taskID"] = taskid

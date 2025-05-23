@@ -8,6 +8,7 @@ import traceback
 import uuid
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
@@ -52,7 +53,7 @@ class TaskEventModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"<PandaID={pandaID} jobsetID={jobsetID} jediTaskID={jediTaskID}")
         tmp_log.debug(f"start nRanges={nRanges} scattered={scattered} segment={segment_id}")
         try:
-            regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            regStart = naive_utcnow()
             # convert to int
             try:
                 nRanges = int(nRanges)
@@ -307,7 +308,7 @@ class TaskEventModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
+            regTime = naive_utcnow() - regStart
             tmp_log.debug(f"done with {iRanges} event ranges. took {regTime.seconds} sec")
             if not acceptJson:
                 return json.dumps(retRanges)
@@ -329,7 +330,7 @@ class TaskEventModule(BaseModule):
         commandMap = {}
         retList = []
         try:
-            regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            regStart = naive_utcnow()
             jobAttrs = {}
             # sql to update status
             sqlU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Events "
@@ -568,7 +569,7 @@ class TaskEventModule(BaseModule):
                                         varMap[":jobStatus"] = zipJobSpec.jobStatus
                                         varMap[":attemptNr"] = 0 if zipJobSpec.attemptNr in [None, "NULL", ""] else zipJobSpec.attemptNr
                                         varMap[":data"] = None
-                                        varMap[":timeStamp"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                                        varMap[":timeStamp"] = naive_utcnow()
                                         try:
                                             self.cur.execute(sqlI + comment, varMap)
                                         except Exception:
@@ -653,7 +654,7 @@ class TaskEventModule(BaseModule):
                 self.cur.execute(sqlS + comment, varMap)
                 if not self._commit():
                     raise RuntimeError("Commit error")
-            regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
+            regTime = naive_utcnow() - regStart
             tmp_log.debug(f"done. {iSkipped} events out of {len(eventDictList)} events skipped. took {regTime.seconds} sec")
             return retList, commandMap
         except Exception:
@@ -798,7 +799,7 @@ class TaskEventModule(BaseModule):
                 if retD == 0:
                     continue
                 # set error code
-                dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                dJob.endTime = naive_utcnow()
                 if EventServiceUtils.isJobCloningJob(dJob):
                     dJob.jobStatus = "closed"
                     dJob.jobSubStatus = "jc_unlock"
@@ -979,7 +980,7 @@ class TaskEventModule(BaseModule):
                 tmp_log.debug(f"kill unused consumer {pandaID}")
                 # set error code
                 dJob.jobStatus = "closed"
-                dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                dJob.endTime = naive_utcnow()
                 if EventServiceUtils.isJobCloningJob(dJob):
                     dJob.jobSubStatus = "jc_unlock"
                     dJob.taskBufferErrorCode = ErrorCode.EC_JobCloningUnlock
@@ -1435,8 +1436,8 @@ class TaskEventModule(BaseModule):
             sqlWP += "UNION "
             sqlWP += "SELECT 1 FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
             self.cur.arraysize = 1000000
-            timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=timeLimit)
-            timeLimitWaiting = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=6)
+            timeLimit = naive_utcnow() - datetime.timedelta(minutes=timeLimit)
+            timeLimitWaiting = naive_utcnow() - datetime.timedelta(hours=6)
             retList = []
             # get jobs
             coJumboTobeKilled = set()
@@ -2536,17 +2537,15 @@ class TaskEventModule(BaseModule):
 
             # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
             var_map = {":jediTaskID": jedi_task_id}
-            i = 0
-            for input_type in input_types:
-                var_map[f":type{i}"] = input_type
-                i += 1
-            input_type_bindings = ",".join(f":type{i}" for i in range(len(input_types)))
+
+            input_type_var_names_str, input_type_var_map = get_sql_IN_bind_variables(input_types, prefix=":type")
+            var_map.update(input_type_var_map)
 
             sql_get_memory_stats = (
                 f"SELECT ramCount, count(*) "
                 f"FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabC "
                 f"WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID AND tabD.jediTaskID=:jediTaskID "
-                f"AND tabD.type IN ({input_type_bindings}) AND tabD.masterID IS NULL GROUP BY ramCount"
+                f"AND tabD.type IN ({input_type_var_names_str}) AND tabD.masterID IS NULL GROUP BY ramCount"
             )
 
             self.cur.execute(sql_get_memory_stats + comment, var_map)
@@ -2687,11 +2686,9 @@ class TaskEventModule(BaseModule):
                     # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
-                    i = 0
-                    for input_type in input_types:
-                        varMap[f":type{i}"] = input_type
-                        i += 1
-                    input_type_bindings = ",".join(f":type{i}" for i in range(len(input_types)))
+
+                    input_type_var_names_str, input_type_var_map = get_sql_IN_bind_variables(input_types, prefix=":type")
+                    varMap.update(input_type_var_map)
 
                     sqlMS = """
                              SELECT ramCount, count(*)
@@ -2703,7 +2700,7 @@ class TaskEventModule(BaseModule):
                              AND tabD.masterID IS NULL
                              GROUP BY ramCount
                              """.format(
-                        panda_config.schemaJEDI, input_type_bindings
+                        panda_config.schemaJEDI, input_type_var_names_str
                     )
 
                     self.cur.execute(sqlMS + comment, varMap)
@@ -3505,25 +3502,25 @@ class TaskEventModule(BaseModule):
                     "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA "
                     "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
                     "AND tabT.prodSourceLabel=:prodSourceLabel AND tabT.userName=:userName "
-                    "AND tabT.status IN ("
                 ).format(panda_config.schemaJEDI)
                 varMapTot = {}
                 varMapTot[":prodSourceLabel"] = taskParamsJson["prodSourceLabel"]
                 varMapTot[":userName"] = taskParamsJson["userName"]
-                for st in [
-                    "registered",
-                    "defined",
-                    "ready",
-                    "scouting",
-                    "running",
-                    "paused",
-                    "throttled",
-                ]:
-                    key = f":{st}"
-                    sqlTOT += f"{key},"
-                    varMapTot[key] = st
-                sqlTOT = sqlTOT[:-1]
-                sqlTOT += ") "
+                st_var_names_str, st_var_map = get_sql_IN_bind_variables(
+                    [
+                        "registered",
+                        "defined",
+                        "ready",
+                        "scouting",
+                        "running",
+                        "paused",
+                        "throttled",
+                    ],
+                    prefix=":",
+                    value_as_suffix=True,
+                )
+                sqlTOT += f"AND tabT.status IN ({st_var_names_str}) "
+                varMapTot.update(st_var_map)
                 self.cur.execute(sqlTOT + comment, varMapTot)
                 resTOT = self.cur.fetchone()
                 if resTOT is not None and resTOT[0] > max_n_tasks:
@@ -4358,7 +4355,7 @@ class TaskEventModule(BaseModule):
             jobSpec.Files = []
             # reset job attributes
             jobSpec.startTime = None
-            jobSpec.creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            jobSpec.creationTime = naive_utcnow()
             jobSpec.modificationTime = jobSpec.creationTime
             jobSpec.stateChangeTime = jobSpec.creationTime
             jobSpec.batchID = None

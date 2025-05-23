@@ -12,6 +12,7 @@ import traceback
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 import pandaserver.dataservice.ErrorCode
 import pandaserver.taskbuffer.ErrorCode
@@ -82,7 +83,7 @@ class AdderGen:
         Run the AdderGen plugin.
         """
         try:
-            start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            start_time = naive_utcnow()
             self.logger.debug(f"new start: {self.job_status} attemptNr={self.attempt_nr}")
 
             # got lock, get the report
@@ -95,7 +96,7 @@ class AdderGen:
             checked = self.check_job_status()
             self.logger.debug(f"checked: {checked}")
 
-            duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+            duration = naive_utcnow() - start_time
             self.logger.debug("end: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
 
             # remove Catalog
@@ -107,7 +108,7 @@ class AdderGen:
         except Exception as e:
             err_str = f"{str(e)} {traceback.format_exc()}"
             self.logger.error(err_str)
-            duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+            duration = naive_utcnow() - start_time
             self.logger.error("except: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
             # unlock job output report
             self.taskBuffer.unlockJobOutputReport(

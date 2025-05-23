@@ -7,6 +7,7 @@ from typing import List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.api.v1.common import (
     TimedMethod,
@@ -108,7 +109,7 @@ def acquire_jobs(
               When failed, the message contains the error message.
     """
 
-    tmp_logger = LogWrapper(_logger, f"acquire_jobs {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_logger = LogWrapper(_logger, f"acquire_jobs {naive_utcnow().isoformat('/')}")
     tmp_logger.debug(f"Start for {site_name}")
 
     # get DN and FQANs
@@ -579,9 +580,7 @@ def update_job(
         update_state_change = True  # update stateChangeTime to prevent Watcher from finding this job
         param["jobDispatcherErrorDiag"] = None
     elif job_status in ("holding", "transferring"):
-        param["jobDispatcherErrorDiag"] = (
-            f"set to {job_status} by the pilot at {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')}"
-        )
+        param["jobDispatcherErrorDiag"] = f"set to {job_status} by the pilot at {naive_utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
 
     # update the job status in the database
     timeout = None if job_status == "holding" else timeout
@@ -649,7 +648,7 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
     """
     tmp_logger = LogWrapper(_logger, f"update_jobs_bulk harvester_id={harvester_id}")
     tmp_logger.debug("Start")
-    t_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    t_start = naive_utcnow()
 
     success = False
     message = ""
@@ -675,7 +674,7 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
         data = []
         tmp_logger.error(f"{message}\n{traceback.format_exc()}")
 
-    t_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - t_start
+    t_delta = naive_utcnow() - t_start
     tmp_logger.debug(f"Done. Took {t_delta.seconds}.{t_delta.microseconds // 1000:03d} sec")
     return generate_response(success, message, data)
 
