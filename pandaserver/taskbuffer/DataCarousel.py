@@ -2019,7 +2019,11 @@ class DataCarouselInterface(object):
                     #         to_resume = True
                     #         break
                     # resume as soon as DDM rules are created
-                    if dc_req_spec.ddm_rule_id and dc_req_spec.status in [DataCarouselRequestStatus.staging, DataCarouselRequestStatus.done]:
+                    if dc_req_spec.ddm_rule_id and dc_req_spec.status in [
+                        DataCarouselRequestStatus.staging,
+                        DataCarouselRequestStatus.done,
+                        DataCarouselRequestStatus.retired,
+                    ]:
                         to_resume = True
                         break
                 if to_resume:

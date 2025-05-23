@@ -3595,7 +3595,7 @@ class MiscStandaloneModule(BaseModule):
             now_time = naive_utcnow()
             sql_update = (
                 f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
-                f"SET status=:new_status, end_time=:now_time, modification_time=:now_time "
+                f"SET status=:new_status, modification_time=:now_time "
                 f"WHERE request_id=:request_id "
                 f"AND status=:old_status "
             )
