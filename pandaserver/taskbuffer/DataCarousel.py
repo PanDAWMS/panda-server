@@ -1724,6 +1724,50 @@ class DataCarouselInterface(object):
         # return
         return ret
 
+    def _check_ddm_rule_of_request(self, dc_req_spec: DataCarouselRequestSpec, by: str = "unknown") -> tuple[bool, str | None, dict | None]:
+        """
+        Check if the DDM rule of the request is valid.
+        If rule not found, update the request and try to cancel or retire it.
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): spec of the request
+
+        Returns:
+            bool : True if valid, False otherwise
+            str|None : DDM rule ID
+            dict|None : DDM rule data if valid, None otherwise
+        """
+        tmp_log = LogWrapper(logger, f"_check_ddm_rule_of_request request_id={dc_req_spec.request_id} ddm_rule_id={dc_req_spec.ddm_rule_id}")
+        is_valid = False
+        # get DDM rule
+        ddm_rule_id = dc_req_spec.ddm_rule_id
+        the_rule = self.ddmIF.get_rule_by_id(ddm_rule_id)
+        if the_rule is False:
+            # rule not found
+            dc_req_spec.set_parameter("rule_unfound", True)
+            tmp_log.warning(f"ddm_rule_id={ddm_rule_id} rule not found")
+            tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+            if tmp_ret is not None:
+                tmp_log.debug(f"updated DB about rule not found")
+            else:
+                tmp_log.error(f"failed to update DB ; skipped")
+            # try to cancel or retire request
+            if dc_req_spec.status == DataCarouselRequestStatus.staging:
+                # requests staging but DDM rule not found; to cancel
+                self.cancel_request(dc_req_spec, by=by, reason="rule_unfound")
+            elif dc_req_spec.status == DataCarouselRequestStatus.done:
+                # requests done but DDM rule not found; to retire
+                self.retire_request(dc_req_spec, by=by, reason="rule_unfound")
+        elif the_rule is None:
+            # got error when getting the rule
+            tmp_log.error(f"failed to get rule ; skipped")
+        else:
+            # rule found
+            is_valid = True
+            # tmp_log.debug(f"rule is valid")
+        # return
+        return is_valid, ddm_rule_id, the_rule
+
     def refresh_ddm_rule_of_request(self, dc_req_spec: DataCarouselRequestSpec, lifetime_days: int, force_refresh: bool = False, by: str = "unknown") -> bool:
         """
         Refresh lifetime of the DDM rule of one request
@@ -1740,29 +1784,11 @@ class DataCarouselInterface(object):
         tmp_log = LogWrapper(logger, f"refresh_ddm_rule_of_request request_id={dc_req_spec.request_id}")
         # initialize
         ret = False
-        # get DDM rule
-        ddm_rule_id = dc_req_spec.ddm_rule_id
-        the_rule = self.ddmIF.get_rule_by_id(ddm_rule_id)
-        if the_rule is False:
-            # rule not found
-            dc_req_spec.set_parameter("rule_unfound", True)
-            tmp_log.error(f"ddm_rule_id={ddm_rule_id} rule not found")
-            tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
-            if tmp_ret is not None:
-                tmp_log.debug(f"updated DB about rule not found")
-            else:
-                tmp_log.error(f"failed to update DB ; skipped")
-            # try to cancel or retire request
-            if dc_req_spec.status == DataCarouselRequestStatus.staging:
-                # requests staging but DDM rule not found; to cancel
-                self.cancel_request(dc_req_spec, by=by, reason="rule_unfound")
-            elif dc_req_spec.status == DataCarouselRequestStatus.done:
-                # requests done but DDM rule not found; to retire
-                self.retire_request(dc_req_spec, by=by, reason="rule_unfound")
-            return ret
-        elif the_rule is None:
-            # got error when getting the rule
-            tmp_log.error(f"failed to get rule of ddm_rule_id={ddm_rule_id} ; skipped")
+        # check if the rule is valid
+        is_valid, ddm_rule_id, the_rule = self._check_ddm_rule_of_request(dc_req_spec, by=by)
+        if not is_valid:
+            # rule not valid; skipped
+            tmp_log.error(f"ddm_rule_id={ddm_rule_id} rule not valid; skipped")
             return ret
         # rule lifetime
         rule_lifetime = None
@@ -1788,39 +1814,48 @@ class DataCarouselInterface(object):
 
     def keep_alive_ddm_rules(self, by: str = "watchdog"):
         """
-        Keep alive DDM rules of requests of active tasks
+        Keep alive DDM rules of requests of active tasks; also check all requests if their DDM rules are valid
 
         Args:
             by (str): annotation of the caller of this method; default is "watchdog"
         """
         tmp_log = LogWrapper(logger, "keep_alive_ddm_rules")
-        # get requests and relations of active tasks
-        ret_requests_map, ret_relation_map = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_exclusion_list=FINAL_TASK_STATUSES)
-        for dc_req_spec in ret_requests_map.values():
+        # get all requests
+        all_requests_map, _ = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI()
+        # get requests of active tasks
+        active_tasked_requests_map, _ = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_exclusion_list=FINAL_TASK_STATUSES)
+        for dc_req_spec in all_requests_map.values():
             try:
-                if dc_req_spec.status not in [DataCarouselRequestStatus.staging, DataCarouselRequestStatus.done]:
-                    # skip requests without need to keep rules alive
-                    continue
-                # decide lifetime in days
-                days = None
-                if dc_req_spec.status == DataCarouselRequestStatus.staging:
-                    # for requests staging
-                    days = STAGING_LIFETIME_DAYS
-                elif dc_req_spec.status == DataCarouselRequestStatus.done:
-                    # for requests done
-                    days = DONE_LIFETIME_DAYS
-                # trigger renewal
-                if days is not None:
-                    ret = self.refresh_ddm_rule_of_request(dc_req_spec, lifetime_days=days, by=by)
-                    if ret:
-                        tmp_log.debug(
-                            f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={dc_req_spec.ddm_rule_id} refreshed lifetime to be {days} days long"
-                        )
-                    else:
-                        # tmp_log.debug(
-                        #     f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={dc_req_spec.ddm_rule_id} not to renew ; skipped"
-                        # )
-                        pass
+                if dc_req_spec.request_id in active_tasked_requests_map:
+                    # requests of active tasks
+                    if dc_req_spec.status not in [DataCarouselRequestStatus.staging, DataCarouselRequestStatus.done]:
+                        # skip requests without need to keep rules alive
+                        continue
+                    # decide lifetime in days
+                    days = None
+                    if dc_req_spec.status == DataCarouselRequestStatus.staging:
+                        # for requests staging
+                        days = STAGING_LIFETIME_DAYS
+                    elif dc_req_spec.status == DataCarouselRequestStatus.done:
+                        # for requests done
+                        days = DONE_LIFETIME_DAYS
+                    # trigger renewal
+                    if days is not None:
+                        ret = self.refresh_ddm_rule_of_request(dc_req_spec, lifetime_days=days, by=by)
+                        if ret:
+                            tmp_log.debug(
+                                f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={dc_req_spec.ddm_rule_id} refreshed lifetime to be {days} days long"
+                            )
+                        else:
+                            # tmp_log.debug(
+                            #     f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={dc_req_spec.ddm_rule_id} not to renew ; skipped"
+                            # )
+                            pass
+                else:
+                    # requests of non-active tasks; check if the rule is valid
+                    is_valid, ddm_rule_id, _ = self._check_ddm_rule_of_request(dc_req_spec, by=by)
+                    # if not is_valid:
+                    #     tmp_log.warning(f"ddm_rule_id={ddm_rule_id} rule not valid")
             except Exception:
                 tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
 
