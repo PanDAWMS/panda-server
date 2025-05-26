@@ -454,7 +454,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         if workflow == "production":
             if len(workflows) > 2:
                 ng_workflow_var_names_str, ng_workflow_var_map = get_sql_IN_bind_variables(workflows, prefix=":w_", value_as_suffix=True)
-                sqlX += f"AND (s.data.workflow IS NULL OR s.data.workflow NOT IN ({ng_workflow_var_names_str}) "
+                sqlX += f"AND (s.data.workflow IS NULL OR s.data.workflow NOT IN ({ng_workflow_var_names_str})) "
                 var_map.update(ng_workflow_var_map)
         else:
             tmp_key = f":w_{workflow}"
