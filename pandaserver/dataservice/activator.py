@@ -5,9 +5,9 @@ activate job
 
 import datetime
 
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 # logger
 _logger = PandaLogger().getLogger("activator")
@@ -31,6 +31,7 @@ class Activator:
     run():
         Starts the thread to activate jobs.
     """
+
     # constructor
     def __init__(self, taskBuffer, dataset, enforce: bool = False):
         """
@@ -54,8 +55,7 @@ class Activator:
         """
         Starts the thread to activate jobs.
         """
-        tmp_log = LogWrapper(_logger,
-                             f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}-{self.dataset.name}")
+        tmp_log = LogWrapper(_logger, f"run-{naive_utcnow().isoformat('/')}-{self.dataset.name}")
         if self.dataset.status in ["completed", "deleting", "deleted"] and not self.enforce:
             tmp_log.debug(f"skip: {self.dataset.name}")
         else:

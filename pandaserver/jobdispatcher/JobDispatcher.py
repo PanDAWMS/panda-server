@@ -16,6 +16,7 @@ from threading import Lock
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
@@ -54,7 +55,7 @@ class JobDispatcher:
         # taskbuffer
         self.taskBuffer = None
         # datetime of last updated
-        self.lastUpdated = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        self.lastUpdated = naive_utcnow()
         # how frequently update DN/token map
         self.timeInterval = datetime.timedelta(seconds=180)
         # special dispatcher parameters
@@ -322,9 +323,7 @@ class JobDispatcher:
             updateStateChange = True
             param["jobDispatcherErrorDiag"] = None
         elif jobStatus in ["holding", "transferring"]:
-            param["jobDispatcherErrorDiag"] = (
-                f"set to {jobStatus} by the pilot at {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')}"
-            )
+            param["jobDispatcherErrorDiag"] = f"set to {jobStatus} by the pilot at {naive_utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
         if tmpStatus == "holding":
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus, None)
         else:
@@ -869,7 +868,7 @@ def getJob(
     viaTopic=None,
     remaining_time=None,
 ):
-    tmpLog = LogWrapper(_logger, f"getJob {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmpLog = LogWrapper(_logger, f"getJob {naive_utcnow().isoformat('/')}")
     tmpLog.debug(siteName)
     # get DN
     realDN = _getDN(req)
@@ -1217,7 +1216,7 @@ def updateJobsInBulk(req, jobList, harvester_id=None):
     prefix = f"updateJobsInBulk {harvester_id}"
     tmp_logger = LogWrapper(_logger, prefix)
     tmp_logger.debug("start")
-    t_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    t_start = naive_utcnow()
 
     try:
         job_list = json.loads(jobList)
@@ -1237,7 +1236,7 @@ def updateJobsInBulk(req, jobList, harvester_id=None):
         ret_list = f"{prefix} {tmp_msg}"
         tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
 
-    t_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - t_start
+    t_delta = naive_utcnow() - t_start
     tmp_logger.debug(f"took {t_delta.seconds}.{t_delta.microseconds // 1000:03d} sec")
     return json.dumps((ret_val, ret_list))
 

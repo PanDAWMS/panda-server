@@ -19,6 +19,7 @@ from urllib.parse import parse_qsl
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 from pandacommon.pandautils.thread_utils import GenericThread
 from werkzeug.datastructures import CombinedMultiDict, EnvironHeaders
 from werkzeug.formparser import parse_form_data
@@ -410,7 +411,7 @@ def application(environ, start_response):
 
     tmp_log.debug(f"""start content-length={cont_length} json={json_app} origin={environ.get("HTTP_ORIGIN", None)}""")
 
-    start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    start_time = naive_utcnow()
     return_type = None
 
     # check method name is allowed, otherwise return 403
@@ -497,7 +498,7 @@ def application(environ, start_response):
         tmp_log.debug("done")
 
     # log execution time and return length
-    duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+    duration = naive_utcnow() - start_time
     tmp_log.info("exec_time=%s.%03d sec, return len=%s B" % (duration.seconds, duration.microseconds / 1000, len(str(exec_result))))
 
     # start the response and return result
