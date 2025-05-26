@@ -2979,7 +2979,7 @@ class JobComplexModule(BaseModule):
                 sqlOrigin = f"SELECT originPandaID FROM {panda_config.schemaJEDI}.JEDI_Job_Retry_History "
                 sqlOrigin += "WHERE jediTaskID=:jediTaskID AND newPandaID=:pandaID "
                 type_var_names_str, type_var_map = get_sql_IN_bind_variables(EventServiceUtils.relationTypesForJS, prefix=":", value_as_suffix=True)
-                sqlOrigin += f"AND (relationType IS NULL OR NOT relationType IN ({type_var_names_str}) "
+                sqlOrigin += f"AND (relationType IS NULL OR NOT relationType IN ({type_var_names_str})) "
                 varMap.update(type_var_map)
                 self.cur.execute(sqlOrigin + comment, varMap)
                 resOrigin = self.cur.fetchone()
@@ -3551,7 +3551,7 @@ class JobComplexModule(BaseModule):
         sqlFJ = f"SELECT MIN(originPandaID) FROM {panda_config.schemaJEDI}.JEDI_Job_Retry_History "
         sqlFJ += "WHERE jediTaskID=:jediTaskID AND newPandaID=:newPandaID "
         type_var_names_str, type_var_map = get_sql_IN_bind_variables(EventServiceUtils.relationTypesForJS, prefix=":", value_as_suffix=True)
-        sqlFJ += f"AND (relationType IS NULL OR NOT relationType IN ({type_var_names_str}) "
+        sqlFJ += f"AND (relationType IS NULL OR NOT relationType IN ({type_var_names_str})) "
         varMap.update(type_var_map)
         cur.execute(sqlFJ + comment, varMap)
         resT = cur.fetchone()
