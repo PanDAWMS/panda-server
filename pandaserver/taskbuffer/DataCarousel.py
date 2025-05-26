@@ -708,7 +708,11 @@ class DataCarouselInterface(object):
             # check the collection
             ret_list = []
             collection_meta = self.ddmIF.get_dataset_metadata(collection, ignore_missing=True)
-            if collection_meta["state"] == "missing":
+            if collection_meta is None:
+                # collection metadata not found
+                tmp_log.warning(f"collection metadata not found")
+                return None
+            elif collection_meta["state"] == "missing":
                 # DID not found
                 tmp_log.warning(f"DID not found")
                 return None
@@ -2033,11 +2037,11 @@ class DataCarouselInterface(object):
         for task_id, request_id_list in ret_relation_map.items():
             to_resume = False
             try:
-                _, task_spec = self.taskBufferIF.getTaskWithID_JEDI(task_id, fullFlag=False)
-                if not task_spec:
-                    # task not found
-                    tmp_log.error(f"task_id={task_id} task not found; skipped")
-                    continue
+                # _, task_spec = self.taskBufferIF.getTaskWithID_JEDI(task_id, fullFlag=False)
+                # if not task_spec:
+                #     # task not found
+                #     tmp_log.error(f"task_id={task_id} task not found; skipped")
+                #     continue
                 for request_id in request_id_list:
                     dc_req_spec = ret_requests_map[request_id]
                     # if task_spec.taskType == "prod":
