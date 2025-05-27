@@ -1749,7 +1749,7 @@ class DataCarouselInterface(object):
         if the_rule is False:
             # rule not found
             dc_req_spec.set_parameter("rule_unfound", True)
-            tmp_log.warning(f"ddm_rule_id={ddm_rule_id} rule not found")
+            tmp_log.warning(f"rule not found")
             tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
             if tmp_ret is not None:
                 tmp_log.debug(f"updated DB about rule not found")
@@ -1830,12 +1830,11 @@ class DataCarouselInterface(object):
         active_tasked_requests_map, _ = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_exclusion_list=FINAL_TASK_STATUSES)
         for dc_req_spec in all_requests_map.values():
             try:
+                if dc_req_spec.status not in [DataCarouselRequestStatus.staging, DataCarouselRequestStatus.done]:
+                    # skip requests without need to keep rules alive
+                    continue
                 if dc_req_spec.request_id in active_tasked_requests_map:
-                    # requests of active tasks
-                    if dc_req_spec.status not in [DataCarouselRequestStatus.staging, DataCarouselRequestStatus.done]:
-                        # skip requests without need to keep rules alive
-                        continue
-                    # decide lifetime in days
+                    # requests of active tasks; decide lifetime in days
                     days = None
                     if dc_req_spec.status == DataCarouselRequestStatus.staging:
                         # for requests staging
