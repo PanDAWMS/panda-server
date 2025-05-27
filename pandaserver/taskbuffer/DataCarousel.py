@@ -1597,14 +1597,58 @@ class DataCarouselInterface(object):
         # return
         return ddm_rule_id
 
+    def _submit_idds_stagein_request(self, task_id: int, dc_req_spec: DataCarouselRequestSpec) -> Any:
+        """
+        Submit corresponding iDDS stage-in request for given Data Carousel request and task
+        Currently only used for manual testing or after resubmitting Data Carousel requests
+
+        Args:
+            task_id (int): jediTaskID of the task
+            dc_req_spec (DataCarouselRequestSpec): request to submit iDDS stage-in request
+
+        Returns:
+            Any : iDDS requests ID returned from iDDS
+        """
+        tmp_log = LogWrapper(logger, f"_submit_idds_stagein_request request_id={dc_req_spec.request_id}")
+        # dataset and rule_id
+        dataset = dc_req_spec.dataset
+        rule_id = dc_req_spec.ddm_rule_id
+        ds_str_list = dataset.split(":")
+        tmp_scope = ds_str_list[0]
+        tmp_name = ds_str_list[1]
+        # iDDS request
+        c = iDDS_Client(idds.common.utils.get_rest_host())
+        req = {
+            "scope": tmp_scope,
+            "name": tmp_name,
+            "requester": "panda",
+            "request_type": idds.common.constants.RequestType.StageIn,
+            "transform_tag": idds.common.constants.RequestType.StageIn.value,
+            "status": idds.common.constants.RequestStatus.New,
+            "priority": 0,
+            "lifetime": 30,
+            "request_metadata": {
+                "workload_id": task_id,
+                "rule_id": rule_id,
+            },
+        }
+        tmp_log.debug(f"iDDS request: {req}")
+        ret = c.add_request(**req)
+        tmp_log.debug(f"done submit; iDDS_requestID={ret}")
+        # return
+        return ret
+
     @refresh
-    def stage_request(self, dc_req_spec: DataCarouselRequestSpec, extra_params: dict | None = None) -> tuple[bool, str | None, DataCarouselRequestSpec]:
+    def stage_request(
+        self, dc_req_spec: DataCarouselRequestSpec, extra_params: dict | None = None, submit_idds_request=True
+    ) -> tuple[bool, str | None, DataCarouselRequestSpec]:
         """
         Stage the dataset of the request and update request status to staging
 
         Args:
             dc_req_spec (DataCarouselRequestSpec): spec of the request
             extra_params (dict|None): extra parameters of the request to set; None if nothing to set
+            submit_idds_request (bool): whether to submit IDDS request for the dataset; default is True
 
         Returns:
             bool : True for success, False otherwise
@@ -1656,6 +1700,17 @@ class DataCarouselInterface(object):
             tmp_log.info(f"updated DB about staging; status={dc_req_spec.status}")
             dc_req_spec = ret
             is_ok = True
+        # to iDDS staging requests
+        if submit_idds_request:
+            # get all tasks related to this request
+            task_id_list = self._get_related_tasks(dc_req_spec.request_id)
+            if task_id_list:
+                tmp_log.debug(f"related tasks: {task_id_list}")
+                for task_id in task_id_list:
+                    self._submit_idds_stagein_request(task_id, dc_req_spec)
+                tmp_log.debug(f"submitted corresponding iDDS requests for related tasks")
+            else:
+                tmp_log.warning(f"failed to get related tasks; skipped to submit iDDS requests")
         # return
         return is_ok, err_msg, dc_req_spec
 
@@ -2221,47 +2276,6 @@ class DataCarouselInterface(object):
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
 
-    def _submit_idds_stagein_request(self, task_id: int, dc_req_spec: DataCarouselRequestSpec) -> Any:
-        """
-        Submit corresponding iDDS stage-in request for given Data Carousel request and task
-        Currently only used for manual testing or after resubmitting Data Carousel requests
-
-        Args:
-            task_id (int): jediTaskID of the task
-            dc_req_spec (DataCarouselRequestSpec): request to submit iDDS stage-in request
-
-        Returns:
-            Any : iDDS requests ID returned from iDDS
-        """
-        tmp_log = LogWrapper(logger, f"_submit_idds_stagein_request request_id={dc_req_spec.request_id}")
-        # dataset and rule_id
-        dataset = dc_req_spec.dataset
-        rule_id = dc_req_spec.ddm_rule_id
-        ds_str_list = dataset.split(":")
-        tmp_scope = ds_str_list[0]
-        tmp_name = ds_str_list[1]
-        # iDDS request
-        c = iDDS_Client(idds.common.utils.get_rest_host())
-        req = {
-            "scope": tmp_scope,
-            "name": tmp_name,
-            "requester": "panda",
-            "request_type": idds.common.constants.RequestType.StageIn,
-            "transform_tag": idds.common.constants.RequestType.StageIn.value,
-            "status": idds.common.constants.RequestStatus.New,
-            "priority": 0,
-            "lifetime": 30,
-            "request_metadata": {
-                "workload_id": task_id,
-                "rule_id": rule_id,
-            },
-        }
-        tmp_log.debug(f"iDDS request: {req}")
-        ret = c.add_request(**req)
-        tmp_log.debug(f"done submit; iDDS_requestID={ret}")
-        # return
-        return ret
-
     def resubmit_request(
         self, orig_dc_req_spec: DataCarouselRequestSpec, submit_idds_request=True, exclude_prev_dst: bool = False, by: str = "manual", reason: str | None = None
     ) -> tuple[DataCarouselRequestSpec | None, str | None]:
@@ -2300,19 +2314,9 @@ class DataCarouselInterface(object):
                 short_time = 5
                 self._refresh_ddm_rule(orig_dc_req_spec.ddm_rule_id, short_time)
             # stage the resubmitted request immediately without queuing
-            is_ok, _, dc_req_spec_resubmitted = self.stage_request(dc_req_spec_resubmitted)
+            is_ok, _, dc_req_spec_resubmitted = self.stage_request(dc_req_spec_resubmitted, submit_idds_request=submit_idds_request)
             if is_ok:
-                if submit_idds_request:
-                    # to submit iDDS staging requests
-                    # get all tasks related to this request
-                    task_id_list = self._get_related_tasks(new_request_id)
-                    if task_id_list:
-                        tmp_log.debug(f"related tasks: {task_id_list}")
-                        for task_id in task_id_list:
-                            self._submit_idds_stagein_request(task_id, dc_req_spec_resubmitted)
-                        tmp_log.debug(f"submitted corresponding iDDS requests for related tasks")
-                    else:
-                        tmp_log.warning(f"failed to get related tasks; skipped to submit iDDS requests")
+                tmp_log.debug(f"staged resubmitted request_id={new_request_id}")
             else:
                 err_msg = f"failed to stage resubmitted request_id={new_request_id}; skipped"
                 tmp_log.warning(err_msg)
