@@ -75,7 +75,7 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
     to_submit_idds = False
     time_start = naive_utcnow()
 
-    with global_dcif.global_dc_lock(timeout_sec=10, lock_expiration_sec=300) as full_pid:
+    with global_dcif.global_dc_lock(timeout_sec=60, lock_expiration_sec=300) as full_pid:
         # timeout
         if full_pid is None:
             err_msg = f"timed out without getting lock"
@@ -159,7 +159,7 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
     success, message, data = False, "", None
     time_start = naive_utcnow()
 
-    with global_dcif.global_dc_lock(timeout_sec=10, lock_expiration_sec=300) as full_pid:
+    with global_dcif.global_dc_lock(timeout_sec=60, lock_expiration_sec=300) as full_pid:
         if full_pid is None:
             # timeout
             err_msg = f"timed out without getting lock"
@@ -238,7 +238,7 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
     success, message, data = False, "", None
     time_start = naive_utcnow()
 
-    with global_dcif.global_dc_lock(timeout_sec=10, lock_expiration_sec=300) as full_pid:
+    with global_dcif.global_dc_lock(timeout_sec=60, lock_expiration_sec=300) as full_pid:
         if full_pid is None:
             # timeout
             err_msg = f"timed out without getting lock"

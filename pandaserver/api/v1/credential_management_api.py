@@ -7,6 +7,7 @@ from typing import List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.api.v1.common import generate_response, get_dn, request_validation
 from pandaserver.config import panda_config
@@ -100,7 +101,7 @@ def set_user_secrets(req: PandaRequest, key: str = None, value: str = None) -> d
         dict: The system response. True for success, False for failure, and an error message.
     """
 
-    tmp_logger = LogWrapper(_logger, f"set_user_secret-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_logger = LogWrapper(_logger, f"set_user_secret-{naive_utcnow().isoformat('/')}")
 
     # Get client DN and clean it. The request validation has already verified that the DN is present.
     dn = get_dn(req)
@@ -128,7 +129,7 @@ def get_user_secrets(req: PandaRequest, keys: List[str] = None) -> dict:
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the user secrets. When unsuccessful, the message field contains the error message.
     """
-    tmp_logger = LogWrapper(_logger, f"get_user_secrets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_logger = LogWrapper(_logger, f"get_user_secrets-{naive_utcnow().isoformat('/')}")
 
     # Get client DN and clean it. The request validation has already verified that the DN is present.
     dn = get_dn(req)

@@ -1,6 +1,7 @@
 """
 download access tokens for OIDC token exchange flow
 """
+
 import datetime
 import json
 import os.path
@@ -8,6 +9,7 @@ import pathlib
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore.oidc_utils import get_access_token
@@ -119,7 +121,7 @@ class TokenCache:
         :param client_name : client name
         :return: the access token
         """
-        time_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        time_now = naive_utcnow()
         if client_name in self.cached_access_tokens and self.cached_access_tokens[client_name]["last_update"] + datetime.timedelta(minutes=10) < time_now:
             # use cached token since it is still fresh
             pass

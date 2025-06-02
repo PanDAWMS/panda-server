@@ -12,6 +12,7 @@ import traceback
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 import pandaserver.dataservice.ErrorCode
 import pandaserver.taskbuffer.ErrorCode
@@ -82,7 +83,7 @@ class AdderGen:
         Run the AdderGen plugin.
         """
         try:
-            start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            start_time = naive_utcnow()
             self.logger.debug(f"new start: {self.job_status} attemptNr={self.attempt_nr}")
 
             # got lock, get the report
@@ -91,15 +92,15 @@ class AdderGen:
             # query job
             self.job = self.taskBuffer.peekJobs([self.job_id], fromDefined=False, fromWaiting=False, forAnal=True)[0]
 
-            # check if job has finished
-            checked = self.check_job_status()
-            self.logger.debug(f"checked: {checked}")
+            # execute plugin to process job report and update the job
+            processed = self.process_job_report()
+            self.logger.debug(f"job report was successfully processed and can be deleted now: {processed}")
 
-            duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+            duration = naive_utcnow() - start_time
             self.logger.debug("end: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
 
             # remove Catalog
-            if checked:
+            if processed:
                 self.taskBuffer.deleteJobOutputReport(panda_id=self.job_id, attempt_nr=self.attempt_nr)
 
             del self.data
@@ -107,7 +108,7 @@ class AdderGen:
         except Exception as e:
             err_str = f"{str(e)} {traceback.format_exc()}"
             self.logger.error(err_str)
-            duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+            duration = naive_utcnow() - start_time
             self.logger.error("except: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
             # unlock job output report
             self.taskBuffer.unlockJobOutputReport(
@@ -357,9 +358,9 @@ class AdderGen:
                 else:
                     file.status = "failed"
 
-    def check_job_status(self) -> bool:
+    def process_job_report(self) -> bool:
         """
-        Check the job status and log appropriate messages.
+        Check the job status, execute the plugin if job status is applicable, and update job in the database.
         return: True if successful or unnecessary, False otherwise to retry.
         """
         if self.job is None:
@@ -413,7 +414,7 @@ class AdderGen:
                     pid=self.pid,
                     lock_offset=self.lock_offset,
                 )
-                return True
+                return False
             # failed
             if self.add_result is None or not self.add_result.is_succeeded():
                 self.job.jobStatus = "failed"

@@ -9,6 +9,7 @@ import traceback
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 from pandacommon.pandautils.thread_utils import GenericThread
 
 import pandaserver.taskbuffer.ErrorCode
@@ -29,7 +30,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     tmp_log.debug("===================== start =====================")
 
     # current minute
-    current_minute = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).minute
+    current_minute = naive_utcnow().minute
 
     # instantiate TB
     if tbuf is None:
@@ -51,7 +52,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # count # of getJob/updateJob in dispatcher's log
     try:
         # don't update when logrotate is running
-        timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        timeNow = naive_utcnow()
         logRotateTime = timeNow.replace(hour=3, minute=2, second=0, microsecond=0)
         if (timeNow > logRotateTime and (timeNow - logRotateTime) < datetime.timedelta(minutes=5)) or (
             logRotateTime > timeNow and (logRotateTime - timeNow) < datetime.timedelta(minutes=5)
@@ -61,8 +62,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # log filename
             dispLogName = f"{panda_config.logdir}/panda-PilotRequests.log"
             # time limit
-            timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=3)
-            timeLimitS = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=1)
+            timeLimit = naive_utcnow() - datetime.timedelta(hours=3)
+            timeLimitS = naive_utcnow() - datetime.timedelta(hours=1)
             # check if tgz is required
             com = f"head -1 {dispLogName}"
             lostat, loout = commands_get_status_output(com)
@@ -82,7 +83,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # delete tmp
             commands_get_status_output(f"rm -f {dispLogName}.tmp-*")
             # tmp name
-            tmp_logName = f"{dispLogName}.tmp-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d-%H-%M-%S')}"
+            tmp_logName = f"{dispLogName}.tmp-{naive_utcnow().strftime('%Y-%m-%d-%H-%M-%S')}"
             # loop over all files
             pilotCounts = {}
             pilotCountsS = {}
