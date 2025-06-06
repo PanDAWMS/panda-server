@@ -6,7 +6,9 @@ import threading
 import time
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.brokerage import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.event_picker import EventPicker
@@ -83,8 +85,8 @@ def main(tbuf=None, **kwargs):
 
     # get files
     _logger.debug("EVP session")
-    timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-    timeInt = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    timeNow = naive_utcnow()
+    timeInt = naive_utcnow()
     fileList = sorted(glob.glob(evpFilePatt))
 
     # create thread pool and semaphore
@@ -94,14 +96,14 @@ def main(tbuf=None, **kwargs):
     # add
     while len(fileList) != 0:
         # time limit to aviod too many copyArchve running at the sametime
-        if (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeNow) > datetime.timedelta(minutes=overallTimeout):
+        if (naive_utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
             _logger.debug("time over in EVP session")
             break
         # try to get Semaphore
         adderLock.acquire()
         # get fileList
-        if (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeInt) > datetime.timedelta(minutes=15):
-            timeInt = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        if (naive_utcnow() - timeInt) > datetime.timedelta(minutes=15):
+            timeInt = naive_utcnow()
             # get file
             fileList = sorted(glob.glob(evpFilePatt))
         # choose a file

@@ -7,6 +7,8 @@ import threading
 from http.client import HTTPSConnection
 from urllib.parse import parse_qs, urlencode
 
+from pandacommon.pandautils.PandaUtils import naive_utcnow
+
 from pandaserver.userinterface.Client import baseURLSSL
 
 node = {}
@@ -33,12 +35,12 @@ class Thr(threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
-        print(datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" "))
+        print(naive_utcnow().isoformat(" "))
         conn = HTTPSConnection(host, key_file=certKey, cert_file=certKey)
         conn.request("POST", path, rdata)
         resp = conn.getresponse()
         data = resp.read()
-        print(datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" "))
+        print(naive_utcnow().isoformat(" "))
         print(parse_qs(data))
 
 
