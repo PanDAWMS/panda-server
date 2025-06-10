@@ -138,6 +138,16 @@ RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
 
+SSLProxyEngine on
+ProxyPass /mcp/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/mcp/
+ProxyPass /messages/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/messages/
+ProxyPassReverse /mcp/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/mcp/
+ProxyPassReverse /messages/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/messages/
+ProxyPreserveHost On
+SSLProxyVerify none
+SSLProxyCheckPeerCN off
+SSLProxyCheckPeerExpire off
+
 # CERN security recommendation to only allow the seven strongest ssl ciphers
 SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1
 SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
