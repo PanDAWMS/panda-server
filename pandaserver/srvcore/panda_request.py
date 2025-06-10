@@ -12,6 +12,8 @@ else:
 
 import traceback
 
+import jwt
+
 cache_dict = CacheDict()
 
 
@@ -132,8 +134,10 @@ def decode_token(serialized_token, env, tmp_log):
                     if key.startswith("GRST_CRED_") or key.startswith("GRST_CONN_"):
                         subprocess_env[key] = env[key]
 
+    except jwt.exceptions.InvalidTokenError as e:
+        message_str = f"Invalid token. {str(e)}"
     except Exception as e:
-        message_str = f"Corrupted token. {str(e)}"
+        message_str = f"Token decode failure. {str(e)} {traceback.format_exc()}"
     return {"authenticated": authenticated, "message": message_str, "subprocess_env": subprocess_env}
 
 
