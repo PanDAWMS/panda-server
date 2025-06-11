@@ -1,0 +1,57 @@
+import inspect
+import os.path
+from collections.abc import Callable
+
+from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
+from pandaserver.srvcore.panda_request import PandaRequest
+
+
+def create_tool(func: Callable) -> tuple[Callable, str, str]:
+    """
+    Create an MCP tool that wraps the API call.
+
+    :param func: The function to wrap. It should be a callable that takes PandaRequest as the first argument.
+    :return: A tuple containing the wrapped function, the function name, and the function docstring.
+    """
+
+    # construct the URL based on the module and function name
+    mod_path = inspect.getfile(inspect.getmodule(func))
+    mod_name = os.path.basename(mod_path).split("_")[0]
+    url = f"{api_url_ssl}/{mod_name}/{func.__name__}"
+
+    # determine http method based on the docstring
+    http_method = None
+    for line in func.__doc__.splitlines():
+        line = line.strip()
+        if line.startswith("HTTP Method:"):
+            http_method = line.split(":")[1].strip().lower()
+            if http_method not in ["get", "post"]:
+                raise ValueError(f"Unsupported HTTP method: {http_method}")
+            break
+    if http_method is None:
+        raise ValueError("HTTP Method not specified in the function docstring")
+
+    # remove PandaRequest from the signature and annotations
+    sig = inspect.signature(func)
+    params = []
+    for p in sig.parameters.values():
+        if p.annotation != PandaRequest:
+            params.append(p)
+
+    annotations = {}
+    for k, v in func.__annotations__.items():
+        if v != PandaRequest:
+            annotations[k] = v
+
+    # create a new function that wraps the API call
+    def wrapped_func(**kwarg):
+        nonlocal url, http_method
+        http_client = HttpClient()
+        status, output = getattr(http_client, http_method)(url, kwarg)
+        return output
+
+    # set the signature and annotations to the wrapped function to align with the original API call
+    wrapped_func.__signature__ = sig.replace(parameters=params)
+    wrapped_func.__annotations__ = annotations
+
+    return wrapped_func, func.__name__, func.__doc__

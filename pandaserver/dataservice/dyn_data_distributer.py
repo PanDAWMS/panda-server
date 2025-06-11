@@ -3,7 +3,6 @@ find candidate site to distribute input datasets
 
 """
 
-import datetime
 import fnmatch
 import re
 import sys
@@ -30,7 +29,7 @@ class DynDataDistributer:
     Find candidate site to distribute input datasets.
     """
 
-    def __init__(self, jobs, siteMapper, simul=False, token=None):
+    def __init__(self, jobs, siteMapper, simul=False, token=None, dataset_lifetime=14):
         self.jobs = jobs
         self.site_mapper = siteMapper
         if token is None:
@@ -40,6 +39,8 @@ class DynDataDistributer:
         # use a fixed list since some clouds don't have active T2s
         self.simul = simul
         self.last_message = ""
+        # lifetime for temporary datasets
+        self.dataset_lifetime = dataset_lifetime
 
     def get_replica_locations(self, input_ds: str, check_used_file: bool) -> Tuple[bool, Dict]:
         """
@@ -513,7 +514,7 @@ class DynDataDistributer:
         for attempt in range(max_attempts):
             try:
                 tmp_logger.debug(f"{attempt}/{max_attempts} registerNewDataset {dataset_name} len={len(files)}")
-                out = rucioAPI.register_dataset(dataset_name, lfns, guids, file_sizes, checksums, lifetime=14)
+                out = rucioAPI.register_dataset(dataset_name, lfns, guids, file_sizes, checksums, lifetime=self.dataset_lifetime)
                 tmp_logger.debug(out)
                 break
             except Exception:
@@ -550,7 +551,7 @@ class DynDataDistributer:
             for attempt in range(max_attempts):
                 try:
                     tmp_logger.debug(f"{attempt}/{max_attempts} registerDatasetLocation {dataset_name} {tmp_location}")
-                    out = rucioAPI.register_dataset_location(dataset_name, [tmp_location], 14, owner)
+                    out = rucioAPI.register_dataset_location(dataset_name, [tmp_location], self.dataset_lifetime, owner)
                     tmp_logger.debug(out)
                     status = True
                     break

@@ -101,6 +101,9 @@ fi
 if [[ -z "${PANDA_SERVER_CONF_PORT_SSL}" ]]; then
   export PANDA_SERVER_CONF_PORT_SSL=25443
 fi
+if [[ -z "${PANDA_SERVER_CONF_PORT_MCP}" ]]; then
+  export PANDA_SERVER_CONF_PORT_MCP=25888
+fi
 
 # max connections per child
 if [[ -z "${PANDA_SERVER_CONF_MAX_CONNECTIONS}" ]]; then
