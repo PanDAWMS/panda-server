@@ -138,10 +138,10 @@ class AdderSimplePlugin(AdderPluginBase):
                             else:
                                 self.job.ddmErrorDiag = err_msg + extracted_error
                             if is_fatal:
-                                self.err_str.set_fatal()
+                                self.result.set_fatal()
                             else:
                                 self.result.set_temporary()
-                            return 1
+                            return
                         self.logger.error(f"Try:{attempt_number}")
                         # sleep
                         time.sleep(10)
