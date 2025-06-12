@@ -2,16 +2,18 @@ import inspect
 import os.path
 from collections.abc import Callable
 
+from fastmcp.tools.tool import Tool
+
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 from pandaserver.srvcore.panda_request import PandaRequest
 
 
-def create_tool(func: Callable) -> tuple[Callable, str, str]:
+def create_tool(func: Callable) -> Tool:
     """
     Create an MCP tool that wraps the API call.
 
     :param func: The function to wrap. It should be a callable that takes PandaRequest as the first argument.
-    :return: A tuple containing the wrapped function, the function name, and the function docstring.
+    :return: An MCP tool.
     """
 
     # construct the URL based on the module and function name
@@ -54,4 +56,4 @@ def create_tool(func: Callable) -> tuple[Callable, str, str]:
     wrapped_func.__signature__ = sig.replace(parameters=params)
     wrapped_func.__annotations__ = annotations
 
-    return wrapped_func, func.__name__, func.__doc__
+    return Tool.from_function(wrapped_func, name=func.__name__, description=func.__doc__)
