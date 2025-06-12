@@ -2,6 +2,7 @@ import inspect
 import os.path
 from collections.abc import Callable
 
+from fastmcp.server.dependencies import get_http_headers
 from fastmcp.tools.tool import Tool
 
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
@@ -48,7 +49,17 @@ def create_tool(func: Callable) -> Tool:
     # create a new function that wraps the API call
     def wrapped_func(**kwarg):
         nonlocal url, http_method
+        # extract the id_token and auth_vo from the headers
+        original_headers = get_http_headers()
+        id_token = original_headers.get("authorization")
+        if id_token and id_token.startswith("Bearer "):
+            id_token = original_headers["authorization"].split(" ")[1]
+        auth_vo = original_headers.get("origin")
+        oidc = id_token is not None
+
+        # set the id_token and auth_vo in the HttpClient
         http_client = HttpClient()
+        http_client.override_oidc(oidc, id_token, auth_vo)
         status, output = getattr(http_client, http_method)(url, kwarg)
         return output
 

@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlsplit, urlunsplit
 
 import uvicorn
 from fastmcp import FastMCP
@@ -7,13 +8,21 @@ from pandaserver.api.v1.statistics_api import job_stats_by_cloud
 from pandaserver.api.v1.system_api import is_alive
 from pandaserver.pandamcp.mcp_utils import create_tool
 
-mcp = FastMCP("MyServer")
 
+def extract_base_url(url: str) -> str:
+    """
+    Extract the base URL from a given URL.
+    """
+    split_url = urlsplit(url)
+    return urlunsplit((split_url.scheme, split_url.netloc, "", "", ""))
+
+
+main_mcp = FastMCP(name="Main")
+
+# add tools
 for func in [is_alive, job_stats_by_cloud]:
     tool = create_tool(func)
-    mcp.add_tool(tool)
-
-http_app = mcp.http_app()
+    main_mcp.add_tool(tool)
 
 
 if __name__ == "__main__":
