@@ -2,16 +2,19 @@ import inspect
 import os.path
 from collections.abc import Callable
 
+from fastmcp.server.dependencies import get_http_headers
+from fastmcp.tools.tool import Tool
+
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 from pandaserver.srvcore.panda_request import PandaRequest
 
 
-def create_tool(func: Callable) -> tuple[Callable, str, str]:
+def create_tool(func: Callable) -> Tool:
     """
     Create an MCP tool that wraps the API call.
 
     :param func: The function to wrap. It should be a callable that takes PandaRequest as the first argument.
-    :return: A tuple containing the wrapped function, the function name, and the function docstring.
+    :return: An MCP tool.
     """
 
     # construct the URL based on the module and function name
@@ -46,7 +49,17 @@ def create_tool(func: Callable) -> tuple[Callable, str, str]:
     # create a new function that wraps the API call
     def wrapped_func(**kwarg):
         nonlocal url, http_method
+        # extract the id_token and auth_vo from the headers
+        original_headers = get_http_headers()
+        id_token = original_headers.get("authorization")
+        if id_token and id_token.startswith("Bearer "):
+            id_token = original_headers["authorization"].split(" ")[1]
+        auth_vo = original_headers.get("origin")
+        oidc = id_token is not None
+
+        # set the id_token and auth_vo in the HttpClient
         http_client = HttpClient()
+        http_client.override_oidc(oidc, id_token, auth_vo)
         status, output = getattr(http_client, http_method)(url, kwarg)
         return output
 
@@ -54,4 +67,4 @@ def create_tool(func: Callable) -> tuple[Callable, str, str]:
     wrapped_func.__signature__ = sig.replace(parameters=params)
     wrapped_func.__annotations__ = annotations
 
-    return wrapped_func, func.__name__, func.__doc__
+    return Tool.from_function(wrapped_func, name=func.__name__, description=func.__doc__)
