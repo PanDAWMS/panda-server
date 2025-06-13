@@ -3124,13 +3124,14 @@ class EntityModule(BaseModule):
                 tmp_log.debug("skip as a new key was registered recently")
             else:
                 # get max ID
+                max_id = None
                 sql = "SELECT MAX(ID) FROM ATLAS_PANDAMETA.proxykey "
                 self.cur.execute(sql + comment, {})
                 res = self.cur.fetchone()
-                if not res:
-                    max_id = 0
-                else:
+                if res:
                     (max_id,) = res
+                if max_id is None:
+                    max_id = 0
                 max_id += 1
                 max_id %= 10000000
                 # register a key
