@@ -2508,7 +2508,7 @@ class DataCarouselInterface(object):
                     else:
                         # choose source RSE
                         tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
-                        _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                        new_source_rse = random.choice(list(rse_set))
                         if not new_source_rse:
                             # failed to choose source RSE
                             err_msg = f"dataset={dataset} failed to choose source RSE ; skipped"
@@ -2529,7 +2529,7 @@ class DataCarouselInterface(object):
             if cancel_fts:
                 set_map.update({"cancel_requests": True, "state": "STUCK"})
             # update DDM rule
-            if ret:
+            if ret is not False:
                 tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, set_map)
                 if tmp_ret:
                     tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} done")
@@ -2539,7 +2539,7 @@ class DataCarouselInterface(object):
                     tmp_log.error(f"ddm_rule_id={dc_req_spec.ddm_rule_id} got {tmp_ret}; skipped")
                     ret = False
             # update DB
-            if ret and to_update_DB:
+            if ret is not False and to_update_DB:
                 tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
                 if tmp_ret is not None:
                     dc_req_spec = tmp_ret
