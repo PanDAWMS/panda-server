@@ -2432,29 +2432,46 @@ class DataCarouselInterface(object):
                 ret = False
             elif source_type == "tape":
                 # replicas only on tape
-                tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
-                # choose source RSE
-                _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
-                # fill new attributes
-                dc_req_spec.source_rse = new_source_rse
-                dc_req_spec.ddm_rule_id = ddm_rule_id
-                dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
-                if to_pin:
-                    dc_req_spec.set_parameter("to_pin", True)
-                if suggested_dst_list:
-                    dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
-                # update DB
-                tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
-                if tmp_ret is not None:
-                    dc_req_spec = tmp_ret
-                    tmp_log.info(
-                        f"updated DB about change source of queued request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id} , to_pin={to_pin} , suggested_dst_list={suggested_dst_list}"
-                    )
-                    ret = True
+                new_source_rse = None
+                if source_rse:
+                    if source_rse not in rse_set:
+                        # source_rse not in available RSEs
+                        err_msg = f"dataset={dataset} source_rse={source_rse} not in available RSEs {rse_set} ; skipped"
+                        tmp_log.warning(err_msg)
+                        ret = False
+                    else:
+                        # use source_rse
+                        new_source_rse = source_rse
                 else:
-                    err_msg = f"failed to update DB ; skipped"
-                    tmp_log.error(err_msg)
-                    ret = False
+                    # choose source RSE
+                    tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
+                    _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    if not new_source_rse:
+                        # failed to choose source RSE
+                        err_msg = f"dataset={dataset} failed to choose source RSE ; skipped"
+                        tmp_log.warning(err_msg)
+                        ret = False
+                # fill new attributes for queued request
+                if new_source_rse:
+                    dc_req_spec.source_rse = new_source_rse
+                    dc_req_spec.ddm_rule_id = ddm_rule_id
+                    dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
+                    if to_pin:
+                        dc_req_spec.set_parameter("to_pin", True)
+                    if suggested_dst_list:
+                        dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
+                    # update DB
+                    tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                    if tmp_ret is not None:
+                        dc_req_spec = tmp_ret
+                        tmp_log.info(
+                            f"updated DB about change source of queued request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id} , to_pin={to_pin} , suggested_dst_list={suggested_dst_list}"
+                        )
+                        ret = True
+                    else:
+                        err_msg = f"failed to update DB ; skipped"
+                        tmp_log.error(err_msg)
+                        ret = False
             else:
                 # no replica found on tape nor on datadisk; skip
                 err_msg = f"dataset={dataset} has no replica on any tape or datadisk ; skipped"
@@ -2498,7 +2515,7 @@ class DataCarouselInterface(object):
                             tmp_log.warning(err_msg)
                             ret = False
                     if new_source_rse:
-                        # fill new attributes
+                        # fill new attributes for staging request
                         dc_req_spec.source_rse = new_source_rse
                         dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
                         to_update_DB = True
