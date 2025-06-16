@@ -202,7 +202,7 @@ def change_staging_source(
                     success, message = False, err_msg
                 else:
                     success = True
-                    if dc_req_spec.status == DataCarouselRequestStatus.queued:
+                    if dc_req_spec.status == DataCarouselRequestStatus.queued or change_src_expr:
                         message = f"status={status} changed source_rse from {orig_source_rse} to {dc_req_spec.source_rse}"
                     else:
                         message = f"status={status} source replica expression is dropped"
