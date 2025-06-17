@@ -131,7 +131,14 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def change_staging_source(req: PandaRequest, request_id: int | None = None, dataset: str | None = None, cancel_fts: bool = False) -> dict:
+def change_staging_source(
+    req: PandaRequest,
+    request_id: int | None = None,
+    dataset: str | None = None,
+    cancel_fts: bool = False,
+    change_src_expr: bool = False,
+    source_rse: str | None = None,
+) -> dict:
     """
     Change source of staging
 
@@ -150,11 +157,16 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
         request_id (int|None): request_id of the staging request, e.g. `123`
         dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
         cancel_fts (bool): whether to cancel current FTS requests on DDM, False by default
+        change_src_expr (bool): whether to change source_replica_expression of the DDM rule by replacing old source with new one, instead of just dropping old source
+        source_rse (str|None): if set, use this source RSE instead of choosing one randomly, also force change_src_expr to be True; default is None
 
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"change_staging_source request_id={request_id} dataset={dataset} cancel_fts={cancel_fts}")
+    tmp_logger = LogWrapper(
+        _logger,
+        f"change_staging_source request_id={request_id} dataset={dataset} cancel_fts={cancel_fts} change_src_expr={change_src_expr} source_rse={source_rse}",
+    )
     tmp_logger.debug("Start")
     success, message, data = False, "", None
     time_start = naive_utcnow()
@@ -183,14 +195,14 @@ def change_staging_source(req: PandaRequest, request_id: int | None = None, data
                 tmp_logger.warning(err_msg)
                 success, message = False, err_msg
             else:
-                ret, dc_req_spec = global_dcif.change_request_source_rse(dc_req_spec, cancel_fts)
+                ret, dc_req_spec, err_msg = global_dcif.change_request_source_rse(dc_req_spec, cancel_fts, change_src_expr, source_rse)
                 if not ret:
-                    err_msg = f"failed to change source request_id={dc_req_spec.request_id}"
+                    err_msg = f"failed to change source request_id={dc_req_spec.request_id} : {err_msg}"
                     tmp_logger.error(err_msg)
                     success, message = False, err_msg
                 else:
                     success = True
-                    if dc_req_spec.status == DataCarouselRequestStatus.queued:
+                    if dc_req_spec.status == DataCarouselRequestStatus.queued or change_src_expr:
                         message = f"status={status} changed source_rse from {orig_source_rse} to {dc_req_spec.source_rse}"
                     else:
                         message = f"status={status} source replica expression is dropped"

@@ -1683,7 +1683,7 @@ class DataCarouselInterface(object):
 
         Returns:
             bool : True for success, False otherwise
-            str|None : error message
+            str|None : error message if any, None otherwise
             DataCarouselRequestSpec : updated spec of the request
         """
         tmp_log = LogWrapper(logger, f"stage_request request_id={dc_req_spec.request_id}")
@@ -2325,7 +2325,7 @@ class DataCarouselInterface(object):
 
         Returns:
             DataCarouselRequestSpec|None : spec of the resubmitted reqeust spec if success, None otherwise
-            str|None : error message
+            str|None : error message if any, None otherwise
         """
         tmp_log = LogWrapper(
             logger,
@@ -2384,7 +2384,9 @@ class DataCarouselInterface(object):
     #     ret = self.ddmIF.update_rule_by_id(rule_id, set_map)
     #     return ret
 
-    def change_request_source_rse(self, dc_req_spec: DataCarouselRequestSpec, cancel_fts: bool = False) -> tuple[bool | None, DataCarouselRequestSpec]:
+    def change_request_source_rse(
+        self, dc_req_spec: DataCarouselRequestSpec, cancel_fts: bool = False, change_src_expr: bool = False, source_rse: str | None = None
+    ) -> tuple[bool | None, DataCarouselRequestSpec, str | None]:
         """
         Change source RSE
         If the request is staging, unset source_replica_expression of its DDM rule
@@ -2394,70 +2396,159 @@ class DataCarouselInterface(object):
         Args:
             dc_req_spec (DataCarouselRequestSpec): spec of the request
             cancel_fts (bool): whether to cancel current FTS requests on DDM
+            change_src_expr (bool): whether to change source_replica_expression of the DDM rule by replacing old source with new one, instead of just dropping old source
+            source_rse (str|None): if set, use this source RSE instead of choosing one randomly, also force change_src_expr to be True; default is None
 
         Returns:
             bool|None : True for success, False for failure, None if skipped
             DataCarouselRequestSpec|None: spec of the request after changing source
+            str|None: error message if any, None otherwise
         """
         tmp_log = LogWrapper(logger, f"change_request_source_rse request_id={dc_req_spec.request_id}")
+        if source_rse:
+            change_src_expr = True
         ret = None
+        err_msg = None
         rse_set = set()
+        # re-choose source_rse for queued request
+        active_source_rses_set = self._get_active_source_rses()
+        dataset = dc_req_spec.dataset
+        source_type, rse_set_orig, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
+        # exclude original source RSE if possible
+        if rse_set_orig:
+            rse_set = copy.copy(rse_set_orig)
+            rse_set.discard(dc_req_spec.source_rse)
+        # check status of the request
         if dc_req_spec.status == DataCarouselRequestStatus.queued:
-            # re-choose source_rse for queued request
-            active_source_rses_set = self._get_active_source_rses()
-            dataset = dc_req_spec.dataset
-            source_type, rse_set_orig, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
-            # exclude original source RSE if possible
-            if rse_set_orig:
-                rse_set = copy.copy(rse_set_orig)
-                rse_set.discard(dc_req_spec.source_rse)
-            # check
             if not rse_set:
                 # no availible source RSE
-                tmp_log.warning(f"dataset={dataset} has no other source RSE available; skipped")
+                err_msg = f"dataset={dataset} has no other source RSE available; skipped"
+                tmp_log.warning(err_msg)
                 ret = False
             elif source_type == "datadisk":
                 # replicas already on datadisk; skip
-                tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
+                err_msg = f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped"
+                tmp_log.debug(err_msg)
                 ret = False
             elif source_type == "tape":
                 # replicas only on tape
-                tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
-                # choose source RSE
-                _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
-                # fill new attributes
-                dc_req_spec.source_rse = new_source_rse
-                dc_req_spec.ddm_rule_id = ddm_rule_id
-                dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
-                if to_pin:
-                    dc_req_spec.set_parameter("to_pin", True)
-                if suggested_dst_list:
-                    dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
-                # update DB
+                new_source_rse = None
+                if source_rse:
+                    if source_rse not in rse_set:
+                        # source_rse not in available RSEs
+                        err_msg = f"dataset={dataset} source_rse={source_rse} not in available RSEs {rse_set} ; skipped"
+                        tmp_log.warning(err_msg)
+                        ret = False
+                    else:
+                        # use source_rse
+                        new_source_rse = source_rse
+                else:
+                    # choose source RSE
+                    tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
+                    _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    if not new_source_rse:
+                        # failed to choose source RSE
+                        err_msg = f"dataset={dataset} failed to choose source RSE ; skipped"
+                        tmp_log.warning(err_msg)
+                        ret = False
+                # fill new attributes for queued request
+                if new_source_rse:
+                    dc_req_spec.source_rse = new_source_rse
+                    dc_req_spec.ddm_rule_id = ddm_rule_id
+                    dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
+                    if to_pin:
+                        dc_req_spec.set_parameter("to_pin", True)
+                    if suggested_dst_list:
+                        dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
+                    # update DB
+                    tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                    if tmp_ret is not None:
+                        dc_req_spec = tmp_ret
+                        tmp_log.info(
+                            f"updated DB about change source of queued request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id} , to_pin={to_pin} , suggested_dst_list={suggested_dst_list}"
+                        )
+                        ret = True
+                    else:
+                        err_msg = f"failed to update DB ; skipped"
+                        tmp_log.error(err_msg)
+                        ret = False
+            else:
+                # no replica found on tape nor on datadisk; skip
+                err_msg = f"dataset={dataset} has no replica on any tape or datadisk ; skipped"
+                tmp_log.debug(err_msg)
+                ret = False
+        elif dc_req_spec.status == DataCarouselRequestStatus.staging:
+            to_update_DB = False
+            # unset source_replica_expression of DDM rule for staging request
+            set_map = {"source_replica_expression": None}
+            if change_src_expr:
+                # change source_replica_expression by replacing old source with new one
+                if not rse_set:
+                    # no availible source RSE
+                    err_msg = f"dataset={dataset} has no other source RSE available; skipped"
+                    tmp_log.warning(err_msg)
+                    ret = False
+                elif source_type == "datadisk":
+                    # replicas already on datadisk; skip
+                    err_msg = f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped"
+                    tmp_log.debug(err_msg)
+                    ret = False
+                elif source_type == "tape":
+                    new_source_rse = None
+                    # replicas only on tape
+                    if source_rse:
+                        if source_rse not in rse_set:
+                            # source_rse not in available RSEs
+                            err_msg = f"dataset={dataset} source_rse={source_rse} not in available RSEs {rse_set} ; skipped"
+                            tmp_log.warning(err_msg)
+                            ret = False
+                        else:
+                            # use source_rse
+                            new_source_rse = source_rse
+                    else:
+                        # choose source RSE
+                        tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
+                        new_source_rse = random.choice(list(rse_set))
+                        if not new_source_rse:
+                            # failed to choose source RSE
+                            err_msg = f"dataset={dataset} failed to choose source RSE ; skipped"
+                            tmp_log.warning(err_msg)
+                            ret = False
+                    if new_source_rse:
+                        # fill new attributes for staging request
+                        dc_req_spec.source_rse = new_source_rse
+                        dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
+                        to_update_DB = True
+                        # update source_replica_expression
+                        set_map["source_replica_expression"] = f"{SRC_REPLI_EXPR_PREFIX}|{dc_req_spec.source_rse}"
+                else:
+                    # no replica found on tape nor on datadisk; skip
+                    err_msg = f"dataset={dataset} has no replica on any tape or datadisk ; skipped"
+                    tmp_log.debug(err_msg)
+                    ret = False
+            if cancel_fts:
+                set_map.update({"cancel_requests": True, "state": "STUCK"})
+            # update DDM rule
+            if ret is not False:
+                tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, set_map)
+                if tmp_ret:
+                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} done")
+                    ret = True
+                else:
+                    err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} failed to update DDM rule ; skipped"
+                    tmp_log.error(f"ddm_rule_id={dc_req_spec.ddm_rule_id} got {tmp_ret}; skipped")
+                    ret = False
+            # update DB
+            if ret is not False and to_update_DB:
                 tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
                 if tmp_ret is not None:
                     dc_req_spec = tmp_ret
                     tmp_log.info(
-                        f"updated DB about change source; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id} , to_pin={to_pin} , suggested_dst_list={suggested_dst_list}"
+                        f"updated DB about change source of staging request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id}"
                     )
                     ret = True
                 else:
-                    tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB ; skipped")
+                    err_msg = f"failed to update DB ; skipped"
+                    tmp_log.error(err_msg)
                     ret = False
-            else:
-                # no replica found on tape nor on datadisk; skip
-                tmp_log.debug(f"dataset={dataset} has no replica on any tape or datadisk ; skipped")
-                ret = False
-        elif dc_req_spec.status == DataCarouselRequestStatus.staging:
-            # unset source_replica_expression of DDM rule for staging request
-            set_map = {"source_replica_expression": None}
-            if cancel_fts:
-                set_map.update({"cancel_requests": True, "state": "STUCK"})
-            tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, set_map)
-            if tmp_ret:
-                tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} done")
-                ret = True
-            else:
-                tmp_log.error(f"ddm_rule_id={dc_req_spec.ddm_rule_id} got {tmp_ret}; skipped")
-                ret = False
-        return ret, dc_req_spec
+        return ret, dc_req_spec, err_msg
