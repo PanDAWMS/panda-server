@@ -2526,18 +2526,37 @@ class DataCarouselInterface(object):
                     err_msg = f"dataset={dataset} has no replica on any tape or datadisk ; skipped"
                     tmp_log.debug(err_msg)
                     ret = False
-            if cancel_fts:
-                set_map.update({"cancel_requests": True, "state": "STUCK"})
             # update DDM rule
             if ret is not False:
                 tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, set_map)
                 if tmp_ret:
-                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} done")
+                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={set_map} done")
                     ret = True
                 else:
-                    err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} failed to update DDM rule ; skipped"
-                    tmp_log.error(f"ddm_rule_id={dc_req_spec.ddm_rule_id} got {tmp_ret}; skipped")
+                    err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={set_map} failed to update DDM rule ; skipped"
+                    tmp_log.error(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={set_map} got {tmp_ret}; skipped")
                     ret = False
+            # cancel FTS requests in separate DDM rule update calls (otherwise DDM will not cancel FTS)
+            if cancel_fts:
+                cancel_fts_success = True
+                # call first time to cancel requests
+                _set_map = {"cancel_requests": True, "state": "STUCK"}
+                tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, _set_map)
+                if tmp_ret:
+                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} done")
+                else:
+                    tmp_log.warning(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} got {tmp_ret} ; skipped")
+                    cancel_fts_success = False
+                # call second time to boost rule
+                _set_map = {"boost_rule": True}
+                tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, _set_map)
+                if tmp_ret:
+                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} done")
+                else:
+                    tmp_log.warning(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} got {tmp_ret} ; skipped")
+                    cancel_fts_success = False
+                if not cancel_fts_success:
+                    err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} failed to cancel FTS requests ; skipped"
             # update DB
             if ret is not False and to_update_DB:
                 tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
