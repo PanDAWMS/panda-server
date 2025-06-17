@@ -722,6 +722,32 @@ class TaskBuffer:
             )
         return ret
 
+    def update_worker_node_gpu(
+        self,
+        site: str,
+        host_name: str,
+        vendor: str,
+        model: str,
+        vram: int,
+        framework: str,
+        framework_version: str,
+        count: int,
+    ):
+        # get DB proxy
+        with self.proxyPool.get() as proxy:
+            # update DB and buffer
+            ret = proxy.update_worker_node(
+                site,
+                host_name,
+                vendor,
+                model,
+                vram,
+                framework,
+                framework_version,
+                count,
+            )
+        return ret
+
     # finalize pending analysis jobs
     def finalizePendingJobs(self, prodUserName, jobDefinitionID, waitLock=False):
         # get DB proxy
