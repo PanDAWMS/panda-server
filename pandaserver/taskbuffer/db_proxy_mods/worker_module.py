@@ -1174,10 +1174,12 @@ class WorkerModule(BaseModule):
         host_name: str,
         vendor: str,
         model: str,
+        count: int,
         vram: int,
+        architecture: str,
         framework: str,
         framework_version: str,
-        count: int,
+        driver_version: str,
     ):
         comment = " /* DBProxy.update_worker_node_gpu */"
         method_name = comment.split(" ")[-2].split(".")[-1]
@@ -1241,18 +1243,20 @@ class WorkerModule(BaseModule):
                 ":host_name": host_name,
                 ":vendor": vendor,
                 ":model": model,
+                ":count": int,
                 ":vram": vram,
+                ":architecture": architecture,
                 ":framework": framework,
                 ":framework_version": framework_version,
-                ":count": int,
+                ":driver_version": driver_version,
                 ":last_seen": timestamp_utc,
             }
 
             sql = (
                 "INSERT INTO ATLAS_PANDA.worker_node_gpus "
-                "(site, host_name, vendor, model, vram, framework, framework_version, count, last_seen) "
+                "(site, host_name, vendor, model, count, vram, architecture, framework, framework_version, driver_version, last_seen) "
                 "VALUES "
-                "(:site, :host_name, :vendor, :model, :vram, :framework, :framework_version, :count, :last_seen)"
+                "(:site, :host_name, :vendor, :model, :count, :vram, :framework, :framework_version, :last_seen)"
             )
 
             self.cur.execute(sql + comment, var_map)

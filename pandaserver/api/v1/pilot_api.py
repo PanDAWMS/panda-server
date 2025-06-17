@@ -815,10 +815,12 @@ def update_worker_node_gpu(
     host_name: str,
     vendor: str,
     model: str,
-    vram: int,
     count: int,
+    vram: int = None,
+    architecture: str = None,
     framework: str = None,
     framework_version: str = None,
+    driver_version: str = None,
     timeout: int = 60,
 ):
     """
@@ -836,10 +838,12 @@ def update_worker_node_gpu(
         host_name(str): Host name. In the case of reporting in format `slot@worker_node.example.com`, the slot ID will be parsed out.
         vendor(str): GPU vendor, e.g. `NVIDIA`.
         model(str): GPU model, e.g. `A100 80GB`.
-        vram(int): VRAM memory in MB.
         count(int): Number of GPUs of this type in the worker node.
+        vram(int): VRAM memory in MB. Defaults to `None`.
+        architecture(str): GPU architecture, e.g. `Tesla`, 'Ampere'... Defaults to `None`.
         framework(str): Driver framework available, e.g. `CUDA`. Defaults to `None`.
         framework_version(str): Version of the driver framework, e.g. `12.2`. Defaults to `None`.
+        driver_version(str): Version of the driver, e.g. `575.51.03`. Defaults to `None`
         timeout(int, optional): The timeout value. Defaults to `60`.
 
     Returns:
@@ -854,10 +858,12 @@ def update_worker_node_gpu(
         host_name,
         vendor,
         model,
+        count,
         vram,
+        architecture,
         framework,
         framework_version,
-        count,
+        driver_version,
     )
 
     if timed_method.result == Protocol.TimeOutToken:  # timeout
