@@ -2417,7 +2417,10 @@ class DataCarouselInterface(object):
         # exclude original source RSE if possible
         if rse_set_orig:
             rse_set = copy.copy(rse_set_orig)
-            rse_set.discard(dc_req_spec.source_rse)
+            if staging_rule and (source_replica_expression := staging_rule.get("source_replica_expression")):
+                if source_replica_expression == f"{SRC_REPLI_EXPR_PREFIX}|{dc_req_spec.source_rse}":
+                    # exclude source RSE already in source_replica_expression
+                    rse_set.discard(dc_req_spec.source_rse)
         # check status of the request
         if dc_req_spec.status == DataCarouselRequestStatus.queued:
             if not rse_set:
