@@ -1022,6 +1022,9 @@ def updateJob(
     corruptedFiles=None,
     meanCoreCount=None,
     cpu_architecture_level=None,
+    grid=None,
+    source_site=None,
+    destination_site=None,
 ):
     tmp_log = LogWrapper(_logger, f"updateJob PandaID={jobId} PID={os.getpid()}")
     tmp_log.debug("start")
@@ -1033,15 +1036,16 @@ def updateJob(
     acceptJson = req.acceptJson()
 
     _logger.debug(
-        f"updateJob({jobId},{state},{transExitCode},{pilotErrorCode},{pilotErrorDiag},{node},{workdir},"
-        f"cpuConsumptionTime={cpuConsumptionTime},{cpuConsumptionUnit},{cpu_architecture_level},{remainingSpace},"
-        f"{schedulerID},{pilotID},{siteName},{messageLevel},{nEvents},{nInputFiles},{cpuConversionFactor},"
-        f"{exeErrorCode},{exeErrorDiag},{pilotTiming},{computingElement},{startTime},{endTime},{batchID},"
+        f"updateJob({jobId},status={state},transExitCode={transExitCode},pilotErrorCode={pilotErrorCode},pilotErrorDiag={pilotErrorDiag},node={node},workdir={workdir},"
+        f"cpuConsumptionTime={cpuConsumptionTime},cpuConsumptionUnit={cpuConsumptionUnit},cpu_architecture_level={cpu_architecture_level},remainingSpace={remainingSpace},"
+        f"schedulerID={schedulerID},pilotID={pilotID},siteName={siteName},messageLevel={messageLevel},nEvents={nEvents},nInputFiles={nInputFiles},cpuConversionFactor={cpuConversionFactor},"
+        f"exeErrorCode={exeErrorCode},exeErrorDiag={exeErrorDiag},pilotTiming={pilotTiming},computingElement={computingElement},startTime={startTime},endTime={endTime},batchID={batchID},"
         f"attemptNr:{attemptNr},jobSubStatus:{jobSubStatus},core:{coreCount},DN:{realDN},role:{prodManager},"
         f"FQAN:{fqans},maxRSS={maxRSS},maxVMEM={maxVMEM},maxSWAP={maxSWAP},"
         f"maxPSS={maxPSS},avgRSS={avgRSS},avgVMEM={avgVMEM},avgSWAP={avgSWAP},avgPSS={avgPSS},"
         f"totRCHAR={totRCHAR},totWCHAR={totWCHAR},totRBYTES={totRBYTES},totWBYTES={totWBYTES},rateRCHAR={rateRCHAR},"
         f"rateWCHAR={rateWCHAR},rateRBYTES={rateRBYTES},rateWBYTES={rateWBYTES},meanCoreCount={meanCoreCount},"
+        f"grid={grid},source_site={source_site},destination_site={destination_site},"
         f"corruptedFiles={corruptedFiles}\n==XML==\n{xml}\n==LOG==\n{pilotLog[:1024]}\n==Meta==\n{metaData[:1024]}\n"
         f"==Metrics==\n{jobMetrics}\n==stdout==\n{stdout})"
     )
@@ -1129,6 +1133,12 @@ def updateJob(
             param["meanCoreCount"] = float(meanCoreCount)
         except Exception:
             pass
+    if grid is not None:
+        param["grid"] = grid
+    if source_site is not None:
+        param["sourceSite"] = source_site
+    if destination_site is not None:
+        param["destinationSite"] = destination_site
     if maxRSS is not None:
         param["maxRSS"] = maxRSS
     if maxVMEM is not None:
