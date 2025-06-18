@@ -1243,7 +1243,7 @@ class WorkerModule(BaseModule):
                 ":host_name": host_name,
                 ":vendor": vendor,
                 ":model": model,
-                ":count": int,
+                ":count": count,
                 ":vram": vram,
                 ":architecture": architecture,
                 ":framework": framework,
