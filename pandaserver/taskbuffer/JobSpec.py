@@ -186,6 +186,9 @@ class JobSpec(object):
         "commandToPilot": 250,
         "inputFileType": 32,
         "outputFileType": 32,
+        "grid": 50,
+        "sourceSite": 36,
+        "destinationSite": 36,
     }
     # tag for special handling
     _tagForSH = {
