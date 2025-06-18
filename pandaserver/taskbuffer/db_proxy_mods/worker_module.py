@@ -1256,7 +1256,7 @@ class WorkerModule(BaseModule):
                 "INSERT INTO ATLAS_PANDA.worker_node_gpus "
                 "(site, host_name, vendor, model, count, vram, architecture, framework, framework_version, driver_version, last_seen) "
                 "VALUES "
-                "(:site, :host_name, :vendor, :model, :count, :vram, :framework, :framework_version, :last_seen)"
+                "(:site, :host_name, :vendor, :model, :count, :vram, :architecture, :framework, :framework_version, :driver_version, :last_seen)"
             )
 
             self.cur.execute(sql + comment, var_map)
