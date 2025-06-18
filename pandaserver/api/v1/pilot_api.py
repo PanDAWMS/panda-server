@@ -373,6 +373,9 @@ def update_job(
     corrupted_files: str = None,
     mean_core_count: int = None,
     cpu_architecture_level: int = None,
+    grid: str = None,
+    source_site: str = None,
+    destination_site: str = None,
     timeout: int = 60,
 ):
     """
@@ -428,6 +431,9 @@ def update_job(
         rate_wbytes(int, optional): Measured rate for written bytes. Optional, defaults to `None`
         corrupted_files(str, optional): List of corrupted files in comma separated format. Optional, defaults to `None`
         cpu_architecture_level(int, optional): CPU architecture level (e.g. `x86_64-v3`). Optional, defaults to `None`
+        grid(str, optional): Grid type. Optional, defaults to `None`
+        source_site(str, optional): Source site name. Optional, defaults to `None`
+        destination_site(str, optional): Destination site name. Optional, defaults to `None`
         job_metrics(str, optional): Job metrics. Optional, defaults to `None`
         job_output_report(str, optional): Job output report. Optional, defaults to `""`
         pilot_log(str, optional): Pilot log excerpt. Optional, defaults to `""`
@@ -454,6 +460,7 @@ def update_job(
         f"max_pss={max_pss}, avg_rss={avg_rss}, avg_vmem={avg_vmem}, avg_swap={avg_swap}, avg_pss={avg_pss}, "
         f"tot_rchar={tot_rchar}, tot_wchar={tot_wchar}, tot_rbytes={tot_rbytes}, tot_wbytes={tot_wbytes}, rate_rchar={rate_rchar}, "
         f"rate_wchar={rate_wchar}, rate_rbytes={rate_rbytes}, rate_wbytes={rate_wbytes}, mean_core_count={mean_core_count}, "
+        f"grid={grid}, source_site={source_site}, destination_site={destination_site}, "
         f"corrupted_files={corrupted_files}\n==job_output_report==\n{job_output_report}\n==LOG==\n{pilot_log[:1024]}\n==Meta==\n{meta_data[:1024]}\n"
         f"==Metrics==\n{job_metrics}\n==stdout==\n{stdout})"
     )
@@ -504,6 +511,9 @@ def update_job(
         ("avgSWAP", avg_swap, lambda x: int(float(x))),
         ("avgPSS", avg_pss, lambda x: int(float(x))),
         ("corruptedFiles", corrupted_files, str),
+        ("grid", grid, str),
+        ("sourceSite", source_site, str),
+        ("destinationSite", destination_site, str),
     ]
 
     # Iterate through fields, apply transformations and add to `param`
