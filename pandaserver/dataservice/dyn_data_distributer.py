@@ -3,7 +3,6 @@ find candidate site to distribute input datasets
 
 """
 
-import datetime
 import fnmatch
 import re
 import sys
@@ -13,6 +12,7 @@ from typing import Dict, List, Tuple
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
@@ -29,16 +29,18 @@ class DynDataDistributer:
     Find candidate site to distribute input datasets.
     """
 
-    def __init__(self, jobs, siteMapper, simul=False, token=None):
+    def __init__(self, jobs, siteMapper, simul=False, token=None, dataset_lifetime=14):
         self.jobs = jobs
         self.site_mapper = siteMapper
         if token is None:
-            self.token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" ")
+            self.token = naive_utcnow().isoformat(" ")
         else:
             self.token = token
         # use a fixed list since some clouds don't have active T2s
         self.simul = simul
         self.last_message = ""
+        # lifetime for temporary datasets
+        self.dataset_lifetime = dataset_lifetime
 
     def get_replica_locations(self, input_ds: str, check_used_file: bool) -> Tuple[bool, Dict]:
         """
@@ -51,7 +53,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
-        tmp_log = LogWrapper(_logger, f"get_replica_locations-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"get_replica_locations-{naive_utcnow().isoformat('/')}")
         tmp_log.debug(f"get_replica_locations {input_ds}")
 
         # return for failure
@@ -203,7 +205,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
-        tmp_log = LogWrapper(_logger, f"get_list_dataset_replicas-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"get_list_dataset_replicas-{naive_utcnow().isoformat('/')}")
         tmp_log.debug(f"get_list_dataset_replicas {dataset}")
 
         for attempt in range(max_attempts):
@@ -230,9 +232,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
-        tmp_log = LogWrapper(
-            _logger, f"get_list_dataset_replicas_in_container-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}"
-        )
+        tmp_log = LogWrapper(_logger, f"get_list_dataset_replicas_in_container-{naive_utcnow().isoformat('/')}")
 
         tmp_log.debug(f"get_list_dataset_replicas_in_container {container}")
 
@@ -279,7 +279,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the used datasets list.
         """
-        tmp_log = LogWrapper(_logger, f"get_used_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"get_used_datasets-{naive_utcnow().isoformat('/')}")
         tmp_log.debug(f"get_used_datasets {str(dataset_map)}")
 
         res_for_failure = (False, [])
@@ -338,7 +338,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the file information (dict or None).
         """
-        tmp_log = LogWrapper(_logger, f"get_file_from_dataset-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"get_file_from_dataset-{naive_utcnow().isoformat('/')}")
         tmp_log.debug(f"get_file_from_dataset {dataset_name} {guid}")
 
         res_for_failure = (False, None)
@@ -396,9 +396,7 @@ class DynDataDistributer:
         Returns:
             bool: The status of the registration process.
         """
-        tmp_logger = LogWrapper(
-            _logger, f"register_dataset_container_with_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}"
-        )
+        tmp_logger = LogWrapper(_logger, f"register_dataset_container_with_datasets-{naive_utcnow().isoformat('/')}")
         tmp_logger.debug(f"register_dataset_container_with_datasets {container_name}")
 
         # parse DN
@@ -496,7 +494,7 @@ class DynDataDistributer:
         Returns:
             bool: The status of the registration process.
         """
-        tmp_logger = LogWrapper(_logger, f"register_dataset_with_location-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger = LogWrapper(_logger, f"register_dataset_with_location-{naive_utcnow().isoformat('/')}")
         tmp_logger.debug(f"register_dataset_with_location {dataset_name}")
 
         res_for_failure = False
@@ -516,7 +514,7 @@ class DynDataDistributer:
         for attempt in range(max_attempts):
             try:
                 tmp_logger.debug(f"{attempt}/{max_attempts} registerNewDataset {dataset_name} len={len(files)}")
-                out = rucioAPI.register_dataset(dataset_name, lfns, guids, file_sizes, checksums, lifetime=14)
+                out = rucioAPI.register_dataset(dataset_name, lfns, guids, file_sizes, checksums, lifetime=self.dataset_lifetime)
                 tmp_logger.debug(out)
                 break
             except Exception:
@@ -553,7 +551,7 @@ class DynDataDistributer:
             for attempt in range(max_attempts):
                 try:
                     tmp_logger.debug(f"{attempt}/{max_attempts} registerDatasetLocation {dataset_name} {tmp_location}")
-                    out = rucioAPI.register_dataset_location(dataset_name, [tmp_location], 14, owner)
+                    out = rucioAPI.register_dataset_location(dataset_name, [tmp_location], self.dataset_lifetime, owner)
                     tmp_logger.debug(out)
                     status = True
                     break
@@ -587,7 +585,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing a boolean status and a dictionary.
         """
-        tmp_logger = LogWrapper(_logger, f"get_datasets_by_guids-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger = LogWrapper(_logger, f"get_datasets_by_guids-{naive_utcnow().isoformat('/')}")
         tmp_logger.debug(f"get_datasets_by_guids {str(guids)}")
 
         ret_map = {}
@@ -649,7 +647,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
-        tmp_logger = LogWrapper(_logger, f"list_datasets_by_guids-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger = LogWrapper(_logger, f"list_datasets_by_guids-{naive_utcnow().isoformat('/')}")
         tmp_logger.debug(f"list_datasets_by_guids {str(guids)}")
 
         res_for_failure = (False, {})
@@ -706,7 +704,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool), the result (dict or str), and the list of all files.
         """
-        tmp_logger = LogWrapper(_logger, f"convert_evt_run_to_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger = LogWrapper(_logger, f"convert_evt_run_to_datasets-{naive_utcnow().isoformat('/')}")
         tmp_logger.debug(f"convert_evt_run_to_datasets type={dataset_type} stream={stream_name} dsPatt={str(dataset_filters)} amitag={ami_tag}")
 
         # check data type
@@ -730,14 +728,14 @@ class DynDataDistributer:
                 tmp_event_run_list = event_run_list[i_events_total : i_events_total + n_events_per_loop]
                 tmp_logger.debug(f"EI lookup for {i_events_total}/{len(event_run_list)}")
                 i_events_total += n_events_per_loop
-                reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                reg_start = naive_utcnow()
                 guid_list_elssi, tmp_com, tmp_out, tmp_err = event_lookup_if.do_lookup(
                     tmp_event_run_list,
                     stream=stream_name,
                     tokens=stream_ref,
                     ami_tag=ami_tag,
                 )
-                reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start
+                reg_time = naive_utcnow() - reg_start
                 tmp_logger.debug(f"EI command: {tmp_com}")
                 tmp_logger.debug(f"took {reg_time.seconds}.{reg_time.microseconds / 1000:03f} sec for {len(tmp_event_run_list)} events")
                 # failed

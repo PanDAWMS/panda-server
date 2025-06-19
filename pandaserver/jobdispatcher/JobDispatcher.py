@@ -16,6 +16,7 @@ from threading import Lock
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
@@ -54,7 +55,7 @@ class JobDispatcher:
         # taskbuffer
         self.taskBuffer = None
         # datetime of last updated
-        self.lastUpdated = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        self.lastUpdated = naive_utcnow()
         # how frequently update DN/token map
         self.timeInterval = datetime.timedelta(seconds=180)
         # special dispatcher parameters
@@ -322,9 +323,7 @@ class JobDispatcher:
             updateStateChange = True
             param["jobDispatcherErrorDiag"] = None
         elif jobStatus in ["holding", "transferring"]:
-            param["jobDispatcherErrorDiag"] = (
-                f"set to {jobStatus} by the pilot at {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')}"
-            )
+            param["jobDispatcherErrorDiag"] = f"set to {jobStatus} by the pilot at {naive_utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
         if tmpStatus == "holding":
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus, None)
         else:
@@ -869,7 +868,7 @@ def getJob(
     viaTopic=None,
     remaining_time=None,
 ):
-    tmpLog = LogWrapper(_logger, f"getJob {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmpLog = LogWrapper(_logger, f"getJob {naive_utcnow().isoformat('/')}")
     tmpLog.debug(siteName)
     # get DN
     realDN = _getDN(req)
@@ -1023,6 +1022,9 @@ def updateJob(
     corruptedFiles=None,
     meanCoreCount=None,
     cpu_architecture_level=None,
+    grid=None,
+    source_site=None,
+    destination_site=None,
 ):
     tmp_log = LogWrapper(_logger, f"updateJob PandaID={jobId} PID={os.getpid()}")
     tmp_log.debug("start")
@@ -1034,15 +1036,16 @@ def updateJob(
     acceptJson = req.acceptJson()
 
     _logger.debug(
-        f"updateJob({jobId},{state},{transExitCode},{pilotErrorCode},{pilotErrorDiag},{node},{workdir},"
-        f"cpuConsumptionTime={cpuConsumptionTime},{cpuConsumptionUnit},{cpu_architecture_level},{remainingSpace},"
-        f"{schedulerID},{pilotID},{siteName},{messageLevel},{nEvents},{nInputFiles},{cpuConversionFactor},"
-        f"{exeErrorCode},{exeErrorDiag},{pilotTiming},{computingElement},{startTime},{endTime},{batchID},"
+        f"updateJob({jobId},status={state},transExitCode={transExitCode},pilotErrorCode={pilotErrorCode},pilotErrorDiag={pilotErrorDiag},node={node},workdir={workdir},"
+        f"cpuConsumptionTime={cpuConsumptionTime},cpuConsumptionUnit={cpuConsumptionUnit},cpu_architecture_level={cpu_architecture_level},remainingSpace={remainingSpace},"
+        f"schedulerID={schedulerID},pilotID={pilotID},siteName={siteName},messageLevel={messageLevel},nEvents={nEvents},nInputFiles={nInputFiles},cpuConversionFactor={cpuConversionFactor},"
+        f"exeErrorCode={exeErrorCode},exeErrorDiag={exeErrorDiag},pilotTiming={pilotTiming},computingElement={computingElement},startTime={startTime},endTime={endTime},batchID={batchID},"
         f"attemptNr:{attemptNr},jobSubStatus:{jobSubStatus},core:{coreCount},DN:{realDN},role:{prodManager},"
         f"FQAN:{fqans},maxRSS={maxRSS},maxVMEM={maxVMEM},maxSWAP={maxSWAP},"
         f"maxPSS={maxPSS},avgRSS={avgRSS},avgVMEM={avgVMEM},avgSWAP={avgSWAP},avgPSS={avgPSS},"
         f"totRCHAR={totRCHAR},totWCHAR={totWCHAR},totRBYTES={totRBYTES},totWBYTES={totWBYTES},rateRCHAR={rateRCHAR},"
         f"rateWCHAR={rateWCHAR},rateRBYTES={rateRBYTES},rateWBYTES={rateWBYTES},meanCoreCount={meanCoreCount},"
+        f"grid={grid},source_site={source_site},destination_site={destination_site},"
         f"corruptedFiles={corruptedFiles}\n==XML==\n{xml}\n==LOG==\n{pilotLog[:1024]}\n==Meta==\n{metaData[:1024]}\n"
         f"==Metrics==\n{jobMetrics}\n==stdout==\n{stdout})"
     )
@@ -1130,6 +1133,12 @@ def updateJob(
             param["meanCoreCount"] = float(meanCoreCount)
         except Exception:
             pass
+    if grid is not None:
+        param["grid"] = grid
+    if source_site is not None:
+        param["sourceSite"] = source_site
+    if destination_site is not None:
+        param["destinationSite"] = destination_site
     if maxRSS is not None:
         param["maxRSS"] = maxRSS
     if maxVMEM is not None:
@@ -1217,7 +1226,7 @@ def updateJobsInBulk(req, jobList, harvester_id=None):
     prefix = f"updateJobsInBulk {harvester_id}"
     tmp_logger = LogWrapper(_logger, prefix)
     tmp_logger.debug("start")
-    t_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    t_start = naive_utcnow()
 
     try:
         job_list = json.loads(jobList)
@@ -1237,7 +1246,7 @@ def updateJobsInBulk(req, jobList, harvester_id=None):
         ret_list = f"{prefix} {tmp_msg}"
         tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
 
-    t_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - t_start
+    t_delta = naive_utcnow() - t_start
     tmp_logger.debug(f"took {t_delta.seconds}.{t_delta.microseconds // 1000:03d} sec")
     return json.dumps((ret_val, ret_list))
 

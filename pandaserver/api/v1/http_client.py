@@ -142,3 +142,11 @@ class HttpClient:
                 else:
                     file_handler = file
                 file_handler.close()
+
+    def override_oidc(self, oidc, id_token, auth_vo):
+        """
+        Override OIDC settings.
+        """
+        self.oidc = oidc
+        self.id_token = id_token
+        self.auth_vo = auth_vo

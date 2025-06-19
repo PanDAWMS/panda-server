@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.api.v1.common import (
     MESSAGE_DATABASE,
@@ -60,7 +61,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
     tmp_logger = LogWrapper(_logger, f"update_workers harvester_id={harvester_id}")
     tmp_logger.debug("Start")
     success, message, data = False, "", None
-    time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    time_start = naive_utcnow()
 
     ret = global_task_buffer.updateWorkers(harvester_id, workers)
     if not ret:
@@ -69,7 +70,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
     else:
         success, data = True, ret
 
-    time_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
+    time_delta = naive_utcnow() - time_start
     tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
 
     return generate_response(success, message, data)
@@ -118,7 +119,7 @@ def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list) 
     success, message, data = False, "", None
 
     # update the metrics in the database
-    time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    time_start = naive_utcnow()
 
     ret = global_task_buffer.updateServiceMetrics(harvester_id, metrics)
     if not ret:
@@ -127,7 +128,7 @@ def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list) 
     else:
         success, data = True, ret
 
-    time_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
+    time_delta = naive_utcnow() - time_start
     _logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
 
     return generate_response(success, message, data)

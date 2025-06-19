@@ -8,8 +8,7 @@ import time
 import traceback
 import uuid
 
-from pandaserver.dataservice import DataServiceUtils, ErrorCode
-from pandaserver.dataservice.ddm import rucioAPI
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 from rucio.common.exception import (
     DataIdentifierNotFound,
     FileConsistencyMismatch,
@@ -22,6 +21,9 @@ from rucio.common.exception import (
     UnsupportedOperation,
 )
 
+from pandaserver.dataservice import DataServiceUtils, ErrorCode
+from pandaserver.dataservice.ddm import rucioAPI
+
 from .adder_plugin_base import AdderPluginBase
 
 
@@ -31,7 +33,7 @@ class AdderSimplePlugin(AdderPluginBase):
     """
 
     # constructor
-    def __init__(self, job, **params)  -> None:
+    def __init__(self, job, **params) -> None:
         """
         Initialize the AdderSimplePlugin.
 
@@ -87,7 +89,7 @@ class AdderSimplePlugin(AdderPluginBase):
                 for attempt_number in range(max_attempt):
                     is_fatal = False
                     is_failed = False
-                    registration_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                    registration_start = naive_utcnow()
                     try:
                         self.logger.debug(f"registerFilesInDatasets {str(destination_id_map)}")
                         out = rucioAPI.register_files_in_dataset(destination_id_map, {})
@@ -120,7 +122,7 @@ class AdderSimplePlugin(AdderPluginBase):
                             is_fatal = True
                         else:
                             is_fatal = False
-                    registration_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - registration_start
+                    registration_time = naive_utcnow() - registration_start
                     self.logger.debug("took %s.%03d sec" % (registration_time.seconds, registration_time.microseconds / 1000))
 
                     # failed
@@ -136,10 +138,10 @@ class AdderSimplePlugin(AdderPluginBase):
                             else:
                                 self.job.ddmErrorDiag = err_msg + extracted_error
                             if is_fatal:
-                                self.err_str.set_fatal()
+                                self.result.set_fatal()
                             else:
                                 self.result.set_temporary()
-                            return 1
+                            return
                         self.logger.error(f"Try:{attempt_number}")
                         # sleep
                         time.sleep(10)

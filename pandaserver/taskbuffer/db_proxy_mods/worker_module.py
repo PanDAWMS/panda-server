@@ -5,7 +5,7 @@ import re
 import sys
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandacommon.pandautils.PandaUtils import naive_utcnow
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
@@ -120,7 +120,7 @@ class WorkerModule(BaseModule):
                 "GROUP BY computingSite,harvester_ID,jobType,resourceType,status "
             )
             varMap = dict()
-            varMap[":time_limit"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=4)
+            varMap[":time_limit"] = naive_utcnow() - datetime.timedelta(hours=4)
             self.cur.execute(sqlGA + comment, varMap)
             res_active = self.cur.fetchall()
             retMap = {}
@@ -178,13 +178,13 @@ class WorkerModule(BaseModule):
                 if (
                     commandStatus in ["new", "lock", "retrieved"]
                     and lockInterval is not None
-                    and statusDate > datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=lockInterval)
+                    and statusDate > naive_utcnow() - datetime.timedelta(minutes=lockInterval)
                 ):
                     toSkip = True
                 elif (
                     commandStatus in ["retrieved", "acknowledged"]
                     and comInterval is not None
-                    and statusDate > datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=comInterval)
+                    and statusDate > naive_utcnow() - datetime.timedelta(minutes=comInterval)
                 ):
                     toSkip = True
                 else:
@@ -295,6 +295,7 @@ class WorkerModule(BaseModule):
         comment = " /* DBProxy.get_average_memory_workers */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
+
         try:
             # sql to calculate the average memory for the queue - harvester_id combination
             # "* 1" in sj.data.blah * 1 is required to notify postgres the data type is an int since json element is
@@ -436,9 +437,13 @@ class WorkerModule(BaseModule):
             tmp_log.error("No harvester instance assigned or not in statistics")
             return {}
 
+        # There is the case where the grid has no workloads and running HIMEM jobs is better than running no jobs
+        ignore_meanrss = self.getConfigValue("meanrss", "IGNORE_MEANRSS")
+        tmp_log.debug(f"Accepting all resource types since meanrss throttling is ignored")
+
         # If the site defined a memory target, calculate the memory requested by running and queued workers
         resource_types_under_target = []
-        if average_memory_target:
+        if ignore_meanrss != True and average_memory_target:
             average_memory_workers_running_submitted, average_memory_workers_running = self.get_average_memory_workers(
                 queue, harvester_id, average_memory_target
             )
@@ -527,9 +532,9 @@ class WorkerModule(BaseModule):
 
             # if we need to filter on resource types
             if resource_types_under_target:
-                resource_type_string = ", ".join([f":{item}" for item in resource_types_under_target])
-                sql += f"   AND resource_type IN ({resource_type_string}) "
-                var_map.update({f":{item}": item for item in resource_types_under_target})
+                rtype_var_names_str, rtype_var_map = get_sql_IN_bind_variables(resource_types_under_target, prefix=":", value_as_suffix=True)
+                sql += f"   AND resource_type IN ({rtype_var_names_str}) "
+                var_map.update(rtype_var_map)
 
             sql += "ORDER BY currentpriority DESC"
             self.cur.execute(sql + comment, var_map)
@@ -650,7 +655,7 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvester_ID} command={command}")
         tmp_log.debug("start")
         try:
-            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            timeNow = naive_utcnow()
             # sql to get commands
             sqlC = "SELECT computingSite,resourceType FROM ATLAS_PANDA.Harvester_Command_Lock "
             sqlC += "WHERE harvester_ID=:harvester_ID AND command=:command "
@@ -807,13 +812,13 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvesterID} pid={os.getpid()}")
         try:
             tmp_log.debug(f"start {len(data)} workers")
-            regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            regStart = naive_utcnow()
             sqlC = f"SELECT {WorkerSpec.columnNames()} FROM ATLAS_PANDA.Harvester_Workers "
             sqlC += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
             # loop over all workers
             retList = []
             for workerData in data:
-                timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                timeNow = naive_utcnow()
                 if useCommit:
                     self.conn.begin()
                 workerSpec = WorkerSpec()
@@ -970,7 +975,7 @@ class WorkerModule(BaseModule):
                                 varMap[":jobStatus"] = "failed"
                                 varMap[":attemptNr"] = attemptNr
                                 varMap[":data"] = None
-                                varMap[":timeStamp"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                                varMap[":timeStamp"] = naive_utcnow()
                                 try:
                                     self.cur.execute(sqlI + comment, varMap)
                                 except Exception:
@@ -1006,7 +1011,7 @@ class WorkerModule(BaseModule):
                     if not self._commit():
                         raise RuntimeError("Commit error")
                 retList.append(True)
-            regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
+            regTime = naive_utcnow() - regStart
             tmp_log.debug("done. exec_time=%s.%03d sec" % (regTime.seconds, regTime.microseconds / 1000))
             return retList
         except Exception:
@@ -1021,7 +1026,7 @@ class WorkerModule(BaseModule):
         comment = " /* DBProxy.updateWorkerPilotStatus */"
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvesterID} workerID={workerID}")
 
-        timestamp_utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        timestamp_utc = naive_utcnow()
         var_map = {
             ":status": status,
             ":harvesterID": harvesterID,
@@ -1078,7 +1083,7 @@ class WorkerModule(BaseModule):
         tmp_logger = self.create_tagged_logger(comment, f"{method_name} < site={site} host_name={host_name} cpu_model={cpu_model} >")
         tmp_logger.debug("Start")
 
-        timestamp_utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        timestamp_utc = naive_utcnow()
 
         # If the worker node comes in the slot1@worker1.example.com format, we remove the slot1@ part
         match = re.search(r"@(.+)", host_name)
@@ -1203,9 +1208,9 @@ class WorkerModule(BaseModule):
             tmp_log.debug("Starting")
 
             # give harvester a chance to discover the status change itself
-            discovery_period = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=60)
+            discovery_period = naive_utcnow() - datetime.timedelta(minutes=60)
             # don't repeat the same workers in each cycle
-            retry_period = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=30)
+            retry_period = naive_utcnow() - datetime.timedelta(minutes=30)
 
             # Select workers where the status is more advanced according to the pilot than to harvester
             sql_select = """
@@ -1223,7 +1228,7 @@ class WorkerModule(BaseModule):
                 ":retry_period": retry_period,
             }
 
-            now_ts = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            now_ts = naive_utcnow()
             sql_update = """
             UPDATE ATLAS_PANDA.harvester_workers
             SET pilotStatusSyncTime = :lastSync
@@ -1377,7 +1382,7 @@ class WorkerModule(BaseModule):
         else:
             sqlU += "AND resourceType=:resourceType "
         try:
-            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            timeNow = naive_utcnow()
             # start transaction
             self.conn.begin()
             # check
@@ -1602,7 +1607,7 @@ class WorkerModule(BaseModule):
             var_map = {
                 ":panda_id": panda_id,
                 ":message": pilot_log[:4000],  # clip if longer than 4k characters
-                ":now": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+                ":now": naive_utcnow(),
                 ":name": "panda.mon.prod",
                 ":module": "JobDispatcher",
                 ":type": "pilotLog",
@@ -1648,7 +1653,7 @@ class WorkerModule(BaseModule):
               WHERE lastupdate > :time_limit
               """
         var_map = {}
-        var_map[":time_limit"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=60)
+        var_map[":time_limit"] = naive_utcnow() - datetime.timedelta(minutes=60)
 
         self.cur.execute(sql + comment, var_map)
         worker_stats_rows = self.cur.fetchall()

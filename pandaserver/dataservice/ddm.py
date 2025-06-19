@@ -1091,9 +1091,9 @@ class RucioAPI:
         return ret_list
 
     # get dataset metadata
-    def get_dataset_matadata(self, dataset_name, ignore_missing=False):
+    def get_dataset_metadata(self, dataset_name, ignore_missing=False):
         # make logger
-        method_name = "get_dataset_matadata"
+        method_name = "get_dataset_metadata"
         method_name = f"{method_name} dataset_name={dataset_name}"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")

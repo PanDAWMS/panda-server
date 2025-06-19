@@ -6,6 +6,7 @@ import uuid
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
@@ -41,7 +42,7 @@ def _compFunc(job_a, job_b):
 
 
 def schedule(jobs, siteMapper):
-    timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
+    timestamp = naive_utcnow().isoformat("/")
     tmp_log = LogWrapper(_log, f"start_ts={timestamp}")
 
     try:

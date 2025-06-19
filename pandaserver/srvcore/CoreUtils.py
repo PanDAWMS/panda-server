@@ -7,6 +7,8 @@ import re
 import subprocess
 from threading import Lock
 
+from pandacommon.pandautils.PandaUtils import naive_utcnow
+
 
 # replacement for commands
 def commands_get_status_output(com):
@@ -133,7 +135,7 @@ class CachedObject:
         # cached object
         self.cachedObj = None
         # datetime of last updated
-        self.lastUpdated = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        self.lastUpdated = naive_utcnow()
         # update frequency
         self.timeInterval = datetime.timedelta(seconds=time_interval)
         # lock
@@ -148,7 +150,7 @@ class CachedObject:
         # lock
         self.lock.acquire()
         # get current datetime
-        current = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        current = naive_utcnow()
         # update if old
         if self.cachedObj is None or current - self.lastUpdated > self.timeInterval:
             self.log_stream.debug(f"PID={os.getpid()} renewing {self.name} cache")
@@ -207,7 +209,7 @@ class CacheDict:
         self.cache_dict = {}
         self.update_interval = datetime.timedelta(minutes=update_interval)
         self.cleanup_interval = datetime.timedelta(minutes=cleanup_interval)
-        self.last_cleanup = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        self.last_cleanup = naive_utcnow()
 
     def cleanup(self, tmp_log):
         """
@@ -215,7 +217,7 @@ class CacheDict:
         :param tmp_log: logger
         """
         with self.lock:
-            current = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            current = naive_utcnow()
             if current - self.last_cleanup > self.cleanup_interval:
                 for name in list(self.cache_dict):
                     cache = self.cache_dict[name]
@@ -237,7 +239,7 @@ class CacheDict:
         self.cleanup(tmp_log)
         with self.lock:
             obj = self.cache_dict.get(name)
-            current = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            current = naive_utcnow()
             if not obj:
                 tmp_log.debug(f"creating new cache #{self.idx}")
                 # create new cache

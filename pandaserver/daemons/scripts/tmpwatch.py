@@ -4,6 +4,8 @@ import optparse
 import os
 import sys
 
+from pandacommon.pandautils.PandaUtils import naive_utcnow
+
 
 # main
 def main(argv=tuple(), **kwargs):
@@ -31,7 +33,7 @@ def main(argv=tuple(), **kwargs):
     tmpPatts = ["/tmp/tmp*", "/tmp/atlpan/tmp*", "/tmp/pansrv/tmp*"]
 
     # limit
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=options.limit)
+    timeLimit = naive_utcnow() - datetime.timedelta(hours=options.limit)
 
     # loop over all pattern
     for tmpPatt in tmpPatts:

@@ -7,6 +7,7 @@ from typing import List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.api.v1.common import (
     TimedMethod,
@@ -108,7 +109,7 @@ def acquire_jobs(
               When failed, the message contains the error message.
     """
 
-    tmp_logger = LogWrapper(_logger, f"acquire_jobs {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_logger = LogWrapper(_logger, f"acquire_jobs {naive_utcnow().isoformat('/')}")
     tmp_logger.debug(f"Start for {site_name}")
 
     # get DN and FQANs
@@ -372,6 +373,9 @@ def update_job(
     corrupted_files: str = None,
     mean_core_count: int = None,
     cpu_architecture_level: int = None,
+    grid: str = None,
+    source_site: str = None,
+    destination_site: str = None,
     timeout: int = 60,
 ):
     """
@@ -427,6 +431,9 @@ def update_job(
         rate_wbytes(int, optional): Measured rate for written bytes. Optional, defaults to `None`
         corrupted_files(str, optional): List of corrupted files in comma separated format. Optional, defaults to `None`
         cpu_architecture_level(int, optional): CPU architecture level (e.g. `x86_64-v3`). Optional, defaults to `None`
+        grid(str, optional): Grid type. Optional, defaults to `None`
+        source_site(str, optional): Source site name. Optional, defaults to `None`
+        destination_site(str, optional): Destination site name. Optional, defaults to `None`
         job_metrics(str, optional): Job metrics. Optional, defaults to `None`
         job_output_report(str, optional): Job output report. Optional, defaults to `""`
         pilot_log(str, optional): Pilot log excerpt. Optional, defaults to `""`
@@ -453,6 +460,7 @@ def update_job(
         f"max_pss={max_pss}, avg_rss={avg_rss}, avg_vmem={avg_vmem}, avg_swap={avg_swap}, avg_pss={avg_pss}, "
         f"tot_rchar={tot_rchar}, tot_wchar={tot_wchar}, tot_rbytes={tot_rbytes}, tot_wbytes={tot_wbytes}, rate_rchar={rate_rchar}, "
         f"rate_wchar={rate_wchar}, rate_rbytes={rate_rbytes}, rate_wbytes={rate_wbytes}, mean_core_count={mean_core_count}, "
+        f"grid={grid}, source_site={source_site}, destination_site={destination_site}, "
         f"corrupted_files={corrupted_files}\n==job_output_report==\n{job_output_report}\n==LOG==\n{pilot_log[:1024]}\n==Meta==\n{meta_data[:1024]}\n"
         f"==Metrics==\n{job_metrics}\n==stdout==\n{stdout})"
     )
@@ -503,6 +511,9 @@ def update_job(
         ("avgSWAP", avg_swap, lambda x: int(float(x))),
         ("avgPSS", avg_pss, lambda x: int(float(x))),
         ("corruptedFiles", corrupted_files, str),
+        ("grid", grid, str),
+        ("sourceSite", source_site, str),
+        ("destinationSite", destination_site, str),
     ]
 
     # Iterate through fields, apply transformations and add to `param`
@@ -579,9 +590,7 @@ def update_job(
         update_state_change = True  # update stateChangeTime to prevent Watcher from finding this job
         param["jobDispatcherErrorDiag"] = None
     elif job_status in ("holding", "transferring"):
-        param["jobDispatcherErrorDiag"] = (
-            f"set to {job_status} by the pilot at {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')}"
-        )
+        param["jobDispatcherErrorDiag"] = f"set to {job_status} by the pilot at {naive_utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
 
     # update the job status in the database
     timeout = None if job_status == "holding" else timeout
@@ -649,7 +658,7 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
     """
     tmp_logger = LogWrapper(_logger, f"update_jobs_bulk harvester_id={harvester_id}")
     tmp_logger.debug("Start")
-    t_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    t_start = naive_utcnow()
 
     success = False
     message = ""
@@ -675,7 +684,7 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
         data = []
         tmp_logger.error(f"{message}\n{traceback.format_exc()}")
 
-    t_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - t_start
+    t_delta = naive_utcnow() - t_start
     tmp_logger.debug(f"Done. Took {t_delta.seconds}.{t_delta.microseconds // 1000:03d} sec")
     return generate_response(success, message, data)
 

@@ -5,6 +5,7 @@ import re
 import time
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
@@ -39,7 +40,7 @@ class JobStandaloneModule(BaseModule):
         sql2 = f"INSERT INTO ATLAS_PANDA.jobsActive4 ({JobSpec.columnNames()}) "
         sql2 += JobSpec.bindValuesExpression()
         # host and time information
-        job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        job.modificationTime = naive_utcnow()
         # set stateChangeTime for defined->activated but not for assigned->activated
         if job.jobStatus in ["defined"]:
             job.stateChangeTime = job.modificationTime
@@ -169,7 +170,7 @@ class JobStandaloneModule(BaseModule):
         sql1 = f"UPDATE ATLAS_PANDA.jobsDefined4 SET {job.bindUpdateChangesExpression()} "
         sql1 += "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
         # time information
-        job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        job.modificationTime = naive_utcnow()
         job.stateChangeTime = job.modificationTime
         updatedFlag = False
         nTry = 3
@@ -312,7 +313,7 @@ class JobStandaloneModule(BaseModule):
                 job.computingElement = None
             # host and time information
             job.modificationHost = self.hostname
-            job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            job.modificationTime = naive_utcnow()
             job.stateChangeTime = job.modificationTime
             # reset
             job.brokerageErrorDiag = None
@@ -602,7 +603,7 @@ class JobStandaloneModule(BaseModule):
             executionTimeU = datetime.timedelta(hours=1)
             jobCreditU = 3
             timeCreditU = executionTimeU * jobCreditU
-            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            timeNow = naive_utcnow()
             timeLimit = timeNow - datetime.timedelta(hours=6)
             # loop over tables
             for table in [
@@ -939,55 +940,25 @@ class JobStandaloneModule(BaseModule):
             varMap = {}
             varMap[":modificationTime"] = timeLimit
             if statList != []:
-                sql += "AND jobStatus IN ("
-                tmpIdx = 0
-                for tmpStat in statList:
-                    tmpKey = f":stat{tmpIdx}"
-                    varMap[tmpKey] = tmpStat
-                    sql += f"{tmpKey},"
-                    tmpIdx += 1
-                sql = sql[:-1]
-                sql += ") "
+                stat_var_names_str, stat_var_map = get_sql_IN_bind_variables(statList, prefix=":stat")
+                sql += f"AND jobStatus IN ({stat_var_names_str}) "
+                varMap.update(stat_var_map)
             if labels != []:
-                sql += "AND prodSourceLabel IN ("
-                tmpIdx = 0
-                for tmpStat in labels:
-                    tmpKey = f":label{tmpIdx}"
-                    varMap[tmpKey] = tmpStat
-                    sql += f"{tmpKey},"
-                    tmpIdx += 1
-                sql = sql[:-1]
-                sql += ") "
+                label_var_names_str, label_var_map = get_sql_IN_bind_variables(labels, prefix=":label")
+                sql += f"AND prodSourceLabel IN ({label_var_names_str}) "
+                varMap.update(label_var_map)
             if processTypes != []:
-                sql += "AND processingType IN ("
-                tmpIdx = 0
-                for tmpStat in processTypes:
-                    tmpKey = f":processType{tmpIdx}"
-                    varMap[tmpKey] = tmpStat
-                    sql += f"{tmpKey},"
-                    tmpIdx += 1
-                sql = sql[:-1]
-                sql += ") "
+                ptype_var_names_str, ptype_var_map = get_sql_IN_bind_variables(processTypes, prefix=":processType")
+                sql += f"AND processingType IN ({ptype_var_names_str}) "
+                varMap.update(ptype_var_map)
             if sites != []:
-                sql += "AND computingSite IN ("
-                tmpIdx = 0
-                for tmpStat in sites:
-                    tmpKey = f":site{tmpIdx}"
-                    varMap[tmpKey] = tmpStat
-                    sql += f"{tmpKey},"
-                    tmpIdx += 1
-                sql = sql[:-1]
-                sql += ") "
+                site_var_names_str, site_var_map = get_sql_IN_bind_variables(sites, prefix=":site")
+                sql += f"AND computingSite IN ({site_var_names_str}) "
+                varMap.update(site_var_map)
             if clouds != []:
-                sql += "AND cloud IN ("
-                tmpIdx = 0
-                for tmpStat in clouds:
-                    tmpKey = f":cloud{tmpIdx}"
-                    varMap[tmpKey] = tmpStat
-                    sql += f"{tmpKey},"
-                    tmpIdx += 1
-                sql = sql[:-1]
-                sql += ") "
+                cloud_var_names_str, cloud_var_map = get_sql_IN_bind_variables(clouds, prefix=":cloud")
+                sql += f"AND cloud IN ({cloud_var_names_str}) "
+                varMap.update(cloud_var_map)
             if onlyReassignable:
                 sql += "AND (relocationFlag IS NULL OR relocationFlag<>:relocationFlag) "
                 varMap[":relocationFlag"] = 2
@@ -1138,7 +1109,7 @@ class JobStandaloneModule(BaseModule):
         sql0 = "SELECT PandaID FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
         sql1 = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
         nTry = 1
-        regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        regStart = naive_utcnow()
         for iTry in range(nTry):
             try:
                 # autocommit on
@@ -1193,7 +1164,7 @@ class JobStandaloneModule(BaseModule):
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
+                regTime = naive_utcnow() - regStart
                 msgStr = f"done in jobStatus={jobStatus}->{newStatus} took {regTime.seconds} sec"
                 if metadata is not None:
                     msgStr += f" for {len(metadata)} (orig {origSize}) bytes"
@@ -1354,9 +1325,9 @@ class JobStandaloneModule(BaseModule):
         try:
             # calculate the time floor based on the window specified by the caller
             if time_window is None:
-                time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
+                time_floor = naive_utcnow() - datetime.timedelta(hours=12)
             else:
-                time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=int(time_window))
+                time_floor = naive_utcnow() - datetime.timedelta(minutes=int(time_window))
 
             for table in tables:
                 # start transaction
@@ -1457,7 +1428,7 @@ class JobStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"start source_type={source_type}")
 
-        time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
+        time_floor = naive_utcnow() - datetime.timedelta(hours=12)
 
         # analysis
         if source_type == "analysis":
@@ -1558,7 +1529,7 @@ class JobStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
 
-        time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
+        time_floor = naive_utcnow() - datetime.timedelta(hours=12)
 
         # Job tables we are going to query
         tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsArchived4", "ATLAS_PANDA.jobsDefined4"]
@@ -2095,7 +2066,7 @@ class JobStandaloneModule(BaseModule):
             )
             varMap = dict()
             varMap[":pandaID"] = int(pandaID)
-            varMap[":timeLimit"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=1)
+            varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(hours=1)
             # begin transaction
             self.conn.begin()
             # select
@@ -2215,7 +2186,7 @@ class JobStandaloneModule(BaseModule):
             varMap[":jobStatus"] = job_status
             varMap[":attemptNr"] = attempt_nr
             varMap[":data"] = data
-            varMap[":timeStamp"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            varMap[":timeStamp"] = naive_utcnow()
             self.cur.execute(sqlI + comment, varMap)
             tmp_log.debug("successfully inserted")
             retVal = True
@@ -2248,7 +2219,7 @@ class JobStandaloneModule(BaseModule):
             varMap[":PandaID"] = panda_id
             varMap[":attemptNr"] = attempt_nr
             varMap[":data"] = data
-            varMap[":timeStamp"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            varMap[":timeStamp"] = naive_utcnow()
             self.cur.execute(sqlU + comment, varMap)
             nRow = self.cur.rowcount
             if nRow == 1:
@@ -2388,8 +2359,8 @@ class JobStandaloneModule(BaseModule):
                 varMap[":lockedBy"] = pid
             else:
                 varMap[":lockedBy"] = take_over_from
-            varMap[":lockedTime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=time_limit)
-            utc_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            varMap[":lockedTime"] = naive_utcnow() - datetime.timedelta(minutes=time_limit)
+            utc_now = naive_utcnow()
             try:
                 self.cur.execute(sqlGL + comment, varMap)
                 resGL = self.cur.fetchall()
@@ -2460,7 +2431,7 @@ class JobStandaloneModule(BaseModule):
                     varMap = {}
                     varMap[":PandaID"] = panda_id
                     varMap[":attemptNr"] = attempt_nr
-                    varMap[":lockedTime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=lock_offset)
+                    varMap[":lockedTime"] = naive_utcnow() - datetime.timedelta(minutes=lock_offset)
                     self.cur.execute(sqlUL + comment, varMap)
                     tmp_log.debug("successfully unlocked record")
                     retVal = True
@@ -2488,8 +2459,8 @@ class JobStandaloneModule(BaseModule):
                 # try to get only records unlocked or with expired lock
                 varMap = {}
                 varMap[":limit"] = limit * 10
-                varMap[":lockedTime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=time_limit)
-                varMap[":timeStamp"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(seconds=grace_period)
+                varMap[":lockedTime"] = naive_utcnow() - datetime.timedelta(minutes=time_limit)
+                varMap[":timeStamp"] = naive_utcnow() - datetime.timedelta(seconds=grace_period)
                 # sql to get record
                 sqlGR = (
                     "SELECT * "
@@ -2500,21 +2471,13 @@ class JobStandaloneModule(BaseModule):
                     "AND timeStamp<:timeStamp ".format(panda_config.schemaPANDA)
                 )
                 if labels is not None:
-                    sqlGR += "AND prodSourceLabel IN ("
-                    for l in labels:
-                        k = f":l_{l}"
-                        varMap[k] = l
-                        sqlGR += f"{k},"
-                    sqlGR = sqlGR[:-1]
-                    sqlGR += ") "
+                    label_var_names_str, label_var_map = get_sql_IN_bind_variables(labels, prefix=":l_", value_as_suffix=True)
+                    sqlGR += f"AND prodSourceLabel IN ({label_var_names_str}) "
+                    varMap.update(label_var_map)
                 if anti_labels is not None:
-                    sqlGR += "AND prodSourceLabel NOT IN ("
-                    for l in anti_labels:
-                        k = f":al_{l}"
-                        varMap[k] = l
-                        sqlGR += f"{k},"
-                    sqlGR = sqlGR[:-1]
-                    sqlGR += ") "
+                    anti_label_var_names_str, anti_label_var_map = get_sql_IN_bind_variables(anti_labels, prefix=":al_", value_as_suffix=True)
+                    sqlGR += f"AND prodSourceLabel NOT IN ({anti_label_var_names_str}) "
+                    varMap.update(anti_label_var_map)
                 sqlGR += "ORDER BY timeStamp " ") " "WHERE rownum<=:limit "
                 # start transaction
                 self.conn.begin()

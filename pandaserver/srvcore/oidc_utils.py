@@ -8,6 +8,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
 from jwt.exceptions import InvalidTokenError
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 
 def decode_value(val):
@@ -46,15 +47,13 @@ class TokenDecoder:
     def get_data(self, url, log_stream):
         try:
             with self.lock:
-                if url not in self.data or datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - self.data[url][
-                    "last_update"
-                ] > datetime.timedelta(minutes=self.refresh_interval):
+                if url not in self.data or naive_utcnow() - self.data[url]["last_update"] > datetime.timedelta(minutes=self.refresh_interval):
                     log_stream.debug(f"to refresh {url}")
                     tmp_data = requests.get(url).json()
                     log_stream.debug("refreshed")
                     self.data[url] = {
                         "data": tmp_data,
-                        "last_update": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+                        "last_update": naive_utcnow(),
                     }
                 return self.data[url]["data"]
         except Exception as e:

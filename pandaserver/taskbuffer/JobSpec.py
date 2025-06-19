@@ -7,6 +7,8 @@ import datetime
 import json
 import re
 
+from pandacommon.pandautils.PandaUtils import naive_utcnow
+
 from pandaserver.taskbuffer.FileSpec import FileSpec
 
 reserveChangedState = False
@@ -184,6 +186,9 @@ class JobSpec(object):
         "commandToPilot": 250,
         "inputFileType": 32,
         "outputFileType": 32,
+        "grid": 50,
+        "sourceSite": 36,
+        "destinationSite": 36,
     }
     # tag for special handling
     _tagForSH = {
@@ -247,7 +252,7 @@ class JobSpec(object):
         newVal = getattr(self, name)
         if name == "jobStatus":
             if oldVal != newVal:
-                self.stateChangeTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                self.stateChangeTime = naive_utcnow()
         # collect changed attributes
         if oldVal != newVal and name not in self._suppAttrs:
             self._changedAttrs[name] = value
