@@ -835,6 +835,10 @@ class DataCarouselInterface(object):
                 # no replica found on tape nor on datadisk (can be on transient disk); skip
                 pass
             # return
+            tmp_log.debug(
+                f"source_type={source_type} rse_set={rse_set} staging_rule={staging_rule} to_pin={to_pin} "
+                f"suggested_destination_rses_set={suggested_destination_rses_set}"
+            )
             return (source_type, rse_set, staging_rule, to_pin, list(suggested_destination_rses_set))
         except Exception as e:
             # other unexpected errors
@@ -2414,9 +2418,19 @@ class DataCarouselInterface(object):
         active_source_rses_set = self._get_active_source_rses()
         dataset = dc_req_spec.dataset
         source_type, rse_set_orig, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
+        replicas_map = self._get_full_replicas_per_type(dataset)
         # exclude original source RSE if possible
+        if dc_req_spec.status == DataCarouselRequestStatus.staging and not rse_set_orig:
+            # for already staging request, DDM rule already exists, choose source RSE from unfiltered tape replicas if no filtered RSE
+            rse_set |= set(replicas_map["tape"])
         if rse_set_orig:
-            rse_set = copy.copy(rse_set_orig)
+            rse_set |= rse_set_orig
+        if (
+            staging_rule
+            and (source_replica_expression := staging_rule.get("source_replica_expression"))
+            and source_replica_expression == f"{SRC_REPLI_EXPR_PREFIX}|{dc_req_spec.source_rse}"
+        ):
+            # exclude source RSE already in source_replica_expression
             rse_set.discard(dc_req_spec.source_rse)
         # check status of the request
         if dc_req_spec.status == DataCarouselRequestStatus.queued:
@@ -2488,14 +2502,8 @@ class DataCarouselInterface(object):
                     err_msg = f"dataset={dataset} has no other source RSE available; skipped"
                     tmp_log.warning(err_msg)
                     ret = False
-                elif source_type == "datadisk":
-                    # replicas already on datadisk; skip
-                    err_msg = f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped"
-                    tmp_log.debug(err_msg)
-                    ret = False
-                elif source_type == "tape":
+                else:
                     new_source_rse = None
-                    # replicas only on tape
                     if source_rse:
                         if source_rse not in rse_set:
                             # source_rse not in available RSEs
@@ -2521,23 +2529,37 @@ class DataCarouselInterface(object):
                         to_update_DB = True
                         # update source_replica_expression
                         set_map["source_replica_expression"] = f"{SRC_REPLI_EXPR_PREFIX}|{dc_req_spec.source_rse}"
-                else:
-                    # no replica found on tape nor on datadisk; skip
-                    err_msg = f"dataset={dataset} has no replica on any tape or datadisk ; skipped"
-                    tmp_log.debug(err_msg)
-                    ret = False
-            if cancel_fts:
-                set_map.update({"cancel_requests": True, "state": "STUCK"})
             # update DDM rule
             if ret is not False:
                 tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, set_map)
                 if tmp_ret:
-                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} done")
+                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={set_map} done")
                     ret = True
                 else:
-                    err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} failed to update DDM rule ; skipped"
-                    tmp_log.error(f"ddm_rule_id={dc_req_spec.ddm_rule_id} got {tmp_ret}; skipped")
+                    err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={set_map} failed to update DDM rule ; skipped"
+                    tmp_log.error(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={set_map} got {tmp_ret}; skipped")
                     ret = False
+            # cancel FTS requests in separate DDM rule update calls (otherwise DDM will not cancel FTS)
+            if cancel_fts:
+                cancel_fts_success = True
+                # call first time to cancel requests
+                _set_map = {"cancel_requests": True, "state": "STUCK"}
+                tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, _set_map)
+                if tmp_ret:
+                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} done")
+                else:
+                    tmp_log.warning(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} got {tmp_ret} ; skipped")
+                    cancel_fts_success = False
+                # call second time to boost rule
+                _set_map = {"boost_rule": True}
+                tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, _set_map)
+                if tmp_ret:
+                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} done")
+                else:
+                    tmp_log.warning(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} got {tmp_ret} ; skipped")
+                    cancel_fts_success = False
+                if not cancel_fts_success:
+                    err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} failed to cancel FTS requests ; skipped"
             # update DB
             if ret is not False and to_update_DB:
                 tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
