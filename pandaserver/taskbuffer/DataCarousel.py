@@ -2417,11 +2417,11 @@ class DataCarouselInterface(object):
         # re-choose source_rse for queued request
         active_source_rses_set = self._get_active_source_rses()
         dataset = dc_req_spec.dataset
-        replicas_map = self._get_full_replicas_per_type(dataset)
         source_type, rse_set_orig, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
+        replicas_map = self._get_full_replicas_per_type(dataset)
         # exclude original source RSE if possible
-        if dc_req_spec.status == DataCarouselRequestStatus.staging:
-            # for already staging request, DDM rule already exists, choose source RSE from unfiltered tape replicas
+        if dc_req_spec.status == DataCarouselRequestStatus.staging and not rse_set_orig:
+            # for already staging request, DDM rule already exists, choose source RSE from unfiltered tape replicas if no filtered RSE
             rse_set |= set(replicas_map["tape"])
         if rse_set_orig:
             rse_set |= rse_set_orig
