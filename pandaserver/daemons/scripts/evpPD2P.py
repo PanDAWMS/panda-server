@@ -4,6 +4,7 @@ import os.path
 import sys
 import threading
 import time
+import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -126,9 +127,8 @@ def main(tbuf=None, **kwargs):
                 thr.start()
             else:
                 _logger.debug(f"{timeInt - modTime} : {fileName}")
-        except Exception:
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"{errType} {errValue}")
+        except Exception as e:
+            _logger.error(f"{str(e)} {traceback.format_exc()}")
 
     # join all threads
     adderThreadPool.join()

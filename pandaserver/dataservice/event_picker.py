@@ -46,7 +46,7 @@ class EventPicker:
         self.event_picking_file_name = evpFileName
         # logger
         self.logger = LogWrapper(_logger)
-        dataset_lifetime = self.task_buffer.getConfig("event_picker", "EVP_DATASET_LIFETIME")
+        dataset_lifetime = self.task_buffer.getConfigValue("event_picker", "EVP_DATASET_LIFETIME")
         if not dataset_lifetime:
             dataset_lifetime = 28
         self.pd2p = dyn_data_distributer.DynDataDistributer([], self.site_mapper, token=" ", dataset_lifetime=dataset_lifetime)
