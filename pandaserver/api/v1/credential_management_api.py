@@ -358,7 +358,7 @@ def get_token_key(req: PandaRequest, client_name: str) -> dict:
 
     # token key is missing
     if client_name not in global_dispatch_parameter_cache["tokenKeys"]:
-        tmp_msg = f"Token key is missing for '{client_name}"
+        tmp_msg = f"Token key is missing for '{client_name}'"
         tmp_logger.debug(tmp_msg)
         return generate_response(False, tmp_msg)
 
