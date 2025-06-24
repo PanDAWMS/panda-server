@@ -849,11 +849,11 @@ def update_worker_node_gpu(
         vendor(str): GPU vendor, e.g. `NVIDIA`.
         model(str): GPU model, e.g. `A100 80GB`.
         count(int): Number of GPUs of this type in the worker node.
-        vram(int): VRAM memory in MB. Defaults to `None`.
-        architecture(str): GPU architecture, e.g. `Tesla`, `Ampere`... Defaults to `None`.
-        framework(str): Driver framework available, e.g. `CUDA`. Defaults to `None`.
-        framework_version(str): Version of the driver framework, e.g. `12.2`. Defaults to `None`.
-        driver_version(str): Version of the driver, e.g. `575.51.03`. Defaults to `None`
+        vram(int, optional): VRAM memory in MB. Defaults to `None`.
+        architecture(str, optional): GPU architecture, e.g. `Tesla`, `Ampere`... Defaults to `None`.
+        framework(str, optional): Driver framework available, e.g. `CUDA`. Defaults to `None`.
+        framework_version(str, optional): Version of the driver framework, e.g. `12.2`. Defaults to `None`.
+        driver_version(str, optional): Version of the driver, e.g. `575.51.03`. Defaults to `None`
         timeout(int, optional): The timeout value. Defaults to `60`.
 
     Returns:
