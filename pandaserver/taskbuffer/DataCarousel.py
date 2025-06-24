@@ -118,6 +118,9 @@ class DataCarouselRequestSpec(SpecBase):
         AttributeWithType("check_time", datetime),
         AttributeWithType("source_tape", str),
         AttributeWithType("parameters", str),
+        AttributeWithType("last_staged_time", datetime),
+        AttributeWithType("locked_by", str),
+        AttributeWithType("lock_time", datetime),
     )
     # attributes
     attributes = tuple([attr.attribute for attr in attributes_with_types])
@@ -2051,19 +2054,20 @@ class DataCarouselInterface(object):
                         tmp_log.debug(f"request_id={dc_req_spec.request_id} filled destination_rse={destination_rse} of ddm_rule_id={ddm_rule_id}")
                         to_update = True
                 # current staged files
+                now_time = naive_utcnow()
                 current_staged_files = int(the_rule["locks_ok_cnt"])
                 new_staged_files = current_staged_files - dc_req_spec.staged_files
                 if new_staged_files > 0:
                     # have more staged files than before; update request according to DDM rule
                     dc_req_spec.staged_files = current_staged_files
                     dc_req_spec.staged_size = int(dc_req_spec.dataset_size * dc_req_spec.staged_files / dc_req_spec.total_files)
+                    dc_req_spec.last_staged_time = now_time
                     to_update = True
                 else:
                     tmp_log.debug(f"request_id={dc_req_spec.request_id} got {new_staged_files} new staged files")
                 # check completion of staging
                 if dc_req_spec.staged_files == dc_req_spec.total_files:
                     # all files staged; process request to done
-                    now_time = naive_utcnow()
                     dc_req_spec.status = DataCarouselRequestStatus.done
                     dc_req_spec.end_time = now_time
                     dc_req_spec.staged_size = dc_req_spec.dataset_size
