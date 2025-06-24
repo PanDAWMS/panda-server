@@ -840,7 +840,7 @@ def update_worker_node_gpu(
 
     API details:
         HTTP Method: POST
-        Path: /v1/pilot/update_worker_node
+        Path: /v1/pilot/update_worker_node_gpu
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
