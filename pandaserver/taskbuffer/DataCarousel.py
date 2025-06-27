@@ -620,10 +620,10 @@ class DataCarouselInterface(object):
             if job_param.get("param_type") in ["input", "pseudo_input"]:
                 # dataset names can be comma-separated
                 raw_dataset_str = job_param.get("dataset")
-                dataset_list = []
+                jobparam_dataset_list = []
                 if raw_dataset_str:
-                    dataset_list = raw_dataset_str.split(",")
-                for dataset in dataset_list:
+                    jobparam_dataset_list = raw_dataset_str.split(",")
+                for dataset in jobparam_dataset_list:
                     ret_map[dataset] = job_param
         return ret_map
 
@@ -722,11 +722,11 @@ class DataCarouselInterface(object):
             did_type = collection_meta["did_type"]
             if did_type == "CONTAINER":
                 # is container, get datasets inside
-                dataset_list = self.ddmIF.list_datasets_in_container_JEDI(collection)
-                if dataset_list is None:
+                jobparam_dataset_list = self.ddmIF.list_datasets_in_container_JEDI(collection)
+                if jobparam_dataset_list is None:
                     tmp_log.warning(f"cannot list datasets in this container")
                 else:
-                    ret_list = dataset_list
+                    ret_list = jobparam_dataset_list
             elif did_type == "DATASET":
                 # is dataset
                 ret_list = [collection]
@@ -982,24 +982,36 @@ class DataCarouselInterface(object):
                     tmp_log.debug(f"collection={collection} is pseudo input ; skipped")
                     continue
                 # with real inputs
-                dataset_list = self._get_datasets_from_collection(collection)
-                if dataset_list is None:
+                jobparam_dataset_list = self._get_datasets_from_collection(collection)
+                if jobparam_dataset_list is None:
                     ret_map["unfound_coll_list"].append(collection)
-                    tmp_log.warning(f"collection={collection} not found ; skipped")
-                    continue
-                elif not dataset_list:
+                    tmp_log.warning(f"collection={collection} not found")
+                elif not jobparam_dataset_list:
                     ret_map["empty_coll_list"].append(collection)
-                    tmp_log.warning(f"collection={collection} is empty ; skipped")
+                    tmp_log.warning(f"collection={collection} is empty")
+                # merge of jobparam_dataset_list and dnsname_list (which may have extra datasets if task resubmitted/rerefined)
+                all_input_datasets_set = set()
+                if jobparam_dataset_list:
+                    all_input_datasets_set |= set(jobparam_dataset_list)
+                if dsname_list is not None:
+                    all_input_datasets_set |= set(dsname_list)
+                all_input_datasets_list = sorted(list(all_input_datasets_set))
+                if not all_input_datasets_list:
+                    # no input datasets to prestage
+                    tmp_log.debug(f"no input dataset in collection={collection} ; skipped")
                     continue
                 # check source of each dataset
                 got_on_tape = False
-                for dataset in dataset_list:
+                for dataset in all_input_datasets_list:
                     # check if dataset in the required dsname_list
                     if dsname_list is not None and dataset not in dsname_list:
                         # not in dsname_list; skip
                         ret_map["to_skip_ds_list"].append(dataset)
                         tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
                         continue
+                    if (dsname_list is not None and dataset in dsname_list) and (jobparam_dataset_list is None or dataset not in jobparam_dataset_list):
+                        # addition dataset for incexec of reubmitted/rerefined tasks (only in dsname_list but not in jobparam)
+                        tmp_log.debug(f"dataset={dataset} appended for incexec")
                     # get source type and RSEs
                     source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
                     if source_type == "datadisk":
