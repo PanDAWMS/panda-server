@@ -961,6 +961,8 @@ class DataCarouselInterface(object):
             all_input_datasets_set = set()
             jobparam_ds_coll_map = {}
             extra_datasets_set = set()
+            raw_coll_list = []
+            raw_coll_did_list = []
             coll_on_tape_set = set()
             ret_prestaging_list = []
             ret_map = {
@@ -996,16 +998,19 @@ class DataCarouselInterface(object):
                     tmp_log.warning(f"collection={collection} is empty")
                     continue
                 # inputs to consider
+                raw_coll_list.append(collection)
+                raw_coll_did_list.append(self.ddmIF.get_did_str(collection))
                 for dataset in jobparam_dataset_list:
                     jobparam_ds_coll_map[dataset] = collection
             # merge of jobparam_dataset_list and dnsname_list
-            jobparam_dataset_set = set(jobparam_ds_coll_map.keys())
-            all_input_datasets_set |= jobparam_dataset_set
+            jobparam_datasets_set = set(jobparam_ds_coll_map.keys())
+            all_input_datasets_set |= jobparam_datasets_set
             if dsname_list is not None:
-                dsname_list_set = set(dsname_list)
-                all_input_datasets_set |= dsname_list_set
-                # extra dataset if task resubmitted/rerefined
-                extra_datasets_set = dsname_list_set - jobparam_dataset_set
+                # dsname_list is given; filter out extra container slash
+                master_datasets_set = set([dsname for dsname in dsname_list if not dsname.endswith("/")])
+                # extra dataset not in job parameters when task resubmitted/rerefined
+                extra_datasets_set = master_datasets_set - jobparam_datasets_set - set(raw_coll_did_list)
+                all_input_datasets_set |= extra_datasets_set
             all_input_datasets_list = sorted(list(all_input_datasets_set))
             if extra_datasets_set:
                 tmp_log.debug(f"datasets appended for incexec: {sorted(list(extra_datasets_set))}")
@@ -1045,7 +1050,7 @@ class DataCarouselInterface(object):
                     tmp_log.debug(f"dataset={dataset} has no replica on any tape or datadisk ; skipped")
                     continue
             # collection DID without datasets on tape
-            for collection in input_collection_map:
+            for collection in raw_coll_list:
                 collection_did = self.ddmIF.get_did_str(collection)
                 if collection in coll_on_tape_set:
                     ret_map["tape_coll_did_list"].append(collection_did)
