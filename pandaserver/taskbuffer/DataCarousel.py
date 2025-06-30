@@ -949,7 +949,7 @@ class DataCarouselInterface(object):
         Args:
             task_id (int): JEDI task ID of the task params
             task_params_map (dict): task params of the JEDI task
-            dsname_list (list|None): if not None, filter only datasets in this list of dataset names to stage
+            dsname_list (list|None): if not None, filter only datasets in this list of dataset names to stage, may also including extra datasets if the task is resubmitted/rerefined
 
         Returns:
             list[tuple[str, str|None, str|None]]: list of tuples in the form of (dataset, source_rse, ddm_rule_id)
@@ -958,6 +958,10 @@ class DataCarouselInterface(object):
         tmp_log = LogWrapper(logger, f"get_input_datasets_to_prestage task_id={task_id}")
         try:
             # initialize
+            all_input_datasets_set = set()
+            jobparam_ds_coll_map = {}
+            extra_datasets_set = set()
+            coll_on_tape_set = set()
             ret_prestaging_list = []
             ret_map = {
                 "pseudo_coll_list": [],
@@ -973,7 +977,7 @@ class DataCarouselInterface(object):
             }
             # get active source rses
             active_source_rses_set = self._get_active_source_rses()
-            # loop over inputs
+            # loop over inputs defined in task's job parameters
             input_collection_map = self._get_input_ds_from_task_params(task_params_map)
             for collection, job_param in input_collection_map.items():
                 # pseudo inputs
@@ -986,61 +990,64 @@ class DataCarouselInterface(object):
                 if jobparam_dataset_list is None:
                     ret_map["unfound_coll_list"].append(collection)
                     tmp_log.warning(f"collection={collection} not found")
+                    continue
                 elif not jobparam_dataset_list:
                     ret_map["empty_coll_list"].append(collection)
                     tmp_log.warning(f"collection={collection} is empty")
-                # merge of jobparam_dataset_list and dnsname_list (which may have extra datasets if task resubmitted/rerefined)
-                all_input_datasets_set = set()
-                if jobparam_dataset_list:
-                    all_input_datasets_set |= set(jobparam_dataset_list)
-                if dsname_list is not None:
-                    all_input_datasets_set |= set(dsname_list)
-                all_input_datasets_list = sorted(list(all_input_datasets_set))
-                if not all_input_datasets_list:
-                    # no input datasets to prestage
-                    tmp_log.debug(f"no input dataset in collection={collection} ; skipped")
                     continue
-                # check source of each dataset
-                got_on_tape = False
-                for dataset in all_input_datasets_list:
-                    # check if dataset in the required dsname_list
-                    if dsname_list is not None and dataset not in dsname_list:
-                        # not in dsname_list; skip
-                        ret_map["to_skip_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
-                        continue
-                    if (dsname_list is not None and dataset in dsname_list) and (jobparam_dataset_list is None or dataset not in jobparam_dataset_list):
-                        # addition dataset for incexec of reubmitted/rerefined tasks (only in dsname_list but not in jobparam)
-                        tmp_log.debug(f"dataset={dataset} appended for incexec")
-                    # get source type and RSEs
-                    source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
-                    if source_type == "datadisk":
-                        # replicas already on datadisk; skip
-                        ret_map["datadisk_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
-                        continue
-                    elif source_type == "tape":
-                        # replicas only on tape
-                        got_on_tape = True
-                        ret_map["tape_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
-                        # choose source RSE
-                        _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
-                        prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
-                        tmp_log.debug(f"got prestaging: {prestaging_tuple}")
-                        # add to prestage
-                        ret_prestaging_list.append(prestaging_tuple)
-                        # dataset to pin
-                        if to_pin:
-                            ret_map["to_pin_ds_list"].append(dataset)
-                    else:
-                        # no replica found on tape nor on datadisk; skip
-                        ret_map["unfound_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} has no replica on any tape or datadisk ; skipped")
-                        continue
-                # collection DID without datasets on tape
+                # inputs to consider
+                for dataset in jobparam_dataset_list:
+                    jobparam_ds_coll_map[dataset] = collection
+            # merge of jobparam_dataset_list and dnsname_list
+            jobparam_dataset_set = set(jobparam_ds_coll_map.keys())
+            all_input_datasets_set |= jobparam_dataset_set
+            if dsname_list is not None:
+                dsname_list_set = set(dsname_list)
+                all_input_datasets_set |= dsname_list_set
+                # extra dataset if task resubmitted/rerefined
+                extra_datasets_set = dsname_list_set - jobparam_dataset_set
+            all_input_datasets_list = sorted(list(all_input_datasets_set))
+            if extra_datasets_set:
+                tmp_log.debug(f"datasets appended for incexec: {sorted(list(extra_datasets_set))}")
+            # check source of each dataset
+            for dataset in all_input_datasets_list:
+                # check if dataset in the required dsname_list
+                if dsname_list is not None and dataset not in dsname_list:
+                    # not in dsname_list; skip
+                    ret_map["to_skip_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
+                    continue
+                # get source type and RSEs
+                source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
+                if source_type == "datadisk":
+                    # replicas already on datadisk; skip
+                    ret_map["datadisk_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
+                    continue
+                elif source_type == "tape":
+                    # replicas only on tape
+                    ret_map["tape_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
+                    if collection := jobparam_ds_coll_map.get(dataset):
+                        coll_on_tape_set.add(collection)
+                    # choose source RSE
+                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
+                    tmp_log.debug(f"got prestaging: {prestaging_tuple}")
+                    # add to prestage
+                    ret_prestaging_list.append(prestaging_tuple)
+                    # dataset to pin
+                    if to_pin:
+                        ret_map["to_pin_ds_list"].append(dataset)
+                else:
+                    # no replica found on tape nor on datadisk; skip
+                    ret_map["unfound_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} has no replica on any tape or datadisk ; skipped")
+                    continue
+            # collection DID without datasets on tape
+            for collection in input_collection_map:
                 collection_did = self.ddmIF.get_did_str(collection)
-                if got_on_tape:
+                if collection in coll_on_tape_set:
                     ret_map["tape_coll_did_list"].append(collection_did)
                 else:
                     ret_map["no_tape_coll_did_list"].append(collection_did)
