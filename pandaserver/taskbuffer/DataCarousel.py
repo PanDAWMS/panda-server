@@ -988,6 +988,8 @@ class DataCarouselInterface(object):
                     tmp_log.debug(f"collection={collection} is pseudo input ; skipped")
                     continue
                 # with real inputs
+                raw_coll_list.append(collection)
+                raw_coll_did_list.append(self.ddmIF.get_did_str(collection))
                 jobparam_dataset_list = self._get_datasets_from_collection(collection)
                 if jobparam_dataset_list is None:
                     ret_map["unfound_coll_list"].append(collection)
@@ -997,9 +999,7 @@ class DataCarouselInterface(object):
                     ret_map["empty_coll_list"].append(collection)
                     tmp_log.warning(f"collection={collection} is empty")
                     continue
-                # inputs to consider
-                raw_coll_list.append(collection)
-                raw_coll_did_list.append(self.ddmIF.get_did_str(collection))
+                # with contents to consider
                 for dataset in jobparam_dataset_list:
                     jobparam_ds_coll_map[dataset] = collection
             # merge of jobparam_dataset_list and dnsname_list
