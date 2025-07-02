@@ -199,6 +199,30 @@ class MiscStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, "PandaID={job_id}; jediTaskID={task_id}")
         tmp_log.debug("start")
 
+        # Temporarily deactivate the active flag until it's validated
+        active = False
+
+        # 0. See if there are successful jobs for this task. If yes, skip this method
+        sql = (
+            f"SELECT 1 FROM "
+            f"(SELECT 1 FROM atlas_panda.jobsarchived "
+            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND ROWNUM = 1 "
+            f"UNION ALL "
+            f"SELECT 1 FROM atlas_pandaarch.jobsarchived "
+            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND ROWNUM = 1) "
+            f"WHERE ROWNUM = 1"
+        )
+        var_map = {"jedi_task_id": task_id}
+        self.cur.execute(sql + comment, var_map)
+        exists = False
+        if self.cur.fetchone():
+            exists = True
+
+        # if we found a successful job, we skip the CPU time increase
+        if exists:
+            tmp_log.debug(f"Task {task_id} already has successful jobs, skipping CPU time increase and leaving it up to the scouting mechanism")
+            return None
+
         # 1. Get the site information from schedconfig
         sql = """
         SELECT /* use_json_type */ sc.data.maxtime, sc.data.corepower,
@@ -325,9 +349,8 @@ class MiscStandaloneModule(BaseModule):
 
         # 5. Calculate the new CPU time
         try:
-            # TODO: if the job failed, we can't assume that all events were processed. How do we get just the processed events? Should we otherwise use the
-            # cputime of the site
-            new_cputime = (max_time_site - basewalltime) * core_power_site * core_count_job * 1.1 / (cpuefficiency / 100.0) / n_events_total
+            # Calculate the new CPU time
+            new_cputime = ((max_time_site - basewalltime) * core_power_site * core_count_job * 1.1 / (cpuefficiency / 100.0) / n_events_total) * 1.5
 
             if cputime > new_cputime:
                 tmp_log.debug(f"Skipping CPU time increase since old CPU time {cputime} > new CPU time {new_cputime}")
@@ -338,9 +361,7 @@ class MiscStandaloneModule(BaseModule):
                 UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:cputime
                 WHERE jeditaskid=:jeditaskid
                 """
-                var_map = {}
-                var_map[":cputime"] = new_cputime
-                var_map[":jeditaskid"] = task_id
+                var_map = {":cputime": new_cputime, ":jeditaskid": task_id}
                 self.conn.begin()
                 self.cur.execute(sql_update_cputime + comment, var_map)
                 if not self._commit():
