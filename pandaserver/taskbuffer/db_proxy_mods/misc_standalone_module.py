@@ -286,7 +286,7 @@ class MiscStandaloneModule(BaseModule):
         input_datasetIDs = [input_file.datasetID for input_file in input_files]
 
         if input_fileIDs:
-            var_map = {":taskID": task_id, ":pandaID": job_id}
+            var_map = {":taskID": task_id}
 
             # Bind the files
             file_var_names_str, file_var_map = get_sql_IN_bind_variables(input_fileIDs, prefix=":file")
