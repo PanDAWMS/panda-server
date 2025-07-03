@@ -312,7 +312,9 @@ class MiscStandaloneModule(BaseModule):
             for fileid, n_events, start_event, end_event in result_list:
                 tmp_log.debug(f"event information: fileid {fileid}, n_events {n_events}, start_event {start_event}, end_event {end_event}")
 
-                if end_event is not None and start_event is not None:
+                start_event = start_event if start_event is not None else 0
+                end_event = end_event if end_event is not None else 0
+                if end_event and start_event:
                     n_events_total += end_event - start_event
                 elif n_events:
                     n_events_total += n_events
