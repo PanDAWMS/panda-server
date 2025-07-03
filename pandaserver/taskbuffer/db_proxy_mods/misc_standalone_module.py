@@ -196,7 +196,7 @@ class MiscStandaloneModule(BaseModule):
         Basewalltime: Setup time, time to download, etc. taken by the pilot
         """
         comment = " /* DBProxy.increaseCpuTimeTask */"
-        tmp_log = self.create_tagged_logger(comment, "PandaID={job_id}; jediTaskID={task_id}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={job_id}; jediTaskID={task_id}; siteID={site_id}")
         tmp_log.debug("start")
 
         # Temporarily deactivate the active flag until it's validated
