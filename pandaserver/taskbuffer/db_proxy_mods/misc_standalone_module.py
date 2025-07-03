@@ -304,7 +304,6 @@ class MiscStandaloneModule(BaseModule):
             AND jdc.fileID IN ({file_var_names_str})
             AND jd.datasetID = jdc.datasetID
             AND jd.masterID IS NULL
-            AND jdc.pandaID = :pandaID
             """
             self.cur.execute(sql_select + comment, var_map)
 
