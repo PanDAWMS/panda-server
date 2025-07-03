@@ -334,7 +334,7 @@ class MiscStandaloneModule(BaseModule):
         WHERE jeditaskid = :task_id AND pandaid = :job_id
         UNION
         SELECT jarch.corecount 
-        FROM ATLAS_PANDAARCH.jobsarchived4 jarch
+        FROM ATLAS_PANDAARCH.jobsarchived jarch
         WHERE jeditaskid = :task_id AND pandaid = :job_id
         """
         self.cur.execute(sql_select + comment, var_map)
