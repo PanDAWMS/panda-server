@@ -329,12 +329,12 @@ class MiscStandaloneModule(BaseModule):
         # Get the corecount from the job spec
         var_map = {"task_id": task_id, "job_id": job_id}
         sql_select = f"""
-        SELECT ja4.corecount 
-        FROM ATLAS_PANDA.jobsarchived4 ja4
+        SELECT ja.corecount 
+        FROM ATLAS_PANDA.jobsarchived4 ja
         WHERE jeditaskid = :task_id AND pandaid = :job_id
         UNION
-        SELECT jarch4.corecount 
-        FROM ATLAS_PANDA.jobsarchived4 jarch
+        SELECT jarch.corecount 
+        FROM ATLAS_PANDAARCH.jobsarchived4 jarch
         WHERE jeditaskid = :task_id AND pandaid = :job_id
         """
         self.cur.execute(sql_select + comment, var_map)
