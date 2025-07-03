@@ -349,6 +349,7 @@ class MiscStandaloneModule(BaseModule):
         try:
             # Calculate the new CPU time
             new_cputime = ((max_time_site - basewalltime) * core_power_site * core_count_job * 1.1 / (cpuefficiency / 100.0) / n_events_total) * 1.5
+            tmp_log.debug(f"Old CPU time is {cputime} and possible new CPU time is {new_cputime}")
 
             if cputime > new_cputime:
                 tmp_log.debug(f"Skipping CPU time increase since old CPU time {cputime} > new CPU time {new_cputime}")
