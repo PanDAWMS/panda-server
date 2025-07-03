@@ -581,7 +581,7 @@ class JobDispatcher:
                 # get a token key
                 if client_name not in self.specialDispatchParams["tokenKeys"]:
                     # token key is missing
-                    tmp_msg = f"token key is missing for '{client_name}"
+                    tmp_msg = f"token key is missing for '{client_name}'"
                     tmp_log.debug(tmp_msg)
                     response = Protocol.Response(Protocol.SC_MissKey, tmp_msg)
                 else:

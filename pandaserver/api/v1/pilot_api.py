@@ -816,3 +816,72 @@ def update_worker_node(
 
     tmp_logger.debug(f"Done")
     return generate_response(success, message)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def update_worker_node_gpu(
+    req: PandaRequest,
+    site: str,
+    host_name: str,
+    vendor: str,
+    model: str,
+    count: int,
+    vram: int = None,
+    architecture: str = None,
+    framework: str = None,
+    framework_version: str = None,
+    driver_version: str = None,
+    timeout: int = 60,
+):
+    """
+    Update GPUs for a worker node
+
+    Updates the GPUs associated to a worker node in the worker node map. When already found, it updates the `last_seen` time. Requires a secure connection and production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/pilot/update_worker_node_gpu
+
+    Args:
+        req(PandaRequest): Internally generated request object containing the environment variables.
+        site(str): Site name (e.g. ATLAS site name, not PanDA queue).
+        host_name(str): Host name. In the case of reporting in format `slot@worker_node.example.com`, the slot ID will be parsed out.
+        vendor(str): GPU vendor, e.g. `NVIDIA`.
+        model(str): GPU model, e.g. `A100 80GB`.
+        count(int): Number of GPUs of this type in the worker node.
+        vram(int, optional): VRAM memory in MB. Defaults to `None`.
+        architecture(str, optional): GPU architecture, e.g. `Tesla`, `Ampere`... Defaults to `None`.
+        framework(str, optional): Driver framework available, e.g. `CUDA`. Defaults to `None`.
+        framework_version(str, optional): Version of the driver framework, e.g. `12.2`. Defaults to `None`.
+        driver_version(str, optional): Version of the driver, e.g. `575.51.03`. Defaults to `None`
+        timeout(int, optional): The timeout value. Defaults to `60`.
+
+    Returns:
+        dict: The system response  `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
+    """
+    tmp_logger = LogWrapper(_logger, f"update_worker_node site={site} host_name={host_name} vendor={vendor} model={model}")
+    tmp_logger.debug("Start")
+
+    timed_method = TimedMethod(global_task_buffer.update_worker_node_gpu, timeout)
+    timed_method.run(
+        site,
+        host_name,
+        vendor,
+        model,
+        count,
+        vram,
+        architecture,
+        framework,
+        framework_version,
+        driver_version,
+    )
+
+    if timed_method.result == Protocol.TimeOutToken:  # timeout
+        message = "Updating worker node GPU timed out"
+        tmp_logger.error(message)
+        return generate_response(False, message)
+
+    success, message = timed_method.result
+
+    tmp_logger.debug(f"Done")
+    return generate_response(success, message)

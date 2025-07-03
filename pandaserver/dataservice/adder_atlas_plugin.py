@@ -71,6 +71,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             if self.job.jobStatus == "transferring":
                 self.add_to_top_only = True
                 self.logger.debug("adder for transferring")
+            self.check_output_file_metadata()
             # check if the job goes to merging
             if self.job.produceUnMerge():
                 self.go_to_merging = True
@@ -173,6 +174,45 @@ class AdderAtlasPlugin(AdderPluginBase):
             self.result.set_fatal()
         # return
         return
+
+    # check output file metadata
+    def check_output_file_metadata(self):
+        """
+        Check the metadata of output files for consistency and change the job status if inconsistencies are found.
+        """
+        # check only successful jobs
+        if self.job_status in ["failed", "cancelled", "closed"]:
+            return
+        # get the zip file map
+        zip_file_map = self.job.getZipFileMap()
+        # check only output files
+        for file in self.job.Files:
+            is_zip_file = file.lfn in zip_file_map
+            # check num events and GUID
+            if file.type == "output" and not is_zip_file and not self.add_to_top_only and self.job.prodSourceLabel == "managed":
+                if file.lfn not in self.extra_info["nevents"]:
+                    to_skip = False
+                    # exclude some formats
+                    for patt in ["TXT", "NTUP", "HIST"]:
+                        if file.lfn.startswith(patt):
+                            to_skip = True
+                    if not to_skip:
+                        err_msg = f"nEvents is missing in jobReport for {file.lfn}"
+                        self.logger.error(err_msg)
+                        self.job.ddmErrorCode = ErrorCode.EC_MissingNumEvents
+                        self.job.ddmErrorDiag = err_msg
+                        self.job.jobStatus = "failed"
+                        self.job_status = "failed"
+                        return
+                if file.lfn not in self.extra_info["guid"] or file.GUID != self.extra_info["guid"][file.lfn]:
+                    self.logger.debug(f"extra_info = {str(self.extra_info)}")
+                    err_msg = f"GUID is inconsistent between jobReport and pilot report for {file.lfn}"
+                    self.logger.error(err_msg)
+                    self.job.ddmErrorCode = ErrorCode.EC_InconsistentGUID
+                    self.job.ddmErrorDiag = err_msg
+                    self.job.jobStatus = "failed"
+                    self.job_status = "failed"
+                    return
 
     # update output files
     def update_outputs(self):

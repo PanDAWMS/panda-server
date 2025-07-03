@@ -118,6 +118,9 @@ class DataCarouselRequestSpec(SpecBase):
         AttributeWithType("check_time", datetime),
         AttributeWithType("source_tape", str),
         AttributeWithType("parameters", str),
+        AttributeWithType("last_staged_time", datetime),
+        AttributeWithType("locked_by", str),
+        AttributeWithType("lock_time", datetime),
     )
     # attributes
     attributes = tuple([attr.attribute for attr in attributes_with_types])
@@ -617,10 +620,10 @@ class DataCarouselInterface(object):
             if job_param.get("param_type") in ["input", "pseudo_input"]:
                 # dataset names can be comma-separated
                 raw_dataset_str = job_param.get("dataset")
-                dataset_list = []
+                jobparam_dataset_list = []
                 if raw_dataset_str:
-                    dataset_list = raw_dataset_str.split(",")
-                for dataset in dataset_list:
+                    jobparam_dataset_list = raw_dataset_str.split(",")
+                for dataset in jobparam_dataset_list:
                     ret_map[dataset] = job_param
         return ret_map
 
@@ -719,11 +722,11 @@ class DataCarouselInterface(object):
             did_type = collection_meta["did_type"]
             if did_type == "CONTAINER":
                 # is container, get datasets inside
-                dataset_list = self.ddmIF.list_datasets_in_container_JEDI(collection)
-                if dataset_list is None:
+                jobparam_dataset_list = self.ddmIF.list_datasets_in_container_JEDI(collection)
+                if jobparam_dataset_list is None:
                     tmp_log.warning(f"cannot list datasets in this container")
                 else:
-                    ret_list = dataset_list
+                    ret_list = jobparam_dataset_list
             elif did_type == "DATASET":
                 # is dataset
                 ret_list = [collection]
@@ -946,7 +949,7 @@ class DataCarouselInterface(object):
         Args:
             task_id (int): JEDI task ID of the task params
             task_params_map (dict): task params of the JEDI task
-            dsname_list (list|None): if not None, filter only datasets in this list of dataset names to stage
+            dsname_list (list|None): if not None, filter only datasets in this list of dataset names to stage, may also including extra datasets if the task is resubmitted/rerefined
 
         Returns:
             list[tuple[str, str|None, str|None]]: list of tuples in the form of (dataset, source_rse, ddm_rule_id)
@@ -955,6 +958,12 @@ class DataCarouselInterface(object):
         tmp_log = LogWrapper(logger, f"get_input_datasets_to_prestage task_id={task_id}")
         try:
             # initialize
+            all_input_datasets_set = set()
+            jobparam_ds_coll_map = {}
+            extra_datasets_set = set()
+            raw_coll_list = []
+            raw_coll_did_list = []
+            coll_on_tape_set = set()
             ret_prestaging_list = []
             ret_map = {
                 "pseudo_coll_list": [],
@@ -970,7 +979,7 @@ class DataCarouselInterface(object):
             }
             # get active source rses
             active_source_rses_set = self._get_active_source_rses()
-            # loop over inputs
+            # loop over inputs defined in task's job parameters
             input_collection_map = self._get_input_ds_from_task_params(task_params_map)
             for collection, job_param in input_collection_map.items():
                 # pseudo inputs
@@ -979,53 +988,71 @@ class DataCarouselInterface(object):
                     tmp_log.debug(f"collection={collection} is pseudo input ; skipped")
                     continue
                 # with real inputs
-                dataset_list = self._get_datasets_from_collection(collection)
-                if dataset_list is None:
+                raw_coll_list.append(collection)
+                raw_coll_did_list.append(self.ddmIF.get_did_str(collection))
+                jobparam_dataset_list = self._get_datasets_from_collection(collection)
+                if jobparam_dataset_list is None:
                     ret_map["unfound_coll_list"].append(collection)
-                    tmp_log.warning(f"collection={collection} not found ; skipped")
+                    tmp_log.warning(f"collection={collection} not found")
                     continue
-                elif not dataset_list:
+                elif not jobparam_dataset_list:
                     ret_map["empty_coll_list"].append(collection)
-                    tmp_log.warning(f"collection={collection} is empty ; skipped")
+                    tmp_log.warning(f"collection={collection} is empty")
                     continue
-                # check source of each dataset
-                got_on_tape = False
-                for dataset in dataset_list:
-                    # check if dataset in the required dsname_list
-                    if dsname_list is not None and dataset not in dsname_list:
-                        # not in dsname_list; skip
-                        ret_map["to_skip_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
-                        continue
-                    # get source type and RSEs
-                    source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
-                    if source_type == "datadisk":
-                        # replicas already on datadisk; skip
-                        ret_map["datadisk_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
-                        continue
-                    elif source_type == "tape":
-                        # replicas only on tape
-                        got_on_tape = True
-                        ret_map["tape_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
-                        # choose source RSE
-                        _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
-                        prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
-                        tmp_log.debug(f"got prestaging: {prestaging_tuple}")
-                        # add to prestage
-                        ret_prestaging_list.append(prestaging_tuple)
-                        # dataset to pin
-                        if to_pin:
-                            ret_map["to_pin_ds_list"].append(dataset)
-                    else:
-                        # no replica found on tape nor on datadisk; skip
-                        ret_map["unfound_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} has no replica on any tape or datadisk ; skipped")
-                        continue
-                # collection DID without datasets on tape
+                # with contents to consider
+                for dataset in jobparam_dataset_list:
+                    jobparam_ds_coll_map[dataset] = collection
+            # merge of jobparam_dataset_list and dnsname_list
+            jobparam_datasets_set = set(jobparam_ds_coll_map.keys())
+            all_input_datasets_set |= jobparam_datasets_set
+            if dsname_list is not None:
+                # dsname_list is given; filter out extra container slash
+                master_datasets_set = set([dsname for dsname in dsname_list if not dsname.endswith("/")])
+                # extra dataset not in job parameters when task resubmitted/rerefined
+                extra_datasets_set = master_datasets_set - jobparam_datasets_set - set(raw_coll_did_list)
+                all_input_datasets_set |= extra_datasets_set
+            all_input_datasets_list = sorted(list(all_input_datasets_set))
+            if extra_datasets_set:
+                tmp_log.debug(f"datasets appended for incexec: {sorted(list(extra_datasets_set))}")
+            # check source of each dataset
+            for dataset in all_input_datasets_list:
+                # check if dataset in the required dsname_list
+                if dsname_list is not None and dataset not in dsname_list:
+                    # not in dsname_list; skip
+                    ret_map["to_skip_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
+                    continue
+                # get source type and RSEs
+                source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
+                if source_type == "datadisk":
+                    # replicas already on datadisk; skip
+                    ret_map["datadisk_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
+                    continue
+                elif source_type == "tape":
+                    # replicas only on tape
+                    ret_map["tape_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
+                    if collection := jobparam_ds_coll_map.get(dataset):
+                        coll_on_tape_set.add(collection)
+                    # choose source RSE
+                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
+                    tmp_log.debug(f"got prestaging: {prestaging_tuple}")
+                    # add to prestage
+                    ret_prestaging_list.append(prestaging_tuple)
+                    # dataset to pin
+                    if to_pin:
+                        ret_map["to_pin_ds_list"].append(dataset)
+                else:
+                    # no replica found on tape nor on datadisk; skip
+                    ret_map["unfound_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} has no replica on any tape or datadisk ; skipped")
+                    continue
+            # collection DID without datasets on tape
+            for collection in raw_coll_list:
                 collection_did = self.ddmIF.get_did_str(collection)
-                if got_on_tape:
+                if collection in coll_on_tape_set:
                     ret_map["tape_coll_did_list"].append(collection_did)
                 else:
                     ret_map["no_tape_coll_did_list"].append(collection_did)
@@ -2051,19 +2078,20 @@ class DataCarouselInterface(object):
                         tmp_log.debug(f"request_id={dc_req_spec.request_id} filled destination_rse={destination_rse} of ddm_rule_id={ddm_rule_id}")
                         to_update = True
                 # current staged files
+                now_time = naive_utcnow()
                 current_staged_files = int(the_rule["locks_ok_cnt"])
                 new_staged_files = current_staged_files - dc_req_spec.staged_files
                 if new_staged_files > 0:
                     # have more staged files than before; update request according to DDM rule
                     dc_req_spec.staged_files = current_staged_files
                     dc_req_spec.staged_size = int(dc_req_spec.dataset_size * dc_req_spec.staged_files / dc_req_spec.total_files)
+                    dc_req_spec.last_staged_time = now_time
                     to_update = True
                 else:
                     tmp_log.debug(f"request_id={dc_req_spec.request_id} got {new_staged_files} new staged files")
                 # check completion of staging
                 if dc_req_spec.staged_files == dc_req_spec.total_files:
                     # all files staged; process request to done
-                    now_time = naive_utcnow()
                     dc_req_spec.status = DataCarouselRequestStatus.done
                     dc_req_spec.end_time = now_time
                     dc_req_spec.staged_size = dc_req_spec.dataset_size

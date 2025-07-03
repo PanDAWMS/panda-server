@@ -1115,7 +1115,7 @@ class RucioAPI:
             return tmpRet
         except DataIdentifierNotFound as e:
             if ignore_missing:
-                tmp_log.debug(e)
+                tmp_log.warning(e)
                 tmpRet = {}
                 tmpRet["state"] = "missing"
                 return tmpRet
