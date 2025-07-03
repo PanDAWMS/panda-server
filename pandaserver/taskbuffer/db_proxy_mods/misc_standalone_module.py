@@ -202,10 +202,10 @@ class MiscStandaloneModule(BaseModule):
         # Temporarily deactivate the active flag until it's validated
         active = False
 
-        # 0. See if there are successful jobs for this task. If yes, skip this method
+        # See if there are successful jobs for this task. If yes, skip this method
         sql = (
             f"SELECT 1 FROM "
-            f"(SELECT 1 FROM atlas_panda.jobsarchived "
+            f"(SELECT 1 FROM atlas_panda.jobsarchived4 "
             f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND ROWNUM = 1 "
             f"UNION ALL "
             f"SELECT 1 FROM atlas_pandaarch.jobsarchived "
@@ -223,7 +223,7 @@ class MiscStandaloneModule(BaseModule):
             tmp_log.debug(f"Task {task_id} already has successful jobs, skipping CPU time increase and leaving it up to the scouting mechanism")
             return None
 
-        # 1. Get the site information from schedconfig
+        # Get the site information from schedconfig
         sql = """
         SELECT /* use_json_type */ sc.data.maxtime, sc.data.corepower,
             CASE
@@ -252,7 +252,7 @@ class MiscStandaloneModule(BaseModule):
                 int(core_count_site),
             )
 
-        # 2. Get the task information
+        # Get the task information
         sql = """
         SELECT jt.cputime, jt.walltime, jt.basewalltime, jt.cpuefficiency, jt.cputimeunit
         FROM ATLAS_PANDA.jedi_tasks jt
@@ -277,7 +277,7 @@ class MiscStandaloneModule(BaseModule):
             )
         )
 
-        # 3. Get the file information
+        # Get the file information
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
         input_files = list(
             filter(
@@ -328,7 +328,7 @@ class MiscStandaloneModule(BaseModule):
             tmp_log.debug(f"No input files for job {job_id}, so could not update CPU time for task {task_id}")
             return None
 
-        # 4. Get the corecount from the job spec
+        # Get the corecount from the job spec
         var_map = {"task_id": task_id, "job_id": job_id}
         sql_select = f"""
         SELECT ja4.corecount 
@@ -347,7 +347,7 @@ class MiscStandaloneModule(BaseModule):
             core_count_job = 1  # Default to 1 if no core_count is defined in the job spec
         tmp_log.debug(f"core_count_job: {core_count_job}")
 
-        # 5. Calculate the new CPU time
+        # Calculate the new CPU time
         try:
             # Calculate the new CPU time
             new_cputime = ((max_time_site - basewalltime) * core_power_site * core_count_job * 1.1 / (cpuefficiency / 100.0) / n_events_total) * 1.5
