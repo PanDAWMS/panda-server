@@ -225,7 +225,7 @@ class MiscStandaloneModule(BaseModule):
 
         # Get the site information from schedconfig
         sql = (
-            "SELECT /* use_json_type */ sc.data.maxtime, sc.data.corepower, sc.panda_queue, NVL(TO_NUMBER(sc.data.corecount), 1) AS corecount "
+            "SELECT /* use_json_type */ sc.data.maxtime, sc.data.corepower, NVL(TO_NUMBER(sc.data.corecount), 1) AS corecount "
             "FROM ATLAS_PANDA.schedconfig_json sc "
             "WHERE sc.panda_queue= :site_id "
         )
