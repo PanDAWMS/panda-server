@@ -3629,6 +3629,7 @@ class TaskEventModule(BaseModule):
                                 "noLoopingCheck",
                                 "loopingCheck",
                                 "avoidVP",
+                                "forceStaged",
                             ]:
                                 if tmpKey == "priority":
                                     tmpKey = "currentPriority"
