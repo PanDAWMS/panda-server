@@ -356,8 +356,8 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                             acted_on_job = True
                             _logger.info(message)
                         except Exception:
-                            errtype, errvalue = sys.exc_info()[:2]
-                            _logger.error(f"Failed to increase RAM limit : {errtype} {errvalue}")
+                            error_type, error_value = sys.exc_info()[:2]
+                            _logger.error(f"Failed to increase RAM limit : {error_type} {error_value}")
 
                     elif action == INCREASE_MEM_XTIMES:
                         try:
@@ -371,10 +371,28 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                             acted_on_job = True
                             _logger.info(message)
                         except Exception:
-                            errtype, errvalue = sys.exc_info()[:2]
-                            _logger.error(f"Failed to increase RAM xtimes limit : {errtype} {errvalue}")
+                            error_type, error_value = sys.exc_info()[:2]
+                            _logger.error(f"Failed to increase RAM xtimes limit : {error_type} {error_value}")
 
                     elif action == INCREASE_CPU:
+                        try:
+                            # update the task CPU time based on the failed job
+                            if active:
+                                new_cpu_time = task_buffer.increaseCpuTimeTask(jobID, job.jediTaskID, job.computeSite, job.Files, active)
+                            else:
+                                new_cpu_time = None
+
+                            message = (
+                                f"action=increaseCpuTime triggered CPU time increase based on failed job PandaID={jobID} "
+                                f"jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} (active={active} ), new_cpu_time={new_cpu_time}. "
+                                f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
+                                f"Error/action active={active} error_id={error_id} )"
+                            )
+                            _logger.info(message)
+                        except Exception:
+                            error_type, error_value = sys.exc_info()[:2]
+                            _logger.error(f"Failed to increase CPU-Time based on failed jobs: {error_type} {error_value}")
+
                         try:
                             # request recalculation of task parameters and see if it applied
                             applied = False
@@ -393,11 +411,12 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
                                 f"Error/action active={active} error_id={error_id} )"
                             )
+
                             acted_on_job = True
                             _logger.info(message)
                         except Exception:
-                            errtype, errvalue = sys.exc_info()[:2]
-                            _logger.error(f"Failed to increase CPU-Time : {errtype} {errvalue}")
+                            error_type, error_value = sys.exc_info()[:2]
+                            _logger.error(f"Failed to increase CPU-Time : {error_type} {error_value}")
 
                     elif action == REDUCE_INPUT_PER_JOB:
                         try:
