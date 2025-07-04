@@ -619,7 +619,7 @@ def reassign_global_share(req: PandaRequest, task_id_list: List, share: str, rea
 
     Args:
         req(PandaRequest): internally generated request object
-        task_id_list(List): List of JEDI task IDs to reassign
+        task_id_list(list): List of JEDI task IDs to reassign
         share(str): destination share
         reassign_running_jobs(bool): whether you want to reassign existing running jobs
 

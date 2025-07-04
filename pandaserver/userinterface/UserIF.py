@@ -1466,7 +1466,12 @@ def reassignShare(req, jedi_task_ids_pickle, share, reassign_running):
         return WrappedPickle.dumps((False, MESSAGE_PROD_ROLE))
 
     jedi_task_ids = WrappedPickle.loads(jedi_task_ids_pickle)
-    _logger.debug(f"reassignShare: jedi_task_ids: {jedi_task_ids}, share: {share}, reassign_running: {reassign_running}")
+    _logger.debug(f"reassignShare: jedi_task_ids: {jedi_task_ids}, share: {share}, reassign_running: {reassign_running} (type {type(reassign_running)})")
+
+    if isinstance(reassign_running, str) and "true" in reassign_running.lower():
+        reassign_running = True
+    else:
+        reassign_running = False
 
     if not ((isinstance(jedi_task_ids, list) or (isinstance(jedi_task_ids, tuple)) and isinstance(share, str))):
         return WrappedPickle.dumps((False, "jedi_task_ids must be tuple/list and share must be string"))
