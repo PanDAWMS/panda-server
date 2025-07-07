@@ -185,7 +185,7 @@ class MiscStandaloneModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def increaseCpuTimeTask(self, job_id, task_id, site_id, files, active):
+    def increase_cpu_time_task(self, job_id, task_id, site_id, files, active):
         """
         Increases the CPU time of a task
         walltime = basewalltime + cpuefficiency*CPUTime*nEvents/Corepower/Corecount
@@ -195,7 +195,7 @@ class MiscStandaloneModule(BaseModule):
         Corepower: HS06 score
         Basewalltime: Setup time, time to download, etc. taken by the pilot
         """
-        comment = " /* DBProxy.increaseCpuTimeTask */"
+        comment = " /* DBProxy.increase_cpu_time_task */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job_id}; jediTaskID={task_id}; siteID={site_id}")
         tmp_log.debug("start")
 
