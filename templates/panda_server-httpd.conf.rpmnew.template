@@ -53,7 +53,7 @@ RedirectMatch 403 "/panda.py$"
 
 Alias /trf/ "/var/trf/"
 Alias /cache/schedconfig/ "/var/cache/pandaserver/schedconfig/"
-Alias /cache/ "/var/cache/pandaserver/jedilog"
+Alias /cache/ "/var/log/panda/pandacache/"
 Alias /cric/ "/var/cric/"
 Alias /auth/ "/opt/panda/etc/panda/auth/"
 
@@ -72,7 +72,7 @@ Alias /auth/ "/opt/panda/etc/panda/auth/"
     Deny from 192.203.218.14
 </Directory>
 
-<Directory "/var/cache/pandaserver/jedilog">
+<Directory "/var/log/panda/pandacache/jedilog">
     Options FollowSymLinks
     AllowOverride None
     Order allow,deny
