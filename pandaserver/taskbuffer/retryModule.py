@@ -379,7 +379,7 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         try:
                             # update the task CPU time based on the failed job
                             if active:
-                                new_cpu_time = task_buffer.increase_cpu_time_task(job_id, job.jediTaskID, job.computeSite, job.Files, active)
+                                new_cpu_time = task_buffer.increase_cpu_time_task(job_id, job.jediTaskID, job.computingSite, job.Files, active)
 
                             message = (
                                 f"action=increaseCpuTime triggered CPU time increase based on failed job PandaID={job_id} "
