@@ -375,12 +375,11 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                             _logger.error(f"Failed to increase RAM xtimes limit : {error_type} {error_value}")
 
                     elif action == INCREASE_CPU:
+                        new_cpu_time = None
                         try:
                             # update the task CPU time based on the failed job
                             if active:
-                                new_cpu_time = task_buffer.increaseCpuTimeTask(jobID, job.jediTaskID, job.computeSite, job.Files, active)
-                            else:
-                                new_cpu_time = None
+                                new_cpu_time = task_buffer.increase_cpu_time_task(jobID, job.jediTaskID, job.computeSite, job.Files, active)
 
                             message = (
                                 f"action=increaseCpuTime triggered CPU time increase based on failed job PandaID={jobID} "
@@ -393,30 +392,32 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                             error_type, error_value = sys.exc_info()[:2]
                             _logger.error(f"Failed to increase CPU-Time based on failed jobs: {error_type} {error_value}")
 
-                        try:
-                            # request recalculation of task parameters and see if it applied
-                            applied = False
+                        # if the CPU time was not increased based on one failed job, we request recalculation of task parameters
+                        if not new_cpu_time:
+                            try:
+                                # request recalculation of task parameters and see if it applied
+                                applied = False
 
-                            if active:
-                                rowcount = task_buffer.requestTaskParameterRecalculation(job.jediTaskID)
-                            else:
-                                rowcount = 0
+                                if active:
+                                    rowcount = task_buffer.requestTaskParameterRecalculation(job.jediTaskID)
+                                else:
+                                    rowcount = 0
 
-                            if rowcount:
-                                applied = True
+                                if rowcount:
+                                    applied = True
 
-                            message = (
-                                f"action=increaseCpuTime requested recalculation of task parameters for PandaID={jobID} "
-                                f"jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} (active={active} ), applied={applied}. "
-                                f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
-                                f"Error/action active={active} error_id={error_id} )"
-                            )
+                                message = (
+                                    f"action=increaseCpuTime requested recalculation of task parameters for PandaID={jobID} "
+                                    f"jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} (active={active} ), applied={applied}. "
+                                    f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
+                                    f"Error/action active={active} error_id={error_id} )"
+                                )
 
-                            acted_on_job = True
-                            _logger.info(message)
-                        except Exception:
-                            error_type, error_value = sys.exc_info()[:2]
-                            _logger.error(f"Failed to increase CPU-Time : {error_type} {error_value}")
+                                acted_on_job = True
+                                _logger.info(message)
+                            except Exception:
+                                error_type, error_value = sys.exc_info()[:2]
+                                _logger.error(f"Failed to increase CPU-Time : {error_type} {error_value}")
 
                     elif action == REDUCE_INPUT_PER_JOB:
                         try:
