@@ -367,9 +367,13 @@ class MiscStandaloneModule(BaseModule):
                     raise RuntimeError("Commit error")
 
                 tmp_log.debug(f"Successfully updated the task CPU time from {cputime} to {new_cputime}")
+            else:
+                tmp_log.debug("Not updating the task CPU time since active mode is False.")
+
             return new_cputime
 
         except (ZeroDivisionError, TypeError):
+            tmp_log.debug("Exception while updating the task CPU time")
             return None
 
     def requestTaskParameterRecalculation(self, taskID):
