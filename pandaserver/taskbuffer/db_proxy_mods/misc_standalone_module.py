@@ -206,10 +206,10 @@ class MiscStandaloneModule(BaseModule):
         sql = (
             f"SELECT 1 FROM "
             f"(SELECT 1 FROM atlas_panda.jobsarchived4 "
-            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND ROWNUM = 1 "
+            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1 "
             f"UNION ALL "
             f"SELECT 1 FROM atlas_pandaarch.jobsarchived "
-            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND ROWNUM = 1) "
+            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1) "
             f"WHERE ROWNUM = 1"
         )
         var_map = {"jedi_task_id": task_id}
