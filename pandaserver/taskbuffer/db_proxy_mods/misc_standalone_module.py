@@ -362,10 +362,10 @@ class MiscStandaloneModule(BaseModule):
 
             if active:  # only run the update if active mode. Otherwise return what would have been done
                 sql_update_cputime = """
-                UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:cputime, cputimeunit=:new_cputime_unit
+                UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:new_cputime, cputimeunit=:new_cputime_unit
                 WHERE jeditaskid=:jeditaskid
                 """
-                var_map = {":cputime": new_cputime, ":new_cputime_unit": new_cputime_unit, ":jeditaskid": task_id}
+                var_map = {":new_cputime": new_cputime, ":new_cputime_unit": new_cputime_unit, ":jeditaskid": task_id}
                 self.conn.begin()
                 self.cur.execute(sql_update_cputime + comment, var_map)
                 if not self._commit():
