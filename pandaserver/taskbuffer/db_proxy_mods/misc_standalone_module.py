@@ -347,9 +347,14 @@ class MiscStandaloneModule(BaseModule):
 
         # Calculate the new CPU time
         try:
-            # Calculate the new CPU time
+            new_cputime_unit = "HS06sPerEvent"
             new_cputime = ((max_time_site - basewalltime) * core_power_site * core_count_job * 1.1 / (cpuefficiency / 100.0) / n_events_total) * 1.5
-            tmp_log.debug(f"Old CPU time is {cputime} and possible new CPU time is {new_cputime}")
+
+            if new_cputime and new_cputime_unit < 10:
+                new_cputime = new_cputime * 1000
+                new_cputime_unit = "mHS06sPerEvent"
+
+            tmp_log.debug(f"Old CPU time is {cputime} and possible new CPU time is {new_cputime} {new_cputime_unit}")
 
             if cputime is not None and new_cputime is not None and cputime > new_cputime:
                 tmp_log.debug(f"Skipping CPU time increase since old CPU time {cputime} > new CPU time {new_cputime}")
@@ -357,10 +362,10 @@ class MiscStandaloneModule(BaseModule):
 
             if active:  # only run the update if active mode. Otherwise return what would have been done
                 sql_update_cputime = """
-                UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:cputime
+                UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:cputime, cputimeunit=:new_cputime_unit
                 WHERE jeditaskid=:jeditaskid
                 """
-                var_map = {":cputime": new_cputime, ":jeditaskid": task_id}
+                var_map = {":cputime": new_cputime, ":new_cputime_unit": new_cputime_unit, ":jeditaskid": task_id}
                 self.conn.begin()
                 self.cur.execute(sql_update_cputime + comment, var_map)
                 if not self._commit():
