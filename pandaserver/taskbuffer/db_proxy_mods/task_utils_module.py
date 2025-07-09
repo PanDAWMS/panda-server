@@ -290,18 +290,22 @@ class TaskUtilsModule(BaseModule):
             cpuTimeRank = 95
 
         # sql to get preset values
-        sqlGPV = "SELECT "
-        sqlGPV += "prodSourceLabel, outDiskUnit, walltime, ramUnit, baseRamCount, "
-        sqlGPV += "workDiskCount, cpuEfficiency, baseWalltime, splitRule, "
-        sqlGPV += "memory_leak_core, memory_leak_x2 "
-        sqlGPV += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-        sqlGPV += "WHERE jediTaskID=:jediTaskID "
+        sqlGPV = (
+            "SELECT prodSourceLabel, outDiskUnit, walltime, ramUnit, baseRamCount, workDiskCount, cpuEfficiency, baseWalltime, "
+            "splitRule, memory_leak_core, memory_leak_x2 "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+            "WHERE jediTaskID = :jediTaskID "
+        )
 
         # sql to get scout job data from JEDI
-        sqlSCF = "SELECT tabF.PandaID,tabF.fsize,tabF.startEvent,tabF.endEvent,tabF.nEvents,tabF.type "
-        sqlSCF += "FROM {0}.JEDI_Datasets tabD, {0}.JEDI_Dataset_Contents tabF WHERE ".format(panda_config.schemaJEDI)
-        sqlSCF += "tabD.jediTaskID=tabF.jediTaskID AND tabD.jediTaskID=:jediTaskID AND tabF.status=:status "
-        sqlSCF += "AND tabD.datasetID=tabF.datasetID "
+        sqlSCF = (
+            "SELECT tabF.PandaID, tabF.fsize, tabF.startEvent, tabF.endEvent, tabF.nEvents, tabF.type "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabF "
+            "WHERE tabD.jediTaskID = tabF.jediTaskID "
+            "AND tabD.jediTaskID = :jediTaskID "
+            "AND tabF.status = :status "
+            "AND tabD.datasetID = tabF.datasetID "
+        )
         if not mergeScout:
             sqlSCF += f"AND tabF.type IN ({INPUT_TYPES_var_str}) "
         else:
@@ -327,18 +331,20 @@ class TaskUtilsModule(BaseModule):
         sqlCSSR += ") tmp_sub "
 
         # sql to get normal scout job data from Panda
-        sqlSCDN = "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
-        sqlSCDN += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
-        sqlSCDN += "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
-        sqlSCDN += f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
-        sqlSCDN += "WHERE PandaID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
-        sqlSCDN += "UNION "
-        sqlSCDN += "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
-        sqlSCDN += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
-        sqlSCDN += "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
-        sqlSCDN += f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
-        sqlSCDN += "WHERE PandaID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
-        sqlSCDN += "AND modificationTime>(CURRENT_DATE-30) "
+        sqlSCDN = (
+            "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
+            "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
+            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
+            f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
+            "WHERE PandaID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
+            "UNION "
+            "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
+            "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
+            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
+            f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
+            "WHERE PandaID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
+            "AND modificationTime>(CURRENT_DATE-30) "
+        )
 
         # sql to get ES scout job data from Panda
         sqlSCDE = "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
@@ -385,7 +391,8 @@ class TaskUtilsModule(BaseModule):
             # begin transaction
             self.conn.begin()
         self.cur.arraysize = 100000
-        # get preset values
+
+        # get preset values to the task
         varMap = {}
         varMap[":jediTaskID"] = jediTaskID
         self.cur.execute(sqlGPV + comment, varMap)
@@ -422,9 +429,11 @@ class TaskUtilsModule(BaseModule):
             preCpuEfficiency = 100
         if preBaseWalltime is None:
             preBaseWalltime = 0
+
         # don't use baseRamCount for pmerge
         if mergeScout:
             preBaseRamCount = 0
+
         # use original ramCount if available
         if task_params_map is not None:
             preCpuTime = task_params_map.get("cpuTime")
@@ -449,20 +458,25 @@ class TaskUtilsModule(BaseModule):
             pass
         extraInfo["oldCpuTime"] = preCpuTime
         extraInfo["oldRamCount"] = preRamCount
+
         # get minimum ram count
         minRamCount = self.getConfigValue("dbproxy", "SCOUT_RAMCOUNT_MIN", "jedi")
+
         # get limit for short jobs
         shortExecTime = self.getConfigValue("dbproxy", f"SCOUT_SHORT_EXECTIME_{prodSourceLabel}", "jedi")
         if shortExecTime is None:
             shortExecTime = 0
+
         # get limit for cpu-inefficient jobs
         lowCpuEff = self.getConfigValue("dbproxy", f"SCOUT_LOW_CPU_EFFICIENCY_{prodSourceLabel}", "jedi")
         if lowCpuEff is None:
             lowCpuEff = 0
+
         # cap on diskIO
         capOnDiskIO = self.getConfigValue("dbproxy", "SCOUT_DISK_IO_CAP", "jedi")
         extraInfo["shortExecTime"] = shortExecTime
         extraInfo["cpuEfficiencyCap"] = lowCpuEff
+
         # get the size of lib
         varMap = {}
         varMap[":jediTaskID"] = jediTaskID
@@ -477,6 +491,7 @@ class TaskUtilsModule(BaseModule):
                 libSize /= 1024 * 1024
             except Exception:
                 pass
+
         # get files
         varMap = {}
         varMap[":jediTaskID"] = jediTaskID
@@ -495,27 +510,27 @@ class TaskUtilsModule(BaseModule):
             scoutSucceeded = False
             tmpLog.debug("no scouts succeeded")
             extraInfo["successRate"] = 0
-        else:
-            if not mergeScout and task_spec and task_spec.useScout():
-                # check scout success rate
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap.update(INPUT_TYPES_var_map)
-                self.cur.execute(sqlCSSR + comment, varMap)
-                scTotal, scOK, scNG = self.cur.fetchone()
+        elif not mergeScout and task_spec and task_spec.useScout():
+            # check scout success rate
+            varMap = {":jediTaskID": jediTaskID}
+            varMap.update(INPUT_TYPES_var_map)
+            self.cur.execute(sqlCSSR + comment, varMap)
+            scTotal, scOK, scNG = self.cur.fetchone()
 
-                if scTotal > 0 and scOK + scNG > 0:
-                    extraInfo["successRate"] = scOK / (scOK + scNG)
-                else:
-                    extraInfo["successRate"] = 0
-                tmpLog.debug(
-                    f"""scout total={scTotal} finished={scOK} failed={scNG} target_rate={None if scoutSuccessRate is None else scoutSuccessRate/10} actual_rate={extraInfo["successRate"]}"""
-                )
-                if scoutSuccessRate and scTotal and extraInfo["successRate"] < scoutSuccessRate / 10:
-                    tmpLog.debug("not enough scouts succeeded")
-                    scoutSucceeded = False
+            if scTotal > 0 and scOK + scNG > 0:
+                extraInfo["successRate"] = scOK / (scOK + scNG)
+            else:
+                extraInfo["successRate"] = 0
+            tmpLog.debug(
+                f"""scout total={scTotal} finished={scOK} failed={scNG} target_rate={None if scoutSuccessRate is None else scoutSuccessRate/10} actual_rate={extraInfo["successRate"]}"""
+            )
+            if scoutSuccessRate and scTotal and extraInfo["successRate"] < scoutSuccessRate / 10:
+                tmpLog.debug("not enough scouts succeeded")
+                scoutSucceeded = False
+
         # upper limit
         limitWallTime = 999999999
+
         # loop over all files
         outSizeList = []
         outSizeDict = {}
@@ -568,6 +583,7 @@ class TaskUtilsModule(BaseModule):
             total_actual_input_size += fsize
             if fType == "pseudo_input":
                 pseudoInput.add(pandaID)
+
         # get nFiles
         totalJobs = 0
         totFiles = 0
@@ -618,6 +634,7 @@ class TaskUtilsModule(BaseModule):
         extraInfo["nFilesFinished"] = totFinished
         extraInfo["nNewJobs"] = nNewJobs
         extraInfo["expectedNumJobsWithEvent"] = total_jobs_with_event
+
         # loop over all jobs
         loopPandaIDs = list(inFSizeMap.keys())
         random.shuffle(loopPandaIDs)
@@ -747,9 +764,7 @@ class TaskUtilsModule(BaseModule):
                     # CPU time
                     if eventServiceJob != EventServiceUtils.esMergeJobFlagNumber:
                         try:
-                            if preCpuTimeUnit in ["HS06sPerEventFixed", "mHS06sPerEventFixed"]:
-                                pass
-                            else:
+                            if preCpuTimeUnit not in ["HS06sPerEventFixed", "mHS06sPerEventFixed"]:
                                 tmpVal = JobUtils.getHS06sec(
                                     startTime, endTime, corePower, coreCount, baseWalltime=preBaseWalltime, cpuEfficiency=preCpuEfficiency
                                 )
@@ -879,6 +894,7 @@ class TaskUtilsModule(BaseModule):
                 returnMap["outDiskUnit"] = "kBPerEvent"
             else:
                 returnMap["outDiskUnit"] = "kB"
+
         if walltimeList != []:
             maxWallTime = max(walltimeList)
             extraInfo["maxCpuConsumptionTime"] = maxWallTime
@@ -898,6 +914,7 @@ class TaskUtilsModule(BaseModule):
             if returnMap["walltime"] > limitWallTime:
                 returnMap["walltime"] = limitWallTime
         returnMap["walltimeUnit"] = "kSI2kseconds"
+
         if cpuTimeList != []:
             maxCpuTime, origValues = CoreUtils.percentile(cpuTimeList, cpuTimeRank, cpuTimeDict)
             for origValue in origValues:
@@ -917,12 +934,14 @@ class TaskUtilsModule(BaseModule):
                 returnMap["cpuTimeUnit"] = "HS06sPerEvent"
             maxCpuTime = int(math.ceil(maxCpuTime))
             returnMap["cpuTime"] = maxCpuTime
+
         if ioIntentList != []:
             maxIoIntent = max(ioIntentList)
             addTag(jobTagMap, ioIntentDict, maxIoIntent, "ioIntensity")
             maxIoIntent = int(math.ceil(maxIoIntent))
             returnMap["ioIntensity"] = maxIoIntent
             returnMap["ioIntensityUnit"] = "kBPerS"
+
         if diskIoList != []:
             aveDiskIo = sum(diskIoList) // len(diskIoList)
             aveDiskIo = int(math.ceil(aveDiskIo))
@@ -930,12 +949,15 @@ class TaskUtilsModule(BaseModule):
                 aveDiskIo = min(aveDiskIo, capOnDiskIO)
             returnMap["diskIO"] = aveDiskIo
             returnMap["diskIOUnit"] = "kBPerS"
+
         if leak_list:
             ave_leak = int(math.ceil(sum(leak_list) / len(leak_list)))
             returnMap["memory_leak_core"] = ave_leak
+
         if leak_x2_list:
             ave_leak_x2 = int(math.ceil(sum(leak_x2_list) / len(leak_x2_list)))
             returnMap["memory_leak_x2"] = ave_leak_x2
+
         if memSizeList != []:
             memVal, origValues = CoreUtils.percentile(memSizeList, ramCountRank, memSizeDict)
             for origValue in origValues:
@@ -955,6 +977,7 @@ class TaskUtilsModule(BaseModule):
             else:
                 returnMap["ramUnit"] = "MB"
                 returnMap["ramCount"] = memVal
+
         if workSizeList != []:
             median = max(workSizeList)
             returnMap["workDiskCount"] = int(median)
@@ -962,10 +985,12 @@ class TaskUtilsModule(BaseModule):
             # use preset value if larger
             if preWorkDiskCount is not None and preWorkDiskCount > returnMap["workDiskCount"]:
                 returnMap["workDiskCount"] = preWorkDiskCount
+
         if cpuEffList != []:
             minCpuEfficiency = int(numpy.median(cpuEffList))
             addTag(jobTagMap, cpuEffDict, minCpuEfficiency, "cpuEfficiency")
             extraInfo["minCpuEfficiency"] = minCpuEfficiency
+
         nShortJobs = 0
         nShortJobsWithCtoS = 0
         nTotalForShort = 0
@@ -1128,6 +1153,7 @@ class TaskUtilsModule(BaseModule):
                 sqlTSL += " WHERE jediTaskID=:jediTaskID "
                 tmpLog.debug(sqlTSL + comment + str(varMap))
                 self.cur.execute(sqlTSL + comment, varMap)
+
         # set average merge job data
         mergeScoutSucceeded = None
         if taskSpec.mergeOutput():
@@ -1147,6 +1173,7 @@ class TaskUtilsModule(BaseModule):
                 sqlTSD += " WHERE jediTaskID=:jediTaskID "
                 tmpLog.debug(sqlTSD + comment + str(varMap))
                 self.cur.execute(sqlTSD + comment, varMap)
+
         # go to exhausted if necessary
         nNewJobsCutoff = 20
         if useExhausted and scoutSucceeded and extraInfo["nNewJobs"] > nNewJobsCutoff:

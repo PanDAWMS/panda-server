@@ -241,9 +241,9 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
     - limit the number of retries
     - increase the memory of a job if it failed because of insufficient memory
     """
-    jobID = job.PandaID
+    job_id = job.PandaID
 
-    _logger.debug(f"Entered apply_retrial_rules for PandaID={jobID}, errors={errors}, attemptNr={attemptNr}")
+    _logger.debug(f"Entered apply_retrial_rules for PandaID={job_id}, errors={errors}, attemptNr={attemptNr}")
 
     retrial_rules = task_buffer.getRetrialRules()
     _logger.debug("Back from getRetrialRules")
@@ -270,11 +270,11 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
             try:
                 rule = retrial_rules[error_source][error_code]
             except KeyError as e:
-                _logger.debug(f"Retry rule does not apply for jobID {jobID}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")
+                _logger.debug(f"Retry rule does not apply for jobID {job_id}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")
                 continue
 
             applicable_rules = preprocess_rules(rule, error_diag, job.AtlasRelease, job.cmtConfig, job.workQueue_ID)
-            _logger.debug(f"Applicable rules for PandaID={jobID}: {applicable_rules}")
+            _logger.debug(f"Applicable rules for PandaID={job_id}: {applicable_rules}")
             for rule in applicable_rules:
                 try:
                     error_id = rule["error_id"]
@@ -298,7 +298,7 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         )
                     )
 
-                    _logger.debug(f"Processing rule {rule} for jobID {jobID}, error_source {error_source}, error_code {error_code}, attemptNr {attemptNr}")
+                    _logger.debug(f"Processing rule {rule} for jobID {job_id}, error_source {error_source}, error_code {error_code}, attemptNr {attemptNr}")
                     if not conditions_apply(
                         error_diag,
                         job.cmtConfig,
@@ -316,9 +316,9 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
 
                     if action == NO_RETRY:
                         if active:
-                            task_buffer.setNoRetry(jobID, job.jediTaskID, job.Files)
+                            task_buffer.setNoRetry(job_id, job.jediTaskID, job.Files)
                         message = (
-                            f"action=setNoRetry for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
+                            f"action=setNoRetry for PandaID={job_id} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                             f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
                             f"Error/action active={active} error_id={error_id} )"
                         )
@@ -329,13 +329,13 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         try:
                             if active:
                                 task_buffer.setMaxAttempt(
-                                    jobID,
+                                    job_id,
                                     job.jediTaskID,
                                     job.Files,
                                     int(parameters["maxAttempt"]),
                                 )
                             message = (
-                                f"action=setMaxAttempt for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} maxAttempt={int(parameters['maxAttempt'])} "
+                                f"action=setMaxAttempt for PandaID={job_id} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} maxAttempt={int(parameters['maxAttempt'])} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
                                 f"Error/action active={active} error_id={error_id} )"
                             )
@@ -349,55 +349,75 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                             if active:
                                 task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount, job.jediTaskID)
                             message = (
-                                f"action=increaseRAMLimit for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
+                                f"action=increaseRAMLimit for PandaID={job_id} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
                                 f"Error/action active={active} error_id={error_id} )"
                             )
                             acted_on_job = True
                             _logger.info(message)
                         except Exception:
-                            errtype, errvalue = sys.exc_info()[:2]
-                            _logger.error(f"Failed to increase RAM limit : {errtype} {errvalue}")
+                            error_type, error_value = sys.exc_info()[:2]
+                            _logger.error(f"Failed to increase RAM limit : {error_type} {error_value}")
 
                     elif action == INCREASE_MEM_XTIMES:
                         try:
                             if active:
                                 task_buffer.increaseRamLimitJobJEDI_xtimes(job, job.minRamCount, job.jediTaskID, attemptNr)
                             message = (
-                                f"action=increaseRAMLimit_xtimes for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
+                                f"action=increaseRAMLimit_xtimes for PandaID={job_id} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
                                 f"Error/action active={active} error_id={error_id} )"
                             )
                             acted_on_job = True
                             _logger.info(message)
                         except Exception:
-                            errtype, errvalue = sys.exc_info()[:2]
-                            _logger.error(f"Failed to increase RAM xtimes limit : {errtype} {errvalue}")
+                            error_type, error_value = sys.exc_info()[:2]
+                            _logger.error(f"Failed to increase RAM xtimes limit : {error_type} {error_value}")
 
                     elif action == INCREASE_CPU:
+                        new_cpu_time = None
                         try:
-                            # request recalculation of task parameters and see if it applied
-                            applied = False
-
+                            # update the task CPU time based on the failed job
                             if active:
-                                rowcount = task_buffer.requestTaskParameterRecalculation(job.jediTaskID)
-                            else:
-                                rowcount = 0
-
-                            if rowcount:
-                                applied = True
+                                new_cpu_time = task_buffer.increase_cpu_time_task(job_id, job.jediTaskID, job.computingSite, job.Files, active)
 
                             message = (
-                                f"action=increaseCpuTime requested recalculation of task parameters for PandaID={jobID} "
-                                f"jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} (active={active} ), applied={applied}. "
+                                f"action=increaseCpuTime triggered CPU time increase based on failed job PandaID={job_id} "
+                                f"jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} (active={active} ), new_cpu_time={new_cpu_time}. "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
                                 f"Error/action active={active} error_id={error_id} )"
                             )
-                            acted_on_job = True
                             _logger.info(message)
                         except Exception:
-                            errtype, errvalue = sys.exc_info()[:2]
-                            _logger.error(f"Failed to increase CPU-Time : {errtype} {errvalue}")
+                            error_type, error_value = sys.exc_info()[:2]
+                            _logger.error(f"Failed to increase CPU-Time based on failed jobs: {error_type} {error_value}")
+
+                        # if the CPU time was not increased based on one failed job, we request recalculation of task parameters
+                        if not new_cpu_time:
+                            try:
+                                # request recalculation of task parameters and see if it applied
+                                applied = False
+
+                                if active:
+                                    rowcount = task_buffer.requestTaskParameterRecalculation(job.jediTaskID)
+                                else:
+                                    rowcount = 0
+
+                                if rowcount:
+                                    applied = True
+
+                                message = (
+                                    f"action=increaseCpuTime requested recalculation of task parameters for PandaID={job_id} "
+                                    f"jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} (active={active} ), applied={applied}. "
+                                    f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
+                                    f"Error/action active={active} error_id={error_id} )"
+                                )
+
+                                acted_on_job = True
+                                _logger.info(message)
+                            except Exception:
+                                error_type, error_value = sys.exc_info()[:2]
+                                _logger.error(f"Failed to increase CPU-Time : {error_type} {error_value}")
 
                     elif action == REDUCE_INPUT_PER_JOB:
                         try:
@@ -407,7 +427,7 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                                     job.PandaID, job.jediTaskID, job.attemptNr, parameters.get("excluded_rules"), parameters.get("steps")
                                 )
                             message = (
-                                f"action=reduceInputPerJob for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} applied={applied} "
+                                f"action=reduceInputPerJob for PandaID={job_id} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} applied={applied} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_code}. "
                                 f"Error/action active={active} error_id={error_id} )"
                             )
@@ -417,13 +437,13 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                             _logger.error(f"Failed to reduce input per job : {e} {traceback.format_exc()}")
                             _logger.error(traceback.format_exc())
 
-                    _logger.debug(f"Finished rule {rule} for PandaID={jobID} error_source={error_source} error_code={error_code} attemptNr={attemptNr}")
+                    _logger.debug(f"Finished rule {rule} for PandaID={job_id} error_source={error_source} error_code={error_code} attemptNr={attemptNr}")
 
                 except KeyError:
                     _logger.error(f"Rule was missing some field(s). Rule: {rule}")
 
     except KeyError as e:
-        _logger.debug(f"No retrial rules to apply for jobID {jobID}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")
+        _logger.debug(f"No retrial rules to apply for jobID {job_id}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")
 
 
 def get_job_error_details(job_spec):

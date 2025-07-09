@@ -1843,11 +1843,11 @@ class TaskBuffer:
         return ret
 
     # retry module action: increase CPU Time
-    def increaseCpuTimeTask(self, jobID, taskID, siteid, files, active):
+    def increase_cpu_time_task(self, jobID, taskID, siteid, files, active):
         # get proxy
         with self.proxyPool.get() as proxy:
             # exec
-            ret = proxy.increaseCpuTimeTask(jobID, taskID, siteid, files, active)
+            ret = proxy.increase_cpu_time_task(jobID, taskID, siteid, files, active)
         return ret
 
     # retry module action: recalculate the Task Parameters

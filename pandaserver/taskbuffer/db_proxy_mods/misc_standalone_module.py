@@ -185,7 +185,7 @@ class MiscStandaloneModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def increaseCpuTimeTask(self, jobID, taskID, siteid, files, active):
+    def increase_cpu_time_task(self, job_id, task_id, site_id, files, active):
         """
         Increases the CPU time of a task
         walltime = basewalltime + cpuefficiency*CPUTime*nEvents/Corepower/Corecount
@@ -195,65 +195,86 @@ class MiscStandaloneModule(BaseModule):
         Corepower: HS06 score
         Basewalltime: Setup time, time to download, etc. taken by the pilot
         """
-        comment = " /* DBProxy.increaseCpuTimeTask */"
-        tmp_log = self.create_tagged_logger(comment, "PandaID={jobID}; jediTaskID={taskID}")
+        comment = " /* DBProxy.increase_cpu_time_task */"
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={job_id}; jediTaskID={task_id}; siteID={site_id}")
         tmp_log.debug("start")
 
-        # 1. Get the site information from schedconfig
-        sql = """
-        SELECT /* use_json_type */ sc.data.maxtime, sc.data.corepower,
-            CASE
-                WHEN sc.data.corecount IS NULL THEN 1
-                ELSE sc.data.corecount
-            END as corecount
-        FROM ATLAS_PANDA.schedconfig_json sc
-        WHERE sc.panda_queue=:siteid
-        """
-        varMap = {"siteid": siteid}
-        self.cur.execute(sql + comment, varMap)
-        siteParameters = self.cur.fetchone()  # example of output: [('pilotErrorCode', 1, None, None, None, None, 'no_retry', 'Y', 'Y'),...]
+        # Temporarily deactivate the active flag until it's validated
+        active = False
 
-        if not siteParameters:
-            tmp_log.debug(f"No site parameters retrieved for {siteid}")
+        # See if there are successful jobs for this task. If yes, skip this method
+        sql = (
+            f"SELECT 1 FROM "
+            f"(SELECT 1 FROM atlas_panda.jobsarchived4 "
+            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1 "
+            f"UNION ALL "
+            f"SELECT 1 FROM atlas_pandaarch.jobsarchived "
+            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1) "
+            f"WHERE ROWNUM = 1"
+        )
+        var_map = {"jedi_task_id": task_id}
+        self.cur.execute(sql + comment, var_map)
+        exists = False
+        if self.cur.fetchone():
+            exists = True
 
-        (maxtime, corepower, corecount) = siteParameters
-        tmp_log.debug(f"siteid {siteid} has parameters: maxtime {maxtime}, corepower {corepower}, corecount {corecount}")
-        if (not maxtime) or (not corepower) or (not corecount):
-            tmp_log.debug(f"One or more site parameters are not defined for {siteid}... nothing to do")
+        # if we found a successful job, we skip the CPU time increase
+        if exists:
+            tmp_log.debug(f"Task {task_id} already has successful jobs, skipping CPU time increase and leaving it up to the scouting mechanism")
+            return None
+
+        # Get the site information from schedconfig
+        sql = (
+            "SELECT /* use_json_type */ sc.data.maxtime, sc.data.corepower, NVL(TO_NUMBER(sc.data.corecount), 1) AS corecount "
+            "FROM ATLAS_PANDA.schedconfig_json sc "
+            "WHERE sc.panda_queue= :site_id "
+        )
+
+        var_map = {"site_id": site_id}
+        self.cur.execute(sql + comment, var_map)
+        site_parameters = self.cur.fetchone()
+
+        if not site_parameters:
+            tmp_log.debug(f"No site parameters retrieved for {site_id}")
+
+        (max_time_site, core_power_site, core_count_site) = site_parameters
+        tmp_log.debug(f"site_id {site_id} has parameters: max_time_site {max_time_site}, core_power_site {core_power_site}, core_count_site {core_count_site}")
+        if (not max_time_site) or (not core_power_site) or (not core_count_site):
+            tmp_log.debug(f"One or more site parameters are not defined for {site_id}... nothing to do")
             return None
         else:
-            (maxtime, corepower, corecount) = (
-                int(maxtime),
-                float(corepower),
-                int(corecount),
+            (max_time_site, core_power_site, core_count_site) = (
+                int(max_time_site),
+                float(core_power_site),
+                int(core_count_site),
             )
 
-        # 2. Get the task information
+        # Get the task information
         sql = """
         SELECT jt.cputime, jt.walltime, jt.basewalltime, jt.cpuefficiency, jt.cputimeunit
         FROM ATLAS_PANDA.jedi_tasks jt
         WHERE jt.jeditaskid=:jeditaskid
         """
-        varMap = {"jeditaskid": taskID}
-        self.cur.execute(sql + comment, varMap)
-        taskParameters = self.cur.fetchone()
+        var_map = {"jeditaskid": task_id}
+        self.cur.execute(sql + comment, var_map)
+        task_parameters = self.cur.fetchone()
 
-        if not taskParameters:
-            tmp_log.debug(f"No task parameters retrieved for jeditaskid {taskID}... nothing to do")
+        if not task_parameters:
+            tmp_log.debug(f"No task parameters retrieved for jeditaskid {task_id}... nothing to do")
             return None
 
-        (cputime, walltime, basewalltime, cpuefficiency, cputimeunit) = taskParameters
+        (cputime, walltime, basewalltime, cpuefficiency, cputimeunit) = task_parameters
         if not cpuefficiency or not basewalltime:
-            tmp_log.debug(f"CPU efficiency and/or basewalltime are not defined for task {taskID}... nothing to do")
+            tmp_log.debug(f"CPU efficiency and/or basewalltime are not defined for task {task_id}... nothing to do")
             return None
 
         tmp_log.debug(
             "task {0} has parameters: cputime {1}, walltime {2}, basewalltime {3}, cpuefficiency {4}, cputimeunit {5}".format(
-                taskID, cputime, walltime, basewalltime, cpuefficiency, cputimeunit
+                task_id, cputime, walltime, basewalltime, cpuefficiency, cputimeunit
             )
         )
 
-        # 2. Get the file information
+        # Get the file information
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
         input_files = list(
             filter(
@@ -265,17 +286,15 @@ class MiscStandaloneModule(BaseModule):
         input_datasetIDs = [input_file.datasetID for input_file in input_files]
 
         if input_fileIDs:
-            varMap = {}
-            varMap[":taskID"] = taskID
-            varMap[":pandaID"] = jobID
+            var_map = {":taskID": task_id}
 
             # Bind the files
             file_var_names_str, file_var_map = get_sql_IN_bind_variables(input_fileIDs, prefix=":file")
-            varMap.update(file_var_map)
+            var_map.update(file_var_map)
 
             # Bind the datasets
             ds_var_names_str, ds_var_map = get_sql_IN_bind_variables(input_datasetIDs, prefix=":dataset")
-            varMap.update(ds_var_map)
+            var_map.update(ds_var_map)
 
             sql_select = f"""
             SELECT jdc.fileid, jdc.nevents, jdc.startevent, jdc.endevent
@@ -285,51 +304,81 @@ class MiscStandaloneModule(BaseModule):
             AND jdc.fileID IN ({file_var_names_str})
             AND jd.datasetID = jdc.datasetID
             AND jd.masterID IS NULL
-            AND jdc.pandaID = :pandaID
             """
-            self.cur.execute(sql_select + comment, varMap)
+            self.cur.execute(sql_select + comment, var_map)
 
-            resList = self.cur.fetchall()
-            nevents_total = 0
-            for fileid, nevents, startevent, endevent in resList:
-                tmp_log.debug(f"event information: fileid {fileid}, nevents {nevents}, startevent {startevent}, endevent {endevent}")
+            result_list = self.cur.fetchall()
+            n_events_total = 0
+            for fileid, n_events, start_event, end_event in result_list:
+                tmp_log.debug(f"event information: fileid {fileid}, n_events {n_events}, start_event {start_event}, end_event {end_event}")
 
-                if endevent is not None and startevent is not None:
-                    nevents_total += endevent - startevent
-                elif nevents:
-                    nevents_total += nevents
+                start_event = start_event if start_event is not None else 0
+                end_event = end_event if end_event is not None else 0
+                if end_event and start_event:
+                    n_events_total += end_event - start_event
+                elif n_events:
+                    n_events_total += n_events
 
-            if not nevents_total:
-                tmp_log.debug(f"nevents could not be calculated for job {jobID}... nothing to do")
+            if not n_events_total:
+                tmp_log.debug(f"n_events could not be calculated for job {job_id}... nothing to do")
                 return None
         else:
-            tmp_log.debug(f"No input files for job {jobID}, so could not update CPU time for task {taskID}")
+            tmp_log.debug(f"No input files for job {job_id}, so could not update CPU time for task {task_id}")
             return None
 
-        try:
-            new_cputime = (maxtime - basewalltime) * corepower * corecount * 1.1 / (cpuefficiency / 100.0) / nevents_total
+        # Get the corecount from the job spec
+        var_map = {"task_id": task_id, "job_id": job_id}
+        sql_select = f"""
+        SELECT ja.corecount 
+        FROM ATLAS_PANDA.jobsarchived4 ja
+        WHERE jeditaskid = :task_id AND pandaid = :job_id
+        UNION
+        SELECT jarch.corecount 
+        FROM ATLAS_PANDAARCH.jobsarchived jarch
+        WHERE jeditaskid = :task_id AND pandaid = :job_id
+        """
+        self.cur.execute(sql_select + comment, var_map)
 
-            if cputime > new_cputime:
+        results = self.cur.fetchone()
+        core_count_job = results[0]
+        if not core_count_job:
+            core_count_job = 1  # Default to 1 if no core_count is defined in the job spec
+        tmp_log.debug(f"core_count_job: {core_count_job}")
+
+        # Calculate the new CPU time
+        try:
+            new_cputime_unit = "HS06sPerEvent"
+            new_cputime = ((max_time_site - basewalltime) * core_power_site * core_count_job * 1.1 / (cpuefficiency / 100.0) / n_events_total) * 1.5
+
+            if new_cputime and new_cputime_unit < 10:
+                new_cputime = new_cputime * 1000
+                new_cputime_unit = "mHS06sPerEvent"
+
+            tmp_log.debug(f"Old CPU time is {cputime} and possible new CPU time is {new_cputime} {new_cputime_unit}")
+
+            if cputime is not None and new_cputime is not None and cputime > new_cputime:
                 tmp_log.debug(f"Skipping CPU time increase since old CPU time {cputime} > new CPU time {new_cputime}")
                 return None
 
             if active:  # only run the update if active mode. Otherwise return what would have been done
                 sql_update_cputime = """
-                UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:cputime
+                UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:new_cputime, cputimeunit=:new_cputime_unit
                 WHERE jeditaskid=:jeditaskid
                 """
-                varMap = {}
-                varMap[":cputime"] = new_cputime
-                varMap[":jeditaskid"] = taskID
+                var_map = {":new_cputime": new_cputime, ":new_cputime_unit": new_cputime_unit, ":jeditaskid": task_id}
                 self.conn.begin()
-                self.cur.execute(sql_update_cputime + comment, varMap)
+                self.cur.execute(sql_update_cputime + comment, var_map)
                 if not self._commit():
                     raise RuntimeError("Commit error")
 
                 tmp_log.debug(f"Successfully updated the task CPU time from {cputime} to {new_cputime}")
+            else:
+                tmp_log.debug("Not updating the task CPU time since active mode is False.")
+
             return new_cputime
 
-        except (ZeroDivisionError, TypeError):
+        except (ZeroDivisionError, TypeError) as e:
+            tmp_log.debug(f"Exception while updating the task CPU time: {e}")
             return None
 
     def requestTaskParameterRecalculation(self, taskID):
