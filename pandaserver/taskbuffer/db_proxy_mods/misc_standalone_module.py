@@ -358,7 +358,7 @@ class MiscStandaloneModule(BaseModule):
             new_cputime_unit = "HS06sPerEvent"
             new_cputime = ((max_time_site - basewalltime) * core_power_site * core_count_job * 1.1 / (cpuefficiency / 100.0) / n_events_total) * 1.5
 
-            if new_cputime and new_cputime_unit < 10:
+            if new_cputime and new_cputime < 10:
                 new_cputime = new_cputime * 1000
                 new_cputime_unit = "mHS06sPerEvent"
 
