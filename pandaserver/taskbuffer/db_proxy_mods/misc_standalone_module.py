@@ -332,6 +332,7 @@ class MiscStandaloneModule(BaseModule):
         SELECT jact4.corecount 
         FROM ATLAS_PANDA.jobsactive4 jact4
         WHERE jeditaskid = :task_id AND pandaid = :job_id
+        UNION
         SELECT jarc4.corecount 
         FROM ATLAS_PANDA.jobsarchived4 jarc4
         WHERE jeditaskid = :task_id AND pandaid = :job_id
