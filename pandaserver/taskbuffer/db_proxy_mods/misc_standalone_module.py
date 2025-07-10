@@ -263,16 +263,22 @@ class MiscStandaloneModule(BaseModule):
             tmp_log.debug(f"No task parameters retrieved for jeditaskid {task_id}... nothing to do")
             return None
 
-        (cputime, walltime, basewalltime, cpuefficiency, cputimeunit) = task_parameters
+        (old_cputime, walltime, basewalltime, cpuefficiency, old_cputime_unit) = task_parameters
         if not cpuefficiency or not basewalltime:
             tmp_log.debug(f"CPU efficiency and/or basewalltime are not defined for task {task_id}... nothing to do")
             return None
 
         tmp_log.debug(
-            "task {0} has parameters: cputime {1}, walltime {2}, basewalltime {3}, cpuefficiency {4}, cputimeunit {5}".format(
-                task_id, cputime, walltime, basewalltime, cpuefficiency, cputimeunit
-            )
+            f"task {task_id} has parameters: cputime {old_cputime} {old_cputime_unit}, walltime {walltime}, "
+            f"basewalltime {basewalltime}, cpuefficiency {cpuefficiency}"
         )
+
+        old_cputime_normalized = None
+        if old_cputime is not None:
+            if old_cputime_unit == "HS06sPerEvent":
+                old_cputime_normalized = old_cputime
+            elif old_cputime_unit == "mHS06sPerEvent":
+                old_cputime_normalized = old_cputime / 1000  # convert to HS06sPerEvent
 
         # Get the file information
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
@@ -357,6 +363,7 @@ class MiscStandaloneModule(BaseModule):
         try:
             new_cputime_unit = "HS06sPerEvent"
             new_cputime = ((max_time_site - basewalltime) * core_power_site * core_count_job * 1.1 / (cpuefficiency / 100.0) / n_events_total) * 1.5
+            new_cputime_normalized = new_cputime
 
             if new_cputime and new_cputime < 10:
                 new_cputime = new_cputime * 1000
@@ -365,10 +372,13 @@ class MiscStandaloneModule(BaseModule):
             # the entry is stored without decimals in the DB
             new_cputime = int(new_cputime)
 
-            tmp_log.debug(f"Old CPU time is {cputime} and possible new CPU time is {new_cputime} {new_cputime_unit}")
+            tmp_log.debug(f"Old CPU time is {old_cputime} {old_cputime_unit} and possible new CPU time is {new_cputime} {new_cputime_unit}")
 
-            if cputime is not None and new_cputime is not None and cputime > new_cputime:
-                tmp_log.debug(f"Skipping CPU time increase since old CPU time {cputime} > new CPU time {new_cputime}")
+            if old_cputime_normalized is not None and new_cputime_normalized is not None and old_cputime_normalized > new_cputime_normalized:
+                tmp_log.debug(
+                    f"Skipping CPU time increase since old CPU time {old_cputime_normalized} HS06sPerEvent "
+                    f"> new CPU time {new_cputime_normalized} HS06sPerEvent"
+                )
                 return None
 
             if active:  # only run the update if active mode. Otherwise return what would have been done
@@ -382,7 +392,7 @@ class MiscStandaloneModule(BaseModule):
                 if not self._commit():
                     raise RuntimeError("Commit error")
 
-                tmp_log.debug(f"Successfully updated the task CPU time from {cputime} to {new_cputime}")
+                tmp_log.debug(f"Successfully updated the task CPU time from {old_cputime} to {new_cputime} {new_cputime_unit}")
             else:
                 tmp_log.debug("Not updating the task CPU time since active mode is False.")
 
