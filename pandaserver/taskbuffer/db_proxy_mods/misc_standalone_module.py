@@ -329,8 +329,11 @@ class MiscStandaloneModule(BaseModule):
         # Get the corecount from the job spec
         var_map = {"task_id": task_id, "job_id": job_id}
         sql_select = f"""
-        SELECT ja.corecount 
-        FROM ATLAS_PANDA.jobsarchived4 ja
+        SELECT jact4.corecount 
+        FROM ATLAS_PANDA.jobsactive4 jact4
+        WHERE jeditaskid = :task_id AND pandaid = :job_id
+        SELECT jarc4.corecount 
+        FROM ATLAS_PANDA.jobsarchived4 jarc4
         WHERE jeditaskid = :task_id AND pandaid = :job_id
         UNION
         SELECT jarch.corecount 
@@ -340,7 +343,11 @@ class MiscStandaloneModule(BaseModule):
         self.cur.execute(sql_select + comment, var_map)
 
         results = self.cur.fetchone()
-        core_count_job = results[0]
+        try:
+            core_count_job = results[0]
+        except (IndexError, TypeError):
+            core_count_job = None
+
         if not core_count_job:
             core_count_job = 1  # Default to 1 if no core_count is defined in the job spec
         tmp_log.debug(f"core_count_job: {core_count_job}")
