@@ -362,6 +362,9 @@ class MiscStandaloneModule(BaseModule):
                 new_cputime = new_cputime * 1000
                 new_cputime_unit = "mHS06sPerEvent"
 
+            # the entry is stored without decimals in the DB
+            new_cputime = int(new_cputime)
+
             tmp_log.debug(f"Old CPU time is {cputime} and possible new CPU time is {new_cputime} {new_cputime_unit}")
 
             if cputime is not None and new_cputime is not None and cputime > new_cputime:
