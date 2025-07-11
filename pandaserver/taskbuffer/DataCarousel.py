@@ -203,6 +203,42 @@ class DataCarouselRequestSpec(SpecBase):
         self.parameter_map = tmp_dict
 
 
+class DataCarouselRequestObject(object):
+    """
+    Data Carousel request object
+    This is a wrapper for DataCarouselRequestSpec to provide additional methods
+    """
+
+    def __init__(self, dc_req_spec: DataCarouselRequestSpec, db_cur, db_log):
+        """
+        Constructor
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): request specification
+            db_cur: database cursor for DB operations
+            db_log: database logger for logging DB operations
+        """
+        self.dc_req_spec = dc_req_spec
+        self.db_cur = db_cur
+        self.db_log = db_log
+
+    def update(self, dc_req_spec: DataCarouselRequestSpec, to_db: bool = True):
+        """
+        Update the request specification with a new one
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): new request specification to update
+            to_db (bool): whether to update the request in DB; default True
+        """
+        self.dc_req_spec = dc_req_spec
+        if to_db:
+            # update the request in DB
+            sql_update = f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests " f"SET {dc_req_spec.columnNames('=')} " f"WHERE request_id=:request_id"
+            var_map = asdict(dc_req_spec)
+            self.db_cur.execute(sql_update, var_map)
+            self.db_log.debug(f"updated request_id={dc_req_spec.request_id} in DB")
+
+
 # ==============================================================
 # Dataclasses of configurations #
 # ===============================
@@ -440,6 +476,9 @@ class DataCarouselInterface(object):
         Args:
             timeout_sec (int): timeout in seconds for blocking to retry
             lock_expiration_sec (int): age of lock in seconds to be considered expired and can be acquired immediately
+
+        Yields:
+            str : full process ID of this process if got lock; None if timeout
         """
         # tmp_log = LogWrapper(logger, f"global_dc_lock pid={self.full_pid}")
         # try to release the lock
@@ -448,6 +487,115 @@ class DataCarouselInterface(object):
             yield full_pid
         finally:
             self._release_global_dc_lock(full_pid)
+
+    @contextmanager
+    def request_transaction_by_id(self, request_id: int):
+        """
+        Context manager to get a transaction for the Data Carousel request by request_id
+
+        Args:
+            request_id (int): request ID of the Data Carousel request
+
+        Yields:
+            DataCarouselRequestObject : request object specified by request_id
+        """
+        tmp_log = LogWrapper(logger, f"request_transaction_by_id pid={self.full_pid} request_id={request_id}")
+        with self.taskBufferIF.transaction(name="DataCarouselRequestTransaction") as (db_cur, db_log):
+            # try to get the request
+            dc_req_spec = None
+            sql_get = (
+                f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id "
+            )
+            var_map = {":request_id": request_id}
+            res_list = db_cur.execute(sql_get, var_map).fetchall()
+            if res_list is not None:
+                if len(res_list) > 1:
+                    tmp_log.error("more than one requests; unexpected")
+                else:
+                    for res in res_list:
+                        dc_req_spec = DataCarouselRequestSpec()
+                        dc_req_spec.pack(res)
+            dc_req_obj = DataCarouselRequestObject(dc_req_spec, db_cur, db_log)
+            # yield and run wrapped function
+            yield dc_req_obj
+
+    @contextmanager
+    def request_lock_transaction_by_id(self, request_id: int, lock_expiration_sec: int = 120):
+        """
+        Context manager to lock and get a transaction for the Data Carousel request for update into DB
+
+        Args:
+            request_id (int): request ID of the Data Carousel request to acquire lock
+            lock_expiration_sec (int): age of lock in seconds to be considered expired and can be acquired immediately
+
+        Yields:
+            DataCarouselRequestObject | None : request object specified by request_id if got lock; None if did not get lock
+        """
+        tmp_log = LogWrapper(logger, f"lock_request_for_update pid={self.full_pid} request_id={request_id}")
+        #
+        got_lock = False
+        try:
+            with self.taskBufferIF.transaction(name="DataCarouselRequestLock") as (db_cur, db_log):
+                # try to get the lock
+                sql_lock = (
+                    f"SELECT request_id FROM {panda_config.schemaJEDI}.data_carousel_requests "
+                    f"WHERE request_id=:request_id "
+                    f"AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time < :min_lock_time) "
+                )
+                var_map = {
+                    ":request_id": request_id,
+                    ":locked_by": self.full_pid,
+                    ":min_lock_time": naive_utcnow() - timedelta(seconds=lock_expiration_sec),
+                }
+                res = db_cur.execute(sql_lock, var_map)
+                if res.rowcount == 1:
+                    # got the lock; update locked_by and lock_time
+                    sql_update = (
+                        f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+                        f"SET locked_by=:locked_by, lock_time=:lock_time "
+                        f"WHERE request_id=:request_id "
+                    )
+                    var_map = {
+                        ":locked_by": self.full_pid,
+                        ":lock_time": naive_utcnow(),
+                        ":request_id": request_id,
+                    }
+                    db_cur.execute(sql_update, var_map)
+                    got_lock = True
+                    db_log.debug(f"{self.full_pid} got lock for request_id={request_id}")
+                else:
+                    # did not get the lock
+                    db_log.debug(f"{self.full_pid} did not get lock for request_id={request_id}")
+                if got_lock:
+                    # got the lock
+                    tmp_log.debug(f"got lock")
+                    with self.request_transaction_by_id(request_id) as dc_req_obj:
+                        # check if request spec is None
+                        if dc_req_obj.dc_req_spec is None:
+                            tmp_log.error(f"request_id={request_id} not found; skipped")
+                            yield None
+                        else:
+                            # yield and let wrapped function run
+                            yield dc_req_obj
+                else:
+                    # did not get the lock
+                    tmp_log.debug(f"did not get lock for request_id={request_id}")
+                    yield None
+        finally:
+            if got_lock:
+                # release the lock
+                with self.taskBufferIF.transaction(name="DataCarouselRequestUnlock") as (db_cur, db_log):
+                    sql_unlock = (
+                        f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+                        f"SET locked_by=NULL, lock_time=NULL "
+                        f"WHERE request_id=:request_id AND locked_by=:locked_by "
+                    )
+                    var_map = {
+                        ":request_id": request_id,
+                        ":locked_by": self.full_pid,
+                    }
+                    db_cur.execute(sql_unlock, var_map)
+                    db_log.debug(f"{self.full_pid} released lock for request_id={request_id}")
 
     def _update_rses(self, time_limit_minutes: int | float = 30):
         """
