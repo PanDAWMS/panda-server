@@ -185,7 +185,7 @@ class MiscStandaloneModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def increase_cpu_time_task(self, job_id, task_id, site_id, files, active):
+    def initialize_cpu_time_task(self, job_id, task_id, site_id, files, active):
         """
         Increases the CPU time of a task
         walltime = basewalltime + cpuefficiency*CPUTime*nEvents/Corepower/Corecount
@@ -195,7 +195,7 @@ class MiscStandaloneModule(BaseModule):
         Corepower: HS06 score
         Basewalltime: Setup time, time to download, etc. taken by the pilot
         """
-        comment = " /* DBProxy.increase_cpu_time_task */"
+        comment = " /* DBProxy.initialize_cpu_time_task */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job_id}; jediTaskID={task_id}; siteID={site_id}")
         tmp_log.debug("start")
 
@@ -221,7 +221,7 @@ class MiscStandaloneModule(BaseModule):
         # if we found a successful job, we skip the CPU time increase
         if exists:
             tmp_log.debug(f"Task {task_id} already has successful jobs, skipping CPU time increase and leaving it up to the scouting mechanism")
-            return None
+            return None, None
 
         # Get the site information from schedconfig
         sql = (
@@ -241,7 +241,7 @@ class MiscStandaloneModule(BaseModule):
         tmp_log.debug(f"site_id {site_id} has parameters: max_time_site {max_time_site}, core_power_site {core_power_site}, core_count_site {core_count_site}")
         if (not max_time_site) or (not core_power_site) or (not core_count_site):
             tmp_log.debug(f"One or more site parameters are not defined for {site_id}... nothing to do")
-            return None
+            return None, None
         else:
             (max_time_site, core_power_site, core_count_site) = (
                 int(max_time_site),
@@ -261,12 +261,12 @@ class MiscStandaloneModule(BaseModule):
 
         if not task_parameters:
             tmp_log.debug(f"No task parameters retrieved for jeditaskid {task_id}... nothing to do")
-            return None
+            return None, None
 
         (old_cputime, walltime, basewalltime, cpuefficiency, old_cputime_unit) = task_parameters
         if not cpuefficiency or not basewalltime:
             tmp_log.debug(f"CPU efficiency and/or basewalltime are not defined for task {task_id}... nothing to do")
-            return None
+            return None, None
 
         tmp_log.debug(
             f"task {task_id} has parameters: cputime {old_cputime} {old_cputime_unit}, walltime {walltime}, "
@@ -327,10 +327,10 @@ class MiscStandaloneModule(BaseModule):
 
             if not n_events_total:
                 tmp_log.debug(f"n_events could not be calculated for job {job_id}... nothing to do")
-                return None
+                return None, None
         else:
             tmp_log.debug(f"No input files for job {job_id}, so could not update CPU time for task {task_id}")
-            return None
+            return None, None
 
         # Get the corecount from the job spec
         var_map = {"task_id": task_id, "job_id": job_id}
@@ -379,7 +379,7 @@ class MiscStandaloneModule(BaseModule):
                     f"Skipping CPU time increase since old CPU time {old_cputime_normalized} HS06sPerEvent "
                     f"> new CPU time {new_cputime_normalized} HS06sPerEvent"
                 )
-                return None
+                return None, None
 
             if active:  # only run the update if active mode. Otherwise return what would have been done
                 sql_update_cputime = """
@@ -396,11 +396,11 @@ class MiscStandaloneModule(BaseModule):
             else:
                 tmp_log.debug("Not updating the task CPU time since active mode is False.")
 
-            return new_cputime
+            return new_cputime, new_cputime_unit
 
         except (ZeroDivisionError, TypeError) as e:
             tmp_log.debug(f"Exception while updating the task CPU time: {e}")
-            return None
+            return None, None
 
     def requestTaskParameterRecalculation(self, taskID):
         """
