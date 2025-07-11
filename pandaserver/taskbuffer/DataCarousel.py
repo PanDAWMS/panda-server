@@ -203,10 +203,10 @@ class DataCarouselRequestSpec(SpecBase):
         self.parameter_map = tmp_dict
 
 
-class DataCarouselRequestObject(object):
+class DataCarouselRequestTransaction(object):
     """
-    Data Carousel request object
-    This is a wrapper for DataCarouselRequestSpec to provide additional methods
+    Data Carousel request transaction object
+    This is a wrapper for DataCarouselRequestSpec to provide additional methods about DB transaction
     """
 
     def __init__(self, dc_req_spec: DataCarouselRequestSpec, db_cur, db_log):
@@ -497,7 +497,7 @@ class DataCarouselInterface(object):
             request_id (int): request ID of the Data Carousel request
 
         Yields:
-            DataCarouselRequestObject : request object specified by request_id
+            DataCarouselRequestTransaction : request object specified by request_id
         """
         tmp_log = LogWrapper(logger, f"request_transaction_by_id pid={self.full_pid} request_id={request_id}")
         with self.taskBufferIF.transaction(name="DataCarouselRequestTransaction") as (db_cur, db_log):
@@ -515,9 +515,9 @@ class DataCarouselInterface(object):
                     for res in res_list:
                         dc_req_spec = DataCarouselRequestSpec()
                         dc_req_spec.pack(res)
-            dc_req_obj = DataCarouselRequestObject(dc_req_spec, db_cur, db_log)
+            dc_req_txn = DataCarouselRequestTransaction(dc_req_spec, db_cur, db_log)
             # yield and run wrapped function
-            yield dc_req_obj
+            yield dc_req_txn
 
     @contextmanager
     def request_lock_transaction_by_id(self, request_id: int, lock_expiration_sec: int = 120):
@@ -529,7 +529,7 @@ class DataCarouselInterface(object):
             lock_expiration_sec (int): age of lock in seconds to be considered expired and can be acquired immediately
 
         Yields:
-            DataCarouselRequestObject | None : request object specified by request_id if got lock; None if did not get lock
+            DataCarouselRequestTransaction | None : request object specified by request_id if got lock; None if did not get lock
         """
         tmp_log = LogWrapper(logger, f"lock_request_for_update pid={self.full_pid} request_id={request_id}")
         #
@@ -566,21 +566,21 @@ class DataCarouselInterface(object):
                 else:
                     # did not get the lock
                     db_log.debug(f"{self.full_pid} did not get lock for request_id={request_id}")
-                if got_lock:
-                    # got the lock
-                    tmp_log.debug(f"got lock")
-                    with self.request_transaction_by_id(request_id) as dc_req_obj:
-                        # check if request spec is None
-                        if dc_req_obj.dc_req_spec is None:
-                            tmp_log.error(f"request_id={request_id} not found; skipped")
-                            yield None
-                        else:
-                            # yield and let wrapped function run
-                            yield dc_req_obj
-                else:
-                    # did not get the lock
-                    tmp_log.debug(f"did not get lock for request_id={request_id}")
-                    yield None
+            if got_lock:
+                # got the lock
+                tmp_log.debug(f"got lock")
+                with self.request_transaction_by_id(request_id) as dc_req_txn:
+                    # check if request spec is None
+                    if dc_req_txn.dc_req_spec is None:
+                        tmp_log.error(f"request_id={request_id} not found; skipped")
+                        yield None
+                    else:
+                        # yield and let wrapped function run
+                        yield dc_req_txn
+            else:
+                # did not get the lock
+                tmp_log.debug(f"did not get lock for request_id={request_id}")
+                yield None
         finally:
             if got_lock:
                 # release the lock
