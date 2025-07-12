@@ -5,6 +5,7 @@ import shlex
 import sys
 import time
 import traceback
+from contextlib import contextmanager
 from threading import Lock
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -70,6 +71,17 @@ class TaskBuffer:
 
             _logger.info(f"destroying DBProxyPool after n_seconds={pool_duration} on behalf of {requester}")
             self.proxyPool.cleanup()
+
+    # transaction as a context manager
+    # CANNOT be used with ConBridge or TaskBufferInterface which uses multiprocess.pipe
+    @contextmanager
+    def transaction(self, name: str):
+        with self.proxyPool.get() as proxy:
+            with proxy.transaction(name) as txn:
+                if txn is None:
+                    raise RuntimeError(f"Failed to start transaction {name}")
+                # yield the transaction
+                yield txn
 
     # get number of database connections
     def get_num_connections(self):
