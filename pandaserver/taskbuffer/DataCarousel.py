@@ -564,22 +564,28 @@ class DataCarouselInterface(object):
                     ":locked_by": self.full_pid,
                     ":min_lock_time": naive_utcnow() - timedelta(seconds=lock_expiration_sec),
                 }
-                res = db_cur.execute(sql_lock, var_map)
-                if res.rowcount == 1:
-                    # got the lock; update locked_by and lock_time
-                    sql_update = (
-                        f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
-                        f"SET locked_by=:locked_by, lock_time=:lock_time "
-                        f"WHERE request_id=:request_id "
-                    )
-                    var_map = {
-                        ":locked_by": self.full_pid,
-                        ":lock_time": naive_utcnow(),
-                        ":request_id": request_id,
-                    }
-                    db_cur.execute(sql_update, var_map)
-                    got_lock = True
-                    db_log.debug(f"{self.full_pid} got lock for request_id={request_id}")
+                res_list = db_cur.execute(sql_lock, var_map).fetchall()
+                if res_list is not None:
+                    if len(res_list) > 1:
+                        tmp_log.error("more than one requests; unexpected")
+                    elif len(res_list) == 0:
+                        # no rows found; did not get the lock
+                        db_log.debug(f"{self.full_pid} did not get lock for request_id={request_id}")
+                    else:
+                        # got the lock; update locked_by and lock_time
+                        sql_update = (
+                            f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+                            f"SET locked_by=:locked_by, lock_time=:lock_time "
+                            f"WHERE request_id=:request_id "
+                        )
+                        var_map = {
+                            ":locked_by": self.full_pid,
+                            ":lock_time": naive_utcnow(),
+                            ":request_id": request_id,
+                        }
+                        db_cur.execute(sql_update, var_map)
+                        got_lock = True
+                        db_log.debug(f"{self.full_pid} got lock for request_id={request_id}")
                 else:
                     # did not get the lock
                     db_log.debug(f"{self.full_pid} did not get lock for request_id={request_id}")
