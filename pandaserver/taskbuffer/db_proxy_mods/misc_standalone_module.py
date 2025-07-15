@@ -199,9 +199,6 @@ class MiscStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job_id}; jediTaskID={task_id}; siteID={site_id}")
         tmp_log.debug("start")
 
-        # Temporarily deactivate the active flag until it's validated
-        active = False
-
         # See if there are successful jobs for this task. If yes, skip this method
         sql = (
             f"SELECT 1 FROM "
