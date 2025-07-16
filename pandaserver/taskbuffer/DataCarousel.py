@@ -505,120 +505,186 @@ class DataCarouselInterface(object):
         finally:
             self._release_global_dc_lock(full_pid)
 
+    # @contextmanager
+    # def request_transaction_by_id(self, request_id: int):
+    #     """
+    #     Context manager to get a transaction for the Data Carousel request by request_id
+
+    #     Args:
+    #         request_id (int): request ID of the Data Carousel request
+
+    #     Yields:
+    #         DataCarouselRequestTransaction : request object specified by request_id
+    #     """
+    #     tmp_log = LogWrapper(logger, f"request_transaction_by_id pid={self.full_pid} request_id={request_id}")
+    #     with self.taskBufferIF.transaction(name="DataCarouselRequestTransaction") as (db_cur, db_log):
+    #         # try to get the request
+    #         dc_req_spec = None
+    #         sql_get = (
+    #             f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id "
+    #         )
+    #         var_map = {":request_id": request_id}
+    #         res_list = db_cur.execute(sql_get, var_map).fetchall()
+    #         if res_list is not None:
+    #             if len(res_list) > 1:
+    #                 tmp_log.error("more than one requests; unexpected")
+    #             else:
+    #                 for res in res_list:
+    #                     dc_req_spec = DataCarouselRequestSpec()
+    #                     dc_req_spec.pack(res)
+    #         dc_req_txn = DataCarouselRequestTransaction(dc_req_spec, db_cur, db_log)
+    #         # yield and run wrapped function
+    #         yield dc_req_txn
+
+    # @contextmanager
+    # def request_lock_transaction_by_id(self, request_id: int, lock_expiration_sec: int = 120):
+    #     """
+    #     Context manager to lock and get a transaction for the Data Carousel request for update into DB
+
+    #     Args:
+    #         request_id (int): request ID of the Data Carousel request to acquire lock
+    #         lock_expiration_sec (int): age of lock in seconds to be considered expired and can be acquired immediately
+
+    #     Yields:
+    #         DataCarouselRequestTransaction | None : request object specified by request_id if got lock; None if did not get lock
+    #     """
+    #     tmp_log = LogWrapper(logger, f"lock_request_for_update pid={self.full_pid} request_id={request_id}")
+    #     #
+    #     got_lock = False
+    #     try:
+    #         with self.taskBufferIF.transaction(name="DataCarouselRequestLock") as (db_cur, db_log):
+    #             # try to get the lock
+    #             sql_lock = (
+    #                 f"SELECT request_id FROM {panda_config.schemaJEDI}.data_carousel_requests "
+    #                 f"WHERE request_id=:request_id "
+    #                 f"AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time < :min_lock_time) "
+    #             )
+    #             var_map = {
+    #                 ":request_id": request_id,
+    #                 ":locked_by": self.full_pid,
+    #                 ":min_lock_time": naive_utcnow() - timedelta(seconds=lock_expiration_sec),
+    #             }
+    #             res_list = db_cur.execute(sql_lock, var_map).fetchall()
+    #             if res_list is not None:
+    #                 if len(res_list) > 1:
+    #                     tmp_log.error("more than one requests; unexpected")
+    #                 elif len(res_list) == 0:
+    #                     # no rows found; did not get the lock
+    #                     db_log.debug(f"{self.full_pid} did not get lock for request_id={request_id}")
+    #                 else:
+    #                     # got the lock; update locked_by and lock_time
+    #                     sql_update = (
+    #                         f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+    #                         f"SET locked_by=:locked_by, lock_time=:lock_time "
+    #                         f"WHERE request_id=:request_id "
+    #                     )
+    #                     var_map = {
+    #                         ":locked_by": self.full_pid,
+    #                         ":lock_time": naive_utcnow(),
+    #                         ":request_id": request_id,
+    #                     }
+    #                     db_cur.execute(sql_update, var_map)
+    #                     got_lock = True
+    #                     db_log.debug(f"{self.full_pid} got lock for request_id={request_id}")
+    #             else:
+    #                 # did not get the lock
+    #                 db_log.debug(f"{self.full_pid} did not get lock for request_id={request_id}")
+    #         if got_lock:
+    #             # got the lock
+    #             tmp_log.debug(f"got lock")
+    #             with self.request_transaction_by_id(request_id) as dc_req_txn:
+    #                 # check if request spec is None
+    #                 if dc_req_txn.spec is None:
+    #                     tmp_log.error(f"request_id={request_id} not found; skipped")
+    #                     yield None
+    #                 else:
+    #                     # yield and let wrapped function run
+    #                     yield dc_req_txn
+    #         else:
+    #             # did not get the lock
+    #             tmp_log.debug(f"did not get lock for request_id={request_id}")
+    #             yield None
+    #     finally:
+    #         if got_lock:
+    #             # release the lock
+    #             with self.taskBufferIF.transaction(name="DataCarouselRequestUnlock") as (db_cur, db_log):
+    #                 sql_unlock = (
+    #                     f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+    #                     f"SET locked_by=NULL, lock_time=NULL "
+    #                     f"WHERE request_id=:request_id AND locked_by=:locked_by "
+    #                 )
+    #                 var_map = {
+    #                     ":request_id": request_id,
+    #                     ":locked_by": self.full_pid,
+    #                 }
+    #                 db_cur.execute(sql_unlock, var_map)
+    #                 db_log.debug(f"{self.full_pid} released lock for request_id={request_id}")
+
     @contextmanager
-    def request_transaction_by_id(self, request_id: int):
+    def request_lock(self, request_id: int, lock_expiration_sec: int = 120):
         """
-        Context manager to get a transaction for the Data Carousel request by request_id
-
-        Args:
-            request_id (int): request ID of the Data Carousel request
-
-        Yields:
-            DataCarouselRequestTransaction : request object specified by request_id
-        """
-        tmp_log = LogWrapper(logger, f"request_transaction_by_id pid={self.full_pid} request_id={request_id}")
-        with self.taskBufferIF.transaction(name="DataCarouselRequestTransaction") as (db_cur, db_log):
-            # try to get the request
-            dc_req_spec = None
-            sql_get = (
-                f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id "
-            )
-            var_map = {":request_id": request_id}
-            res_list = db_cur.execute(sql_get, var_map).fetchall()
-            if res_list is not None:
-                if len(res_list) > 1:
-                    tmp_log.error("more than one requests; unexpected")
-                else:
-                    for res in res_list:
-                        dc_req_spec = DataCarouselRequestSpec()
-                        dc_req_spec.pack(res)
-            dc_req_txn = DataCarouselRequestTransaction(dc_req_spec, db_cur, db_log)
-            # yield and run wrapped function
-            yield dc_req_txn
-
-    @contextmanager
-    def request_lock_transaction_by_id(self, request_id: int, lock_expiration_sec: int = 120):
-        """
-        Context manager to lock and get a transaction for the Data Carousel request for update into DB
+        Context manager to lock and unlock the Data Carousel request for update into DB
 
         Args:
             request_id (int): request ID of the Data Carousel request to acquire lock
             lock_expiration_sec (int): age of lock in seconds to be considered expired and can be acquired immediately
 
         Yields:
-            DataCarouselRequestTransaction | None : request object specified by request_id if got lock; None if did not get lock
+            bool | None : whether got lock; None if exception or failed
         """
-        tmp_log = LogWrapper(logger, f"lock_request_for_update pid={self.full_pid} request_id={request_id}")
+        tmp_log = LogWrapper(logger, f"request_lock pid={self.full_pid} request_id={request_id}")
         #
-        got_lock = False
+        got_lock = None
         try:
-            with self.taskBufferIF.transaction(name="DataCarouselRequestLock") as (db_cur, db_log):
-                # try to get the lock
-                sql_lock = (
-                    f"SELECT request_id FROM {panda_config.schemaJEDI}.data_carousel_requests "
-                    f"WHERE request_id=:request_id "
-                    f"AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time < :min_lock_time) "
+            # try to update locked_by and lock_time
+            sql_lock = (
+                f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+                f"SET locked_by=:locked_by, lock_time=:lock_time "
+                f"WHERE request_id=:request_id "
+                f"AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time < :min_lock_time) "
+            )
+            var_map = {
+                ":locked_by": self.full_pid,
+                ":lock_time": naive_utcnow(),
+                ":request_id": request_id,
+                ":min_lock_time": naive_utcnow() - timedelta(seconds=lock_expiration_sec),
+            }
+            row_count = self.taskBufferIF.querySQL(sql_lock, var_map)
+            if row_count is None:
+                tmp_log.error(f"failed to update DB to lock; skipped")
+            elif row_count > 1:
+                tmp_log.error(f"more than one requests updated to lock; unexpected")
+            elif row_count == 0:
+                # no row updated; did not get the lock
+                got_lock = False
+                tmp_log.debug(f"did not get lock; skipped")
+            else:
+                # got the lock
+                got_lock = True
+                tmp_log.debug(f"got lock")
+            # yield and run wrapped function
+            yield got_lock
+        finally:
+            if got_lock:
+                # release the lock
+                sql_unlock = (
+                    f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+                    f"SET locked_by=NULL, lock_time=NULL "
+                    f"WHERE request_id=:request_id AND locked_by=:locked_by "
                 )
                 var_map = {
                     ":request_id": request_id,
                     ":locked_by": self.full_pid,
-                    ":min_lock_time": naive_utcnow() - timedelta(seconds=lock_expiration_sec),
                 }
-                res_list = db_cur.execute(sql_lock, var_map).fetchall()
-                if res_list is not None:
-                    if len(res_list) > 1:
-                        tmp_log.error("more than one requests; unexpected")
-                    elif len(res_list) == 0:
-                        # no rows found; did not get the lock
-                        db_log.debug(f"{self.full_pid} did not get lock for request_id={request_id}")
-                    else:
-                        # got the lock; update locked_by and lock_time
-                        sql_update = (
-                            f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
-                            f"SET locked_by=:locked_by, lock_time=:lock_time "
-                            f"WHERE request_id=:request_id "
-                        )
-                        var_map = {
-                            ":locked_by": self.full_pid,
-                            ":lock_time": naive_utcnow(),
-                            ":request_id": request_id,
-                        }
-                        db_cur.execute(sql_update, var_map)
-                        got_lock = True
-                        db_log.debug(f"{self.full_pid} got lock for request_id={request_id}")
+                row_count = self.taskBufferIF.querySQL(sql_unlock, var_map)
+                if row_count is None:
+                    tmp_log.error(f"failed to update DB to unlock; skipped")
+                elif row_count > 1:
+                    tmp_log.error(f"more than one requests updated to unlock; unexpected")
+                elif row_count == 0:
+                    tmp_log.error(f"no request updated to unlock; skipped")
                 else:
-                    # did not get the lock
-                    db_log.debug(f"{self.full_pid} did not get lock for request_id={request_id}")
-            if got_lock:
-                # got the lock
-                tmp_log.debug(f"got lock")
-                with self.request_transaction_by_id(request_id) as dc_req_txn:
-                    # check if request spec is None
-                    if dc_req_txn.spec is None:
-                        tmp_log.error(f"request_id={request_id} not found; skipped")
-                        yield None
-                    else:
-                        # yield and let wrapped function run
-                        yield dc_req_txn
-            else:
-                # did not get the lock
-                tmp_log.debug(f"did not get lock for request_id={request_id}")
-                yield None
-        finally:
-            if got_lock:
-                # release the lock
-                with self.taskBufferIF.transaction(name="DataCarouselRequestUnlock") as (db_cur, db_log):
-                    sql_unlock = (
-                        f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
-                        f"SET locked_by=NULL, lock_time=NULL "
-                        f"WHERE request_id=:request_id AND locked_by=:locked_by "
-                    )
-                    var_map = {
-                        ":request_id": request_id,
-                        ":locked_by": self.full_pid,
-                    }
-                    db_cur.execute(sql_unlock, var_map)
-                    db_log.debug(f"{self.full_pid} released lock for request_id={request_id}")
+                    tmp_log.debug(f"released lock")
 
     def _update_rses(self, time_limit_minutes: int | float = 30):
         """
@@ -1892,15 +1958,14 @@ class DataCarouselInterface(object):
         is_ok = False
         err_msg = None
         # renew dc_req_spec from DB
-        ret = None
-        with self.request_lock_transaction_by_id(dc_req_spec.request_id) as dc_req_txn:
-            if dc_req_txn is None:
-                # not getting lock or spec; skip
-                err_msg = f"did not get lock or spec of request_id={dc_req_spec.request_id}; skipped"
+        with self.request_lock(dc_req_spec.request_id) as got_lock:
+            if not got_lock:
+                # not getting lock; skip
+                err_msg = f"did not get lock; skipped"
                 tmp_log.warning(err_msg)
                 return is_ok, err_msg, dc_req_spec
             # get spec from transaction
-            dc_req_spec = dc_req_txn.spec
+            dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
             # skip if not queued
             if dc_req_spec.status != DataCarouselRequestStatus.queued:
                 err_msg = f"status={dc_req_spec.status} not queued; skipped"
@@ -1936,10 +2001,10 @@ class DataCarouselInterface(object):
             now_time = naive_utcnow()
             dc_req_spec.status = DataCarouselRequestStatus.staging
             dc_req_spec.start_time = now_time
-            ret = dc_req_txn.update_spec(dc_req_spec)
-        if ret:
-            tmp_log.info(f"updated DB about staging; status={dc_req_spec.status}")
-            is_ok = True
+            ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+            if ret:
+                tmp_log.info(f"updated DB about staging; status={dc_req_spec.status}")
+                is_ok = True
         # to iDDS staging requests
         if is_ok and submit_idds_request:
             # get all tasks related to this request
@@ -2043,21 +2108,20 @@ class DataCarouselInterface(object):
         the_rule = self.ddmIF.get_rule_by_id(ddm_rule_id)
         if the_rule is False:
             # rule not found
-            tmp_ret = None
-            with self.request_lock_transaction_by_id(dc_req_spec.request_id) as dc_req_txn:
-                if dc_req_txn is None:
-                    # not getting lock or spec; skip
-                    tmp_log.warning(f"did not get lock or spec of request_id={dc_req_spec.request_id}; skipped")
+            with self.request_lock(dc_req_spec.request_id) as got_lock:
+                if not got_lock:
+                    # not getting lock; skip
+                    tmp_log.warning(f"did not get lock; skipped")
                     return is_valid, ddm_rule_id, None
                 # get spec from transaction
-                dc_req_spec = dc_req_txn.spec
+                dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
                 dc_req_spec.set_parameter("rule_unfound", True)
                 tmp_log.warning(f"rule not found")
-                tmp_ret = dc_req_txn.update_spec(dc_req_spec)
-            if tmp_ret:
-                tmp_log.debug(f"updated DB about rule not found")
-            else:
-                tmp_log.error(f"failed to update DB ; skipped")
+                tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                if tmp_ret:
+                    tmp_log.debug(f"updated DB about rule not found")
+                else:
+                    tmp_log.error(f"failed to update DB ; skipped")
             # try to cancel or retire request
             if dc_req_spec.status == DataCarouselRequestStatus.staging:
                 # requests staging but DDM rule not found; to cancel
@@ -2225,22 +2289,21 @@ class DataCarouselInterface(object):
                 ddm_rule_id = dc_req_spec.ddm_rule_id
                 the_rule = self.ddmIF.get_rule_by_id(ddm_rule_id)
                 if the_rule is False:
-                    tmp_ret = None
-                    with self.request_lock_transaction_by_id(dc_req_spec.request_id) as dc_req_txn:
-                        if dc_req_txn is None:
-                            # not getting lock or spec; skip
-                            tmp_log.warning(f"did not get lock or spec of request_id={dc_req_spec.request_id}; skipped")
+                    with self.request_lock(dc_req_spec.request_id) as got_lock:
+                        if not got_lock:
+                            # not getting lock; skip
+                            tmp_log.warning(f"did not get lock; skipped")
                             continue
                         # get spec from transaction
-                        dc_req_spec = dc_req_txn.spec
+                        dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
                         # rule not found
                         dc_req_spec.set_parameter("rule_unfound", True)
                         tmp_log.error(f"request_id={dc_req_spec.request_id} ddm_rule_id={ddm_rule_id} rule not found")
-                        tmp_ret = dc_req_txn.update_spec(dc_req_spec)
-                    if tmp_ret:
-                        tmp_log.debug(f"request_id={dc_req_spec.request_id} updated DB about rule not found")
-                    else:
-                        tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB ; skipped")
+                        tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                        if tmp_ret:
+                            tmp_log.debug(f"request_id={dc_req_spec.request_id} updated DB about rule not found")
+                        else:
+                            tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB ; skipped")
                     # try to cancel or retire request
                     if dc_req_spec.status == DataCarouselRequestStatus.staging:
                         # requests staging but DDM rule not found; to cancel
@@ -2254,14 +2317,13 @@ class DataCarouselInterface(object):
                     tmp_log.error(f"request_id={dc_req_spec.request_id} failed to get rule of ddm_rule_id={ddm_rule_id} ; skipped")
                     continue
                 # Got rule; check further
-                ret = None
-                with self.request_lock_transaction_by_id(dc_req_spec.request_id) as dc_req_txn:
-                    if dc_req_txn is None:
-                        # not getting lock or spec; skip
-                        tmp_log.warning(f"did not get lock or spec of request_id={dc_req_spec.request_id}; skipped")
+                with self.request_lock(dc_req_spec.request_id) as got_lock:
+                    if not got_lock:
+                        # not getting lock; skip
+                        tmp_log.warning(f"did not get lock; skipped")
                         continue
                     # get spec from transaction
-                    dc_req_spec = dc_req_txn.spec
+                    dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
                     # Destination RSE
                     if dc_req_spec.destination_rse is None:
                         the_replica_locks = self.ddmIF.list_replica_locks_by_id(ddm_rule_id)
@@ -2302,7 +2364,7 @@ class DataCarouselInterface(object):
                         to_update = True
                     # update to DB if attribute updated
                     if to_update:
-                        ret = dc_req_txn.update_spec(dc_req_spec)
+                        ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
                 if ret is not None:
                     # updated DB about staging
                     tmp_log.info(
@@ -2699,14 +2761,13 @@ class DataCarouselInterface(object):
                         ret = False
                 # fill new attributes for queued request
                 if ret is not False and new_source_rse:
-                    tmp_ret = None
-                    with self.request_lock_transaction_by_id(dc_req_spec.request_id) as dc_req_txn:
-                        if dc_req_txn is None:
-                            # not getting lock or spec; skip
-                            tmp_log.warning(f"did not get lock or spec of request_id={dc_req_spec.request_id}; skipped")
+                    with self.request_lock(dc_req_spec.request_id) as got_lock:
+                        if not got_lock:
+                            # not getting lock; skip
+                            tmp_log.warning(f"did not get lock; skipped")
                             return False, dc_req_spec, "did not get lock or spec"
                         # get spec from transaction
-                        dc_req_spec = dc_req_txn.spec
+                        dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
                         # fill attributes
                         dc_req_spec.source_rse = new_source_rse
                         dc_req_spec.ddm_rule_id = ddm_rule_id
@@ -2716,16 +2777,16 @@ class DataCarouselInterface(object):
                         if suggested_dst_list:
                             dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
                         # update DB
-                        tmp_ret = dc_req_txn.update_spec(dc_req_spec)
-                    if tmp_ret:
-                        tmp_log.info(
-                            f"updated DB about change source of queued request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id} , to_pin={to_pin} , suggested_dst_list={suggested_dst_list}"
-                        )
-                        ret = True
-                    else:
-                        err_msg = f"failed to update DB ; skipped"
-                        tmp_log.error(err_msg)
-                        ret = False
+                        tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                        if tmp_ret:
+                            tmp_log.info(
+                                f"updated DB about change source of queued request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id} , to_pin={to_pin} , suggested_dst_list={suggested_dst_list}"
+                            )
+                            ret = True
+                        else:
+                            err_msg = f"failed to update DB ; skipped"
+                            tmp_log.error(err_msg)
+                            ret = False
             else:
                 # no replica found on tape nor on datadisk; skip
                 err_msg = f"dataset={dataset} has no replica on any tape or datadisk ; skipped"
@@ -2762,30 +2823,29 @@ class DataCarouselInterface(object):
                             tmp_log.warning(err_msg)
                             ret = False
                     if ret is not False and new_source_rse:
-                        tmp_ret = None
-                        with self.request_lock_transaction_by_id(dc_req_spec.request_id) as dc_req_txn:
-                            if dc_req_txn is None:
-                                # not getting lock or spec; skip
-                                tmp_log.warning(f"did not get lock or spec of request_id={dc_req_spec.request_id}; skipped")
+                        with self.request_lock(dc_req_spec.request_id) as got_lock:
+                            if not got_lock:
+                                # not getting lock; skip
+                                tmp_log.warning(f"did not get lock; skipped")
                             else:
                                 # get spec from transaction
-                                dc_req_spec = dc_req_txn.spec
+                                dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
                                 # fill new attributes for staging request
                                 dc_req_spec.source_rse = new_source_rse
                                 dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
                                 # update source_replica_expression
                                 set_map["source_replica_expression"] = f"{SRC_REPLI_EXPR_PREFIX}|{dc_req_spec.source_rse}"
                                 # update DB
-                                tmp_ret = dc_req_txn.update_spec(dc_req_spec)
-                        if tmp_ret is not None:
-                            tmp_log.info(
-                                f"updated DB about change source of staging request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id}"
-                            )
-                            ret = True
-                        else:
-                            err_msg = f"failed to update DB ; skipped"
-                            tmp_log.error(err_msg)
-                            ret = False
+                                tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                                if tmp_ret is not None:
+                                    tmp_log.info(
+                                        f"updated DB about change source of staging request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id}"
+                                    )
+                                    ret = True
+                                else:
+                                    err_msg = f"failed to update DB ; skipped"
+                                    tmp_log.error(err_msg)
+                                    ret = False
             # update DDM rule
             if ret is not False:
                 tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, set_map)
