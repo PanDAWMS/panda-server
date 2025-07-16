@@ -2287,7 +2287,6 @@ class DataCarouselInterface(object):
         for dc_req_spec in dc_req_specs:
             try:
                 to_update = False
-                ret = None
                 # get DDM rule
                 ddm_rule_id = dc_req_spec.ddm_rule_id
                 the_rule = self.ddmIF.get_rule_by_id(ddm_rule_id)
@@ -2368,28 +2367,28 @@ class DataCarouselInterface(object):
                     # update to DB if attribute updated
                     if to_update:
                         ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
-                if ret is not None:
-                    # updated DB about staging
-                    tmp_log.info(
-                        f"request_id={dc_req_spec.request_id} got {new_staged_files} new staged files; updated DB about staging ; status={dc_req_spec.status}"
-                    )
-                    # more for done requests
-                    if dc_req_spec.status == DataCarouselRequestStatus.done:
-                        # force to keep alive the rule
-                        tmp_ret = self.refresh_ddm_rule_of_request(dc_req_spec, lifetime_days=DONE_LIFETIME_DAYS, force_refresh=True, by="watchdog")
-                        if tmp_ret:
-                            tmp_log.debug(
-                                f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={dc_req_spec.ddm_rule_id} refreshed lifetime to be {DONE_LIFETIME_DAYS} days long"
+                        if ret is not None:
+                            # updated DB about staging
+                            tmp_log.info(
+                                f"request_id={dc_req_spec.request_id} got {new_staged_files} new staged files; updated DB about staging ; status={dc_req_spec.status}"
                             )
-                        # update staged files in DB for done requests
-                        tmp_ret = self._update_staged_files(dc_req_spec)
-                        if tmp_ret:
-                            tmp_log.debug(f"request_id={dc_req_spec.request_id} done; updated staged files")
+                            # more for done requests
+                            if dc_req_spec.status == DataCarouselRequestStatus.done:
+                                # force to keep alive the rule
+                                tmp_ret = self.refresh_ddm_rule_of_request(dc_req_spec, lifetime_days=DONE_LIFETIME_DAYS, force_refresh=True, by="watchdog")
+                                if tmp_ret:
+                                    tmp_log.debug(
+                                        f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={dc_req_spec.ddm_rule_id} refreshed lifetime to be {DONE_LIFETIME_DAYS} days long"
+                                    )
+                                # update staged files in DB for done requests
+                                tmp_ret = self._update_staged_files(dc_req_spec)
+                                if tmp_ret:
+                                    tmp_log.debug(f"request_id={dc_req_spec.request_id} done; updated staged files")
+                                else:
+                                    tmp_log.warning(f"request_id={dc_req_spec.request_id} done; failed to update staged files ; skipped")
                         else:
-                            tmp_log.warning(f"request_id={dc_req_spec.request_id} done; failed to update staged files ; skipped")
-                else:
-                    tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB for ddm_rule_id={ddm_rule_id} ; skipped")
-                    continue
+                            tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB for ddm_rule_id={ddm_rule_id} ; skipped")
+                            continue
             except Exception:
                 tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
 
