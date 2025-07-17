@@ -607,6 +607,9 @@ class WorkerModule(BaseModule):
         new_workers_per_harvester = {harvester_id: new_workers}
 
         tmp_log.debug(f"Workers to submit: {new_workers_per_harvester}")
+        # commit for postgres to avoid idle transactions
+        if not self._commit():
+            raise RuntimeError("Commit error")
         tmp_log.debug("done")
         return new_workers_per_harvester
 
@@ -1758,6 +1761,9 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
 
+        # start transaction for postgres to avoid idle transactions
+        self.conn.begin()
+
         # get current pilot distribution in harvester for the queue
         sql = f"""
               SELECT computingsite, harvester_id, jobType, resourceType, status, n_workers
@@ -1784,6 +1790,8 @@ class WorkerModule(BaseModule):
             worker_stats_dict[computing_site][harvester_id][job_type].setdefault(resource_type, {})
             worker_stats_dict[computing_site][harvester_id][job_type][resource_type][status] = n_workers
 
+        if not self._commit():
+            raise RuntimeError("Commit error")
         tmp_log.debug("done")
         return worker_stats_dict
 
