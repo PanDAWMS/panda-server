@@ -32,9 +32,6 @@ global_dcif = None
 # global_proxy_cache = panda_proxy_cache.MyProxyInterface()
 # global_token_cache = token_cache.TokenCache()
 
-# global multithreading lock
-# global_lock = Lock()
-
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
     """
@@ -75,41 +72,32 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
     to_submit_idds = False
     time_start = naive_utcnow()
 
-    with global_dcif.global_dc_lock(timeout_sec=60, lock_expiration_sec=300) as full_pid:
-        # timeout
-        if full_pid is None:
-            err_msg = f"timed out without getting lock"
+    dc_req_spec = None
+    if request_id is not None:
+        # specified by request_id
+        dc_req_spec = global_dcif.get_request_by_id(request_id)
+    elif request_id is None and dataset is not None:
+        # specified by dataset
+        dc_req_spec = global_dcif.get_request_by_dataset(dataset)
+
+    if dc_req_spec is not None:
+        dc_req_spec_resubmitted, err_msg = global_dcif.resubmit_request(dc_req_spec, submit_idds_request=False, exclude_prev_dst=True)
+        if not dc_req_spec_resubmitted or err_msg:
+            err_msg = f"failed to resubmit request_id={dc_req_spec.request_id} : {err_msg}"
             tmp_logger.error(err_msg)
             success, message = False, err_msg
-            return generate_response(success, message, data)
-
-        dc_req_spec = None
-        if request_id is not None:
-            # specified by request_id
-            dc_req_spec = global_dcif.get_request_by_id(request_id)
-        elif request_id is None and dataset is not None:
-            # specified by dataset
-            dc_req_spec = global_dcif.get_request_by_dataset(dataset)
-
-        if dc_req_spec is not None:
-            dc_req_spec_resubmitted, err_msg = global_dcif.resubmit_request(dc_req_spec, submit_idds_request=False, exclude_prev_dst=True)
-            if not dc_req_spec_resubmitted or err_msg:
-                err_msg = f"failed to resubmit request_id={dc_req_spec.request_id} : {err_msg}"
-                tmp_logger.error(err_msg)
-                success, message = False, err_msg
-            else:
-                to_submit_idds = True
         else:
-            err_msg = f"failed to get corresponding request"
-            tmp_logger.error(err_msg)
-            success, message = False, err_msg
+            to_submit_idds = True
+    else:
+        err_msg = f"failed to get corresponding request"
+        tmp_logger.error(err_msg)
+        success, message = False, err_msg
 
     if dc_req_spec_resubmitted and dc_req_spec_resubmitted.status == DataCarouselRequestStatus.staging:
         success = True
         data = {"request_id": dc_req_spec.request_id, "new_request_id": dc_req_spec_resubmitted.request_id, "dataset": dc_req_spec_resubmitted.dataset}
         message = "new request resubmitted, destination changed"
         if to_submit_idds:
-            # submit to iDDS outside DC lock
             new_request_id = dc_req_spec_resubmitted.request_id
             task_id_list = global_dcif._get_related_tasks(new_request_id)
             if task_id_list:
@@ -171,51 +159,43 @@ def change_staging_source(
     success, message, data = False, "", None
     time_start = naive_utcnow()
 
-    with global_dcif.global_dc_lock(timeout_sec=60, lock_expiration_sec=300) as full_pid:
-        if full_pid is None:
-            # timeout
-            err_msg = f"timed out without getting lock"
-            tmp_logger.error(err_msg)
+    dc_req_spec = None
+    if request_id is not None:
+        # specified by request_id
+        dc_req_spec = global_dcif.get_request_by_id(request_id)
+    elif request_id is None and dataset is not None:
+        # specified by dataset
+        dc_req_spec = global_dcif.get_request_by_dataset(dataset)
+
+    if dc_req_spec is not None:
+        status = dc_req_spec.status
+        orig_source_rse = dc_req_spec.source_rse
+        if status not in [DataCarouselRequestStatus.queued, DataCarouselRequestStatus.staging]:
+            err_msg = f"request_id={dc_req_spec.request_id} status={status} not queued or staging; skipped"
+            tmp_logger.warning(err_msg)
             success, message = False, err_msg
-            return generate_response(success, message, data)
-
-        dc_req_spec = None
-        if request_id is not None:
-            # specified by request_id
-            dc_req_spec = global_dcif.get_request_by_id(request_id)
-        elif request_id is None and dataset is not None:
-            # specified by dataset
-            dc_req_spec = global_dcif.get_request_by_dataset(dataset)
-
-        if dc_req_spec is not None:
-            status = dc_req_spec.status
-            orig_source_rse = dc_req_spec.source_rse
-            if status not in [DataCarouselRequestStatus.queued, DataCarouselRequestStatus.staging]:
-                err_msg = f"request_id={dc_req_spec.request_id} status={status} not queued or staging; skipped"
-                tmp_logger.warning(err_msg)
+        else:
+            ret, dc_req_spec, err_msg = global_dcif.change_request_source_rse(dc_req_spec, cancel_fts, change_src_expr, source_rse)
+            if not ret:
+                err_msg = f"failed to change source request_id={dc_req_spec.request_id} : {err_msg}"
+                tmp_logger.error(err_msg)
                 success, message = False, err_msg
             else:
-                ret, dc_req_spec, err_msg = global_dcif.change_request_source_rse(dc_req_spec, cancel_fts, change_src_expr, source_rse)
-                if not ret:
-                    err_msg = f"failed to change source request_id={dc_req_spec.request_id} : {err_msg}"
-                    tmp_logger.error(err_msg)
-                    success, message = False, err_msg
+                success = True
+                if dc_req_spec.status == DataCarouselRequestStatus.queued or change_src_expr:
+                    message = f"status={status} changed source_rse from {orig_source_rse} to {dc_req_spec.source_rse}"
                 else:
-                    success = True
-                    if dc_req_spec.status == DataCarouselRequestStatus.queued or change_src_expr:
-                        message = f"status={status} changed source_rse from {orig_source_rse} to {dc_req_spec.source_rse}"
-                    else:
-                        message = f"status={status} source replica expression is dropped"
-                    data = {
-                        "request_id": dc_req_spec.request_id,
-                        "dataset": dc_req_spec.dataset,
-                        "source_rse": dc_req_spec.source_rse,
-                        "ddm_rule_id": dc_req_spec.ddm_rule_id,
-                    }
-        else:
-            err_msg = f"failed to get corresponding request"
-            tmp_logger.error(err_msg)
-            success, message = False, err_msg
+                    message = f"status={status} source replica expression is dropped"
+                data = {
+                    "request_id": dc_req_spec.request_id,
+                    "dataset": dc_req_spec.dataset,
+                    "source_rse": dc_req_spec.source_rse,
+                    "ddm_rule_id": dc_req_spec.ddm_rule_id,
+                }
+    else:
+        err_msg = f"failed to get corresponding request"
+        tmp_logger.error(err_msg)
+        success, message = False, err_msg
 
     time_delta = naive_utcnow() - time_start
     tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
@@ -250,41 +230,33 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
     success, message, data = False, "", None
     time_start = naive_utcnow()
 
-    with global_dcif.global_dc_lock(timeout_sec=60, lock_expiration_sec=300) as full_pid:
-        if full_pid is None:
-            # timeout
-            err_msg = f"timed out without getting lock"
+    dc_req_spec = None
+    if request_id is not None:
+        # specified by request_id
+        dc_req_spec = global_dcif.get_request_by_id(request_id)
+    elif request_id is None and dataset is not None:
+        # specified by dataset
+        dc_req_spec = global_dcif.get_request_by_dataset(dataset)
+
+    if dc_req_spec is not None:
+        is_ok, err_msg, dc_req_spec = global_dcif.stage_request(dc_req_spec)
+        if not is_ok:
+            err_msg = f"failed to stage request_id={dc_req_spec.request_id} : {err_msg}"
             tmp_logger.error(err_msg)
             success, message = False, err_msg
-            return generate_response(success, message, data)
-
-        dc_req_spec = None
-        if request_id is not None:
-            # specified by request_id
-            dc_req_spec = global_dcif.get_request_by_id(request_id)
-        elif request_id is None and dataset is not None:
-            # specified by dataset
-            dc_req_spec = global_dcif.get_request_by_dataset(dataset)
-
-        if dc_req_spec is not None:
-            is_ok, err_msg, dc_req_spec = global_dcif.stage_request(dc_req_spec)
-            if not is_ok:
-                err_msg = f"failed to stage request_id={dc_req_spec.request_id} : {err_msg}"
-                tmp_logger.error(err_msg)
-                success, message = False, err_msg
-            else:
-                success = True
-                message = f"status has become {dc_req_spec.status}"
-                data = {
-                    "request_id": dc_req_spec.request_id,
-                    "dataset": dc_req_spec.dataset,
-                    "status": dc_req_spec.status,
-                    "ddm_rule_id": dc_req_spec.ddm_rule_id,
-                }
         else:
-            err_msg = f"failed to get corresponding request"
-            tmp_logger.error(err_msg)
-            success, message = False, err_msg
+            success = True
+            message = f"status has become {dc_req_spec.status}"
+            data = {
+                "request_id": dc_req_spec.request_id,
+                "dataset": dc_req_spec.dataset,
+                "status": dc_req_spec.status,
+                "ddm_rule_id": dc_req_spec.ddm_rule_id,
+            }
+    else:
+        err_msg = f"failed to get corresponding request"
+        tmp_logger.error(err_msg)
+        success, message = False, err_msg
 
     time_delta = naive_utcnow() - time_start
     tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
