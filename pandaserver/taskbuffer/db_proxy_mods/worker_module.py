@@ -434,6 +434,9 @@ class WorkerModule(BaseModule):
         if assigned_harvester_id and assigned_harvester_id in harvester_ids_temp:
             harvester_id = assigned_harvester_id
         else:
+            # commit for postgres to avoid idle transactions
+            if not self._commit():
+                raise RuntimeError("Commit error")
             tmp_log.error("No harvester instance assigned or not in statistics")
             return {}
 
