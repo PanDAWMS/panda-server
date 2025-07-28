@@ -1869,10 +1869,15 @@ class MiscStandaloneModule(BaseModule):
                 # get affected PandaIDs
                 sqlLP = f"SELECT pandaID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
                 sqlLP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND lfn=:lfn "
+                # get files to update status
+                sql_get_files = (
+                    f"SELECT datasetID,fileID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                    "WHERE jediTaskID=:jediTaskID AND type=:type AND status=:oldStatus AND PandaID=:PandaID "
+                )
                 # sql to update file status
                 sqlUFO = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
                 sqlUFO += "SET status=:newStatus "
-                sqlUFO += "WHERE jediTaskID=:jediTaskID AND type=:type AND status=:oldStatus AND PandaID=:PandaID "
+                sqlUFO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:oldStatus AND PandaID=:PandaID "
                 # sql to cancel events
                 sqlCE = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlCE += f"{panda_config.schemaJEDI}.JEDI_Events tab "
@@ -1881,7 +1886,7 @@ class MiscStandaloneModule(BaseModule):
                 sqlCE += "AND status IN (:esFinished,:esDone,:esMerged) "
                 # get affected PandaIDs
                 lostPandaIDs = set([])
-                nDiff = 0
+                nDiff = {}
                 for lostFile in lostFiles:
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
@@ -1892,57 +1897,62 @@ class MiscStandaloneModule(BaseModule):
                     if resLP is not None:
                         (pandaID,) = resLP
                         lostPandaIDs.add(pandaID)
-                        # update the file and co-produced files to lost
+                        # get the file and co-produced files to lost
                         varMap = {}
                         varMap[":jediTaskID"] = jediTaskID
                         varMap[":PandaID"] = pandaID
                         varMap[":type"] = "output"
-                        varMap[":newStatus"] = "lost"
                         varMap[":oldStatus"] = "finished"
-                        if not simul:
-                            self.cur.execute(sqlUFO + comment, varMap)
-                            nRow = self.cur.rowcount
-                            if nRow > 0:
-                                nDiff += 1
-                        else:
-                            tmp_log.debug(sqlUFO + comment + str(varMap))
-                            nDiff += 1
-                # update output dataset statistics
-                sqlUDO = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-                sqlUDO += "SET nFilesFinished=nFilesFinished-:nDiff "
-                sqlUDO += "WHERE jediTaskID=:jediTaskID AND type=:type "
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":type"] = "output"
-                varMap[":nDiff"] = nDiff
-                tmp_log.debug(sqlUDO + comment + str(varMap))
-                if not simul:
-                    self.cur.execute(sqlUDO + comment, varMap)
+                        self.cur.execute(sql_get_files + comment, varMap)
+                        res_files = self.cur.fetchall()
+                        if res_files:
+                            for tmpDatasetID, tmpFileID in res_files:
+                                # update file status
+                                varMap = {}
+                                varMap[":jediTaskID"] = jediTaskID
+                                varMap[":datasetID"] = tmpDatasetID
+                                varMap[":fileID"] = tmpFileID
+                                varMap[":PandaID"] = pandaID
+                                varMap[":newStatus"] = "lost"
+                                varMap[":oldStatus"] = "finished"
+                                tmp_log.debug(sqlUFO + comment + str(varMap))
+                                if not simul:
+                                    self.cur.execute(sqlUFO + comment, varMap)
+                                    nRow = self.cur.rowcount
+                                    if nRow > 0:
+                                        nDiff[tmpDatasetID] = nDiff.get(tmpDatasetID, 0) + 1
+                                else:
+                                    nDiff[tmpDatasetID] = nDiff.get(tmpDatasetID, 0) + 1
+                tmp_log.debug(f"PandaIDs produced lost files = {str(lostPandaIDs)}")
+                tmp_log.debug("update output datasets")
                 # get nEvents
-                sqlGNE = "SELECT SUM(c.nEvents),c.datasetID "
+                sqlGNE = "SELECT SUM(c.nEvents) "
                 sqlGNE += "FROM {0}.JEDI_Datasets d,{0}.JEDI_Dataset_Contents c ".format(panda_config.schemaJEDI)
                 sqlGNE += "WHERE c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID "
-                sqlGNE += "AND d.jediTaskID=:jediTaskID AND d.type=:type AND c.status=:status "
-                sqlGNE += "GROUP BY c.datasetID "
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":type"] = "output"
-                varMap[":status"] = "finished"
-                self.cur.execute(sqlGNE + comment, varMap)
-                resGNE = self.cur.fetchall()
-                # update nEvents
-                sqlUNE = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-                sqlUNE += "SET nEvents=:nEvents "
-                sqlUNE += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-                for tmpCount, tmpDatasetID in resGNE:
+                sqlGNE += "AND d.jediTaskID=:jediTaskID AND d.datasetID=:datasetID AND c.status=:status "
+                # update output dataset statistics
+                sqlUDO = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+                sqlUDO += "SET nFilesFinished=nFilesFinished-:nDiff,state=NULL,nEvents=:nEvents "
+                sqlUDO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                for tmpDatasetID, n_diff_value in nDiff.items():
+                    # get nEvents
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
                     varMap[":datasetID"] = tmpDatasetID
-                    varMap[":nEvents"] = tmpCount
+                    varMap[":status"] = "finished"
+                    self.cur.execute(sqlGNE + comment, varMap)
+                    (tmp_counts,) = self.cur.fetchone()
+                    # update nFilesFinished
+                    varMap = {}
+                    varMap[":jediTaskID"] = jediTaskID
+                    varMap[":datasetID"] = tmpDatasetID
+                    varMap[":nDiff"] = n_diff_value
+                    varMap[":nEvents"] = tmp_counts
+                    tmp_log.debug(sqlUDO + comment + str(varMap))
                     if not simul:
-                        self.cur.execute(sqlUNE + comment, varMap)
-                        tmp_log.debug(sqlUNE + comment + str(varMap))
+                        self.cur.execute(sqlUDO + comment, varMap)
                 # get input datasets
+                tmp_log.debug("update input datasets")
                 sqlID = f"SELECT datasetID,datasetName,masterID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
                 sqlID += "WHERE jediTaskID=:jediTaskID AND type=:type "
                 varMap = {}
