@@ -34,3 +34,7 @@ PANDA_URL_SSL='https://pandaserver.cern.ch:25443/server/panda'
 # API URLs
 PANDA_API_URL='http://pandaserver.cern.ch:25080/api/v1'
 PANDA_API_URL_SSL='https://pandaserver.cern.ch:25443/api/v1'
+
+# MCP port
+PANDA_SERVER_CONF_PORT_MCP=25888
+

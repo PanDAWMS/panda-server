@@ -434,6 +434,9 @@ class WorkerModule(BaseModule):
         if assigned_harvester_id and assigned_harvester_id in harvester_ids_temp:
             harvester_id = assigned_harvester_id
         else:
+            # commit for postgres to avoid idle transactions
+            if not self._commit():
+                raise RuntimeError("Commit error")
             tmp_log.error("No harvester instance assigned or not in statistics")
             return {}
 
@@ -607,6 +610,9 @@ class WorkerModule(BaseModule):
         new_workers_per_harvester = {harvester_id: new_workers}
 
         tmp_log.debug(f"Workers to submit: {new_workers_per_harvester}")
+        # commit for postgres to avoid idle transactions
+        if not self._commit():
+            raise RuntimeError("Commit error")
         tmp_log.debug("done")
         return new_workers_per_harvester
 
@@ -1168,6 +1174,118 @@ class WorkerModule(BaseModule):
             tmp_logger.error(error_message)
             return False, error_message
 
+    def update_worker_node_gpu(
+        self,
+        site: str,
+        host_name: str,
+        vendor: str,
+        model: str,
+        count: int,
+        vram: int,
+        architecture: str,
+        framework: str,
+        framework_version: str,
+        driver_version: str,
+    ):
+        comment = " /* DBProxy.update_worker_node_gpu */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+
+        tmp_logger = self.create_tagged_logger(comment, f"{method_name} < site={site} host_name={host_name} vendor={vendor} model={model} >")
+        tmp_logger.debug("Start")
+
+        timestamp_utc = naive_utcnow()
+
+        # If the worker node comes in the slot1@worker1.example.com format, we remove the slot1@ part
+        match = re.search(r"@(.+)", host_name)
+        host_name = match.group(1) if match else host_name
+
+        locked = True  # Track whether the worker node was locked by another pilot update
+
+        try:
+            self.conn.begin()
+
+            # Select the GPU to see if it exists in the database
+            var_map = {":site": site, ":host_name": host_name, ":vendor": vendor, ":model": model}
+
+            sql = (
+                "SELECT site, host_name, vendor, model "
+                "FROM ATLAS_PANDA.worker_node_gpus "
+                "WHERE site=:site AND host_name=:host_name AND vendor=:vendor AND model=:model "
+                "FOR UPDATE NOWAIT"
+            )
+
+            self.cur.execute((sql + comment), var_map)
+            res = self.cur.fetchone()
+            locked = False  # If the row was locked, the NOWAIT clause will make the query except and go to the end
+
+            # The worker node GPU entry exists, we update the worker node's last_seen timestamp, count, framework, and framework_version
+            if res:
+                var_map = {
+                    ":site": site,
+                    ":host_name": host_name,
+                    ":vendor": vendor,
+                    ":model": model,
+                    ":framework": framework,
+                    ":framework_version": framework_version,
+                    ":count": count,
+                    ":last_seen": timestamp_utc,
+                }
+
+                sql = (
+                    "UPDATE ATLAS_PANDA.worker_node_gpus SET last_seen=:last_seen, framework=:framework, framework_version=:framework_version, count=:count "
+                    "WHERE site=:site AND host_name=:host_name AND vendor=:vendor AND model=:model"
+                )
+
+                self.cur.execute((sql + comment), var_map)
+                tmp_logger.debug("Worker node GPU was found in the database. Updated last_seen timestamp and count.")
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+
+                return True, "Updated existing worker node GPU."
+
+            # The worker node GPU entry did not exist, we insert it as a new worker node GPU
+            var_map = {
+                ":site": site,
+                ":host_name": host_name,
+                ":vendor": vendor,
+                ":model": model,
+                ":count": count,
+                ":vram": vram,
+                ":architecture": architecture,
+                ":framework": framework,
+                ":framework_version": framework_version,
+                ":driver_version": driver_version,
+                ":last_seen": timestamp_utc,
+            }
+
+            sql = (
+                "INSERT INTO ATLAS_PANDA.worker_node_gpus "
+                "(site, host_name, vendor, model, count, vram, architecture, framework, framework_version, driver_version, last_seen) "
+                "VALUES "
+                "(:site, :host_name, :vendor, :model, :count, :vram, :architecture, :framework, :framework_version, :driver_version, :last_seen)"
+            )
+
+            self.cur.execute(sql + comment, var_map)
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_logger.debug("Inserted as new worker node GPU.")
+
+            return True, "Inserted new worker node GPU."
+
+        except Exception:
+            # Always roll back the transaction
+            self._rollback(True)
+
+            # Failed because of the NOWAIT clause
+            if locked:
+                return False, "Another pilot was updating the worker node GPU at the same time."
+
+            # General failure
+            err_type, err_value = sys.exc_info()[:2]
+            error_message = f"Worker node GPU update failed with {err_type} {err_value}"
+            tmp_logger.error(error_message)
+            return False, error_message
+
     # get workers for a job
     def getWorkersForJob(self, PandaID):
         comment = " /* DBProxy.getWorkersForJob */"
@@ -1646,6 +1764,9 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
 
+        # start transaction for postgres to avoid idle transactions
+        self.conn.begin()
+
         # get current pilot distribution in harvester for the queue
         sql = f"""
               SELECT computingsite, harvester_id, jobType, resourceType, status, n_workers
@@ -1672,6 +1793,8 @@ class WorkerModule(BaseModule):
             worker_stats_dict[computing_site][harvester_id][job_type].setdefault(resource_type, {})
             worker_stats_dict[computing_site][harvester_id][job_type][resource_type][status] = n_workers
 
+        if not self._commit():
+            raise RuntimeError("Commit error")
         tmp_log.debug("done")
         return worker_stats_dict
 

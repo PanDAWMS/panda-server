@@ -232,7 +232,7 @@ def kill(req, job_ids: List[int], code: int = None, use_email_as_id: bool = Fals
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        job_ids (List): List of PanDA job IDs
+        job_ids (list): List of PanDA job IDs
         code (int, optional): The kill code. Defaults to None.
         ```
         code
@@ -294,7 +294,7 @@ def reassign(req: PandaRequest, job_ids: List[int]):
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        job_ids (List): List of PanDA job IDs
+        job_ids (list): List of PanDA job IDs
 
     Returns:
         dict: The system response `{"success": True}`.

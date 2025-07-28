@@ -8,7 +8,7 @@ RUN yum update -y
 RUN yum install -y epel-release
 
 RUN yum install -y httpd httpd-devel gcc gridsite git psmisc less wget logrotate procps which \
-    openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel systemd-udev
+    openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel systemd-udev voms-clients
 
 # install python
 RUN mkdir /tmp/python && cd /tmp/python && \

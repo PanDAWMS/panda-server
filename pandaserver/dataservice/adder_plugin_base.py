@@ -6,10 +6,12 @@ Those post-processing procedures are experiment-dependent so that the Adder also
 
 from .adder_result import AdderResult
 
+
 class AdderPluginBase:
     """
     Base class for Adder plugins.
     """
+
     def __init__(self, job, params):
         """
         Initialize the AdderPluginBase.
@@ -20,5 +22,6 @@ class AdderPluginBase:
         self.job = job
         self.logger = None
         self.result = AdderResult()
+        self.extra_info = {}
         for key, value in params.items():
             setattr(self, key, value)

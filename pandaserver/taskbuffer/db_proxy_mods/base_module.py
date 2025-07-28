@@ -376,7 +376,7 @@ class BaseModule:
         comment = " /* DBProxy.querySQLS */"
         tmp_log = self.create_tagged_logger(comment)
         try:
-            tmp_log.debug(f"SQL={sql} ")
+            tmp_log.debug(f"SQL={sql} vapMap={varMap} ")
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = arraySize

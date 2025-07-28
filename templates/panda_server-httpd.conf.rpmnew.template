@@ -72,7 +72,7 @@ Alias /auth/ "/opt/panda/etc/panda/auth/"
     Deny from 192.203.218.14
 </Directory>
 
-<Directory "/var/cache/pandaserver/jedilog">
+<Directory "/var/log/panda/pandacache/jedilog">
     Options FollowSymLinks
     AllowOverride None
     Order allow,deny
@@ -137,6 +137,16 @@ LimitRequestBody 10737418240
 RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
+
+SSLProxyEngine on
+ProxyPass /mcp/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/mcp/
+ProxyPass /messages/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/messages/
+ProxyPassReverse /mcp/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/mcp/
+ProxyPassReverse /messages/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/messages/
+ProxyPreserveHost On
+SSLProxyVerify none
+SSLProxyCheckPeerCN off
+SSLProxyCheckPeerExpire off
 
 # CERN security recommendation to only allow the seven strongest ssl ciphers
 SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1

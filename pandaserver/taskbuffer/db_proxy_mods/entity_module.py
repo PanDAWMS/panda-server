@@ -517,13 +517,13 @@ class EntityModule(BaseModule):
             return
 
         # get the resource types from the DB and make the ResourceSpecMapper object
-        resource_types = self.load_resource_types()
+        resource_types = self.load_resource_types(use_commit=False)
         if resource_types:
             self.resource_spec_mapper = ResourceSpecMapper(resource_types)
             self.__t_update_resource_type_mapper = datetime.datetime.now()
         return
 
-    def load_resource_types(self, formatting="spec"):
+    def load_resource_types(self, formatting="spec", use_commit=True):
         """
         Load the resource type table to memory
         """
@@ -556,10 +556,15 @@ class EntityModule(BaseModule):
                             maxrampercore,
                         )
                     )
-
+            # commit for postgres to avoid idle transactions
+            if use_commit:
+                if not self._commit():
+                    raise RuntimeError("Commit error")
             tmp_log.debug("done")
             return resource_spec_list
         except Exception:
+            if use_commit:
+                self._rollback()
             self.dump_error_message(tmp_log)
             return []
 
@@ -602,7 +607,7 @@ class EntityModule(BaseModule):
         )
 
         # 2. Load the resource types and figure out the matching one
-        resource_map = self.load_resource_types()
+        resource_map = self.load_resource_types(use_commit=False)
         resource_name = "Undefined"
         for resource_spec in resource_map:
             if resource_spec.match_task_basic(corecount, ramcount, baseramcount, ramunit):
@@ -3124,13 +3129,14 @@ class EntityModule(BaseModule):
                 tmp_log.debug("skip as a new key was registered recently")
             else:
                 # get max ID
+                max_id = None
                 sql = "SELECT MAX(ID) FROM ATLAS_PANDAMETA.proxykey "
                 self.cur.execute(sql + comment, {})
                 res = self.cur.fetchone()
-                if not res:
-                    max_id = 0
-                else:
+                if res:
                     (max_id,) = res
+                if max_id is None:
+                    max_id = 0
                 max_id += 1
                 max_id %= 10000000
                 # register a key

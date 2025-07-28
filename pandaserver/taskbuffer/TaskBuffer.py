@@ -5,6 +5,7 @@ import shlex
 import sys
 import time
 import traceback
+from contextlib import contextmanager
 from threading import Lock
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -70,6 +71,17 @@ class TaskBuffer:
 
             _logger.info(f"destroying DBProxyPool after n_seconds={pool_duration} on behalf of {requester}")
             self.proxyPool.cleanup()
+
+    # transaction as a context manager
+    # CANNOT be used with ConBridge or TaskBufferInterface which uses multiprocess.pipe
+    @contextmanager
+    def transaction(self, name: str):
+        with self.proxyPool.get() as proxy:
+            with proxy.transaction(name) as txn:
+                if txn is None:
+                    raise RuntimeError(f"Failed to start transaction {name}")
+                # yield the transaction
+                yield txn
 
     # get number of database connections
     def get_num_connections(self):
@@ -719,6 +731,36 @@ class TaskBuffer:
                 clock_speed,
                 total_memory,
                 total_local_disk,
+            )
+        return ret
+
+    def update_worker_node_gpu(
+        self,
+        site: str,
+        host_name: str,
+        vendor: str,
+        model: str,
+        count: int,
+        vram: int,
+        architecture: str,
+        framework: str,
+        framework_version: str,
+        driver_version: str,
+    ):
+        # get DB proxy
+        with self.proxyPool.get() as proxy:
+            # update DB and buffer
+            ret = proxy.update_worker_node_gpu(
+                site,
+                host_name,
+                vendor,
+                model,
+                count,
+                vram,
+                architecture,
+                framework,
+                framework_version,
+                driver_version,
             )
         return ret
 
@@ -1813,11 +1855,11 @@ class TaskBuffer:
         return ret
 
     # retry module action: increase CPU Time
-    def increaseCpuTimeTask(self, jobID, taskID, siteid, files, active):
+    def initialize_cpu_time_task(self, jobID, taskID, siteid, files, active):
         # get proxy
         with self.proxyPool.get() as proxy:
             # exec
-            ret = proxy.increaseCpuTimeTask(jobID, taskID, siteid, files, active)
+            ret = proxy.initialize_cpu_time_task(jobID, taskID, siteid, files, active)
         return ret
 
     # retry module action: recalculate the Task Parameters

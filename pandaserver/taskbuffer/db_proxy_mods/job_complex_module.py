@@ -2820,9 +2820,20 @@ class JobComplexModule(BaseModule):
                 # return None if there are not enough fields
                 if len(name.split(".")) < 2:
                     return None
-                return name.lower().split(".")[0] + "." + name.lower().split(".")[1]
-            return name.split(".")[0]
-        except Exception:
+                # check if user scope needs to be in lowercase
+                user_scope_in_lowercase = True
+                try:
+                    if self.jedi_config and hasattr(self.jedi_config.ddm, "user_scope_in_lowercase") and self.jedi_config.ddm.user_scope_in_lowercase is False:
+                        user_scope_in_lowercase = False
+                except Exception:
+                    pass
+                if user_scope_in_lowercase:
+                    name = name.lower()
+                scope = ".".join(name.split(".")[:2])
+            else:
+                scope = name.split(".")[0]
+            return scope
+        except Exception as e:
             return None
 
     # insert job to jobsDefined

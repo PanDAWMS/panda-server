@@ -118,6 +118,9 @@ class DataCarouselRequestSpec(SpecBase):
         AttributeWithType("check_time", datetime),
         AttributeWithType("source_tape", str),
         AttributeWithType("parameters", str),
+        AttributeWithType("last_staged_time", datetime),
+        AttributeWithType("locked_by", str),
+        AttributeWithType("lock_time", datetime),
     )
     # attributes
     attributes = tuple([attr.attribute for attr in attributes_with_types])
@@ -198,6 +201,59 @@ class DataCarouselRequestSpec(SpecBase):
         tmp_dict = self.parameter_map
         tmp_dict.update(params)
         self.parameter_map = tmp_dict
+
+
+class DataCarouselRequestTransaction(object):
+    """
+    Data Carousel request transaction object
+    This is a wrapper for DataCarouselRequestSpec to provide additional methods about DB transaction
+    """
+
+    def __init__(self, dc_req_spec: DataCarouselRequestSpec, db_cur, db_log):
+        """
+        Constructor
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): request specification
+            db_cur: database cursor for DB operations
+            db_log: database logger for logging DB operations
+        """
+        self.spec = dc_req_spec
+        self.db_cur = db_cur
+        self.db_log = db_log
+
+    def update_spec(self, dc_req_spec: DataCarouselRequestSpec, to_db: bool = True) -> bool | None:
+        """
+        Update the request specification with a new one
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): new request specification to update
+            to_db (bool): whether to update the request in DB; default True
+
+        Returns:
+            bool|None : True if updated in DB successfully, False if failed to update in DB, None if not updating in DB
+        """
+        if to_db:
+            # update the request in DB
+            comment = " /* DataCarouselRequestTransaction.update_spec */"
+            dc_req_spec.modification_time = naive_utcnow()
+            sql_update = (
+                f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests " f"SET {dc_req_spec.bindUpdateChangesExpression()} " "WHERE request_id=:request_id "
+            )
+            var_map = dc_req_spec.valuesMap(useSeq=False, onlyChanged=True)
+            var_map[":request_id"] = dc_req_spec.request_id
+            self.db_cur.execute(sql_update + comment, var_map)
+            if self.db_cur.rowcount == 0:
+                # no rows updated; request_id not found
+                self.db_log.warning(f"request_id={dc_req_spec.request_id} not updated")
+                return False
+            else:
+                self.spec = dc_req_spec
+                self.db_log.debug(f"updated request_id={dc_req_spec.request_id} {dc_req_spec.bindUpdateChangesExpression()}")
+                return True
+        else:
+            self.spec = dc_req_spec
+            return None
 
 
 # ==============================================================
@@ -437,6 +493,9 @@ class DataCarouselInterface(object):
         Args:
             timeout_sec (int): timeout in seconds for blocking to retry
             lock_expiration_sec (int): age of lock in seconds to be considered expired and can be acquired immediately
+
+        Yields:
+            str : full process ID of this process if got lock; None if timeout
         """
         # tmp_log = LogWrapper(logger, f"global_dc_lock pid={self.full_pid}")
         # try to release the lock
@@ -445,6 +504,249 @@ class DataCarouselInterface(object):
             yield full_pid
         finally:
             self._release_global_dc_lock(full_pid)
+
+    def get_request_by_id(self, request_id: int) -> DataCarouselRequestSpec | None:
+        """
+        Get the spec of the request specified by request_id
+
+        Args:
+            request_id (int): request_id of the request
+
+        Returns:
+            DataCarouselRequestSpec|None : spec of the request, or None if failed
+        """
+        tmp_log = LogWrapper(logger, f"get_request_by_id request_id={request_id}")
+        sql = f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id "
+        var_map = {":request_id": request_id}
+        res_list = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
+        if res_list is not None:
+            if len(res_list) > 1:
+                tmp_log.error("more than one requests; unexpected")
+            else:
+                for res in res_list:
+                    dc_req_spec = DataCarouselRequestSpec()
+                    dc_req_spec.pack(res)
+                    return dc_req_spec
+        else:
+            tmp_log.warning("no request found; skipped")
+            return None
+
+    def get_request_by_dataset(self, dataset: str) -> DataCarouselRequestSpec | None:
+        """
+        Get the reusable request (not in cancelled or retired) of the dataset
+
+        Args:
+            dataset (str): dataset name
+
+        Returns:
+            DataCarouselRequestSpec|None : spec of the request of dataset, or None if failed
+        """
+        tmp_log = LogWrapper(logger, f"get_request_by_dataset dataset={dataset}")
+        status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.reusable_statuses, prefix=":status")
+        sql = (
+            f"SELECT {DataCarouselRequestSpec.columnNames()} "
+            f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
+            f"WHERE dataset=:dataset "
+            f"AND status IN ({status_var_names_str}) "
+        )
+        var_map = {":dataset": dataset}
+        var_map.update(status_var_map)
+        res_list = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
+        if res_list is not None:
+            if len(res_list) > 1:
+                tmp_log.error("more than one reusable requests; unexpected")
+            else:
+                for res in res_list:
+                    dc_req_spec = DataCarouselRequestSpec()
+                    dc_req_spec.pack(res)
+                    return dc_req_spec
+        else:
+            tmp_log.warning("no reusable request; skipped")
+            return None
+
+    # @contextmanager
+    # def request_transaction_by_id(self, request_id: int):
+    #     """
+    #     Context manager to get a transaction for the Data Carousel request by request_id
+
+    #     Args:
+    #         request_id (int): request ID of the Data Carousel request
+
+    #     Yields:
+    #         DataCarouselRequestTransaction : request object specified by request_id
+    #     """
+    #     tmp_log = LogWrapper(logger, f"request_transaction_by_id pid={self.full_pid} request_id={request_id}")
+    #     with self.taskBufferIF.transaction(name="DataCarouselRequestTransaction") as (db_cur, db_log):
+    #         # try to get the request
+    #         dc_req_spec = None
+    #         sql_get = (
+    #             f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id "
+    #         )
+    #         var_map = {":request_id": request_id}
+    #         res_list = db_cur.execute(sql_get, var_map).fetchall()
+    #         if res_list is not None:
+    #             if len(res_list) > 1:
+    #                 tmp_log.error("more than one requests; unexpected")
+    #             else:
+    #                 for res in res_list:
+    #                     dc_req_spec = DataCarouselRequestSpec()
+    #                     dc_req_spec.pack(res)
+    #         dc_req_txn = DataCarouselRequestTransaction(dc_req_spec, db_cur, db_log)
+    #         # yield and run wrapped function
+    #         yield dc_req_txn
+
+    # @contextmanager
+    # def request_lock_transaction_by_id(self, request_id: int, lock_expiration_sec: int = 120):
+    #     """
+    #     Context manager to lock and get a transaction for the Data Carousel request for update into DB
+
+    #     Args:
+    #         request_id (int): request ID of the Data Carousel request to acquire lock
+    #         lock_expiration_sec (int): age of lock in seconds to be considered expired and can be acquired immediately
+
+    #     Yields:
+    #         DataCarouselRequestTransaction | None : request object specified by request_id if got lock; None if did not get lock
+    #     """
+    #     tmp_log = LogWrapper(logger, f"lock_request_for_update pid={self.full_pid} request_id={request_id}")
+    #     #
+    #     got_lock = False
+    #     try:
+    #         with self.taskBufferIF.transaction(name="DataCarouselRequestLock") as (db_cur, db_log):
+    #             # try to get the lock
+    #             sql_lock = (
+    #                 f"SELECT request_id FROM {panda_config.schemaJEDI}.data_carousel_requests "
+    #                 f"WHERE request_id=:request_id "
+    #                 f"AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time < :min_lock_time) "
+    #             )
+    #             var_map = {
+    #                 ":request_id": request_id,
+    #                 ":locked_by": self.full_pid,
+    #                 ":min_lock_time": naive_utcnow() - timedelta(seconds=lock_expiration_sec),
+    #             }
+    #             res_list = db_cur.execute(sql_lock, var_map).fetchall()
+    #             if res_list is not None:
+    #                 if len(res_list) > 1:
+    #                     tmp_log.error("more than one requests; unexpected")
+    #                 elif len(res_list) == 0:
+    #                     # no rows found; did not get the lock
+    #                     db_log.debug(f"{self.full_pid} did not get lock for request_id={request_id}")
+    #                 else:
+    #                     # got the lock; update locked_by and lock_time
+    #                     sql_update = (
+    #                         f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+    #                         f"SET locked_by=:locked_by, lock_time=:lock_time "
+    #                         f"WHERE request_id=:request_id "
+    #                     )
+    #                     var_map = {
+    #                         ":locked_by": self.full_pid,
+    #                         ":lock_time": naive_utcnow(),
+    #                         ":request_id": request_id,
+    #                     }
+    #                     db_cur.execute(sql_update, var_map)
+    #                     got_lock = True
+    #                     db_log.debug(f"{self.full_pid} got lock for request_id={request_id}")
+    #             else:
+    #                 # did not get the lock
+    #                 db_log.debug(f"{self.full_pid} did not get lock for request_id={request_id}")
+    #         if got_lock:
+    #             # got the lock
+    #             tmp_log.debug(f"got lock")
+    #             with self.request_transaction_by_id(request_id) as dc_req_txn:
+    #                 # check if request spec is None
+    #                 if dc_req_txn.spec is None:
+    #                     tmp_log.error(f"request_id={request_id} not found; skipped")
+    #                     yield None
+    #                 else:
+    #                     # yield and let wrapped function run
+    #                     yield dc_req_txn
+    #         else:
+    #             # did not get the lock
+    #             tmp_log.debug(f"did not get lock for request_id={request_id}")
+    #             yield None
+    #     finally:
+    #         if got_lock:
+    #             # release the lock
+    #             with self.taskBufferIF.transaction(name="DataCarouselRequestUnlock") as (db_cur, db_log):
+    #                 sql_unlock = (
+    #                     f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+    #                     f"SET locked_by=NULL, lock_time=NULL "
+    #                     f"WHERE request_id=:request_id AND locked_by=:locked_by "
+    #                 )
+    #                 var_map = {
+    #                     ":request_id": request_id,
+    #                     ":locked_by": self.full_pid,
+    #                 }
+    #                 db_cur.execute(sql_unlock, var_map)
+    #                 db_log.debug(f"{self.full_pid} released lock for request_id={request_id}")
+
+    @contextmanager
+    def request_lock(self, request_id: int, lock_expiration_sec: int = 120):
+        """
+        Context manager to lock and unlock the Data Carousel request for update into DB
+
+        Args:
+            request_id (int): request ID of the Data Carousel request to acquire lock
+            lock_expiration_sec (int): age of lock in seconds to be considered expired and can be acquired immediately
+
+        Yields:
+            DataCarouselRequestSpec|None : spec of the request if got lock; None if exception or failed
+        """
+        tmp_log = LogWrapper(logger, f"request_lock pid={self.full_pid} request_id={request_id}")
+        #
+        got_lock = None
+        locked_spec = None
+        try:
+            # try to update locked_by and lock_time
+            sql_lock = (
+                f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+                f"SET locked_by=:locked_by, lock_time=:lock_time "
+                f"WHERE request_id=:request_id "
+                f"AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time < :min_lock_time) "
+            )
+            var_map = {
+                ":locked_by": self.full_pid,
+                ":lock_time": naive_utcnow(),
+                ":request_id": request_id,
+                ":min_lock_time": naive_utcnow() - timedelta(seconds=lock_expiration_sec),
+            }
+            row_count = self.taskBufferIF.querySQL(sql_lock, var_map)
+            if row_count is None:
+                tmp_log.error(f"failed to update DB to lock; skipped")
+            elif row_count > 1:
+                tmp_log.error(f"more than one requests updated to lock; unexpected")
+            elif row_count == 0:
+                # no row updated; did not get the lock
+                got_lock = False
+                tmp_log.debug(f"did not get lock; skipped")
+            else:
+                # got the lock
+                got_lock = True
+                tmp_log.debug(f"got lock")
+            # get the request spec locked
+            locked_spec = self.get_request_by_id(request_id)
+            # yield and run wrapped function
+            yield locked_spec
+        finally:
+            if got_lock:
+                # release the lock
+                sql_unlock = (
+                    f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+                    f"SET locked_by=NULL, lock_time=NULL "
+                    f"WHERE request_id=:request_id AND locked_by=:locked_by "
+                )
+                var_map = {
+                    ":request_id": request_id,
+                    ":locked_by": self.full_pid,
+                }
+                row_count = self.taskBufferIF.querySQL(sql_unlock, var_map)
+                if row_count is None:
+                    tmp_log.error(f"failed to update DB to unlock; skipped")
+                elif row_count > 1:
+                    tmp_log.error(f"more than one requests updated to unlock; unexpected")
+                elif row_count == 0:
+                    tmp_log.error(f"no request updated to unlock; skipped")
+                else:
+                    tmp_log.debug(f"released lock")
 
     def _update_rses(self, time_limit_minutes: int | float = 30):
         """
@@ -523,65 +825,6 @@ class DataCarouselInterface(object):
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
 
-    def get_request_by_id(self, request_id: int) -> DataCarouselRequestSpec | None:
-        """
-        Get the spec of the request specified by request_id
-
-        Args:
-            request_id (int): request_id of the request
-
-        Returns:
-            DataCarouselRequestSpec|None : spec of the request, or None if failed
-        """
-        tmp_log = LogWrapper(logger, f"get_request_by_id request_id={request_id}")
-        sql = f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id "
-        var_map = {":request_id": request_id}
-        res_list = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
-        if res_list is not None:
-            if len(res_list) > 1:
-                tmp_log.error("more than one requests; unexpected")
-            else:
-                for res in res_list:
-                    dc_req_spec = DataCarouselRequestSpec()
-                    dc_req_spec.pack(res)
-                    return dc_req_spec
-        else:
-            tmp_log.warning("no request found; skipped")
-            return None
-
-    def get_request_by_dataset(self, dataset: str) -> DataCarouselRequestSpec | None:
-        """
-        Get the reusable request (not in cancelled or retired) of the dataset
-
-        Args:
-            dataset (str): dataset name
-
-        Returns:
-            DataCarouselRequestSpec|None : spec of the request of dataset, or None if failed
-        """
-        tmp_log = LogWrapper(logger, f"get_request_by_dataset dataset={dataset}")
-        status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.reusable_statuses, prefix=":status")
-        sql = (
-            f"SELECT {DataCarouselRequestSpec.columnNames()} "
-            f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
-            f"WHERE dataset=:dataset "
-            f"AND status IN ({status_var_names_str}) "
-        )
-        var_map = {":dataset": dataset}
-        var_map.update(status_var_map)
-        res_list = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
-        if res_list is not None:
-            if len(res_list) > 1:
-                tmp_log.error("more than one reusable requests; unexpected")
-            else:
-                for res in res_list:
-                    dc_req_spec = DataCarouselRequestSpec()
-                    dc_req_spec.pack(res)
-                    return dc_req_spec
-        else:
-            tmp_log.warning("no reusable request; skipped")
-            return None
-
     def _get_related_tasks(self, request_id: int) -> list[int] | None:
         """
         Get all related tasks to the give request
@@ -617,10 +860,10 @@ class DataCarouselInterface(object):
             if job_param.get("param_type") in ["input", "pseudo_input"]:
                 # dataset names can be comma-separated
                 raw_dataset_str = job_param.get("dataset")
-                dataset_list = []
+                jobparam_dataset_list = []
                 if raw_dataset_str:
-                    dataset_list = raw_dataset_str.split(",")
-                for dataset in dataset_list:
+                    jobparam_dataset_list = raw_dataset_str.split(",")
+                for dataset in jobparam_dataset_list:
                     ret_map[dataset] = job_param
         return ret_map
 
@@ -719,11 +962,11 @@ class DataCarouselInterface(object):
             did_type = collection_meta["did_type"]
             if did_type == "CONTAINER":
                 # is container, get datasets inside
-                dataset_list = self.ddmIF.list_datasets_in_container_JEDI(collection)
-                if dataset_list is None:
+                jobparam_dataset_list = self.ddmIF.list_datasets_in_container_JEDI(collection)
+                if jobparam_dataset_list is None:
                     tmp_log.warning(f"cannot list datasets in this container")
                 else:
-                    ret_list = dataset_list
+                    ret_list = jobparam_dataset_list
             elif did_type == "DATASET":
                 # is dataset
                 ret_list = [collection]
@@ -835,6 +1078,10 @@ class DataCarouselInterface(object):
                 # no replica found on tape nor on datadisk (can be on transient disk); skip
                 pass
             # return
+            tmp_log.debug(
+                f"source_type={source_type} rse_set={rse_set} staging_rule={staging_rule} to_pin={to_pin} "
+                f"suggested_destination_rses_set={suggested_destination_rses_set}"
+            )
             return (source_type, rse_set, staging_rule, to_pin, list(suggested_destination_rses_set))
         except Exception as e:
             # other unexpected errors
@@ -942,7 +1189,7 @@ class DataCarouselInterface(object):
         Args:
             task_id (int): JEDI task ID of the task params
             task_params_map (dict): task params of the JEDI task
-            dsname_list (list|None): if not None, filter only datasets in this list of dataset names to stage
+            dsname_list (list|None): if not None, filter only datasets in this list of dataset names to stage, may also including extra datasets if the task is resubmitted/rerefined
 
         Returns:
             list[tuple[str, str|None, str|None]]: list of tuples in the form of (dataset, source_rse, ddm_rule_id)
@@ -951,6 +1198,12 @@ class DataCarouselInterface(object):
         tmp_log = LogWrapper(logger, f"get_input_datasets_to_prestage task_id={task_id}")
         try:
             # initialize
+            all_input_datasets_set = set()
+            jobparam_ds_coll_map = {}
+            extra_datasets_set = set()
+            raw_coll_list = []
+            raw_coll_did_list = []
+            coll_on_tape_set = set()
             ret_prestaging_list = []
             ret_map = {
                 "pseudo_coll_list": [],
@@ -966,7 +1219,7 @@ class DataCarouselInterface(object):
             }
             # get active source rses
             active_source_rses_set = self._get_active_source_rses()
-            # loop over inputs
+            # loop over inputs defined in task's job parameters
             input_collection_map = self._get_input_ds_from_task_params(task_params_map)
             for collection, job_param in input_collection_map.items():
                 # pseudo inputs
@@ -975,53 +1228,71 @@ class DataCarouselInterface(object):
                     tmp_log.debug(f"collection={collection} is pseudo input ; skipped")
                     continue
                 # with real inputs
-                dataset_list = self._get_datasets_from_collection(collection)
-                if dataset_list is None:
+                raw_coll_list.append(collection)
+                raw_coll_did_list.append(self.ddmIF.get_did_str(collection))
+                jobparam_dataset_list = self._get_datasets_from_collection(collection)
+                if jobparam_dataset_list is None:
                     ret_map["unfound_coll_list"].append(collection)
-                    tmp_log.warning(f"collection={collection} not found ; skipped")
+                    tmp_log.warning(f"collection={collection} not found")
                     continue
-                elif not dataset_list:
+                elif not jobparam_dataset_list:
                     ret_map["empty_coll_list"].append(collection)
-                    tmp_log.warning(f"collection={collection} is empty ; skipped")
+                    tmp_log.warning(f"collection={collection} is empty")
                     continue
-                # check source of each dataset
-                got_on_tape = False
-                for dataset in dataset_list:
-                    # check if dataset in the required dsname_list
-                    if dsname_list is not None and dataset not in dsname_list:
-                        # not in dsname_list; skip
-                        ret_map["to_skip_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
-                        continue
-                    # get source type and RSEs
-                    source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
-                    if source_type == "datadisk":
-                        # replicas already on datadisk; skip
-                        ret_map["datadisk_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
-                        continue
-                    elif source_type == "tape":
-                        # replicas only on tape
-                        got_on_tape = True
-                        ret_map["tape_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
-                        # choose source RSE
-                        _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
-                        prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
-                        tmp_log.debug(f"got prestaging: {prestaging_tuple}")
-                        # add to prestage
-                        ret_prestaging_list.append(prestaging_tuple)
-                        # dataset to pin
-                        if to_pin:
-                            ret_map["to_pin_ds_list"].append(dataset)
-                    else:
-                        # no replica found on tape nor on datadisk; skip
-                        ret_map["unfound_ds_list"].append(dataset)
-                        tmp_log.debug(f"dataset={dataset} has no replica on any tape or datadisk ; skipped")
-                        continue
-                # collection DID without datasets on tape
+                # with contents to consider
+                for dataset in jobparam_dataset_list:
+                    jobparam_ds_coll_map[dataset] = collection
+            # merge of jobparam_dataset_list and dnsname_list
+            jobparam_datasets_set = set(jobparam_ds_coll_map.keys())
+            all_input_datasets_set |= jobparam_datasets_set
+            if dsname_list is not None:
+                # dsname_list is given; filter out extra container slash
+                master_datasets_set = set([dsname for dsname in dsname_list if not dsname.endswith("/")])
+                # extra dataset not in job parameters when task resubmitted/rerefined
+                extra_datasets_set = master_datasets_set - jobparam_datasets_set - set(raw_coll_did_list)
+                all_input_datasets_set |= extra_datasets_set
+            all_input_datasets_list = sorted(list(all_input_datasets_set))
+            if extra_datasets_set:
+                tmp_log.debug(f"datasets appended for incexec: {sorted(list(extra_datasets_set))}")
+            # check source of each dataset
+            for dataset in all_input_datasets_list:
+                # check if dataset in the required dsname_list
+                if dsname_list is not None and dataset not in dsname_list:
+                    # not in dsname_list; skip
+                    ret_map["to_skip_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
+                    continue
+                # get source type and RSEs
+                source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
+                if source_type == "datadisk":
+                    # replicas already on datadisk; skip
+                    ret_map["datadisk_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
+                    continue
+                elif source_type == "tape":
+                    # replicas only on tape
+                    ret_map["tape_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
+                    if collection := jobparam_ds_coll_map.get(dataset):
+                        coll_on_tape_set.add(collection)
+                    # choose source RSE
+                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
+                    tmp_log.debug(f"got prestaging: {prestaging_tuple}")
+                    # add to prestage
+                    ret_prestaging_list.append(prestaging_tuple)
+                    # dataset to pin
+                    if to_pin:
+                        ret_map["to_pin_ds_list"].append(dataset)
+                else:
+                    # no replica found on tape nor on datadisk; skip
+                    ret_map["unfound_ds_list"].append(dataset)
+                    tmp_log.debug(f"dataset={dataset} has no replica on any tape or datadisk ; skipped")
+                    continue
+            # collection DID without datasets on tape
+            for collection in raw_coll_list:
                 collection_did = self.ddmIF.get_did_str(collection)
-                if got_on_tape:
+                if collection in coll_on_tape_set:
                     ret_map["tape_coll_did_list"].append(collection_did)
                 else:
                     ret_map["no_tape_coll_did_list"].append(collection_did)
@@ -1683,56 +1954,62 @@ class DataCarouselInterface(object):
 
         Returns:
             bool : True for success, False otherwise
-            str|None : error message
+            str|None : error message if any, None otherwise
             DataCarouselRequestSpec : updated spec of the request
         """
         tmp_log = LogWrapper(logger, f"stage_request request_id={dc_req_spec.request_id}")
         is_ok = False
         err_msg = None
         # renew dc_req_spec from DB
-        dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
-        # skip if not queued
-        if dc_req_spec.status != DataCarouselRequestStatus.queued:
-            err_msg = f"status={dc_req_spec.status} not queued; skipped"
-            tmp_log.warning(err_msg)
-            return is_ok, err_msg, dc_req_spec
-        # retry to get DDM dataset metadata and skip if total_files is still None
-        if dc_req_spec.total_files is None:
-            _got = self._fill_total_files_and_size(dc_req_spec)
-            if not _got:
-                err_msg = f"total_files and dataset_size are still None; skipped"
+        with self.request_lock(dc_req_spec.request_id) as locked_spec:
+            if not locked_spec:
+                # not getting lock; skip
+                err_msg = "did not get lock; skipped"
                 tmp_log.warning(err_msg)
                 return is_ok, err_msg, dc_req_spec
-        # check existing DDM rule of the dataset
-        if (ddm_rule_id := dc_req_spec.ddm_rule_id) is not None:
-            # DDM rule exists; no need to submit
-            tmp_log.debug(f"dataset={dc_req_spec.dataset} already has active DDM rule ddm_rule_id={ddm_rule_id}")
-        else:
-            # no existing rule; submit DDM rule
-            ddm_rule_id = self._submit_ddm_rule(dc_req_spec, destination_rse=destination_rse)
-            if ddm_rule_id:
-                # DDM rule submitted; update ddm_rule_id
-                dc_req_spec.ddm_rule_id = ddm_rule_id
-                tmp_log.debug(f"submitted DDM rule ddm_rule_id={ddm_rule_id}")
+            # got locked spec
+            dc_req_spec = locked_spec
+            # skip if not queued
+            if dc_req_spec.status != DataCarouselRequestStatus.queued:
+                err_msg = f"status={dc_req_spec.status} not queued; skipped"
+                tmp_log.warning(err_msg)
+                return is_ok, err_msg, dc_req_spec
+            # retry to get DDM dataset metadata and skip if total_files is still None
+            if dc_req_spec.total_files is None:
+                _got = self._fill_total_files_and_size(dc_req_spec)
+                if not _got:
+                    err_msg = f"total_files and dataset_size are still None; skipped"
+                    tmp_log.warning(err_msg)
+                    return is_ok, err_msg, dc_req_spec
+            # check existing DDM rule of the dataset
+            if (ddm_rule_id := dc_req_spec.ddm_rule_id) is not None:
+                # DDM rule exists; no need to submit
+                tmp_log.debug(f"dataset={dc_req_spec.dataset} already has active DDM rule ddm_rule_id={ddm_rule_id}")
             else:
-                # failed to submit
-                err_msg = f"failed to submitted DDM rule ; skipped"
-                tmp_log.warning(err_msg)
-                return is_ok, err_msg, dc_req_spec
-        # update extra parameters
-        if extra_params:
-            dc_req_spec.update_parameters(extra_params)
-        # update request to be staging
-        now_time = naive_utcnow()
-        dc_req_spec.status = DataCarouselRequestStatus.staging
-        dc_req_spec.start_time = now_time
-        ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
-        if ret is not None:
-            tmp_log.info(f"updated DB about staging; status={dc_req_spec.status}")
-            dc_req_spec = ret
-            is_ok = True
+                # no existing rule; submit DDM rule
+                ddm_rule_id = self._submit_ddm_rule(dc_req_spec, destination_rse=destination_rse)
+                if ddm_rule_id:
+                    # DDM rule submitted; update ddm_rule_id
+                    dc_req_spec.ddm_rule_id = ddm_rule_id
+                    tmp_log.debug(f"submitted DDM rule ddm_rule_id={ddm_rule_id}")
+                else:
+                    # failed to submit
+                    err_msg = f"failed to submitted DDM rule ; skipped"
+                    tmp_log.warning(err_msg)
+                    return is_ok, err_msg, dc_req_spec
+            # update extra parameters
+            if extra_params:
+                dc_req_spec.update_parameters(extra_params)
+            # update request to be staging
+            now_time = naive_utcnow()
+            dc_req_spec.status = DataCarouselRequestStatus.staging
+            dc_req_spec.start_time = now_time
+            ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+            if ret:
+                tmp_log.info(f"updated DB about staging; status={dc_req_spec.status}")
+                is_ok = True
         # to iDDS staging requests
-        if submit_idds_request:
+        if is_ok and submit_idds_request:
             # get all tasks related to this request
             task_id_list = self._get_related_tasks(dc_req_spec.request_id)
             if task_id_list:
@@ -1834,13 +2111,20 @@ class DataCarouselInterface(object):
         the_rule = self.ddmIF.get_rule_by_id(ddm_rule_id)
         if the_rule is False:
             # rule not found
-            dc_req_spec.set_parameter("rule_unfound", True)
-            tmp_log.warning(f"rule not found")
-            tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
-            if tmp_ret is not None:
-                tmp_log.debug(f"updated DB about rule not found")
-            else:
-                tmp_log.error(f"failed to update DB ; skipped")
+            with self.request_lock(dc_req_spec.request_id) as locked_spec:
+                if not locked_spec:
+                    # not getting lock; skip
+                    tmp_log.warning(f"did not get lock; skipped")
+                    return is_valid, ddm_rule_id, None
+                # got locked spec
+                dc_req_spec = locked_spec
+                dc_req_spec.set_parameter("rule_unfound", True)
+                tmp_log.warning(f"rule not found")
+                tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                if tmp_ret:
+                    tmp_log.debug(f"updated DB about rule not found")
+                else:
+                    tmp_log.error(f"failed to update DB ; skipped")
             # try to cancel or retire request
             if dc_req_spec.status == DataCarouselRequestStatus.staging:
                 # requests staging but DDM rule not found; to cancel
@@ -2007,14 +2291,21 @@ class DataCarouselInterface(object):
                 ddm_rule_id = dc_req_spec.ddm_rule_id
                 the_rule = self.ddmIF.get_rule_by_id(ddm_rule_id)
                 if the_rule is False:
-                    # rule not found
-                    dc_req_spec.set_parameter("rule_unfound", True)
-                    tmp_log.error(f"request_id={dc_req_spec.request_id} ddm_rule_id={ddm_rule_id} rule not found")
-                    tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
-                    if tmp_ret is not None:
-                        tmp_log.debug(f"request_id={dc_req_spec.request_id} updated DB about rule not found")
-                    else:
-                        tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB ; skipped")
+                    with self.request_lock(dc_req_spec.request_id) as locked_spec:
+                        if not locked_spec:
+                            # not getting lock; skip
+                            tmp_log.warning(f"did not get lock; skipped")
+                            continue
+                        # got locked spec
+                        dc_req_spec = locked_spec
+                        # rule not found
+                        dc_req_spec.set_parameter("rule_unfound", True)
+                        tmp_log.error(f"request_id={dc_req_spec.request_id} ddm_rule_id={ddm_rule_id} rule not found")
+                        tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                        if tmp_ret:
+                            tmp_log.debug(f"request_id={dc_req_spec.request_id} updated DB about rule not found")
+                        else:
+                            tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB ; skipped")
                     # try to cancel or retire request
                     if dc_req_spec.status == DataCarouselRequestStatus.staging:
                         # requests staging but DDM rule not found; to cancel
@@ -2027,68 +2318,77 @@ class DataCarouselInterface(object):
                     # got error when getting the rule
                     tmp_log.error(f"request_id={dc_req_spec.request_id} failed to get rule of ddm_rule_id={ddm_rule_id} ; skipped")
                     continue
-                # Destination RSE
-                if dc_req_spec.destination_rse is None:
-                    the_replica_locks = self.ddmIF.list_replica_locks_by_id(ddm_rule_id)
-                    try:
-                        the_first_file = the_replica_locks[0]
-                    except IndexError:
-                        tmp_log.warning(
-                            f"request_id={dc_req_spec.request_id} no file from replica lock of ddm_rule_id={ddm_rule_id} ; destination_rse not updated"
-                        )
-                    except TypeError:
-                        tmp_log.warning(
-                            f"request_id={dc_req_spec.request_id} error listing replica lock of ddm_rule_id={ddm_rule_id} ; destination_rse not updated"
-                        )
-                    else:
-                        # fill in destination RSE
-                        destination_rse = the_first_file["rse"]
-                        dc_req_spec.destination_rse = destination_rse
-                        tmp_log.debug(f"request_id={dc_req_spec.request_id} filled destination_rse={destination_rse} of ddm_rule_id={ddm_rule_id}")
-                        to_update = True
-                # current staged files
-                current_staged_files = int(the_rule["locks_ok_cnt"])
-                new_staged_files = current_staged_files - dc_req_spec.staged_files
-                if new_staged_files > 0:
-                    # have more staged files than before; update request according to DDM rule
-                    dc_req_spec.staged_files = current_staged_files
-                    dc_req_spec.staged_size = int(dc_req_spec.dataset_size * dc_req_spec.staged_files / dc_req_spec.total_files)
-                    to_update = True
-                else:
-                    tmp_log.debug(f"request_id={dc_req_spec.request_id} got {new_staged_files} new staged files")
-                # check completion of staging
-                if dc_req_spec.staged_files == dc_req_spec.total_files:
-                    # all files staged; process request to done
-                    now_time = naive_utcnow()
-                    dc_req_spec.status = DataCarouselRequestStatus.done
-                    dc_req_spec.end_time = now_time
-                    dc_req_spec.staged_size = dc_req_spec.dataset_size
-                    to_update = True
-                # update to DB if attribute updated
-                if to_update:
-                    ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
-                    if ret is not None:
-                        tmp_log.info(
-                            f"request_id={dc_req_spec.request_id} got {new_staged_files} new staged files; updated DB about staging ; status={dc_req_spec.status}"
-                        )
-                        dc_req_spec = ret
-                        # more for done requests
-                        if dc_req_spec.status == DataCarouselRequestStatus.done:
-                            # force to keep alive the rule
-                            tmp_ret = self.refresh_ddm_rule_of_request(dc_req_spec, lifetime_days=DONE_LIFETIME_DAYS, force_refresh=True, by="watchdog")
-                            if tmp_ret:
-                                tmp_log.debug(
-                                    f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={dc_req_spec.ddm_rule_id} refreshed lifetime to be {DONE_LIFETIME_DAYS} days long"
-                                )
-                            # update staged files in DB for done requests
-                            tmp_ret = self._update_staged_files(dc_req_spec)
-                            if tmp_ret:
-                                tmp_log.debug(f"request_id={dc_req_spec.request_id} done; updated staged files")
-                            else:
-                                tmp_log.warning(f"request_id={dc_req_spec.request_id} done; failed to update staged files ; skipped")
-                    else:
-                        tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB for ddm_rule_id={ddm_rule_id} ; skipped")
+                # Got rule; check further
+                with self.request_lock(dc_req_spec.request_id) as locked_spec:
+                    if not locked_spec:
+                        # not getting lock; skip
+                        tmp_log.warning(f"did not get lock; skipped")
                         continue
+                    # got locked spec
+                    dc_req_spec = locked_spec
+                    # Destination RSE
+                    if dc_req_spec.destination_rse is None:
+                        the_replica_locks = self.ddmIF.list_replica_locks_by_id(ddm_rule_id)
+                        try:
+                            the_first_file = the_replica_locks[0]
+                        except IndexError:
+                            tmp_log.warning(
+                                f"request_id={dc_req_spec.request_id} no file from replica lock of ddm_rule_id={ddm_rule_id} ; destination_rse not updated"
+                            )
+                        except TypeError:
+                            tmp_log.warning(
+                                f"request_id={dc_req_spec.request_id} error listing replica lock of ddm_rule_id={ddm_rule_id} ; destination_rse not updated"
+                            )
+                        else:
+                            # fill in destination RSE
+                            destination_rse = the_first_file["rse"]
+                            dc_req_spec.destination_rse = destination_rse
+                            tmp_log.debug(f"request_id={dc_req_spec.request_id} filled destination_rse={destination_rse} of ddm_rule_id={ddm_rule_id}")
+                            to_update = True
+                    # current staged files
+                    now_time = naive_utcnow()
+                    current_staged_files = int(the_rule["locks_ok_cnt"])
+                    new_staged_files = current_staged_files - dc_req_spec.staged_files
+                    if new_staged_files > 0:
+                        # have more staged files than before; update request according to DDM rule
+                        dc_req_spec.staged_files = current_staged_files
+                        dc_req_spec.staged_size = int(dc_req_spec.dataset_size * dc_req_spec.staged_files / dc_req_spec.total_files)
+                        dc_req_spec.last_staged_time = now_time
+                        to_update = True
+                    else:
+                        tmp_log.debug(f"request_id={dc_req_spec.request_id} got {new_staged_files} new staged files")
+                    # check completion of staging
+                    if dc_req_spec.staged_files == dc_req_spec.total_files:
+                        # all files staged; process request to done
+                        dc_req_spec.status = DataCarouselRequestStatus.done
+                        dc_req_spec.end_time = now_time
+                        dc_req_spec.staged_size = dc_req_spec.dataset_size
+                        to_update = True
+                    # update to DB if attribute updated
+                    if to_update:
+                        ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                        if ret is not None:
+                            # updated DB about staging
+                            tmp_log.info(
+                                f"request_id={dc_req_spec.request_id} got {new_staged_files} new staged files; updated DB about staging ; status={dc_req_spec.status}"
+                            )
+                            # more for done requests
+                            if dc_req_spec.status == DataCarouselRequestStatus.done:
+                                # force to keep alive the rule
+                                tmp_ret = self.refresh_ddm_rule_of_request(dc_req_spec, lifetime_days=DONE_LIFETIME_DAYS, force_refresh=True, by="watchdog")
+                                if tmp_ret:
+                                    tmp_log.debug(
+                                        f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={dc_req_spec.ddm_rule_id} refreshed lifetime to be {DONE_LIFETIME_DAYS} days long"
+                                    )
+                                # update staged files in DB for done requests
+                                tmp_ret = self._update_staged_files(dc_req_spec)
+                                if tmp_ret:
+                                    tmp_log.debug(f"request_id={dc_req_spec.request_id} done; updated staged files")
+                                else:
+                                    tmp_log.warning(f"request_id={dc_req_spec.request_id} done; failed to update staged files ; skipped")
+                        else:
+                            tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB for ddm_rule_id={ddm_rule_id} ; skipped")
+                            continue
             except Exception:
                 tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
 
@@ -2325,7 +2625,7 @@ class DataCarouselInterface(object):
 
         Returns:
             DataCarouselRequestSpec|None : spec of the resubmitted reqeust spec if success, None otherwise
-            str|None : error message
+            str|None : error message if any, None otherwise
         """
         tmp_log = LogWrapper(
             logger,
@@ -2335,38 +2635,47 @@ class DataCarouselInterface(object):
         # initialized
         dc_req_spec_resubmitted = None
         err_msg = None
-        # dummy spec to resubmit
-        dummy_dc_req_spec_to_resubmit = get_resubmit_request_spec(orig_dc_req_spec, exclude_prev_dst)
-        # check and choose availble destination RSE
-        destination_rse = self._choose_destination_rse_for_request(dummy_dc_req_spec_to_resubmit)
-        if destination_rse is None:
-            err_msg = f"no other available destination RSE for request_id={orig_dc_req_spec.request_id}; skipped"
-            tmp_log.warning(err_msg)
-            return None, err_msg
-        # resubmit
-        dc_req_spec_resubmitted = self.taskBufferIF.resubmit_data_carousel_request_JEDI(orig_dc_req_spec.request_id, exclude_prev_dst)
-        if dc_req_spec_resubmitted:
-            new_request_id = dc_req_spec_resubmitted.request_id
-            tmp_log.debug(f"resubmitted request_id={new_request_id}")
-            # expire DDM rule of original request
-            if orig_dc_req_spec.ddm_rule_id:
-                short_time = 5
-                self._refresh_ddm_rule(orig_dc_req_spec.ddm_rule_id, short_time)
-            # stage the resubmitted request immediately without queuing
-            is_ok, _, dc_req_spec_resubmitted = self.stage_request(
-                dc_req_spec_resubmitted, destination_rse=destination_rse, submit_idds_request=submit_idds_request
-            )
-            if is_ok:
-                tmp_log.debug(f"staged resubmitted request_id={new_request_id}")
-            else:
-                err_msg = f"failed to stage resubmitted request_id={new_request_id}; skipped"
+        # get lock
+        with self.request_lock(orig_dc_req_spec.request_id) as locked_spec:
+            if not locked_spec:
+                # not getting lock; skip
+                err_msg = "did not get lock; skipped"
                 tmp_log.warning(err_msg)
-        elif dc_req_spec_resubmitted is False:
-            err_msg = f"request not found or not resubmittable; skipped"
-            tmp_log.warning(err_msg)
-        else:
-            err_msg = f"failed to resubmit"
-            tmp_log.error(err_msg)
+                return None, err_msg
+            # got locked spec
+            orig_dc_req_spec = locked_spec
+            # dummy spec to resubmit
+            dummy_dc_req_spec_to_resubmit = get_resubmit_request_spec(orig_dc_req_spec, exclude_prev_dst)
+            # check and choose availble destination RSE
+            destination_rse = self._choose_destination_rse_for_request(dummy_dc_req_spec_to_resubmit)
+            if destination_rse is None:
+                err_msg = f"no other available destination RSE for request_id={orig_dc_req_spec.request_id}; skipped"
+                tmp_log.warning(err_msg)
+                return None, err_msg
+            # resubmit
+            dc_req_spec_resubmitted = self.taskBufferIF.resubmit_data_carousel_request_JEDI(orig_dc_req_spec.request_id, exclude_prev_dst)
+            if dc_req_spec_resubmitted:
+                new_request_id = dc_req_spec_resubmitted.request_id
+                tmp_log.debug(f"resubmitted request_id={new_request_id}")
+                # expire DDM rule of original request
+                if orig_dc_req_spec.ddm_rule_id:
+                    short_time = 5
+                    self._refresh_ddm_rule(orig_dc_req_spec.ddm_rule_id, short_time)
+                # stage the resubmitted request immediately without queuing
+                is_ok, _, dc_req_spec_resubmitted = self.stage_request(
+                    dc_req_spec_resubmitted, destination_rse=destination_rse, submit_idds_request=submit_idds_request
+                )
+                if is_ok:
+                    tmp_log.debug(f"staged resubmitted request_id={new_request_id}")
+                else:
+                    err_msg = f"failed to stage resubmitted request_id={new_request_id}; skipped"
+                    tmp_log.warning(err_msg)
+            elif dc_req_spec_resubmitted is False:
+                err_msg = f"request not found or not resubmittable; skipped"
+                tmp_log.warning(err_msg)
+            else:
+                err_msg = f"failed to resubmit"
+                tmp_log.error(err_msg)
         # return
         return dc_req_spec_resubmitted, err_msg
 
@@ -2384,7 +2693,9 @@ class DataCarouselInterface(object):
     #     ret = self.ddmIF.update_rule_by_id(rule_id, set_map)
     #     return ret
 
-    def change_request_source_rse(self, dc_req_spec: DataCarouselRequestSpec, cancel_fts: bool = False) -> tuple[bool | None, DataCarouselRequestSpec]:
+    def change_request_source_rse(
+        self, dc_req_spec: DataCarouselRequestSpec, cancel_fts: bool = False, change_src_expr: bool = False, source_rse: str | None = None
+    ) -> tuple[bool | None, DataCarouselRequestSpec, str | None]:
         """
         Change source RSE
         If the request is staging, unset source_replica_expression of its DDM rule
@@ -2394,70 +2705,190 @@ class DataCarouselInterface(object):
         Args:
             dc_req_spec (DataCarouselRequestSpec): spec of the request
             cancel_fts (bool): whether to cancel current FTS requests on DDM
+            change_src_expr (bool): whether to change source_replica_expression of the DDM rule by replacing old source with new one, instead of just dropping old source
+            source_rse (str|None): if set, use this source RSE instead of choosing one randomly, also force change_src_expr to be True; default is None
 
         Returns:
             bool|None : True for success, False for failure, None if skipped
             DataCarouselRequestSpec|None: spec of the request after changing source
+            str|None: error message if any, None otherwise
         """
         tmp_log = LogWrapper(logger, f"change_request_source_rse request_id={dc_req_spec.request_id}")
+        if source_rse:
+            change_src_expr = True
         ret = None
+        err_msg = None
         rse_set = set()
+        # re-choose source_rse for queued request
+        active_source_rses_set = self._get_active_source_rses()
+        dataset = dc_req_spec.dataset
+        source_type, rse_set_orig, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
+        replicas_map = self._get_full_replicas_per_type(dataset)
+        # exclude original source RSE if possible
+        if dc_req_spec.status == DataCarouselRequestStatus.staging and not rse_set_orig:
+            # for already staging request, DDM rule already exists, choose source RSE from unfiltered tape replicas if no filtered RSE
+            rse_set |= set(replicas_map["tape"])
+        if rse_set_orig:
+            rse_set |= rse_set_orig
+        if (
+            staging_rule
+            and (source_replica_expression := staging_rule.get("source_replica_expression"))
+            and source_replica_expression == f"{SRC_REPLI_EXPR_PREFIX}|{dc_req_spec.source_rse}"
+        ):
+            # exclude source RSE already in source_replica_expression
+            rse_set.discard(dc_req_spec.source_rse)
+        # check status of the request
         if dc_req_spec.status == DataCarouselRequestStatus.queued:
-            # re-choose source_rse for queued request
-            active_source_rses_set = self._get_active_source_rses()
-            dataset = dc_req_spec.dataset
-            source_type, rse_set_orig, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
-            # exclude original source RSE if possible
-            if rse_set_orig:
-                rse_set = copy.copy(rse_set_orig)
-                rse_set.discard(dc_req_spec.source_rse)
-            # check
             if not rse_set:
                 # no availible source RSE
-                tmp_log.warning(f"dataset={dataset} has no other source RSE available; skipped")
+                err_msg = f"dataset={dataset} has no other source RSE available; skipped"
+                tmp_log.warning(err_msg)
                 ret = False
             elif source_type == "datadisk":
                 # replicas already on datadisk; skip
-                tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
+                err_msg = f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped"
+                tmp_log.debug(err_msg)
                 ret = False
             elif source_type == "tape":
                 # replicas only on tape
-                tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
-                # choose source RSE
-                _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
-                # fill new attributes
-                dc_req_spec.source_rse = new_source_rse
-                dc_req_spec.ddm_rule_id = ddm_rule_id
-                dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
-                if to_pin:
-                    dc_req_spec.set_parameter("to_pin", True)
-                if suggested_dst_list:
-                    dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
-                # update DB
-                tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
-                if tmp_ret is not None:
-                    dc_req_spec = tmp_ret
-                    tmp_log.info(
-                        f"updated DB about change source; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id} , to_pin={to_pin} , suggested_dst_list={suggested_dst_list}"
-                    )
-                    ret = True
+                new_source_rse = None
+                if source_rse:
+                    if source_rse not in rse_set:
+                        # source_rse not in available RSEs
+                        err_msg = f"dataset={dataset} source_rse={source_rse} not in available RSEs {rse_set} ; skipped"
+                        tmp_log.warning(err_msg)
+                        ret = False
+                    else:
+                        # use source_rse
+                        new_source_rse = source_rse
                 else:
-                    tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB ; skipped")
-                    ret = False
+                    # choose source RSE
+                    tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
+                    _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    if not new_source_rse:
+                        # failed to choose source RSE
+                        err_msg = f"dataset={dataset} failed to choose source RSE ; skipped"
+                        tmp_log.warning(err_msg)
+                        ret = False
+                # fill new attributes for queued request
+                if ret is not False and new_source_rse:
+                    with self.request_lock(dc_req_spec.request_id) as locked_spec:
+                        if not locked_spec:
+                            # not getting lock; skip
+                            err_msg = "did not get lock; skipped"
+                            tmp_log.warning(err_msg)
+                            return False, dc_req_spec, err_msg
+                        # got locked spec
+                        dc_req_spec = locked_spec
+                        # fill attributes
+                        dc_req_spec.source_rse = new_source_rse
+                        dc_req_spec.ddm_rule_id = ddm_rule_id
+                        dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
+                        if to_pin:
+                            dc_req_spec.set_parameter("to_pin", True)
+                        if suggested_dst_list:
+                            dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
+                        # update DB
+                        tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                        if tmp_ret:
+                            tmp_log.info(
+                                f"updated DB about change source of queued request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id} , to_pin={to_pin} , suggested_dst_list={suggested_dst_list}"
+                            )
+                            ret = True
+                        else:
+                            err_msg = f"failed to update DB ; skipped"
+                            tmp_log.error(err_msg)
+                            ret = False
             else:
                 # no replica found on tape nor on datadisk; skip
-                tmp_log.debug(f"dataset={dataset} has no replica on any tape or datadisk ; skipped")
+                err_msg = f"dataset={dataset} has no replica on any tape or datadisk ; skipped"
+                tmp_log.debug(err_msg)
                 ret = False
         elif dc_req_spec.status == DataCarouselRequestStatus.staging:
             # unset source_replica_expression of DDM rule for staging request
             set_map = {"source_replica_expression": None}
+            if change_src_expr:
+                # change source_replica_expression by replacing old source with new one
+                if not rse_set:
+                    # no availible source RSE
+                    err_msg = f"dataset={dataset} has no other source RSE available; skipped"
+                    tmp_log.warning(err_msg)
+                    ret = False
+                else:
+                    new_source_rse = None
+                    if source_rse:
+                        if source_rse not in rse_set:
+                            # source_rse not in available RSEs
+                            err_msg = f"dataset={dataset} source_rse={source_rse} not in available RSEs {rse_set} ; skipped"
+                            tmp_log.warning(err_msg)
+                            ret = False
+                        else:
+                            # use source_rse
+                            new_source_rse = source_rse
+                    else:
+                        # choose source RSE
+                        tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
+                        new_source_rse = random.choice(list(rse_set))
+                        if not new_source_rse:
+                            # failed to choose source RSE
+                            err_msg = f"dataset={dataset} failed to choose source RSE ; skipped"
+                            tmp_log.warning(err_msg)
+                            ret = False
+                    if ret is not False and new_source_rse:
+                        with self.request_lock(dc_req_spec.request_id) as locked_spec:
+                            if not locked_spec:
+                                # not getting lock; skip
+                                err_msg = "did not get lock; skipped"
+                                tmp_log.warning(err_msg)
+                                return False, dc_req_spec, err_msg
+                            else:
+                                # got locked spec
+                                dc_req_spec = locked_spec
+                                # fill new attributes for staging request
+                                dc_req_spec.source_rse = new_source_rse
+                                dc_req_spec.source_tape = self._get_source_tape_from_rse(dc_req_spec.source_rse)
+                                # update source_replica_expression
+                                set_map["source_replica_expression"] = f"{SRC_REPLI_EXPR_PREFIX}|{dc_req_spec.source_rse}"
+                                # update DB
+                                tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                                if tmp_ret is not None:
+                                    tmp_log.info(
+                                        f"updated DB about change source of staging request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id}"
+                                    )
+                                    ret = True
+                                else:
+                                    err_msg = f"failed to update DB ; skipped"
+                                    tmp_log.error(err_msg)
+                                    ret = False
+            # update DDM rule
+            if ret is not False:
+                tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, set_map)
+                if tmp_ret:
+                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={set_map} done")
+                    ret = True
+                else:
+                    err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={set_map} failed to update DDM rule ; skipped"
+                    tmp_log.error(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={set_map} got {tmp_ret}; skipped")
+                    ret = False
+            # cancel FTS requests in separate DDM rule update calls (otherwise DDM will not cancel FTS)
             if cancel_fts:
-                set_map.update({"cancel_requests": True, "state": "STUCK"})
-            tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, set_map)
-            if tmp_ret:
-                tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} done")
-                ret = True
-            else:
-                tmp_log.error(f"ddm_rule_id={dc_req_spec.ddm_rule_id} got {tmp_ret}; skipped")
-                ret = False
-        return ret, dc_req_spec
+                cancel_fts_success = True
+                # call first time to cancel requests
+                _set_map = {"cancel_requests": True, "state": "STUCK"}
+                tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, _set_map)
+                if tmp_ret:
+                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} done")
+                else:
+                    tmp_log.warning(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} got {tmp_ret} ; skipped")
+                    cancel_fts_success = False
+                # call second time to boost rule
+                _set_map = {"boost_rule": True}
+                tmp_ret = self.ddmIF.update_rule_by_id(dc_req_spec.ddm_rule_id, _set_map)
+                if tmp_ret:
+                    tmp_log.debug(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} done")
+                else:
+                    tmp_log.warning(f"ddm_rule_id={dc_req_spec.ddm_rule_id} params={_set_map} got {tmp_ret} ; skipped")
+                    cancel_fts_success = False
+                if not cancel_fts_success:
+                    err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} failed to cancel FTS requests ; skipped"
+        return ret, dc_req_spec, err_msg
