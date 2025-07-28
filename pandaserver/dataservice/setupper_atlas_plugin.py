@@ -839,28 +839,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
 
                 site_spec = self.site_mapper.getSite(job.computingSite)
 
-                # source
-                _, scope_src_output = select_scope(site_spec, job.prodSourceLabel, job.job_label)
-                src_ddm_id = site_spec.ddm_output[scope_src_output]
-
-                # destination
+                # use input RSE with read_lan/0 as destination
                 scope_dst_input, _ = select_scope(site_spec, job.prodSourceLabel, job.job_label)
-                if site_spec.ddm_endpoints_input[scope_dst_input].isAssociated(src_ddm_id):
-                    dst_ddm_id = src_ddm_id
-                else:
-                    dst_ddm_id = site_spec.ddm_input[scope_dst_input]
-
-                # Get the ATLASDATADISK DDM endpoint in site, it will have preference for pre-staging
-                try:
-                    dst_datadisk_id = site_spec.setokens_input[scope_dst_input]["ATLASDATADISK"]
-                except KeyError:
-                    dst_datadisk_id = None
-
-                if dst_datadisk_id and dst_ddm_id != dst_datadisk_id:
-                    ddm_id = dst_datadisk_id
-                else:
-                    ddm_id = dst_ddm_id
-                tmp_logger.debug(f"use {ddm_id} for pre-staging")
+                ddm_id = site_spec.ddm_input[scope_dst_input]
 
                 # set share and activity
                 option_activity = "Production Input"
