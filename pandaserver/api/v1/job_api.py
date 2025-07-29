@@ -111,7 +111,7 @@ def get_description(self, job_ids: List[int]) -> Dict:
         job_ids = []
 
     tmp_logger.debug(f"Retrieving data for {job_ids}")
-    ret = JobUtils.dump_jobs_json(global_task_buffer.peekJobs(job_ids, use_json=True))
+    ret = global_task_buffer.peekJobs(job_ids, use_json=True)
     _logger.debug("Done")
 
     return generate_response(True, data=ret)
