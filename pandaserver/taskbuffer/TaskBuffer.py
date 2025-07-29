@@ -75,9 +75,9 @@ class TaskBuffer:
     # transaction as a context manager
     # CANNOT be used with ConBridge or TaskBufferInterface which uses multiprocess.pipe
     @contextmanager
-    def transaction(self, name: str):
+    def transaction(self, name=None, tmp_log=None):
         with self.proxyPool.get() as proxy:
-            with proxy.transaction(name) as txn:
+            with proxy.transaction(name, tmp_log) as txn:
                 if txn is None:
                     raise RuntimeError(f"Failed to start transaction {name}")
                 # yield the transaction

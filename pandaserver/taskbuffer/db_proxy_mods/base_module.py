@@ -476,12 +476,13 @@ class BaseModule:
 
     # transaction as a context manager
     @contextmanager
-    def transaction(self, name: str):
+    def transaction(self, name: str | None = None, tmp_log=None):
         """
         Context manager for transaction
 
         Args:
-            name (str): name of the transaction to be shown in the log
+            name (str, optional): name of the transaction to be shown in the log
+            tmp_log (LogWrapper, optional): logger to use. If None, a new logger will be created
 
         Yields:
             Any: the cursor object for executing SQL commands
@@ -489,16 +490,17 @@ class BaseModule:
         """
         comment = " /* DBProxy.transaction */"
         try:
-            tmp_log = self.create_tagged_logger(comment, tag=name)
-            tmp_log.debug("start")
+            if tmp_log is None:
+                tmp_log = self.create_tagged_logger(comment, tag=name)
+            tmp_log.debug("transaction start")
             # begin transaction
             self.conn.begin()
             # cursor and logger for the with block
             yield (self.cur, tmp_log)
             # commit transaction
             if not self._commit():
-                raise RuntimeError("Commit error")
-            tmp_log.debug("done")
+                raise RuntimeError("commit error")
+            tmp_log.debug("transaction done")
         except Exception as e:
             # roll back
             self._rollback()
