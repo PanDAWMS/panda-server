@@ -1,4 +1,5 @@
 import enum
+import json
 import math
 import re
 
@@ -1246,12 +1247,54 @@ class JediTaskSpec(object):
     def useZipToPin(self):
         return self.check_split_rule("useZipToPin")
 
-    # architecture: sw_platform<@base_platform><#host_cpu_spec><&host_gpu_spec>
-    # host_cpu_spec: architecture<-vendor<-instruction_set>>
-    # host_gpu_spec: vendor<-model>
+    # architecture:
+    # old format: sw_platform<@base_platform><#host_cpu_spec><&host_gpu_spec>
+    #             host_cpu_spec: architecture<-vendor<-instruction_set>>
+    #             host_gpu_spec: vendor<-model>
+    #
+    # new format: a json dict with keys of sw_platform, base_platform, cpu_specs, and gpu_specs
+    #             cpu_specs: a list of json dicts with keys of arch, vendor, and instr
+    #             gpu_specs: a list of json dicts with keys of vendor and model
+
+    # reformat architecture into JSON
+    def reformat_architecture(self):
+        if self.architecture is None:
+            return
+        try:
+            # already in JSON format
+            json.loads(self.architecture)
+            return
+        except Exception:
+            pass
+        # convert to new format
+        new_dict = {}
+        val = self.get_sw_platform()
+        if val:
+            new_dict["sw_platform"] = val
+        val = self.get_base_platform()
+        if val:
+            new_dict["base_platform"] = val
+        val = self.get_host_cpu_spec()
+        if val:
+            # remove wildcard entries and empty specs
+            l = [x for x in [{k: v for k, v in d.items() if v != "*"} for d in val] if x]
+            if l:
+                new_dict["cpu_specs"] = l
+        val = self.get_host_gpu_spec()
+        if val:
+            # remove wildcard entries and empty specs
+            l = [x for x in [{k: v for k, v in d.items() if v != "*"} for d in val] if x]
+            if l:
+                new_dict["gpu_specs"] = l
+        self.architecture = json.dumps(new_dict)
 
     # get SW platform
     def get_sw_platform(self):
+        try:
+            d = json.loads(self.architecture)
+            return d.get("sw_platform", "")
+        except Exception:
+            pass
         if self.architecture is not None:
             m = re.search("^([^@#&]*)", self.architecture)
             if m:
@@ -1260,6 +1303,11 @@ class JediTaskSpec(object):
 
     # get base platform
     def get_base_platform(self):
+        try:
+            d = json.loads(self.architecture)
+            return d.get("base_platform", None)
+        except Exception:
+            pass
         if self.architecture is None or "@" not in self.architecture:
             return None
         m = re.search("@([^#&]*)", self.architecture)
@@ -1280,6 +1328,15 @@ class JediTaskSpec(object):
 
     # get host CPU spec
     def get_host_cpu_spec(self):
+        try:
+            d = json.loads(self.architecture)
+            specs = d.get("cpu_specs", None)
+            for spec in specs:
+                spec.setdefault("vendor", "*")
+                spec.setdefault("instr", "*")
+            return specs
+        except Exception:
+            pass
         try:
             if not self.architecture:
                 return None
@@ -1313,6 +1370,15 @@ class JediTaskSpec(object):
 
     # get host GPU spec
     def get_host_gpu_spec(self):
+        try:
+            d = json.loads(self.architecture)
+            specs = d.get("gpu_specs", None)
+            for spec in specs:
+                spec.setdefault("vendor", "*")
+                spec.setdefault("model", "*")
+            return specs
+        except Exception:
+            pass
         try:
             if self.architecture is None or "&" not in self.architecture:
                 return None
