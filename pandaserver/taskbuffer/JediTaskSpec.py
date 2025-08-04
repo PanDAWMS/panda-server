@@ -1253,8 +1253,8 @@ class JediTaskSpec(object):
     #             host_gpu_spec: vendor<-model>
     #
     # new format: a json dict with keys of sw_platform, base_platform, cpu_specs, and gpu_specs
-    #             cpu_spec: a list of json dicts with keys of arch, vendor, and instr
-    #             gpu_spec: a list of json dicts with keys of vendor and model
+    #             cpu_specs: a list of json dicts with keys of arch, vendor, and instr
+    #             gpu_specs: a list of json dicts with keys of vendor and model
 
     # reformat architecture into JSON
     def reformat_architecture(self):
