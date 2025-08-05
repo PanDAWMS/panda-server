@@ -58,10 +58,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         self.disp_file_list = {}
         # site mapper
         self.site_mapper = None
-        # location map
-        self.replica_map = {}
-        # all replica locations
-        self.all_replica_map = {}
         # available files at satellite sites
         self.available_lfns_in_satellites = {}
         # list of missing datasets
@@ -324,23 +320,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 file_list[job.dispatchDBlock]["md5sums"].append(file.md5sum)
                             else:
                                 file_list[job.dispatchDBlock]["md5sums"].append(f"md5:{file.md5sum}")
-
-                        # get replica locations
-                        self.replica_map.setdefault(job.dispatchDBlock, {})
-                        if file.dataset not in self.all_replica_map:
-                            if file.dataset.endswith("/"):
-                                status, out = self.get_list_dataset_replicas_in_container(file.dataset, True)
-                            else:
-                                status, out = self.get_list_dataset_replicas(file.dataset)
-                            if not status:
-                                tmp_logger.error(out)
-                                disp_error[job.dispatchDBlock] = f"could not get locations for {file.dataset}"
-                                tmp_logger.error(disp_error[job.dispatchDBlock])
-                            else:
-                                tmp_logger.debug(out)
-                                self.all_replica_map[file.dataset] = out
-                        if file.dataset in self.all_replica_map:
-                            self.replica_map[job.dispatchDBlock][file.dataset] = self.all_replica_map[file.dataset]
 
         # register dispatch dataset
         disp_list = self.register_dispatch_datasets(file_list, use_zip_to_pin_map, ds_task_map, tmp_logger, disp_error, jedi_task_id)
@@ -936,7 +915,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         all_guids = {}
         all_scopes = {}
         lfn_ds_map = {}
-        replica_map = {}
         tmp_logger.debug("start")
 
         # collect input LFNs
@@ -1018,19 +996,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             prod_error[dataset] = f"could not convert HTTP-res to map for prodDBlock {dataset}"
                             tmp_logger.error(prod_error[dataset])
                             tmp_logger.error(out)
-
-                    # get replica locations
-                    if (job.prodSourceLabel in ["managed", "test"]) and prod_error[dataset] == "" and dataset not in replica_map:
-                        if dataset.endswith("/"):
-                            status, out = self.get_list_dataset_replicas_in_container(dataset, True)
-                        else:
-                            status, out = self.get_list_dataset_replicas(dataset)
-                        if not status:
-                            prod_error[dataset] = f"could not get locations for {dataset}"
-                            tmp_logger.error(prod_error[dataset])
-                            tmp_logger.error(out)
-                        else:
-                            replica_map[dataset] = out
 
             # mark job with a missing dataset as failed and update files as missing
             is_failed = False
