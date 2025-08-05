@@ -1252,9 +1252,9 @@ class JediTaskSpec(object):
     #             host_cpu_spec: architecture<-vendor<-instruction_set>>
     #             host_gpu_spec: vendor<-model>
     #
-    # new format: a json dict with keys of sw_platform, base_platform, cpu_specs, and gpu_specs
+    # new format: a json dict with keys of sw_platform, base_platform, cpu_specs, and gpu_spec
     #             cpu_specs: a list of json dicts with keys of arch, vendor, and instr
-    #             gpu_specs: a list of json dicts with keys of vendor and model
+    #             gpu_spec: a json dict with keys of vendor and model
 
     # reformat architecture into JSON
     def reformat_architecture(self):
@@ -1283,9 +1283,9 @@ class JediTaskSpec(object):
         val = self.get_host_gpu_spec()
         if val:
             # remove wildcard entries and empty specs
-            l = [x for x in [{k: v for k, v in d.items() if v != "*"} for d in val] if x]
+            l = {k: v for k, v in val.items() if v != "*"}
             if l:
-                new_dict["gpu_specs"] = l
+                new_dict["gpu_spec"] = l
         self.architecture = json.dumps(new_dict)
 
     # get SW platform
@@ -1372,11 +1372,10 @@ class JediTaskSpec(object):
     def get_host_gpu_spec(self):
         try:
             d = json.loads(self.architecture)
-            specs = d.get("gpu_specs", None)
-            for spec in specs:
-                spec.setdefault("vendor", "*")
-                spec.setdefault("model", "*")
-            return specs
+            spec = d.get("gpu_spec", None)
+            spec.setdefault("vendor", "*")
+            spec.setdefault("model", "*")
+            return spec
         except Exception:
             pass
         try:
