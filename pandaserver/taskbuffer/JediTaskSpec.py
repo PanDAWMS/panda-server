@@ -1331,6 +1331,8 @@ class JediTaskSpec(object):
         try:
             d = json.loads(self.architecture)
             specs = d.get("cpu_specs", None)
+            if not specs:
+                return None
             for spec in specs:
                 spec.setdefault("vendor", "*")
                 spec.setdefault("instr", "*")
