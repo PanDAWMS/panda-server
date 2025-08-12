@@ -13,7 +13,7 @@ from pandaserver.taskbuffer import ErrorCode, JobUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.JobSpec import JobSpec
-from pandaserver.taskbuffer.workflow_core import WFDataSpec, WFStepSpec, WorkflowSpec
+from pandaserver.workflow.workflow_core import WFDataSpec, WFStepSpec, WorkflowSpec
 
 
 # Module class to define methods related to workflow

@@ -297,12 +297,13 @@ class WorkflowInterface(object):
 
     # Add methods for workflow management here
 
-    def register_workflow(self, prodsourcelabel: str, name: str, workflow_definition_json: str, *args, **kwargs):
+    def register_workflow(self, prodsourcelabel: str, username: str, name: str, workflow_definition_json: str, *args, **kwargs):
         """
         Register a new workflow
 
         Args:
             prodsourcelabel (str): Production source label for the workflow
+            username (str): Username of the person registering the workflow
             name (str): Name of the workflow
             workflow_definition_json (str): JSON string defining the workflow
             *args: Additional arguments
@@ -313,6 +314,7 @@ class WorkflowInterface(object):
         workflow_spec = WorkflowSpec()
         workflow_spec.prodsourcelabel = prodsourcelabel
         workflow_spec.name = name
+        workflow_spec.username = username
         workflow_spec.definition_json = workflow_definition_json
         workflow_spec.creation_time = naive_utcnow()
         workflow_spec.status = "registered"
