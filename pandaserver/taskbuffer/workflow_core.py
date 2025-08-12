@@ -112,7 +112,7 @@ class WorkflowSpec(WorkflowBaseSpec):
         AttributeWithType("name", str),
         AttributeWithType("status", str),
         AttributeWithType("prodsourcelabel", str),
-        AttributeWithType("gshare", str),
+        AttributeWithType("username", str),
         AttributeWithType("creation_time", datetime),
         AttributeWithType("start_time", datetime),
         AttributeWithType("end_time", datetime),
@@ -141,11 +141,13 @@ class WFStepSpec(WorkflowBaseSpec):
     # attributes with types
     attributes_with_types = (
         AttributeWithType("step_id", int),
+        AttributeWithType("name", str),
         AttributeWithType("workflow_id", int),
         AttributeWithType("member_id", int),
-        AttributeWithType("status", str),
         AttributeWithType("type", str),
-        AttributeWithType("task_id", int),
+        AttributeWithType("status", str),
+        AttributeWithType("flavor", str),
+        AttributeWithType("target_id", str),
         AttributeWithType("creation_time", datetime),
         AttributeWithType("start_time", datetime),
         AttributeWithType("end_time", datetime),
@@ -173,10 +175,12 @@ class WFDataSpec(WorkflowBaseSpec):
     # attributes with types
     attributes_with_types = (
         AttributeWithType("data_id", int),
+        AttributeWithType("name", str),
         AttributeWithType("workflow_id", int),
-        AttributeWithType("status", str),
         AttributeWithType("type", str),
-        AttributeWithType("lfn", str),
+        AttributeWithType("status", str),
+        AttributeWithType("flavor", str),
+        AttributeWithType("target_id", str),
         AttributeWithType("creation_time", datetime),
         AttributeWithType("start_time", datetime),
         AttributeWithType("end_time", datetime),
@@ -215,6 +219,137 @@ class WorkflowInterface(object):
         """
         self.tbif = taskbuffer_if
         self.ddm_if = rucioAPI
+        self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
+
+    #### Context managers for locking
+
+    @contextmanager
+    def workflow_lock(self, workflow_id: int, lock_expiration_sec: int = 120):
+        """
+        Context manager to lock a workflow
+
+        Args:
+            workflow_id (int): ID of the workflow to lock
+            lock_expiration_sec (int): Time in seconds after which the lock expires
+
+        Yields:
+            WorkflowSpec | None: The locked workflow specification if the lock was acquired, otherwise None
+        """
+        if self.tbif.lock_workflow(workflow_id, self.full_pid, lock_expiration_sec):
+            try:
+                # get the workflow spec locked
+                locked_spec = self.tbif.get_workflow(workflow_id)
+                # yield and run wrapped function
+                yield locked_spec
+            finally:
+                self.tbif.unlock_workflow(workflow_id, self.full_pid)
+        else:
+            # lock not acquired
+            yield None
+
+    @contextmanager
+    def workflow_step_lock(self, step_id: int, lock_expiration_sec: int = 120):
+        """
+        Context manager to lock a workflow step
+
+        Args:
+            step_id (int): ID of the workflow step to lock
+            lock_expiration_sec (int): Time in seconds after which the lock expires
+
+        Yields:
+            WFStepSpec | None: The locked workflow step specification if the lock was acquired, otherwise None
+        """
+        if self.tbif.lock_workflow_step(step_id, self.full_pid, lock_expiration_sec):
+            try:
+                # get the workflow step spec locked
+                locked_spec = self.tbif.get_workflow_step(step_id)
+                # yield and run wrapped function
+                yield locked_spec
+            finally:
+                self.tbif.unlock_workflow_step(step_id, self.full_pid)
+        else:
+            # lock not acquired
+            yield None
+
+    @contextmanager
+    def workflow_data_lock(self, data_id: int, lock_expiration_sec: int = 120):
+        """
+        Context manager to lock workflow data
+
+        Args:
+            data_id (int): ID of the workflow data to lock
+            lock_expiration_sec (int): Time in seconds after which the lock expires
+
+        Yields:
+            WFDataSpec | None: The locked workflow data specification if the lock was acquired, otherwise None
+        """
+        if self.tbif.lock_workflow_data(data_id, self.full_pid, lock_expiration_sec):
+            try:
+                # get the workflow data spec locked
+                locked_spec = self.tbif.get_workflow_data(data_id)
+                # yield and run wrapped function
+                yield locked_spec
+            finally:
+                self.tbif.unlock_workflow_data(data_id, self.full_pid)
+        else:
+            # lock not acquired
+            yield None
 
     # Add methods for workflow management here
-    # e.g., create_workflow, update_workflow, delete_workflow, etc.
+
+    def register_workflow(self, prodsourcelabel: str, name: str, workflow_definition_json: str, *args, **kwargs):
+        """
+        Register a new workflow
+
+        Args:
+            prodsourcelabel (str): Production source label for the workflow
+            name (str): Name of the workflow
+            workflow_definition_json (str): JSON string defining the workflow
+            *args: Additional arguments
+            **kwargs: Additional keyword arguments
+        """
+        # Implementation of workflow registration logic
+        ...
+        workflow_spec = WorkflowSpec()
+        workflow_spec.prodsourcelabel = prodsourcelabel
+        workflow_spec.name = name
+        workflow_spec.definition_json = workflow_definition_json
+        workflow_spec.creation_time = naive_utcnow()
+        workflow_spec.status = "registered"
+        # Update DB
+        ret_workflow_spec = self.tbif.update_workflow(workflow_spec, *args, **kwargs)
+        if ret_workflow_spec is None:
+            logger.error(f"Failed to register workflow prodsourcelabel={prodsourcelabel} name={name}")
+            return None
+        logger.info(f"Registered workflow prodsourcelabel={prodsourcelabel} name={name} workflow_id={ret_workflow_spec.workflow_id}")
+        return ret_workflow_spec
+
+    #### Workflow status transitions
+
+    def process_workflow_registered(self, workflow_spec: WorkflowSpec):
+        """
+        Process a workflow in registered status
+        Parse the workflow definition, register steps, and update its status
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow specification to process
+        """
+        # Parse the workflow definition
+        try:
+            workflow_definition_dict = json.loads(workflow_spec.definition_json)
+            # Register steps based on nodes in the definition
+            for node in workflow_definition_dict["nodes"]:
+                step_spec = WFStepSpec()
+                step_spec.workflow_id = workflow_spec.workflow_id
+                step_spec.member_id = node["id"]
+                step_spec.status = "registered"
+                step_spec.type = node.get("type", "default")
+                # step_spec.parameters = json.dumps(node.get("parameters", {}))
+                step_spec.creation_time = naive_utcnow()
+        except Exception as e:
+            logger.error(f"Failed to parse workflow definition for workflow_id={workflow_spec.workflow_id}: {e}")
+
+        # FIXME: temporary, skip data checking and go to starting directly
+        workflow_spec.status = "starting"
+        # Update DB
+        self.tbif.update_workflow(workflow_spec)

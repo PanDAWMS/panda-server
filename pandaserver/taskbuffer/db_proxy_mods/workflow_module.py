@@ -1,8 +1,8 @@
-import datetime
 import json
 import os
 import re
 import sys
+from datetime import datetime, timedelta
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -47,7 +47,7 @@ class WorkflowModule(BaseModule):
                     workflow_spec.pack(res)
                     return workflow_spec
         else:
-            tmp_log.warning("no request found; skipped")
+            tmp_log.warning("no workflow found; skipped")
             return None
 
     def get_workflow_step(self, step_id: int) -> WFStepSpec | None:
@@ -75,7 +75,7 @@ class WorkflowModule(BaseModule):
                     wf_step_spec.pack(res)
                     return wf_step_spec
         else:
-            tmp_log.warning("no request found; skipped")
+            tmp_log.warning("no step found; skipped")
             return None
 
     def get_workflow_data(self, data_id: int) -> WFDataSpec | None:
@@ -103,7 +103,7 @@ class WorkflowModule(BaseModule):
                     wf_data_spec.pack(res)
                     return wf_data_spec
         else:
-            tmp_log.warning("no request found; skipped")
+            tmp_log.warning("no data found; skipped")
             return None
 
     def get_steps_of_workflow(self, workflow_id: int) -> list[WFStepSpec]:
@@ -159,6 +159,258 @@ class WorkflowModule(BaseModule):
         else:
             tmp_log.warning("no data found; skipped")
             return []
+
+    def lock_workflow(self, workflow_id: int, locked_by: str, lock_expiration_sec: int = 120) -> bool | None:
+        """
+        Lock a workflow to prevent concurrent modifications
+
+        Args:
+            workflow_id (int): ID of the workflow to lock
+            locked_by (str): Identifier of the entity locking the workflow
+            lock_expiration_sec (int): Time in seconds after which the lock expires
+
+        Returns:
+            bool | None: True if the lock was acquired, False if not, None if an error occurred
+        """
+        comment = " /* DBProxy.lock_workflow */"
+        tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_id}, locked_by={locked_by}")
+        tmp_log.debug("start")
+        try:
+            now_time = naive_utcnow()
+            sql_lock = (
+                f"UPDATE {panda_config.schemaJEDI}.workflows "
+                "SET locked_by=:locked_by, lock_time=:lock_time "
+                "WHERE workflow_id=:workflow_id "
+                "AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time<:min_lock_time)"
+            )
+            var_map = {
+                ":locked_by": self.full_pid,
+                ":lock_time": now_time,
+                ":workflow_id": workflow_id,
+                ":min_lock_time": now_time - timedelta(seconds=lock_expiration_sec),
+            }
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                cur.execute(sql_lock + comment, var_map)
+                row_count = cur.rowcount
+                if row_count is None:
+                    tmp_log.error(f"failed to update DB to lock; skipped")
+                elif row_count > 1:
+                    tmp_log.error(f"more than one workflow updated to lock; unexpected")
+                elif row_count == 0:
+                    # no row updated; did not get the lock
+                    tmp_log.debug(f"did not get lock; skipped")
+                    return False
+                elif row_count == 1:
+                    # successfully locked the workflow
+                    tmp_log.debug(f"got lock")
+                    return True
+        except Exception as e:
+            tmp_log.error(f"failed to lock workflow: {e}")
+
+    def unlock_workflow(self, workflow_id: int, locked_by: str) -> bool | None:
+        """
+        Unlock a workflow to allow modifications
+
+        Args:
+            workflow_id (int): ID of the workflow to unlock
+            locked_by (str): Identifier of the entity unlocking the workflow
+
+        Returns:
+            bool | None: True if the unlock was successful, False if not, None if an error occurred
+        """
+        comment = " /* DBProxy.unlock_workflow */"
+        tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_id}, locked_by={locked_by}")
+        tmp_log.debug("start")
+        try:
+            sql_unlock = (
+                f"UPDATE {panda_config.schemaJEDI}.workflows " "SET locked_by=NULL, lock_time=NULL " "WHERE workflow_id=:workflow_id AND locked_by=:locked_by"
+            )
+            var_map = {":workflow_id": workflow_id, ":locked_by": locked_by}
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                cur.execute(sql_unlock + comment, var_map)
+                row_count = cur.rowcount
+                if row_count is None:
+                    tmp_log.error(f"failed to update DB to unlock; skipped")
+                elif row_count > 1:
+                    tmp_log.error(f"more than one workflow updated to unlock; unexpected")
+                elif row_count == 0:
+                    # no row updated; did not get the unlock
+                    tmp_log.debug(f"no workflow updated to unlock; skipped")
+                    return False
+                elif row_count == 1:
+                    # successfully unlocked the workflow
+                    tmp_log.debug(f"released lock")
+                    return True
+        except Exception as e:
+            tmp_log.error(f"failed to unlock workflow: {e}")
+
+    def lock_workflow_step(self, step_id: int, locked_by: str, lock_expiration_sec: int = 120) -> bool | None:
+        """
+        Lock a workflow step to prevent concurrent modifications
+
+        Args:
+            step_id (int): ID of the workflow step to lock
+            locked_by (str): Identifier of the entity locking the workflow step
+            lock_expiration_sec (int): Time in seconds after which the lock expires
+
+        Returns:
+            bool | None: True if the lock was acquired, False if not, None if an error occurred
+        """
+        comment = " /* DBProxy.lock_workflow_step */"
+        tmp_log = self.create_tagged_logger(comment, f"step_id={step_id}, locked_by={locked_by}")
+        tmp_log.debug("start")
+        try:
+            now_time = naive_utcnow()
+            sql_lock = (
+                f"UPDATE {panda_config.schemaJEDI}.workflow_steps "
+                "SET locked_by=:locked_by, lock_time=:lock_time "
+                "WHERE step_id=:step_id "
+                "AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time<:min_lock_time)"
+            )
+            var_map = {
+                ":locked_by": self.full_pid,
+                ":lock_time": now_time,
+                ":step_id": step_id,
+                ":min_lock_time": now_time - timedelta(seconds=lock_expiration_sec),
+            }
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                cur.execute(sql_lock + comment, var_map)
+                row_count = cur.rowcount
+                if row_count is None:
+                    tmp_log.error(f"failed to update DB to lock; skipped")
+                elif row_count > 1:
+                    tmp_log.error(f"more than one step updated to lock; unexpected")
+                elif row_count == 0:
+                    # no row updated; did not get the lock
+                    tmp_log.debug(f"did not get lock; skipped")
+                    return False
+                elif row_count == 1:
+                    # successfully locked the workflow step
+                    tmp_log.debug(f"got lock")
+                    return True
+        except Exception as e:
+            tmp_log.error(f"failed to lock workflow step: {e}")
+
+    def unlock_workflow_step(self, step_id: int, locked_by: str) -> bool | None:
+        """
+        Unlock a workflow step to allow modifications
+
+        Args:
+            step_id (int): ID of the workflow step to unlock
+            locked_by (str): Identifier of the entity unlocking the workflow step
+
+        Returns:
+            bool | None: True if the unlock was successful, False if not, None if an error occurred
+        """
+        comment = " /* DBProxy.unlock_workflow_step */"
+        tmp_log = self.create_tagged_logger(comment, f"step_id={step_id}, locked_by={locked_by}")
+        tmp_log.debug("start")
+        try:
+            sql_unlock = (
+                f"UPDATE {panda_config.schemaJEDI}.workflow_steps " "SET locked_by=NULL, lock_time=NULL " "WHERE step_id=:step_id AND locked_by=:locked_by"
+            )
+            var_map = {":step_id": step_id, ":locked_by": locked_by}
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                cur.execute(sql_unlock + comment, var_map)
+                row_count = cur.rowcount
+                if row_count is None:
+                    tmp_log.error(f"failed to update DB to unlock; skipped")
+                elif row_count > 1:
+                    tmp_log.error(f"more than one step updated to unlock; unexpected")
+                elif row_count == 0:
+                    # no row updated; did not get the unlock
+                    tmp_log.debug(f"no step updated to unlock; skipped")
+                    return False
+                elif row_count == 1:
+                    # successfully unlocked the workflow step
+                    tmp_log.debug(f"released lock")
+                    return True
+        except Exception as e:
+            tmp_log.error(f"failed to unlock workflow step: {e}")
+
+    def lock_workflow_data(self, data_id: int, locked_by: str, lock_expiration_sec: int = 120) -> bool | None:
+        """
+        Lock a workflow data to prevent concurrent modifications
+
+        Args:
+            data_id (int): ID of the workflow data to lock
+            locked_by (str): Identifier of the entity locking the workflow data
+            lock_expiration_sec (int): Time in seconds after which the lock expires
+
+        Returns:
+            bool | None: True if the lock was acquired, False if not, None if an error occurred
+        """
+        comment = " /* DBProxy.lock_workflow_data */"
+        tmp_log = self.create_tagged_logger(comment, f"data_id={data_id}, locked_by={locked_by}")
+        tmp_log.debug("start")
+        try:
+            now_time = naive_utcnow()
+            sql_lock = (
+                f"UPDATE {panda_config.schemaJEDI}.workflow_data "
+                "SET locked_by=:locked_by, lock_time=:lock_time "
+                "WHERE data_id=:data_id "
+                "AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time<:min_lock_time)"
+            )
+            var_map = {
+                ":locked_by": self.full_pid,
+                ":lock_time": now_time,
+                ":data_id": data_id,
+                ":min_lock_time": now_time - timedelta(seconds=lock_expiration_sec),
+            }
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                cur.execute(sql_lock + comment, var_map)
+                row_count = cur.rowcount
+                if row_count is None:
+                    tmp_log.error(f"failed to update DB to lock; skipped")
+                elif row_count > 1:
+                    tmp_log.error(f"more than one data updated to lock; unexpected")
+                elif row_count == 0:
+                    # no row updated; did not get the lock
+                    tmp_log.debug(f"did not get lock; skipped")
+                    return False
+                elif row_count == 1:
+                    # successfully locked the workflow data
+                    tmp_log.debug(f"got lock")
+                    return True
+        except Exception as e:
+            tmp_log.error(f"failed to lock workflow data: {e}")
+
+    def unlock_workflow_data(self, data_id: int, locked_by: str) -> bool | None:
+        """
+        Unlock a workflow data to allow modifications
+
+        Args:
+            data_id (int): ID of the workflow data to unlock
+            locked_by (str): Identifier of the entity unlocking the workflow data
+
+        Returns:
+            bool | None: True if the unlock was successful, False if not, None if an error occurred
+        """
+        comment = " /* DBProxy.unlock_workflow_data */"
+        tmp_log = self.create_tagged_logger(comment, f"data_id={data_id}, locked_by={locked_by}")
+        tmp_log.debug("start")
+        try:
+            sql_unlock = (
+                f"UPDATE {panda_config.schemaJEDI}.workflow_data " "SET locked_by=NULL, lock_time=NULL " "WHERE data_id=:data_id AND locked_by=:locked_by"
+            )
+            var_map = {":data_id": data_id, ":locked_by": locked_by}
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                cur.execute(sql_unlock + comment, var_map)
+                row_count = cur.rowcount
+                if row_count is None:
+                    tmp_log.error(f"failed to update DB to unlock; skipped")
+                elif row_count > 1:
+                    tmp_log.error(f"more than one data updated to unlock; unexpected")
+                elif row_count == 0:
+                    # no row updated; did not get the unlock
+                    tmp_log.debug(f"no data updated to unlock; skipped")
+                    return False
+                elif row_count == 1:
+                    # successfully unlocked the workflow data
+                    tmp_log.debug(f"released lock")
+                    return True
+        except Exception as e:
+            tmp_log.error(f"failed to unlock workflow data: {e}")
 
     def update_workflow(self, workflow_spec: WorkflowSpec) -> WorkflowSpec | None:
         """
