@@ -2708,6 +2708,66 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.get_num_jobs_with_status_by_nucleus(vo, job_status)
 
+    # ==== workflow fucntions ==========================================
+
+    def get_workflow(self, workflow_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_workflow(workflow_id)
+
+    def get_workflow_step(self, step_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_workflow_step(step_id)
+
+    def get_workflow_data(self, data_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_workflow_data(data_id)
+
+    def get_steps_of_workflow(self, workflow_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_steps_of_workflow(workflow_id)
+
+    def get_data_of_workflow(self, workflow_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_data_of_workflow(workflow_id)
+
+    def lock_workflow(self, workflow_id, locked_by, lock_expiration_sec=120):
+        with self.proxyPool.get() as proxy:
+            return proxy.lock_workflow(workflow_id, locked_by, lock_expiration_sec)
+
+    def unlock_workflow(self, workflow_id, locked_by):
+        with self.proxyPool.get() as proxy:
+            return proxy.unlock_workflow(workflow_id, locked_by)
+
+    def lock_workflow_step(self, step_id, locked_by, lock_expiration_sec=120):
+        with self.proxyPool.get() as proxy:
+            return proxy.lock_workflow_step(step_id, locked_by, lock_expiration_sec)
+
+    def unlock_workflow_step(self, step_id, locked_by):
+        with self.proxyPool.get() as proxy:
+            return proxy.unlock_workflow_step(step_id, locked_by)
+
+    def lock_workflow_data(self, data_id, locked_by, lock_expiration_sec=120):
+        with self.proxyPool.get() as proxy:
+            return proxy.lock_workflow_data(data_id, locked_by, lock_expiration_sec)
+
+    def unlock_workflow_data(self, data_id, locked_by):
+        with self.proxyPool.get() as proxy:
+            return proxy.unlock_workflow_data(data_id, locked_by)
+
+    def update_workflow(self, workflow_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.update_workflow(workflow_spec)
+
+    def update_workflow_step(self, wf_step_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.update_workflow_step(wf_step_spec)
+
+    def update_workflow_data(self, wf_data_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.update_workflow_data(wf_data_spec)
+
+    # ==================================================================
+
 
 # Singleton
 taskBuffer = TaskBuffer()
