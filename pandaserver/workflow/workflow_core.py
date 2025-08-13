@@ -174,7 +174,7 @@ class WorkflowInterface(object):
         if ret_workflow_id is None:
             logger.error(f"Failed to register workflow prodsourcelabel={prodsourcelabel} name={workflow_name}")
             return None
-        logger.info(f"Registered workflow prodsourcelabel={prodsourcelabel} name={workflow_name} workflow_id={ret_workflow_id}")
+        logger.info(f"Registered workflow prodsourcelabel={prodsourcelabel} username={username} name={workflow_name} workflow_id={ret_workflow_id}")
         return ret_workflow_id
 
     #### Workflow status transitions

@@ -1,3 +1,4 @@
+import json
 import sys
 
 from pandacommon.pandautils.thread_utils import GenericThread
@@ -18,11 +19,13 @@ workflow_name = "test_workflow_bg_comb_00"
 
 
 # workflow definition json
-wfd_json = """
+wfd_json = json.dumps(
+    json.loads(
+        """
 {
     "root_inputs": {
-            "sig_bg_comb.cwl#background': 'mc16_5TeV.361238.Pythia8EvtGen_A3NNPDF23LO_minbias_inelastic_low.merge.HITS.e6446_s3238_s3250/",
-            "sig_bg_comb.cwl#signal': 'mc16_valid:mc16_valid.900248.PG_singlepion_flatPt2to50.simul.HITS.e8312_s3238_tid26378578_00"
+            "sig_bg_comb.cwl#background": "mc16_5TeV.361238.Pythia8EvtGen_A3NNPDF23LO_minbias_inelastic_low.merge.HITS.e6446_s3238_s3250/",
+            "sig_bg_comb.cwl#signal": "mc16_valid:mc16_valid.900248.PG_singlepion_flatPt2to50.simul.HITS.e8312_s3238_tid26378578_00"
         },
     "root_outputs": {"sig_bg_comb.cwl#combine/outDS": {"value": "user.me.my_outDS_005_combine"}},
     "nodes": [
@@ -322,6 +325,8 @@ wfd_json = """
     ]
 }
 """
+    )
+)
 
 
 # interface for workflow operations
