@@ -31,7 +31,26 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 
 
-# ==============================================================
+# ===============================================================
+
+
+def json_serialize_default(obj):
+    """
+    Default JSON serializer for non-serializable objects
+
+    Args:
+        obj (Any): Object to serialize
+
+    Returns:
+        Any: JSON serializable object
+    """
+    # convert set to list
+    if isinstance(obj, set):
+        return list(obj)
+    return obj
+
+
+# ===============================================================
 
 
 class WorkflowBaseSpec(SpecBase):
@@ -208,16 +227,16 @@ class WorkflowInterface(object):
     Interface for workflow management methods
     """
 
-    def __init__(self, taskbuffer_if, *args, **kwargs):
+    def __init__(self, task_buffer, *args, **kwargs):
         """
         Constructor
 
         Args:
-            taskbuffer_if (TaskBufferInterface): Interface to the task buffer
+            task_buffer (TaskBufferInterface): Interface to the task buffer
             *args: Additional arguments
             **kwargs: Additional keyword arguments
         """
-        self.tbif = taskbuffer_if
+        self.tbif = task_buffer
         self.ddm_if = rucioAPI
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
 
@@ -297,7 +316,7 @@ class WorkflowInterface(object):
 
     # Add methods for workflow management here
 
-    def register_workflow(self, prodsourcelabel: str, username: str, name: str, workflow_definition_json: str, *args, **kwargs):
+    def register_workflow(self, prodsourcelabel: str, username: str, workflow_name: str, workflow_definition_json: str, *args, **kwargs):
         """
         Register a new workflow
 
@@ -313,18 +332,18 @@ class WorkflowInterface(object):
         ...
         workflow_spec = WorkflowSpec()
         workflow_spec.prodsourcelabel = prodsourcelabel
-        workflow_spec.name = name
+        workflow_spec.name = workflow_name
         workflow_spec.username = username
         workflow_spec.definition_json = workflow_definition_json
         workflow_spec.creation_time = naive_utcnow()
         workflow_spec.status = "registered"
         # Update DB
-        ret_workflow_spec = self.tbif.update_workflow(workflow_spec, *args, **kwargs)
-        if ret_workflow_spec is None:
-            logger.error(f"Failed to register workflow prodsourcelabel={prodsourcelabel} name={name}")
+        ret_wf_spec = self.tbif.update_workflow(workflow_spec, *args, **kwargs)
+        if ret_wf_spec is None:
+            logger.error(f"Failed to register workflow prodsourcelabel={ret_wf_spec.prodsourcelabel} name={ret_wf_spec.name}")
             return None
-        logger.info(f"Registered workflow prodsourcelabel={prodsourcelabel} name={name} workflow_id={ret_workflow_spec.workflow_id}")
-        return ret_workflow_spec
+        logger.info(f"Registered workflow prodsourcelabel={ret_wf_spec.prodsourcelabel} name={ret_wf_spec.name} workflow_id={ret_wf_spec.workflow_id}")
+        return ret_wf_spec
 
     #### Workflow status transitions
 
