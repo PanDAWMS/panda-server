@@ -10,10 +10,10 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, JobUtils
-from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
+from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMBER
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.JobSpec import JobSpec
-from pandaserver.workflow.workflow_core import WFDataSpec, WFStepSpec, WorkflowSpec
+from pandaserver.workflow.workflow_specs import WFDataSpec, WFStepSpec, WorkflowSpec
 
 
 # Module class to define methods related to workflow
@@ -411,6 +411,96 @@ class WorkflowModule(BaseModule):
                     return True
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow data: {e}")
+
+    def insert_workflow(self, workflow_spec: WorkflowSpec) -> int | None:
+        """
+        Insert a new workflow specification into the database
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow specification to insert
+
+        Returns:
+            int | None: The ID of the inserted workflow if successful, otherwise None
+        """
+        comment = " /* DBProxy.insert_workflow */"
+        tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_spec.workflow_id}")
+        tmp_log.debug("start")
+        try:
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                # sql to insert workflow
+                workflow_spec.creation_time = naive_utcnow()
+                sql_insert = (
+                    f"INSERT INTO {panda_config.schemaJEDI}.workflows ({workflow_spec.columnNames()}) "
+                    f"VALUES ({workflow_spec.bindInsertValuesExpression()}) "
+                    f"RETURNING workflow_id INTO :new_workflow_id "
+                )
+                var_map = workflow_spec.valuesMap(useSeq=True)
+                var_map[":new_workflow_id"] = self.cur.var(varNUMBER)
+                self.cur.execute(sql_insert + comment, var_map)
+                workflow_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_workflow_id"])))
+            return workflow_id
+        except Exception:
+            return None
+
+    def insert_workflow_step(self, wf_step_spec: WFStepSpec) -> int | None:
+        """
+        Insert a new workflow step specification into the database
+
+        Args:
+            wf_step_spec (WFStepSpec): The workflow step specification to insert
+
+        Returns:
+            int | None: The ID of the inserted workflow step if successful, otherwise None
+        """
+        comment = " /* DBProxy.insert_workflow_step */"
+        tmp_log = self.create_tagged_logger(comment, f"step_id={wf_step_spec.step_id}")
+        tmp_log.debug("start")
+        try:
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                # sql to insert workflow step
+                wf_step_spec.creation_time = naive_utcnow()
+                sql_insert = (
+                    f"INSERT INTO {panda_config.schemaJEDI}.workflow_steps ({wf_step_spec.columnNames()}) "
+                    f"VALUES ({wf_step_spec.bindInsertValuesExpression()}) "
+                    f"RETURNING step_id INTO :new_step_id "
+                )
+                var_map = wf_step_spec.valuesMap(useSeq=True)
+                var_map[":new_step_id"] = self.cur.var(varNUMBER)
+                self.cur.execute(sql_insert + comment, var_map)
+                step_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_step_id"])))
+            return step_id
+        except Exception:
+            return None
+
+    def insert_workflow_data(self, wf_data_spec: WFDataSpec) -> int | None:
+        """
+        Insert a new workflow data specification into the database
+
+        Args:
+            wf_data_spec (WFDataSpec): The workflow data specification to insert
+
+        Returns:
+            int | None: The ID of the inserted workflow data if successful, otherwise None
+        """
+        comment = " /* DBProxy.insert_workflow_data */"
+        tmp_log = self.create_tagged_logger(comment, f"data_id={wf_data_spec.data_id}")
+        tmp_log.debug("start")
+        try:
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                # sql to insert workflow data
+                wf_data_spec.creation_time = naive_utcnow()
+                sql_insert = (
+                    f"INSERT INTO {panda_config.schemaJEDI}.workflow_data ({wf_data_spec.columnNames()}) "
+                    f"VALUES ({wf_data_spec.bindInsertValuesExpression()}) "
+                    f"RETURNING data_id INTO :new_data_id "
+                )
+                var_map = wf_data_spec.valuesMap(useSeq=True)
+                var_map[":new_data_id"] = self.cur.var(varNUMBER)
+                self.cur.execute(sql_insert + comment, var_map)
+                data_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_data_id"])))
+            return data_id
+        except Exception:
+            return None
 
     def update_workflow(self, workflow_spec: WorkflowSpec) -> WorkflowSpec | None:
         """

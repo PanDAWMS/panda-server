@@ -2754,6 +2754,18 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.unlock_workflow_data(data_id, locked_by)
 
+    def insert_workflow(self, workflow_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.insert_workflow(workflow_spec)
+
+    def insert_workflow_step(self, wf_step_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.insert_workflow_step(wf_step_spec)
+
+    def insert_workflow_data(self, wf_data_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.insert_workflow_data(wf_data_spec)
+
     def update_workflow(self, workflow_spec):
         with self.proxyPool.get() as proxy:
             return proxy.update_workflow(workflow_spec)
