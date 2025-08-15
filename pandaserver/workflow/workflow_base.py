@@ -16,7 +16,79 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 
 
-# ===============================================================
+# ==== Status of Entities ======================================
+
+
+class WorkflowStatus(object):
+    """
+    Class to define the status of workflows
+    """
+
+    registered = "registered"
+    checking = "checking"
+    checked = "checked"
+    starting = "starting"
+    running = "running"
+    done = "done"
+    failed = "failed"
+    cancelled = "cancelled"
+
+
+class WFStepStatus(object):
+    """
+    Class to define the status of workflow steps
+    """
+
+    registered = "registered"
+    pending = "pending"
+    ready = "ready"
+    submitted = "submitted"
+    running = "running"
+    done = "done"
+    failed = "failed"
+    cancelled = "cancelled"
+
+
+class WFDataStatus(object):
+    """
+    Class to define the status of workflow data
+    """
+
+    registered = "registered"
+    checking = "checking"
+    checked_nonex = "checked_nonex"
+    checked_exist = "checked_exist"
+    generating_start = "generating_start"
+    generating_ready = "generating_ready"
+    done_generated = "done_generated"
+    done_skipped = "done_skipped"
+    cancelled = "cancelled"
+    retired = "retired"
+
+
+# ==== Types ===================================================
+
+
+class WFStepType(object):
+    """
+    Class to define the types of workflow steps
+    """
+
+    ...
+    ordinary = "ordinary"
+
+
+class WFDataType(object):
+    """
+    Class to define the types of workflow data
+    """
+
+    input = "input"
+    output = "output"
+    mid = "mid"
+
+
+# ==== Specifications ==========================================
 
 
 class WorkflowBaseSpec(SpecBase):

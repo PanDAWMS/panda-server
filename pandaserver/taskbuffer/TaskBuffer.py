@@ -2778,6 +2778,10 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.update_workflow_data(wf_data_spec)
 
+    def upsert_workflow_entities(self, workflow_id, actions_dict=None, workflow_spec=None, step_specs=None, data_specs=None):
+        with self.proxyPool.get() as proxy:
+            return proxy.upsert_workflow_entities(workflow_id, actions_dict, workflow_spec, step_specs, data_specs)
+
     # ==================================================================
 
 

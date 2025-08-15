@@ -13,7 +13,14 @@ from pandaserver.taskbuffer import ErrorCode, JobUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMBER
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.JobSpec import JobSpec
-from pandaserver.workflow.workflow_specs import WFDataSpec, WFStepSpec, WorkflowSpec
+from pandaserver.workflow.workflow_base import (
+    WFDataSpec,
+    WFDataStatus,
+    WFStepSpec,
+    WFStepStatus,
+    WorkflowSpec,
+    WorkflowStatus,
+)
 
 
 # Module class to define methods related to workflow
@@ -71,9 +78,9 @@ class WorkflowModule(BaseModule):
                 tmp_log.error("more than one steps; unexpected")
             else:
                 for res in res_list:
-                    wf_step_spec = WFStepSpec()
-                    wf_step_spec.pack(res)
-                    return wf_step_spec
+                    step_spec = WFStepSpec()
+                    step_spec.pack(res)
+                    return step_spec
         else:
             tmp_log.warning("no step found; skipped")
             return None
@@ -99,9 +106,9 @@ class WorkflowModule(BaseModule):
                 tmp_log.error("more than one data; unexpected")
             else:
                 for res in res_list:
-                    wf_data_spec = WFDataSpec()
-                    wf_data_spec.pack(res)
-                    return wf_data_spec
+                    data_spec = WFDataSpec()
+                    data_spec.pack(res)
+                    return data_spec
         else:
             tmp_log.warning("no data found; skipped")
             return None
@@ -123,12 +130,12 @@ class WorkflowModule(BaseModule):
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
         if res_list is not None:
-            wf_step_specs = []
+            step_specs = []
             for res in res_list:
-                wf_step_spec = WFStepSpec()
-                wf_step_spec.pack(res)
-                wf_step_specs.append(wf_step_spec)
-            return wf_step_specs
+                step_spec = WFStepSpec()
+                step_spec.pack(res)
+                step_specs.append(step_spec)
+            return step_specs
         else:
             tmp_log.warning("no steps found; skipped")
             return []
@@ -150,12 +157,12 @@ class WorkflowModule(BaseModule):
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
         if res_list is not None:
-            wf_data_specs = []
+            data_specs = []
             for res in res_list:
-                wf_data_spec = WFDataSpec()
-                wf_data_spec.pack(res)
-                wf_data_specs.append(wf_data_spec)
-            return wf_data_specs
+                data_spec = WFDataSpec()
+                data_spec.pack(res)
+                data_specs.append(data_spec)
+            return data_specs
         else:
             tmp_log.warning("no data found; skipped")
             return []
@@ -443,12 +450,12 @@ class WorkflowModule(BaseModule):
         except Exception:
             return None
 
-    def insert_workflow_step(self, wf_step_spec: WFStepSpec) -> int | None:
+    def insert_workflow_step(self, step_spec: WFStepSpec) -> int | None:
         """
         Insert a new workflow step specification into the database
 
         Args:
-            wf_step_spec (WFStepSpec): The workflow step specification to insert
+            step_spec (WFStepSpec): The workflow step specification to insert
 
         Returns:
             int | None: The ID of the inserted workflow step if successful, otherwise None
@@ -459,13 +466,13 @@ class WorkflowModule(BaseModule):
         try:
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 # sql to insert workflow step
-                wf_step_spec.creation_time = naive_utcnow()
+                step_spec.creation_time = naive_utcnow()
                 sql_insert = (
-                    f"INSERT INTO {panda_config.schemaJEDI}.workflow_steps ({wf_step_spec.columnNames()}) "
-                    f"{wf_step_spec.bindValuesExpression()} "
+                    f"INSERT INTO {panda_config.schemaJEDI}.workflow_steps ({step_spec.columnNames()}) "
+                    f"{step_spec.bindValuesExpression()} "
                     f"RETURNING step_id INTO :new_step_id "
                 )
-                var_map = wf_step_spec.valuesMap(useSeq=True)
+                var_map = step_spec.valuesMap(useSeq=True)
                 var_map[":new_step_id"] = self.cur.var(varNUMBER)
                 self.cur.execute(sql_insert + comment, var_map)
                 step_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_step_id"])))
@@ -474,12 +481,12 @@ class WorkflowModule(BaseModule):
         except Exception:
             return None
 
-    def insert_workflow_data(self, wf_data_spec: WFDataSpec) -> int | None:
+    def insert_workflow_data(self, data_spec: WFDataSpec) -> int | None:
         """
         Insert a new workflow data specification into the database
 
         Args:
-            wf_data_spec (WFDataSpec): The workflow data specification to insert
+            data_spec (WFDataSpec): The workflow data specification to insert
 
         Returns:
             int | None: The ID of the inserted workflow data if successful, otherwise None
@@ -490,13 +497,13 @@ class WorkflowModule(BaseModule):
         try:
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 # sql to insert workflow data
-                wf_data_spec.creation_time = naive_utcnow()
+                data_spec.creation_time = naive_utcnow()
                 sql_insert = (
-                    f"INSERT INTO {panda_config.schemaJEDI}.workflow_data ({wf_data_spec.columnNames()}) "
-                    f"{wf_data_spec.bindValuesExpression()} "
+                    f"INSERT INTO {panda_config.schemaJEDI}.workflow_data ({data_spec.columnNames()}) "
+                    f"{data_spec.bindValuesExpression()} "
                     f"RETURNING data_id INTO :new_data_id "
                 )
-                var_map = wf_data_spec.valuesMap(useSeq=True)
+                var_map = data_spec.valuesMap(useSeq=True)
                 var_map[":new_data_id"] = self.cur.var(varNUMBER)
                 self.cur.execute(sql_insert + comment, var_map)
                 data_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_data_id"])))
@@ -533,54 +540,188 @@ class WorkflowModule(BaseModule):
         except Exception:
             return None
 
-    def update_workflow_step(self, wf_step_spec: WFStepSpec) -> WFStepSpec | None:
+    def update_workflow_step(self, step_spec: WFStepSpec) -> WFStepSpec | None:
         """
         Update a workflow step specification in the database
 
         Args:
-            wf_step_spec (WFStepSpec): The workflow step specification to update
+            step_spec (WFStepSpec): The workflow step specification to update
 
         Returns:
             WFStepSpec | None: The updated workflow step specification if successful, otherwise None
         """
         comment = " /* DBProxy.update_workflow_step */"
-        tmp_log = self.create_tagged_logger(comment, f"step_id={wf_step_spec.step_id}")
+        tmp_log = self.create_tagged_logger(comment, f"step_id={step_spec.step_id}")
         tmp_log.debug("start")
         try:
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 # sql to update workflow step
-                wf_step_spec.modification_time = naive_utcnow()
-                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_steps " f"SET {wf_step_spec.bindUpdateChangesExpression()} " "WHERE step_id=:step_id "
-                var_map = wf_step_spec.valuesMap(useSeq=False, onlyChanged=True)
-                var_map[":step_id"] = wf_step_spec.step_id
+                step_spec.modification_time = naive_utcnow()
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_steps " f"SET {step_spec.bindUpdateChangesExpression()} " "WHERE step_id=:step_id "
+                var_map = step_spec.valuesMap(useSeq=False, onlyChanged=True)
+                var_map[":step_id"] = step_spec.step_id
                 cur.execute(sql_update + comment, var_map)
-                tmp_log.debug(f"updated {wf_step_spec.bindUpdateChangesExpression()}")
-            return wf_step_spec
+                tmp_log.debug(f"updated {step_spec.bindUpdateChangesExpression()}")
+            return step_spec
         except Exception:
             return None
 
-    def update_workflow_data(self, wf_data_spec: WFDataSpec) -> WFDataSpec | None:
+    def update_workflow_data(self, data_spec: WFDataSpec) -> WFDataSpec | None:
         """
         Update a workflow data specification in the database
 
         Args:
-            wf_data_spec (WFDataSpec): The workflow data specification to update
+            data_spec (WFDataSpec): The workflow data specification to update
 
         Returns:
             WFDataSpec | None: The updated workflow data specification if successful, otherwise None
         """
         comment = " /* DBProxy.update_workflow_data */"
-        tmp_log = self.create_tagged_logger(comment, f"data_id={wf_data_spec.data_id}")
+        tmp_log = self.create_tagged_logger(comment, f"data_id={data_spec.data_id}")
         tmp_log.debug("start")
         try:
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 # sql to update workflow data
-                wf_data_spec.modification_time = naive_utcnow()
-                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_data " f"SET {wf_data_spec.bindUpdateChangesExpression()} " "WHERE data_id=:data_id "
-                var_map = wf_data_spec.valuesMap(useSeq=False, onlyChanged=True)
-                var_map[":data_id"] = wf_data_spec.data_id
+                data_spec.modification_time = naive_utcnow()
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_data " f"SET {data_spec.bindUpdateChangesExpression()} " "WHERE data_id=:data_id "
+                var_map = data_spec.valuesMap(useSeq=False, onlyChanged=True)
+                var_map[":data_id"] = data_spec.data_id
                 cur.execute(sql_update + comment, var_map)
-                tmp_log.debug(f"updated {wf_data_spec.bindUpdateChangesExpression()}")
-            return wf_data_spec
+                tmp_log.debug(f"updated {data_spec.bindUpdateChangesExpression()}")
+            return data_spec
+        except Exception:
+            return None
+
+    def upsert_workflow_entities(
+        self,
+        workflow_id: int | None,
+        actions_dict: dict | None = None,
+        workflow_spec: WorkflowSpec | None = None,
+        step_specs: list[WFStepSpec] | None = None,
+        data_specs: list[WFDataSpec] | None = None,
+    ) -> dict | None:
+        """
+        Update or insert (if not existing) steps and data associated with a workflow within a transaction
+
+        Args:
+            workflow_id (int | None): ID of the workflow to update, or None if to insert
+            actions_dict (dict | None): Dictionary of actions (insert, update, or None) to perform on the entities (workflow, steps, data), e.g. {"workflow": None, "steps": "insert", "data": "update"}
+            workflow_spec (WorkflowSpec|None): The workflow specification to update or insert
+            step_specs (list[WFStepSpec]|None): List of workflow step specifications to update or insert
+            data_specs (list[WFDataSpec]|None): List of workflow data specifications to update or insert
+
+        Returns:
+            dict | None: Dictionary containing the number of steps and data upserted, or None if an error occurred
+        """
+        comment = " /* DBProxy.upsert_workflow_entities */"
+        # Determine actions of each entity
+        action_of_workflow = None
+        action_of_steps = None
+        action_of_data = None
+        if actions_dict:
+            if (tmp_action_of_workflow := actions_dict.get("workflow")) and workflow_spec:
+                if tmp_action_of_workflow == "insert" and workflow_id is None:
+                    action_of_workflow = "insert"
+                elif tmp_action_of_workflow == "update" and workflow_id is not None and workflow_spec.workflow_id == workflow_id:
+                    action_of_workflow = "update"
+            action_of_steps = actions_dict.get("steps") if (workflow_id and step_specs) else None
+            action_of_data = actions_dict.get("data") if (workflow_id and data_specs) else None
+        actions_dict = {
+            "workflow": action_of_workflow,
+            "steps": action_of_steps,
+            "data": action_of_data,
+        }
+        # log
+        tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_spec.workflow_id}")
+        tmp_log.debug(f"start, actions={actions_dict}")
+        # skip if no action specified
+        if not any(actions_dict.values()):
+            self.log.warning("no action specified; skipped")
+            return None
+        try:
+            n_steps_upserted = 0
+            n_data_upserted = 0
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                # action for data
+                if action_of_data == "insert":
+                    for data_spec in data_specs:
+                        data_spec.creation_time = naive_utcnow()
+                        sql_insert = (
+                            f"INSERT INTO {panda_config.schemaJEDI}.workflow_data ({data_spec.columnNames()}) "
+                            f"{data_spec.bindValuesExpression()} "
+                            f"RETURNING data_id INTO :new_data_id "
+                        )
+                        var_map = data_spec.valuesMap(useSeq=True)
+                        var_map[":new_data_id"] = self.cur.var(varNUMBER)
+                        self.cur.execute(sql_insert + comment, var_map)
+                        data_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_data_id"])))
+                        data_spec.data_id = data_id
+                        n_data_upserted += 1
+                        tmp_log.debug(f"inserted a data workflow_id={workflow_id} data_id={data_id}")
+                elif action_of_data == "update":
+                    for data_spec in data_specs:
+                        data_spec.modification_time = naive_utcnow()
+                        sql_update = (
+                            f"UPDATE {panda_config.schemaJEDI}.workflow_data " f"SET {data_spec.bindUpdateChangesExpression()} " "WHERE data_id=:data_id "
+                        )
+                        var_map = data_spec.valuesMap(useSeq=False, onlyChanged=True)
+                        var_map[":data_id"] = data_spec.data_id
+                        self.cur.execute(sql_update + comment, var_map)
+                        n_data_upserted += 1
+                        tmp_log.debug(f"updated a data workflow_id={workflow_id} data_id={data_spec.data_id}")
+                # action for steps
+                if action_of_steps == "insert":
+                    for step_spec in step_specs:
+                        step_spec.creation_time = naive_utcnow()
+                        sql_insert = (
+                            f"INSERT INTO {panda_config.schemaJEDI}.workflow_steps ({step_spec.columnNames()}) "
+                            f"{step_spec.bindValuesExpression()} "
+                            f"RETURNING step_id INTO :new_step_id "
+                        )
+                        var_map = step_spec.valuesMap(useSeq=True)
+                        var_map[":new_step_id"] = self.cur.var(varNUMBER)
+                        self.cur.execute(sql_insert + comment, var_map)
+                        step_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_step_id"])))
+                        step_spec.step_id = step_id
+                        n_steps_upserted += 1
+                        tmp_log.debug(f"inserted a step workflow_id={workflow_id} step_id={step_id}")
+                elif action_of_steps == "update":
+                    for step_spec in step_specs:
+                        step_spec.modification_time = naive_utcnow()
+                        sql_update = (
+                            f"UPDATE {panda_config.schemaJEDI}.workflow_steps " f"SET {step_spec.bindUpdateChangesExpression()} " "WHERE step_id=:step_id "
+                        )
+                        var_map = step_spec.valuesMap(useSeq=False, onlyChanged=True)
+                        var_map[":step_id"] = step_spec.step_id
+                        self.cur.execute(sql_update + comment, var_map)
+                        n_steps_upserted += 1
+                        tmp_log.debug(f"updated a step workflow_id={workflow_id} step_id={step_spec.step_id}")
+                # action for workflow
+                if action_of_workflow == "insert":
+                    workflow_spec.creation_time = naive_utcnow()
+                    sql_insert = (
+                        f"INSERT INTO {panda_config.schemaJEDI}.workflows ({workflow_spec.columnNames()}) "
+                        f"{workflow_spec.bindValuesExpression()} "
+                        f"RETURNING workflow_id INTO :new_workflow_id "
+                    )
+                    var_map = workflow_spec.valuesMap(useSeq=True)
+                    var_map[":new_workflow_id"] = self.cur.var(varNUMBER)
+                    self.cur.execute(sql_insert + comment, var_map)
+                    workflow_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_workflow_id"])))
+                    workflow_spec.workflow_id = workflow_id
+                    tmp_log.debug(f"inserted a workflow workflow_id={workflow_id}")
+                elif action_of_workflow == "update":
+                    workflow_spec.modification_time = naive_utcnow()
+                    sql_update = (
+                        f"UPDATE {panda_config.schemaJEDI}.workflows " f"SET {workflow_spec.bindUpdateChangesExpression()} " "WHERE workflow_id=:workflow_id "
+                    )
+                    var_map = workflow_spec.valuesMap(useSeq=False, onlyChanged=True)
+                    var_map[":workflow_id"] = workflow_spec.workflow_id
+                    self.cur.execute(sql_update + comment, var_map)
+                    tmp_log.debug(f"updated a workflow workflow_id={workflow_spec.workflow_id}")
+                tmp_log.debug("actions completed")
+            # Summary
+            tmp_log.debug(f"done, actions={actions_dict}, upserted workflow_id={workflow_id} with {n_steps_upserted} steps and {n_data_upserted} data")
+            return {"workflow_id": workflow_id, "steps": n_steps_upserted, "data": n_data_upserted}
         except Exception:
             return None

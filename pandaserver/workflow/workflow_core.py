@@ -12,12 +12,22 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
-from pandaserver.workflow.workflow_specs import WFDataSpec, WFStepSpec, WorkflowSpec
+from pandaserver.workflow.workflow_base import (
+    WFDataSpec,
+    WFDataStatus,
+    WFDataType,
+    WFStepSpec,
+    WFStepStatus,
+    WFStepType,
+    WorkflowSpec,
+    WorkflowStatus,
+)
 
 import polars as pl  # isort:skip
 
@@ -160,6 +170,8 @@ class WorkflowInterface(object):
         Returns:
             int | None: The ID of the registered workflow if successful, otherwise None
         """
+        tmp_log = LogWrapper(logger, f"register_workflow prodsourcelabel={prodsourcelabel} username={username} name={workflow_name}")
+        tmp_log.debug("start")
         # Implementation of workflow registration logic
         ...
         workflow_spec = WorkflowSpec()
@@ -172,9 +184,9 @@ class WorkflowInterface(object):
         # Insert to DB
         ret_workflow_id = self.tbif.insert_workflow(workflow_spec)
         if ret_workflow_id is None:
-            logger.error(f"Failed to register workflow prodsourcelabel={prodsourcelabel} name={workflow_name}")
+            tmp_log.error(f"Failed to register workflow")
             return None
-        logger.info(f"Registered workflow prodsourcelabel={prodsourcelabel} username={username} name={workflow_name} workflow_id={ret_workflow_id}")
+        tmp_log.info(f"Registered workflow workflow_id={ret_workflow_id}")
         return ret_workflow_id
 
     #### Workflow status transitions
@@ -187,22 +199,60 @@ class WorkflowInterface(object):
         Args:
             workflow_spec (WorkflowSpec): The workflow specification to process
         """
-        # Parse the workflow definition
+        tmp_log = LogWrapper(logger, f"process_workflow_registered workflow_id={workflow_spec.workflow_id}")
+        tmp_log.debug("start")
         try:
+            # Parse the workflow definition
             workflow_definition_dict = json.loads(workflow_spec.definition_json)
+            # initialize
+            data_specs = []
+            step_specs = []
+            now_time = naive_utcnow()
+            # Register root inputs and outputs
+            for input_name, input_target in workflow_definition_dict["root_inputs"].items():
+                data_spec = WFDataSpec()
+                data_spec.workflow_id = workflow_spec.workflow_id
+                data_spec.name = input_name
+                data_spec.target_id = input_target
+                data_spec.status = WFDataStatus.registered
+                data_spec.type = WFDataType.input
+                data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
+                data_spec.creation_time = now_time
+                data_specs.append(data_spec)
+            for output_name, output_target in workflow_definition_dict["root_outputs"].items():
+                data_spec = WFDataSpec()
+                data_spec.workflow_id = workflow_spec.workflow_id
+                data_spec.name = output_name
+                data_spec.target_id = output_target
+                data_spec.status = WFDataStatus.registered
+                data_spec.type = WFDataType.output
+                data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
+                data_spec.creation_time = now_time
+                data_specs.append(data_spec)
             # Register steps based on nodes in the definition
             for node in workflow_definition_dict["nodes"]:
-                step_spec = WFStepSpec()
-                step_spec.workflow_id = workflow_spec.workflow_id
-                step_spec.member_id = node["id"]
-                step_spec.status = "registered"
-                step_spec.type = node.get("type", "default")
-                # step_spec.parameters = json.dumps(node.get("parameters", {}))
-                step_spec.creation_time = naive_utcnow()
-        except Exception as e:
-            logger.error(f"Failed to parse workflow definition for workflow_id={workflow_spec.workflow_id}: {e}")
-
-        # FIXME: temporary, skip data checking and go to starting directly
-        workflow_spec.status = "starting"
-        # Update DB
-        self.tbif.update_workflow(workflow_spec)
+                # FIXME: not yet consider scatter, condition, loop, etc.
+                if not (node.get("condition") or node.get("scatter") or node.get("loop")):
+                    step_spec = WFStepSpec()
+                    step_spec.workflow_id = workflow_spec.workflow_id
+                    step_spec.member_id = node["id"]
+                    step_spec.name = node["name"]
+                    step_spec.status = "registered"
+                    step_spec.type = WFStepType.ordinary
+                    step_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
+                    step_spec.definition_json = json.dumps(node, default=json_serialize_default)
+                    step_spec.creation_time = now_time
+                    step_specs.append(step_spec)
+            # FIXME: temporary, skip data checking and go to starting directly
+            workflow_spec.status = "starting"
+            # Upsert DB
+            self.tbif.upsert_workflow_entities(
+                workflow_spec.workflow_id,
+                actions_dict={"workflow": "update", "steps": "insert", "data": "insert"},
+                workflow_spec=workflow_spec,
+                step_specs=step_specs,
+                data_specs=data_specs,
+            )
+            tmp_log.info(f"Processed workflow registered, workflow_id={workflow_spec.workflow_id}, steps={len(step_specs)}, data={len(data_specs)}")
+        except Exception:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")

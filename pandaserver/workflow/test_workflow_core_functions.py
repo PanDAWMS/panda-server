@@ -343,9 +343,18 @@ wfif = WorkflowInterface(taskBuffer)
 
 
 # Test cases for workflow core
-wf_spec = wfif.register_workflow(
-    prodsourcelabel=prodsourcelabel,
-    username=username,
-    workflow_name=workflow_name,
-    workflow_definition_json=wfd_json,
-)
+
+# Register the workflow
+# print("Registering workflow...")
+# wf_spec = wfif.register_workflow(
+#     prodsourcelabel=prodsourcelabel,
+#     username=username,
+#     workflow_name=workflow_name,
+#     workflow_definition_json=wfd_json,
+# )
+
+wf_spec = taskBuffer.get_workflow(workflow_id=1)
+
+# Process the registered workflow
+print("Processing registered workflow...")
+wfif.process_workflow_registered(wf_spec)
