@@ -212,6 +212,7 @@ class WFStepSpec(WorkflowBaseSpec):
         AttributeWithType("check_time", datetime),
         AttributeWithType("locked_by", str),
         AttributeWithType("lock_time", datetime),
+        AttributeWithType("definition_json", str),
         AttributeWithType("parameters", str),
     )
     # attributes
@@ -221,7 +222,7 @@ class WFStepSpec(WorkflowBaseSpec):
     # attributes to force update
     _forceUpdateAttrs = ()
     # mapping between sequence and attr
-    _seqAttrMap = {"workflow_id": f"{panda_config.schemaJEDI}.WORKFLOW_STEP_ID_SEQ.nextval"}
+    _seqAttrMap = {"step_id": f"{panda_config.schemaJEDI}.WORKFLOW_STEP_ID_SEQ.nextval"}
 
 
 class WFDataSpec(WorkflowBaseSpec):
@@ -254,4 +255,4 @@ class WFDataSpec(WorkflowBaseSpec):
     # attributes to force update
     _forceUpdateAttrs = ()
     # mapping between sequence and attr
-    _seqAttrMap = {"workflow_id": f"{panda_config.schemaJEDI}.WORKFLOW_DATA_ID_SEQ.nextval"}
+    _seqAttrMap = {"data_id": f"{panda_config.schemaJEDI}.WORKFLOW_DATA_ID_SEQ.nextval"}

@@ -189,7 +189,7 @@ class WorkflowInterface(object):
         tmp_log.info(f"Registered workflow workflow_id={ret_workflow_id}")
         return ret_workflow_id
 
-    #### Workflow status transitions
+    # ---- Workflow status transitions -------------------------
 
     def process_workflow_registered(self, workflow_spec: WorkflowSpec):
         """
@@ -219,11 +219,11 @@ class WorkflowInterface(object):
                 data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
                 data_spec.creation_time = now_time
                 data_specs.append(data_spec)
-            for output_name, output_target in workflow_definition_dict["root_outputs"].items():
+            for output_name, output_dict in workflow_definition_dict["root_outputs"].items():
                 data_spec = WFDataSpec()
                 data_spec.workflow_id = workflow_spec.workflow_id
                 data_spec.name = output_name
-                data_spec.target_id = output_target
+                data_spec.target_id = output_dict.get("value")
                 data_spec.status = WFDataStatus.registered
                 data_spec.type = WFDataType.output
                 data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
@@ -256,3 +256,5 @@ class WorkflowInterface(object):
             tmp_log.info(f"Processed workflow registered, workflow_id={workflow_spec.workflow_id}, steps={len(step_specs)}, data={len(data_specs)}")
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+
+    # ---- Data status transitions -----------------------------
