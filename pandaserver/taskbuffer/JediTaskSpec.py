@@ -1260,10 +1260,14 @@ class JediTaskSpec(object):
     def reformat_architecture(self):
         if self.architecture is None:
             return
+        encoded_platform = ""
         try:
-            # already in JSON format
-            json.loads(self.architecture)
-            return
+            # JSON format without encoded platform
+            tmp_dict = json.loads(self.architecture)
+            # skip if encoded platform is not present
+            if "encoded_platform" not in tmp_dict:
+                return
+            encoded_platform = tmp_dict["encoded_platform"]
         except Exception:
             pass
         # convert to new format
@@ -1271,10 +1275,10 @@ class JediTaskSpec(object):
         val = self.get_sw_platform()
         if val:
             new_dict["sw_platform"] = val
-        val = self.get_base_platform()
+        val = self.get_base_platform(encoded_platform)
         if val:
             new_dict["base_platform"] = val
-        val = self.get_host_cpu_spec()
+        val = self.get_host_cpu_spec(encoded_platform)
         if val:
             # remove wildcard entries and empty specs
             l = [x for x in [{k: v for k, v in d.items() if v != "*"} for d in val] if x]
@@ -1302,15 +1306,21 @@ class JediTaskSpec(object):
         return self.architecture
 
     # get base platform
-    def get_base_platform(self):
+    def get_base_platform(self, encoded_platform=None):
         try:
             d = json.loads(self.architecture)
-            return d.get("base_platform", None)
+            val = d.get("base_platform", None)
+            if val is not None or encoded_platform is None:
+                return val
         except Exception:
             pass
-        if self.architecture is None or "@" not in self.architecture:
+        if encoded_platform:
+            architecture = encoded_platform
+        else:
+            architecture = self.architecture
+        if architecture is None or "@" not in architecture:
             return None
-        m = re.search("@([^#&]*)", self.architecture)
+        m = re.search("@([^#&]*)", architecture)
         img = m.group(1)
         if img == "":
             img = None
@@ -1327,29 +1337,34 @@ class JediTaskSpec(object):
         return self.architecture
 
     # get host CPU spec
-    def get_host_cpu_spec(self):
+    def get_host_cpu_spec(self, encoded_platform=None):
         try:
             d = json.loads(self.architecture)
             specs = d.get("cpu_specs", None)
-            if not specs:
+            if not specs and encoded_platform is None:
                 return None
-            for spec in specs:
-                spec.setdefault("vendor", "*")
-                spec.setdefault("instr", "*")
-            return specs
+            else:
+                for spec in specs:
+                    spec.setdefault("vendor", "*")
+                    spec.setdefault("instr", "*")
+                return specs
         except Exception:
             pass
+        if encoded_platform:
+            architecture = encoded_platform
+        else:
+            architecture = self.architecture
         try:
-            if not self.architecture:
+            if not architecture:
                 return None
-            if "#" not in self.architecture:
-                if re.search(r"^[\^@&]", self.architecture):
+            if "#" not in architecture:
+                if re.search(r"^[\^@&]", architecture):
                     return None
-                arch = self.architecture.split("-")[0]
+                arch = architecture.split("-")[0]
                 if arch:
                     return [{"arch": arch, "vendor": "*", "instr": "*"}]
                 return None
-            m = re.search(r"#([^\^@&]*)", self.architecture)
+            m = re.search(r"#([^\^@&]*)", architecture)
             spec_strs = m.group(1)
             if not spec_strs:
                 return None
