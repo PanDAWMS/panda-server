@@ -157,7 +157,7 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
     return generate_response(True, data=ret)
 
 
-@request_validation(_logger, secure=True, request_method="GET")
+@request_validation(_logger, secure=False, request_method="GET")
 def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int = None) -> Dict:
     """
     Get execution script for a job.
