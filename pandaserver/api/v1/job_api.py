@@ -185,7 +185,7 @@ def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int 
         return generate_response(False, message=script)
 
     tmp_logger.debug("Done")
-    return generate_response(True, data={"script": script})
+    return script
 
 
 @request_validation(_logger, secure=True, request_method="GET")
