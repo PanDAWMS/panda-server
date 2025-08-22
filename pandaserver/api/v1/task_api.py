@@ -1261,7 +1261,7 @@ def submit(req: PandaRequest, task_parameters: Dict, parent_tid: int = None) -> 
     ret = global_task_buffer.insertTaskParamsPanda(task_parameters, user, is_production_role, fqans, properErrorCode=True, parent_tid=parent_tid, decode=False)
 
     code, message = ret
-    success = code == 0
+    success = code in (0, 3)
     if not success:
         return generate_response(False, message=message, data=code)
 
