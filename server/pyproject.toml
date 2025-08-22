@@ -60,7 +60,7 @@ pattern = "release_version = \"(?P<version>[^\"]+)\""
 directory = "dist"
 
 [tool.hatch.build.targets.wheel]
-exclude = ["*.template", "PandaPkgInfo.py"]
+exclude = ["*.template", "PandaPkgInfo.py", "hatch_build.py"]
 packages = ["package"]
 
 [tool.hatch.build.targets.wheel.force-include]

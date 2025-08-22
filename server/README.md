@@ -22,20 +22,26 @@ https://github.com/PanDAWMS/panda-server/wiki/ATLAS-production-PanDA-servers-%5B
 $ pip install panda-server
 ```
 
-### Local installation from git clone
+### Installation from GitHub repository
+``` console
+$ pip install --upgrade git+https://github.com/PanDAWMS/panda-server.git#subdirectory=server
+```
+
+### Local installation from Git clone
 ``` console
 $ git clone
 $ cd panda-server/server
 $ pip install .
 ```
 
-### Making source distribution
+### Local installation after making source distribution
 ``` console
 $ cd panda-server/server
 $ mv ../pandaserver .
 $ mv ../PandaPkgInfo.py .
 $ sed -i 's|"../|"|g' pyproject.toml
 $ python -m build -s
+$ pip install dist/panda-server-*.tar.gz
 ```
 
 ### Making Docker image
