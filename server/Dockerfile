@@ -1,3 +1,6 @@
+# To build the image, run the following command from the root of the repository:
+# docker build -f server/Dockerfile .
+
 ARG PYTHON_VERSION=3.11.6
 
 FROM docker.io/almalinux:9
@@ -43,8 +46,7 @@ WORKDIR /tmp/src
 COPY . .
 
 # install panda-common first to prevent panda-client from installing redundant files
-RUN /opt/panda/bin/pip install --no-cache-dir panda-common
-RUN /opt/panda/bin/pip install --no-cache-dir .[postgres,oracle]
+RUN cd server && /opt/panda/bin/pip install --no-cache-dir .[postgres,oracle] && cd ..
 RUN /opt/panda/bin/pip install --no-cache-dir rucio-clients
 RUN /opt/panda/bin/pip install --no-cache-dir "git+https://github.com/PanDAWMS/panda-cacheschedconfig.git"
 RUN ln -s /opt/panda/lib/python*/site-packages/mod_wsgi/server/mod_wsgi*.so /etc/httpd/modules/mod_wsgi.so
