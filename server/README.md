@@ -24,7 +24,7 @@ $ pip install panda-server
 
 ### Installation from GitHub repository
 ``` console
-$ pip install --upgrade git+https://github.com/PanDAWMS/panda-server.git#subdirectory=server
+$ pip install git+https://github.com/PanDAWMS/panda-server.git#subdirectory=server
 ```
 
 ### Local installation from Git clone
@@ -34,14 +34,13 @@ $ cd panda-server/server
 $ pip install .
 ```
 
-### Local installation after making source distribution
+### Making source distribution to be published on PyPI
 ``` console
 $ cd panda-server/server
 $ mv ../pandaserver .
 $ mv ../PandaPkgInfo.py .
 $ sed -i 's|"../|"|g' pyproject.toml
 $ python -m build -s
-$ pip install dist/panda-server-*.tar.gz
 ```
 
 ### Making Docker image
