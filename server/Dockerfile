@@ -77,9 +77,9 @@ RUN mkdir /tmp/panda-wnscript && cd /tmp/panda-wnscript && \
     cp -R panda-wnscript/dist/* /var/trf/user/ && \
     cd / && rm -rf /tmp/panda-wnscript
     
-ENV PANDA_LOCK_DIR /var/run/panda
+ENV PANDA_LOCK_DIR=/var/run/panda
 RUN mkdir -p ${PANDA_LOCK_DIR} && chmod 777 ${PANDA_LOCK_DIR}
 
-CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
+CMD ["exec", "/bin/bash", "-c", "'trap : TERM INT; sleep infinity & wait'"]
 
 EXPOSE 25080 25443
