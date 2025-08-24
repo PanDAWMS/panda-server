@@ -1,4 +1,4 @@
-name: Base OS Docker Image
+name: Publish Base OS Docker Image
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
@@ -12,7 +12,7 @@ env:
   # Use docker.io for Docker Hub if empty
   REGISTRY: ghcr.io
   # github.repository as <account>/<repo>
-  IMAGE_NAME: ${{ github.repository_owner }}/panda-base-os
+  IMAGE_NAME: ${{ github.repository_owner }}/panda-base-platform
 
 
 jobs:
@@ -39,6 +39,7 @@ jobs:
 
       # Extract metadata (tags, labels) for Docker
       # https://github.com/docker/metadata-action
+      # Modify the OS-Python version tag if OS or Python version changes
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v4

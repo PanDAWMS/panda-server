@@ -1,6 +1,6 @@
-# Base OS Image for PanDA services
+# Base Platform Image for PanDA services
 #
-# Modify ./github/workflows/base-os-docker-image.yml when OS or Python version is changed
+# NOTE: Modify the image tag in ./github/workflows/base-platform-docker-image.yml when OS or Python version is changed
 
 ARG PYTHON_VERSION=3.11.6
 
