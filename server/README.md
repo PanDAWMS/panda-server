@@ -8,16 +8,12 @@ https://panda-wms.readthedocs.io/en/latest/
 
 https://panda-wms.readthedocs.io/en/latest/installation/server.html
 
-## Release notes
-
-See ChangeLog.txt
-
 ## PanDA server cluster details for ATLAS
 
 https://github.com/PanDAWMS/panda-server/wiki/ATLAS-production-PanDA-servers-%5BSeptember-2023%5D
 
 ## Installation and Distribution
-### PyPI
+### Installation via PyPI
 ``` conslole
 $ pip install panda-server
 ```
@@ -27,7 +23,7 @@ $ pip install panda-server
 $ pip install git+https://github.com/PanDAWMS/panda-server.git#subdirectory=server
 ```
 
-### Local installation from Git clone
+### Installation from local Git clone
 ``` console
 $ git clone
 $ cd panda-server/server
