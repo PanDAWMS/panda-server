@@ -1,14 +1,14 @@
-# Core package for PanDA server
+# PanDA Server Package
 
 ## PanDA overall documentation 
 
 https://panda-wms.readthedocs.io/en/latest/
 
-## PanDA server cluster details for ATLAS
+## PanDA Server cluster details for ATLAS
 
 https://github.com/PanDAWMS/panda-server/wiki/ATLAS-production-PanDA-servers-%5BSeptember-2023%5D
 
-## Installation and Distribution
+## Installation and distribution
 ### Installation via PyPI
 ``` conslole
 $ pip install panda-server
