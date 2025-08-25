@@ -2643,6 +2643,13 @@ class TaskBuffer:
             ret = proxy.disable_job_cloning(jedi_task_id)
         return ret
 
+    # gets statistics on the number of jobs with a specific status for each nucleus at each site
+    def get_num_jobs_with_status_by_nucleus(self, vo, job_status):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_num_jobs_with_status_by_nucleus(vo, job_status)
+
+    # ==== JEDI taskbuffer functions ===========================
+
     # get JEDI task with jediTaskID
     def getTaskWithID_JEDI(self, jediTaskID, fullFlag=False, lockTask=False, pid=None, lockInterval=None, clearError=False):
         with self.proxyPool.get() as proxy:
@@ -2652,6 +2659,13 @@ class TaskBuffer:
     def updateInputFilesStaged_JEDI(self, jeditaskid, scope, filenames_dict, chunk_size=500, by=None, check_scope=True):
         with self.proxyPool.get() as proxy:
             return proxy.updateInputFilesStaged_JEDI(jeditaskid, scope, filenames_dict, chunk_size, by, check_scope)
+
+    # insert TaskParams
+    def insertTaskParams_JEDI(self, vo, prodSourceLabel, userName, taskName, taskParams, parent_tid=None):
+        with self.proxyPool.get() as proxy:
+            return proxy.insertTaskParams_JEDI(vo, prodSourceLabel, userName, taskName, taskParams, parent_tid)
+
+    # ==== Data Carousel functions =============================
 
     # insert data carousel requests
     def insert_data_carousel_requests_JEDI(self, task_id, dc_req_specs):
@@ -2703,12 +2717,7 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.resubmit_data_carousel_request_JEDI(request_id, exclude_prev_dst)
 
-    # gets statistics on the number of jobs with a specific status for each nucleus at each site
-    def get_num_jobs_with_status_by_nucleus(self, vo, job_status):
-        with self.proxyPool.get() as proxy:
-            return proxy.get_num_jobs_with_status_by_nucleus(vo, job_status)
-
-    # ==== workflow fucntions ==========================================
+    # ==== workflow fucntions ==================================
 
     def get_workflow(self, workflow_id):
         with self.proxyPool.get() as proxy:
@@ -2782,7 +2791,7 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.upsert_workflow_entities(workflow_id, actions_dict, workflow_spec, step_specs, data_specs)
 
-    # ==================================================================
+    # ==========================================================
 
 
 # Singleton

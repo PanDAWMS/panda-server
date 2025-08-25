@@ -167,6 +167,8 @@ class WorkflowSpec(WorkflowBaseSpec):
     attributes_with_types = (
         AttributeWithType("workflow_id", int),
         AttributeWithType("name", str),
+        AttributeWithType("parent_id", int),
+        AttributeWithType("loop_count", int),
         AttributeWithType("status", str),
         AttributeWithType("prodsourcelabel", str),
         AttributeWithType("username", str),
