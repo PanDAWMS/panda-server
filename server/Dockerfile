@@ -1,7 +1,7 @@
 # To build the PanDA Server image, run the following command from the root of the repository:
 # docker build -f server/Dockerfile .
 
-FROM ghcr.io/tmaeno/panda-base-platform:latest
+FROM ghcr.io/pandawms/panda-base-platform:latest
 
 RUN mkdir /tmp/src
 WORKDIR /tmp/src
