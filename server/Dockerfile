@@ -21,7 +21,7 @@ RUN mkdir -p /etc/idds
 RUN mkdir -p /etc/rc.d/init.d
 RUN mv /opt/panda/etc/panda/panda_common.cfg.rpmnew /etc/panda/panda_common.cfg
 RUN mv /opt/panda/etc/panda/panda_server.cfg.rpmnew /etc/panda/panda_server.cfg
-RUN mv /opt/panda/etc/panda/panda_server.sysconfig.rpmnew /etc/sysconfig/panda_server
+RUN mv /opt/panda/etc/panda/sysconfig/panda_server.sysconfig.rpmnew /etc/sysconfig/panda_server
 RUN mv /opt/panda/etc/panda/panda_server-httpd.conf.rpmnew /opt/panda/etc/panda/panda_server-httpd.conf
 
 # make a wrapper script to launch services and periodic jobs in non-root container
