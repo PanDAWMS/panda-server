@@ -1,4 +1,4 @@
-name: Upload PanDA Server Python Package
+name: PyPI - Upload PanDA Server Package
 
 on:
   release:
