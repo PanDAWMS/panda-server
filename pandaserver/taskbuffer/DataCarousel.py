@@ -2739,6 +2739,8 @@ class DataCarouselInterface(object):
             rse_set.discard(dc_req_spec.source_rse)
         # check status of the request
         if dc_req_spec.status == DataCarouselRequestStatus.queued:
+            # exclude old source RSE for queued request
+            rse_set.discard(dc_req_spec.source_rse)
             if not rse_set:
                 # no availible source RSE
                 err_msg = f"dataset={dataset} has no other source RSE available; skipped"
