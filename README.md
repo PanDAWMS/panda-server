@@ -1,9 +1,9 @@
-# Package for PanDA Services
+# Monorepo for PanDA Services
 
-## PanDA overall documentation 
+## Overall PanDA documentation 
 
 https://panda-wms.readthedocs.io/en/latest/
 
 ## PanDA Server installation instructions
 
-See [PanDA server README](server/README.md).
+See [PanDA Server README](server/README.md).

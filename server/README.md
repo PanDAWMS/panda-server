@@ -1,9 +1,5 @@
 # PanDA Server Package
 
-## PanDA overall documentation 
-
-https://panda-wms.readthedocs.io/en/latest/
-
 ## PanDA Server cluster details for ATLAS
 
 https://github.com/PanDAWMS/panda-server/wiki/ATLAS-production-PanDA-servers-%5BSeptember-2023%5D
