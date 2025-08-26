@@ -514,7 +514,7 @@ def reactivate(req: PandaRequest, task_id: int, keep_attempt_nr: bool = False, t
 
     tmp_logger.debug("Done")
 
-    return generate_response(success, message)
+    return generate_response(success, message, code)
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
