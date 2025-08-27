@@ -1,4 +1,4 @@
-name: Docker
+name: Docker - Publish PanDA Server Image
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
@@ -28,6 +28,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Move Dockerfile
+        run: mv server/Dockerfile .
 
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action

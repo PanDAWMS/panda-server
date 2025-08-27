@@ -47,7 +47,14 @@ def get_repo_info() -> object:
     else:
         repo_name = repo_url.removesuffix(".git")
         branch_name = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip().decode()
-
+        if branch_name in ("HEAD", "main", "master"):
+            try:
+                # Use the account name as branch name if the repository is a fork from the original project
+                account_name = repo_url.split("/")[-2]
+                if account_name != "PanDAWMS":
+                    branch_name = account_name
+            except Exception:
+                pass
     # Commit hash
     commit_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode()
 
