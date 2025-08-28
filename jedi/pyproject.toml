@@ -50,7 +50,6 @@ packages = ["package"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "templates" = "etc/panda"
-"templates/sysconfig" = "etc/sysconfig"
 "templates/init.d" = "etc/rc.d/init.d"
 "templates/systemd" = "etc/systemd/system"
 "templates/bin" = "usr/bin"
