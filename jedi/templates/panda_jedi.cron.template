@@ -1,0 +1,4 @@
+HOME=/home/@@panda_user@@
+
+3 1 * * * @@panda_user@@ /usr/bin/panda_server-tmpwatch > /dev/null 2>&1
+45 */6 * * * @@panda_user@@ /usr/bin/panda_server-vomsrenew > /dev/null 2>&1

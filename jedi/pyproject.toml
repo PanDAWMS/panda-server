@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs", "requests"]
+build-backend = "hatchling.build"
+
+[project]
+name = "panda-jedi"
+dynamic = ["version"]
+description = "PanDA JEDI Package"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [
+    { name = "PanDA Team", email = "panda-support@cern.ch" },
+]
+dependencies = [
+    'panda-common>=0.1.5',
+    'panda-server>=0.6.4',
+    'python-daemon',
+    'numpy',
+    'polars',
+    'pyyaml',
+    'requests',
+    'packaging'
+]
+requires-python = ">=3.8"
+
+[project.optional-dependencies]
+oracle = ['oracledb']
+mysql = ['mysqlclient']
+postgres =  ['psycopg2-binary']
+rucio = ['rucio-clients']
+elasticsearch = ['elasticsearch']
+atlasprod =  ['oracledb', 'rucio-clients', 'idds-common', 'idds-client']
+
+[project.urls]
+Homepage = "https://panda-wms.readthedocs.io/en/latest/"
+
+[tool.hatch.version]
+path = "../PandaPkgInfo.py"
+pattern = "release_version = \"(?P<version>[^\"]+)\""
+
+[tool.hatch.build]
+directory = "dist"
+
+[tool.hatch.build.targets.wheel]
+exclude = ["*.template", "PandaPkgInfo.py", "hatch_build.py"]
+packages = ["package"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"../pandajedi" = "pandajedi"
+
+[tool.hatch.build.targets.wheel.shared-data]
+"templates" = "etc/panda"
+"templates/sysconfig" = "etc/sysconfig"
+"templates/init.d" = "etc/rc.d/init.d"
+"templates/systemd" = "etc/systemd/system"
+"templates/bin" = "usr/bin"
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "package/hatch_build.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    ".github",
+    ".idea",
+]
