@@ -1098,7 +1098,7 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_tasks_modified_since(req, since: str, dn: str = "", full: bool = False, min_task_id: int = None, prod_source_label: str = "user") -> Dict[str, Any]:
+def get_tasks_modified_since(req, since: str, dn: str = None, full: bool = False, min_task_id: int = None, prod_source_label: str = "user") -> Dict[str, Any]:
     """
     Get tasks modified since
 
@@ -1124,11 +1124,6 @@ def get_tasks_modified_since(req, since: str, dn: str = "", full: bool = False, 
 
     if not dn:
         dn = get_dn(req)
-
-    try:
-        min_task_id = int(min_task_id)
-    except ValueError:
-        min_task_id = None
 
     tmp_logger.debug(f"parameters dn:{dn} since:{since} full:{full} min_task_id:{min_task_id} prod_source_label:{prod_source_label}")
 

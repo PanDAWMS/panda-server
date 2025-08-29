@@ -46,6 +46,9 @@ FINAL_TASK_STATUSES = ["done", "finished", "failed", "exhausted", "aborted", "to
 # named tuple for attribute with type
 AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 
+# DDM rule activity map for data carousel
+DDM_RULE_ACTIVITY_MAP = {"anal": "Data Carousel Analysis", "prod": "Data Carousel Production", "_deprecated_": "Staging"}
+
 # template strings
 # source replica expression prefix
 SRC_REPLI_EXPR_PREFIX = "rse_type=DISK"
@@ -912,7 +915,7 @@ class DataCarouselInterface(object):
         rse_expression_list = []
         staging_rule = None
         for rule in rules:
-            if rule["account"] in ["panda"] and rule["activity"] == "Staging":
+            if rule["account"] in ["panda"] and rule["activity"] in DDM_RULE_ACTIVITY_MAP.values():
                 # rule of the dataset from ProdSys or PanDA already exists; reuse it
                 staging_rule = rule
             else:
@@ -1377,6 +1380,8 @@ class DataCarouselInterface(object):
                 if options.get("remove_when_done"):
                     # remove rule when done
                     dc_req_spec.set_parameter("remove_when_done", True)
+                if task_type := options.get("task_type"):
+                    dc_req_spec.set_parameter("task_type", task_type)
             # append to list
             dc_req_spec_list.append(dc_req_spec)
         # insert dc requests for the task
@@ -1885,11 +1890,15 @@ class DataCarouselInterface(object):
             # no match of destination RSE; return None and stay queued
             tmp_log.error(f"failed to get destination RSE; skipped")
             return None
+        # get task type for DDM rule activity
+        ddm_rule_activity = DDM_RULE_ACTIVITY_MAP["anal"]
+        if task_type := dc_req_spec.get_parameter("task_type"):
+            ddm_rule_activity = DDM_RULE_ACTIVITY_MAP.get(task_type, ddm_rule_activity)
         # submit ddm staging rule
         ddm_rule_id = self.ddmIF.make_staging_rule(
             dataset_name=dc_req_spec.dataset,
             expression=expression,
-            activity="Staging",
+            activity=ddm_rule_activity,
             lifetime=lifetime,
             weight=weight,
             notify="P",
