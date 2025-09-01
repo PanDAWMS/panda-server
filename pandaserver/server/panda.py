@@ -385,6 +385,13 @@ def validate_method(method_name, api_module, version):
     return False
 
 
+# Encoder: convert datetime → ISO string with a marker
+def encode_special_cases(obj):
+    if isinstance(obj, datetime.datetime):
+        return {"__datetime__": obj.isoformat()}
+    raise TypeError("Type not serializable")
+
+
 # This is the starting point for all WSGI requests
 def application(environ, start_response):
     # Parse the script name to retrieve method, module and version
@@ -469,7 +476,7 @@ def application(environ, start_response):
 
         # convert the response to json when specified through CONTENT_TYPE="application/json"
         if json_app and new_api:
-            exec_result = json.dumps(exec_result)
+            exec_result = json.dumps(exec_result, default=encode_special_cases)
 
     except Exception as exc:
         tmp_log.error(f"execution failure : {str(exc)}\n {traceback.format_exc()}")
