@@ -236,6 +236,9 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                         tmp_logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
                         if param_value == "None" and default_value is None:
                             param_value = None
+                        # Don't cast if the type is already a string
+                        elif expected_type is str:
+                            pass
                         # Booleans need to be handled separately, since bool("False") == True
                         elif expected_type is bool:
                             param_value = param_value.lower() in ("true", "1")
