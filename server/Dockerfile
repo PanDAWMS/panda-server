@@ -1,3 +1,4 @@
+# OBSOLTE: To be delted soon
 # To build the PanDA Server image, run the following command from the root of the repository:
 # docker build -f server/Dockerfile .
 

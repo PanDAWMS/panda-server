@@ -30,9 +30,3 @@ $ mv ../PandaPkgInfo.py .
 $ sed -i 's|"../|"|g' pyproject.toml
 $ python -m build -s
 ```
-
-### Making Docker image
-``` console
-$ cd panda-server
-$ docker build -f jedi/Dockerfile
-```
