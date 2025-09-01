@@ -1092,8 +1092,7 @@ class JsonSoftwareCheck:
                     continue
                 # only cmt config check
                 if cmt_config_only:
-                    if not cmt_config or cmt_config in self.sw_map[tmpSiteName]["cmtconfigs"]:
-                        okSite.append(tmpSiteName)
+                    okSite.append(tmpSiteName)
                     continue
                 # check if CVMFS is available
                 if "any" in self.sw_map[tmpSiteName]["cvmfs"] or cvmfs_tag in self.sw_map[tmpSiteName]["cvmfs"]:
