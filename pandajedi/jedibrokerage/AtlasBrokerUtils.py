@@ -101,9 +101,16 @@ def get_sites_with_data(siteList, siteMapper, ddmIF, datasetName, element_list, 
         return errtype, f"ddmIF.listDatasetReplicas failed with {errvalue}", None, None
 
     # check if complete replica is available at online RSE
-    complete_disk = False
+    regarded_as_complete_disk = False
+    truly_complete_disk = False
     complete_tape = False
+    is_tape = {}
     for tmp_rse, tmp_data_list in replicaMap[datasetName].items():
+        # check tape attribute
+        try:
+            is_tape[tmp_rse] = ddmIF.getSiteProperty(tmp_rse, "is_tape")
+        except Exception:
+            is_tape[tmp_rse] = None
         # look for complete replicas
         for tmp_data in tmp_data_list:
             # blacklisted
@@ -111,7 +118,7 @@ def get_sites_with_data(siteList, siteMapper, ddmIF, datasetName, element_list, 
                 continue
             if not tmp_data.get("vp"):
                 if tmp_data["found"] == tmp_data["total"]:
-                    pass
+                    truly_complete = True
                 elif (
                     tmp_data["total"]
                     and tmp_data["found"]
@@ -120,13 +127,15 @@ def get_sites_with_data(siteList, siteMapper, ddmIF, datasetName, element_list, 
                         or tmp_data["found"] / tmp_data["total"] * 100 >= min_input_completeness
                     )
                 ):
-                    pass
+                    truly_complete = False
                 else:
                     continue
-                if tmp_data.get("is_tape") == "Y":
+                if is_tape[tmp_rse]:
                     complete_tape = True
                 else:
-                    complete_disk = True
+                    regarded_as_complete_disk = True
+                    if truly_complete:
+                        truly_complete_disk = True
 
     # loop over all clouds
     retMap = {}
@@ -173,13 +182,6 @@ def get_sites_with_data(siteList, siteMapper, ddmIF, datasetName, element_list, 
                 # check archived metadata
                 # FIXME
                 pass
-                # check tape attribute
-                try:
-                    tmpOnTape = ddmIF.getSiteProperty(tmpSE, "is_tape")
-                except Exception:
-                    continue
-                    # errtype,errvalue = sys.exc_info()[:2]
-                    # return errtype,'ddmIF.getSiteProperty for %s:tape failed with %s' % (tmpSE,errvalue)
                 # check completeness
                 tmpStatistics = replicaMap[datasetName][tmpSE][-1]
                 if tmpStatistics["found"] is None:
@@ -193,50 +195,55 @@ def get_sites_with_data(siteList, siteMapper, ddmIF, datasetName, element_list, 
                 # append
                 if tmpSiteName not in retMap:
                     retMap[tmpSiteName] = {}
-                retMap[tmpSiteName][tmpSE] = {"tape": tmpOnTape, "state": tmpDatasetStatus}
+                retMap[tmpSiteName][tmpSE] = {"tape": is_tape[tmpSE], "state": tmpDatasetStatus}
                 if "vp" in tmpStatistics:
                     retMap[tmpSiteName][tmpSE]["vp"] = tmpStatistics["vp"]
     # return
-    return Interaction.SC_SUCCEEDED, retMap, complete_disk, complete_tape
+    return Interaction.SC_SUCCEEDED, retMap, regarded_as_complete_disk, complete_tape, truly_complete_disk
 
 
 # get analysis sites where data is available at disk
 def getAnalSitesWithDataDisk(dataSiteMap, includeTape=False, use_vp=True, use_incomplete=False):
-    siteList = []
-    siteWithIncomp = []
-    siteListNonVP = set()
-    siteListVP = set()
+    sites_with_complete_replicas = []
+    sites_with_incomplete_replicas = []
+    sites_with_non_vp_disk_replicas = set()
+    sites_using_vp = set()
     for tmpSiteName, tmpSeValMap in dataSiteMap.items():
         for tmpSE, tmpValMap in tmpSeValMap.items():
             # VP
             if tmpValMap.get("vp"):
-                siteListVP.add(tmpSiteName)
+                sites_using_vp.add(tmpSiteName)
                 if not use_vp:
                     continue
             # on disk or tape
             if includeTape or not tmpValMap["tape"]:
+                # complete replica available at disk, tape, or VP
                 if tmpValMap["state"] == "complete":
-                    # complete replica at disk
-                    if tmpSiteName not in siteList:
-                        siteList.append(tmpSiteName)
+                    # has complete replica
+                    if tmpSiteName not in sites_with_complete_replicas:
+                        sites_with_complete_replicas.append(tmpSiteName)
+                    # has non-VP disk replica
                     if not tmpValMap["tape"] and not tmpValMap.get("vp"):
-                        siteListNonVP.add(tmpSiteName)
+                        sites_with_non_vp_disk_replicas.add(tmpSiteName)
                 else:
                     # incomplete replica at disk
-                    if tmpSiteName not in siteWithIncomp:
-                        siteWithIncomp.append(tmpSiteName)
-    # remove VP if complete disk replica is unavailable
-    if not siteListNonVP:
-        for tmpSiteNameVP in siteListVP:
-            if tmpSiteNameVP in siteList:
-                siteList.remove(tmpSiteNameVP)
-            if tmpSiteNameVP in siteWithIncomp:
-                siteWithIncomp.remove(tmpSiteNameVP)
+                    if tmpSiteName not in sites_with_incomplete_replicas:
+                        sites_with_incomplete_replicas.append(tmpSiteName)
+    # remove VP if complete non-VP disk replica is unavailable
+    if sites_with_non_vp_disk_replicas:
+        for tmpSiteNameVP in sites_using_vp:
+            if tmpSiteNameVP in sites_with_complete_replicas:
+                sites_with_complete_replicas.remove(tmpSiteNameVP)
+            if tmpSiteNameVP in sites_with_incomplete_replicas:
+                sites_with_incomplete_replicas.remove(tmpSiteNameVP)
     # return sites with complete
-    if siteList != [] or not use_incomplete:
-        return siteList
+    if sites_with_complete_replicas:
+        if not use_incomplete or sites_with_non_vp_disk_replicas:
+            return sites_with_complete_replicas
+        else:
+            return sites_with_complete_replicas + sites_with_incomplete_replicas
     # return sites with incomplete if complete is unavailable
-    return siteWithIncomp
+    return sites_with_incomplete_replicas
 
 
 # get the number of jobs in a status

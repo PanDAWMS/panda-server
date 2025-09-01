@@ -295,7 +295,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmpLog.debug(f"completeness check disabled for {datasetName} since it is distributed")
                     continue
                 # check if complete replicas are available at online endpoints
-                tmpSt, tmpRet, tmp_complete_disk_ok, tmp_complete_tape_ok = AtlasBrokerUtils.get_sites_with_data(
+                tmpSt, tmpRet, tmp_complete_disk_ok, tmp_complete_tape_ok, tmp_truly_complete_disk = AtlasBrokerUtils.get_sites_with_data(
                     [],
                     self.siteMapper,
                     self.ddmIF,

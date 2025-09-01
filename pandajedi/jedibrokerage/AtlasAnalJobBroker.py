@@ -404,12 +404,13 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 oldScanUnifiedSiteList = self.get_unified_sites(oldScanSiteList)
                 complete_disk_ok = {}
                 complete_tape_ok = {}
+                true_complete_disk_ok = {}
                 for datasetSpec in inputChunk.getDatasets():
                     datasetName = datasetSpec.datasetName
                     if datasetName not in self.dataSiteMap:
                         # get the list of sites where data is available
                         tmpLog.debug(f"getting the list of sites where {datasetName} is available")
-                        tmpSt, tmpRet, tmp_complete_disk_ok, tmp_complete_tape_ok = AtlasBrokerUtils.get_sites_with_data(
+                        tmpSt, tmpRet, tmp_complete_disk_ok, tmp_complete_tape_ok, tmp_truly_complete_disk = AtlasBrokerUtils.get_sites_with_data(
                             self.get_unified_sites(scanSiteList),
                             self.siteMapper,
                             self.ddmIF,
@@ -430,6 +431,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         self.dataSiteMap[datasetName] = tmpRet
                         complete_disk_ok[datasetName] = tmp_complete_disk_ok
                         complete_tape_ok[datasetName] = tmp_complete_tape_ok
+                        true_complete_disk_ok[datasetName] = tmp_truly_complete_disk
                         if datasetName.startswith("ddo"):
                             tmpLog.debug(f" {len(tmpRet)} sites")
                         else:
@@ -477,7 +479,13 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 scanSiteWoVpUnion = None
 
                 for datasetName, tmpDataSite in self.dataSiteMap.items():
-                    useIncomplete = datasetName in ddsList
+                    # check if incomplete replica is allowed
+                    if datasetName in ddsList:
+                        useIncomplete = True
+                    elif true_complete_disk_ok.get(datasetName) is False:
+                        useIncomplete = True
+                    else:
+                        useIncomplete = False
                     # get sites where replica is available
                     tmpSiteList = AtlasBrokerUtils.getAnalSitesWithDataDisk(tmpDataSite, includeTape=True, use_incomplete=useIncomplete)
                     tmpDiskSiteList = AtlasBrokerUtils.getAnalSitesWithDataDisk(tmpDataSite, includeTape=False, use_vp=useVP, use_incomplete=useIncomplete)
@@ -529,7 +537,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         scanSiteWoVP = list(set(scanSiteWoVP).intersection(tmpNonVpSiteList))
                         scanSiteWoVpUnion = scanSiteWoVpUnion.union(tmpNonVpSiteList)
                     tmpLog.debug(
-                        f"{datasetName} is available at {len(scanSiteList)} sites. complete disk replica: {complete_disk_ok[datasetName]}, complete tape replica: {complete_tape_ok[datasetName]}"
+                        f"{datasetName} is available at {len(scanSiteList)} sites. complete disk replica: {true_complete_disk_ok[datasetName]}, complete tape replica: {complete_tape_ok[datasetName]}"
                     )
                     tmpLog.debug(f"{datasetName} is available at {len(scanSiteListOnDisk)} sites on DISK")
                 # check for preassigned
@@ -2088,6 +2096,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         or len(tmpDatasetSpec.Files) <= len(availableFiles[tmpSiteName]["cache"])
                         or len(tmpDatasetSpec.Files) <= len(availableFiles[tmpSiteName]["localtape"])
                         or tmpDatasetSpec.isDistributed()
+                        or true_complete_disk_ok[tmpDatasetName] is False
                         or ((checkDataLocality is False or useUnionLocality) and not tmpSiteSpec.use_only_local_data())
                     ):
                         siteCandidateSpec.add_local_disk_files(availableFiles[tmpSiteName]["localdisk"])
