@@ -222,8 +222,10 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                 if request_method == "GET":
                     try:
                         tmp_logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
+                        if param_value == "None" and default_value is None:
+                            param_value = None
                         # Booleans need to be handled separately, since bool("False") == True
-                        if expected_type is bool:
+                        elif expected_type is bool:
                             param_value = param_value.lower() in ("true", "1")
                         # Convert to float first, then to int. This is a courtesy for cases passing decimal numbers.
                         elif expected_type is int:
@@ -262,14 +264,10 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                             message = f"Type error: All elements in '{param_name}' must be {args[0].__name__}."
                             tmp_logger.error(message)
                             return generate_response(False, message=message)
-                else:
-                    if not isinstance(param_value, expected_type):
-                        expected_type_str = str(expected_type)
-                        if expected_type is not Union and expected_type is not UnionType:
-                            expected_type_str = expected_type.__name__
-                        message = f"Type error: '{param_name}' must be of type {expected_type.__name__}, got {type(param_value).__name__}."
-                        tmp_logger.error(message)
-                        return generate_response(False, message=message)
+                elif not isinstance(param_value, expected_type) and not (param_value is None and param_value == default_value):
+                    message = f"Type error: '{param_name}' must be of type {expected_type.__name__}, got {type(param_value).__name__}."
+                    tmp_logger.error(message)
+                    return generate_response(False, message=message)
 
             return func(*bound_args.args, **bound_args.kwargs)
 
