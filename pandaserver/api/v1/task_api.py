@@ -597,7 +597,7 @@ def reload_input(req: PandaRequest, task_id: int, ignore_hard_exhausted: bool = 
     com_qualifier = JediTaskSpec.get_retry_command_qualifiers(ignore_hard_exhausted=ignore_hard_exhausted)
     com_comment = json.dumps([{}, com_qualifier])
 
-    ret = global_task_buffer.sendCommandTaskPanda(task_id, user, is_production_role, "incexec", comComment=com_comment, propeErrorCode=True)
+    ret = global_task_buffer.sendCommandTaskPanda(task_id, user, is_production_role, "incexec", comComment=com_comment, properErrorCode=True)
     data, message = ret
     success = data == 0
 

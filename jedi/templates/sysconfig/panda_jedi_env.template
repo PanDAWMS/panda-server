@@ -1,0 +1,28 @@
+# python venv
+
+VIRTUAL_ENV=/opt/panda
+
+# reset PATH/LD_LIBRARY_PATH since atlpan's ones break grid-tools
+PATH=/opt/panda/bin:/bin:/usr/local/bin:/usr/bin:/root/.local/bin:/root/bin:/usr/sue/sbin:/usr/sue/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/puppetlabs/bin
+LD_LIBRARY_PATH=
+
+# import panda modules
+PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
+
+# for Rucio
+X509_CERT_DIR=/etc/grid-security/certificates
+X509_USER_PROXY=/data/atlpan/x509up_u25606
+RUCIO_ACCOUNT=panda
+RUCIO_APPID=pandasrv
+
+# panda home
+PANDA_HOME=/data/atlpan
+
+# timezone
+TZ=UTC
+
+# avoid to use AFS
+HOME=~atlpan
+
+# starts with non-root
+PANDA_NO_ROOT=1
