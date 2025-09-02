@@ -1,4 +1,4 @@
-name: Docker - Publish PanDA Server Image
+name: Docker - Publish Unifed Service Image
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
@@ -9,12 +9,12 @@ on:
   release:
     types: [published]
   workflow_dispatch:
-  
+
 env:
   # Use docker.io for Docker Hub if empty
   REGISTRY: ghcr.io
   # github.repository as <account>/<repo>
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository_owner }}/panda-unified-service
 
 
 jobs:
@@ -28,9 +28,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: Move Dockerfile
-        run: mv server/Dockerfile .
 
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action

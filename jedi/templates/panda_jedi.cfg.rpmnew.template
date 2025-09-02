@@ -1,0 +1,350 @@
+##########################
+#
+# Master parameters
+#
+
+[master]
+
+# uid
+uname = @@panda_user@@
+
+# gid
+gname = @@panda_group@@
+
+# logger name
+loggername = jedi
+
+
+
+
+##########################
+#
+# Database parameters
+#
+
+[db]
+
+# host
+dbhost = ADCR_PANDA
+
+# user
+#dbuser = ATLAS_PANDA_WRITER
+dbuser = panda
+
+# password
+dbpasswd = FIXME
+
+# database
+#dbname = PandaDB
+dbname = panda_db
+
+# number of task buffer instances
+nWorkers = 5
+
+# JEDI schema
+schemaJEDI = DOMA_PANDA
+
+# DEFT schema
+schemaDEFT = DOMA_DEFT
+
+# Active Panda schema
+schemaPANDA = DOMA_PANDA
+
+# Archived Panda schema
+schemaPANDAARCH = DOMA_PANDAARCH
+
+# META schema
+schemaMETA = DOMA_PANDAMETA
+
+
+
+
+##########################
+#
+# DDM parameters
+#
+
+[ddm]
+
+# interface config
+#modConfig = atlas:3:pandajedi.jediddm.AtlasDDMClient:AtlasDDMClient,vo_example:1:pandajedi.jediddm.GenDDMClient:GenDDMClient
+#modConfig = atlas:3:pandajedi.jediddm.AtlasDDMClient:AtlasDDMClient
+modConfig = wlcg:1:pandajedi.jediddm.GenDDMClient:GenDDMClient
+
+# list of VOs which use scope
+voWithScope = atlas
+
+# use lowercase letters for group and user dataset scope
+user_scope_in_lowercase = True
+
+
+##########################
+#
+# Contents Feeder parameters
+#
+
+[confeeder]
+
+# process config
+#procConfig = atlas:managed:1
+procConfig = wlcg:any:1
+
+# number of workers
+nWorkers = 5
+
+# loop interval in seconds
+loopCycle = 10
+
+# check interval for mutable datasets in minutes
+checkInterval = 5
+
+
+##########################
+#
+# Task Refine parameters
+#
+
+[taskrefine]
+
+# interface config
+#modConfig = atlas:any:pandajedi.jedirefine.AtlasProdTaskRefiner:AtlasProdTaskRefiner:any,atlas:user:pandajedi.jedirefine.AtlasAnalTaskRefiner:AtlasAnalTaskRefiner:any,vo_example:any:pandajedi.jedirefine.GenTaskRefiner:GenTaskRefiner
+#modConfig = atlas:any:pandajedi.jedirefine.AtlasProdTaskRefiner:AtlasProdTaskRefiner:any,atlas:user:pandajedi.jedirefine.AtlasAnalTaskRefiner:AtlasAnalTaskRefiner:any
+modConfig = wlcg:any:pandajedi.jedirefine.GenTaskRefiner:GenTaskRefiner
+
+# process config
+procConfig = ::1
+
+# number of workers
+nWorkers = 1
+
+# loop interval in seconds
+loopCycle = 10
+
+
+
+
+##########################
+#
+# Job Brokerage parameters
+#
+
+[jobbroker]
+
+# interface config
+#modConfig = atlas:any:pandajedi.jedibrokerage.AtlasProdJobBroker:AtlasProdJobBroker,atlas:user:pandajedi.jedibrokerage.AtlasAnalJobBroker:AtlasAnalJobBroker,vo_example:any:pandajedi.jedibrokerage.GenJobBroker:GenJobBroker
+#modConfig = atlas:any:pandajedi.jedibrokerage.AtlasProdJobBroker:AtlasProdJobBroker,atlas:user:pandajedi.jedibrokerage.AtlasAnalJobBroker:AtlasAnalJobBroker
+modConfig = wlcg:any:pandajedi.jedibrokerage.GenJobBroker:GenJobBroker
+
+
+
+
+##########################
+#
+# Job Throttle parameters
+#
+
+[jobthrottle]
+
+# interface config
+#modConfig = atlas:any:pandajedi.jedithrottle.AtlasProdJobThrottler:AtlasProdJobThrottler,atlas:user:pandajedi.jedithrottle.AtlasAnalJobThrottler:AtlasAnalJobThrottler,vo_example:any:pandajedi.jedithrottle.GenJobThrottler:GenJobThrottler
+#modConfig = atlas:any:pandajedi.jedithrottle.AtlasProdJobThrottler:AtlasProdJobThrottler,atlas:user:pandajedi.jedithrottle.AtlasAnalJobThrottler:AtlasAnalJobThrottler
+modConfig = wlcg:any:pandajedi.jedithrottle.GenJobThrottler:GenJobThrottler
+
+
+
+
+##########################
+#
+# Job Generator parameters
+#
+
+[jobgen]
+
+# process config
+#procConfig = atlas:managed|test|ptest:2:CA,CERN,DE,ES,FR,IT,ND,NL,RU,TW,UK,US;atlas:user:1:;vo_example:any:1:
+#procConfig = atlas:managed|test|ptest:2:CA,CERN,DE,ES,FR,IT,ND,NL,RU,TW,UK,US;atlas:user:1:
+procConfig = wlcg:any:4:
+
+# number of tasks per cycle
+nTasks = 50
+
+# number of files per task
+nFiles = 5000
+
+# number of workers
+nWorkers = 5
+
+# loop interval in seconds
+loopCycle = 10
+
+# lock interval to avoid duplication
+lockInterval = 5
+
+# typical number of files per job type
+typicalNumFile = :::logmerge:1000000
+
+
+
+
+##########################
+#
+# PostProcessor parameters
+#
+
+[postprocessor]
+
+# interface config
+#modConfig = atlas:any:pandajedi.jedipprocess.AtlasProdPostProcessor:AtlasProdPostProcessor,atlas:user:pandajedi.jedipprocess.AtlasAnalPostProcessor:AtlasAnalPostProcessor,vo_example:any:pandajedi.jedipprocess.GenPostProcessor:GenPostProcessor
+#modConfig = atlas:any:pandajedi.jedipprocess.AtlasProdPostProcessor:AtlasProdPostProcessor,atlas:user:pandajedi.jedipprocess.AtlasAnalPostProcessor:AtlasAnalPostProcessor
+modConfig = wlcg:any:pandajedi.jedipprocess.GenPostProcessor:GenPostProcessor
+
+# process config
+procConfig = ::1
+
+# number of workers
+nWorkers = 5
+
+# number of tasks per cycle
+nTasks = 50
+
+# loop interval in seconds
+loopCycle = 20
+
+
+
+
+##########################
+#
+# WatchDog parameters
+#
+
+[watchdog]
+
+# interface config
+#modConfig = atlas:managed|test:pandajedi.jedidog.AtlasProdWatchDog:AtlasProdWatchDog,atlas:user:pandajedi.jedidog.AtlasAnalWatchDog:AtlasAnalWatchDog,vo_example:any:pandajedi.jedidog.GenWatchDog:GenWatchDog
+#modConfig = atlas:managed|test:pandajedi.jedidog.AtlasProdWatchDog:AtlasProdWatchDog,atlas:user:pandajedi.jedidog.AtlasAnalWatchDog:AtlasAnalWatchDog
+modConfig = wlcg:any:pandajedi.jedidog.GenWatchDog:GenWatchDog
+
+# process config
+procConfig = wlcg:any:1
+
+# loop interval in seconds
+loopCycle = 300
+
+# wait period for picked files in minutes
+waitForPicked = 30
+
+# wait period for pending tasks in minutes
+waitForPending = 60
+
+# timeout for pending tasks in days
+timeoutForPending = 7
+
+# timeout for pending tasks in days with vo and sourceLabel
+timeoutForPendingVoLabel = atlas:managed:7
+
+# wait period for locked tasks in minutes
+waitForLocked = 60
+
+# wait period for throttled tasks in minutes
+waitForThrottled = 120
+
+# wait period for exhausted tasks in hours
+waitForExhausted = 48
+
+# wait period to check achievement of tasks in minutes
+waitForAchieved = 60
+
+
+
+
+##########################
+#
+# Task Brokerage parameters
+#
+
+[taskbroker]
+
+# interface config
+modConfig = atlas:managed|test:pandajedi.jedibrokerage.AtlasProdTaskBroker:AtlasProdTaskBroker
+
+# process config
+#procConfig = atlas:managed:1
+procConfig = wlcg:managed:1
+
+# number of workers
+nWorkers = 1
+
+# loop interval in seconds
+loopCycle = 600
+
+
+
+
+##########################
+#
+# TaskCommando parameters
+#
+
+[tcommando]
+
+# process config
+procConfig = ::1
+
+# number of workers
+nWorkers = 5
+
+# loop interval in seconds
+loopCycle = 60
+
+
+
+
+##########################
+#
+# TaskGenerator parameters
+#
+
+[taskgen]
+
+# interface config
+modConfig = atlas:managed|test:pandajedi.jedigen.AtlasTaskGenerator:AtlasTaskGenerator
+
+
+
+
+##########################
+#
+# TaskSetupper parameters
+#
+
+[tasksetup]
+
+# interface config
+#modConfig = atlas:any:pandajedi.jedisetup.AtlasTaskSetupper:AtlasTaskSetupper,vo_example:any:pandajedi.jedisetup.GenTaskSetupper:GenTaskSetupper
+#modConfig = atlas:any:pandajedi.jedisetup.AtlasTaskSetupper:AtlasTaskSetupper
+modConfig = wlcg:any:pandajedi.jedisetup.GenTaskSetupper:GenTaskSetupper
+
+
+
+##########################
+#
+# Message Processor parameters
+#
+
+[msgprocessor]
+
+# json config file of message processors
+#configFile = /etc/panda/jedi_msg_proc_config.json
+
+
+
+##########################
+#
+# Message Queue parameters
+#
+
+[mq]
+
+# json config file of message queues for JEDI agents (except msgprocessor) to send to
+#configFile = /etc/panda/jedi_mq_config.json
