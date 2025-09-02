@@ -1,0 +1,17 @@
+/var/log/panda/*log {
+    rotate 180	
+    daily
+    compress    
+    missingok
+    notifempty
+    sharedscripts
+    postrotate
+    	killall -u @@panda_user@@ python > /dev/null 2>/dev/null || true
+	killall -u @@panda_user@@ python2.6 > /dev/null 2>/dev/null || true
+	/sbin/service panda_jedi stop > /dev/null 2>/dev/null || true
+	/sbin/service panda_jedi start > /dev/null 2>/dev/null || true
+	sleep 60
+	/usr/bin/panda_jedi-reniceJEDI > /dev/null 2>/dev/null || true
+    endscript
+}
+
