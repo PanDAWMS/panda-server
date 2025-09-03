@@ -213,7 +213,7 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:
     metadata = global_task_buffer.getUserJobMetadata(task_id)
     if not metadata:
         tmp_logger.debug("No metadata found")
-        return generate_response(False, message="No metadata found")
+        return generate_response(True, message="No metadata found", data={})
 
     tmp_logger.debug("Done")
     return generate_response(True, data=metadata)
