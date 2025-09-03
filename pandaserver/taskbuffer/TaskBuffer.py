@@ -1001,7 +1001,7 @@ class TaskBuffer:
             # get DBproxy for each job to avoid occupying connection for long time
             with self.proxyPool.get() as proxy:
                 # peek job
-                res = proxy.peekJob(jobID, fromDefined, fromActive, fromArchived, fromWaiting, forAnal, use_json=use_json)
+                res = proxy.peekJob(jobID, fromDefined, fromActive, fromArchived, fromWaiting, forAnal)
                 retJobMap[jobID] = res
 
         # get IDs
