@@ -1891,7 +1891,7 @@ class DataCarouselInterface(object):
             tmp_log.error(f"failed to get destination RSE; skipped")
             return None
         # get task type for DDM rule activity
-        ddm_rule_activity = DDM_RULE_ACTIVITY_MAP["anal"]
+        ddm_rule_activity = DDM_RULE_ACTIVITY_MAP["prod"]
         if task_type := dc_req_spec.get_parameter("task_type"):
             ddm_rule_activity = DDM_RULE_ACTIVITY_MAP.get(task_type, ddm_rule_activity)
         # submit ddm staging rule
