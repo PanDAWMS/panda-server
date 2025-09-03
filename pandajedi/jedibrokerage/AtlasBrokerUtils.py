@@ -877,7 +877,7 @@ def compare_version_string(version_string, comparison_string):
     if not match:
         return None
 
-    operator = match.group(1)
+    operator = match.group(1).strip()
     version_to_compare = match.group(2).strip()
 
     try:
@@ -1036,17 +1036,12 @@ class JsonSoftwareCheck:
                                 if "version" not in architecture_map["gpu"]:
                                     # PQ doesn't specify version
                                     continue
-                                elif "any" in architecture_map["gpu"]["version"]:
+                                elif "any" == architecture_map["gpu"]["version"]:
                                     # PQ accepts any version
                                     pass
                                 else:
-                                    # check all versions at PQ
-                                    ok_version = False
-                                    for a_version in architecture_map["gpu"]["version"]:
-                                        if compare_version_string(a_version, host_gpu_spec["version"]):
-                                            ok_version = True
-                                            break
-                                    if not ok_version:
+                                    # check version at PQ
+                                    if not compare_version_string(architecture_map["gpu"]["version"], host_gpu_spec["version"]):
                                         continue
                     go_ahead = True
                 except Exception as e:
