@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# import env vars from sysconfig
+source @@virtual_env@@/etc/sysconfig/panda_server
+source @@virtual_env@@/etc/sysconfig/panda_jedi
+
+python @@install_purelib@@/pandajedi/jediexec/reniceJEDI.py

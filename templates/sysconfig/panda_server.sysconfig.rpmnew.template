@@ -1,0 +1,116 @@
+# Configuration file for the httpd service launched not through systemd,
+# e.g. in container where some parameters are dynamically set via env
+# variables while systemd services don't inherit env variables from PID1
+
+
+@@virtual_env_setup@@
+
+OPTIONS="-f ${VIRTUAL_ENV}/etc/panda/panda_server-httpd.conf"
+
+# for WSGI
+#OPTIONS="-f ${VIRTUAL_ENV}/etc/panda/panda_server-httpd-FastCGI.conf"
+#HTTPD='/usr/sbin/httpd'
+
+# reset PATH/LD_LIBRARY_PATH since atlpan's ones break grid-tools
+export PATH=/bin:/usr/local/bin:/usr/bin
+if [[ -n "${VIRTUAL_ENV}" ]]; then
+  PATH=${VIRTUAL_ENV}/bin:${VIRTUAL_ENV}/usr/local/bin:${VIRTUAL_ENV}/usr/bin:${VIRTUAL_ENV}:${PATH}
+fi
+unset LD_LIBRARY_PATH
+
+# for DQ2
+export X509_CERT_DIR=/etc/grid-security/certificates
+if [[ -z "${PANDA_RUCIO_ACCOUNT}" ]]; then
+  export RUCIO_ACCOUNT=panda
+else
+  export RUCIO_ACCOUNT=${PANDA_RUCIO_ACCOUNT}
+fi
+export RUCIO_APPID=pandasrv
+
+# panda home
+if [[ -n "${VIRTUAL_ENV}" ]]; then
+  export PANDA_HOME=${VIRTUAL_ENV}
+else
+  export PANDA_HOME=/data/atlpan
+fi
+# timezone
+export TZ=UTC
+
+# import panda modules
+export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
+
+# avoid to use AFS
+export HOME=~@@panda_user@@
+
+# set user's proxy
+export X509_USER_PROXY=/data/atlpan/x509up_u25606
+
+# panda server URLs
+if [[ -z "${PANDA_URL}" ]]; then
+  export PANDA_URL="http://`hostname --fqdn`:25080/server/panda"
+fi
+if [[ -z "${PANDA_URL_SSL}" ]]; then
+  export PANDA_URL_SSL="https://`hostname --fqdn`:25443/server/panda"
+fi
+
+# API URLs
+if [[ -z "${PANDA_API_URL}" ]]; then
+  export PANDA_API_URL="http://`hostname --fqdn`:25080/api/v1"
+fi
+if [[ -z "${PANDA_API_URL_SSL}" ]]; then
+  export PANDA_API_URL_SSL="https://`hostname --fqdn`:25443/api/v1"
+fi
+
+
+# httpd config
+
+# server name
+if [[ -z "${PANDA_SERVER_CONF_SERVERNAME}" ]]; then
+  export PANDA_SERVER_CONF_SERVERNAME=pandaserver.cern.ch
+fi
+
+# min number of workers
+if [[ -z "${PANDA_SERVER_CONF_MIN_WORKERS}" ]]; then
+  export PANDA_SERVER_CONF_MIN_WORKERS=32
+fi
+
+# max number of workers
+if [[ -z "${PANDA_SERVER_CONF_MAX_WORKERS}" ]]; then
+  export PANDA_SERVER_CONF_MAX_WORKERS=512
+fi
+
+# max number of WSGI daemons
+if [[ -z "${PANDA_SERVER_CONF_NUM_WSGI}" ]]; then
+  export PANDA_SERVER_CONF_NUM_WSGI=32
+fi
+
+# max number of WSGI threads
+if [[ -z "${PANDA_SERVER_CONF_NUM_WSGI_THREAD}" ]]; then
+  export PANDA_SERVER_CONF_NUM_WSGI_THREAD=1
+fi
+
+# max number of WSGI daemons
+if [[ -z "${PANDA_SERVER_CONF_MAX_BACKLOG}" ]]; then
+  export PANDA_SERVER_CONF_MAX_BACKLOG=511
+fi
+
+# port
+if [[ -z "${PANDA_SERVER_CONF_PORT}" ]]; then
+  export PANDA_SERVER_CONF_PORT=25080
+fi
+if [[ -z "${PANDA_SERVER_CONF_PORT_SSL}" ]]; then
+  export PANDA_SERVER_CONF_PORT_SSL=25443
+fi
+if [[ -z "${PANDA_SERVER_CONF_PORT_MCP}" ]]; then
+  export PANDA_SERVER_CONF_PORT_MCP=25888
+fi
+
+# max connections per child
+if [[ -z "${PANDA_SERVER_CONF_MAX_CONNECTIONS}" ]]; then
+  export PANDA_SERVER_CONF_MAX_CONNECTIONS=2000
+fi
+
+# threads per child
+if [[ -z "${PANDA_SERVER_CONF_THREADS_PER_CHILD}" ]]; then
+  export PANDA_SERVER_CONF_THREADS_PER_CHILD=25
+fi

@@ -1,0 +1,16 @@
+/var/log/panda/*log {
+    rotate 180
+    daily
+    compress    
+    missingok
+    notifempty
+    sharedscripts
+    daily
+    postrotate
+	killall -u @@panda_user@@ python > /dev/null 2>/dev/null || true
+        killall -u @@panda_user@@ python@@python_exec_version@@ > /dev/null 2>/dev/null || true
+	/sbin/service httpd-pandasrv stop > /var/log/panda/panda_server_log_rotate.log 2>&1 || true
+	/sbin/service httpd-pandasrv start >> /var/log/panda/panda_server_log_rotate.log 2>&1 || true
+	renice 0 -g `cat /var/log/panda/panda_server_httpd.pid` >> /var/log/panda/panda_server_log_rotate.log 2>&1 || true
+    endscript
+}

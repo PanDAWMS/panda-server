@@ -1,0 +1,437 @@
+#!/usr/bin/python
+
+import datetime
+import optparse
+import re
+import socket
+import subprocess
+import sys
+
+import SLSxml
+
+###########################################
+# define options
+###########################################
+parser = optparse.OptionParser()
+parser.add_option("-u", "--use", dest="use", type="string", help="Use of xml, allowed values: 'mon', 'server' or 'bamboo'")
+parser.add_option("--host", dest="host", type="string", help="Hostname of server to check, default is current machine hostname")
+parser.add_option("-d", "--dir", dest="dir", type="string", help="Filename of the xml file output.  Default is " + "/data/atlpan/oracle/panda/monitoring")
+parser.add_option("--debug", action="store_true", dest="debug", default=False, help="Print out debug statements.")
+
+(options, args) = parser.parse_args()
+
+
+def __main__():
+    if options.host:
+        host = options.host
+    else:
+        host = socket.gethostname()
+        host = re.sub(r"^(\w+).*", r"\1", host)
+
+    if options.use == "mon":
+        tmp_xml = make_monitor(host)
+        file_part = "PandaMon"
+    elif options.use == "server":
+        tmp_xml = make_server(host)
+        file_part = "PandaServer"
+    elif options.use == "bamboo":
+        tmp_xml = make_bamboo(host)
+        file_part = "PandaBamboo"
+    else:
+        print("Err: please choose a use, 'mon', 'server' or 'bamboo'.")
+        return
+
+    if options.dir:
+        file_dir = options.dir
+    else:
+        file_dir = "/data/atlpan/oracle/panda/monitoring"
+
+    file_name = f"{file_dir}/{file_part}_{host}.xml"
+    tmp_file = open(file_name, "w")
+    tmp_file.write(tmp_xml)
+    tmp_file.close()
+
+
+def make_server(host):
+    if options.debug:
+        print("Creating the server monitoring xml")
+
+    server_avail = server_availability(host)
+    add_processes = count_add_processes()
+    num_holdings = count_holdings()
+    data_used = volume_use("data")
+    var_used = volume_use("var")
+    ave_regtime = registration_time()
+    ave_regtimeDQ2 = registration_time(onlyDQ2=True)
+    ave_filelookuptime = filelookup_time()
+    num_finished_call = count_finished_callback()
+    num_finished_check = count_finished_catalogcheck()
+
+    sls_xml = SLSxml.xml_doc()
+    sls_xml.set_id(f"PandaServer_{host}")
+    sls_xml.set_shortname(f"PandaServer monitoring service at {host}")
+    sls_xml.set_fullname(f"PandaServer monitoring service at {host}")
+    sls_xml.set_availability(str(server_avail))
+
+    sls_xml.add_data("AddProcesses", "Number of processes for DQ2+LFC registration", str(add_processes))
+    sls_xml.add_data("HoldingJobs", "Number of holding jobs to be registered", str(num_holdings))
+    sls_xml.add_data("RegistrationTime", "Average time for DQ2+LFC registration in second", str(ave_regtime))
+    sls_xml.add_data("RegistrationTimeDQ2", "Average time for DQ2 registration in second", str(ave_regtimeDQ2))
+    sls_xml.add_data("FileLookupTime", "Average time for replica lookup per 100 files in second", str(ave_filelookuptime))
+    sls_xml.add_data("DataVolumeUse", "Percent use of the local /data volume", str(data_used))
+    sls_xml.add_data("VarVolumeUse", "Percent use of the local /var volume", str(var_used))
+    sls_xml.add_data("FinishedJobsByCallback", "Number of finished jobs by callbacks", str(num_finished_call))
+    sls_xml.add_data("FinishedJobsByCatalog", "Number of finished jobs by catalog check", str(num_finished_check))
+    return sls_xml.print_xml()
+
+
+def make_bamboo(host):
+    if options.debug:
+        print("Creating the server monitoring xml")
+
+    server_avail = bamboo_availability(host)
+
+    sls_xml = SLSxml.xml_doc()
+    sls_xml.set_id(f"PandaBamboo_{host}")
+    sls_xml.set_shortname(f"PandaBamboo monitoring service at {host}")
+    sls_xml.set_fullname(f"PandaBamboo monitoring service at {host}")
+    sls_xml.set_availability(str(server_avail))
+    return sls_xml.print_xml()
+
+
+def make_monitor(host):
+    if options.debug:
+        print("Creating the monitor monitoring xml")
+
+    errormes = False
+    messagetext = ""
+
+    http_avail = httpd_availability(host)
+    if http_avail == 0:
+        errormes = True
+        messagetext += f"Error: web server on {host} not working\n"
+
+    squid_avail = squid_availability()
+    if squid_avail == 0:
+        errormes = True
+        messagetext += f"Error: squid server on {host} not working\n"
+
+    panda_avail = panda_availability(host)
+    if panda_avail == 0:
+        errormes = True
+        messagetext += f"Error: panda monitor on {host} not working\n"
+
+    http_processes = count_processes()
+
+    data_used = volume_use("data")
+    var_used = volume_use("var")
+
+    if errormes:
+        error_mail(host, messagetext)
+
+    if options.debug:
+        print(f"web - {http_avail}, squid - {squid_avail}, panda - {panda_avail}")
+
+    sls_xml = SLSxml.xml_doc()
+    sls_xml.set_id(f"PandaMon_{host}")
+    sls_xml.set_shortname(f"PandaMonitor monitoring service at {host}")
+    sls_xml.set_fullname(f"PandaMonitor monitoring service at {host}")
+    sls_xml.set_availability(str(panda_avail))
+
+    # adding intervention by hand here
+    # sls_xml.add_intervention( "2011-01-16T20:00:00", "PT36H",
+    # "Panda services with be out for over a day due to database server changes." )
+
+    sls_xml.add_data("HttpdAvailability", "Availability of the httpd server", str(http_avail))
+    sls_xml.add_data("SquidAvailability", "Availability of the squid server", str(squid_avail))
+    sls_xml.add_data("PandaAvailability", "Availability of the panda monitor", str(panda_avail))
+    sls_xml.add_data("HttpProcesses", "Number of processes for the panda monitor", str(http_processes))
+    sls_xml.add_data("DataVolumeUse", "Percent use of the local /data volume", str(data_used))
+    sls_xml.add_data("VarVolumeUse", "Percent use of the local /var volume", str(var_used))
+    return sls_xml.print_xml()
+
+
+def httpd_availability(host):
+    url = f"http://{host}.cern.ch/robots.txt"
+    return check_url(url, "go away")
+
+
+def squid_availability():
+    command = "/usr/bin/squidclient -p 25980 cache_object://localhost/info"
+    return check_command(command, "OK")
+
+
+def panda_availability(host):
+    port = "25980"
+    baseurl = "http://" + host + ":" + port + "/server/pandamon/query?"
+
+    reply = check_url(baseurl + "isAlive", "yes")
+    if reply != "100":
+        return "0"
+
+    return "100"
+
+    # The above is a simpler test of the python code, for now, until the
+    # panda monitor migration is more stable, and all network tweaks are
+    # in quator, so things are stable on reboot/upgrade.  Once that is
+    # true the below tests should be put back.
+
+    reply = check_url(baseurl + "dash=prod", "CERN:OK")
+    if reply != "100":
+        return "0"
+
+    reply = check_url(baseurl + "dash=clouds", "Cloud status")
+    if reply != "100":
+        return "0"
+
+    reply = check_url(baseurl + "overview=incidents", "Recorded incidents")
+    if reply != "100":
+        return "0"
+
+    reply = check_url(baseurl + "dash=ddm", "Space available")
+    if reply != "100":
+        return "0"
+
+    return "100"
+
+
+def server_availability(host):
+    tmp_url = f"--no-check-certificate https://{host}:25443/server/panda/isAlive"
+    reply = check_url(tmp_url, "alive=yes")
+    if reply != "100":
+        return "0"
+
+    return "100"
+
+
+def bamboo_availability(host):
+    tmp_url = f"http://{host}:25070/bamboo/bamboo/isAlive"
+    reply = check_url(tmp_url, "alive=yes")
+    if reply != "100":
+        return "0"
+
+    return "100"
+
+
+def check_url(url, check_string):
+    command = "wget -q -O - " + url
+    return check_command(command, check_string)
+
+
+def check_command(command, check_string):
+    if options.debug:
+        print(f"Checking command : {command}")
+        print(f"For string : {check_string}")
+
+    tmp_array = command.split()
+    output = subprocess.Popen(tmp_array, stdout=subprocess.PIPE).communicate()[0]
+
+    if re.search(check_string, output):
+        if options.debug:
+            print("Found the string, return 100")
+        return "100"
+    else:
+        if options.debug:
+            print("String not found, return 0")
+        return "0"
+
+
+def count_processes():
+    output = subprocess.Popen(["ps", "aux"], stdout=subprocess.PIPE).communicate()[0]
+    count = 0
+    for line in output.split("\n"):
+        if re.match("@@panda_user@@", line):
+            if re.search("http", line):
+                count += 1
+    return count
+
+
+def count_add_processes():
+    output = subprocess.Popen("ps -eo pgid,args | grep add.py | grep -v grep | uniq", stdout=subprocess.PIPE, shell=True).communicate()[0]
+    count = 0
+    for line in output.split("\n"):
+        line = line.strip()
+        if line == "":
+            continue
+        count += 1
+    return count
+
+
+def count_holdings():
+    output = subprocess.Popen("ls /var/log/panda/ | egrep '(finished|failed)'", stdout=subprocess.PIPE, shell=True).communicate()[0]
+    count = 0
+    for line in output.split("\n"):
+        line = line.strip()
+        if line == "":
+            continue
+        count += 1
+    return count
+
+
+def registration_time(timeSlice=False, onlyDQ2=False):
+    aveRegTime = "0.0"
+    try:
+        if onlyDQ2:
+            com = "grep registraion /var/log/panda/panda-Adder.log | grep DQ2 | grep -v LFC"
+        else:
+            com = "grep 'LFC+DQ2' /var/log/panda/panda-Adder.log"
+        if not timeSlice:
+            com += " | tail -1000"
+        output = subprocess.Popen(com, stdout=subprocess.PIPE, shell=True).communicate()[0]
+        regtimeMap = {}
+        for line in output.split("\n"):
+            try:
+                items = line.split()
+                timestamp = items[1][:2]
+                regtime = float(items[-2])
+                if timestamp not in regtimeMap:
+                    regtimeMap[timestamp] = {"totalTime": 0.0, "totalReg": 0}
+                regtimeMap[timestamp]["totalTime"] += regtime
+                regtimeMap[timestamp]["totalReg"] += 1
+            except Exception:
+                pass
+        timestamps = list(regtimeMap)
+        if timeSlice:
+            timestamps.sort()
+            for timestamp in timestamps:
+                print(f"{timestamp} {regtimeMap[timestamp]['totalTime'] / float(regtimeMap[timestamp]['totalReg']):4.1f}sec")
+        else:
+            totalTime = 0.0
+            totalReg = 0
+            for timestamp in timestamps:
+                totalTime += regtimeMap[timestamp]["totalTime"]
+                totalReg += regtimeMap[timestamp]["totalReg"]
+            if totalReg > 0:
+                aveRegTime = f"{totalTime / float(totalReg):4.1f}"
+    except Exception:
+        errtype, ervalue = sys.exc_info()[:2]
+        print(f"ERROR : {errtype}:{ervalue} in registration_time")
+    return aveRegTime
+
+
+def filelookup_time(timeSlice=False):
+    aveRegTime = "0.0"
+    timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    try:
+        com = "grep took /var/log/panda/panda-broker_util.log | grep file | grep -v 'for 1 LFNs' | grep -v 'for 2 LFNs'"
+        if not timeSlice:
+            com += " | tail -1000"
+        output = subprocess.Popen(com, stdout=subprocess.PIPE, shell=True).communicate()[0]
+        regtimeMap = {}
+        for line in output.split("\n"):
+            try:
+                timeDelta = timeNow - datetime.datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S")
+                if timeDelta > datetime.timedelta(minutes=120):
+                    continue
+                items = line.split()
+                timestamp = items[1][:2]
+                regtime = float(items[-2])
+                tmpMatch = re.search(" (\d+) LFNs", line)
+                if tmpMatch is None:
+                    continue
+                nFiles = int(tmpMatch.group(1))
+                if timestamp not in regtimeMap:
+                    regtimeMap[timestamp] = {"totalTime": 0.0, "totalReg": 0}
+                regtimeMap[timestamp]["totalTime"] += regtime
+                regtimeMap[timestamp]["totalReg"] += nFiles
+            except Exception:
+                pass
+        timestamps = list(regtimeMap)
+        if timeSlice:
+            timestamps.sort()
+            for timestamp in timestamps:
+                print(f"{timestamp} {100 * regtimeMap[timestamp]['totalTime'] / float(regtimeMap[timestamp]['totalReg']):4.1f}sec")
+        else:
+            totalTime = 0.0
+            totalReg = 0
+            for timestamp in timestamps:
+                totalTime += regtimeMap[timestamp]["totalTime"]
+                totalReg += regtimeMap[timestamp]["totalReg"]
+            if totalReg > 0:
+                aveRegTime = f"{100 * totalTime / float(totalReg):4.1f}"
+    except Exception:
+        errtype, ervalue = sys.exc_info()[:2]
+        print(f"ERROR : {errtype}:{ervalue} in filelookup_time")
+    return aveRegTime
+
+
+def volume_use(volume_name):
+    command = "df -Pkh /" + volume_name
+    used_amount = 0
+    tmp_array = command.split()
+    output = subprocess.Popen(tmp_array, stdout=subprocess.PIPE).communicate()[0]
+
+    for line in output.split("\n"):
+        if re.search(volume_name, line):
+            used_amount = re.search(r"(\d+)\%", line).group(1)
+
+    return used_amount
+
+
+def error_mail(host, message):
+    mail_cmd = []
+    mail_cmd.append("mail")
+    mail_cmd.append("-s")
+    mail_cmd.append(f"Problems with {host}")
+    mail_cmd.append("douglas@cern.ch")
+
+    text = f"Problems with {host} :\n\n"
+    text += message
+
+    p = subprocess.Popen(mail_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+    p.stdin.write(text)
+    p.stdin.close()
+
+
+def count_finished_callback():
+    nJobs = 0
+    try:
+        timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        output = subprocess.Popen("grep 'all files ready' /var/log/panda/panda-Finisher.log", stdout=subprocess.PIPE, shell=True).communicate()[0]
+        pandaIDs = []
+        for line in output.split("\n"):
+            try:
+                line = line.strip()
+                if line == "":
+                    continue
+                timeDelta = timeNow - datetime.datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S")
+                if timeDelta > datetime.timedelta(minutes=60):
+                    continue
+                pandaID = line.split()[-4]
+                if pandaID not in pandaIDs:
+                    pandaIDs.append(pandaID)
+            except Exception:
+                pass
+        nJobs = len(pandaIDs)
+    except Exception:
+        pass
+    return nJobs
+
+
+def count_finished_catalogcheck():
+    nJobs = 0
+    try:
+        timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        output = subprocess.Popen("grep Finish /var/log/panda/panda-datasetManager.log | grep -v Wait", stdout=subprocess.PIPE, shell=True).communicate()[0]
+        pandaIDs = []
+        for line in output.split("\n"):
+            try:
+                line = line.strip()
+                if line == "":
+                    continue
+                timeDelta = timeNow - datetime.datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S")
+                if timeDelta > datetime.timedelta(minutes=60):
+                    continue
+                pandaID = line.split()[-4]
+                if pandaID not in pandaIDs:
+                    pandaIDs.append(pandaID)
+            except Exception:
+                pass
+        nJobs = len(pandaIDs)
+    except Exception:
+        pass
+    return nJobs
+
+
+# run program
+__main__()

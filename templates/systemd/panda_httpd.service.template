@@ -1,0 +1,17 @@
+[Unit]
+Description=PanDA server httpd service
+After=network.target remote-fs.target nss-lookup.target
+PartOf=panda.service
+After=panda.service
+
+[Service]
+User=atlpan
+Type=notify
+Nice=0
+EnvironmentFile=/etc/sysconfig/panda_server_env
+ExecStart=/bin/sh -c '@@virtual_env_setup@@ && /usr/sbin/httpd $OPTIONS -k start -D FOREGROUND'
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
+WantedBy=panda.service

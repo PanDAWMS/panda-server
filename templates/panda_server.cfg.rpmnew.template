@@ -1,0 +1,341 @@
+[server]
+
+
+##########################
+#
+# Logger parameters
+#
+
+# log directory
+logdir=/var/log/panda
+
+# logger name
+loggername = prod
+
+
+
+
+##########################
+#
+# DA parameters
+#
+
+# cache space
+cache_dir = /var/log/panda/pandacache
+
+
+
+##########################
+#
+# DDM parameters
+#
+
+# path to native python
+native_python = @@virtual_env@@/bin
+
+# path to python for lfc client (/data/atlpan/bin/python cannot be used due to lack of libpythonX.Y.so)
+native_python32 = @@virtual_env@@/bin
+
+# location for Panda common
+pandaCommon_dir = @@install_purelib@@/pandacommon
+
+# location for Panda server
+pandaPython_dir = @@install_purelib@@/pandaserver
+
+# home dir to change CWD
+home_dir_cwd = /home/atlpan
+
+
+
+##########################
+#
+# Database parameters
+#
+
+# host
+#dbhost = ADCR_PANDA
+dbhost = panda-database
+
+# port if non-standard
+dbport = 5432
+
+# user
+#dbuser = ATLAS_PANDA_WRITER
+dbuser = panda
+
+# password
+dbpasswd = FIXME
+
+# database name
+#dbname = PandaDB
+dbname = panda_db
+
+# database backend
+# backend = postgres
+
+# number of connections
+nDBConnection = 1
+
+# use timeout
+usedbtimeout = True
+
+# timout value
+dbtimeout = 300
+
+# verbose in bridge
+dbbridgeverbose = False
+
+# SQL dumper
+dump_sql = False
+
+# dump in cursor
+cursor_dump = False
+
+
+
+##########################
+#
+# MySQL DB parameters: don't use for Oracle
+#
+#backend = mysql
+
+schemaPANDA = DOMA_PANDA
+schemaMETA = DOMA_PANDAMETA
+schemaPANDAARCH = DOMA_PANDAARCH
+schemaJEDI = DOMA_PANDA
+schemaDEFT = DOMA_DEFT
+
+#dbhostmysql = pandawms.org
+#dbportmysql = 23306
+#dbnamemysql = pandadb1
+#dbusermysql = pansrusr1
+#dbpasswdmysql = FIXME
+
+
+##########################
+#
+# Panda server parameters
+#
+
+# port for https
+pserverport = 25443
+
+# port for http
+pserverporthttp = 25080
+
+# port for cache
+pserverportcache = 25085
+
+# alias
+pserveralias = pandaserver.cern.ch
+
+# space to keep key pairs
+keyDir = /var/keys
+
+
+##########################
+#
+# E-mail DB parameters
+#
+
+# SMTP server
+emailSMTPsrv = cernmx.cern.ch
+
+# sender address for notification
+emailSender = atlas-adc-panda-no-reply@cern.ch
+
+# login name for SMTP
+emailLogin  = atlpan
+
+# login password for SMTP
+emailPass = FIXME
+
+
+
+##########################
+#
+# parameters for WSGI
+#
+
+# verbose in entry point
+entryVerbose = False
+
+
+##########################
+#
+# nRunning parameters
+#
+
+# interval
+nrun_interval = 5
+
+# the number of hosts
+nrun_hosts = 3
+
+# serial number
+nrun_snum = 999
+
+
+##########################
+#
+# Job Status Monitor
+#
+
+# enable job status change monitoring
+record_statuschange = True
+
+
+
+##########################
+#
+# JEDI
+#
+
+# use JEDI
+useJEDI = True
+
+
+
+##########################
+#
+# Plugin setup
+#
+
+# plugins for Adder. format=vo1(|vo2(vo3...):moduleName:className(,vo4...)
+adder_plugins = local:dataservice.AdderDummyPlugin:AdderDummyPlugin
+
+# plugins for Setupper. format=vo1(|vo2(vo3...):moduleName:className(,vo4...)
+setupper_plugins = local:dataservice.SetupperDummyPlugin:SetupperDummyPlugin
+
+# plugins for Closer
+closer_plugins = atlas:dataservice.CloserAtlasPlugin:CloserAtlasPlugin
+
+
+
+##########################
+#
+# Panda Proxy
+#
+
+# URL
+pandaProxy_URLSSL = https://aipanda084.cern.ch:25128/proxy/panda
+
+# CA cert
+pandaProxy_ca_certs = /etc/pki/tls/certs/CERN-bundle.pem
+
+
+
+##########################
+#
+# Database parameters for EventIndex
+#
+
+# host
+ei_dbhost = ATLAS_EI
+
+# user
+ei_dbuser = ATLAS_EI_PANDA_R
+
+# password
+ei_dbpasswd = FIXME
+
+# database
+ei_dbname = PandaDB
+
+# timout value
+ei_dbtimeout = 300
+
+
+
+
+##########################
+#
+# Parameters for token-based authentication
+#
+
+# set to oidc to enable OpenID Connect
+token_authType = None
+
+# issuer for SciToken
+token_issuers = https://aipanda026.cern.ch/scitokens
+
+# audience for SciToken
+token_audience = https://pandaserver.cern.ch
+
+# directory where OIDC authentication config files are placed
+auth_config = /opt/panda/etc/panda/auth/
+
+# a comma-concatenated list of legacy token issuers during transition of token issuer migration
+legacy_token_issuers = None
+
+
+##########################
+#
+# Message Queue parameters
+#
+
+# json config file of message queues for PanDA functions to send to
+#mq_configFile = /etc/panda/panda_mq_config.json
+
+
+
+[daemon]
+
+##########################
+#
+# Daemon
+#
+
+# whether to run daemons for PanDA
+enable = False
+
+# user and group name to run daemons
+uname = atlpan
+gname = zp
+
+# package path of script modules to run in daemon
+package = pandaserver.daemons.scripts
+
+# number of worker processes to run daemons
+n_proc = 6
+
+# number of DB connections to share among daemon worker processes
+n_dbconn = 1
+
+# when exceeding lifetime, worker process will be respawned
+proc_lifetime = 14400
+
+# configuration in json about daemons
+# of the form {"daemon_name": {"module": <module_name>, "period": <period>, ...}, ...}
+config = {
+    "dummy_test": {
+        "enable": false, "period": 120},
+    "add_main": {
+        "enable": true, "period": 240, "loop": true},
+    "add_sub": {
+        "enable": true, "period": 240},
+    "evpPD2P": {
+        "enable": true, "period": 600},
+    "process_workflow_files_daemon": {
+        "enable": true, "period": 60},
+    "copyArchive": {
+        "enable": true, "period": 2400, "sync": true},
+    "datasetManager": {
+        "enable": true, "period": 2400, "sync": true},
+    "proxyCache": {
+        "module": "panda_activeusers_query", "enable": true, "period": 600},
+    "pilot_streaming": {
+        "module": "pilotStreaming", "enable": true, "period": 300},
+    "configurator": {
+        "enable": true, "module": "configurator", "period": 200, "sync": true},
+    "network_configurator": {
+        "enable": true, "module": "configurator", "arguments": ["--network"], "period": 400, "sync": true},
+    "schedconfig_json": {
+        "enable": true, "module": "configurator", "arguments": ["--json_dump"], "period": 200, "sync": true},
+    "sw_tags": {
+        "enable": true, "module": "configurator", "arguments": ["--sw_tags"], "period": 200, "sync": true},
+    "cache_schedconfig": {
+        "enable": true, "period": 300},
+    "cache_pilots": {
+        "enable": true, "period": 3600}
+  }

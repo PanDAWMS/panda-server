@@ -1,0 +1,249 @@
+#!/bin/sh
+#
+# chkconfig: - 85 15
+#
+# description: Panda server webserver
+# processname: httpd
+# config: /etc/panda/panda_server-httpd.conf
+# config: /etc/sysconfig/httpd-pandasrv
+# pidfile: /var/run/panda/httpd-pandasrv.pid
+#
+# Copyright 2000-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
+# Apache control script designed to allow an easy command line interface
+# to controlling Apache.  Written by Marc Slemko, 1997/08/23
+#
+# The exit codes returned are:
+#   XXX this doc is no longer correct now that the interesting
+#   XXX functions are handled by httpd
+#	0 - operation completed successfully
+#	1 -
+#	2 - usage error
+#	3 - httpd could not be started
+#	4 - httpd could not be stopped
+#	5 - httpd could not be started during a restart
+#	6 - httpd could not be restarted during a restart
+#	7 - httpd could not be restarted during a graceful restart
+#	8 - configuration syntax error
+#
+# When multiple arguments are given, only the error from the _last_
+# one is reported.  Run "apachectl help" for usage info
+#
+ARGV="$@"
+#
+# |||||||||||||||||||| START CONFIGURATION SECTION  ||||||||||||||||||||
+# --------------------                              --------------------
+#
+# virtual env activation
+@@virtual_env_setup@@
+
+# the path to application
+PROGNAME='python -u @@install_purelib@@/pandaserver/test/SchemaChecker.py'
+
+# the path to your httpd binary, including options if necessary
+HTTPD='/usr/sbin/httpd'
+
+# PID
+PID_OLD=/var/log/panda/panda_server_httpd.pid
+PID_NEW=/var/run/panda/panda_server_httpd.pid
+#
+# a command that outputs a formatted text version of the HTML at the
+# url given on the command line.  Designed for lynx, however other
+# programs may work.
+if [ -x /usr/bin/links ]; then
+   LYNX="links -dump"
+elif [ -x /usr/bin/lynx ]; then
+   LYNX="lynx -dump"
+else
+   LYNX="none"
+fi
+
+#
+# the URL to your server's mod_status status page.  If you do not
+# have one, then status and fullstatus will not work.
+STATUSURL="http://localhost:25080/server-status"
+
+# Source /etc/sysconfig/httpd for $HTTPD setting, etc.
+if [ -r /etc/sysconfig/panda_server ]; then
+   . /etc/sysconfig/panda_server
+fi
+
+ERROR=0
+if [ "x$ARGV" = "x" ] ; then
+    ARGV="-h"
+fi
+
+
+# check if PanDA Schema is the correct one
+function check_schema() {
+  return_string=`$PROGNAME`
+  if [[ "$return_string" =~ .*OK ]]; then
+    return 0
+  else
+    echo $return_string
+    return 1
+  fi
+}
+
+function check13() {
+# check for 1.3 configuration
+GONE="(ServerType|BindAddress|Port|AddModule|ClearModuleList|"
+GONE="${GONE}AgentLog|RefererLog|RefererIgnore|FancyIndexing|"
+GONE="${GONE}AccessConfig|ResourceConfig)"
+if grep -Eiq "^[[:space:]]*($GONE)" /etc/httpd/conf/httpd.conf; then
+  echo "$0: Apache 1.3 configuration directives found"
+  echo "$0: please read /usr/share/doc/httpd-2.0.52/migration.html"
+  exit 2
+fi
+}
+
+function checklynx() {
+if [ "$LYNX" = "none" ]; then
+   echo "The 'links' package is required for this functionality."
+   exit 8
+fi
+}
+
+function testconfig() {
+# httpd is denied terminal access in SELinux, so run in the
+# current context to get stdout from $HTTPD -t.
+if test -x /usr/sbin/selinuxenabled && /usr/sbin/selinuxenabled; then
+  runcon -- `id -Z` $HTTPD $OPTIONS -t
+else
+  $HTTPD $OPTIONS -t
+fi
+ERROR=$?
+}
+
+function check_pidfile () {
+    if [ -r $PID_OLD ]; then
+        COMSTR=`echo $HTTPD $OPTIONS -k $ARGV`
+        COMSTR=`echo $COMSTR | sed -e 's/ //g'`
+        PSOUT=`ps -f -p \`cat $PID_OLD\` | cat | tail -1`
+        PSOUT=`echo $PSOUT | sed -e 's/ //g'`
+        if [ ! `echo $PSOUT | grep $COMSTR` ]; then
+            echo "check pid: deleting $PID_OLD"
+            rm -rf $PID_OLD
+            retval=0
+        else
+            echo "check pid: httpd is running"
+            retval=1
+        fi
+    elif [ -r $PID_NEW ]; then
+        COMSTR=`echo $HTTPD $OPTIONS -k $ARGV`
+        COMSTR=`echo $COMSTR | sed -e 's/ //g'`
+        PSOUT=`ps -f -p \`cat $PID_NEW\` | cat | tail -1`
+        PSOUT=`echo $PSOUT | sed -e 's/ //g'`
+        if [ ! `echo $PSOUT | grep $COMSTR` ]; then
+            echo "check pid: deleting $PID_NEW"
+            rm -rf $PID_NEW
+            retval=0
+        else
+            echo "check pid: httpd is running"
+            retval=1
+        fi
+    else
+        echo "check_pid: no httpd"
+        retval=0
+    fi
+    return "$retval"
+}
+
+function kill_remaining_httpd () {
+    COMSTR=`echo $HTTPD $OPTIONS -k`
+    COMSTR=`echo $COMSTR | sed -e 's/ //g'`
+    USERID=`ps ax o user:16,cmd | awk '{out=gensub(/ /, "", "g", $0); print $1"\t"out}' | grep $COMSTR  | grep -v root | head -n1 | awk '{print $1}'`
+    if [ -n "$USERID" ]; then
+        echo trying to killall remaining httpd processes with uid=$USERID
+        killall -q -v -s SIGKILL -u $USERID `basename $HTTPD`
+    else
+        echo all set as no remaining httpd
+    fi
+}
+
+case $ARGV in
+restart|graceful)
+    if $HTTPD -t >&/dev/null; then
+       $HTTPD $OPTIONS -k $ARGV
+       ERROR=$?
+    else
+       echo "apachectl: Configuration syntax error, will not run \"$ARGV\":"
+       testconfig
+    fi
+    ;;
+start|stop)
+    echo "$ARGV PanDA httpd"
+    check13
+    case $ARGV in
+        start)
+            check_schema
+	        check_pidfile
+    esac
+    for itry in `seq 1 100`
+    do
+        echo $ARGV trying $itry
+        $HTTPD $OPTIONS -k $ARGV
+        ERROR=$?
+	    sleep 5
+	    if [ $ERROR = 0 ]; then
+	        check_pidfile
+	        retval=$?
+	        case $ARGV in
+	        start)
+	            if [ "$retval" == 1 ]
+	            then
+	                echo $ARGV done
+	                break
+	            fi
+	            ;;
+	        stop)
+	            if [ "$retval" == 0 ]
+		        then
+		            echo $ARGV done
+		            break
+		        fi
+		        ;;
+	        esac
+	    fi
+	    sleep 10
+    done
+    case $ARGV in
+        stop)
+            kill_remaining_httpd
+    esac
+    ;;
+startssl|sslstart|start-SSL)
+    check13
+    $HTTPD $OPTIONS -DSSL -k start
+    ERROR=$?
+    ;;
+configtest)
+    testconfig
+    ;;
+status)
+    checklynx
+    $LYNX $STATUSURL | awk ' /process$/ { print; exit } { print } '
+    ;;
+fullstatus)
+    checklynx
+    $LYNX $STATUSURL
+    ;;
+*)
+    $HTTPD $OPTIONS $ARGV
+    ERROR=$?
+esac
+
+exit $ERROR

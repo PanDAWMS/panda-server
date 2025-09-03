@@ -1,0 +1,18 @@
+[Unit]
+Description=PanDA server httpd and daemon services
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+User=atlpan
+Nice=0
+Type=oneshot
+
+# Pre check of DB schema version. Output can be seen running 'systemctl status panda.service'
+ExecStartPre=/bin/sh -c '@@virtual_env_setup@@ && python -u @@install_purelib@@/pandaserver/test/SchemaChecker.py'
+
+# Execute a dummy program
+ExecStart=/bin/true
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

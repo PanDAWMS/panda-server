@@ -1,0 +1,197 @@
+Include conf.modules.d/0*.conf
+
+TimeOut 600
+KeepAliveTimeout 600
+SSLSessionCacheTimeout 600
+
+LoadModule gridsite_module modules/mod_gridsite.so
+LoadModule wsgi_module modules/mod_wsgi.so
+
+User  @@panda_user@@
+Group @@panda_group@@
+
+<IfModule prefork.c>
+StartServers         ${PANDA_SERVER_CONF_MIN_WORKERS}
+MinSpareServers      ${PANDA_SERVER_CONF_MIN_WORKERS}
+ServerLimit          ${PANDA_SERVER_CONF_MAX_WORKERS}
+MaxSpareServers      ${PANDA_SERVER_CONF_MAX_WORKERS}
+MaxClients           ${PANDA_SERVER_CONF_MAX_WORKERS}
+MaxRequestsPerChild  ${PANDA_SERVER_CONF_MAX_CONNECTIONS}
+ThreadsPerChild      ${PANDA_SERVER_CONF_THREADS_PER_CHILD}
+</IfModule>
+
+<IfModule mpm_event_module>
+StartServers           ${PANDA_SERVER_CONF_MIN_WORKERS}
+MinSpareThreads        ${PANDA_SERVER_CONF_MIN_WORKERS}
+ServerLimit            ${PANDA_SERVER_CONF_MAX_WORKERS}
+MaxSpareThreads        ${PANDA_SERVER_CONF_MAX_WORKERS}
+MaxRequestWorkers      ${PANDA_SERVER_CONF_MAX_WORKERS}
+MaxConnectionsPerChild ${PANDA_SERVER_CONF_MAX_CONNECTIONS}
+ThreadsPerChild        ${PANDA_SERVER_CONF_THREADS_PER_CHILD}
+</IfModule>
+
+ListenBackLog ${PANDA_SERVER_CONF_MAX_BACKLOG}
+
+ServerName ${PANDA_SERVER_CONF_SERVERNAME}
+
+DocumentRoot "@@install_purelib@@/pandaserver"
+
+<Files ~ "\.(py|pyc|conf)$">
+    Order allow,deny
+    Deny from all
+</Files>
+
+RedirectMatch 403 "/panda.py$"
+
+<Directory />
+    Options FollowSymLinks
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+    Deny from 192.203.218.14
+</Directory>
+
+Alias /trf/ "/var/trf/"
+Alias /cache/schedconfig/ "/var/cache/pandaserver/schedconfig/"
+Alias /cache/ "/var/log/panda/pandacache/"
+Alias /cric/ "/var/cric/"
+Alias /auth/ "/opt/panda/etc/panda/auth/"
+
+<Location /server-status>
+    SetHandler server-status
+    Order deny,allow
+    Deny from all
+    Allow from localhost
+</Location>
+
+<Directory "/var/cache/pandaserver">
+    Options FollowSymLinks
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+    Deny from 192.203.218.14
+</Directory>
+
+<Directory "/var/log/panda/pandacache/jedilog">
+    Options FollowSymLinks
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+    Header set Content-Encoding gzip
+</Directory>
+
+<IfModule mod_wsgi.c>
+   WSGIPythonHome /opt/panda
+   WSGIDaemonProcess pandasrv_daemon processes=${PANDA_SERVER_CONF_NUM_WSGI} threads=${PANDA_SERVER_CONF_NUM_WSGI_THREAD} home=/home/atlpan
+   WSGIProcessGroup pandasrv_daemon
+   WSGIApplicationGroup %{GLOBAL}
+   WSGIScriptAliasMatch ^(/server/panda/.+)|(/api/.+)$ @@install_purelib@@/pandaserver/server/panda.py
+   WSGISocketPrefix /run/httpd/wsgisocks/wsgi
+   WSGIPassAuthorization On
+</IfModule>
+
+
+Listen ${PANDA_SERVER_CONF_PORT}
+<VirtualHost *:${PANDA_SERVER_CONF_PORT}>
+
+RewriteEngine on
+RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
+RewriteRule .* - [F]
+
+# 10G
+LimitRequestBody 10737418240
+
+<Directory "@@install_purelib@@/pandaserver/server">
+
+   <Limit GET POST>
+       Order allow,deny
+       Allow from all
+       Deny from 192.203.218.14
+   </Limit>
+
+   # allow .py
+   <Files ~ "\.py$">
+       Order allow,deny
+       Allow from all
+   </Files>
+
+   # enable CGI	for FastCGI/WSGI
+   Options +FollowSymLinks +ExecCGI
+
+   # mod_gridsite
+   GridSiteIndexes	on
+   GridSiteAuth		on
+   GridSiteDNlists	/etc/grid-security/dn-lists/
+   GridSiteEnvs         on
+
+</Directory>
+
+</VirtualHost>
+
+Listen ${PANDA_SERVER_CONF_PORT_SSL}
+<VirtualHost *:${PANDA_SERVER_CONF_PORT_SSL}>
+
+# 10G
+LimitRequestBody 10737418240
+
+RewriteEngine on
+RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
+RewriteRule .* - [F]
+
+SSLProxyEngine on
+ProxyPass /mcp/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/mcp/
+ProxyPass /messages/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/messages/
+ProxyPassReverse /mcp/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/mcp/
+ProxyPassReverse /messages/ https://127.0.0.1:${PANDA_SERVER_CONF_PORT_MCP}/messages/
+ProxyPreserveHost On
+SSLProxyVerify none
+SSLProxyCheckPeerCN off
+SSLProxyCheckPeerExpire off
+
+# CERN security recommendation to only allow the seven strongest ssl ciphers
+SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1
+SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+SSLHonorCipherOrder on
+
+SSLEngine               on
+SSLCertificateFile      /etc/grid-security/hostcert.pem
+SSLCertificateKeyFile   /etc/grid-security/hostkey.pem
+SSLCertificateChainFile /etc/grid-security/chain.pem
+SSLCACertificatePath    /etc/grid-security/certificates
+SSLVerifyClient         optional
+SSLVerifyDepth          10
+SSLOptions              +ExportCertData +StdEnvVars +LegacyDNStringFormat
+
+<Directory "@@install_purelib@@/pandaserver/server">
+
+   # allow .py
+   <Files ~ "\.py$">
+       Order allow,deny
+       Allow from all
+   </Files>
+
+   # enable CGI	for FastCGI/WSGI
+   Options +FollowSymLinks +ExecCGI
+
+   # mod_gridsite
+   GridSiteIndexes       on
+   GridSiteAuth          on
+   GridSiteDNlists       /etc/grid-security/dn-lists/
+   GridSiteGSIProxyLimit 1
+   GridSiteEnvs          on
+</Directory>
+                                                                               
+</VirtualHost>
+
+LogLevel info
+
+LogFormat "%t %h \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+LogFormat "%t %h \"%r\" %>s %b" common
+LogFormat "%{Referer}i -> %U" referer
+LogFormat "%{User-agent}i" agent
+CustomLog /var/log/panda/panda_server_access_log common
+ErrorLog /var/log/panda/panda_server_error_log
+
+PidFile /var/run/panda/panda_server_httpd.pid
+
+TypesConfig /etc/mime.types

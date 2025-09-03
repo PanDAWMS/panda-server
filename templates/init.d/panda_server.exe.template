@@ -1,0 +1,70 @@
+#!/bin/sh
+#
+# chkconfig: - 85 15
+#
+# description: Panda server service, controlling both httpd and daemon
+
+# When multiple arguments are given, only the error from the _last_
+# one is reported.
+#
+ARGV="$@"
+#
+# |||||||||||||||||||| START CONFIGURATION SECTION  ||||||||||||||||||||
+# --------------------                              --------------------
+#
+
+# path to init.d scripts
+S_httpd='@@virtual_env@@/etc/rc.d/init.d/panda_httpd'
+S_daemon='@@virtual_env@@/etc/rc.d/init.d/panda_daemon'
+
+
+if [ "x$ARGV" = "x" ] ; then
+    ARGV="-h"
+fi
+
+
+case $ARGV in
+start)
+    ${S_daemon} start
+    ERROR=$?
+    if [ $ERROR -ne 0 ]; then
+      exit $ERROR
+    fi
+    { ${S_httpd} start 2>&1; echo ERROR=$? > /tmp/panda_server_err; } | awk '{ print strftime("[%Y-%m-%d %H:%M:%S]",systime(),1), $0 }' |& tee /tmp/panda_server_start.log
+    . /tmp/panda_server_err
+    rm -rf /tmp/panda_server_err
+    ;;
+stop)
+    ${S_daemon} stop
+    ERROR1=$?
+    { ${S_httpd} stop 2>&1; echo ERROR2=$? > /tmp/panda_server_err; } | awk '{ print strftime("[%Y-%m-%d %H:%M:%S]",systime(),1), $0 }' |& tee /tmp/panda_server_stop.log
+    . /tmp/panda_server_err
+    rm -rf /tmp/panda_server_err
+    if [ $ERROR2 -eq 0 ]; then
+      ERROR=$ERROR1
+    else
+      ERROR=$ERROR2
+    fi
+    ;;
+start-httpd)
+    ${S_httpd} start
+    ERROR=$?
+    ;;
+stop-httpd)
+    ${S_httpd} stop
+    ERROR=$?
+    ;;
+start-daemon)
+    ${S_daemon} start
+    ERROR=$?
+    ;;
+stop-daemon)
+    ${S_daemon} stop
+    ERROR=$?
+    ;;
+*)
+    echo "ERROR: unknown command $ARGV"
+    ERROR=1
+esac
+
+exit $ERROR

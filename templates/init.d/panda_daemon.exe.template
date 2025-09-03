@@ -1,0 +1,128 @@
+#!/bin/sh
+#
+# chkconfig: - 85 15
+#
+# description: Panda server daemon
+# processname: python
+# config: /etc/panda/panda_server.cfg
+# pidfile: /var/log/panda/panda_daemon.pid
+#
+
+# When multiple arguments are given, only the error from the _last_
+# one is reported.
+#
+ARGV="$@"
+#
+# |||||||||||||||||||| START CONFIGURATION SECTION  ||||||||||||||||||||
+# --------------------                              --------------------
+#
+
+# virtual env activation
+@@virtual_env_setup@@
+
+# the path to application
+PROGNAME='python -u @@install_purelib@@/pandaserver/daemons/master.py'
+
+# pid and lock files
+if [[ -z "${PANDA_LOCK_DIR}" ]]; then
+    PIDFILE='/var/log/panda/panda_daemon.pid'
+    LOCKFILE='/var/lock/subsys/panda_daemon'
+else
+    PIDFILE=${PANDA_LOCK_DIR}'/panda_daemon.pid'
+    LOCKFILE=${PANDA_LOCK_DIR}'/panda_daemon.lock'
+fi
+
+# log files
+LOGSTDOUT='/var/log/panda/panda_daemon_stdout.log'
+LOGSTDERR='/var/log/panda/panda_daemon_stderr.log'
+
+# Source panda server env variables
+if [ -r /etc/sysconfig/panda_server ]; then
+   . /etc/sysconfig/panda_server
+fi
+
+
+# check if PanDA Daemon is enabled in config
+function check_enable() {
+  command_to_check='from pandaserver.config import daemon_config; print(daemon_config.enable)'
+  return_string=$(python -u -c "${command_to_check}")
+  if [ "$return_string" == "True" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+
+# main
+ERROR=0
+if [ "x$ARGV" = "x" ] ; then
+    ARGV="-h"
+fi
+
+case $ARGV in
+start)
+  check_enable
+  if [ $? -ne 0 ]; then
+    echo "PanDA Daemon is not enabled. Do nothing..."
+    exit $ERROR
+  fi
+  if [ -f $LOCKFILE ]; then
+    echo "ERROR: PanDA Daemon is already running with lockfile:$LOCKFILE"
+  else
+    echo "start PanDA Daemon"
+    for itry in `seq 1 5`
+    do
+      echo "trying $itry"
+      $PROGNAME --pidfile $PIDFILE >> $LOGSTDOUT 2>> $LOGSTDERR
+      touch $LOCKFILE
+      sleep 5
+      ps -p `cat $PIDFILE` > /dev/null
+      ERROR=$?
+      if [ $ERROR -eq 0 ]; then
+    		echo "succeeded"
+    		break
+      else
+    		echo "failed with $ERROR"
+    		rm -f $LOCKFILE
+      fi
+    done
+  fi
+    ;;
+stop)
+    echo "stop PanDA Daemon"
+    for itry in `seq 1 5`
+    do
+      echo "trying $itry"
+      if [ ! -f $PIDFILE ]; then
+        echo "pidfile $PIDFILE does not exist; skipped"
+        rm -f $LOCKFILE
+        ERROR=2
+        exit $ERROR
+      fi
+      if [[ $itry -gt 3 ]]; then
+        echo "try force kill..."
+        pkill -9 -P `cat $PIDFILE`
+      else
+        kill `cat $PIDFILE`
+      fi
+      sleep 5
+      ps -p `cat $PIDFILE` > /dev/null
+      ERROR=$?
+      if [ $ERROR -eq 1 ]; then
+        pkill -9 -P `cat $PIDFILE`
+        echo "succeeded"
+        rm -f $PIDFILE ${PIDFILE}.lock $LOCKFILE
+        break
+      else
+        echo "failed with $ERROR"
+        sleep 5
+      fi
+    done
+    ;;
+*)
+    echo "ERROR: unknown command $ARGV"
+    ERROR=1
+esac
+
+exit $ERROR
