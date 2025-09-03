@@ -245,8 +245,8 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                         # Convert to float first, then to int. This is a courtesy for cases passing decimal numbers.
                         elif expected_type is int:
                             param_value = int(float(param_value))
-                        elif origin is list:
-                            element_type = param_value[0]  # Get the type inside List[<type>]
+                        elif origin is list and args:
+                            element_type = args[0]  # Get the type inside List[<type>]
 
                             # If only one element, convert it to a list
                             if isinstance(param_value, str):

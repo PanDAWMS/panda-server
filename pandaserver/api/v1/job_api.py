@@ -152,7 +152,7 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
 
     tmp_logger.debug(f"Retrieving data for {str(job_ids)}")
 
-    ret = global_task_buffer.getFullJobStatus(job_ids)
+    ret = global_task_buffer.getFullJobStatus(job_ids, use_json=True)
     tmp_logger.debug("getFullJobStatus end")
     return generate_response(True, data=ret)
 
@@ -220,7 +220,7 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def kill(req, job_ids: List[int], code: int = None, use_email_as_id: bool = False, kill_options: List = []):
+def kill(req, job_ids: List[int], code: int = None, use_email_as_id: bool = False, kill_options: List[str] = []):
     """
     Kill the jobs
 

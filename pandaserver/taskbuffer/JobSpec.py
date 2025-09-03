@@ -889,6 +889,23 @@ class JobSpec(object):
             file_spec.__setstate__(file_stat)
             self.addFile(file_spec)
 
+    def load_from_dict(self, job_dict):
+        # Extract job attributes (excluding files)
+        job_attrs = []
+        for slot in self.__slots__:
+            if slot == "Files":  # skip files here
+                continue
+            job_attrs.append(job_dict.get(slot, None))
+
+        # Initialize with empty file list
+        self.__setstate__(job_attrs + [[]])
+
+        # Add files
+        for file_data in job_dict.get("Files", []):
+            file_spec = FileSpec()
+            file_spec.__setstate__([file_data.get(s, None) for s in file_spec.__slots__])
+            self.addFile(file_spec)
+
     # set input and output file types
     def set_input_output_file_types(self) -> None:
         """

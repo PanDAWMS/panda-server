@@ -389,7 +389,7 @@ def validate_method(method_name, api_module, version):
 def encode_special_cases(obj):
     if isinstance(obj, datetime.datetime):
         return {"__datetime__": obj.isoformat()}
-    raise TypeError("Type not serializable")
+    raise TypeError(f"Type not serializable for {obj} ({type(obj)})")
 
 
 # This is the starting point for all WSGI requests
