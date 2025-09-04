@@ -2000,7 +2000,7 @@ class DataCarouselInterface(object):
                 if ddm_rule_id:
                     # DDM rule submitted; update ddm_rule_id
                     dc_req_spec.ddm_rule_id = ddm_rule_id
-                    tmp_log.debug(f"submitted DDM rule ddm_rule_id={ddm_rule_id}")
+                    tmp_log.info(f"submitted DDM rule ddm_rule_id={ddm_rule_id}")
                 else:
                     # failed to submit
                     err_msg = f"failed to submitted DDM rule ; skipped"
