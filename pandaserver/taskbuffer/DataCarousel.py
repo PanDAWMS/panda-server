@@ -2000,7 +2000,7 @@ class DataCarouselInterface(object):
                 if ddm_rule_id:
                     # DDM rule submitted; update ddm_rule_id
                     dc_req_spec.ddm_rule_id = ddm_rule_id
-                    tmp_log.info(f"submitted DDM rule ddm_rule_id={ddm_rule_id}")
+                    tmp_log.debug(f"submitted DDM rule ddm_rule_id={ddm_rule_id}")
                 else:
                     # failed to submit
                     err_msg = f"failed to submitted DDM rule ; skipped"
@@ -2017,6 +2017,10 @@ class DataCarouselInterface(object):
             if ret:
                 tmp_log.info(f"updated DB about staging; status={dc_req_spec.status}")
                 is_ok = True
+            # log for monitoring
+            tmp_log.info(
+                f"staged dataset={dc_req_spec.dataset} source_tape={dc_req_spec.source_tape} source_rse={dc_req_spec.source_rse} ddm_rule_id={dc_req_spec.ddm_rule_id} total_files={dc_req_spec.total_files} dataset_size={dc_req_spec.dataset_size} task_type={dc_req_spec.get_parameter('task_type')} to_pin={dc_req_spec.get_parameter('to_pin')}"
+            )
         # to iDDS staging requests
         if is_ok and submit_idds_request:
             # get all tasks related to this request
