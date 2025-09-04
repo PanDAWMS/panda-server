@@ -148,8 +148,12 @@ class DataCarouselRequestSpec(SpecBase):
             "to_pin" (bool): whether to pin the dataset
             "suggested_dst_list" (list[str]): list of suggested destination RSEs
             "remove_when_done" (bool): remove request and DDM rule asap when request done to save disk space
-            "init_task_id": (int): task_id of the task which initiates the request
-            "init_task_gshare": (str): original gshare of the task which initiates the request, for statistics
+            "task_id": (int): task_id of the task which initiates the request
+            "init_task_gshare": (str): (deprecated) original gshare of the task which initiates the request, for statistics
+            "task_gshare": (str): original gshare of the task which initiates the request, for statistics
+            "task_type": (str): type of the task (prod, anal) which initiates this request, for statistics
+            "task_user": (str): user of the task which initiates this request, for statistics
+            "task_group": (str): working group of the task which initiates this request, for statistics
 
         Returns:
             dict : dict of parameters if it is JSON or empty dict if null
@@ -379,7 +383,8 @@ def get_resubmit_request_spec(dc_req_spec: DataCarouselRequestSpec, exclude_prev
             "prev_src": dc_req_spec.source_rse,
             "prev_dst": dc_req_spec.destination_rse,
             "excluded_dst_list": list(excluded_dst_set),
-            "init_task_id": orig_parameter_map.get("init_task_id"),
+            "task_id": orig_parameter_map.get("task_id"),
+            "task_gshare": orig_parameter_map.get("task_gshare"),
             "init_task_gshare": orig_parameter_map.get("init_task_gshare"),
         }
         # return
@@ -1452,6 +1457,7 @@ class DataCarouselInterface(object):
         # get columns from parameters; note that str.json_path_match() always casts to string
         dc_req_df = dc_req_df.with_columns(
             to_pin_str=pl.col("parameters").str.json_path_match(r"$.to_pin").fill_null(False),
+            task_gshare=pl.col("parameters").str.json_path_match(r"$.task_gshare"),
             init_task_gshare=pl.col("parameters").str.json_path_match(r"$.init_task_gshare"),
         )
         # get source tapes and RSEs config dataframes
@@ -1722,7 +1728,7 @@ class DataCarouselInterface(object):
             for request_dict in to_stage_request_list:
                 request_id = request_dict["request_id"]
                 extra_params = {
-                    "init_task_id": request_dict["jediTaskID"],
+                    "task_id": request_dict["jediTaskID"],
                     "init_task_gshare": request_dict["gshare"],
                 }
                 dc_req_spec = request_id_spec_map.get(request_id)
@@ -2019,7 +2025,12 @@ class DataCarouselInterface(object):
                 is_ok = True
             # log for monitoring
             tmp_log.info(
-                f"staged dataset={dc_req_spec.dataset} source_tape={dc_req_spec.source_tape} source_rse={dc_req_spec.source_rse} ddm_rule_id={dc_req_spec.ddm_rule_id} total_files={dc_req_spec.total_files} dataset_size={dc_req_spec.dataset_size} task_type={dc_req_spec.get_parameter('task_type')} to_pin={dc_req_spec.get_parameter('to_pin')}"
+                f"started staging "
+                f"dataset={dc_req_spec.dataset} source_tape={dc_req_spec.source_tape} source_rse={dc_req_spec.source_rse} "
+                f"ddm_rule_id={dc_req_spec.ddm_rule_id} total_files={dc_req_spec.total_files} dataset_size={dc_req_spec.dataset_size} "
+                f"task_id={dc_req_spec.get_parameter('task_id')} task_type={dc_req_spec.get_parameter('task_type')} "
+                f"task_user={dc_req_spec.get_parameter('task_user')} task_group={dc_req_spec.get_parameter('task_group')} "
+                f"to_pin={dc_req_spec.get_parameter('to_pin')}"
             )
         # to iDDS staging requests
         if is_ok and submit_idds_request:
