@@ -1,4 +1,4 @@
-{% set name = "panda-jedi" %}
+{% set name = "panda-server" %}
 {% set version = "___PACKAGE_VERSION___" %}
 
 
@@ -18,9 +18,9 @@ build:
 requirements:
   host:
     - pip
-    - python >=3.6
+    - python >=3.10
   run:
-    - python >=3.6
+    - python >=3.10
 
 test:
   imports:
