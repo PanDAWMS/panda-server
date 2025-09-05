@@ -1,4 +1,4 @@
-name: Docker - Publish PanDA Server Docker Image
+name: Docker - Publish PanDA Server Image
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
