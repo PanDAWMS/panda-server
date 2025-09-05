@@ -34,11 +34,3 @@ $ git clone
 $ cd panda-server
 $ docker build .
 ```
-
-## PanDA Server cluster details for ATLAS
-
-https://github.com/PanDAWMS/panda-server/wiki/ATLAS-production-PanDA-servers-%5BSeptember-2023%5D
-
-## JEDI cluster details for ATLAS
-
-https://github.com/PanDAWMS/panda-jedi/wiki/ATLAS-production-JEDI-servers-%5BSeptember-2023%5D
