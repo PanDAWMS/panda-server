@@ -1561,7 +1561,9 @@ class DataCarouselInterface(object):
                     "total_files": dc_req_spec.total_files,
                     "dataset_size": dc_req_spec.dataset_size,
                     "jediTaskID": task_spec.jediTaskID,
+                    "taskType": task_spec.taskType,
                     "userName": task_spec.userName,
+                    "workingGroup": task_spec.workingGroup,
                     "gshare": task_spec.gshare,
                     "gshare_rank": gshare_rank_dict.get(task_spec.gshare, 999),
                     "task_priority": task_spec.currentPriority if task_spec.currentPriority else (task_spec.taskPriority if task_spec.taskPriority else 1000),
@@ -1578,7 +1580,9 @@ class DataCarouselInterface(object):
                 "total_files": pl.datatypes.Int64,
                 "dataset_size": pl.datatypes.Int64,
                 "jediTaskID": pl.datatypes.Int64,
+                "taskType": pl.datatypes.String,
                 "userName": pl.datatypes.String,
+                "workingGroup": pl.datatypes.String,
                 "gshare": pl.datatypes.String,
                 "gshare_rank": pl.datatypes.Int64,
                 "task_priority": pl.datatypes.Int64,
@@ -1718,18 +1722,32 @@ class DataCarouselInterface(object):
                 ]
             )
             # append the requests to ret_list
-            to_pin_request_id_list = to_pin_df.select(["request_id"]).to_dict(as_series=False)["request_id"]
-            to_stage_request_list = to_stage_df.select(["request_id", "jediTaskID", "gshare"]).to_dicts()
-            for request_id in to_pin_request_id_list:
+            temp_key_list = ["request_id", "jediTaskID", "gshare", "taskType", "userName", "workingGroup"]
+            # to_pin_request_id_list = to_pin_df.select(["request_id"]).to_dict(as_series=False)["request_id"]
+            to_pin_request_list = to_pin_df.select(temp_key_list).to_dicts()
+            to_stage_request_list = to_stage_df.select(temp_key_list).to_dicts()
+            for request_dict in to_pin_request_list:
+                request_id = request_dict["request_id"]
+                extra_params = {
+                    "task_id": request_dict["jediTaskID"],
+                    "task_gshare": request_dict["gshare"],
+                    # "task_type": request_dict["taskType"],
+                    "task_user": request_dict["userName"],
+                    "task_group": request_dict["workingGroup"],
+                }
                 dc_req_spec = request_id_spec_map.get(request_id)
                 if dc_req_spec:
-                    ret_list.append((dc_req_spec, None))
+                    ret_list.append((dc_req_spec, extra_params))
             to_stage_count = 0
             for request_dict in to_stage_request_list:
                 request_id = request_dict["request_id"]
                 extra_params = {
                     "task_id": request_dict["jediTaskID"],
+                    "task_gshare": request_dict["gshare"],
                     "init_task_gshare": request_dict["gshare"],
+                    # "task_type": request_dict["taskType"],
+                    "task_user": request_dict["userName"],
+                    "task_group": request_dict["workingGroup"],
                 }
                 dc_req_spec = request_id_spec_map.get(request_id)
                 if dc_req_spec:
