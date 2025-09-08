@@ -52,6 +52,11 @@ class Configurator(threading.Thread):
         else:
             self.CRIC_URL_DDMBLACKLIST_READ = "https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=read_wan&fstate=OFF"
 
+        if hasattr(panda_config, "CRIC_URL_DDMBLACKLIST_FULL"):
+            self.CRIC_URL_DDMBLACKLIST_FULL = panda_config.CRIC_URL_DDMBLACKLIST_FULL
+        else:
+            self.CRIC_URL_DDMBLACKLIST_FULL = "https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json"
+
         if hasattr(panda_config, "RUCIO_RSE_USAGE"):
             self.RUCIO_RSE_USAGE = panda_config.RUCIO_RSE_USAGE
         else:
@@ -112,6 +117,20 @@ class Configurator(threading.Thread):
         except TypeError:
             self.blacklisted_endpoints_read = []
         self.log_stream.debug(f"Blacklisted endpoints read {self.blacklisted_endpoints_read}")
+        self.log_stream.debug("Done")
+
+        self.log_stream.debug("Getting DDM detailed status...")
+        try:
+            if self.CRIC_URL_DDMBLACKLIST_FULL:
+                self.ddm_detailed_exclusions = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST_FULL))
+                if not self.ddm_detailed_exclusions:
+                    self.log_stream.error("The detailed DDM exclusion dictionary was not retrieved correctly")
+                    return False
+            else:
+                self.ddm_detailed_exclusions = []
+        except TypeError:
+            self.ddm_detailed_exclusions = []
+        self.log_stream.debug(f"Blacklisted endpoints read {self.ddm_detailed_exclusions}")
         self.log_stream.debug("Done")
 
         if self.RUCIO_RSE_USAGE:
@@ -214,6 +233,13 @@ class Configurator(threading.Thread):
                     else:
                         ddm_endpoint_blacklisted_read = "N"
                         self.log_stream.debug(f"process_site_dumps: endpoint {ddm_endpoint_name} is NOT blacklisted for read")
+
+                    detailed_status = {}
+                    if ddm_endpoint_name in self.ddm_detailed_exclusions:
+                        for activity in self.ddm_detailed_exclusions[ddm_endpoint_name]:
+                            detailed_status[activity] = self.ddm_detailed_exclusions[ddm_endpoint_name][activity]["status"]["value"]
+
+                        self.log_stream.debug(f"process_site_dumps: endpoint {ddm_endpoint_name} has detailed exclusions {detailed_status}")
                 except KeyError:
                     continue
 
@@ -258,6 +284,7 @@ class Configurator(threading.Thread):
                             "blacklisted": ddm_endpoint_blacklisted_write,
                             "blacklisted_write": ddm_endpoint_blacklisted_write,
                             "blacklisted_read": ddm_endpoint_blacklisted_read,
+                            "detailed_status": json.dumps(detailed_status),
                             "space_used": space_used,
                             "space_free": space_free,
                             "space_total": space_total,
