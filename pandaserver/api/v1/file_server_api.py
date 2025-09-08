@@ -480,7 +480,7 @@ def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def validate_cache_file(req: PandaRequest, file_size: int, checksum: str) -> Dict:
+def validate_cache_file(req: PandaRequest, file_size: int, checksum: int) -> Dict:
     """
     Validate cache file
 
@@ -493,7 +493,7 @@ def validate_cache_file(req: PandaRequest, file_size: int, checksum: str) -> Dic
     Args:
         req(PandaRequest): internally generated request object containing the env variables
         file_size(int): file size
-        checksum(string): checksum
+        checksum(int): checksum
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful the message will return the host and file name.
