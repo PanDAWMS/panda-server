@@ -1,4 +1,8 @@
-# Monorepo for PanDA Services
+# Monorepo for The PanDA Server and JEDI
+
+[![PyPI](https://img.shields.io/pypi/v/panda-server)](https://pypi.org/project/panda-server/)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/panda-server)](https://pypi.org/project/panda-server/)
+[![PyPI - License](https://img.shields.io/pypi/l/panda-server)](https://pypi.org/project/panda-server/)
 
 ## Overall PanDA documentation 
 
