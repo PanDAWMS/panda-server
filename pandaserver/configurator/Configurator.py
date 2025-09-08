@@ -122,7 +122,7 @@ class Configurator(threading.Thread):
         self.log_stream.debug("Getting DDM detailed status...")
         try:
             if self.CRIC_URL_DDMBLACKLIST_FULL:
-                self.ddm_detailed_exclusions = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST_FULL))
+                self.ddm_detailed_exclusions = aux.get_dump(self.CRIC_URL_DDMBLACKLIST_FULL)
                 if not self.ddm_detailed_exclusions:
                     self.log_stream.error("The detailed DDM exclusion dictionary was not retrieved correctly")
                     return False
@@ -130,7 +130,7 @@ class Configurator(threading.Thread):
                 self.ddm_detailed_exclusions = []
         except TypeError:
             self.ddm_detailed_exclusions = []
-        self.log_stream.debug(f"Blacklisted endpoints read {self.ddm_detailed_exclusions}")
+        self.log_stream.debug(f"Blacklisted endpoints full {self.ddm_detailed_exclusions}")
         self.log_stream.debug("Done")
 
         if self.RUCIO_RSE_USAGE:
