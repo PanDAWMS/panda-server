@@ -234,10 +234,12 @@ class Configurator(threading.Thread):
                         ddm_endpoint_blacklisted_read = "N"
                         self.log_stream.debug(f"process_site_dumps: endpoint {ddm_endpoint_name} is NOT blacklisted for read")
 
-                    detailed_status = {}
                     if ddm_endpoint_name in self.ddm_detailed_exclusions:
+                        detailed_status = {}
                         for activity in self.ddm_detailed_exclusions[ddm_endpoint_name]:
                             detailed_status[activity] = self.ddm_detailed_exclusions[ddm_endpoint_name][activity]["status"]["value"]
+                    else:
+                        detailed_status = None
 
                         self.log_stream.debug(f"process_site_dumps: endpoint {ddm_endpoint_name} has detailed exclusions {detailed_status}")
                 except KeyError:
