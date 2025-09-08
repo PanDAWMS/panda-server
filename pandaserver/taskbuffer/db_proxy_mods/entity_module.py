@@ -2370,10 +2370,11 @@ class EntityModule(BaseModule):
             tmp_log.debug("Inserting ddm endpoints")
             sql_insert = (
                 "INSERT INTO ATLAS_PANDA.ddm_endpoint (ddm_endpoint_name, site_name, ddm_spacetoken_name, type, is_tape, "
-                "blacklisted, blacklisted_write, blacklisted_read,  detailed_status=:detailed_status, "
+                "blacklisted, blacklisted_write, blacklisted_read,  detailed_status, "
                 "space_used, space_free, space_total, space_expired, space_timestamp) "
                 "VALUES(:ddm_endpoint_name, :site_name, :ddm_spacetoken_name, :type, :is_tape, "
-                ":blacklisted, :blacklisted_write, :blacklisted_read, :space_used, :space_free, :space_total, :space_expired, :space_timestamp)"
+                ":blacklisted, :blacklisted_write, :blacklisted_read, :detailed_status, "
+                ":space_used, :space_free, :space_total, :space_expired, :space_timestamp)"
             )
             for shard in create_shards(var_map_insert, 100):
                 self.cur.executemany(sql_insert + comment, shard)
