@@ -9,7 +9,7 @@ on:
   release:
     types: [published]
   workflow_dispatch:
-  
+
 env:
   # Use docker.io for Docker Hub if empty
   REGISTRY: ghcr.io
@@ -28,9 +28,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: Move Dockerfile
-        run: mv server/Dockerfile .
 
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action

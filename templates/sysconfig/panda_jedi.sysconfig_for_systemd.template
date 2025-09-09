@@ -1,0 +1,5 @@
+# sysconfig for systemd
+set -a
+source /etc/sysconfig/panda_server_env
+source /etc/sysconfig/panda_jedi_env
+set +a

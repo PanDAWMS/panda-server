@@ -1,0 +1,19 @@
+[Unit]
+Description=Panda JEDI
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=forking
+RemainAfterExit=true
+User=atlpan
+Nice=0
+EnvironmentFile=/etc/sysconfig/panda_server_env
+EnvironmentFile=/etc/sysconfig/panda_jedi_env
+# Pre check of DB schema version. Output can be seen running 'systemctl status panda.service'
+ExecStartPre=/bin/sh -c '@@virtual_env_setup@@ && python -u @@install_purelib@@/pandajedi/jeditest/SchemaChecker.py'
+
+ExecStart=/bin/sh -c '@@virtual_env_setup@@ && python -u @@install_purelib@@/pandajedi/jediorder/JediMaster.py >> /var/log/panda/panda_jedi_stdout.log 2>> /var/log/panda/panda_jedi_stderr.log'
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

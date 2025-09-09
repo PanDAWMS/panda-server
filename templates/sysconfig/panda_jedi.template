@@ -1,0 +1,28 @@
+# Configuration file for the JEDI service launched not through systemd,
+# e.g. in container where some parameters are dynamically set via env
+# variables while systemd services don't inherit env variables from PID1
+
+@@virtual_env_setup@@
+
+# python
+export PATH=/bin:/usr/local/bin:/usr/bin:${PATH}
+if [[ -n "${VIRTUAL_ENV}" ]]; then
+  PATH=${VIRTUAL_ENV}/bin:${VIRTUAL_ENV}/usr/local/bin:${VIRTUAL_ENV}/usr/bin:${VIRTUAL_ENV}:${PATH}
+fi
+
+# for DQ2
+export X509_CERT_DIR=/etc/grid-security/certificates
+export X509_USER_PROXY=/data/atlpan/x509up_u25606
+
+# panda home
+if [[ -n "${VIRTUAL_ENV}" ]]; then
+  export PANDA_HOME=${VIRTUAL_ENV}
+else
+  export PANDA_HOME=/data/atlpan
+fi
+
+# timezone
+export TZ=UTC
+
+# import panda modules
+export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver:@@install_purelib@@

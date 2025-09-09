@@ -1,0 +1,124 @@
+#!/bin/sh
+#
+# chkconfig: - 85 15
+#
+# description: Panda JEDI
+# processname: python
+# config: /etc/sysconfig/panda_server
+# config: /etc/sysconfig/panda_jedi
+# pidfile: /var/log/panda/panda_jedi.pid
+
+# When multiple arguments are given, only the error from the _last_
+# one is reported.
+#
+ARGV="$@"
+#
+# |||||||||||||||||||| START CONFIGURATION SECTION  ||||||||||||||||||||
+# --------------------                              --------------------
+#
+# the path to application
+PROGNAME='python -u @@install_purelib@@/pandajedi/jediorder/JediMaster.py'
+
+# the path to the script application
+SCRIPTNAME='python -u @@install_purelib@@/pandajedi/jeditest/SchemaChecker.py'
+
+
+# virtual env activation
+@@virtual_env_setup@@
+
+# pid and lock files
+if [[ -z "${PANDA_LOCK_DIR}" ]]; then
+    PIDFILE='/var/log/panda/panda_jedi.pid'
+    LOCKFILE='/var/lock/subsys/panda_jedi'
+else
+    PIDFILE=${PANDA_LOCK_DIR}'/panda_jedi.pid'
+    LOCKFILE=${PANDA_LOCK_DIR}'/panda_jedi'
+fi
+
+# log files
+JEDISTDOUT='/var/log/panda/panda_jedi_stdout.log'
+JEDISTDERR='/var/log/panda/panda_jedi_stderr.log'
+
+# Source panda server env variables
+if [ -r /etc/sysconfig/panda_server ]; then
+   . /etc/sysconfig/panda_server
+fi
+
+# Source panda JEDI env variables
+if [ -r /etc/sysconfig/panda_jedi ]; then
+   . /etc/sysconfig/panda_jedi
+fi
+
+ERROR=0
+if [ "x$ARGV" = "x" ] ; then
+    ARGV="-h"
+fi
+
+# check if PanDA Schema is the correct one
+function check_schema() {
+  return_string=`$SCRIPTNAME`
+  if [[ "$return_string" =~ .*OK ]]; then
+    return 0
+  else
+    echo $return_string
+    return 1
+  fi
+}
+
+
+case $ARGV in
+start)
+    if [ -f $LOCKFILE ]; then
+	echo ERROR: JEDI is already running with lockfile:$LOCKFILE
+    else
+	echo "start JEDI"
+        check_schema
+	for itry in `seq 1 100`
+	do
+	    echo trying $itry
+	    $PROGNAME --pid $PIDFILE >> $JEDISTDOUT 2>> $JEDISTDERR
+	    touch $LOCKFILE
+	    sleep 10
+	    ps -p `cat $PIDFILE` > /dev/null
+	    ERROR=$?
+	    echo $ERROR
+	    if [ $ERROR = 0 ]; then
+		echo succeeded
+		break
+	    else
+		echo failed
+		rm -f $LOCKFILE
+	    fi
+	done
+    fi
+    ;;
+stop)
+    echo "stop JEDI"
+    if [ ! -f $PIDFILE ]; then
+      echo "ERROR: JEDI PID file $PIDFILE not found ; skipped"
+      exit 1
+    fi
+    for itry in `seq 1 100`
+    do
+        echo trying $itry
+        kill `cat $PIDFILE`
+        sleep 5
+        ps -p `cat $PIDFILE` > /dev/null
+        ERROR=$?
+        echo $ERROR
+        if [ $ERROR = 1 ]; then
+            echo succeeded
+            rm -f $PIDFILE $LOCKFILE
+            break
+        else
+            echo failed
+            sleep 10
+        fi
+    done
+    ;;
+*)
+    echo ERROR: unknown command $ARGV
+    ERROR=1
+esac
+
+exit $ERROR
