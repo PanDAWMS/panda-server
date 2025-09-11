@@ -1744,7 +1744,7 @@ class EntityModule(BaseModule):
         tmp_log.debug("start")
         try:
             # get DDM endpoints
-            pandaEndpointMap = self.getDdmEndpoints()
+            pandaEndpointMap, endpoint_detailed_status_summary = self.getDdmEndpoints()
 
             # sql to get site spec
             sql = """
@@ -1981,13 +1981,13 @@ class EntityModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             tmp_log.debug("done")
-            return retList
+            return retList, endpoint_detailed_status_summary
         except Exception as e:
             # roll back
             self._rollback()
             # error
             self.dump_error_message(tmp_log)
-            return {}
+            return {}, {}
 
     def getDdmEndpoints(self):
         """
@@ -2008,17 +2008,27 @@ class EntityModule(BaseModule):
 
         # save the endpoints into a dictionary
         endpoint_dict = {}
+        detailed_status_summary = {}
         for ddm_endpoint_row in results_ddm:
             tmp_endpoint = {}
             # unzip the ddm_endpoint row into a dictionary
             for column_name, column_val in zip(column_names, ddm_endpoint_row):
                 tmp_endpoint[column_name] = column_val
 
-            # ignore TEST
-            # if tmp_endpoint['type'] == 'TEST':
-            #    continue
-
-            endpoint_dict[tmp_endpoint["ddm_endpoint_name"]] = tmp_endpoint
+            ddm_endpoint_name = tmp_endpoint["ddm_endpoint_name"]
+            try:
+                tmp_detailed_status = json.loads(tmp_endpoint["detailed_status"])
+                # make a summary of detailed status of all endpoints
+                if tmp_detailed_status:
+                    for tmp_activity, tmp_status in tmp_detailed_status.items():
+                        detailed_status_summary.setdefault(tmp_activity, {})
+                        detailed_status_summary[tmp_activity].setdefault(tmp_status, [])
+                        detailed_status_summary[tmp_activity][tmp_status].append(ddm_endpoint_name)
+                tmp_endpoint["detailed_status"] = tmp_detailed_status
+            except Exception as e:
+                tmp_log.error(f"exception when decoding detailed_status for {ddm_endpoint_name}: {str(e)}")
+                tmp_endpoint["detailed_status"] = {}
+            endpoint_dict[ddm_endpoint_name] = tmp_endpoint
 
         # get relationship between panda sites and ddm endpoints
         sql_panda_ddm = """
@@ -2070,7 +2080,7 @@ class EntityModule(BaseModule):
                 panda_endpoint_map[panda_site_name][scope]["output"].add(tmp_relation, endpoint_dict)
 
         tmp_log.debug(f"done")
-        return panda_endpoint_map
+        return panda_endpoint_map, detailed_status_summary
 
     def get_cloud_list(self):
         """

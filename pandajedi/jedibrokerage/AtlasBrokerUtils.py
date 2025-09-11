@@ -6,14 +6,17 @@ import socket
 import sys
 import time
 import traceback
+from typing import Any
 
-from dataservice.DataServiceUtils import select_scope
 from packaging import version
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction
+from pandajedi.jediddm.DDMInterface import DDMInterface
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import DataServiceUtils
-from pandaserver.taskbuffer import JobUtils, ProcessGroups
+from pandaserver.dataservice.DataServiceUtils import select_scope
+from pandaserver.taskbuffer import JobUtils, ProcessGroups, SiteSpec
 
 
 # get nuclei where data is available
@@ -35,6 +38,7 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
         avaNumAny = 0
         avaSizeDisk = 0
         avaSizeAny = 0
+        can_be_remote_source = False
         for tmpDataset, tmpRepMap in replicaMap.items():
             tmpTotalNum = 0
             tmpTotalSize = 0
@@ -50,6 +54,10 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
                     tmpTotalSize = locData[0]["tsize"]
                 # check if the endpoint is associated
                 if tmpNucleusSpec.is_associated_for_input(tmpLoc):
+                    # check blacklist
+                    if siteMapper.is_readable_remotely(tmpLoc):
+                        can_be_remote_source = True
+                    # sum
                     tmpEndpoint = tmpNucleusSpec.getEndpoint(tmpLoc)
                     tmpAvaNum = locData[0]["found"]
                     tmpAvaSize = locData[0]["asize"]
@@ -85,39 +93,67 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
                 "ava_num_any": avaNumAny,
                 "ava_size_disk": avaSizeDisk,
                 "ava_size_any": avaSizeAny,
+                "can_be_remote_source": can_be_remote_source,
             }
     # return
     return Interaction.SC_SUCCEEDED, retMap
 
 
 # get sites where data is available and check if complete replica is available at online RSE
-def get_sites_with_data(siteList, siteMapper, ddmIF, datasetName, element_list, max_missing_input_files, min_input_completeness):
+def get_sites_with_data(
+    site_list: list,
+    site_mapper: SiteMapper,
+    ddm_if: DDMInterface,
+    dataset_name: str,
+    element_list: list,
+    max_missing_input_files: int,
+    min_input_completeness: int,
+) -> tuple[Any, dict | str, bool | None, bool | None, bool | None, bool | None, bool | None]:
+    """
+    Get sites where data is available and check if complete replica is available at online RSE
+    1) regarded_as_complete_disk: True if a replica is regarded as complete at disk (missing files within threshold)
+    2) complete_tape: True if a complete replica is available at tape
+    3) truly_complete_disk: True if a truly complete replica is available at disk (no missing files)
+    4) can_be_local_source: True if the site can read the replica locally over LAN
+    5) can_be_remote_source: True if the site can read the replica remotely over WAN
+    Note that VP replicas are not taken into account for the above flags
+
+    :param site_list: list of site names to be checked
+    :param site_mapper: SiteMapper object
+    :param ddm_if: DDMInterface object
+    :param dataset_name: dataset name
+    :param element_list: list of constituent datasets
+    :param max_missing_input_files: maximum number of missing files to be regarded as complete
+    :param min_input_completeness: minimum completeness (%) to be regarded as complete
+
+    :return: tuple of (status code or exception type, dict of sites with data availability info, regarded_as_complete_disk, complete_tape, truly_complete_disk, can_be_local_source, can_be_remote_source)
+    """
     # get replicas
     try:
-        replicaMap = {}
-        replicaMap[datasetName] = ddmIF.listDatasetReplicas(datasetName, use_vp=True, skip_incomplete_element=True, element_list=element_list)
+        replica_map = {dataset_name: ddm_if.listDatasetReplicas(dataset_name, use_vp=True, skip_incomplete_element=True, element_list=element_list)}
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
-        return errtype, f"ddmIF.listDatasetReplicas failed with {errvalue}", None, None
+        return errtype, f"ddmIF.listDatasetReplicas failed with {errvalue}", None, None, None, None, None
 
-    # check if complete replica is available at online RSE
-    regarded_as_complete_disk = False
-    truly_complete_disk = False
-    complete_tape = False
+    # check completeness and storage availability
     is_tape = {}
-    for tmp_rse, tmp_data_list in replicaMap[datasetName].items():
+    replica_availability_info = {}
+    for tmp_rse, tmp_data_list in replica_map[dataset_name].items():
         # check tape attribute
         try:
-            is_tape[tmp_rse] = ddmIF.getSiteProperty(tmp_rse, "is_tape")
+            is_tape[tmp_rse] = ddm_if.getSiteProperty(tmp_rse, "is_tape")
         except Exception:
             is_tape[tmp_rse] = None
         # look for complete replicas
+        tmp_regarded_as_complete_disk = False
+        tmp_truly_complete_disk = False
+        tmp_complete_tape = False
+        tmp_can_be_local_source = False
+        tmp_can_be_remote_source = False
         for tmp_data in tmp_data_list:
-            # blacklisted
-            if tmp_data.get("read_blacklisted") is True:
-                continue
             if not tmp_data.get("vp"):
                 if tmp_data["found"] == tmp_data["total"]:
+                    # truly complete
                     truly_complete = True
                 elif (
                     tmp_data["total"]
@@ -127,79 +163,88 @@ def get_sites_with_data(siteList, siteMapper, ddmIF, datasetName, element_list, 
                         or tmp_data["found"] / tmp_data["total"] * 100 >= min_input_completeness
                     )
                 ):
+                    # regarded as complete
                     truly_complete = False
                 else:
                     continue
                 if is_tape[tmp_rse]:
-                    complete_tape = True
+                    tmp_complete_tape = True
                 else:
-                    regarded_as_complete_disk = True
+                    tmp_regarded_as_complete_disk = True
                     if truly_complete:
-                        truly_complete_disk = True
+                        tmp_truly_complete_disk = True
+                    # check if it is locally accessible over LAN
+                    if site_mapper.is_readable_locally(tmp_rse):
+                        tmp_can_be_local_source = True
+                    # check if it is remotely accessible over WAN
+                    if site_mapper.is_readable_remotely(tmp_rse):
+                        tmp_can_be_remote_source = True
+        replica_availability_info[tmp_rse] = {
+            "regarded_as_complete_disk": tmp_regarded_as_complete_disk,
+            "truly_complete_disk": tmp_truly_complete_disk,
+            "complete_tape": tmp_complete_tape,
+            "can_be_local_source": tmp_can_be_local_source,
+            "can_be_remote_source": tmp_can_be_remote_source,
+        }
 
-    # loop over all clouds
-    retMap = {}
-    for tmpSiteName in siteList:
-        if not siteMapper.checkSite(tmpSiteName):
-            continue
-        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-        scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.ANALY_PS, JobUtils.ANALY_PS)
-
-        # loop over all DDM endpoints
-        checkedEndPoints = []
-        try:
-            input_endpoints = tmpSiteSpec.ddm_endpoints_input[scope_input].all.keys()
-        except Exception:
-            input_endpoints = {}
-        for tmpDDM in input_endpoints:
-            # skip empty
-            if tmpDDM == "":
+    # loop over all candidate sites
+    regarded_as_complete_disk = False
+    truly_complete_disk = False
+    complete_tape = False
+    can_be_local_source = False
+    can_be_remote_source = False
+    return_map = {}
+    if not site_list:
+        # make sure at least one loop to set the flags
+        site_list = [None]
+    for tmp_site_name in site_list:
+        if tmp_site_name is None:
+            # use all endpoints
+            input_endpoints = replica_availability_info.keys()
+        else:
+            if not site_mapper.checkSite(tmp_site_name):
                 continue
-            # get prefix
-            # tmpPrefix = re.sub('_[^_]+$','_',tmpDDM)
-            tmpPrefix = tmpDDM
-
-            # already checked
-            if tmpPrefix in checkedEndPoints:
-                continue
-            # DBR
-            if DataServiceUtils.isCachedFile(datasetName, tmpSiteSpec):
-                # no replica check since it is cached
-                if tmpSiteName not in retMap:
-                    retMap[tmpSiteName] = {}
-                retMap[tmpSiteName][tmpDDM] = {"tape": False, "state": "complete"}
-                checkedEndPoints.append(tmpPrefix)
-                continue
-            checkedEndPoints.append(tmpPrefix)
-            tmpSePat = "^" + tmpPrefix
-            for tmpSE in replicaMap[datasetName].keys():
-                # check name with regexp pattern
-                if re.search(tmpSePat, tmpSE) is None:
-                    continue
-                # skip staging
-                if re.search("STAGING$", tmpSE) is not None:
-                    continue
-                # check archived metadata
-                # FIXME
-                pass
+            # get associated DDM endpoints
+            tmp_site_spec = site_mapper.getSite(tmp_site_name)
+            scope_input, scope_output = select_scope(tmp_site_spec, JobUtils.ANALY_PS, JobUtils.ANALY_PS)
+            try:
+                input_endpoints = tmp_site_spec.ddm_endpoints_input[scope_input].all.keys()
+            except Exception:
+                input_endpoints = {}
+        # loop over all associated endpoints
+        for tmp_rse in input_endpoints:
+            if tmp_rse in replica_map[dataset_name]:
                 # check completeness
-                tmpStatistics = replicaMap[datasetName][tmpSE][-1]
-                if tmpStatistics["found"] is None:
-                    tmpDatasetStatus = "unknown"
+                tmp_statistics = replica_map[dataset_name][tmp_rse][-1]
+                if tmp_statistics["found"] is None:
+                    tmp_dataset_completeness = "unknown"
                     # refresh request
                     pass
-                elif tmpStatistics["total"] == tmpStatistics["found"]:
-                    tmpDatasetStatus = "complete"
+                elif tmp_statistics["total"] == tmp_statistics["found"]:
+                    tmp_dataset_completeness = "complete"
                 else:
-                    tmpDatasetStatus = "incomplete"
+                    tmp_dataset_completeness = "incomplete"
                 # append
-                if tmpSiteName not in retMap:
-                    retMap[tmpSiteName] = {}
-                retMap[tmpSiteName][tmpSE] = {"tape": is_tape[tmpSE], "state": tmpDatasetStatus}
-                if "vp" in tmpStatistics:
-                    retMap[tmpSiteName][tmpSE]["vp"] = tmpStatistics["vp"]
+                if tmp_site_name is not None:
+                    if tmp_site_name not in return_map:
+                        return_map[tmp_site_name] = {}
+                    return_map[tmp_site_name][tmp_rse] = {"tape": is_tape[tmp_rse], "state": tmp_dataset_completeness}
+                    if "vp" in tmp_statistics:
+                        return_map[tmp_site_name][tmp_rse]["vp"] = tmp_statistics["vp"]
+                # set flags
+                if tmp_rse in replica_availability_info:
+                    if replica_availability_info[tmp_rse]["regarded_as_complete_disk"]:
+                        regarded_as_complete_disk = True
+                    if replica_availability_info[tmp_rse]["truly_complete_disk"]:
+                        truly_complete_disk = True
+                    if replica_availability_info[tmp_rse]["complete_tape"]:
+                        complete_tape = True
+                    if replica_availability_info[tmp_rse]["can_be_local_source"]:
+                        can_be_local_source = True
+                    if replica_availability_info[tmp_rse]["can_be_remote_source"]:
+                        can_be_remote_source = True
     # return
-    return Interaction.SC_SUCCEEDED, retMap, regarded_as_complete_disk, complete_tape, truly_complete_disk
+    return Interaction.SC_SUCCEEDED, return_map, regarded_as_complete_disk, complete_tape, truly_complete_disk, can_be_local_source, can_be_remote_source
 
 
 # get analysis sites where data is available at disk
@@ -1138,3 +1183,67 @@ def resolve_cmt_config(queue_name: str, cmt_config: str, base_platform, sw_map: 
             return tmp_cmt_config
     # return None if cmt_config is unavailable
     return None
+
+
+def check_endpoints_with_blacklist(
+    site_spec: SiteSpec.SiteSpec, scope_input: str, scope_output: str, sites_in_nucleus: list, remote_source_available: bool
+) -> str | None:
+    """
+    Check if site's endpoints are in the blacklist
+
+    :param site_spec: site spec
+    :param scope_input: input scope
+    :param scope_output: output scope
+    :param sites_in_nucleus: list of sites in nucleus
+    :param remote_source_available: if remote source is available
+
+    :return: description of blacklisted reason or None
+    """
+    tmp_msg = None
+    receive_input_over_wan = False
+    read_input_over_lan = False
+    write_output_over_lan = False
+    send_output_over_wan = False
+    tmpSiteName = site_spec.sitename
+    for tmp_input_endpoint in site_spec.ddm_endpoints_input[scope_input].all.values():
+        tmp_read_input_over_lan = tmp_input_endpoint["detailed_status"].get("read_lan")
+        tmp_receive_input_over_wan = tmp_input_endpoint["detailed_status"].get("write_wan")
+        # can read input from local
+        if tmp_read_input_over_lan not in ["OFF", "TEST"]:
+            read_input_over_lan = True
+        # can receive input from remote to local
+        if tmpSiteName not in sites_in_nucleus:
+            # satellite sites
+            if tmp_receive_input_over_wan not in ["OFF", "TEST"]:
+                receive_input_over_wan = True
+        else:
+            # NA for nucleus sites
+            receive_input_over_wan = True
+            remote_source_available = True
+    for tmp_output_endpoint in site_spec.ddm_endpoints_output[scope_output].all.values():
+        tmp_write_output_over_lan = tmp_output_endpoint["detailed_status"].get("write_lan")
+        tmp_send_output_over_wan = tmp_output_endpoint["detailed_status"].get("read_wan")
+        # can write output to local
+        if tmp_write_output_over_lan not in ["OFF", "TEST"]:
+            write_output_over_lan = True
+        # can send output from local to remote
+        if tmpSiteName not in sites_in_nucleus:
+            # satellite sites
+            if tmp_send_output_over_wan not in ["OFF", "TEST"]:
+                send_output_over_wan = True
+        else:
+            # NA for nucleus sites
+            send_output_over_wan = True
+            remote_source_available = True
+    # take the status for logging
+    if not read_input_over_lan:
+        tmp_msg = f"  skip site={tmpSiteName} since input endpoints cannot read over LAN, read_lan is not ON criteria=-read_lan_blacklist"
+    elif not write_output_over_lan:
+        tmp_msg = f"  skip site={tmpSiteName} since output endpoints cannot write over LAN, write_lan is not ON criteria=-write_lan_blacklist"
+    elif not receive_input_over_wan:
+        tmp_msg = f"  skip site={tmpSiteName} since input endpoints cannot receive files over WAN, write_wan is not ON criteria=-write_wan_blacklist"
+    elif not send_output_over_wan:
+        tmp_msg = f"  skip site={tmpSiteName} since output endpoints cannot send out files over WAN, read_wan is not ON criteria=-read_wan_blacklist"
+    elif not remote_source_available:
+        tmp_msg = f"  skip site={tmpSiteName} since source endpoints cannot transfer files over WAN and it is satellite criteria=-source_blacklist"
+    return tmp_msg

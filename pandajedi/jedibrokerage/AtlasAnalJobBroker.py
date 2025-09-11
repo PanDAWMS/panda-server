@@ -344,9 +344,98 @@ class AtlasAnalJobBroker(JobBrokerBase):
         # timelimit for data locality check
         loc_check_timeout_key = "DATA_CHECK_TIMEOUT_USER"
         loc_check_timeout_val = self.taskBufferIF.getConfigValue("anal_jobbroker", loc_check_timeout_key, "jedi", taskSpec.vo)
+
+        # check input datasets
+        element_map = dict()
+        ddsList = set()
+        complete_disk_ok = {}
+        complete_tape_ok = {}
+        true_complete_disk_ok = {}
+        can_be_local_source = {}
+        can_be_remote_source = {}
+        if inputChunk.getDatasets():
+            for datasetSpec in inputChunk.getDatasets():
+                datasetName = datasetSpec.datasetName
+                isDistributed = None
+                if datasetName not in self.dataSiteMap:
+                    # get the list of sites where data is available
+                    tmpLog.debug(f"getting the list of sites where {datasetName} is available")
+                    tmpSt, tmpRet, tmp_complete_disk_ok, tmp_complete_tape_ok, tmp_truly_complete_disk, tmp_can_be_local_source, tmp_can_be_remote_source = (
+                        AtlasBrokerUtils.get_sites_with_data(
+                            self.get_unified_sites(scanSiteList),
+                            self.siteMapper,
+                            self.ddmIF,
+                            datasetName,
+                            element_map.get(datasetSpec.datasetName),
+                            max_missing_input_files,
+                            min_input_completeness,
+                        )
+                    )
+                    if tmpSt in [Interaction.JEDITemporaryError, Interaction.JEDITimeoutError]:
+                        tmpLog.error(f"temporary failed to get the list of sites where data is available, since {tmpRet}")
+                        taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
+                        return retTmpError
+                    if tmpSt == Interaction.JEDIFatalError:
+                        tmpLog.error(f"fatal error when getting the list of sites where data is available, since {tmpRet}")
+                        taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
+                        return retFatal
+                    # append
+                    self.dataSiteMap[datasetName] = tmpRet
+                    complete_disk_ok[datasetName] = tmp_complete_disk_ok
+                    complete_tape_ok[datasetName] = tmp_complete_tape_ok
+                    true_complete_disk_ok[datasetName] = tmp_truly_complete_disk
+                    can_be_local_source[datasetName] = tmp_can_be_local_source
+                    can_be_remote_source[datasetName] = tmp_can_be_remote_source
+                    if datasetName.startswith("ddo"):
+                        tmpLog.debug(f" {len(tmpRet)} sites")
+                    else:
+                        tmpLog.debug(f" {len(tmpRet)} sites : {str(tmpRet)}")
+                        # check if distributed
+                        if tmpRet != {}:
+                            isDistributed = True
+                            for tmpMap in tmpRet.values():
+                                for tmpVal in tmpMap.values():
+                                    if tmpVal["state"] == "complete":
+                                        isDistributed = False
+                                        break
+                                if not isDistributed:
+                                    break
+                            if isDistributed or datasetName.endswith("/"):
+                                # check if really distributed
+                                isDistributed = self.ddmIF.isDistributedDataset(datasetName)
+                                if isDistributed or datasetName.endswith("/"):
+                                    isDistributed = True
+                                    tmpLog.debug(f" {datasetName} is distributed")
+                                    ddsList.add(datasetName)
+                                    # disable VP since distributed datasets triggers transfers
+                                    useVP = False
+                                    avoidVP = True
+                tmpLog.debug(
+                    f"replica_availability disk:{complete_disk_ok[datasetName]} tape:{complete_tape_ok[datasetName]}, is_distributed:{isDistributed}, remote_readable:{can_be_remote_source[datasetName]}"
+                )
+                # check if the data is available at somewhere
+                if not complete_disk_ok[datasetName] and not complete_tape_ok[datasetName] and not datasetSpec.isDistributed():
+                    err_msg = f"{datasetName} is unavailable/incomplete at storages that are currently not in downtime."
+                    if not taskSpec.allow_incomplete_input():
+                        tmpLog.error(err_msg)
+                        taskSpec.setErrDiag(err_msg)
+                        retVal = retTmpError
+                        return retVal
+                    else:
+                        err_msg += "However, the task allows incomplete input."
+                        tmpLog.info(err_msg)
+
+        # check if any input dataset is remotely unavailable
+        remote_source_available = True
+        remote_source_msg = ""
+        for tmp_dataset_name, tmp_ok in can_be_remote_source.items():
+            if not tmp_ok:
+                remote_source_msg = f"data locality cannot be ignored since {tmp_dataset_name} is unreadable over WAN"
+                remote_source_available = False
+                break
+
         # two loops with/without data locality check
         scan_site_list_loops = [(copy.copy(scanSiteList), True)]
-        element_map = dict()
         to_ignore_data_loc = False
         if len(inputChunk.getDatasets()) > 0:
             nRealDS = 0
@@ -366,7 +455,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 tmp_msg += "check timeout (last successful cycle at {} was more than {} ({}hrs) ago)".format(
                     taskSpec.frozenTime, loc_check_timeout_key, loc_check_timeout_val
                 )
-            if to_ignore_data_loc:
+            if not remote_source_available:
+                tmpLog.info(remote_source_msg)
+            elif to_ignore_data_loc:
                 tmpLog.info(tmp_msg)
                 scan_site_list_loops.append((copy.copy(scanSiteList), False))
             elif taskSpec.taskPriority > 1000 or nRealDS > 1 or taskSpec.getNumSitesPerJob() > 0:
@@ -395,82 +486,23 @@ class AtlasAnalJobBroker(JobBrokerBase):
             # selection for data availability
             hasDDS = False
             dataWeight = {}
-            ddsList = set()
             remoteSourceList = {}
+            sites_in_nucleus = []
             for datasetSpec in inputChunk.getDatasets():
                 datasetSpec.reset_distributed()
+
             if inputChunk.getDatasets() != [] and checkDataLocality:
                 oldScanSiteList = copy.copy(scanSiteList)
                 oldScanUnifiedSiteList = self.get_unified_sites(oldScanSiteList)
-                complete_disk_ok = {}
-                complete_tape_ok = {}
-                true_complete_disk_ok = {}
+
+                if ddsList:
+                    hasDDS = True
+
                 for datasetSpec in inputChunk.getDatasets():
                     datasetName = datasetSpec.datasetName
-                    if datasetName not in self.dataSiteMap:
-                        # get the list of sites where data is available
-                        tmpLog.debug(f"getting the list of sites where {datasetName} is available")
-                        tmpSt, tmpRet, tmp_complete_disk_ok, tmp_complete_tape_ok, tmp_truly_complete_disk = AtlasBrokerUtils.get_sites_with_data(
-                            self.get_unified_sites(scanSiteList),
-                            self.siteMapper,
-                            self.ddmIF,
-                            datasetName,
-                            element_map.get(datasetSpec.datasetName),
-                            max_missing_input_files,
-                            min_input_completeness,
-                        )
-                        if tmpSt in [Interaction.JEDITemporaryError, Interaction.JEDITimeoutError]:
-                            tmpLog.error(f"temporary failed to get the list of sites where data is available, since {tmpRet}")
-                            taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                            return retTmpError
-                        if tmpSt == Interaction.JEDIFatalError:
-                            tmpLog.error(f"fatal error when getting the list of sites where data is available, since {tmpRet}")
-                            taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                            return retFatal
-                        # append
-                        self.dataSiteMap[datasetName] = tmpRet
-                        complete_disk_ok[datasetName] = tmp_complete_disk_ok
-                        complete_tape_ok[datasetName] = tmp_complete_tape_ok
-                        true_complete_disk_ok[datasetName] = tmp_truly_complete_disk
-                        if datasetName.startswith("ddo"):
-                            tmpLog.debug(f" {len(tmpRet)} sites")
-                        else:
-                            tmpLog.debug(f" {len(tmpRet)} sites : {str(tmpRet)}")
-                            # check if distributed
-                            if tmpRet != {}:
-                                isDistributed = True
-                                for tmpMap in tmpRet.values():
-                                    for tmpVal in tmpMap.values():
-                                        if tmpVal["state"] == "complete":
-                                            isDistributed = False
-                                            break
-                                    if not isDistributed:
-                                        break
-                                if isDistributed or datasetName.endswith("/"):
-                                    # check if really distributed
-                                    isDistributed = self.ddmIF.isDistributedDataset(datasetName)
-                                    if isDistributed or datasetName.endswith("/"):
-                                        hasDDS = True
-                                        datasetSpec.setDistributed()
-                                        tmpLog.debug(f" {datasetName} is distributed")
-                                        ddsList.add(datasetName)
-                                        # disable VP since distributed datasets triggers transfers
-                                        useVP = False
-                                        avoidVP = True
-                    tmpLog.debug(
-                        f"disk replica: {complete_disk_ok[datasetName]}, tape replica: {complete_tape_ok[datasetName]}, distributed={datasetSpec.isDistributed()}"
-                    )
-                    # check if the data is available at somewhere
-                    if not complete_disk_ok[datasetName] and not complete_tape_ok[datasetName] and not datasetSpec.isDistributed():
-                        err_msg = f"{datasetName} is unavailable/incomplete at storages that are currently not in downtime."
-                        if not taskSpec.allow_incomplete_input():
-                            tmpLog.error(err_msg)
-                            taskSpec.setErrDiag(err_msg)
-                            retVal = retTmpError
-                            return retVal
-                        else:
-                            err_msg += "However, the task allows incomplete input."
-                            tmpLog.info(err_msg)
+                    if datasetName in ddsList:
+                        datasetSpec.setDistributed()
+
                 # get the list of sites where data is available
                 scanSiteList = None
                 scanSiteListOnDisk = None
@@ -565,6 +597,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 for tmpSiteName in oldScanSiteList:
                     if tmpSiteName not in scanSiteList:
                         pass
+                sites_in_nucleus = copy.copy(scanSiteList)
                 tmpLog.info(f"{len(scanSiteList)} candidates have input data")
                 self.add_summary_message(oldScanSiteList, scanSiteList, "input data check")
                 if not scanSiteList:
@@ -1041,24 +1074,25 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 if scope_output not in tmpSiteSpec.ddm_endpoints_output:
                     tmpLog.info(f"  skip site={tmpSiteName} since {scope_output} output endpoint undefined criteria=-disk")
                     continue
-                tmpEndPoint = tmpSiteSpec.ddm_endpoints_output[scope_output].getEndPoint(tmpSiteSpec.ddm_output[scope_output])
-                if tmpEndPoint is not None:
+                tmp_output_endpoint = tmpSiteSpec.ddm_endpoints_output[scope_output].getEndPoint(tmpSiteSpec.ddm_output[scope_output])
+                if tmp_output_endpoint is not None:
                     # free space must be >= 200GB
                     diskThreshold = 200
                     tmpSpaceSize = 0
-                    if tmpEndPoint["space_expired"] is not None:
-                        tmpSpaceSize += tmpEndPoint["space_expired"]
-                    if tmpEndPoint["space_free"] is not None:
-                        tmpSpaceSize += tmpEndPoint["space_free"]
+                    if tmp_output_endpoint["space_expired"] is not None:
+                        tmpSpaceSize += tmp_output_endpoint["space_expired"]
+                    if tmp_output_endpoint["space_free"] is not None:
+                        tmpSpaceSize += tmp_output_endpoint["space_free"]
                     if (
                         tmpSpaceSize < diskThreshold and "skip_RSE_check" not in tmpSiteSpec.catchall
                     ):  # skip_RSE_check: exceptional bypass of RSEs without storage reporting
                         tmpLog.info(f"  skip site={tmpSiteName} due to disk shortage in SE {tmpSpaceSize} < {diskThreshold}GB criteria=-disk")
                         continue
-                    # check if blacklisted
-                    if tmpEndPoint["blacklisted"] == "Y":
-                        tmpLog.info(f"  skip site={tmpSiteName} since {tmpSiteSpec.ddm_output[scope_output]} is blacklisted in DDM criteria=-blacklist")
-                        continue
+                # check if blacklisted
+                tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available)
+                if tmp_msg is not None:
+                    tmpLog.info(f"  skip site={tmpSiteName} since {tmpSiteSpec.ddm_output[scope_output]} is blacklisted in DDM criteria=-blacklist")
+                    continue
                 # local quota
                 if tmpSiteSpec.ddm_output[scope_output] in endpoints_over_local_quota:
                     tmpLog.info(f"  skip site={tmpSiteName} since {tmpSiteSpec.ddm_output[scope_output]} is over local quota criteria=-local_quota")

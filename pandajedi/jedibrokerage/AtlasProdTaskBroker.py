@@ -236,6 +236,57 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                     else:
                         tmpLog.info(f"got {len(nucleusList)} candidates")
                         ######################################
+                        # check data
+                        dataset_availability_info = {}
+                        to_skip = False
+                        for datasetSpec in inputChunk.getDatasets():
+                            # only for real datasets
+                            if datasetSpec.isPseudo():
+                                continue
+                            # ignore DBR
+                            if DataServiceUtils.isDBR(datasetSpec.datasetName):
+                                continue
+                            # skip locality check
+                            if DataServiceUtils.getDatasetType(datasetSpec.datasetName) in datasetTypeToSkipCheck:
+                                continue
+                            # primary only
+                            if taskParamMap.get("taskBrokerOnMaster") is True and not datasetSpec.isMaster():
+                                continue
+                            # use deep scan for primary dataset unless data carousel
+                            if datasetSpec.isMaster() and not taskSpec.inputPreStaging():
+                                deepScan = True
+                            else:
+                                deepScan = False
+                            # get nuclei where data is available
+                            tmpSt, tmpRet = AtlasBrokerUtils.getNucleiWithData(
+                                siteMapper, self.ddmIF, datasetSpec.datasetName, list(nucleusList.keys()), deepScan
+                            )
+                            if tmpSt != Interaction.SC_SUCCEEDED:
+                                self.post_process_for_error(taskSpec, tmpLog, f"failed to get nuclei where data is available, since {tmpRet}", False)
+                                to_skip = True
+                                break
+                            # sum
+                            remote_source_available = False
+                            for tmpNucleus, tmpVals in tmpRet.items():
+                                if tmpNucleus not in dataset_availability_info:
+                                    dataset_availability_info[tmpNucleus] = tmpVals
+                                else:
+                                    dataset_availability_info[tmpNucleus] = dict(
+                                        (k, v + tmpVals[k]) for (k, v) in dataset_availability_info[tmpNucleus].items() if not isinstance(v, bool)
+                                    )
+                                # set remote_source_available to True if any is readable over WAN
+                                if tmpVals.get("can_be_remote_source"):
+                                    remote_source_available = True
+                                    dataset_availability_info[tmpNucleus]["can_be_remote_source"] = True
+                            if not remote_source_available:
+                                self.post_process_for_error(
+                                    taskSpec, tmpLog, f"dataset={datasetSpec.datasetName} is incomplete/missing at online endpoints with read_wan=ON", False
+                                )
+                                to_skip = True
+                                break
+                        if to_skip:
+                            continue
+                        ######################################
                         # check status
                         newNucleusList = {}
                         oldNucleusList = copy.copy(nucleusList)
@@ -277,7 +328,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                         oldNucleusList = copy.copy(nucleusList)
                         tmpStat, tmpDatasetSpecList = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(taskSpec.jediTaskID, ["output", "log"])
                         for tmpNucleus, tmpNucleusSpec in nucleusList.items():
-                            toSkip = False
+                            to_skip = False
                             origNucleusSpec = tmpNucleusSpec
                             for tmpDatasetSpec in tmpDatasetSpecList:
                                 tmpNucleusSpec = origNucleusSpec
@@ -289,19 +340,19 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                                     continue
                                 # get endpoint with the pattern
                                 tmpEP = tmpNucleusSpec.getAssociatedEndpoint(tmpDatasetSpec.storageToken)
+                                tmp_ddm_endpoint_name = tmpEP["ddm_endpoint_name"]
                                 if tmpEP is None:
                                     tmpLog.info(f"  skip nucleus={tmpNucleus} since no endpoint with {tmpDatasetSpec.storageToken} criteria=-match")
-                                    toSkip = True
+                                    to_skip = True
                                     break
-                                # check state
-                                """
-                                if tmpEP['state'] not in ['ACTIVE']:
-                                    tmpLog.info('  skip nucleus={0} since endpoint {1} is in {2} criteria=-epstatus'.format(tmpNucleus,
-                                                                                                                             tmpEP['ddm_endpoint_name'],
-                                                                                                                             tmpEP['state']))
-                                    toSkip = True
+                                # check blacklist
+                                read_wan_status = tmpEP["detailed_status"].get("read_wan")
+                                if read_wan_status in ["OFF", "TEST"]:
+                                    tmpLog.info(
+                                        f"  skip nucleus={tmpNucleus} since {tmp_ddm_endpoint_name} has read_wan={read_wan_status} criteria=-source_blacklist"
+                                    )
+                                    to_skip = True
                                     break
-                                """
                                 # check space
                                 tmpSpaceSize = 0
                                 if tmpEP["space_free"]:
@@ -318,7 +369,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                                             tmpNucleus, tmpSpaceSize // 1024, tmpSpaceToUse // 1024, diskThreshold // 1024, tmpEP["ddm_endpoint_name"]
                                         )
                                     )
-                                    toSkip = True
+                                    to_skip = True
                                     break
                                 # keep fraction of free space
                                 if tmpNucleus not in fractionFreeSpace:
@@ -333,7 +384,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                                     tmpNew = None
                                 if tmpNew is not None and (tmpOld is None or tmpNew < tmpOld):
                                     fractionFreeSpace[tmpNucleus] = {"total": tmpEP["space_total"], "free": tmpSpaceSize - tmpSpaceToUse}
-                            if not toSkip:
+                            if not to_skip:
                                 newNucleusList[tmpNucleus] = origNucleusSpec
                         nucleusList = newNucleusList
                         tmpLog.info(f"{len(nucleusList)} candidates passed endpoint check with DISK_THRESHOLD={diskThreshold // 1024} TB")
@@ -380,73 +431,46 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                         ######################################
                         # data locality
                         time_now = naive_utcnow()
-                        availableData = {}
                         if taskSpec.frozenTime and time_now - taskSpec.frozenTime > datetime.timedelta(days=data_location_check_period):
                             tmpLog.info(f"disabled data check since the task was in assigning for " f"{data_location_check_period} days")
                         else:
-                            toSkip = False
-                            for datasetSpec in inputChunk.getDatasets():
-                                # only for real datasets
-                                if datasetSpec.isPseudo():
-                                    continue
-                                # ignore DBR
-                                if DataServiceUtils.isDBR(datasetSpec.datasetName):
-                                    continue
-                                # skip locality check
-                                if DataServiceUtils.getDatasetType(datasetSpec.datasetName) in datasetTypeToSkipCheck:
-                                    continue
-                                # primary only
-                                if taskParamMap.get("taskBrokerOnMaster") is True and not datasetSpec.isMaster():
-                                    continue
-                                # use deep scan for primary dataset unless data carousel
-                                if datasetSpec.isMaster() and not taskSpec.inputPreStaging():
-                                    deepScan = True
-                                else:
-                                    deepScan = False
-                                # get nuclei where data is available
-                                tmpSt, tmpRet = AtlasBrokerUtils.getNucleiWithData(
-                                    siteMapper, self.ddmIF, datasetSpec.datasetName, list(nucleusList.keys()), deepScan
-                                )
-                                if tmpSt != Interaction.SC_SUCCEEDED:
-                                    self.post_process_for_error(taskSpec, tmpLog, f"failed to get nuclei where data is available, since {tmpRet}", False)
-                                    toSkip = True
-                                    break
-                                # sum
-                                for tmpNucleus, tmpVals in tmpRet.items():
-                                    if tmpNucleus not in availableData:
-                                        availableData[tmpNucleus] = tmpVals
-                                    else:
-                                        availableData[tmpNucleus] = dict((k, v + tmpVals[k]) for (k, v) in availableData[tmpNucleus].items())
-                            if toSkip:
-                                continue
-                            if availableData != {}:
+                            dataset_availability_info = {k: v for k, v in dataset_availability_info.items() if k in nucleusList}
+                            if dataset_availability_info != {}:
                                 newNucleusList = {}
                                 oldNucleusList = copy.copy(nucleusList)
                                 # skip if no data
                                 skipMsgList = []
                                 for tmpNucleus, tmpNucleusSpec in nucleusList.items():
-                                    if taskSpec.inputPreStaging() and availableData[tmpNucleus]["ava_num_any"] > 0:
+                                    if taskSpec.inputPreStaging() and dataset_availability_info[tmpNucleus]["ava_num_any"] > 0:
                                         # use incomplete replicas for data carousel since the completeness is guaranteed
                                         newNucleusList[tmpNucleus] = tmpNucleusSpec
                                     elif (
-                                        availableData[tmpNucleus]["tot_size"] > thrInputSize
-                                        and availableData[tmpNucleus]["ava_size_any"] < availableData[tmpNucleus]["tot_size"] * thrInputSizeFrac
+                                        dataset_availability_info[tmpNucleus]["tot_size"] > thrInputSize
+                                        and dataset_availability_info[tmpNucleus]["ava_size_any"]
+                                        < dataset_availability_info[tmpNucleus]["tot_size"] * thrInputSizeFrac
                                     ):
                                         tmpMsg = "  skip nucleus={0} due to insufficient input size {1}B < {2}*{3} criteria=-insize".format(
-                                            tmpNucleus, availableData[tmpNucleus]["ava_size_any"], availableData[tmpNucleus]["tot_size"], thrInputSizeFrac
+                                            tmpNucleus,
+                                            dataset_availability_info[tmpNucleus]["ava_size_any"],
+                                            dataset_availability_info[tmpNucleus]["tot_size"],
+                                            thrInputSizeFrac,
                                         )
                                         skipMsgList.append(tmpMsg)
                                     elif (
-                                        availableData[tmpNucleus]["tot_num"] > thrInputNum
-                                        and availableData[tmpNucleus]["ava_num_any"] < availableData[tmpNucleus]["tot_num"] * thrInputNumFrac
+                                        dataset_availability_info[tmpNucleus]["tot_num"] > thrInputNum
+                                        and dataset_availability_info[tmpNucleus]["ava_num_any"]
+                                        < dataset_availability_info[tmpNucleus]["tot_num"] * thrInputNumFrac
                                     ):
                                         tmpMsg = "  skip nucleus={0} due to short number of input files {1} < {2}*{3} criteria=-innum".format(
-                                            tmpNucleus, availableData[tmpNucleus]["ava_num_any"], availableData[tmpNucleus]["tot_num"], thrInputNumFrac
+                                            tmpNucleus,
+                                            dataset_availability_info[tmpNucleus]["ava_num_any"],
+                                            dataset_availability_info[tmpNucleus]["tot_num"],
+                                            thrInputNumFrac,
                                         )
                                         skipMsgList.append(tmpMsg)
                                     else:
                                         newNucleusList[tmpNucleus] = tmpNucleusSpec
-                                totInputSize = list(availableData.values())[0]["tot_size"] / 1024 / 1024 / 1024
+                                totInputSize = list(dataset_availability_info.values())[0]["tot_size"] / 1024 / 1024 / 1024
                                 data_locality_check_str = (
                                     f"(ioIntensity ({taskSpec.ioIntensity}) is None or less than {minIoIntensityWithLD} kBPerS "
                                     f"and input size ({int(totInputSize)} GB) is less than "
@@ -462,7 +486,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                                 elif (
                                     (taskSpec.ioIntensity is None or taskSpec.ioIntensity <= minIoIntensityWithLD) and totInputSize <= minInputSizeWithLD
                                 ) or taskSpec.currentPriority >= maxTaskPrioWithLD:
-                                    availableData = {}
+                                    dataset_availability_info = {}
                                     tmpLog.info(f"  disable data locality check since no nucleus has input data, {data_locality_check_str}")
                                 else:
                                     # no candidate + unavoidable data locality check
@@ -530,16 +554,16 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                                 weight = 1
                                 wStr += f"/(1 : RW={nucleusRW[tmpNucleus]}<{cutOffRW})"
                             # with data
-                            if availableData != {}:
-                                if availableData[tmpNucleus]["tot_size"] > 0:
+                            if dataset_availability_info != {}:
+                                if dataset_availability_info[tmpNucleus]["tot_size"] > 0:
                                     # use input size only when high IO intensity
                                     if taskSpec.ioIntensity is None or taskSpec.ioIntensity > minIoIntensityWithLD:
-                                        weight *= float(availableData[tmpNucleus]["ava_size_any"])
-                                        weight /= float(availableData[tmpNucleus]["tot_size"])
-                                        wStr += f"* ( available_input_size_DISKTAPE={availableData[tmpNucleus]['ava_size_any']} )"
-                                        wStr += f"/ ( total_input_size={availableData[tmpNucleus]['tot_size']} )"
+                                        weight *= float(dataset_availability_info[tmpNucleus]["ava_size_any"])
+                                        weight /= float(dataset_availability_info[tmpNucleus]["tot_size"])
+                                        wStr += f"* ( available_input_size_DISKTAPE={dataset_availability_info[tmpNucleus]['ava_size_any']} )"
+                                        wStr += f"/ ( total_input_size={dataset_availability_info[tmpNucleus]['tot_size']} )"
                                     # negative weight for tape
-                                    if availableData[tmpNucleus]["ava_size_any"] > availableData[tmpNucleus]["ava_size_disk"]:
+                                    if dataset_availability_info[tmpNucleus]["ava_size_any"] > dataset_availability_info[tmpNucleus]["ava_size_disk"]:
                                         weight *= negWeightTape
                                         wStr += f"*( weight_TAPE={negWeightTape} )"
                             # fraction of free space
