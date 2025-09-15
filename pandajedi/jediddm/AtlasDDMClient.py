@@ -1,5 +1,6 @@
 import datetime
 import json
+import math
 import os
 import re
 import sys
@@ -47,11 +48,6 @@ class AtlasDDMClient(DDMClientBase):
         DDMClientBase.__init__(self, con)
         # the list of fatal error
         self.fatalErrors = []
-        # list of blacklisted endpoints
-        self.blackListEndPoints = []
-        self.bad_endpoint_read = []
-        # time of last update for blacklist
-        self.lastUpdateBL = None
         # how frequently update DN/token map
         self.timeIntervalBL = datetime.timedelta(seconds=60 * 10)
         # dict of endpoints
@@ -1177,8 +1173,6 @@ class AtlasDDMClient(DDMClientBase):
                     if "site" in item and "rse" not in item:
                         item["rse"] = item["site"]
                     items.append(item)
-        # get blacklist
-        bad_rse_list = set(self.get_bad_endpoint_read())
         # loop over all RSEs
         for item in items:
             rse = item["rse"]
@@ -1192,7 +1186,6 @@ class AtlasDDMClient(DDMClientBase):
                     "asize": item["available_bytes"],
                     "vp": item["vp"],
                     "immutable": 1,
-                    "read_blacklisted": rse in bad_rse_list,
                 }
             ]
         return retMap
@@ -1270,36 +1263,6 @@ class AtlasDDMClient(DDMClientBase):
             return errCode, f"{methodName} : {errMsg}"
         tmpLog.debug("done")
         return self.SC_SUCCEEDED, True
-
-    # update blacklist
-    def updateBlackList(self):
-        methodName = "updateBlackList"
-        methodName += f" pid={self.pid}"
-        tmpLog = MsgWrapper(logger, methodName)
-        # check freshness
-        timeNow = naive_utcnow()
-        if self.lastUpdateBL is not None and timeNow - self.lastUpdateBL < self.timeIntervalBL:
-            return
-        self.lastUpdateBL = timeNow
-        # get json
-        try:
-            tmpLog.debug("start")
-            with open("/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmblacklisting.json") as f:
-                ddd = json.load(f)
-                self.blackListEndPoints = [k for k in ddd if "write_wan" in ddd[k] and ddd[k]["write_wan"]["status"]["value"] == "OFF"]
-                self.bad_endpoint_read = [k for k in ddd if "read_wan" in ddd[k] and ddd[k]["read_wan"]["status"]["value"] == "OFF"]
-            tmpLog.debug(f"{len(self.blackListEndPoints)} bad endpoints for write, {len(self.bad_endpoint_read)} bad endpoints for read")
-        except Exception as e:
-            errType = e
-            errCode, errMsg = self.checkError(errType)
-            tmpLog.error(errMsg)
-            return errCode, f"{methodName} : {errMsg}"
-        return
-
-    # get bad endpoints for read
-    def get_bad_endpoint_read(self):
-        self.updateBlackList()
-        return self.bad_endpoint_read
 
     # update endpoint dict
     def updateEndPointDict(self):
@@ -1459,16 +1422,18 @@ class AtlasDDMClient(DDMClientBase):
                 owner = user_info["nickname"]
                 quota_info = client.get_global_account_usage(owner)
                 for info in quota_info:
-                    if info["bytes"] >= info["bytes_limit"] > 0:
+                    usage_in_tb = math.ceil(info["bytes"] / (1000**4))
+                    limit_in_tb = int(info["bytes_limit"] / (1000**4))
+                    if info["bytes"] > info["bytes_limit"] > 0:
                         is_quota_ok = False
                         rse_expression = info["rse_expression"]
-                        err_msg = f"exceeded global quota on {rse_expression}"
+                        err_msg = f"exceeded global quota on {rse_expression} (Usage:{usage_in_tb} > Limit:{limit_in_tb} in TB). see output from 'rucio list-account-usage {owner}'"
                         break
                     limit_value = 0.9
-                    if info["bytes"] >= info["bytes_limit"] * limit_value > 0:
+                    if info["bytes"] > info["bytes_limit"] * limit_value > 0:
                         is_near_limit = True
                         rse_expression = info["rse_expression"]
-                        err_msg = f"close to global quota limit ({limit_value*100}%) on {rse_expression}"
+                        err_msg = f"close to global quota limit on {rse_expression} (Usage:{usage_in_tb} / Limit:{limit_in_tb} in TB > {int(limit_value*100)}%). see output from 'rucio list-account-usage {owner}'"
                         break
         except Exception as e:
             err_msg = f"failed to get global quota info with {str(e)}"

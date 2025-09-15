@@ -626,9 +626,13 @@ class TaskRefinerBase(object):
                                             # check if complete replica is available at online endpoint
                                             is_ok = False
                                             tmp_dict = tmpIF.listDatasetReplicas(tmp_dataset_name)
-                                            for tmp_data_list in tmp_dict.values():
+                                            for tmp_endpoint, tmp_data_list in tmp_dict.items():
                                                 tmp_data = tmp_data_list[0]
-                                                if tmp_data["total"] and tmp_data["total"] == tmp_data["found"] and tmp_data["read_blacklisted"] is False:
+                                                if (
+                                                    tmp_data["total"]
+                                                    and tmp_data["total"] == tmp_data["found"]
+                                                    and self.siteMapper.is_readable_remotely(tmp_endpoint)
+                                                ):
                                                     is_ok = True
                                                     break
                                         if is_ok:
