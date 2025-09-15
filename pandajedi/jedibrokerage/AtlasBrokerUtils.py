@@ -1205,36 +1205,38 @@ def check_endpoints_with_blacklist(
     write_output_over_lan = False
     send_output_over_wan = False
     tmpSiteName = site_spec.sitename
-    for tmp_input_endpoint in site_spec.ddm_endpoints_input[scope_input].all.values():
-        tmp_read_input_over_lan = tmp_input_endpoint["detailed_status"].get("read_lan")
-        tmp_receive_input_over_wan = tmp_input_endpoint["detailed_status"].get("write_wan")
-        # can read input from local
-        if tmp_read_input_over_lan not in ["OFF", "TEST"]:
-            read_input_over_lan = True
-        # can receive input from remote to local
-        if tmpSiteName not in sites_in_nucleus:
-            # satellite sites
-            if tmp_receive_input_over_wan not in ["OFF", "TEST"]:
+    if scope_input in site_spec.ddm_endpoints_input:
+        for tmp_input_endpoint in site_spec.ddm_endpoints_input[scope_input].all.values():
+            tmp_read_input_over_lan = tmp_input_endpoint["detailed_status"].get("read_lan")
+            tmp_receive_input_over_wan = tmp_input_endpoint["detailed_status"].get("write_wan")
+            # can read input from local
+            if tmp_read_input_over_lan not in ["OFF", "TEST"]:
+                read_input_over_lan = True
+            # can receive input from remote to local
+            if tmpSiteName not in sites_in_nucleus:
+                # satellite sites
+                if tmp_receive_input_over_wan not in ["OFF", "TEST"]:
+                    receive_input_over_wan = True
+            else:
+                # NA for nucleus sites
                 receive_input_over_wan = True
-        else:
-            # NA for nucleus sites
-            receive_input_over_wan = True
-            remote_source_available = True
-    for tmp_output_endpoint in site_spec.ddm_endpoints_output[scope_output].all.values():
-        tmp_write_output_over_lan = tmp_output_endpoint["detailed_status"].get("write_lan")
-        tmp_send_output_over_wan = tmp_output_endpoint["detailed_status"].get("read_wan")
-        # can write output to local
-        if tmp_write_output_over_lan not in ["OFF", "TEST"]:
-            write_output_over_lan = True
-        # can send output from local to remote
-        if tmpSiteName not in sites_in_nucleus:
-            # satellite sites
-            if tmp_send_output_over_wan not in ["OFF", "TEST"]:
+                remote_source_available = True
+    if scope_output in site_spec.ddm_endpoints_output:
+        for tmp_output_endpoint in site_spec.ddm_endpoints_output[scope_output].all.values():
+            tmp_write_output_over_lan = tmp_output_endpoint["detailed_status"].get("write_lan")
+            tmp_send_output_over_wan = tmp_output_endpoint["detailed_status"].get("read_wan")
+            # can write output to local
+            if tmp_write_output_over_lan not in ["OFF", "TEST"]:
+                write_output_over_lan = True
+            # can send output from local to remote
+            if tmpSiteName not in sites_in_nucleus:
+                # satellite sites
+                if tmp_send_output_over_wan not in ["OFF", "TEST"]:
+                    send_output_over_wan = True
+            else:
+                # NA for nucleus sites
                 send_output_over_wan = True
-        else:
-            # NA for nucleus sites
-            send_output_over_wan = True
-            remote_source_available = True
+                remote_source_available = True
     # take the status for logging
     if not read_input_over_lan:
         tmp_msg = f"  skip site={tmpSiteName} since input endpoints cannot read over LAN, read_lan is not ON criteria=-read_lan_blacklist"
