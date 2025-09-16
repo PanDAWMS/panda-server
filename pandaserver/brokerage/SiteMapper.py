@@ -44,7 +44,7 @@ class SiteMapper:
             # read sites information from database in the format
             # {'PANDA_QUEUE_1': < pandaserver.taskbuffer.SiteSpec.SiteSpec object1 >,
             #  'PANDA_QUEUE_2': < pandaserver.taskbuffer.SiteSpec.SiteSpec object2 >, ...}
-            site_spec_dictionary = taskBuffer.getSiteInfo()
+            site_spec_dictionary, self.endpoint_detailed_status_summary = taskBuffer.getSiteInfo()
 
             # create dictionary with clouds
             clouds = taskBuffer.get_cloud_list()
@@ -354,3 +354,25 @@ class SiteMapper:
         # dump the WORLD cloud sites
         _logger.debug("========= WORLD cloud dump =========")
         _logger.debug(f"Cloud:WORLD has {self.worldCloudSpec['sites']}")
+
+    def is_readable_remotely(self, endpoint_name: str) -> bool:
+        """Check if the given endpoint is readable remotely over WAN
+        Args:
+            endpoint_name (str): Name of the endpoint to check
+        Returns:
+            bool: True if the endpoint is readable, False otherwise
+        """
+        endpoints_with_read_wan_status = self.endpoint_detailed_status_summary.get("read_wan", {})
+        bad_endpoints = endpoints_with_read_wan_status.get("OFF", []) + endpoints_with_read_wan_status.get("TEST", [])
+        return endpoint_name not in bad_endpoints
+
+    def is_readable_locally(self, endpoint_name: str) -> bool:
+        """Check if the given endpoint is readable locally over LAN
+        Args:
+            endpoint_name (str): Name of the endpoint to check
+        Returns:
+            bool: True if the endpoint is readable, False otherwise
+        """
+        endpoints_with_read_lan_status = self.endpoint_detailed_status_summary.get("read_lan", {})
+        bad_endpoints = endpoints_with_read_lan_status.get("OFF", []) + endpoints_with_read_lan_status.get("TEST", [])
+        return endpoint_name not in bad_endpoints
