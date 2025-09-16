@@ -22,6 +22,7 @@ from rucio.common.exception import DataIdentifierNotFound
 
 import pandaserver.brokerage.broker
 from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
@@ -513,8 +514,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 if dest not in dest_error:
                     dest_error[dest] = ""
                     original_name = ""
-                    if (job.prodSourceLabel == "panda") or (
-                        job.prodSourceLabel in JobUtils.list_ptest_prod_sources and job.processingType in ["pathena", "prun", "gangarobot-rctest"]
+                    if (
+                        (job.prodSourceLabel == "panda")
+                        or panda_config.disable_file_aggregation
+                        or (job.prodSourceLabel in JobUtils.list_ptest_prod_sources and job.processingType in ["pathena", "prun", "gangarobot-rctest"])
                     ):
                         # keep original name
                         name_list = [file.destinationDBlock]
