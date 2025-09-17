@@ -1,8 +1,10 @@
+import ast
 import inspect
 import re
 import sys
 import threading
 import time
+import typing
 from functools import wraps
 from types import ModuleType, UnionType
 from typing import Union, get_args, get_origin
@@ -168,6 +170,16 @@ def is_secure(req, logger=None):
     return True
 
 
+def normalize_type(t):
+    mapping = {
+        typing.List: list,
+        typing.Dict: dict,
+        typing.Set: set,
+        typing.Tuple: tuple,
+    }
+    return mapping.get(t, t)
+
+
 def request_validation(logger, secure=True, production=False, request_method=None):
     def decorator(func):
         @wraps(func)
@@ -224,6 +236,9 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                         tmp_logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
                         if param_value == "None" and default_value is None:
                             param_value = None
+                        # Don't cast if the type is already a string
+                        elif expected_type is str:
+                            pass
                         # Booleans need to be handled separately, since bool("False") == True
                         elif expected_type is bool:
                             param_value = param_value.lower() in ("true", "1")
@@ -245,7 +260,11 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                             elif element_type is bool:
                                 param_value = [i.lower() in ("true", "1") for i in param_value]  # Convert list items to bool
                         else:
-                            param_value = expected_type(param_value)
+                            # Normalize type, e.g. typing.Dict -> dict
+                            expected_type = normalize_type(expected_type)
+                            param_value = ast.literal_eval(param_value)
+                            if not isinstance(param_value, expected_type):
+                                raise TypeError(f"Expected {expected_type}, received {type(param_value)}")
                         bound_args.arguments[param_name] = param_value  # Ensure the cast value is used
                     except (ValueError, TypeError):
                         message = f"Type error: '{param_name}' with value '{param_value}' could not be casted to type {expected_type.__name__}."

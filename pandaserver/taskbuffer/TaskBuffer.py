@@ -993,17 +993,9 @@ class TaskBuffer:
         return retJobs
 
     # get full job status
-    def getFullJobStatus(
-        self,
-        jobIDs,
-        fromDefined=True,
-        fromActive=True,
-        fromArchived=True,
-        fromWaiting=True,
-        forAnal=True,
-        days=30,
-    ):
+    def getFullJobStatus(self, jobIDs, fromDefined=True, fromActive=True, fromArchived=True, fromWaiting=True, forAnal=True, days=30, use_json=False):
         retJobMap = {}
+
         # peek at job
         for jobID in jobIDs:
             # get DBproxy for each job to avoid occupying connection for long time
@@ -1011,6 +1003,7 @@ class TaskBuffer:
                 # peek job
                 res = proxy.peekJob(jobID, fromDefined, fromActive, fromArchived, fromWaiting, forAnal)
                 retJobMap[jobID] = res
+
         # get IDs
         for jobID in jobIDs:
             if retJobMap[jobID] is None:
@@ -1019,10 +1012,14 @@ class TaskBuffer:
                     # peek job
                     res = proxy.peekJobLog(jobID, days)
                     retJobMap[jobID] = res
+
         # sort
         retJobs = []
         for jobID in jobIDs:
-            retJobs.append(retJobMap[jobID])
+            if use_json:
+                retJobs.append(retJobMap[jobID].to_dict())
+            else:
+                retJobs.append(retJobMap[jobID])
 
         return retJobs
 

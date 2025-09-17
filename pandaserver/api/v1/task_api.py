@@ -607,7 +607,7 @@ def reload_input(req: PandaRequest, task_id: int, ignore_hard_exhausted: bool = 
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def reassign_global_share(req: PandaRequest, task_id_list: List, share: str, reassign_running_jobs: bool) -> Dict[str, Any]:
+def reassign_global_share(req: PandaRequest, task_id_list: List[int], share: str, reassign_running_jobs: bool) -> Dict[str, Any]:
     """
     Reassign the global share of a task
 
@@ -1135,7 +1135,7 @@ def get_tasks_modified_since(req, since: str, dn: str = None, full: bool = False
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_datasets_and_files(req, task_id, dataset_types: List = ("input", "pseudo_input")) -> Dict[str, Any]:
+def get_datasets_and_files(req, task_id, dataset_types: List[str] = ("input", "pseudo_input")) -> Dict[str, Any]:
     """
     Get datasets and files
 
