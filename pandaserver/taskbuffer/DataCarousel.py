@@ -148,8 +148,12 @@ class DataCarouselRequestSpec(SpecBase):
             "to_pin" (bool): whether to pin the dataset
             "suggested_dst_list" (list[str]): list of suggested destination RSEs
             "remove_when_done" (bool): remove request and DDM rule asap when request done to save disk space
-            "init_task_id": (int): task_id of the task which initiates the request
-            "init_task_gshare": (str): original gshare of the task which initiates the request, for statistics
+            "task_id": (int): task_id of the task which initiates the request
+            "init_task_gshare": (str): (deprecated) original gshare of the task which initiates the request, for statistics
+            "task_gshare": (str): original gshare of the task which initiates the request, for statistics
+            "task_type": (str): type of the task (prod, anal) which initiates this request, for statistics
+            "task_user": (str): user of the task which initiates this request, for statistics
+            "task_group": (str): working group of the task which initiates this request, for statistics
 
         Returns:
             dict : dict of parameters if it is JSON or empty dict if null
@@ -379,7 +383,8 @@ def get_resubmit_request_spec(dc_req_spec: DataCarouselRequestSpec, exclude_prev
             "prev_src": dc_req_spec.source_rse,
             "prev_dst": dc_req_spec.destination_rse,
             "excluded_dst_list": list(excluded_dst_set),
-            "init_task_id": orig_parameter_map.get("init_task_id"),
+            "task_id": orig_parameter_map.get("task_id"),
+            "task_gshare": orig_parameter_map.get("task_gshare"),
             "init_task_gshare": orig_parameter_map.get("init_task_gshare"),
         }
         # return
@@ -1452,6 +1457,7 @@ class DataCarouselInterface(object):
         # get columns from parameters; note that str.json_path_match() always casts to string
         dc_req_df = dc_req_df.with_columns(
             to_pin_str=pl.col("parameters").str.json_path_match(r"$.to_pin").fill_null(False),
+            task_gshare=pl.col("parameters").str.json_path_match(r"$.task_gshare"),
             init_task_gshare=pl.col("parameters").str.json_path_match(r"$.init_task_gshare"),
         )
         # get source tapes and RSEs config dataframes
@@ -1555,7 +1561,9 @@ class DataCarouselInterface(object):
                     "total_files": dc_req_spec.total_files,
                     "dataset_size": dc_req_spec.dataset_size,
                     "jediTaskID": task_spec.jediTaskID,
+                    "taskType": task_spec.taskType,
                     "userName": task_spec.userName,
+                    "workingGroup": task_spec.workingGroup,
                     "gshare": task_spec.gshare,
                     "gshare_rank": gshare_rank_dict.get(task_spec.gshare, 999),
                     "task_priority": task_spec.currentPriority if task_spec.currentPriority else (task_spec.taskPriority if task_spec.taskPriority else 1000),
@@ -1572,7 +1580,9 @@ class DataCarouselInterface(object):
                 "total_files": pl.datatypes.Int64,
                 "dataset_size": pl.datatypes.Int64,
                 "jediTaskID": pl.datatypes.Int64,
+                "taskType": pl.datatypes.String,
                 "userName": pl.datatypes.String,
+                "workingGroup": pl.datatypes.String,
                 "gshare": pl.datatypes.String,
                 "gshare_rank": pl.datatypes.Int64,
                 "task_priority": pl.datatypes.Int64,
@@ -1712,18 +1722,32 @@ class DataCarouselInterface(object):
                 ]
             )
             # append the requests to ret_list
-            to_pin_request_id_list = to_pin_df.select(["request_id"]).to_dict(as_series=False)["request_id"]
-            to_stage_request_list = to_stage_df.select(["request_id", "jediTaskID", "gshare"]).to_dicts()
-            for request_id in to_pin_request_id_list:
+            temp_key_list = ["request_id", "jediTaskID", "gshare", "taskType", "userName", "workingGroup"]
+            # to_pin_request_id_list = to_pin_df.select(["request_id"]).to_dict(as_series=False)["request_id"]
+            to_pin_request_list = to_pin_df.select(temp_key_list).to_dicts()
+            to_stage_request_list = to_stage_df.select(temp_key_list).to_dicts()
+            for request_dict in to_pin_request_list:
+                request_id = request_dict["request_id"]
+                extra_params = {
+                    "task_id": request_dict["jediTaskID"],
+                    "task_gshare": request_dict["gshare"],
+                    # "task_type": request_dict["taskType"],
+                    "task_user": request_dict["userName"],
+                    "task_group": request_dict["workingGroup"],
+                }
                 dc_req_spec = request_id_spec_map.get(request_id)
                 if dc_req_spec:
-                    ret_list.append((dc_req_spec, None))
+                    ret_list.append((dc_req_spec, extra_params))
             to_stage_count = 0
             for request_dict in to_stage_request_list:
                 request_id = request_dict["request_id"]
                 extra_params = {
-                    "init_task_id": request_dict["jediTaskID"],
+                    "task_id": request_dict["jediTaskID"],
+                    "task_gshare": request_dict["gshare"],
                     "init_task_gshare": request_dict["gshare"],
+                    # "task_type": request_dict["taskType"],
+                    "task_user": request_dict["userName"],
+                    "task_group": request_dict["workingGroup"],
                 }
                 dc_req_spec = request_id_spec_map.get(request_id)
                 if dc_req_spec:
@@ -2017,6 +2041,15 @@ class DataCarouselInterface(object):
             if ret:
                 tmp_log.info(f"updated DB about staging; status={dc_req_spec.status}")
                 is_ok = True
+            # log for monitoring
+            tmp_log.info(
+                f"started staging "
+                f"dataset={dc_req_spec.dataset} source_tape={dc_req_spec.source_tape} source_rse={dc_req_spec.source_rse} "
+                f"ddm_rule_id={dc_req_spec.ddm_rule_id} total_files={dc_req_spec.total_files} dataset_size={dc_req_spec.dataset_size} "
+                f"task_id={dc_req_spec.get_parameter('task_id')} task_type={dc_req_spec.get_parameter('task_type')} "
+                f"task_user={dc_req_spec.get_parameter('task_user')} task_group={dc_req_spec.get_parameter('task_group')} "
+                f"to_pin={dc_req_spec.get_parameter('to_pin')}"
+            )
         # to iDDS staging requests
         if is_ok and submit_idds_request:
             # get all tasks related to this request

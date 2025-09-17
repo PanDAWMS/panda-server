@@ -45,11 +45,6 @@ class RucioAPI:
         """
         Initialize RucioAPI instance
         """
-        # list of blacklisted endpoints
-        self.blacklist_endpoints = []
-        self.bad_endpoint_read = []
-        # time of last update for blacklist
-        self.blacklist_last_update = None
         # how frequently update DN/token map
         self.update_interval = datetime.timedelta(seconds=60 * 10)
 
@@ -946,32 +941,6 @@ class RucioAPI:
         scope, name = self.extract_scope(raw_name, strip_slash=True)
         return f"{scope}:{name}"
 
-    # update blacklist
-    def update_blackList(self):
-        method_name = "update_blackList"
-        tmp_log = LogWrapper(_logger, method_name)
-        # check freshness
-        timeNow = naive_utcnow()
-        if self.blacklist_last_update is not None and timeNow - self.blacklist_last_update < self.update_interval:
-            return
-        self.blacklist_last_update = timeNow
-        # get json
-        try:
-            tmp_log.debug("start")
-            with open("/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmblacklisting.json") as f:
-                ddd = json.load(f)
-                self.blacklist_endpoints = [k for k in ddd if "write_wan" in ddd[k] and ddd[k]["write_wan"]["status"]["value"] == "OFF"]
-                self.bad_endpoint_read = [k for k in ddd if "read_wan" in ddd[k] and ddd[k]["read_wan"]["status"]["value"] == "OFF"]
-            tmp_log.debug(f"{len(self.blacklist_endpoints)} bad endpoints for write, {len(self.bad_endpoint_read)} bad endpoints for read")
-        except Exception as e:
-            tmp_log.error(f"got error ; {traceback.format_exc()}")
-        return
-
-    # get bad endpoints for read
-    def get_bad_endpoint_read(self):
-        self.update_blackList()
-        return self.bad_endpoint_read
-
     # wrapper for list_content
     def wp_list_content(self, client, scope, dsn):
         if dsn.endswith("/"):
@@ -1025,8 +994,6 @@ class RucioAPI:
                     if "site" in item and "rse" not in item:
                         item["rse"] = item["site"]
                     items.append(item)
-        # get blacklist
-        bad_rse_list = set(self.get_bad_endpoint_read())
         # loop over all RSEs
         for item in items:
             rse = item["rse"]
@@ -1040,7 +1007,6 @@ class RucioAPI:
                     "asize": item["available_bytes"],
                     "vp": item["vp"],
                     "immutable": 1,
-                    "read_blacklisted": rse in bad_rse_list,
                 }
             ]
         return retMap
