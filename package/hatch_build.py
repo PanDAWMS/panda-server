@@ -15,7 +15,8 @@ import sysconfig
 import requests
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
-PACKAGE_EMOJI = ":panda_face:"
+PACKAGE_EMOJI_PANDA = ":panda_face:"
+PACKAGE_EMOJI_JEDI = ":lightsaber:"
 PACKAGE_NAME = "panda-server"
 
 
@@ -81,10 +82,17 @@ def mm_notification():
         if not mm_webhook_url:
             return
 
+    # Determine the emoji based on the existence of the jedi config file
+    jedi_config_path = "/etc/panda/panda_jedi.cfg"
+    if os.path.exists(jedi_config_path):
+        emoji_to_use = PACKAGE_EMOJI_JEDI
+    else:
+        emoji_to_use = PACKAGE_EMOJI_PANDA
+
     # On the repository name we enter an empty space to prevent the URLs to preview on Mattermost
     # We shorten the commit hash to the first seven characters, as they are usually enough to identify a commit
     mm_message = {
-        "text": f"{PACKAGE_EMOJI}**{PACKAGE_NAME}@{branch_name} upgrade on:** `{server_name}` by `{user}`.",
+        "text": f"{emoji_to_use}**{PACKAGE_NAME}@{branch_name} upgrade on:** `{server_name}` by `{user}`.",
         "props": {
             "card": f"""
 | **Property** | **Value** |
