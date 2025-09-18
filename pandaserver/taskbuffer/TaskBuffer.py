@@ -1017,6 +1017,8 @@ class TaskBuffer:
         retJobs = []
         for jobID in jobIDs:
             if use_json:
+                if retJobMap[jobID] is None:
+                    retJobs.append(None)
                 retJobs.append(retJobMap[jobID].to_dict())
             else:
                 retJobs.append(retJobMap[jobID])
