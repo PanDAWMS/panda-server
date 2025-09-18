@@ -414,7 +414,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     f"replica_availability disk:{complete_disk_ok[datasetName]} tape:{complete_tape_ok[datasetName]}, is_distributed:{isDistributed}, remote_readable:{can_be_remote_source[datasetName]}"
                 )
                 # check if the data is available at somewhere
-                if not complete_disk_ok[datasetName] and not complete_tape_ok[datasetName] and not datasetSpec.isDistributed():
+                if not complete_disk_ok[datasetName] and not complete_tape_ok[datasetName] and isDistributed is not True:
                     err_msg = f"{datasetName} is unavailable/incomplete at storages that are currently not in downtime."
                     if not taskSpec.allow_incomplete_input():
                         tmpLog.error(err_msg)
