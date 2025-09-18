@@ -137,7 +137,11 @@ def get_user_secrets(req: PandaRequest, keys: List[str] = None) -> dict:
     tmp_logger.debug(f"Start for client={owner}")
 
     # The task buffer method expects a comma-separated string of keys
-    keys_str = ",".join(keys)
+    if keys is None:
+        keys_str = ""
+    else:
+        keys_str = ",".join(keys)
+
     success, data_or_message = global_task_buffer.get_user_secrets(owner, keys_str)
     message, data = "", {}
     if success:
