@@ -1879,7 +1879,7 @@ class DataCarouselInterface(object):
         # return
         return destination_rse
 
-    def _submit_ddm_rule(self, dc_req_spec: DataCarouselRequestSpec, destination_rse: str | None = None) -> str | None:
+    def _submit_ddm_rule(self, dc_req_spec: DataCarouselRequestSpec, destination_rse: str | None = None) -> tuple[str | None, str | None]:
         """
         Submit DDM replication rule to stage the dataset of the request
 
@@ -1889,6 +1889,7 @@ class DataCarouselInterface(object):
 
         Returns:
             str | None : DDM rule_id of the new rule if submission successful, or None if failed
+            str | None : destination RSE chosen
         """
         tmp_log = LogWrapper(logger, f"_submit_ddm_rule request_id={dc_req_spec.request_id}")
         # initialize
@@ -1929,7 +1930,7 @@ class DataCarouselInterface(object):
             source_replica_expression=source_replica_expression,
         )
         # return
-        return ddm_rule_id
+        return ddm_rule_id, destination_rse
 
     def _submit_idds_stagein_request(self, task_id: int, dc_req_spec: DataCarouselRequestSpec) -> Any:
         """
@@ -2020,7 +2021,7 @@ class DataCarouselInterface(object):
                 tmp_log.debug(f"dataset={dc_req_spec.dataset} already has active DDM rule ddm_rule_id={ddm_rule_id}")
             else:
                 # no existing rule; submit DDM rule
-                ddm_rule_id = self._submit_ddm_rule(dc_req_spec, destination_rse=destination_rse)
+                ddm_rule_id, destination_rse = self._submit_ddm_rule(dc_req_spec, destination_rse=destination_rse)
                 if ddm_rule_id:
                     # DDM rule submitted; update ddm_rule_id
                     dc_req_spec.ddm_rule_id = ddm_rule_id
@@ -2045,7 +2046,8 @@ class DataCarouselInterface(object):
             tmp_log.info(
                 f"started staging "
                 f"dataset={dc_req_spec.dataset} source_tape={dc_req_spec.source_tape} source_rse={dc_req_spec.source_rse} "
-                f"ddm_rule_id={dc_req_spec.ddm_rule_id} total_files={dc_req_spec.total_files} dataset_size={dc_req_spec.dataset_size} "
+                f"destination_rse={destination_rse} ddm_rule_id={dc_req_spec.ddm_rule_id} "
+                f"total_files={dc_req_spec.total_files} dataset_size={dc_req_spec.dataset_size} "
                 f"task_id={dc_req_spec.get_parameter('task_id')} task_type={dc_req_spec.get_parameter('task_type')} "
                 f"task_user={dc_req_spec.get_parameter('task_user')} task_group={dc_req_spec.get_parameter('task_group')} "
                 f"to_pin={dc_req_spec.get_parameter('to_pin')}"
