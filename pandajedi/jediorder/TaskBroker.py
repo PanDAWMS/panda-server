@@ -219,7 +219,9 @@ class TaskBrokerThread(WorkerThread):
                 # get TaskSpecs
                 tmpListToAssign = []
                 for tmpTaskItem in taskList:
-                    tmpListItem = self.taskBufferIF.getTasksToBeProcessed_JEDI(None, None, None, None, None, simTasks=[tmpTaskItem], readMinFiles=True)
+                    tmpListItem = self.taskBufferIF.getTasksToBeProcessed_JEDI(
+                        None, None, None, None, None, simTasks=[tmpTaskItem], readMinFiles=True, fullSimulation=True
+                    )
                     if tmpListItem is None:
                         # failed
                         tmpLog.error(f"failed to get the input chunks for jediTaskID={tmpTaskItem}")
