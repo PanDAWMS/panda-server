@@ -37,6 +37,7 @@ from pandaserver.api.v1 import pilot_api as pilot_api_v1
 from pandaserver.api.v1 import statistics_api as statistics_api_v1
 from pandaserver.api.v1 import system_api as system_api_v1
 from pandaserver.api.v1 import task_api as task_api_v1
+from pandaserver.api.v1 import workflow_api as workflow_api_v1
 from pandaserver.api.v1.common import extract_allowed_methods
 from pandaserver.config import panda_config
 
@@ -170,6 +171,7 @@ pilot_api_v1_methods = extract_allowed_methods(pilot_api_v1)
 statistics_api_v1_methods = extract_allowed_methods(statistics_api_v1)
 system_api_v1_methods = extract_allowed_methods(system_api_v1)
 task_api_v1_methods = extract_allowed_methods(task_api_v1)
+workflow_api_v1_methods = extract_allowed_methods(workflow_api_v1)
 
 # initialize oracledb using dummy connection
 initializer.init()
@@ -198,6 +200,7 @@ if panda_config.nDBConnection != 0:
     statistics_api_v1.init_task_buffer(taskBuffer)
     # System API does not need to be initialized. system_api_v1.init_task_buffer(taskBuffer)
     task_api_v1.init_task_buffer(taskBuffer)
+    workflow_api_v1.init_task_buffer(taskBuffer)
 
     # initialize JobDispatcher
     jobDispatcher.init(taskBuffer)
@@ -367,6 +370,7 @@ def module_mapping(version, api_module):
             "statistics": {"module": statistics_api_v1, "allowed_methods": statistics_api_v1_methods},
             "system": {"module": system_api_v1, "allowed_methods": system_api_v1_methods},
             "task": {"module": task_api_v1, "allowed_methods": task_api_v1_methods},
+            "workflow": {"module": workflow_api_v1, "allowed_methods": workflow_api_v1_methods},
         },
     }
     try:

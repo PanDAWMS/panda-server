@@ -155,7 +155,7 @@ class WorkflowInterface(object):
 
     # Add methods for workflow management here
 
-    def register_workflow(self, prodsourcelabel: str, username: str, workflow_name: str, workflow_definition_json: str, *args, **kwargs) -> int | None:
+    def register_workflow(self, prodsourcelabel: str, username: str, workflow_name: str, workflow_definition: dict, *args, **kwargs) -> int | None:
         """
         Register a new workflow
 
@@ -163,7 +163,7 @@ class WorkflowInterface(object):
             prodsourcelabel (str): Production source label for the workflow
             username (str): Username of the person registering the workflow
             name (str): Name of the workflow
-            workflow_definition_json (str): JSON string defining the workflow
+            workflow_definition (dict): Dictionary of workflow definition
             *args: Additional arguments
             **kwargs: Additional keyword arguments
 
@@ -174,20 +174,20 @@ class WorkflowInterface(object):
         tmp_log.debug("start")
         # Implementation of workflow registration logic
         ...
-        # workflow_spec = WorkflowSpec()
-        # workflow_spec.prodsourcelabel = prodsourcelabel
-        # workflow_spec.name = workflow_name
-        # workflow_spec.username = username
-        # workflow_spec.definition_json = workflow_definition_json
-        # workflow_spec.creation_time = naive_utcnow()
-        # workflow_spec.status = "registered"
-        # # Insert to DB
-        # ret_workflow_id = self.tbif.insert_workflow(workflow_spec)
-        # if ret_workflow_id is None:
-        #     tmp_log.error(f"Failed to register workflow")
-        #     return None
-        # tmp_log.info(f"Registered workflow workflow_id={ret_workflow_id}")
-        # return ret_workflow_id
+        workflow_spec = WorkflowSpec()
+        workflow_spec.prodsourcelabel = prodsourcelabel
+        workflow_spec.name = workflow_name
+        workflow_spec.username = username
+        workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
+        workflow_spec.creation_time = naive_utcnow()
+        workflow_spec.status = "registered"
+        # Insert to DB
+        ret_workflow_id = self.tbif.insert_workflow(workflow_spec)
+        if ret_workflow_id is None:
+            tmp_log.error(f"Failed to register workflow")
+            return None
+        tmp_log.info(f"Registered workflow workflow_id={ret_workflow_id}")
+        return ret_workflow_id
 
     # ---- Workflow status transitions -------------------------
 
