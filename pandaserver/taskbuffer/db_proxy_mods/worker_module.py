@@ -1075,7 +1075,7 @@ class WorkerModule(BaseModule):
 
         # Special handling for ATLAS worker nodes to extract the third field of the hostname, since the first 2 fields are not unique
         # e.g. atlprd55-xyz-<third_field>.cern.ch
-        match = re.match(r"^atlprd\d+-[^-]+-([^.]+\.cern\.ch)$", host)
+        match = re.match(r"^atlprd\d+-[^-]+-([^.]+\.cern\.ch)$", host_name)
         host_name = match.group(1) if match else host_name
 
         return host_name
