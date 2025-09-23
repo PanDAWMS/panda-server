@@ -1068,7 +1068,7 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def host_name_cleanup(self, host_name):
+    def clean_host_name(self, host_name):
         # If the worker node comes in the slot1@worker1.example.com format, we remove the slot1@ part
         match = re.search(r"@(.+)", host_name)
         host_name = match.group(1) if match else host_name
@@ -1104,7 +1104,7 @@ class WorkerModule(BaseModule):
         timestamp_utc = naive_utcnow()
 
         # clean up host name from any prefixes
-        host_name = self.host_name_cleanup(host_name)
+        host_name = self.clean_host_name(host_name)
 
         locked = True  # Track whether the worker node was locked by another pilot update
 
@@ -1207,7 +1207,7 @@ class WorkerModule(BaseModule):
         timestamp_utc = naive_utcnow()
 
         # clean up host name from any prefixes
-        host_name = self.host_name_cleanup(host_name)
+        host_name = self.clean_host_name(host_name)
 
         locked = True  # Track whether the worker node was locked by another pilot update
 
