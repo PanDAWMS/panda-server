@@ -1069,7 +1069,19 @@ class TaskBuffer:
             if not (len(tmpRels) == len(tmpPars) == len(tmpTrfs)):
                 return "ERROR: The number of releases or parameters or trfs is inconsistent with others"
             # construct script
-            scrStr = "#retrieve inputs\n\n"
+            scrStr = (
+                "#!/bin/bash\n\n"
+                "# To rerun the job interactively :\n"
+                "#   1) download this script\n"
+                "#   2) chmod +x ./<this script>\n"
+                "#   3) setupATLAS\n"
+                "#   4) ./<this script>\n\n"
+                "temp_file=$(mktemp)\n"
+                'cat << EOF > "$temp_file"\n\n'
+                "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh\n"
+                "lsetup rucio\n\n"
+                "#retrieve inputs\n\n"
+            )
             # collect inputs
             dsFileMap = {}
             for tmpFile in tmpJob.Files:
@@ -1100,7 +1112,6 @@ class TaskBuffer:
                     cmtConfig = [s for s in tmpJob.cmtConfig.split("@") if s][-1]
                 except Exception:
                     cmtConfig = ""
-                scrStr += "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh -c %s\n" % cmtConfig
                 scrStr += f"asetup --platform={tmpJob.cmtConfig.split('@')[0]} {','.join(atlTags)}\n"
                 # athenaMP
                 if tmpJob.coreCount not in ["NULL", None] and tmpJob.coreCount > 1:
@@ -1124,12 +1135,15 @@ class TaskBuffer:
                 # run trf
                 if isUser:
                     scrStr += "./"
+                    tmpParamStr += " --debug"
                 scrStr += f"{tmpTrfs[tmpIdx].split('/')[-1]} {tmpParamStr}\n\n"
+                scrStr += "EOF\n\n" 'chmod +x "$temp_file"\n'
+                scrStr += 'source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh -c %s -r "$temp_file"\n' % cmtConfig
+                scrStr += 'rm "$temp_file"\n'
             return scrStr
-        except Exception:
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getScriptOfflineRunning : {errType} {errValue}")
-            return f"ERROR: ServerError in getScriptOfflineRunning with {errType} {errValue}"
+        except Exception as e:
+            _logger.error(f"getScriptOfflineRunning : {str(e)} {traceback.format_exc()}")
+            return f"ERROR: ServerError in getScriptOfflineRunning with {str(e)}"
 
     # kill jobs
     def killJobs(self, ids, user, code, prodManager, wgProdRole=[], killOptions=[]):
