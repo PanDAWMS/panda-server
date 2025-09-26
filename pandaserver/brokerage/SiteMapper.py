@@ -37,6 +37,7 @@ class SiteMapper:
             self.worldCloudSpec = {}
             self.nuclei = {}
             self.satellites = {}
+            self.endpoint_to_sites_map = {"input": {}, "output": {}}
 
             # get resource types
             resource_types = taskBuffer.load_resource_types()
@@ -96,6 +97,9 @@ class SiteMapper:
                         except Exception:
                             error_type, error_value = sys.exc_info()[:2]
                             _logger.error(f"{site_name_tmp} memory/inputsize failure : {error_type} {error_value}")
+
+            # make map from endpoint to sites
+            self.make_endpoint_to_sites_map()
 
             # make virtual queues from unified queues
             try:
@@ -376,3 +380,27 @@ class SiteMapper:
         endpoints_with_read_lan_status = self.endpoint_detailed_status_summary.get("read_lan", {})
         bad_endpoints = endpoints_with_read_lan_status.get("OFF", []) + endpoints_with_read_lan_status.get("TEST", [])
         return endpoint_name not in bad_endpoints
+
+    def make_endpoint_to_sites_map(self) -> None:
+        """Create a mapping from endpoints to sites"""
+        for site_name, site_spec in self.siteSpecList.items():
+            for endpoint_spec in site_spec.ddm_endpoints_input.values():
+                for endpoint in endpoint_spec.all.keys():
+                    self.endpoint_to_sites_map["input"].setdefault(endpoint, [])
+                    if site_name not in self.endpoint_to_sites_map["input"][endpoint]:
+                        self.endpoint_to_sites_map["input"][endpoint].append(site_name)
+            for endpoint_spec in site_spec.ddm_endpoints_output.values():
+                for endpoint in endpoint_spec.all.keys():
+                    self.endpoint_to_sites_map["output"].setdefault(endpoint, [])
+                    if site_name not in self.endpoint_to_sites_map["output"][endpoint]:
+                        self.endpoint_to_sites_map["output"][endpoint].append(site_name)
+
+    def get_sites_for_endpoint(self, endpoint_name: str, direction: str) -> list:
+        """Get the set of sites associated with a given endpoint
+        Args:
+            endpoint_name (str): Name of the endpoint
+            direction (str): 'input' or 'output' to specify the direction of data flow
+        Returns:
+            set: A list of site names associated with the endpoint
+        """
+        return self.endpoint_to_sites_map.get(direction, {}).get(endpoint_name, [])
