@@ -24,7 +24,7 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
     # get replicas
     try:
         replicaMap = ddmIF.listReplicasPerDataset(datasetName, deepScan)
-    except Exception as e:
+    except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         return errtype, f"ddmIF.listReplicasPerDataset failed with {errvalue}", None
     # check if remote source is available at any sites (not only nuclei)
