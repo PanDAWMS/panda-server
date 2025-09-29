@@ -24,9 +24,16 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
     # get replicas
     try:
         replicaMap = ddmIF.listReplicasPerDataset(datasetName, deepScan)
-    except Exception:
+    except Exception as e:
         errtype, errvalue = sys.exc_info()[:2]
-        return errtype, f"ddmIF.listReplicasPerDataset failed with {errvalue}"
+        return errtype, f"ddmIF.listReplicasPerDataset failed with {errvalue}", None
+    # check if remote source is available at any sites (not only nuclei)
+    remote_source_available = False
+    for tmp_replica_data in replicaMap.values():
+        for tmp_location in tmp_replica_data:
+            if siteMapper.is_readable_remotely(tmp_location):
+                remote_source_available = True
+                break
     # loop over all clouds
     retMap = {}
     for tmpNucleus in candidateNuclei:
@@ -96,7 +103,7 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
                 "can_be_remote_source": can_be_remote_source,
             }
     # return
-    return Interaction.SC_SUCCEEDED, retMap
+    return Interaction.SC_SUCCEEDED, retMap, remote_source_available
 
 
 # get sites where data is available and check if complete replica is available at online RSE
