@@ -1324,6 +1324,64 @@ class MiscStandaloneModule(BaseModule):
                 self.dump_error_message(tmp_log)
         return []
 
+    # update input files for jobs at certain sites and return corresponding PandaIDs
+    def update_input_files_at_sites_and_get_panda_ids(self, filename: str, sites: list) -> list:
+        """
+        Update input files with a LFN for jobs at certain sites and return corresponding PandaIDs
+
+        :param filename: LFN of the input file to be updated
+        :param sites: List of site names where the jobs are running
+
+        :return: List of PandaIDs of the jobs whose input files were updated
+        """
+        comment = " /* DBProxy.update_input_files_at_sites_and_get_panda_ids */"
+        tmp_log = self.create_tagged_logger(comment, f"lfn={filename}")
+        tmp_log.debug("start at sites: " + ",".join(sites))
+        sql_to_get_ids = (
+            "SELECT tabJ.PandaID FROM ATLAS_PANDA.jobsDefined4 tabJ, ATLAS_PANDA.filesTable4 tabF WHERE tabF.PandaID=tabJ.PandaID AND tabF.lfn=:lfn "
+            "AND tabF.type='input' AND tabF.status IN ('defined', 'unknown', 'pending') AND tabJ.computingSite IN ("
+        )
+        var_map = {":lfn": filename}
+        for idx, site in enumerate(sites):
+            tmp_key = f":site_{idx}"
+            var_map[tmp_key] = site
+            sql_to_get_ids += f"{tmp_key},"
+        sql_to_get_ids = sql_to_get_ids[:-1] + ") "
+        return_list = []
+        try:
+            # start transaction
+            self.conn.begin()
+            # get IDs
+            self.cur.arraysize = 10000
+            self.cur.execute(sql_to_get_ids + comment, var_map)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # sql to update files
+            sql_to_update_files = (
+                "UPDATE ATLAS_PANDA.filesTable4 tab SET status='ready' WHERE PandaID=:PandaID AND lfn=:lfn AND type='input' AND status<>'ready' "
+            )
+            for (tmp_pandaID,) in res:
+                var_map = {":PandaID": tmp_pandaID, ":lfn": filename}
+                # start transaction
+                self.conn.begin()
+                self.cur.execute(sql_to_update_files + comment, var_map)
+                if self.cur.rowcount > 0:
+                    tmp_log.debug(f"updated input file status to 'ready' for PandaID={tmp_pandaID}")
+                    return_list.append(tmp_pandaID)
+                # commit
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(f"done")
+            return return_list
+        except Exception:
+            # roll back
+            self._rollback()
+            self.dump_error_message(tmp_log)
+        return []
+
     # update output files and return corresponding PandaIDs
     def updateOutFilesReturnPandaIDs(self, dataset, fileLFN=""):
         comment = " /* DBProxy.updateOutFilesReturnPandaIDs */"
