@@ -55,7 +55,7 @@ class BaseHS06Scraper:
         for r in rows:
             r["source"] = source_url
             status, res = self.task_buffer.querySQLS(sql, r)
-            main_logger(f"{status} {res}")
+            main_logger.debug(f"{status} {res}")
 
     def _fetch_html(self, url: str) -> str:
         resp = self.session.get(url, timeout=30)
