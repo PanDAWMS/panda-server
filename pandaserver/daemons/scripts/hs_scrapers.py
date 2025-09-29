@@ -104,13 +104,13 @@ class BaseHS06Scraper:
 
 
 class HS06ScraperSL6(BaseHS06Scraper):
-    def __init__(self, url: str = DEFAULT_URL_SL6):
-        super().__init__(url)
+    def __init__(self, task_buffer, url: str = DEFAULT_URL_SL6):
+        super().__init__(task_buffer, url)
 
 
 class HS06ScraperSL7(BaseHS06Scraper):
-    def __init__(self, url: str = DEFAULT_URL_SL7):
-        super().__init__(url)
+    def __init__(self, task_buffer, url: str = DEFAULT_URL_SL7):
+        super().__init__(task_buffer, url)
 
     # SL7 table provides <th> headers; reuse logic but rebuild schema from them.
     def _parse_html_to_polars(self, html: str) -> pl.DataFrame:
