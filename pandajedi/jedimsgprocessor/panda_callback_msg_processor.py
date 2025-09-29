@@ -16,6 +16,7 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
         super().__init__(**params)
         self.activities_with_file_callback = []
         self.site_mapper = None
+        self.verbose = False
 
     def initialize(self, **params):
         BaseMsgProcPlugin.initialize(self, **params)
@@ -23,6 +24,8 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
         self.activities_with_file_callback = self.params.get("activities_with_file_callback", [])
         # site mapper
         self.site_mapper = self.tbIF.get_site_mapper()
+        # verbose logging
+        self.verbose = self.params.get("verbose", False)
 
     def process(self, msg_obj):
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
@@ -48,8 +51,8 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
             elif self.activities_with_file_callback and event_type in ["transfer-done"]:
                 self.process_file_callback(event_type, message_ids, message_dict, tmp_log)
             else:
-                # tmp_log.debug(f"skip event_type={event_type}")
-                pass
+                if self.verbose:
+                    tmp_log.debug(f"skip event_type={event_type}")
         except Exception as e:
             err_str = f"failed to run, skipped. {e.__class__.__name__} : {e}"
             tmp_log.error(err_str)
