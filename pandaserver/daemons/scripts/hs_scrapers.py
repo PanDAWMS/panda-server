@@ -237,12 +237,17 @@ def main(tbuf=None, **kwargs):
         taskBuffer = tbuf
 
     try:
+        main_logger.debug("Start")
         # We assume the SL6 and SL7 pages don't change and do not need to be updated.
         # In case you re-run the scripts, be aware that it will cause duplicate entries.
+        main_logger.debug("Starting HS06 SL6 scraper...")
         HS06ScraperSL6(taskBuffer).run()
+        main_logger.debug("Starting HS06 SL7 scraper...")
         HS06ScraperSL7(taskBuffer).run()
 
+        main_logger.debug("Starting HS23 ingestor...")
         HS23Ingestor(taskBuffer).run()
+        main_logger.debug("Done.")
     except Exception as e:
         main_logger.error(f"Error: {e}")
     finally:
