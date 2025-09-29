@@ -8,37 +8,19 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
-from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
 main_logger = PandaLogger().getLogger("hs_scrapers")
-
-# ---- PanDA DB init ----
-requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
-taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, requester=requester_id)
 
 DEFAULT_URL_SL6 = "https://w3.hepix.org/benchmarking/sl6-x86_64-gcc44.html"
 DEFAULT_URL_SL7 = "https://w3.hepix.org/benchmarking/sl7-x86_64-gcc48.html"
 DEFAULT_URL_HS23 = "https://raw.githubusercontent.com/HEPiX-Forum/hepix-forum.github.io/master/_data/HS23scores.csv"
 
 
-# ---------------------- Common helpers ----------------------
 def _parse_cores(val: str) -> tuple[int | None, int]:
     smt = 1 if ("HT on" in val or "SMT on" in val) else 0
     tokens = val.replace("(", " ").split()
     ncores = next((int(t) for t in tokens if t.isdigit()), None)
     return ncores, smt
-
-
-def _insert_cpu_perf_rows(rows: list[dict], source_url: str) -> None:
-    sql = (
-        "INSERT INTO atlas_panda.cpu_benchmarks "
-        "(cpu_type, smt_enabled, ncores, site, score_per_core, source) "
-        "VALUES (:cpu_type, :smt_enabled, :ncores, :site, :score_per_core, :source)"
-    )
-    for r in rows:
-        r["source"] = source_url
-        status, res = taskBuffer.querySQLS(sql, r)
-        main_logger(f"{status} {res}")
 
 
 # ---------------------- HTML scrapers (SL6/SL7) ----------------------
@@ -54,14 +36,26 @@ class BaseHS06Scraper:
         "Site",
     ]
 
-    def __init__(self, url: str):
+    def __init__(self, task_buffer, url: str):
         self.url = url
         self.session = requests.Session()
+        self.task_buffer = task_buffer
 
     def run(self) -> None:
         html = self._fetch_html(self.url)
         df = self._parse_html_to_polars(html)
         self._insert(df)
+
+    def _insert_cpu_perf_rows(self, rows: list[dict], source_url: str) -> None:
+        sql = (
+            "INSERT INTO atlas_panda.cpu_benchmarks "
+            "(cpu_type, smt_enabled, ncores, site, score_per_core, source) "
+            "VALUES (:cpu_type, :smt_enabled, :ncores, :site, :score_per_core, :source)"
+        )
+        for r in rows:
+            r["source"] = source_url
+            status, res = self.task_buffer.querySQLS(sql, r)
+            main_logger(f"{status} {res}")
 
     def _fetch_html(self, url: str) -> str:
         resp = self.session.get(url, timeout=30)
@@ -106,7 +100,7 @@ class BaseHS06Scraper:
         return df
 
     def _insert(self, df: pl.DataFrame) -> None:
-        _insert_cpu_perf_rows(df.to_dicts(), self.url)
+        self._insert_cpu_perf_rows(df.to_dicts(), self.url)
 
 
 class HS06ScraperSL6(BaseHS06Scraper):
@@ -158,9 +152,10 @@ class HS06ScraperSL7(BaseHS06Scraper):
 
 # ---------------------- HS23 CSV ingestor (Polars) ----------------------
 class HS23Ingestor:
-    def __init__(self, url: str = DEFAULT_URL_HS23):
+    def __init__(self, task_buffer, url: str = DEFAULT_URL_HS23):
         self.url = url
         self.logger = logger_utils.make_logger(main_logger, "HS23Ingestor")
+        self.task_buffer = task_buffer
 
     def run(self) -> None:
         max_timestamp = self._select_max_timestamp(None)
@@ -206,7 +201,7 @@ class HS23Ingestor:
 
     def _select_max_timestamp(self, df: pl.DataFrame) -> None:
         sql = "SELECT max(timestamp) FROM atlas_panda.cpu_benchmarks"
-        status, res = taskBuffer.querySQLS(sql, {})
+        status, res = self.task_buffer.querySQLS(sql, {})
         max_timestamp = res[0][0]
         if not max_timestamp:
             max_timestamp = pl.datetime(1970, 1, 1)
@@ -222,17 +217,41 @@ class HS23Ingestor:
         )
         for row in df.to_dicts():
             row["source"] = self.url
-            _, _ = taskBuffer.querySQLS(sql, row)
+            _, _ = self.task_buffer.querySQLS(sql, row)
+
+
+def main(tbuf=None, **kwargs):
+    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+
+    # instantiate TB
+    if tbuf is None:
+        from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+
+        taskBuffer.init(
+            panda_config.dbhost,
+            panda_config.dbpasswd,
+            nDBConnection=1,
+            useTimeout=True,
+            requester=requester_id,
+        )
+    else:
+        taskBuffer = tbuf
+
+    try:
+        # We assume the SL6 and SL7 pages don't change and do not need to be updated.
+        # In case you re-run the scripts, be aware that it will cause duplicate entries.
+        HS06ScraperSL6(taskBuffer).run()
+        HS06ScraperSL7(taskBuffer).run()
+
+        HS23Ingestor(taskBuffer).run()
+    except Exception as e:
+        main_logger.error(f"Error: {e}")
+    finally:
+        # stop the taskBuffer if it was created inside this script
+        if tbuf is None:
+            taskBuffer.cleanup(requester=requester_id)
 
 
 # ---------------------- main ----------------------
 if __name__ == "__main__":
-    try:
-        # We assume the SL6 and SL7 pages don't change and do not need to be updated.
-        # In case you re-run the scripts, be aware that it will cause duplicate entries.
-        # HS06ScraperSL6().run()
-        # HS06ScraperSL7().run()
-
-        HS23Ingestor().run()
-    except Exception as e:
-        main_logger.error(f"Error: {e}")
+    main()
