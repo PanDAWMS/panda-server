@@ -604,9 +604,9 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                     tmpStat, tmpDatasetSpecs = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(taskSpec.jediTaskID, ["output", "log"])
                     # get destinations
                     retMap = {taskSpec.jediTaskID: AtlasBrokerUtils.getDictToSetNucleus(nucleusSpec, tmpDatasetSpecs)}
-                    tmp_data_map = self.taskBufferIF.setCloudToTasks_JEDI(retMap)
-                    tmpLog.info(f"  set nucleus={candidateNucleus} with {tmp_data_map} criteria=+set")
-                    if tmp_data_map:
+                    tmp_ret = self.taskBufferIF.setCloudToTasks_JEDI(retMap)
+                    tmpLog.info(f"  set nucleus={candidateNucleus} with {tmp_ret} criteria=+set")
+                    if tmp_ret:
                         tmpMsg = "set task_status=ready"
                         tmpLog.sendMsg(tmpMsg, self.msgType)
                     # update RW table
