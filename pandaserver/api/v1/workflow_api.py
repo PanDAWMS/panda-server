@@ -43,6 +43,47 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
+def submit_workflow_raw_request(req: PandaRequest, params: dict) -> dict:
+    """
+    Submit raw request of PanDA native workflow.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/workflow/submit_workflow_raw_request
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        params (dict): dictionary of parameters of the raw request
+
+    Returns:
+        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+    """
+
+    username = get_dn(req)
+    prodsourcelabel = "user"
+    if has_production_role(req):
+        prodsourcelabel = "managed"
+
+    tmp_logger = LogWrapper(_logger, f'submit_workflow_raw_request prodsourcelabel={prodsourcelabel} username="{username}" ')
+    tmp_logger.debug("Start")
+    success, message, data = False, "", None
+    time_start = naive_utcnow()
+
+    workflow_id = global_wfif.register_workflow(prodsourcelabel, username, raw_request_params=params)
+
+    if workflow_id is not None:
+        success = True
+        data = {"workflow_id": workflow_id}
+    else:
+        message = "Failed to submit raw workflow request"
+
+    time_delta = naive_utcnow() - time_start
+    tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
+
+    return generate_response(success, message, data)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
 def submit_workflow(req: PandaRequest, workflow_definition: dict) -> dict:
     """
     Submit a PanDA native workflow.
@@ -76,7 +117,7 @@ def submit_workflow(req: PandaRequest, workflow_definition: dict) -> dict:
         success = True
         data = {"workflow_id": workflow_id}
     else:
-        message = "Failed to submit workflow request"
+        message = "Failed to submit workflow"
 
     time_delta = naive_utcnow() - time_start
     tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")

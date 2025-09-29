@@ -155,15 +155,18 @@ class WorkflowInterface(object):
 
     # Add methods for workflow management here
 
-    def register_workflow(self, prodsourcelabel: str, username: str, workflow_name: str, workflow_definition: dict, *args, **kwargs) -> int | None:
+    def register_workflow(
+        self, prodsourcelabel: str, username: str, workflow_name: str = None, workflow_definition: dict = None, raw_request_params: dict = None, *args, **kwargs
+    ) -> int | None:
         """
         Register a new workflow
 
         Args:
             prodsourcelabel (str): Production source label for the workflow
             username (str): Username of the person registering the workflow
-            name (str): Name of the workflow
+            workflow_name (str): Name of the workflow
             workflow_definition (dict): Dictionary of workflow definition
+            raw_request_params (dict): Dictionary of parameters of the raw request
             *args: Additional arguments
             **kwargs: Additional keyword arguments
 
@@ -176,9 +179,16 @@ class WorkflowInterface(object):
         ...
         workflow_spec = WorkflowSpec()
         workflow_spec.prodsourcelabel = prodsourcelabel
-        workflow_spec.name = workflow_name
         workflow_spec.username = username
-        workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
+        if workflow_name is not None:
+            workflow_spec.name = workflow_name
+        if workflow_definition is not None:
+            workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
+        elif raw_request_params is not None:
+            workflow_spec.raw_request_json = json.dumps(raw_request_params, default=json_serialize_default)
+        else:
+            tmp_log.error(f"Either workflow_definition or raw_request_params must be provided")
+            return None
         workflow_spec.creation_time = naive_utcnow()
         workflow_spec.status = "registered"
         # Insert to DB

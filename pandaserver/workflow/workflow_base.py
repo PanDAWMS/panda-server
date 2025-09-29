@@ -25,6 +25,8 @@ class WorkflowStatus(object):
     """
 
     registered = "registered"
+    parsing = "parsing"
+    parsed = "parsed"
     checking = "checking"
     checked = "checked"
     starting = "starting"
@@ -179,6 +181,7 @@ class WorkflowSpec(WorkflowBaseSpec):
         AttributeWithType("check_time", datetime),
         AttributeWithType("locked_by", str),
         AttributeWithType("lock_time", datetime),
+        AttributeWithType("raw_request_json", str),
         AttributeWithType("definition_json", str),
         AttributeWithType("parameters", str),
     )
@@ -190,6 +193,52 @@ class WorkflowSpec(WorkflowBaseSpec):
     _forceUpdateAttrs = ()
     # mapping between sequence and attr
     _seqAttrMap = {"workflow_id": f"{panda_config.schemaJEDI}.WORKFLOW_ID_SEQ.nextval"}
+
+    @property
+    def raw_request_json_map(self) -> dict:
+        """
+        Get the dictionary parsed by raw_request_json attribute in JSON
+
+        Returns:
+            dict : dict of raw_request_json if it is JSON or empty dict if null
+        """
+        if self.raw_request_json is None:
+            return {}
+        else:
+            return json.loads(self.raw_request_json)
+
+    @raw_request_json_map.setter
+    def raw_request_json_map(self, value_map: dict):
+        """
+        Set the dictionary and store in raw_request_json attribute in JSON
+
+        Args:
+            value_map (dict): dict to set the raw_request_json map
+        """
+        self.raw_request_json = json.dumps(value_map)
+
+    @property
+    def definition_json_map(self) -> dict:
+        """
+        Get the dictionary parsed by definition_json attribute in JSON
+
+        Returns:
+            dict : dict of definition_json if it is JSON or empty dict if null
+        """
+        if self.definition_json is None:
+            return {}
+        else:
+            return json.loads(self.definition_json)
+
+    @definition_json_map.setter
+    def definition_json_map(self, value_map: dict):
+        """
+        Set the dictionary and store in definition_json attribute in JSON
+
+        Args:
+            value_map (dict): dict to set the definition_json map
+        """
+        self.definition_json = json.dumps(value_map)
 
 
 class WFStepSpec(WorkflowBaseSpec):
@@ -225,6 +274,29 @@ class WFStepSpec(WorkflowBaseSpec):
     _forceUpdateAttrs = ()
     # mapping between sequence and attr
     _seqAttrMap = {"step_id": f"{panda_config.schemaJEDI}.WORKFLOW_STEP_ID_SEQ.nextval"}
+
+    @property
+    def definition_json_map(self) -> dict:
+        """
+        Get the dictionary parsed by definition_json attribute in JSON
+
+        Returns:
+            dict : dict of definition_json if it is JSON or empty dict if null
+        """
+        if self.definition_json is None:
+            return {}
+        else:
+            return json.loads(self.definition_json)
+
+    @definition_json_map.setter
+    def definition_json_map(self, value_map: dict):
+        """
+        Set the dictionary and store in definition_json attribute in JSON
+
+        Args:
+            value_map (dict): dict to set the definition_json map
+        """
+        self.definition_json = json.dumps(value_map)
 
 
 class WFDataSpec(WorkflowBaseSpec):
