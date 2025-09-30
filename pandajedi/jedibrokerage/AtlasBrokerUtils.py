@@ -30,7 +30,11 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
     # check if remote source is available at any sites (not only nuclei)
     remote_source_available = False
     for tmp_replica_data in replicaMap.values():
-        for tmp_location in tmp_replica_data:
+        for tmp_location, tmp_stat_data in tmp_replica_data.items():
+            if tmp_stat_data[0]["total"] in [None, 0]:
+                continue
+            if tmp_stat_data[0]["total"] != tmp_stat_data[0]["found"]:
+                continue
             if siteMapper.is_readable_remotely(tmp_location):
                 remote_source_available = True
                 break
