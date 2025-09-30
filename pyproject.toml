@@ -37,6 +37,7 @@ dependencies = [
     'scipy',
     'werkzeug',
     'requests',
+    'bs4'
 ]
 requires-python = ">=3.10"
 classifiers = [

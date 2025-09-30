@@ -321,10 +321,15 @@ class AtlasProdJobBroker(JobBrokerBase):
                     return retTmpError
                 tmp_msg = f"complete replicas of {datasetName} are available at online endpoints"
                 if not tmp_can_be_remote_source:
-                    tmp_msg += ", but files cannot be sent out to satellites since read_wan is not ON"
+                    if tmp_can_be_local_source:
+                        tmp_msg += ", but files cannot be sent out to satellites since read_wan is not ON"
+                        remote_source_available = False
+                    else:
+                        tmp_msg = f"complete replicas of {datasetName} are available at endpoints where read_wan/lan are not ON"
+                        tmpLog.error(tmp_msg)
+                        taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
+                        return retTmpError
                 tmpLog.debug(tmp_msg)
-                if not tmp_can_be_local_source:
-                    remote_source_available = False
 
         ######################################
         # selection for status
