@@ -115,6 +115,20 @@ def get_distinguished_name_list(distinguished_name: str) -> list:
     return name_list
 
 
+def normalize_cpu_model(cpu_model):
+    cpu_model = cpu_model.upper()
+    # Remove GHz, cache sizes, and redundant words
+    cpu_model = re.sub(r"@\s*\d+(\.\d+)?\s*GHZ", "", cpu_model)
+    cpu_model = re.sub(r"\d+\s*KB", "", cpu_model)
+    cpu_model = re.sub(r"CORE PROCESSOR\s*\([^)]*\)", "", cpu_model)
+    cpu_model = re.sub(r"\b\d+-CORE\b", "", cpu_model)
+    cpu_model = re.sub(r"CPU|CORE|PROCESSOR|SCALABLE|\(R\)", "", cpu_model)
+    cpu_model = re.sub(r"\(R\)|\(TM\)", "", cpu_model)
+    cpu_model = re.sub(r"\s+", " ", cpu_model)
+    cpu_model = cpu_model.strip()
+    return cpu_model
+
+
 # resolve string bool
 def resolve_bool(param):
     if isinstance(param, bool):
