@@ -21,6 +21,7 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice.adder_gen import AdderGen
 from pandaserver.jobdispatcher import Protocol
 from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore.CoreUtils import normalize_cpu_model
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
@@ -791,11 +792,14 @@ def update_worker_node(
     tmp_logger = LogWrapper(_logger, f"update_worker_node site={site} host_name={host_name} cpu_model={cpu_model}")
     tmp_logger.debug("Start")
 
+    cpu_model_normalized = normalize_cpu_model(cpu_model)
+
     timed_method = TimedMethod(global_task_buffer.update_worker_node, timeout)
     timed_method.run(
         site,
         host_name,
         cpu_model,
+        cpu_model_normalized,
         n_logical_cpus,
         n_sockets,
         cores_per_socket,

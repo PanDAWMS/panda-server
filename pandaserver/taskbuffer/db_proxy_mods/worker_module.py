@@ -1085,6 +1085,7 @@ class WorkerModule(BaseModule):
         site,
         host_name,
         cpu_model,
+        cpu_model_normalized,
         n_logical_cpus,
         n_sockets,
         cores_per_socket,
@@ -1143,6 +1144,7 @@ class WorkerModule(BaseModule):
                 ":site": site,
                 ":host_name": host_name,
                 ":cpu_model": cpu_model,
+                ":cpu_model_normalized": cpu_model_normalized,
                 ":n_logical_cpus": n_logical_cpus,
                 "n_sockets": n_sockets,
                 ":cores_per_socket": cores_per_socket,
@@ -1157,10 +1159,10 @@ class WorkerModule(BaseModule):
 
             sql = (
                 "INSERT INTO ATLAS_PANDA.worker_node "
-                "(site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
+                "(site, host_name, cpu_model, cpu_model_normalized, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
                 "cpu_architecture, cpu_architecture_level, clock_speed, total_memory, total_local_disk, last_seen) "
                 "VALUES "
-                "(:site, :host_name, :cpu_model, :n_logical_cpus, :n_sockets, :cores_per_socket, :threads_per_core, "
+                "(:site, :host_name, :cpu_model, :cpu_model_normalized, :n_logical_cpus, :n_sockets, :cores_per_socket, :threads_per_core, "
                 ":cpu_architecture, :cpu_architecture_level, :clock_speed, :total_memory, :total_local_disk, :last_seen)"
             )
 
@@ -1807,6 +1809,33 @@ class WorkerModule(BaseModule):
             raise RuntimeError("Commit error")
         tmp_log.debug("done")
         return worker_stats_dict
+
+    def get_cpu_benchmarks(self, cpu_architecture: str) -> list[tuple[str, float]]:
+        """
+        Get CPU benchmarks for a given CPU architecture
+        :param cpu_architecture: CPU architecture string
+        :return: List of tuples containing (cpu_model, benchmark_value)
+        """
+        comment = " /* DBProxy.get_cpu_benchmarks */"
+        tmp_log = self.create_tagged_logger(comment, f"cpu_architecture={cpu_architecture}")
+        tmp_log.debug("start")
+
+        try:
+            sql = "SELECT cpu_type, score_per_core, smt_enabled + 1 FROM atlas_panda.cpu_benchmarks"
+
+            self.conn.begin()
+            self.cur.execute(sql + comment, var_map)
+            results = self.cur.fetchall()
+            if not self._commit():
+                raise RuntimeError("Commit error")
+
+            tmp_log.debug(f"got {len(results)} benchmarks")
+            return results
+
+        except Exception:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            return []
 
 
 # get worker module
