@@ -9,6 +9,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore.CoreUtils import normalize_cpu_model
 from pandaserver.taskbuffer import ErrorCode, JobUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
@@ -1810,18 +1811,20 @@ class WorkerModule(BaseModule):
         tmp_log.debug("done")
         return worker_stats_dict
 
-    def get_cpu_benchmarks(self, cpu_architecture: str) -> list[tuple[str, float]]:
-        """
-        Get CPU benchmarks for a given CPU architecture
-        :param cpu_architecture: CPU architecture string
-        :return: List of tuples containing (cpu_model, benchmark_value)
-        """
+    def get_cpu_benchmarks(self, cpu_type: str) -> list[tuple[str, float]]:
         comment = " /* DBProxy.get_cpu_benchmarks */"
         tmp_log = self.create_tagged_logger(comment, f"cpu_architecture={cpu_architecture}")
-        tmp_log.debug("start")
+        tmp_log.debug("Start")
+
+        cpu_type_normalized = normalize_cpu_model(cpu_type)
 
         try:
-            sql = "SELECT cpu_type, score_per_core, smt_enabled + 1 FROM atlas_panda.cpu_benchmarks"
+            sql = (
+                "SELECT cpu_type, cpu_type_normalized, site, score_per_core, smt_enabled "
+                "FROM atlas_panda.cpu_benchmarks "
+                "WHERE cpu_type_normalized=:cpu_type_normalized "
+            )
+            var_map = {"cpu_type_normalized": cpu_type_normalized}
 
             self.conn.begin()
             self.cur.execute(sql + comment, var_map)
@@ -1829,7 +1832,7 @@ class WorkerModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
 
-            tmp_log.debug(f"got {len(results)} benchmarks")
+            tmp_log.debug(f"Got {len(results)} benchmarks")
             return results
 
         except Exception:
