@@ -1,4 +1,5 @@
 import datetime
+import json
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from typing import Any, Dict, List
@@ -43,7 +44,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def submit_workflow_raw_request(req: PandaRequest, params: dict) -> dict:
+def submit_workflow_raw_request(req: PandaRequest, params: dict | str) -> dict:
     """
     Submit raw request of PanDA native workflow.
 
@@ -53,7 +54,7 @@ def submit_workflow_raw_request(req: PandaRequest, params: dict) -> dict:
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        params (dict): dictionary of parameters of the raw request
+        params (dict|str): dictionary or JSON of parameters of the raw request
 
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
@@ -68,6 +69,14 @@ def submit_workflow_raw_request(req: PandaRequest, params: dict) -> dict:
     tmp_logger.debug("Start")
     success, message, data = False, "", None
     time_start = naive_utcnow()
+
+    if isinstance(params, str):
+        try:
+            params = json.loads(params)
+        except Exception as exc:
+            message = f"Failed to parse params: {params} {str(exc)}"
+            tmp_logger.error(message)
+            return generate_response(success, message, data)
 
     workflow_id = global_wfif.register_workflow(prodsourcelabel, username, raw_request_params=params)
 

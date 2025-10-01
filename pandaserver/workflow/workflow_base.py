@@ -25,7 +25,6 @@ class WorkflowStatus(object):
     """
 
     registered = "registered"
-    parsing = "parsing"
     parsed = "parsed"
     checking = "checking"
     checked = "checked"

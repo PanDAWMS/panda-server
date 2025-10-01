@@ -18,6 +18,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
+from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
     WFDataStatus,
@@ -27,6 +28,10 @@ from pandaserver.workflow.workflow_base import (
     WFStepType,
     WorkflowSpec,
     WorkflowStatus,
+)
+from pandaserver.workflow.workflow_parser import (
+    json_serialize_default,
+    parse_raw_request,
 )
 
 # import polars as pl  # isort:skip
@@ -40,23 +45,6 @@ AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 
 
 # ===============================================================
-
-
-def json_serialize_default(obj):
-    """
-    Default JSON serializer for non-serializable objects
-
-    Args:
-        obj (Any): Object to serialize
-
-    Returns:
-        Any: JSON serializable object
-    """
-    # convert set to list
-    if isinstance(obj, set):
-        return list(obj)
-    return obj
-
 
 # ===============================================================
 
@@ -179,7 +167,7 @@ class WorkflowInterface(object):
         ...
         workflow_spec = WorkflowSpec()
         workflow_spec.prodsourcelabel = prodsourcelabel
-        workflow_spec.username = username
+        workflow_spec.username = clean_user_id(username)
         if workflow_name is not None:
             workflow_spec.name = workflow_name
         if workflow_definition is not None:
@@ -204,7 +192,54 @@ class WorkflowInterface(object):
     def process_workflow_registered(self, workflow_spec: WorkflowSpec):
         """
         Process a workflow in registered status
-        Parse the workflow definition, register steps, and update its status
+        To parse to get workflow definition from raw request
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow specification to process
+        """
+        tmp_log = LogWrapper(logger, f"process_workflow_registered workflow_id={workflow_spec.workflow_id}")
+        tmp_log.debug("start")
+        try:
+            if workflow_spec.definition_json is not None:
+                # Already has definition, skip parsing
+                tmp_log.debug(f"Workflow already has definition, skipping parsing")
+            else:
+                # Parse the workflow definition from raw request
+                raw_request_dict = workflow_spec.raw_request_json_map()
+                sandbox_url = os.path.join(raw_request_dict["sourceURL"], "cache", raw_request_dict["sandbox"])
+                log_token = f'< user="{workflow_spec.username}" outDS={raw_request_dict["outDS"]}>'
+                is_ok, is_fatal, workflow_definition_dict = parse_raw_request(
+                    sandbox_url=raw_request_dict.get("sandbox_url"),
+                    log_token=raw_request_dict.get("log_token"),
+                    user_name=workflow_spec.username,
+                    ops_file=raw_request_dict.get("ops_file"),
+                )
+                # Failure handling
+                if is_fatal:
+                    tmp_log.error(f"Fatal error in parsing raw request; cancelled the workflow")
+                    workflow_spec.status = WorkflowStatus.cancelled
+                    workflow_spec.set_parameter("cancel_reason", "Fatal error in parsing raw request")
+                    self.tbif.update_workflow(workflow_spec)
+                    return
+                if not is_ok:
+                    tmp_log.warning(f"Failed to parse raw request; skipped")
+                    return
+                # Parsed successfully, update definition
+                workflow_spec.definition_json = json.dumps(workflow_definition_dict, default=json_serialize_default)
+                tmp_log.debug(f"Parsed raw request into definition")
+            # Update status to parsed
+            workflow_spec.status = WorkflowStatus.parsed
+            # Update DB
+            self.tbif.update_workflow(workflow_spec)
+            tmp_log.info(f"Done, status={workflow_spec.status}")
+        except Exception:
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+
+    def process_workflow_parsed(self, workflow_spec: WorkflowSpec):
+        """
+        Process a workflow in parsed status
+        Register steps, and update its status
+        Parse raw request into workflow definition, register steps, and update its status
 
         Args:
             workflow_spec (WorkflowSpec): The workflow specification to process
