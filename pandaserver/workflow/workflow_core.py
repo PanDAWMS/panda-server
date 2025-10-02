@@ -205,14 +205,14 @@ class WorkflowInterface(object):
                 tmp_log.debug(f"Workflow already has definition, skipping parsing")
             else:
                 # Parse the workflow definition from raw request
-                raw_request_dict = workflow_spec.raw_request_json_map()
+                raw_request_dict = workflow_spec.raw_request_json_map
                 sandbox_url = os.path.join(raw_request_dict["sourceURL"], "cache", raw_request_dict["sandbox"])
                 log_token = f'< user="{workflow_spec.username}" outDS={raw_request_dict["outDS"]}>'
                 is_ok, is_fatal, workflow_definition_dict = parse_raw_request(
-                    sandbox_url=raw_request_dict.get("sandbox_url"),
-                    log_token=raw_request_dict.get("log_token"),
+                    sandbox_url=sandbox_url,
+                    log_token=log_token,
                     user_name=workflow_spec.username,
-                    ops_file=raw_request_dict.get("ops_file"),
+                    raw_request_dict=raw_request_dict,
                 )
                 # Failure handling
                 if is_fatal:

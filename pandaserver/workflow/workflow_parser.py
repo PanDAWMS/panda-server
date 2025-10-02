@@ -50,7 +50,7 @@ def json_serialize_default(obj):
     return obj
 
 
-def parse_raw_request(sandbox_url, log_token, user_name, ops_file=None) -> tuple[bool, bool, dict]:
+def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tuple[bool, bool, dict]:
     """
     Parse raw request with files in sandbox into workflow definition
 
@@ -58,7 +58,7 @@ def parse_raw_request(sandbox_url, log_token, user_name, ops_file=None) -> tuple
         sandbox_url (str): URL to download sandbox
         log_token (str): Log token
         user_name (str): User name
-        ops_file (str | None): File containing operations
+        raw_request_dict (dict): Raw request dictionary
 
     Returns:
         bool: Whether the parsing is successful
@@ -71,14 +71,6 @@ def parse_raw_request(sandbox_url, log_token, user_name, ops_file=None) -> tuple
     # request_id = None
     workflow_definition_dict = dict()
     try:
-        if ops_file is not None:
-            # read ops file
-            with open(ops_file) as f:
-                ops = json.load(f)
-            try:
-                os.remove(ops_file)
-            except Exception:
-                pass
         # go to temp dir
         cur_dir = os.getcwd()
         with tempfile.TemporaryDirectory() as tmp_dirname:
@@ -95,15 +87,15 @@ def parse_raw_request(sandbox_url, log_token, user_name, ops_file=None) -> tuple
                     is_ok = False
                 # extract sandbox
                 if is_ok:
-                    with open(ops["data"]["sandbox"], "wb") as fs:
+                    with open(raw_request_dict["sandbox"], "wb") as fs:
                         for chunk in r.raw.stream(1024, decode_content=False):
                             if chunk:
                                 fs.write(chunk)
                         fs.close()
-                        tmp_stat, tmp_out = commands_get_status_output(f"tar xvfz {ops['data']['sandbox']}")
+                        tmp_stat, tmp_out = commands_get_status_output(f"tar xvfz {raw_request_dict['sandbox']}")
                         if tmp_stat != 0:
                             tmp_log.error(tmp_out)
-                            dump_str = f"failed to extract {ops['data']['sandbox']}"
+                            dump_str = f"failed to extract {raw_request_dict['sandbox']}"
                             tmp_log.error(dump_str)
                             is_fatal = True
                             is_ok = False
@@ -111,22 +103,22 @@ def parse_raw_request(sandbox_url, log_token, user_name, ops_file=None) -> tuple
                 if is_ok:
                     tmp_log.info("parse workflow")
                     workflow_name = None
-                    if (wf_lang := ops["data"]["language"]) in SUPPORTED_WORKFLOW_LANGUAGES:
+                    if (wf_lang := raw_request_dict["language"]) in SUPPORTED_WORKFLOW_LANGUAGES:
                         if wf_lang == "cwl":
-                            workflow_name = ops["data"].get("workflow_name")
-                            nodes, root_in = pcwl_utils.parse_workflow_file(ops["data"]["workflowSpecFile"], tmp_log)
-                            with open(ops["data"]["workflowInputFile"]) as workflow_input:
+                            workflow_name = raw_request_dict.get("workflow_name")
+                            nodes, root_in = pcwl_utils.parse_workflow_file(raw_request_dict["workflowSpecFile"], tmp_log)
+                            with open(raw_request_dict["workflowInputFile"]) as workflow_input:
                                 yaml = YAML(typ="safe", pure=True)
                                 data = yaml.load(workflow_input)
                         elif wf_lang == "snakemake":
-                            parser = Parser(ops["data"]["workflowSpecFile"], logger=tmp_log)
+                            parser = Parser(raw_request_dict["workflowSpecFile"], logger=tmp_log)
                             nodes, root_in = parser.parse_nodes()
                             data = dict()
                         # resolve nodes
-                        s_id, t_nodes, nodes = workflow_utils.resolve_nodes(nodes, root_in, data, 0, set(), ops["data"]["outDS"], tmp_log)
+                        s_id, t_nodes, nodes = workflow_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log)
                         workflow_utils.set_workflow_outputs(nodes)
                         id_node_map = workflow_utils.get_node_id_map(nodes)
-                        [node.resolve_params(ops["data"]["taskParams"], id_node_map) for node in nodes]
+                        [node.resolve_params(raw_request_dict["taskParams"], id_node_map) for node in nodes]
                         dump_str = "the description was internally converted as follows\n" + workflow_utils.dump_nodes(nodes)
                         tmp_log.info(dump_str)
                         for node in nodes:
