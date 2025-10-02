@@ -9,7 +9,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
-from pandaserver.srvcore.CoreUtils import normalize_cpu_model
+from pandaserver.srvcore.CoreUtils import clean_host_name, normalize_cpu_model
 from pandaserver.taskbuffer import ErrorCode, JobUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
@@ -1069,18 +1069,6 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def clean_host_name(self, host_name):
-        # If the worker node comes in the slot1@worker1.example.com format, we remove the slot1@ part
-        match = re.search(r"@(.+)", host_name)
-        host_name = match.group(1) if match else host_name
-
-        # Special handling for ATLAS worker nodes to extract the third field of the hostname, since the first 2 fields are not unique
-        # e.g. atlprd55-xyz-<third_field>.cern.ch
-        match = re.match(r"^atlprd\d+-[^-]+-([^.]+\.cern\.ch)$", host_name)
-        host_name = match.group(1) if match else host_name
-
-        return host_name
-
     def update_worker_node(
         self,
         site,
@@ -1106,7 +1094,7 @@ class WorkerModule(BaseModule):
         timestamp_utc = naive_utcnow()
 
         # clean up host name from any prefixes
-        host_name = self.clean_host_name(host_name)
+        host_name = clean_host_name(host_name)
 
         locked = True  # Track whether the worker node was locked by another pilot update
 

@@ -129,6 +129,19 @@ def normalize_cpu_model(cpu_model):
     return cpu_model
 
 
+def clean_host_name(host_name):
+    # If the worker node comes in the slot1@worker1.example.com format, we remove the slot1@ part
+    match = re.search(r"@(.+)", host_name)
+    host_name = match.group(1) if match else host_name
+
+    # Special handling for ATLAS worker nodes to extract the third field of the hostname, since the first 2 fields are not unique
+    # e.g. atlprd55-xyz-<third_field>.cern.ch
+    match = re.match(r"^atlprd\d+-[^-]+-([^.]+\.cern\.ch)$", host_name)
+    host_name = match.group(1) if match else host_name
+
+    return host_name
+
+
 # resolve string bool
 def resolve_bool(param):
     if isinstance(param, bool):
