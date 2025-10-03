@@ -1799,32 +1799,30 @@ class WorkerModule(BaseModule):
         tmp_log.debug("done")
         return worker_stats_dict
 
-    def get_cpu_benchmarks(self, cpu_type: str) -> list[tuple[str, float]]:
-        comment = " /* DBProxy.get_cpu_benchmarks */"
-        tmp_log = self.create_tagged_logger(comment, f"cpu_architecture={cpu_architecture}")
+    def get_cpu_benchmarks_by_host(self, host_name: str) -> list[tuple[str, float]]:
+        comment = " /* DBProxy.get_cpu_benchmarks_by_host */"
+        tmp_log = self.create_tagged_logger(comment, f"host_name={host_name}")
         tmp_log.debug("Start")
 
-        cpu_type_normalized = normalize_cpu_model(cpu_type)
+        host_name_clean = clean_host_name(host_name)
 
         try:
             sql = (
-                "SELECT cpu_type, cpu_type_normalized, site, score_per_core, smt_enabled "
-                "FROM atlas_panda.cpu_benchmarks "
-                "WHERE cpu_type_normalized=:cpu_type_normalized "
+                "SELECT cb.site, score_per_core FROM atlas_panda.worker_node wn, atlas_panda.cpu_benchmarks cb "
+                "WHERE wn.host_name = :host_name "
+                "AND cb.cpu_type_normalized = wn.cpu_model_normalized "
+                "AND wn.threads_per_core = cb.smt_enabled + 1"
             )
-            var_map = {"cpu_type_normalized": cpu_type_normalized}
 
-            self.conn.begin()
+            var_map = {"host_name": host_name_clean}
+
             self.cur.execute(sql + comment, var_map)
             results = self.cur.fetchall()
-            if not self._commit():
-                raise RuntimeError("Commit error")
 
             tmp_log.debug(f"Got {len(results)} benchmarks")
             return results
 
         except Exception:
-            self._rollback()
             self.dump_error_message(tmp_log)
             return []
 
