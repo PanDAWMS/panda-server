@@ -167,8 +167,7 @@ def release(req: PandaRequest, task_id: int) -> Dict[str, Any]:
     """
     Task release
 
-    Release a given task. This triggers the avalanche for tasks in scouting state or dynamically reconfigures the task to skip over the scouting state.
-    Requires a secure connection and production role.
+    Release a given task by skipping iDDS for staging. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -206,7 +205,7 @@ def release(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
 # reassign task to site/cloud
 @request_validation(_logger, secure=True, request_method="POST")
-def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = None, nucleus: str = None, soft: bool = None, mode: str = None):
+def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = None, nucleus: str = None, mode: str = None):
     """
     Task reassign
 
@@ -222,8 +221,7 @@ def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = Non
         site(str, optional): site name
         cloud(str, optional): cloud name
         nucleus(str, optional): nucleus name
-        soft(bool, optional): soft reassign
-        mode(str, optional): soft/nokill reassign
+        mode(str, optional): `kill` (kills all jobs, default), `soft` (kills queued jobs) or `nokill` (doesn't kill jobs)
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
@@ -253,7 +251,7 @@ def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = Non
     # set additional modes
     if mode == "nokill":
         comment += ":nokill reassign"
-    elif mode == "soft" or soft is True:
+    elif mode == "soft":
         comment += ":soft reassign"
 
     ret = global_task_buffer.sendCommandTaskPanda(
@@ -522,7 +520,7 @@ def avalanche(req: PandaRequest, task_id: int) -> Dict[str, Any]:
     """
     Task avalanche
 
-    Avalanche a given task. Requires a secure connection and production role.
+    Avalanche a given task. This triggers the avalanche for tasks in scouting state or dynamically reconfigures the task to skip over the scouting state. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -651,7 +649,7 @@ def enable_jumbo_jobs(req: PandaRequest, task_id: int, jumbo_jobs_total: int, ju
 
     API details:
         HTTP Method: POST
-        Path: /v1/task/reassign_global_share
+        Path: /v1/task/enable_jumbo_jobs
 
     Args:
         req(PandaRequest): internally generated request object
@@ -1046,7 +1044,7 @@ def change_priority(req: PandaRequest, task_id: int, priority: int):
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, value: int) -> Dict[str, Any]:
+def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, value: str | int) -> Dict[str, Any]:
     """
     Change the split rule
 
@@ -1059,8 +1057,8 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
     Args:
         req(PandaRequest): internally generated request object
         task_id(int): JEDI task ID
-        attribute_name(str): split rule attribute to change
-        value(int): value to set to the attribute
+        attribute_name(str): split rule attribute to change. The allowed attributes are: `["AI", "TW", "EC", "ES", "MF", "NG", "NI", "NF", "NJ", "AV", "IL", "LI", "LC", "CC", "OT", "UZ"]`
+        value(str): value to set to the attribute
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
