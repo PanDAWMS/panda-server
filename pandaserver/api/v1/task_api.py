@@ -1049,7 +1049,7 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
     Args:
         req(PandaRequest): internally generated request object
         task_id(int): JEDI task ID
-        attribute_name(str): split rule attribute to change. The allowed attributes are: `["AI", "TW", "EC", "ES", "MF", "NG", "NI", "NF", "NJ", "AV", "IL", "LI", "LC", "CC", "OT", "UZ"]`
+        attribute_name(str): split rule attribute to change. The allowed attributes are one of: `"AI", "TW", "EC", "ES", "MF", "NG", "NI", "NF", "NJ", "AV", "IL", "LI", "LC", "CC", "OT", "UZ"`
         value(str): value to set to the attribute
 
     Returns:
