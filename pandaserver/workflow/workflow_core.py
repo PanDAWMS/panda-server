@@ -162,7 +162,7 @@ class WorkflowInterface(object):
             int | None: The ID of the registered workflow if successful, otherwise None
         """
         tmp_log = LogWrapper(logger, f"register_workflow prodsourcelabel={prodsourcelabel} username={username} name={workflow_name}")
-        tmp_log.debug("start")
+        tmp_log.debug("Start")
         # Implementation of workflow registration logic
         ...
         workflow_spec = WorkflowSpec()
@@ -178,7 +178,7 @@ class WorkflowInterface(object):
             tmp_log.error(f"Either workflow_definition or raw_request_params must be provided")
             return None
         workflow_spec.creation_time = naive_utcnow()
-        workflow_spec.status = "registered"
+        workflow_spec.status = WorkflowStatus.registered
         # Insert to DB
         ret_workflow_id = self.tbif.insert_workflow(workflow_spec)
         if ret_workflow_id is None:
@@ -198,7 +198,7 @@ class WorkflowInterface(object):
             workflow_spec (WorkflowSpec): The workflow specification to process
         """
         tmp_log = LogWrapper(logger, f"process_workflow_registered workflow_id={workflow_spec.workflow_id}")
-        tmp_log.debug("start")
+        tmp_log.debug("Start")
         try:
             if workflow_spec.definition_json is not None:
                 # Already has definition, skip parsing
@@ -244,62 +244,68 @@ class WorkflowInterface(object):
         Args:
             workflow_spec (WorkflowSpec): The workflow specification to process
         """
-        tmp_log = LogWrapper(logger, f"process_workflow_registered workflow_id={workflow_spec.workflow_id}")
-        tmp_log.debug("start")
-        # try:
-        #     # Parse the workflow definition
-        #     workflow_definition_dict = json.loads(workflow_spec.definition_json)
-        #     # initialize
-        #     data_specs = []
-        #     step_specs = []
-        #     now_time = naive_utcnow()
-        #     # Register root inputs and outputs
-        #     for input_name, input_target in workflow_definition_dict["root_inputs"].items():
-        #         data_spec = WFDataSpec()
-        #         data_spec.workflow_id = workflow_spec.workflow_id
-        #         data_spec.name = input_name
-        #         data_spec.target_id = input_target
-        #         data_spec.status = WFDataStatus.registered
-        #         data_spec.type = WFDataType.input
-        #         data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
-        #         data_spec.creation_time = now_time
-        #         data_specs.append(data_spec)
-        #     for output_name, output_dict in workflow_definition_dict["root_outputs"].items():
-        #         data_spec = WFDataSpec()
-        #         data_spec.workflow_id = workflow_spec.workflow_id
-        #         data_spec.name = output_name
-        #         data_spec.target_id = output_dict.get("value")
-        #         data_spec.status = WFDataStatus.registered
-        #         data_spec.type = WFDataType.output
-        #         data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
-        #         data_spec.creation_time = now_time
-        #         data_specs.append(data_spec)
-        #     # Register steps based on nodes in the definition
-        #     for node in workflow_definition_dict["nodes"]:
-        #         # FIXME: not yet consider scatter, condition, loop, etc.
-        #         if not (node.get("condition") or node.get("scatter") or node.get("loop")):
-        #             step_spec = WFStepSpec()
-        #             step_spec.workflow_id = workflow_spec.workflow_id
-        #             step_spec.member_id = node["id"]
-        #             step_spec.name = node["name"]
-        #             step_spec.status = "registered"
-        #             step_spec.type = WFStepType.ordinary
-        #             step_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
-        #             step_spec.definition_json = json.dumps(node, default=json_serialize_default)
-        #             step_spec.creation_time = now_time
-        #             step_specs.append(step_spec)
-        #     # FIXME: temporary, skip data checking and go to starting directly
-        #     workflow_spec.status = "starting"
-        #     # Upsert DB
-        #     self.tbif.upsert_workflow_entities(
-        #         workflow_spec.workflow_id,
-        #         actions_dict={"workflow": "update", "steps": "insert", "data": "insert"},
-        #         workflow_spec=workflow_spec,
-        #         step_specs=step_specs,
-        #         data_specs=data_specs,
-        #     )
-        #     tmp_log.info(f"Processed workflow registered, workflow_id={workflow_spec.workflow_id}, steps={len(step_specs)}, data={len(data_specs)}")
-        # except Exception:
-        #     tmp_log.error(f"got error ; {traceback.format_exc()}")
+        tmp_log = LogWrapper(logger, f"process_workflow_parsed workflow_id={workflow_spec.workflow_id}")
+        tmp_log.debug("Start")
+        try:
+            # Parse the workflow definition
+            workflow_definition_dict = workflow_spec.definition_json_map
+            if workflow_definition_dict is None:
+                tmp_log.error(f"Workflow definition is None; cancelled the workflow")
+                workflow_spec.status = WorkflowStatus.cancelled
+                workflow_spec.set_parameter("cancel_reason", "Workflow definition is None")
+                self.tbif.update_workflow(workflow_spec)
+                return
+            # initialize
+            data_specs = []
+            step_specs = []
+            now_time = naive_utcnow()
+            # Register root inputs and outputs
+            for input_name, input_target in workflow_definition_dict["root_inputs"].items():
+                data_spec = WFDataSpec()
+                data_spec.workflow_id = workflow_spec.workflow_id
+                data_spec.name = input_name
+                data_spec.target_id = input_target
+                data_spec.status = WFDataStatus.registered
+                data_spec.type = WFDataType.input
+                data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
+                data_spec.creation_time = now_time
+                data_specs.append(data_spec)
+            for output_name, output_dict in workflow_definition_dict["root_outputs"].items():
+                data_spec = WFDataSpec()
+                data_spec.workflow_id = workflow_spec.workflow_id
+                data_spec.name = output_name
+                data_spec.target_id = output_dict.get("value")
+                data_spec.status = WFDataStatus.registered
+                data_spec.type = WFDataType.output
+                data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
+                data_spec.creation_time = now_time
+                data_specs.append(data_spec)
+            # Register steps based on nodes in the definition
+            for node in workflow_definition_dict["nodes"]:
+                # FIXME: not yet consider scatter, condition, loop, etc.
+                if not (node.get("condition") or node.get("scatter") or node.get("loop")):
+                    step_spec = WFStepSpec()
+                    step_spec.workflow_id = workflow_spec.workflow_id
+                    step_spec.member_id = node["id"]
+                    step_spec.name = node["name"]
+                    step_spec.status = WFStepStatus.registered
+                    step_spec.type = WFStepType.ordinary
+                    step_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
+                    step_spec.definition_json = json.dumps(node, default=json_serialize_default)
+                    step_spec.creation_time = now_time
+                    step_specs.append(step_spec)
+            # FIXME: temporary, skip data checking and go to starting directly
+            workflow_spec.status = WorkflowStatus.starting
+            # Upsert DB
+            self.tbif.upsert_workflow_entities(
+                workflow_spec.workflow_id,
+                actions_dict={"workflow": "update", "steps": "insert", "data": "insert"},
+                workflow_spec=workflow_spec,
+                step_specs=step_specs,
+                data_specs=data_specs,
+            )
+            tmp_log.info(f"Done, inserted {len(step_specs)} steps and {len(data_specs)} data, status={workflow_spec.status}")
+        except Exception:
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
 
     # ---- Data status transitions -----------------------------
