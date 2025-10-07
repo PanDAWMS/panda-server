@@ -1050,7 +1050,7 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
     """
     Change the split rule
 
-    Change the split rule for a task. Requires a secure connection and production role.
+    Change the split rule for a task by modifying or adding an `attribute_name=value pair`. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
