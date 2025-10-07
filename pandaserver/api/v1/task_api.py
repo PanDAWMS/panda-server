@@ -371,8 +371,8 @@ def kill_unfinished_jobs(req: PandaRequest, task_id: int, code: int = None, use_
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        task_id (int): JEDI task ID
-        code (int, optional): The kill code. Defaults to None.
+        task_id(int): JEDI task ID
+        code(int, optional): The kill code. Defaults to None.
         ```
         code
         2: expire
@@ -390,7 +390,7 @@ def kill_unfinished_jobs(req: PandaRequest, task_id: int, code: int = None, use_
         91: kill user jobs with prod role
         99: force kill user jobs with prod role
         ```
-        use_email_as_id (bool, optional): Use the email as ID. Defaults to False.
+        use_email_as_id(bool, optional): Use the email as ID. Defaults to False.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. The data field contains a list of bools indicating the success of the kill operations.
@@ -942,11 +942,11 @@ def change_attribute(req: PandaRequest, task_id: int, attribute_name: str, value
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def change_modification_time(req: PandaRequest, task_id: int, positive_hour_offset: int) -> Dict[str, Any]:
+def change_modification_time(req: PandaRequest, task_id: int, hour_offset: int) -> Dict[str, Any]:
     """
     Change task modification time
 
-    Change the modification time for a task to `now() + positive_hour_offset`. Requires a secure connection and production role.
+    Change the modification time for a task to `now() + hour_offset`. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -955,28 +955,20 @@ def change_modification_time(req: PandaRequest, task_id: int, positive_hour_offs
     Args:
         req(PandaRequest): internally generated request object
         task_id(int): JEDI task ID
-        positive_hour_offset(int): number of hours to add to the current time
+        hour_offset(int): number of hours to add to the current time. Use a negative value (e.g. -12) to trigger task brokerage.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
-    tmp_logger = LogWrapper(_logger, f"change_modification_time < task_id={task_id} positive_hour_offset={positive_hour_offset} >")
+    tmp_logger = LogWrapper(_logger, f"change_modification_time < task_id={task_id} hour_offset={hour_offset} >")
     tmp_logger.debug("Start")
-
-    # check task_id
-    try:
-        task_id = int(task_id)
-    except ValueError:
-        tmp_logger.error("Failed due to invalid task_id")
-        return generate_response(False, message=MESSAGE_TASK_ID)
 
     # check offset
     try:
-        positive_hour_offset = int(positive_hour_offset)
-        new_modification_time = datetime.datetime.now() + datetime.timedelta(hours=positive_hour_offset)
+        new_modification_time = datetime.datetime.now() + datetime.timedelta(hours=hour_offset)
     except ValueError:
-        tmp_logger.error("Failed due to invalid positive_hour_offset")
-        return generate_response(False, message=f"failed to convert {positive_hour_offset} to time")
+        tmp_logger.error("Failed due to invalid hour_offset")
+        return generate_response(False, message=f"failed to convert {hour_offset} to time")
 
     n_tasks_changed = global_task_buffer.changeTaskAttributePanda(task_id, "modificationTime", new_modification_time)
     if n_tasks_changed is None:  # method excepted
