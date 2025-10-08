@@ -1036,7 +1036,7 @@ def change_priority(req: PandaRequest, task_id: int, priority: int):
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, value: str | int) -> Dict[str, Any]:
+def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, value: str) -> Dict[str, Any]:
     """
     Change the split rule
 
