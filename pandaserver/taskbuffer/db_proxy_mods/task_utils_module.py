@@ -702,7 +702,7 @@ class TaskUtilsModule(BaseModule):
 
                     # --- core power by host (CPU model) ---
                     atlas_site = site_mapper.getSite(computingSite).pandasite
-                    benchmarks = self.get_cpu_benchmarks_by_host(modificationhost) or []
+                    benchmarks = self.get_cpu_benchmarks_by_host(atlas_site, modificationhost) or []
 
                     vals = [v for _, v in benchmarks]
                     benchmark_specific = next((v for s, v in benchmarks if s == atlas_site), 0)

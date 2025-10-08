@@ -1799,7 +1799,7 @@ class WorkerModule(BaseModule):
         tmp_log.debug("done")
         return worker_stats_dict
 
-    def get_cpu_benchmarks_by_host(self, host_name: str) -> list[tuple[str, float]]:
+    def get_cpu_benchmarks_by_host(self, site: str, host_name: str) -> list[tuple[str, float]]:
         comment = " /* DBProxy.get_cpu_benchmarks_by_host */"
         tmp_log = self.create_tagged_logger(comment, f"host_name={host_name}")
         tmp_log.debug("Start")
@@ -1808,13 +1808,14 @@ class WorkerModule(BaseModule):
 
         try:
             sql = (
-                "SELECT cb.site, score_per_core FROM atlas_panda.worker_node wn, atlas_panda.cpu_benchmarks cb "
-                "WHERE wn.host_name = :host_name "
+                "SELECT distinct cb.site, score_per_core FROM atlas_panda.worker_node wn, atlas_panda.cpu_benchmarks cb "
+                "WHERE wn.site = :site"
+                "AND wn.host_name = :host_name "
                 "AND cb.cpu_type_normalized = wn.cpu_model_normalized "
                 "AND wn.threads_per_core = cb.smt_enabled + 1"
             )
 
-            var_map = {"host_name": host_name_clean}
+            var_map = {"site": site, "host_name": host_name_clean}
 
             self.cur.execute(sql + comment, var_map)
             results = self.cur.fetchall()
