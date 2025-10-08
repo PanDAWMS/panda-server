@@ -41,6 +41,9 @@ class WFStepStatus(object):
     """
 
     registered = "registered"
+    checking = "checking"
+    checked_true = "checked_true"
+    checked_false = "checked_false"
     pending = "pending"
     ready = "ready"
     submitted = "submitted"
@@ -65,6 +68,9 @@ class WFDataStatus(object):
     done_skipped = "done_skipped"
     cancelled = "cancelled"
     retired = "retired"
+
+    good_input_statuses = (generating_ready, done_generated, done_skipped)
+    good_output_statuses = (done_generated, done_skipped)
 
 
 # ==== Types ===================================================
