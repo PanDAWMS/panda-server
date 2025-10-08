@@ -38,6 +38,8 @@ class TokenCache:
             self.target_path = target_path
         else:
             self.target_path = "/tmp/proxies"
+        if not os.path.exists(self.target_path):
+            os.makedirs(self.target_path)
         if file_prefix:
             self.file_prefix = file_prefix
         else:
