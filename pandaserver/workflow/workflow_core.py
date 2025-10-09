@@ -521,7 +521,9 @@ class WorkflowInterface(object):
         # Process
         try:
             # Get steps in registered status
-            step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_filter_list=[WFStepStatus.registered])
+            step_specs = self.tbif.get_steps_of_workflow(
+                workflow_id=workflow_spec.workflow_id, status_filter_list=[WFStepStatus.registered, WFStepStatus.pending]
+            )
             if not step_specs:
                 tmp_log.warning(f"No steps in {WFStepStatus.registered} status; skipped")
                 return
@@ -534,8 +536,8 @@ class WorkflowInterface(object):
                     if locked_step_spec is None:
                         tmp_log.warning(f"Failed to acquire lock for step_id={step_spec.step_id}; skipped")
                         continue
-                    if locked_step_spec.status != WFStepStatus.registered:
-                        tmp_log.warning(f"Step status changed unexpectely from {WFStepStatus.registered} to {locked_step_spec.status}; skipped")
+                    if locked_step_spec.status not in [WFStepStatus.registered, WFStepStatus.pending]:
+                        tmp_log.warning(f"Step status changed unexpectely to {locked_step_spec.status}; skipped")
                         continue
                     step_spec = locked_step_spec
                     # Process the step

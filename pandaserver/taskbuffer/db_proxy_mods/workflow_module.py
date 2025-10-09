@@ -211,7 +211,7 @@ class WorkflowModule(BaseModule):
                 "AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time<:min_lock_time)"
             )
             var_map = {
-                ":locked_by": self.full_pid,
+                ":locked_by": locked_by,
                 ":lock_time": now_time,
                 ":workflow_id": workflow_id,
                 ":min_lock_time": now_time - timedelta(seconds=lock_expiration_sec),
@@ -295,7 +295,7 @@ class WorkflowModule(BaseModule):
                 "AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time<:min_lock_time)"
             )
             var_map = {
-                ":locked_by": self.full_pid,
+                ":locked_by": locked_by,
                 ":lock_time": now_time,
                 ":step_id": step_id,
                 ":min_lock_time": now_time - timedelta(seconds=lock_expiration_sec),
@@ -379,7 +379,7 @@ class WorkflowModule(BaseModule):
                 "AND (locked_by IS NULL OR locked_by=:locked_by OR lock_time<:min_lock_time)"
             )
             var_map = {
-                ":locked_by": self.full_pid,
+                ":locked_by": locked_by,
                 ":lock_time": now_time,
                 ":data_id": data_id,
                 ":min_lock_time": now_time - timedelta(seconds=lock_expiration_sec),

@@ -17,7 +17,7 @@ prodsourcelabel = "user"
 username = "testuser"
 workflow_name = "test_workflow_bg_comb_00"
 
-WFID = 1  # workflow ID to be used in this test
+WFID = sys.argv[1]  # workflow ID to be used in this test
 
 # workflow definition json
 # wfd_json = json.dumps(
@@ -356,14 +356,14 @@ wfif = WorkflowInterface(taskBuffer)
 
 
 # Process the registered workflow
-wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
-print("Processing registered workflow...")
-wfif.process_workflow_registered(wf_spec)
+# wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
+# print("Processing registered workflow...")
+# wfif.process_workflow_registered(wf_spec)
 
-wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
-print("Processing parsed workflow...")
-wfif.process_workflow_parsed(wf_spec)
+# wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
+# print("Processing parsed workflow...")
+# wfif.process_workflow_parsed(wf_spec)
 
-wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
-print("Processing starting workflow...")
-wfif.process_workflow_starting(wf_spec)
+# wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
+# print("Processing starting workflow...")
+# wfif.process_workflow_starting(wf_spec)
