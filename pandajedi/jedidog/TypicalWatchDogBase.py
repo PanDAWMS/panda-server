@@ -3,6 +3,7 @@ import socket
 
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore import Interaction
+from pandaserver.proxycache.token_cache import TokenCache
 from pandaserver.srvcore import CoreUtils
 
 from .WatchDogBase import WatchDogBase
@@ -99,6 +100,14 @@ class TypicalWatchDogBase(WatchDogBase):
             tmpLog.error("failed to rescue unlocked tasks")
         else:
             tmpLog.info(f"rescue unlocked {tmpRet} tasks")
+        # cache tokens
+        got_lock = self.get_process_lock("TypicalWatchDogBase.cache_tokens", timeLimit=5)
+        if not got_lock:
+            tmpLog.debug("locked by another watchdog process. Skipped to cache tokens")
+        else:
+            tmpLog.info(f"cache tokens")
+            cacher = TokenCache()
+            cacher.run()
 
     # action to set scout job data w/o scouts
     def doActionToSetScoutJobData(self, gTmpLog):
