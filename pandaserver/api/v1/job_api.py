@@ -234,23 +234,23 @@ def kill(req, job_ids: List[int], code: int = None, use_email_as_id: bool = Fals
         req(PandaRequest): internally generated request object containing the env variables
         job_ids (list): List of PanDA job IDs
         code (int, optional): The kill code. Defaults to None.
-        ```
-        code
-        2: expire
-        3: aborted
-        4: expire in waiting
-        7: retry by server
-        8: rebrokerage
-        9: force kill
-        10: fast rebrokerage in overloaded PQ
-        50: kill by JEDI
-        51: reassigned by JEDI
-        52: force kill by JEDI
-        55: killed since task is (almost) done
-        60: workload was terminated by the pilot without actual work
-        91: kill user jobs with prod role
-        99: force kill user jobs with prod role
-        ```
+            ```
+            code
+            2: expire
+            3: aborted
+            4: expire in waiting
+            7: retry by server
+            8: rebrokerage
+            9: force kill
+            10: fast rebrokerage in overloaded PQ
+            50: kill by JEDI
+            51: reassigned by JEDI
+            52: force kill by JEDI
+            55: killed since task is (almost) done
+            60: workload was terminated by the pilot without actual work
+            91: kill user jobs with prod role
+            99: force kill user jobs with prod role
+            ```
         use_email_as_id (bool, optional): Use the email as ID. Defaults to False.
         kill_options (List, optional): Defaults to []. Possible options are: `keepUnmerged`, `jobSubStatus=xyz`
 

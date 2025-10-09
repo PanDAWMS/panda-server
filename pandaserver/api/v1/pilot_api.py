@@ -288,9 +288,9 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. The data is a list of job status dictionaries, in the format
-        ```
-        [{"job_id": <job_id_requested>, "status": "not found", "attempt_number": 0}), {"job_id": <job_id>, "status": <status>, "attempt_number": <attempt_nr>}]
-        ```
+            ```
+            [{"job_id": <job_id_requested>, "status": "not found", "attempt_number": 0}), {"job_id": <job_id>, "status": <status>, "attempt_number": <attempt_nr>}]
+            ```
     """
 
     tmp_logger = LogWrapper(_logger, f"get_job_status {job_ids}")

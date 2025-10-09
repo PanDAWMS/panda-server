@@ -38,6 +38,8 @@ class TokenCache:
             self.target_path = target_path
         else:
             self.target_path = "/tmp/proxies"
+        if not os.path.exists(self.target_path):
+            os.makedirs(self.target_path)
         if file_prefix:
             self.file_prefix = file_prefix
         else:
@@ -77,14 +79,16 @@ class TokenCache:
                     token_cache_config = json.load(f)
                 for client_name, client_config in token_cache_config.items():
                     tmp_log.debug(f"client_name={client_name}")
-                    # target path
-                    target_path = self.construct_target_path(client_name)
+                    # token file path
+                    token_file_path = client_config.get("token_file_path")
+                    if not token_file_path:
+                        token_file_path = self.construct_target_path(client_name)
                     # check if fresh
                     is_fresh = False
-                    if os.path.exists(target_path):
-                        mod_time = datetime.datetime.fromtimestamp(os.stat(target_path).st_mtime, datetime.timezone.utc)
+                    if os.path.exists(token_file_path):
+                        mod_time = datetime.datetime.fromtimestamp(os.stat(token_file_path).st_mtime, datetime.timezone.utc)
                         if datetime.datetime.now(datetime.timezone.utc) - mod_time < datetime.timedelta(minutes=self.refresh_interval):
-                            tmp_log.debug(f"skip since {target_path} is fresh")
+                            tmp_log.debug(f"skip since {token_file_path} is fresh")
                             is_fresh = True
                     # get access token
                     if not is_fresh:
@@ -92,14 +96,14 @@ class TokenCache:
                             client_config["endpoint"], client_config["client_id"], client_config["secret"], client_config.get("scope")
                         )
                         if status_code:
-                            with open(target_path, "w") as f:
+                            with open(token_file_path, "w") as f:
                                 f.write(output)
-                            tmp_log.debug(f"dump access token to {target_path}")
+                            tmp_log.debug(f"dump access token to {token_file_path}")
                         else:
                             tmp_log.error(output)
                             # touch file to avoid immediate reattempt
-                            pathlib.Path(target_path).touch()
-                            tmp_log.debug(f"touch {target_path} to avoid immediate reattempt")
+                            pathlib.Path(token_file_path).touch()
+                            tmp_log.debug(f"touch {token_file_path} to avoid immediate reattempt")
                     # register token keys
                     if client_config.get("use_token_key") is True and self.task_buffer is not None:
                         token_key_lifetime = client_config.get("token_key_lifetime", 96)

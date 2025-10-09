@@ -167,8 +167,7 @@ def release(req: PandaRequest, task_id: int) -> Dict[str, Any]:
     """
     Task release
 
-    Release a given task. This triggers the avalanche for tasks in scouting state or dynamically reconfigures the task to skip over the scouting state.
-    Requires a secure connection and production role.
+    Release a given task by skipping iDDS for staging. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -206,7 +205,7 @@ def release(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
 # reassign task to site/cloud
 @request_validation(_logger, secure=True, request_method="POST")
-def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = None, nucleus: str = None, soft: bool = None, mode: str = None):
+def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = None, nucleus: str = None, mode: str = None):
     """
     Task reassign
 
@@ -222,8 +221,7 @@ def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = Non
         site(str, optional): site name
         cloud(str, optional): cloud name
         nucleus(str, optional): nucleus name
-        soft(bool, optional): soft reassign
-        mode(str, optional): soft/nokill reassign
+        mode(str, optional): `kill` (kills all jobs, default), `soft` (kills queued jobs) or `nokill` (doesn't kill jobs)
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
@@ -253,7 +251,7 @@ def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = Non
     # set additional modes
     if mode == "nokill":
         comment += ":nokill reassign"
-    elif mode == "soft" or soft is True:
+    elif mode == "soft":
         comment += ":soft reassign"
 
     ret = global_task_buffer.sendCommandTaskPanda(
@@ -373,26 +371,26 @@ def kill_unfinished_jobs(req: PandaRequest, task_id: int, code: int = None, use_
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        task_id (int): JEDI task ID
-        code (int, optional): The kill code. Defaults to None.
-        ```
-        code
-        2: expire
-        3: aborted
-        4: expire in waiting
-        7: retry by server
-        8: rebrokerage
-        9: force kill
-        10: fast rebrokerage in overloaded PQ
-        50: kill by JEDI
-        51: reassigned by JEDI
-        52: force kill by JEDI
-        55: killed since task is (almost) done
-        60: workload was terminated by the pilot without actual work
-        91: kill user jobs with prod role
-        99: force kill user jobs with prod role
-        ```
-        use_email_as_id (bool, optional): Use the email as ID. Defaults to False.
+        task_id(int): JEDI task ID
+        code(int, optional): The kill code. Defaults to None.
+            ```
+            code
+            2: expire
+            3: aborted
+            4: expire in waiting
+            7: retry by server
+            8: rebrokerage
+            9: force kill
+            10: fast rebrokerage in overloaded PQ
+            50: kill by JEDI
+            51: reassigned by JEDI
+            52: force kill by JEDI
+            55: killed since task is (almost) done
+            60: workload was terminated by the pilot without actual work
+            91: kill user jobs with prod role
+            99: force kill user jobs with prod role
+            ```
+        use_email_as_id(bool, optional): Use the email as ID. Defaults to False.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. The data field contains a list of bools indicating the success of the kill operations.
@@ -522,7 +520,7 @@ def avalanche(req: PandaRequest, task_id: int) -> Dict[str, Any]:
     """
     Task avalanche
 
-    Avalanche a given task. Requires a secure connection and production role.
+    Avalanche a given task. This triggers the avalanche for tasks in scouting state or dynamically reconfigures the task to skip over the scouting state. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -651,7 +649,7 @@ def enable_jumbo_jobs(req: PandaRequest, task_id: int, jumbo_jobs_total: int, ju
 
     API details:
         HTTP Method: POST
-        Path: /v1/task/reassign_global_share
+        Path: /v1/task/enable_jumbo_jobs
 
     Args:
         req(PandaRequest): internally generated request object
@@ -944,11 +942,11 @@ def change_attribute(req: PandaRequest, task_id: int, attribute_name: str, value
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def change_modification_time(req: PandaRequest, task_id: int, positive_hour_offset: int) -> Dict[str, Any]:
+def change_modification_time(req: PandaRequest, task_id: int, hour_offset: int) -> Dict[str, Any]:
     """
     Change task modification time
 
-    Change the modification time for a task to `now() + positive_hour_offset`. Requires a secure connection and production role.
+    Change the modification time for a task to `now() + hour_offset`. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -957,28 +955,20 @@ def change_modification_time(req: PandaRequest, task_id: int, positive_hour_offs
     Args:
         req(PandaRequest): internally generated request object
         task_id(int): JEDI task ID
-        positive_hour_offset(int): number of hours to add to the current time
+        hour_offset(int): number of hours to add to the current time. Use a negative value (e.g. -12) to trigger task brokerage.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
-    tmp_logger = LogWrapper(_logger, f"change_modification_time < task_id={task_id} positive_hour_offset={positive_hour_offset} >")
+    tmp_logger = LogWrapper(_logger, f"change_modification_time < task_id={task_id} hour_offset={hour_offset} >")
     tmp_logger.debug("Start")
-
-    # check task_id
-    try:
-        task_id = int(task_id)
-    except ValueError:
-        tmp_logger.error("Failed due to invalid task_id")
-        return generate_response(False, message=MESSAGE_TASK_ID)
 
     # check offset
     try:
-        positive_hour_offset = int(positive_hour_offset)
-        new_modification_time = datetime.datetime.now() + datetime.timedelta(hours=positive_hour_offset)
+        new_modification_time = datetime.datetime.now() + datetime.timedelta(hours=hour_offset)
     except ValueError:
-        tmp_logger.error("Failed due to invalid positive_hour_offset")
-        return generate_response(False, message=f"failed to convert {positive_hour_offset} to time")
+        tmp_logger.error("Failed due to invalid hour_offset")
+        return generate_response(False, message=f"failed to convert {hour_offset} to time")
 
     n_tasks_changed = global_task_buffer.changeTaskAttributePanda(task_id, "modificationTime", new_modification_time)
     if n_tasks_changed is None:  # method excepted
@@ -1046,11 +1036,11 @@ def change_priority(req: PandaRequest, task_id: int, priority: int):
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, value: int) -> Dict[str, Any]:
+def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, value: str) -> Dict[str, Any]:
     """
     Change the split rule
 
-    Change the split rule for a task. Requires a secure connection and production role.
+    Change the split rule for a task by modifying or adding an `attribute_name=value pair`. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -1059,8 +1049,8 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
     Args:
         req(PandaRequest): internally generated request object
         task_id(int): JEDI task ID
-        attribute_name(str): split rule attribute to change
-        value(int): value to set to the attribute
+        attribute_name(str): split rule attribute to change. The allowed attributes are one of: `"AI", "TW", "EC", "ES", "MF", "NG", "NI", "NF", "NJ", "AV", "IL", "LI", "LC", "CC", "OT", "UZ"`
+        value(str): value to set to the attribute
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
