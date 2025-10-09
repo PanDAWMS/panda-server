@@ -113,12 +113,14 @@ class WorkflowModule(BaseModule):
             tmp_log.warning("no data found; skipped")
             return None
 
-    def get_steps_of_workflow(self, workflow_id: int) -> list[WFStepSpec]:
+    def get_steps_of_workflow(self, workflow_id: int, status_filter_list: list | None = None, status_exclusion_list: list | None = None) -> list[WFStepSpec]:
         """
         Retrieve all workflow steps for a given workflow ID
 
         Args:
             workflow_id (int): ID of the workflow to retrieve steps for
+            status_filter_list (list | None): List of statuses to filter the steps by (optional)
+            status_exclusion_list (list | None): List of statuses to exclude the steps by (optional)
 
         Returns:
             list[WFStepSpec]: List of workflow step specifications
@@ -127,6 +129,14 @@ class WorkflowModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_id}")
         sql = f"SELECT {WFStepSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_steps " f"WHERE workflow_id=:workflow_id "
         var_map = {":workflow_id": workflow_id}
+        if status_filter_list:
+            status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
+            sql += f"AND status IN ({status_var_names_str}) "
+            var_map.update(status_var_map)
+        if status_exclusion_list:
+            antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
+            sql += f"AND status NOT IN ({antistatus_var_names_str}) "
+            var_map.update(antistatus_var_map)
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
         if res_list is not None:
@@ -140,12 +150,14 @@ class WorkflowModule(BaseModule):
             tmp_log.warning("no steps found; skipped")
             return []
 
-    def get_data_of_workflow(self, workflow_id: int) -> list[WFDataSpec]:
+    def get_data_of_workflow(self, workflow_id: int, status_filter_list: list | None = None, status_exclusion_list: list | None = None) -> list[WFDataSpec]:
         """
         Retrieve all workflow data for a given workflow ID
 
         Args:
             workflow_id (int): ID of the workflow to retrieve data for
+            status_filter_list (list | None): List of statuses to filter the data by (optional)
+            status_exclusion_list (list | None): List of statuses to exclude the data by (optional)
 
         Returns:
             list[WFDataSpec]: List of workflow data specifications
@@ -154,6 +166,14 @@ class WorkflowModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_id}")
         sql = f"SELECT {WFDataSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_data " f"WHERE workflow_id=:workflow_id "
         var_map = {":workflow_id": workflow_id}
+        if status_filter_list:
+            status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
+            sql += f"AND status IN ({status_var_names_str}) "
+            var_map.update(status_var_map)
+        if status_exclusion_list:
+            antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
+            sql += f"AND status NOT IN ({antistatus_var_names_str}) "
+            var_map.update(antistatus_var_map)
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
         if res_list is not None:

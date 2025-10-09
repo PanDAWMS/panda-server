@@ -2737,7 +2737,7 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.resubmit_data_carousel_request_JEDI(request_id, exclude_prev_dst)
 
-    # ==== workflow fucntions ==================================
+    # ==== Workflow fucntions ==================================
 
     def get_workflow(self, workflow_id):
         with self.proxyPool.get() as proxy:
@@ -2751,13 +2751,13 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.get_workflow_data(data_id)
 
-    def get_steps_of_workflow(self, workflow_id):
+    def get_steps_of_workflow(self, workflow_id, status_filter_list=None, status_exclusion_list=None):
         with self.proxyPool.get() as proxy:
-            return proxy.get_steps_of_workflow(workflow_id)
+            return proxy.get_steps_of_workflow(workflow_id, status_filter_list, status_exclusion_list)
 
-    def get_data_of_workflow(self, workflow_id):
+    def get_data_of_workflow(self, workflow_id, status_filter_list=None, status_exclusion_list=None):
         with self.proxyPool.get() as proxy:
-            return proxy.get_data_of_workflow(workflow_id)
+            return proxy.get_data_of_workflow(workflow_id, status_filter_list, status_exclusion_list)
 
     def lock_workflow(self, workflow_id, locked_by, lock_expiration_sec=120):
         with self.proxyPool.get() as proxy:

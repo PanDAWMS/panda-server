@@ -521,12 +521,12 @@ class WorkflowInterface(object):
         # Process
         try:
             # Get steps in registered status
-            step_specs = self.tbif.get_workflow_steps(workflow_id=workflow_spec.workflow_id, status_list=[WFStepStatus.registered])
+            step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_filter_list=[WFStepStatus.registered])
             if not step_specs:
                 tmp_log.warning(f"No steps in {WFStepStatus.registered} status; skipped")
                 return
             # Get data spec map of the workflow
-            data_specs = self.tbif.get_workflow_data(workflow_id=workflow_spec.workflow_id)
+            data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id)
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Process each step
             for step_spec in step_specs:
