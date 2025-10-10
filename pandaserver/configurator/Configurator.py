@@ -108,14 +108,21 @@ class Configurator(threading.Thread):
         self.log_stream.debug("Getting ddmblacklist read dump...")
         try:
             if self.CRIC_URL_DDMBLACKLIST_READ:
-                self.blacklisted_endpoints_read = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST_READ))
-                if not self.blacklisted_endpoints_read:
-                    self.log_stream.error("The blacklisted endpoint for read dump was not retrieved correctly")
-                    return False
+                dump = aux.get_dump(self.CRIC_URL_DDMBLACKLIST_READ)
+                # Treat empty ({} → []) as a valid, empty result
+                self.blacklisted_endpoints_read = list(dump) if dump is not None else []
+                self.log_stream.debug(
+                    "ddmblacklist(read) retrieved %d endpoints", len(self.blacklisted_endpoints_read)
+                )
             else:
                 self.blacklisted_endpoints_read = []
-        except TypeError:
+        except Exception as e:
+            # Only on actual failure do we fall back to empty and continue
+            self.log_stream.warning(
+                "Failed to retrieve ddmblacklist(read); defaulting to empty. Error: %s", e
+            )
             self.blacklisted_endpoints_read = []
+
         self.log_stream.debug(f"Blacklisted endpoints read {self.blacklisted_endpoints_read}")
         self.log_stream.debug("Done")
 
