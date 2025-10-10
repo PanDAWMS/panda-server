@@ -54,9 +54,9 @@ def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
     text_representation = parameter_section + "\n" + environment_section + "\n"
 
     # Combine data in dictionary form
-    # combined_data = {"parameters": parameter_dictionary, "environment": environment_dictionary}
+    combined_data = {"parameters": parameter_dictionary, "environment": environment_dictionary}
     tmp_logger.debug("Done")
-    return generate_response(True, text_representation)
+    return generate_response(True, text_representation, combined_data)
 
 
 @request_validation(_logger, secure=True, request_method="GET")

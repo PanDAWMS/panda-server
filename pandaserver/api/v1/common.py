@@ -234,6 +234,7 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                 if request_method == "GET":
                     try:
                         tmp_logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
+                        tmp_logger.debug(type(param_value))
                         if param_value == "None" and default_value is None:
                             param_value = None
                         # Don't cast if the type is already a string
@@ -262,12 +263,13 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                         else:
                             # Normalize type, e.g. typing.Dict -> dict
                             expected_type = normalize_type(expected_type)
-                            param_value = ast.literal_eval(param_value)
+                            if not isinstance(param_value, expected_type):
+                                param_value = ast.literal_eval(param_value)
                             if not isinstance(param_value, expected_type):
                                 raise TypeError(f"Expected {expected_type}, received {type(param_value)}")
                         bound_args.arguments[param_name] = param_value  # Ensure the cast value is used
                     except (ValueError, TypeError):
-                        message = f"Type error: '{param_name}' with value '{param_value}' could not be casted to type {expected_type.__name__}."
+                        message = f"Type error: '{param_name}' with value '{param_value}' could not be casted to type {expected_type.__name__} from {type(param_value).__name__}."
                         tmp_logger.error(message)
                         return generate_response(False, message=message)
 
