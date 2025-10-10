@@ -187,9 +187,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
         # get gshare usage
         ret_val, gshare_usage_dict = AtlasBrokerUtils.getGShareUsage(tbIF=self.taskBufferIF, gshare=taskSpec.gshare)
         if not ret_val:
-            tmpLog.error(f"failed to get gshare usage of {taskSpec.gshare}")
+            tmpLog.warning(f"failed to get gshare usage of {taskSpec.gshare}")
         elif not gshare_usage_dict:
-            tmpLog.error(f"got empty gshare usage of {taskSpec.gshare}")
+            tmpLog.warning(f"got empty gshare usage of {taskSpec.gshare}")
 
         # get L1 share usage
         l1_share_usage_dict = None
@@ -197,31 +197,31 @@ class AtlasAnalJobBroker(JobBrokerBase):
             l1_share_name = "L1 User Analysis"
             ret_val, l1_share_usage_dict = AtlasBrokerUtils.getGShareUsage(tbIF=self.taskBufferIF, gshare=l1_share_name)
             if not ret_val:
-                tmpLog.error(f"failed to get gshare usage of {l1_share_name}")
+                tmpLog.warning(f"failed to get gshare usage of {l1_share_name}")
             elif not l1_share_usage_dict:
-                tmpLog.error(f"got empty gshare usage of {l1_share_name}")
+                tmpLog.warning(f"got empty gshare usage of {l1_share_name}")
 
         # get analy sites classification
         ret_val, analy_sites_class_dict = AtlasBrokerUtils.getAnalySitesClass(tbIF=self.taskBufferIF)
         if not ret_val:
-            tmpLog.error("failed to get analy sites classification")
+            tmpLog.warning("failed to get analy sites classification")
         elif not analy_sites_class_dict:
             analy_sites_class_dict = {}
-            tmpLog.error("got empty analy sites classification")
+            tmpLog.warning("got empty analy sites classification")
 
         # get user usage
         ret_val, user_eval_dict = AtlasBrokerUtils.getUserEval(tbIF=self.taskBufferIF, user=taskSpec.origUserName)
         if not ret_val:
-            tmpLog.error(f"failed to get user evaluation of {taskSpec.origUserName}")
+            tmpLog.warning(f"failed to get user evaluation of {taskSpec.origUserName}")
         elif not user_eval_dict:
-            tmpLog.error(f"got empty user evaluation of {taskSpec.origUserName}")
+            tmpLog.warning(f"got empty user evaluation of {taskSpec.origUserName}")
 
         # task evaluation
         ret_val, task_eval_dict = AtlasBrokerUtils.getUserTaskEval(tbIF=self.taskBufferIF, taskID=taskSpec.jediTaskID)
         if not ret_val:
-            tmpLog.error("failed to get user task evaluation")
+            tmpLog.warning("failed to get user task evaluation")
         elif not task_eval_dict:
-            tmpLog.error("got empty user task evaluation")
+            tmpLog.warning("got empty user task evaluation")
 
         # parameters about User Analysis threshold
         threshold_A = self.taskBufferIF.getConfigValue("analy_eval", "USER_USAGE_THRESHOLD_A", "pandaserver", taskSpec.vo)

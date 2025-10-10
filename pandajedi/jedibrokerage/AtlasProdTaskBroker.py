@@ -258,16 +258,15 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                             else:
                                 deepScan = False
                             # get nuclei where data is available
-                            tmpSt, tmpRet = AtlasBrokerUtils.getNucleiWithData(
+                            tmp_status, tmp_data_map, remote_source_available = AtlasBrokerUtils.getNucleiWithData(
                                 siteMapper, self.ddmIF, datasetSpec.datasetName, list(nucleusList.keys()), deepScan
                             )
-                            if tmpSt != Interaction.SC_SUCCEEDED:
-                                self.post_process_for_error(taskSpec, tmpLog, f"failed to get nuclei where data is available, since {tmpRet}", False)
+                            if tmp_status != Interaction.SC_SUCCEEDED:
+                                self.post_process_for_error(taskSpec, tmpLog, f"failed to get nuclei where data is available, since {tmp_data_map}", False)
                                 to_skip = True
                                 break
                             # sum
-                            remote_source_available = False
-                            for tmpNucleus, tmpVals in tmpRet.items():
+                            for tmpNucleus, tmpVals in tmp_data_map.items():
                                 if tmpNucleus not in dataset_availability_info:
                                     dataset_availability_info[tmpNucleus] = tmpVals
                                 else:
@@ -276,7 +275,6 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                                     )
                                 # set remote_source_available to True if any is readable over WAN
                                 if tmpVals.get("can_be_remote_source"):
-                                    remote_source_available = True
                                     dataset_availability_info[tmpNucleus]["can_be_remote_source"] = True
                             if not remote_source_available:
                                 self.post_process_for_error(
@@ -410,9 +408,9 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                         tmpSiteList = list(set(tmpSiteList))
                         tmpLog.debug("===== start for job check")
                         jobBroker = AtlasProdJobBroker(self.ddmIF, self.taskBufferIF)
-                        tmpSt, tmpRet = jobBroker.doBrokerage(taskSpec, taskSpec.cloud, inputChunk, None, True, tmpSiteList, tmpLog)
+                        tmp_status, tmp_data_map = jobBroker.doBrokerage(taskSpec, taskSpec.cloud, inputChunk, None, True, tmpSiteList, tmpLog)
                         tmpLog.debug("===== done for job check")
-                        if tmpSt != Interaction.SC_SUCCEEDED:
+                        if tmp_status != Interaction.SC_SUCCEEDED:
                             tmpLog.error("no sites can run jobs")
                             taskSpec.resetChangedList()
                             taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
@@ -421,7 +419,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                             )
                             continue
                         okNuclei = set()
-                        for tmpSite in tmpRet:
+                        for tmpSite in tmp_data_map:
                             siteSpec = siteMapper.getSite(tmpSite)
                             okNuclei.add(siteSpec.pandasite)
                         for tmpNucleus, tmpNucleusSpec in nucleusList.items():
@@ -606,9 +604,9 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                     tmpStat, tmpDatasetSpecs = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(taskSpec.jediTaskID, ["output", "log"])
                     # get destinations
                     retMap = {taskSpec.jediTaskID: AtlasBrokerUtils.getDictToSetNucleus(nucleusSpec, tmpDatasetSpecs)}
-                    tmpRet = self.taskBufferIF.setCloudToTasks_JEDI(retMap)
-                    tmpLog.info(f"  set nucleus={candidateNucleus} with {tmpRet} criteria=+set")
-                    if tmpRet:
+                    tmp_ret = self.taskBufferIF.setCloudToTasks_JEDI(retMap)
+                    tmpLog.info(f"  set nucleus={candidateNucleus} with {tmp_ret} criteria=+set")
+                    if tmp_ret:
                         tmpMsg = "set task_status=ready"
                         tmpLog.sendMsg(tmpMsg, self.msgType)
                     # update RW table
