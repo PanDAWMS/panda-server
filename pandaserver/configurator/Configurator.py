@@ -112,14 +112,14 @@ class Configurator(threading.Thread):
                 # Treat empty ({} → []) as a valid, empty result
                 self.blacklisted_endpoints_read = list(dump) if dump is not None else []
                 self.log_stream.debug(
-                    "ddmblacklist(read) retrieved %d endpoints", len(self.blacklisted_endpoints_read)
+                    f"ddmblacklist(read) retrieved {len(self.blacklisted_endpoints_read)} endpoints"
                 )
             else:
                 self.blacklisted_endpoints_read = []
         except Exception as e:
             # Only on actual failure do we fall back to empty and continue
             self.log_stream.warning(
-                "Failed to retrieve ddmblacklist(read); defaulting to empty. Error: %s", e
+                f"Failed to retrieve ddmblacklist(read); defaulting to empty. Error: {e}"
             )
             self.blacklisted_endpoints_read = []
 
