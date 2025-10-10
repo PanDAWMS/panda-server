@@ -143,8 +143,10 @@ class Configurator(threading.Thread):
             if self.CRIC_URL_DDMBLACKLIST_FULL:
                 dump = aux.get_dump(self.CRIC_URL_DDMBLACKLIST_FULL)
                 if dump is None:
-                    self.log_stream.error("The detailed DDM exclusion dictionary could not be retrieved (None)")
-                    return False
+                    self.log_stream.warning("ddmblacklist(full) returned None; defaulting to empty")
+                    self.ddm_detailed_exclusions = {}
+                else:
+                    self.ddm_detailed_exclusions = dump if isinstance(dump, dict) else dict(dump or {})
                 # Expecting a dict here; {} is valid/empty
                 if isinstance(dump, dict):
                     self.ddm_detailed_exclusions = dump
