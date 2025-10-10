@@ -6,6 +6,7 @@ import os
 
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
+from werkzeug.datastructures import accept
 
 # PanDA server configuration
 base_url = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/panda")
@@ -68,9 +69,13 @@ class HttpClient:
         modified_url = replace_hostname_in_url_randomly(url)
         return modified_url, use_https
 
-    def _prepare_headers(self, encoding=None):
+    def _prepare_headers(self, accept_json=True, content_type_json=True, encoding=None):
         """Prepare headers based on authentication and JSON settings."""
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        headers = {}
+        if accept_json:
+            headers["Accept"] = "application/json"
+        if content_type_json:
+            headers["Content-Type"] = "application/json"
 
         if encoding:
             headers["Content-Encoding"] = encoding
@@ -123,7 +128,7 @@ class HttpClient:
 
     def post_files(self, url, data, encoding=None):
         url, use_https = self._prepare_url(url)
-        headers = self._prepare_headers(encoding)
+        headers = self._prepare_headers(content_type_json=False, encoding=encoding)
         cert, verify = self._prepare_ssl(use_https)
 
         files = {}
