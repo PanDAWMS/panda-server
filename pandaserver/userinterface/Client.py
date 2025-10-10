@@ -947,12 +947,12 @@ def uploadLog(log_string, log_file_name):
     gfh.write(log_string)
     gfh.close()
     # execute
-    url = f"{api_url_ssl_v1}/upload_jedi_log"
+    url = f"{api_url_ssl_v1}/file_server/upload_jedi_log"
 
     # sometimes the destination file name (=logFileName) comes as an integer (e.g. a JEDI task ID) and it needs to be converted to a string
     log_file_name = str(log_file_name)
     data = {"file": (log_file_name, fh.name)}
-    return_value = http_client.post_files(url, data)
+    return_value = http_client.post_files(url, data, encoding="gzip")
     os.unlink(fh.name)
     return return_value
 

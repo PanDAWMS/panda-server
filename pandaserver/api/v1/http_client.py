@@ -68,9 +68,12 @@ class HttpClient:
         modified_url = replace_hostname_in_url_randomly(url)
         return modified_url, use_https
 
-    def _prepare_headers(self):
+    def _prepare_headers(self, encoding=None):
         """Prepare headers based on authentication and JSON settings."""
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
+
+        if encoding:
+            headers["Content-Encoding"] = encoding
 
         if self.oidc:
             headers["Authorization"] = f"Bearer {self.id_token}"
@@ -118,9 +121,9 @@ class HttpClient:
         except requests.RequestException as e:
             return 255, str(e)
 
-    def post_files(self, url, data):
+    def post_files(self, url, data, encoding=None):
         url, use_https = self._prepare_url(url)
-        headers = self._prepare_headers()
+        headers = self._prepare_headers(encoding)
         cert, verify = self._prepare_ssl(use_https)
 
         files = {}
