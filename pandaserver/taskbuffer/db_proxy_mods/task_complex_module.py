@@ -288,6 +288,9 @@ class TaskComplexModule(BaseModule):
                         for tmpLFN, tmpStartEvent, tmpEndEvent in tmpSFU:
                             tmpID = f"{tmpLFN}.{tmpStartEvent}.{tmpEndEvent}"
                             usedFilesToSkip.add(tmpID)
+                            # add the file itself if the number of events was not specified in the old task
+                            if tmpStartEvent is None:
+                                usedFilesToSkip.add(tmpLFN)
                         # commit
                         if not self._commit():
                             raise RuntimeError("Commit error")
@@ -524,7 +527,11 @@ class TaskComplexModule(BaseModule):
                 for fileSpec in tmpFileSpecList:
                     # check if to skip
                     tmpID = f"{fileSpec.lfn}.{fileSpec.startEvent}.{fileSpec.endEvent}"
+                    # check file with event range when the number of events is identical between old and new tasks
                     if tmpID in usedFilesToSkip:
+                        continue
+                    # check the file when old task didn't specify the number of events
+                    if fileSpec.lfn in usedFilesToSkip:
                         continue
                     # append
                     uniqueFileKey = f"{fileSpec.lfn}.{fileSpec.startEvent}.{fileSpec.endEvent}.{fileSpec.boundaryID}"
