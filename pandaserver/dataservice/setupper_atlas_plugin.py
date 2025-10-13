@@ -517,7 +517,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     if (
                         (job.prodSourceLabel == "panda")
                         or panda_config.disable_file_aggregation
-                        or (job.prodSourceLabel in JobUtils.list_ptest_prod_sources and job.processingType in ["pathena", "prun", "gangarobot-rctest"])
+                        or (job.prodSourceLabel in JobUtils.list_ptest_prod_sources and job.processingType in ["pathena", "prun"])
+                        or job.processingType.startswith("gangarobot")
                     ):
                         # keep original name
                         name_list = [file.destinationDBlock]
