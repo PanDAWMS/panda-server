@@ -707,7 +707,9 @@ class TaskUtilsModule(BaseModule):
                         benchmarks = self.get_cpu_benchmarks_by_host(atlas_site, modificationhost) or []
 
                     vals = [v for _, v in benchmarks]
-                    benchmark_specific = next((v for s, v in benchmarks if s == atlas_site), 0)
+                    benchmark_specific = next(
+                        (v for s, v in benchmarks if s and atlas_site and (s.upper() in atlas_site.upper() or atlas_site.upper() in s.upper())), 0
+                    )
                     benchmark_average = mean(vals) if vals else 0
 
                     # --- core power by site (fallback) ---
