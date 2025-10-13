@@ -702,6 +702,7 @@ class TaskUtilsModule(BaseModule):
 
                     # --- core power by host (CPU model) ---
                     benchmarks = []
+                    atlas_site = "NO_SITE"
                     if site_mapper:
                         atlas_site = site_mapper.getSite(computingSite).pandasite
                         benchmarks = self.get_cpu_benchmarks_by_host(atlas_site, modificationhost) or []
