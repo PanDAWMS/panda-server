@@ -1808,8 +1808,8 @@ class WorkerModule(BaseModule):
 
         try:
             sql = (
-                "SELECT distinct cb.site, score_per_core FROM atlas_panda.worker_node wn, atlas_panda.cpu_benchmarks cb "
-                "WHERE wn.site = :site"
+                "SELECT cb.site, score_per_core FROM atlas_panda.worker_node wn, atlas_panda.cpu_benchmarks cb "
+                "WHERE wn.site = :site "
                 "AND wn.host_name = :host_name "
                 "AND cb.cpu_type_normalized = wn.cpu_model_normalized "
                 "AND wn.threads_per_core = cb.smt_enabled + 1"
