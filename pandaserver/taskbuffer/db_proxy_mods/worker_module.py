@@ -9,7 +9,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
-from pandaserver.srvcore.CoreUtils import clean_host_name, normalize_cpu_model
+from pandaserver.srvcore.CoreUtils import clean_host_name
 from pandaserver.taskbuffer import ErrorCode, JobUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
