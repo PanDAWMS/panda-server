@@ -88,48 +88,80 @@ class Configurator(threading.Thread):
             return False
         self.log_stream.debug("Done")
 
+        # --- WRITE ---
         self.log_stream.debug("Getting ddmblacklist dump...")
         try:
             if self.CRIC_URL_DDMBLACKLIST:
-                self.blacklisted_endpoints = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST))
-                if not self.blacklisted_endpoints:
-                    self.log_stream.error("The blacklisted endpoint dump was not retrieved correctly")
+                dump = aux.get_dump(self.CRIC_URL_DDMBLACKLIST)
+                if dump is None:
+                    # True failure (e.g., fetch/parse problem)
+                    self.log_stream.error("The blacklisted endpoint dump could not be retrieved (None)")
                     return False
+                # Treat {} as valid/empty
+                self.blacklisted_endpoints = list(dump) if isinstance(dump, (dict, list, tuple, set)) else list(
+                    dump or [])
+                self.blacklisted_endpoints_write = self.blacklisted_endpoints
+                self.log_stream.debug(f"ddmblacklist(write) retrieved {len(self.blacklisted_endpoints)} endpoints")
             else:
                 self.blacklisted_endpoints = []
-            self.blacklisted_endpoints_write = self.blacklisted_endpoints
-        except TypeError:
+                self.blacklisted_endpoints_write = []
+        except Exception as e:
+            self.log_stream.warning(f"Failed to retrieve ddmblacklist(write); defaulting to empty. Error: {e}")
             self.blacklisted_endpoints = []
             self.blacklisted_endpoints_write = []
+
         self.log_stream.debug(f"Blacklisted endpoints {self.blacklisted_endpoints}")
         self.log_stream.debug(f"Blacklisted endpoints write {self.blacklisted_endpoints_write}")
         self.log_stream.debug("Done")
 
+        # --- READ ---
         self.log_stream.debug("Getting ddmblacklist read dump...")
         try:
             if self.CRIC_URL_DDMBLACKLIST_READ:
-                self.blacklisted_endpoints_read = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST_READ))
-                if not self.blacklisted_endpoints_read:
-                    self.log_stream.error("The blacklisted endpoint for read dump was not retrieved correctly")
-                    return False
+                dump = aux.get_dump(self.CRIC_URL_DDMBLACKLIST_READ)
+                # Accept {} as empty; only treat None as failure
+                if dump is None:
+                    self.log_stream.warning("ddmblacklist(read) returned None; defaulting to empty")
+                    self.blacklisted_endpoints_read = []
+                else:
+                    self.blacklisted_endpoints_read = list(dump) if isinstance(dump,
+                                                                               (dict, list, tuple, set)) else list(
+                        dump or [])
+                self.log_stream.debug(f"ddmblacklist(read) retrieved {len(self.blacklisted_endpoints_read)} endpoints")
             else:
                 self.blacklisted_endpoints_read = []
-        except TypeError:
+        except Exception as e:
+            self.log_stream.warning(f"Failed to retrieve ddmblacklist(read); defaulting to empty. Error: {e}")
             self.blacklisted_endpoints_read = []
+
         self.log_stream.debug(f"Blacklisted endpoints read {self.blacklisted_endpoints_read}")
         self.log_stream.debug("Done")
 
+        # --- FULL / DETAILED ---
         self.log_stream.debug("Getting DDM detailed status...")
         try:
             if self.CRIC_URL_DDMBLACKLIST_FULL:
-                self.ddm_detailed_exclusions = aux.get_dump(self.CRIC_URL_DDMBLACKLIST_FULL)
-                if not self.ddm_detailed_exclusions:
-                    self.log_stream.error("The detailed DDM exclusion dictionary was not retrieved correctly")
-                    return False
+                dump = aux.get_dump(self.CRIC_URL_DDMBLACKLIST_FULL)
+                if dump is None:
+                    self.log_stream.warning("ddmblacklist(full) returned None; defaulting to empty")
+                    self.ddm_detailed_exclusions = {}
+                else:
+                    self.ddm_detailed_exclusions = dump if isinstance(dump, dict) else dict(dump or {})
+                # Expecting a dict here; {} is valid/empty
+                if isinstance(dump, dict):
+                    self.ddm_detailed_exclusions = dump
+                else:
+                    # Be tolerant but safe: coerce to dict if possible, else empty
+                    self.ddm_detailed_exclusions = dict(dump) if hasattr(dump, "items") else {}
+                self.log_stream.debug(
+                    f"ddmblacklist(full) retrieved {len(self.ddm_detailed_exclusions)} entries"
+                )
             else:
-                self.ddm_detailed_exclusions = []
-        except TypeError:
-            self.ddm_detailed_exclusions = []
+                self.ddm_detailed_exclusions = {}
+        except Exception as e:
+            self.log_stream.warning(f"Failed to retrieve ddmblacklist(full); defaulting to empty. Error: {e}")
+            self.ddm_detailed_exclusions = {}
+
         self.log_stream.debug(f"Blacklisted endpoints full {self.ddm_detailed_exclusions}")
         self.log_stream.debug("Done")
 
