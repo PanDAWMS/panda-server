@@ -1198,7 +1198,7 @@ class WorkerModule(BaseModule):
         timestamp_utc = naive_utcnow()
 
         # clean up host name from any prefixes
-        host_name = self.clean_host_name(host_name)
+        host_name = clean_host_name(host_name)
 
         locked = True  # Track whether the worker node was locked by another pilot update
 
