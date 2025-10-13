@@ -72,7 +72,7 @@ class MsgWrapper:
         strMsg = self.dumpToString()
         s, o = Client.uploadLog(strMsg, id)
         if s != 0:
-            return f"failed to upload log with {s}: {0}."
+            return f"failed to upload log with {s}: {o}."
         if o.startswith("http"):
             return f"<a href=\"{o}\">log</a> : {'. '.join(self.bareMsg[-2:])}."
         return o
