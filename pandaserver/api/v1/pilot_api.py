@@ -863,7 +863,7 @@ def update_worker_node_gpu(
     Returns:
         dict: The system response  `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
     """
-    tmp_logger = LogWrapper(_logger, f"update_worker_node site={site} host_name={host_name} vendor={vendor} model={model}")
+    tmp_logger = LogWrapper(_logger, f"update_worker_node_gpu site={site} host_name={host_name} vendor={vendor} model={model}")
     tmp_logger.debug("Start")
 
     timed_method = TimedMethod(global_task_buffer.update_worker_node_gpu, timeout)
