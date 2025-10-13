@@ -46,7 +46,16 @@ class TaskComplexModule(BaseModule):
         super().__init__(log_stream)
 
     # get the list of datasets to feed contents to DB
-    def getDatasetsToFeedContents_JEDI(self, vo, prodSourceLabel, task_id=None):
+    def getDatasetsToFeedContents_JEDI(self, vo, prodSourceLabel, task_id=None, force_read=False):
+        """Get the list of datasets to feed contents to DB
+
+        :param vo: VO
+        :param prodSourceLabel: production source label
+        :param task_id: task ID (optional)
+        :param force_read: force read from DB regardless of task status when task_id is specified (default: False)
+
+        :return: list of (jediTaskID, [JediDatasetSpec, ...]) or None in case of error
+        """
         comment = " /* JediDBProxy.getDatasetsToFeedContents_JEDI */"
         if task_id is not None:
             tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} taskid={task_id}")
@@ -56,21 +65,22 @@ class TaskComplexModule(BaseModule):
         try:
             # SQL
             varMap = {}
-            varMap[":ts_running"] = "running"
-            varMap[":ts_scouting"] = "scouting"
-            varMap[":ts_ready"] = "ready"
-            varMap[":ts_defined"] = "defined"
-            varMap[":dsStatus_pending"] = "pending"
-            varMap[":dsState_mutable"] = "mutable"
-            if task_id is None:
-                try:
-                    checkInterval = self.jedi_config.confeeder.checkInterval
-                except Exception:
-                    checkInterval = 60
-            else:
-                checkInterval = 0
-            varMap[":checkTimeLimit"] = naive_utcnow() - datetime.timedelta(minutes=checkInterval)
-            varMap[":lockTimeLimit"] = naive_utcnow() - datetime.timedelta(minutes=10)
+            if not force_read:
+                varMap[":ts_running"] = "running"
+                varMap[":ts_scouting"] = "scouting"
+                varMap[":ts_ready"] = "ready"
+                varMap[":ts_defined"] = "defined"
+                varMap[":dsStatus_pending"] = "pending"
+                varMap[":dsState_mutable"] = "mutable"
+                if task_id is None:
+                    try:
+                        checkInterval = self.jedi_config.confeeder.checkInterval
+                    except Exception:
+                        checkInterval = 60
+                else:
+                    checkInterval = 0
+                varMap[":checkTimeLimit"] = naive_utcnow() - datetime.timedelta(minutes=checkInterval)
+                varMap[":lockTimeLimit"] = naive_utcnow() - datetime.timedelta(minutes=10)
             sql = f"SELECT {JediDatasetSpec.columnNames('tabD')} "
             if task_id is None:
                 sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
@@ -79,7 +89,8 @@ class TaskComplexModule(BaseModule):
                 varMap[":task_id"] = task_id
                 sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
                 sql += "WHERE tabT.jediTaskID=:task_id "
-            sql += "AND (tabT.lockedTime IS NULL OR tabT.lockedTime<:lockTimeLimit) "
+            if not force_read:
+                sql += "AND (tabT.lockedTime IS NULL OR tabT.lockedTime<:lockTimeLimit) "
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sql += "AND tabT.vo=:vo "
@@ -89,19 +100,20 @@ class TaskComplexModule(BaseModule):
             sql += "AND tabT.jediTaskID=tabD.jediTaskID "
             sql += f"AND type IN ({INPUT_TYPES_var_str}) "
             varMap.update(INPUT_TYPES_var_map)
-            ds_status_var_names_str, ds_status_var_map = get_sql_IN_bind_variables(
-                JediDatasetSpec.statusToUpdateContents(), prefix=":dsStatus_", value_as_suffix=True
-            )
-            sql += f" AND ((tabT.status=:ts_defined AND tabD.status IN ({ds_status_var_names_str})) "
-            varMap.update(ds_status_var_map)
-            sql += "OR (tabT.status IN (:ts_running,:ts_scouting,:ts_ready,:ts_defined) "
-            sql += "AND tabD.state=:dsState_mutable AND tabD.stateCheckTime<=:checkTimeLimit)) "
-            sql += "AND tabT.lockedBy IS NULL AND tabD.lockedBy IS NULL "
-            sql += "AND NOT EXISTS "
-            sql += f"(SELECT 1 FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sql += f"WHERE {panda_config.schemaJEDI}.JEDI_Datasets.jediTaskID=tabT.jediTaskID "
-            sql += f"AND type IN ({INPUT_TYPES_var_str}) "
-            sql += "AND status=:dsStatus_pending) "
+            if not force_read:
+                ds_status_var_names_str, ds_status_var_map = get_sql_IN_bind_variables(
+                    JediDatasetSpec.statusToUpdateContents(), prefix=":dsStatus_", value_as_suffix=True
+                )
+                sql += f" AND ((tabT.status=:ts_defined AND tabD.status IN ({ds_status_var_names_str})) "
+                varMap.update(ds_status_var_map)
+                sql += "OR (tabT.status IN (:ts_running,:ts_scouting,:ts_ready,:ts_defined) "
+                sql += "AND tabD.state=:dsState_mutable AND tabD.stateCheckTime<=:checkTimeLimit)) "
+                sql += "AND tabT.lockedBy IS NULL AND tabD.lockedBy IS NULL "
+                sql += "AND NOT EXISTS "
+                sql += f"(SELECT 1 FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                sql += f"WHERE {panda_config.schemaJEDI}.JEDI_Datasets.jediTaskID=tabT.jediTaskID "
+                sql += f"AND type IN ({INPUT_TYPES_var_str}) "
+                sql += "AND status=:dsStatus_pending) "
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = 10000
@@ -401,6 +413,9 @@ class TaskComplexModule(BaseModule):
             totalNumEventsF = 0
             lumiBlockNr = None
             for tmpIdx, tmpLFN in enumerate(lfnList):
+                # check if the file should be skipped
+                if tmpLFN in usedFilesToSkip:
+                    continue
                 # collect unique LFN list
                 if tmpLFN not in uniqueLfnList:
                     uniqueLfnList[tmpLFN] = None
@@ -555,7 +570,7 @@ class TaskComplexModule(BaseModule):
                     tmpLog.error(diagMap["errMsg"])
                     return failedRet
             missingFileList = []
-            tmpLog.debug(f"{len(missingFileList)} files missing")
+            tmpLog.debug(f"{len(missingFileList)} files missing while {len(uniqueFileKeyList)} unique files")
             # sql to check if task is locked
             sqlTL = f"SELECT status,lockedBy FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE NOWAIT "
             # sql to check dataset status
