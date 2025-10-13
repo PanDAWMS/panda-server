@@ -60,12 +60,14 @@ def submit_workflow_raw_request(req: PandaRequest, params: dict | str) -> dict:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
 
-    username = get_dn(req)
+    user_dn = get_dn(req)
     prodsourcelabel = "user"
-    if has_production_role(req):
-        prodsourcelabel = "managed"
 
-    tmp_logger = LogWrapper(_logger, f'submit_workflow_raw_request prodsourcelabel={prodsourcelabel} username="{username}" ')
+    # FIXME: only for analysis temporarily
+    # if has_production_role(req):
+    #     prodsourcelabel = "managed"
+
+    tmp_logger = LogWrapper(_logger, f'submit_workflow_raw_request prodsourcelabel={prodsourcelabel} user_dn="{user_dn}" ')
     tmp_logger.debug("Start")
     success, message, data = False, "", None
     time_start = naive_utcnow()
@@ -78,7 +80,7 @@ def submit_workflow_raw_request(req: PandaRequest, params: dict | str) -> dict:
             tmp_logger.error(message)
             return generate_response(success, message, data)
 
-    workflow_id = global_wfif.register_workflow(prodsourcelabel, username, raw_request_params=params)
+    workflow_id = global_wfif.register_workflow(prodsourcelabel, user_dn, raw_request_params=params)
 
     if workflow_id is not None:
         success = True
@@ -109,18 +111,18 @@ def submit_workflow(req: PandaRequest, workflow_definition: dict) -> dict:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
 
-    username = get_dn(req)
+    user_dn = get_dn(req)
     prodsourcelabel = "user"
     if has_production_role(req):
         prodsourcelabel = "managed"
     workflow_name = workflow_definition.get("workflow_name", None)
 
-    tmp_logger = LogWrapper(_logger, f'submit_workflow prodsourcelabel={prodsourcelabel} username="{username}" workflow_name={workflow_name}')
+    tmp_logger = LogWrapper(_logger, f'submit_workflow prodsourcelabel={prodsourcelabel} user_dn="{user_dn}" workflow_name={workflow_name}')
     tmp_logger.debug("Start")
     success, message, data = False, "", None
     time_start = naive_utcnow()
 
-    workflow_id = global_wfif.register_workflow(prodsourcelabel, username, workflow_name, workflow_definition)
+    workflow_id = global_wfif.register_workflow(prodsourcelabel, user_dn, workflow_name, workflow_definition)
 
     if workflow_id is not None:
         success = True

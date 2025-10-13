@@ -1,6 +1,15 @@
 import json
+import traceback
+import uuid
 
-from pandaserver.workflow.step_handler_plugins.base_step_handler import BaseStepHandler
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+
+from pandaserver.workflow.step_handler_plugins.base_step_handler import (
+    BaseStepHandler,
+    CheckResult,
+    SubmitResult,
+)
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
     WFDataStatus,
@@ -11,6 +20,9 @@ from pandaserver.workflow.workflow_base import (
     WorkflowSpec,
     WorkflowStatus,
 )
+
+# main logger
+logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 class PandaTaskStepHandler(BaseStepHandler):
@@ -26,11 +38,21 @@ class PandaTaskStepHandler(BaseStepHandler):
         # Initialize base class or any required modules here
         super().__init__(*args, **kwargs)
 
-    def submit_target(self, step_spec: WFStepSpec, workflow_spec: WorkflowSpec, **kwargs):
+    def submit_target(self, step_spec: WFStepSpec, **kwargs) -> SubmitResult:
         """
         Submit a target for processing the PanDA task step.
         This method should be implemented to handle the specifics of PanDA task submission.
+
+        Args:
+            step_spec (WFStepSpec): The workflow step specification containing details about the step to be processed.
+            **kwargs: Additional keyword arguments that may be required for submission.
+
+        Returns:
+            SubmitResult: An object containing the result of the submission, including success status, target ID (task ID), and message.
         """
+        tmp_log = LogWrapper(logger, f"submit_target workflow_id={step_spec.workflow_id} step_id={step_spec.step_id}")
+        # Initialize
+        submit_result = SubmitResult()
 
         ...
         # task_param_map = {}
@@ -83,9 +105,23 @@ class PandaTaskStepHandler(BaseStepHandler):
         #         "dataset": outDatasetName,
         #     },
         # ]
-
-        # task_param_json = json.dumps(task_param_map)
-
-        # self.tbif.insertTaskParams_JEDI(
-        #     task_param_map["vo"], task_param_map["prodSourceLabel"], task_param_map["userName"], task_param_map["taskName"], task_param_json
-        # )
+        try:
+            # Get step definition
+            step_definition = step_spec.definition_json_map
+            user_name = step_definition.get("user_name")
+            user_dn = step_definition.get("user_dn")
+            task_param_map = step_definition.get("task_params", {})
+            # task_param_map["userName"] = user_name
+            # Submit task
+            tmp_ret_flag, temp_ret_val = self.tbif.insertTaskParamsPanda(task_param_map, user_dn, False)
+            if tmp_ret_flag:
+                submit_result.success = True
+                submit_result.target_id = temp_ret_val
+                tmp_log.info(f"submitted task target_id={submit_result.target_id}")
+            else:
+                submit_result.message = temp_ret_val
+                tmp_log.error(f"failed to submit task: {submit_result.message}")
+        except Exception as e:
+            submit_result.message = f"exception {str(e)}"
+            tmp_log.error(f"failed to submit task: {traceback.format_exc()}")
+        return submit_result

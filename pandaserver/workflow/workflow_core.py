@@ -190,7 +190,7 @@ class WorkflowInterface(object):
     def register_workflow(
         self,
         prodsourcelabel: str,
-        username: str,
+        user_dn: str,
         workflow_name: str | None = None,
         workflow_definition: dict | None = None,
         raw_request_params: dict | None = None,
@@ -202,7 +202,7 @@ class WorkflowInterface(object):
 
         Args:
             prodsourcelabel (str): Production source label for the workflow
-            username (str): Username of the person registering the workflow
+            user_dn (str): Distinguished name of the user submitting the workflow
             workflow_name (str | None): Name of the workflow
             workflow_definition (dict | None): Dictionary of workflow definition
             raw_request_params (dict | None): Dictionary of parameters of the raw request
@@ -212,16 +212,18 @@ class WorkflowInterface(object):
         Returns:
             int | None: The ID of the registered workflow if successful, otherwise None
         """
-        tmp_log = LogWrapper(logger, f"register_workflow prodsourcelabel={prodsourcelabel} username={username} name={workflow_name}")
+        tmp_log = LogWrapper(logger, f"register_workflow prodsourcelabel={prodsourcelabel} user_dn={user_dn} name={workflow_name}")
         tmp_log.debug("Start")
         # Implementation of workflow registration logic
         ...
         workflow_spec = WorkflowSpec()
         workflow_spec.prodsourcelabel = prodsourcelabel
-        workflow_spec.username = clean_user_id(username)
+        workflow_spec.username = clean_user_id(user_dn)
         if workflow_name is not None:
             workflow_spec.name = workflow_name
         if workflow_definition is not None:
+            # insert extra info into definition
+            workflow_definition["user_dn"] = user_dn
             workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
         elif raw_request_params is not None:
             workflow_spec.raw_request_json = json.dumps(raw_request_params, default=json_serialize_default)
@@ -258,7 +260,6 @@ class WorkflowInterface(object):
         try:
             # For now, just update status to checking
             data_spec.status = WFDataStatus.checking
-            data_spec.modification_time = naive_utcnow()
             self.tbif.update_workflow_data(data_spec)
             tmp_log.info(f"Done, status={data_spec.status}")
         except Exception:
@@ -284,7 +285,6 @@ class WorkflowInterface(object):
         try:
             # For now, just update status to pending
             step_spec.status = WFStepStatus.pending
-            step_spec.modification_time = naive_utcnow()
             self.tbif.update_workflow_step(step_spec)
             tmp_log.info(f"Done, status={step_spec.status}")
         except Exception:
@@ -313,7 +313,10 @@ class WorkflowInterface(object):
                 data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Input data list of the step
             step_spec_definition = step_spec.definition_json_map
-            input_data_list = step_spec_definition.get("input_data_list", [])
+            input_data_list = step_spec_definition.get("input_data_list")
+            if input_data_list is None:
+                tmp_log.warning(f"Step definition does not have input_data_list; skipped")
+                return
             # Check if all input data are good, aka ready as input
             all_inputs_good = True
             for input_data_name in input_data_list:
@@ -348,10 +351,46 @@ class WorkflowInterface(object):
                     data_spec.creation_time = now_time
                     self.tbif.insert_workflow_data(data_spec)
                     tmp_log.debug(f"Registered mid data {output_data_name} of step_id={step_spec.step_id}")
+                    # update data_spec_map
+                    data_spec_map[output_data_name] = data_spec
             step_spec.status = WFStepStatus.ready
-            step_spec.modification_time = naive_utcnow()
             self.tbif.update_workflow_step(step_spec)
             tmp_log.info(f"Done, status={step_spec.status}")
+        except Exception:
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+
+    def process_step_ready(self, step_spec: WFStepSpec):
+        """
+        Process a step in ready status
+        To submit the step for execution
+
+        Args:
+            step_spec (WFStepSpec): The workflow step specification to process
+        """
+        tmp_log = LogWrapper(logger, f"process_step_ready workflow_id={step_spec.workflow_id} step_id={step_spec.step_id}")
+        tmp_log.debug("Start")
+        # Check status
+        if step_spec.status != WFStepStatus.ready:
+            tmp_log.warning(f"Step status changed unexpectedly from {WFStepStatus.ready} to {step_spec.status}; skipped")
+            return
+        # Process
+        try:
+            # Get the step handler plugin
+            step_handler_cls = get_plugin("step_handler", step_spec.flavor)
+            if step_handler_cls is None:
+                tmp_log.error(f"No step handler plugin found for flavor={step_spec.flavor}; skipped")
+                return
+            step_handler = step_handler_cls(self.tbif)
+            # Submit the step
+            success, target_id, message = step_handler.submit_target(step_spec, self.tbif.get_workflow(step_spec.workflow_id))
+            if not success or target_id is None:
+                tmp_log.error(f"Failed to submit step; {message}")
+                return
+            # Update step status to submitted
+            step_spec.target_id = target_id
+            step_spec.status = WFStepStatus.submitted
+            self.tbif.update_workflow_step(step_spec)
+            tmp_log.info(f"Submitted step, flavor={step_spec.flavor}, target_id={step_spec.target_id}, status={step_spec.status}")
         except Exception:
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
 
@@ -381,7 +420,7 @@ class WorkflowInterface(object):
                 raw_request_dict = workflow_spec.raw_request_json_map
                 sandbox_url = os.path.join(raw_request_dict["sourceURL"], "cache", raw_request_dict["sandbox"])
                 log_token = f'< user="{workflow_spec.username}" outDS={raw_request_dict["outDS"]}>'
-                is_ok, is_fatal, workflow_definition_dict = parse_raw_request(
+                is_ok, is_fatal, workflow_definition = parse_raw_request(
                     sandbox_url=sandbox_url,
                     log_token=log_token,
                     user_name=workflow_spec.username,
@@ -398,7 +437,7 @@ class WorkflowInterface(object):
                     tmp_log.warning(f"Failed to parse raw request; skipped")
                     return
                 # Parsed successfully, update definition
-                workflow_spec.definition_json = json.dumps(workflow_definition_dict, default=json_serialize_default)
+                workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
                 tmp_log.debug(f"Parsed raw request into definition")
             # Update status to parsed
             workflow_spec.status = WorkflowStatus.parsed
@@ -426,8 +465,8 @@ class WorkflowInterface(object):
         # Process
         try:
             # Parse the workflow definition
-            workflow_definition_dict = workflow_spec.definition_json_map
-            if workflow_definition_dict is None:
+            workflow_definition = workflow_spec.definition_json_map
+            if workflow_definition is None:
                 tmp_log.error(f"Workflow definition is None; cancelled the workflow")
                 workflow_spec.status = WorkflowStatus.cancelled
                 workflow_spec.set_parameter("cancel_reason", "Workflow definition is None")
@@ -438,7 +477,7 @@ class WorkflowInterface(object):
             step_specs = []
             now_time = naive_utcnow()
             # Register root inputs and outputs
-            for input_name, input_target in workflow_definition_dict["root_inputs"].items():
+            for input_name, input_target in workflow_definition["root_inputs"].items():
                 data_spec = WFDataSpec()
                 data_spec.workflow_id = workflow_spec.workflow_id
                 data_spec.name = input_name
@@ -448,7 +487,7 @@ class WorkflowInterface(object):
                 data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
                 data_spec.creation_time = now_time
                 data_specs.append(data_spec)
-            for output_name, output_dict in workflow_definition_dict["root_outputs"].items():
+            for output_name, output_dict in workflow_definition["root_outputs"].items():
                 data_spec = WFDataSpec()
                 data_spec.workflow_id = workflow_spec.workflow_id
                 data_spec.name = output_name
@@ -459,7 +498,7 @@ class WorkflowInterface(object):
                 data_spec.creation_time = now_time
                 data_specs.append(data_spec)
             # Register steps based on nodes in the definition
-            for node in workflow_definition_dict["nodes"]:
+            for node in workflow_definition["nodes"]:
                 # FIXME: not yet consider scatter, condition, loop, etc.
                 if not (node.get("condition") or node.get("scatter") or node.get("loop")):
                     step_spec = WFStepSpec()
@@ -471,6 +510,9 @@ class WorkflowInterface(object):
                     step_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
                     # step definition
                     step_definition = copy.deepcopy(node)
+                    # propagate user name and DN from workflow to step
+                    step_definition["user_name"] = workflow_spec.username
+                    step_definition["user_dn"] = workflow_definition.get("user_dn")
                     # resolve inputs and outputs
                     input_data_set = set()
                     output_data_set = set()
