@@ -181,8 +181,8 @@ def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int 
     script = global_task_buffer.getScriptOfflineRunning(job_id, days)
 
     if script.startswith("ERROR"):
-        tmp_logger.debug("Failed to generate script")
-        return generate_response(False, message=script)
+        tmp_logger.debug(f"Failed to generate script: {script}")
+        return script
 
     tmp_logger.debug("Done")
     return script
