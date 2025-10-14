@@ -212,20 +212,21 @@ class WorkflowInterface(object):
         Returns:
             int | None: The ID of the registered workflow if successful, otherwise None
         """
-        tmp_log = LogWrapper(logger, f"register_workflow prodsourcelabel={prodsourcelabel} user_dn={user_dn} name={workflow_name}")
-        tmp_log.debug("Start")
+        username = clean_user_id(user_dn)
+        tmp_log = LogWrapper(logger, f"register_workflow prodsourcelabel={prodsourcelabel} username={username} name={workflow_name}")
+        tmp_log.debug(f'Start, user_dn is "{user_dn}"')
         # Implementation of workflow registration logic
         ...
         workflow_spec = WorkflowSpec()
         workflow_spec.prodsourcelabel = prodsourcelabel
-        workflow_spec.username = clean_user_id(user_dn)
+        workflow_spec.username = username
         if workflow_name is not None:
             workflow_spec.name = workflow_name
         if workflow_definition is not None:
-            # insert extra info into definition
             workflow_definition["user_dn"] = user_dn
             workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
         elif raw_request_params is not None:
+            raw_request_params["user_dn"] = user_dn
             workflow_spec.raw_request_json = json.dumps(raw_request_params, default=json_serialize_default)
         else:
             tmp_log.error(f"Either workflow_definition or raw_request_params must be provided")
@@ -382,12 +383,12 @@ class WorkflowInterface(object):
                 return
             step_handler = step_handler_cls(self.tbif)
             # Submit the step
-            success, target_id, message = step_handler.submit_target(step_spec, self.tbif.get_workflow(step_spec.workflow_id))
-            if not success or target_id is None:
-                tmp_log.error(f"Failed to submit step; {message}")
+            submit_result = step_handler.submit_target(step_spec)
+            if not submit_result.success or submit_result.target_id is None:
+                tmp_log.error(f"Failed to submit step; {submit_result.message}")
                 return
             # Update step status to submitted
-            step_spec.target_id = target_id
+            step_spec.target_id = submit_result.target_id
             step_spec.status = WFStepStatus.submitted
             self.tbif.update_workflow_step(step_spec)
             tmp_log.info(f"Submitted step, flavor={step_spec.flavor}, target_id={step_spec.target_id}, status={step_spec.status}")
@@ -427,7 +428,8 @@ class WorkflowInterface(object):
                     raw_request_dict=raw_request_dict,
                 )
                 # Failure handling
-                if is_fatal:
+                # if is_fatal:
+                if False:  # disable fatal for now
                     tmp_log.error(f"Fatal error in parsing raw request; cancelled the workflow")
                     workflow_spec.status = WorkflowStatus.cancelled
                     workflow_spec.set_parameter("cancel_reason", "Fatal error in parsing raw request")
@@ -436,31 +438,34 @@ class WorkflowInterface(object):
                 if not is_ok:
                     tmp_log.warning(f"Failed to parse raw request; skipped")
                     return
+                # extra info from raw request
+                workflow_definition["user_dn"] = raw_request_dict.get("user_dn")
                 # Parsed successfully, update definition
                 workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
                 tmp_log.debug(f"Parsed raw request into definition")
             # Update status to parsed
-            workflow_spec.status = WorkflowStatus.parsed
+            # workflow_spec.status = WorkflowStatus.parsed
+            workflow_spec.status = WorkflowStatus.checked  # skip parsed for now
             # Update DB
             self.tbif.update_workflow(workflow_spec)
             tmp_log.info(f"Done, status={workflow_spec.status}")
         except Exception:
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
 
-    def process_workflow_parsed(self, workflow_spec: WorkflowSpec):
+    def process_workflow_checked(self, workflow_spec: WorkflowSpec):
         """
-        Process a workflow in parsed status
+        Process a workflow in checked status
         Register steps, and update its status
         Parse raw request into workflow definition, register steps, and update its status
 
         Args:
             workflow_spec (WorkflowSpec): The workflow specification to process
         """
-        tmp_log = LogWrapper(logger, f"process_workflow_parsed workflow_id={workflow_spec.workflow_id}")
+        tmp_log = LogWrapper(logger, f"process_workflow_checked workflow_id={workflow_spec.workflow_id}")
         tmp_log.debug("Start")
         # Check status
-        if workflow_spec.status != WorkflowStatus.parsed:
-            tmp_log.warning(f"Workflow status changed unexpectedly from {WorkflowStatus.parsed} to {workflow_spec.status}; skipped")
+        if workflow_spec.status != WorkflowStatus.checked:
+            tmp_log.warning(f"Workflow status changed unexpectedly from {WorkflowStatus.checked} to {workflow_spec.status}; skipped")
             return
         # Process
         try:
@@ -532,8 +537,8 @@ class WorkflowInterface(object):
                     step_spec.definition_json_map = step_definition
                     step_spec.creation_time = now_time
                     step_specs.append(step_spec)
-            # Update status to checking
-            workflow_spec.status = WorkflowStatus.checking
+            # Update status to starting
+            workflow_spec.status = WorkflowStatus.starting
             # Upsert DB
             self.tbif.upsert_workflow_entities(
                 workflow_spec.workflow_id,
@@ -563,9 +568,8 @@ class WorkflowInterface(object):
         # Process
         try:
             # Get steps in registered status
-            step_specs = self.tbif.get_steps_of_workflow(
-                workflow_id=workflow_spec.workflow_id, status_filter_list=[WFStepStatus.registered, WFStepStatus.pending]
-            )
+            required_step_statuses = [WFStepStatus.registered, WFStepStatus.pending, WFStepStatus.ready]
+            step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_filter_list=required_step_statuses)
             if not step_specs:
                 tmp_log.warning(f"No steps in {WFStepStatus.registered} status; skipped")
                 return
@@ -578,7 +582,7 @@ class WorkflowInterface(object):
                     if locked_step_spec is None:
                         tmp_log.warning(f"Failed to acquire lock for step_id={step_spec.step_id}; skipped")
                         continue
-                    if locked_step_spec.status not in [WFStepStatus.registered, WFStepStatus.pending]:
+                    if locked_step_spec.status not in required_step_statuses:
                         tmp_log.warning(f"Step status changed unexpectely to {locked_step_spec.status}; skipped")
                         continue
                     step_spec = locked_step_spec
@@ -588,6 +592,8 @@ class WorkflowInterface(object):
                             self.process_step_registered(step_spec)
                         case WFStepStatus.pending:
                             self.process_step_pending(step_spec, data_spec_map=data_spec_map)
+                        case WFStepStatus.ready:
+                            self.process_step_ready(step_spec)
                         case _:
                             # tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
                             continue

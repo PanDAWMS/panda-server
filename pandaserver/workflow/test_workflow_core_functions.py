@@ -361,8 +361,8 @@ wfif = WorkflowInterface(taskBuffer)
 # wfif.process_workflow_registered(wf_spec)
 
 # wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
-# print("Processing parsed workflow...")
-# wfif.process_workflow_parsed(wf_spec)
+# print("Processing checked workflow...")
+# wfif.process_workflow_checked(wf_spec)
 
 # wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
 # print("Processing starting workflow...")

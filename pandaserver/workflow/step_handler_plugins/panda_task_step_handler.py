@@ -113,7 +113,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             task_param_map = step_definition.get("task_params", {})
             # task_param_map["userName"] = user_name
             # Submit task
-            tmp_ret_flag, temp_ret_val = self.tbif.insertTaskParamsPanda(task_param_map, user_dn, False)
+            tmp_ret_flag, temp_ret_val = self.tbif.insertTaskParamsPanda(task_param_map, user_dn, False, decode=False)
             if tmp_ret_flag:
                 submit_result.success = True
                 submit_result.target_id = temp_ret_val
