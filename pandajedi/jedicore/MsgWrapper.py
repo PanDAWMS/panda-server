@@ -72,10 +72,16 @@ class MsgWrapper:
         strMsg = self.dumpToString()
         s, o = Client.uploadLog(strMsg, id)
         if s != 0:
-            return f"failed to upload log with {s}."
-        if o.startswith("http"):
+            return f"failed to upload log with {s} {o}."
+
+        success = o["success"]
+        message = o["message"]
+        url = o["data"]
+
+        if success and url.startswith("http"):
             return f"<a href=\"{o}\">log</a> : {'. '.join(self.bareMsg[-2:])}."
-        return o
+
+        return message
 
     # send message to logger
     def sendMsg(self, message, msgType, msgLevel="info", escapeChar=False):
