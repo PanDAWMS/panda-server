@@ -52,6 +52,9 @@ class WFStepStatus(object):
     failed = "failed"
     cancelled = "cancelled"
 
+    after_submitted_statuses = (running, done, failed, cancelled)
+    after_running_statuses = (done, failed, cancelled)
+
 
 class WFDataStatus(object):
     """
@@ -335,3 +338,78 @@ class WFDataSpec(WorkflowBaseSpec):
     _forceUpdateAttrs = ()
     # mapping between sequence and attr
     _seqAttrMap = {"data_id": f"{panda_config.schemaJEDI}.WORKFLOW_DATA_ID_SEQ.nextval"}
+
+
+# === Return objects of core methods which process status ======
+
+
+@dataclass(slots=True)
+class WFStepProcessResult:
+    """
+    Result of processing a step.
+
+    Fields:
+        success (bool | None): Indicates if the processing was successful.
+        new_status (WFStepStatus | None): The new status of the step after processing, None if no change.
+        message (str): A message providing additional information about the processing result.
+    """
+
+    success: bool | None = None
+    new_status: WFStepStatus | None = None
+    message: str = ""
+
+
+@dataclass(slots=True)
+class WorkflowProcessResult:
+    """
+    Result of processing a workflow.
+
+    Fields:
+        success (bool | None): Indicates if the processing was successful.
+        new_status (WorkflowStatus | None): The new status of the workflow after processing, None if no change.
+        message (str): A message providing additional information about the processing result.
+    """
+
+    success: bool | None = None
+    new_status: WorkflowStatus | None = None
+    message: str = ""
+
+
+# === Return objects of step handler methods ===================
+
+
+@dataclass(slots=True)
+class WFStepTargetSubmitResult:
+    """
+    Result of submitting a target of a step.
+
+    Fields:
+        success (bool | None): Indicates if the submission was successful.
+        target_id (str | None): The ID of the submitted target (e.g., task ID).
+        message (str): A message providing additional information about the submission result.
+    """
+
+    success: bool | None = None
+    target_id: str | None = None
+    message: str = ""
+
+
+@dataclass(slots=True)
+class WFStepTargetCheckResult:
+    """
+    Result of checking the status of a submitted target.
+
+    Fields:
+        success (bool | None): Indicates if the status check was successful.
+        status (WFStepStatus | None): The status of the step to move to.
+        native_status (str | None): The native status string from the target system.
+        message (str): A message providing additional information about the status check result.
+    """
+
+    success: bool | None = None
+    status: WFStepStatus | None = None
+    native_status: str | None = None
+    message: str = ""
+
+
+# ==============================================================

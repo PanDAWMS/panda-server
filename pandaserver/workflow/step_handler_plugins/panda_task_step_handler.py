@@ -7,8 +7,8 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.workflow.step_handler_plugins.base_step_handler import (
     BaseStepHandler,
-    CheckResult,
-    SubmitResult,
+    WFStepTargetCheckResult,
+    WFStepTargetSubmitResult,
 )
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
@@ -38,7 +38,7 @@ class PandaTaskStepHandler(BaseStepHandler):
         # Initialize base class or any required modules here
         super().__init__(*args, **kwargs)
 
-    def submit_target(self, step_spec: WFStepSpec, **kwargs) -> SubmitResult:
+    def submit_target(self, step_spec: WFStepSpec, **kwargs) -> WFStepTargetSubmitResult:
         """
         Submit a target for processing the PanDA task step.
         This method should be implemented to handle the specifics of PanDA task submission.
@@ -48,12 +48,16 @@ class PandaTaskStepHandler(BaseStepHandler):
             **kwargs: Additional keyword arguments that may be required for submission.
 
         Returns:
-            SubmitResult: An object containing the result of the submission, including success status, target ID (task ID), and message.
+            WFStepTargetSubmitResult: An object containing the result of the submission, including success status, target ID (task ID), and message.
         """
         tmp_log = LogWrapper(logger, f"submit_target workflow_id={step_spec.workflow_id} step_id={step_spec.step_id}")
         # Initialize
-        submit_result = SubmitResult()
-
+        submit_result = WFStepTargetSubmitResult()
+        # Check step type
+        if step_spec.type != WFStepType.panda_task:
+            tmp_log.warning(f"type={step_spec.type} not panda_task; skipped")
+            submit_result.message = f"type not panda_task; skipped"
+            return submit_result
         ...
         # task_param_map = {}
         # task_param_map["taskName"] = step_spec.name
@@ -116,12 +120,73 @@ class PandaTaskStepHandler(BaseStepHandler):
             tmp_ret_flag, temp_ret_val = self.tbif.insertTaskParamsPanda(task_param_map, user_dn, False, decode=False)
             if tmp_ret_flag:
                 submit_result.success = True
-                submit_result.target_id = temp_ret_val
-                tmp_log.info(f"submitted task target_id={submit_result.target_id}")
+                submit_result.target_id = str(temp_ret_val)
+                tmp_log.info(f"Submitted task target_id={submit_result.target_id}")
             else:
                 submit_result.message = temp_ret_val
-                tmp_log.error(f"failed to submit task: {submit_result.message}")
+                tmp_log.error(f"Failed to submit task: {submit_result.message}")
         except Exception as e:
             submit_result.message = f"exception {str(e)}"
-            tmp_log.error(f"failed to submit task: {traceback.format_exc()}")
+            tmp_log.error(f"Failed to submit task: {traceback.format_exc()}")
         return submit_result
+
+    def check_target(self, step_spec: WFStepSpec, **kwargs) -> WFStepTargetCheckResult:
+        """
+        Check the status of a submitted target for the given step.
+        This method should be implemented to handle the specifics of status checking.
+
+        Args:
+            step_spec (WFStepSpec): The workflow step specification containing details about the step to be processed.
+            **kwargs: Additional keyword arguments that may be required for status checking.
+
+        Returns:
+            WFStepTargetCheckResult: An object containing the result of the status check, including success status, step status, native status, and message.
+        """
+        tmp_log = LogWrapper(logger, f"check_target workflow_id={step_spec.workflow_id} step_id={step_spec.step_id}")
+        allowed_step_statuses = [WFStepStatus.submitted, WFStepStatus.running]
+        try:
+            # Initialize
+            check_result = WFStepTargetCheckResult()
+            # Check preconditions
+            if step_spec.status not in allowed_step_statuses:
+                check_result.message = f"not in status to check; skipped"
+                tmp_log.warning(f"status={step_spec.status} not in status to check; skipped")
+                return check_result
+            if step_spec.type != WFStepType.panda_task:
+                check_result.message = f"type not panda_task; skipped"
+                tmp_log.warning(f"type={step_spec.type} not panda_task; skipped")
+                return check_result
+            if step_spec.target_id is None:
+                check_result.message = f"target_id is None; skipped"
+                tmp_log.warning(f"target_id is None; skipped")
+                return check_result
+            # Get task ID and status
+            task_id = int(step_spec.target_id)
+            res = self.tbif.getTaskStatus(task_id)
+            if not res:
+                check_result.message = f"task_id={task_id} not found"
+                tmp_log.error(f"{check_result.message}")
+                return check_result
+            # Interpret status
+            task_status = res[0]
+            check_result.success = True
+            check_result.native_status = task_status
+            if task_status in ["running", "transferring", "transferred", "merging"]:
+                check_result.status = WFStepStatus.running
+            elif task_status in ["defined", "assigned", "activated", "starting", "ready"]:
+                check_result.status = WFStepStatus.submitted
+            elif task_status in ["done", "finished"]:
+                check_result.status = WFStepStatus.finished
+            elif task_status in ["failed", "exhausted", "aborted", "toabort", "aborting", "broken", "tobroken"]:
+                check_result.status = WFStepStatus.failed
+            else:
+                check_result.success = False
+                check_result.message = f"unknown task_status {task_status}"
+                tmp_log.error(f"{check_result.message}")
+                return check_result
+            tmp_log.info(f"Got task_id={task_id} task_status={task_status}")
+        except Exception as e:
+            check_result.success = False
+            check_result.message = f"exception {str(e)}"
+            tmp_log.error(f"Failed to check status: {traceback.format_exc()}")
+        return check_result
