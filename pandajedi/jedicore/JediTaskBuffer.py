@@ -33,9 +33,9 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
             return proxy.getWorkQueueMap()
 
     # get the list of datasets to feed contents to DB
-    def getDatasetsToFeedContents_JEDI(self, vo=None, prodSourceLabel=None, task_id=None):
+    def getDatasetsToFeedContents_JEDI(self, vo=None, prodSourceLabel=None, task_id=None, force_read=False):
         with self.proxyPool.get() as proxy:
-            return proxy.getDatasetsToFeedContents_JEDI(vo, prodSourceLabel, task_id)
+            return proxy.getDatasetsToFeedContents_JEDI(vo, prodSourceLabel, task_id, force_read)
 
     # feed files to the JEDI contents table
     def insertFilesForDataset_JEDI(
