@@ -79,7 +79,7 @@ class MsgWrapper:
         url = o["data"]
 
         if success and url.startswith("http"):
-            return f"<a href=\"{o}\">log</a> : {'. '.join(self.bareMsg[-2:])}."
+            return f"<a href=\"{url}\">log</a> : {'. '.join(self.bareMsg[-2:])}."
 
         return message
 
