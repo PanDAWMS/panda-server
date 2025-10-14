@@ -58,16 +58,16 @@ PLUGIN_RAW_MAP = {
     # Add more plugin types here
 }
 
-# map of flovar to plugin classes
-flavor_plugin_map = {}
+# map of flavor to plugin classes
+flavor_plugin_class_map = {}
 for plugin_type, plugins in PLUGIN_RAW_MAP.items():
-    flavor_plugin_map[plugin_type] = {}
+    flavor_plugin_class_map[plugin_type] = {}
     for flavor, (module_name, class_name) in plugins.items():
         try:
             full_module_name = f"pandaserver.workflow.{plugin_type}_plugins.{module_name}"
             module = importlib.import_module(full_module_name)
             cls = getattr(module, class_name)
-            flavor_plugin_map[plugin_type][flavor] = cls
+            flavor_plugin_class_map[plugin_type][flavor] = cls
             logger.debug(f"Imported {plugin_type} plugin {flavor} from {module_name}.{class_name}")
         except Exception as e:
             logger.error(f"Failed to import {plugin_type} plugin {flavor} from {module_name}.{class_name}: {e}")
@@ -76,7 +76,7 @@ for plugin_type, plugins in PLUGIN_RAW_MAP.items():
 # ==== Functions ===============================================
 
 
-def get_plugin(plugin_type: str, flavor: str):
+def get_plugin_class(plugin_type: str, flavor: str):
     """
     Get the plugin class for the given type and flavor
 
@@ -87,7 +87,7 @@ def get_plugin(plugin_type: str, flavor: str):
     Returns:
         class: The plugin class if found, otherwise None
     """
-    return flavor_plugin_map.get(plugin_type, {}).get(flavor)
+    return flavor_plugin_class_map.get(plugin_type, {}).get(flavor)
 
 
 # ==== Workflow Interface ======================================
@@ -110,8 +110,31 @@ class WorkflowInterface(object):
         self.tbif = task_buffer
         self.ddm_if = rucioAPI
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
+        self.plugin_map = {}
 
-    #### Context managers for locking
+    def get_plugin(self, plugin_type: str, flavor: str):
+        """
+        Get the plugin instance for the given type and flavor
+
+        Args:
+            plugin_type (str): Type of the plugin (e.g., "step_handler", "data_handler")
+            flavor (str): Flavor of the plugin (e.g., "panda_task")
+
+        Returns:
+            Any: The plugin instance if found, otherwise None
+        """
+        plugin = self.plugin_map.get(plugin_type, {}).get(flavor)
+        if plugin is not None:
+            return plugin
+        else:
+            # not yet loaded, try to load
+            cls = get_plugin_class(plugin_type, flavor)
+            if cls is not None:
+                self.plugin_map.setdefault(plugin_type, {})[flavor] = cls(task_buffer=self.tbif, ddm_if=self.ddm_if)
+                plugin = self.plugin_map[plugin_type][flavor]
+        return plugin
+
+    # --- Context managers for locking -------------------------
 
     @contextmanager
     def workflow_lock(self, workflow_id: int, lock_expiration_sec: int = 120):
@@ -185,7 +208,7 @@ class WorkflowInterface(object):
             # lock not acquired
             yield None
 
-    # Add methods for workflow management here
+    # --- Registration -----------------------------------------
 
     def register_workflow(
         self,
@@ -377,11 +400,7 @@ class WorkflowInterface(object):
         # Process
         try:
             # Get the step handler plugin
-            step_handler_cls = get_plugin("step_handler", step_spec.flavor)
-            if step_handler_cls is None:
-                tmp_log.error(f"No step handler plugin found for flavor={step_spec.flavor}; skipped")
-                return
-            step_handler = step_handler_cls(self.tbif)
+            step_handler = self.get_plugin("step_handler", step_spec.flavor)
             # Submit the step
             submit_result = step_handler.submit_target(step_spec)
             if not submit_result.success or submit_result.target_id is None:

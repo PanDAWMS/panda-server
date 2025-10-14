@@ -2680,11 +2680,6 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.updateInputFilesStaged_JEDI(jeditaskid, scope, filenames_dict, chunk_size, by, check_scope)
 
-    # insert TaskParams
-    def insertTaskParams_JEDI(self, vo, prodSourceLabel, userName, taskName, taskParams, parent_tid=None):
-        with self.proxyPool.get() as proxy:
-            return proxy.insertTaskParams_JEDI(vo, prodSourceLabel, userName, taskName, taskParams, parent_tid)
-
     # ==== Data Carousel functions =============================
 
     # insert data carousel requests
