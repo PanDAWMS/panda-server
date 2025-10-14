@@ -6,7 +6,6 @@ import os
 
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
-from werkzeug.datastructures import accept
 
 # PanDA server configuration
 base_url = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/panda")

@@ -162,68 +162,6 @@ def get_user_attributes(req: PandaRequest) -> Dict:
 
 
 @request_validation(_logger, request_method="GET")
-def get_https_endpoint(req: PandaRequest) -> Dict:
-    """
-    Get the HTTPS endpoint
-
-    Gets the server name (not the load balanced service name!) and port for HTTPS.
-
-    API details:
-        HTTP Method: GET
-        Path: /v1/system/get_https_endpoint
-
-    Args:
-        req(PandaRequest): internally generated request object containing the env variables
-
-    Returns:
-        dict: The system response with the name of the endpoint
-              Example: `{"success": True, "data": "server:port"}`
-    """
-    tmp_logger = LogWrapper(_logger, "get_https_endpoint")
-    tmp_logger.debug("Start")
-
-    try:
-        endpoint = f"{panda_config.pserverhost}:{panda_config.pserverport}"
-    except Exception as e:
-        tmp_logger.error(f"Failed to get HTTPS endpoint: {str(e)}")
-        return generate_response(False, str(e))
-
-    tmp_logger.debug("Done")
-    return generate_response(True, data=endpoint)
-
-
-@request_validation(_logger, request_method="GET")
-def get_http_endpoint(req: PandaRequest) -> Dict:
-    """
-    Get the HTTP endpoint
-
-    Gets the server name (not the load balanced service name!) and port for HTTP.
-
-    API details:
-        HTTP Method: GET
-        Path: /v1/system/get_http_endpoint
-
-    Args:
-        req(PandaRequest): internally generated request object containing the env variables
-
-    Returns:
-        dict: The system response with the name of the endpoint
-              Example: `{"success": True, "data": "server:port"}`
-    """
-    tmp_logger = LogWrapper(_logger, "get_http_endpoint")
-    tmp_logger.debug("Start")
-
-    try:
-        endpoint = f"{panda_config.pserverhosthttp}:{panda_config.pserverporthttp}"
-    except Exception as e:
-        tmp_logger.error(f"Failed to get HTTPS endpoint: {str(e)}")
-        return generate_response(False, str(e))
-
-    tmp_logger.debug("Done")
-    return generate_response(True, data=endpoint)
-
-
-@request_validation(_logger, request_method="GET")
 def is_alive(req: PandaRequest) -> Dict:
     """
     Is alive

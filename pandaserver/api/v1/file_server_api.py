@@ -1,4 +1,3 @@
-import datetime
 import gc
 import gzip
 import json
@@ -16,8 +15,12 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 from werkzeug.datastructures import FileStorage
 
-from pandaserver.api.v1.common import generate_response, get_dn, request_validation
-from pandaserver.api.v1.system_api import get_http_endpoint, get_https_endpoint
+from pandaserver.api.v1.common import (
+    generate_response,
+    get_dn,
+    get_endpoint,
+    request_validation,
+)
 from pandaserver.config import panda_config
 from pandaserver.jobdispatcher import Protocol
 from pandaserver.srvcore import CoreUtils
@@ -131,11 +134,18 @@ def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
         # return the URL depending on the protocol
         if panda_config.disableHTTP:
             protocol = "https"
-            server = get_https_endpoint(req)
         else:
             protocol = "http"
-            server = get_http_endpoint(req)
+        success, server = get_endpoint(protocol)
+        if not success:
+            error_message = f"cannot get endpoint: {server}"
+            tmp_logger.error(error_message)
+            tmp_logger.debug("Done")
+            return generate_response(False, error_message)
+
         file_url = f"{protocol}://{server}/cache{jedi_log_directory}/{file_base_name}"
+        tmp_logger.debug("Done")
+        return generate_response(True, data=file_url)
 
     except Exception:
         error_type, error_value = sys.exc_info()[:2]
@@ -143,9 +153,6 @@ def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
         tmp_logger.error(error_message)
         tmp_logger.debug("Done")
         return generate_response(False, error_message)
-
-    tmp_logger.debug("Done")
-    return generate_response(True, data=file_url)
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
