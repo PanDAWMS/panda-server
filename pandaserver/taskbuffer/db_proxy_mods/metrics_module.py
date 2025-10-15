@@ -435,7 +435,7 @@ class MetricsModule(BaseModule):
                     if num_finished is not None and num_failed is not None and num_finished + num_failed
                     else None
                 ),
-                "failed_hep_score_hour": int(bad_hep_score_sec / 60 / 60),
+                "failed_hep_score_hour": int(bad_hep_score_sec / 60 / 60) if bad_hep_score_sec is not None else None,
                 "failed_hep_score_ratio": (
                     round(bad_hep_score_sec / (good_hep_score_sec + bad_hep_score_sec), 3)
                     if good_hep_score_sec is not None and bad_hep_score_sec is not None and good_hep_score_sec + bad_hep_score_sec
