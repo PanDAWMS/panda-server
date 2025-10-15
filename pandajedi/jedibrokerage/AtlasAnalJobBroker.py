@@ -262,6 +262,15 @@ class AtlasAnalJobBroker(JobBrokerBase):
         if min_input_completeness is None:
             min_input_completeness = 90
 
+        # minimum brokerage weight
+        min_weight_param = f"MIN_WEIGHT_{taskSpec.prodSourceLabel}_{taskSpec.gshare}"
+        min_weight = self.taskBufferIF.getConfigValue("jobbroker", min_weight_param, "jedi", taskSpec.vo)
+        if min_weight is None:
+            min_weight_param = f"MIN_WEIGHT_{taskSpec.prodSourceLabel}"
+            min_weight = self.taskBufferIF.getConfigValue("jobbroker", min_weight_param, "jedi", taskSpec.vo)
+        if min_weight is None:
+            min_weight = 0
+
         # throttle User Analysis tasks when close to gshare target
         if taskSpec.gshare in ["User Analysis"] and gshare_usage_dict and task_eval_dict:
             try:
@@ -2091,6 +2100,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
         # append candidates
         newScanSiteList = []
         msgList = []
+        below_min_weight = []
         for siteCandidateSpec in candidateSpecList:
             tmpPseudoSiteName = siteCandidateSpec.siteName
             tmpSiteSpec = self.siteMapper.getSite(tmpPseudoSiteName)
@@ -2102,6 +2112,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     del weightStr[tmpPseudoSiteName]
                 except Exception:
                     pass
+                continue
+            # below minimum brokerage weight
+            if min_weight > 0 and siteCandidateSpec.weight < min_weight:
+                below_min_weight.append(tmpSiteName)
                 continue
             # set available files
             if inputChunk.getDatasets() == [] or (not checkDataLocality and not tmpSiteSpec.use_only_local_data()):
@@ -2188,8 +2202,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 if tmpSiteName in problematic_sites_dict:
                     bad_reasons = " ; ".join(list(problematic_sites_dict[tmpSiteName]))
                     tmpMsg = f"  skip site={tmpPseudoSiteName} {bad_reasons} ; with {tmpWeightStr} criteria=-badsite"
+                elif tmpSiteName in below_min_weight:
+                    tmpMsg = f"  skip site={tmpPseudoSiteName} due to weight below the minimum {min_weight_param}={min_weight} with {tmpWeightStr} criteria=-below_min_weight"
                 else:
-                    tmpMsg = f"  skip site={tmpPseudoSiteName} due to low weight and not-used by old jobs with {tmpWeightStr} criteria=-lowweight"
+                    tmpMsg = f"  skip site={tmpPseudoSiteName} due to low weight and not-used by old jobs with {tmpWeightStr} criteria=-low_weight"
                 tmpLog.info(tmpMsg)
         for tmpMsg in msgList:
             tmpLog.info(tmpMsg)
