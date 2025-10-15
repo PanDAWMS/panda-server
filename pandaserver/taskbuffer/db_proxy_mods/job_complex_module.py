@@ -833,6 +833,11 @@ class JobComplexModule(BaseModule):
             if getUserInfo:
                 return False, {}
             return False
+
+        #  While the code being a number, it's treated as a string in this function.
+        if isinstance(code, int):
+            code = str(code)
+
         sql0 = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus,taskBufferErrorCode,eventService FROM %s "
         sql0 += "WHERE PandaID=:PandaID "
         sql0 += "FOR UPDATE NOWAIT "
