@@ -153,6 +153,15 @@ class AtlasProdJobBroker(JobBrokerBase):
         if min_input_completeness is None:
             min_input_completeness = 90
 
+        # minimum brokerage weight
+        min_weight_param = f"MIN_WEIGHT_{taskSpec.prodSourceLabel}_{taskSpec.gshare}"
+        min_weight = self.taskBufferIF.getConfigValue("jobbroker", min_weight_param, "jedi", taskSpec.vo)
+        if min_weight is None:
+            min_weight_param = f"MIN_WEIGHT_{taskSpec.prodSourceLabel}"
+            min_weight = self.taskBufferIF.getConfigValue("jobbroker", min_weight_param, "jedi", taskSpec.vo)
+        if min_weight is None:
+            min_weight = 0
+
         # get sites in the cloud
         siteSkippedTmp = dict()
         sitePreAssigned = False
@@ -1871,18 +1880,22 @@ class AtlasProdJobBroker(JobBrokerBase):
                 and not inputChunk.isExpress()
             ):
                 okMsg = f"  use site={tmpPseudoSiteName} to bootstrap (no running or queued jobs) criteria=+use"
-                ngMsg = f"  skip site={tmpPseudoSiteName} due to low weight "
+                ngMsg = f"  skip site={tmpPseudoSiteName} as others being bootstrapped (no running or queued jobs), "
                 ngMsg += f"weight={weight} {weightStr} "
-                ngMsg += "criteria=-loweigh"
+                ngMsg += "criteria=-others_bootstrap"
                 okAsPrimay = True
                 # set weight to 0 for subsequent processing
                 weight = 0
                 siteCandidateSpec.weight = weight
             else:
-                if useT1Weight:
+                if min_weight > 0 and weight < min_weight:
+                    ngMsg = f"  skip site={tmpPseudoSiteName} due to weight below the minimum {min_weight_param}={min_weight}, "
+                    ngMsg += f"weight={weight} {weightStr} "
+                    ngMsg += "criteria=-below_min_weight"
+                elif useT1Weight:
                     ngMsg = f"  skip site={tmpPseudoSiteName} due to low total "
                     ngMsg += f"nRunningAll={nRunningAll} for negative T1 weight "
-                    ngMsg += "criteria=-t1weight"
+                    ngMsg += "criteria=-t1_weight"
                     if not largestNumRun or largestNumRun[-1] < nRunningAll:
                         largestNumRun = (tmpPseudoSiteName, nRunningAll)
                         okAsPrimay = True
@@ -1892,9 +1905,9 @@ class AtlasProdJobBroker(JobBrokerBase):
                             weightMapSecondary[tmpWeight] += tmpCandidates
                         weightMapPrimary = {}
                 else:
-                    ngMsg = f"  skip site={tmpPseudoSiteName} due to low weight "
+                    ngMsg = f"  skip site={tmpPseudoSiteName} due to low weight, "
                     ngMsg += f"weight={weight} {weightStr} "
-                    ngMsg += "criteria=-loweigh"
+                    ngMsg += "criteria=-low_weight"
                     okAsPrimay = True
             # add to jumbo or primary or secondary
             if forJumbo:
