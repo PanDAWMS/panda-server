@@ -6,6 +6,7 @@ import re
 import sys
 import traceback
 import uuid
+from statistics import mean
 
 import numpy
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -334,31 +335,33 @@ class TaskUtilsModule(BaseModule):
         sqlSCDN = (
             "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
             "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
-            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
+            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost "
             f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
             "WHERE PandaID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
             "UNION "
             "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
             "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
-            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
+            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost "
             f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
             "WHERE PandaID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
             "AND modificationTime>(CURRENT_DATE-30) "
         )
 
         # sql to get ES scout job data from Panda
-        sqlSCDE = "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
-        sqlSCDE += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
-        sqlSCDE += "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
-        sqlSCDE += f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
-        sqlSCDE += "WHERE jobsetID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
-        sqlSCDE += "UNION "
-        sqlSCDE += "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
-        sqlSCDE += "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
-        sqlSCDE += "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2 "
-        sqlSCDE += f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
-        sqlSCDE += "WHERE jobsetID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
-        sqlSCDE += "AND modificationTime>(CURRENT_DATE-14) "
+        sqlSCDE = (
+            "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
+            "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
+            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost "
+            f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
+            "WHERE jobsetID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
+            "UNION "
+            "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
+            "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
+            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost "
+            f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
+            "WHERE jobsetID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
+            "AND modificationTime>(CURRENT_DATE-14) "
+        )
 
         # get size of lib
         sqlLIB = "SELECT MAX(fsize) "
@@ -683,6 +686,7 @@ class TaskUtilsModule(BaseModule):
                         inputFileByte,
                         memory_leak,
                         memory_leak_x2,
+                        modificationhost,
                     ) = oneResData
 
                     # event service job
@@ -696,21 +700,33 @@ class TaskUtilsModule(BaseModule):
 
                     siteMap[pandaID] = computingSite
 
-                    # get core power
-                    if computingSite not in corePowerMap:
-                        varMap = {}
-                        varMap[":site"] = computingSite
-                        self.cur.execute(sqlCore + comment, varMap)
-                        resCore = self.cur.fetchone()
-                        if resCore is not None:
-                            (corePower,) = resCore
-                            corePower = float(corePower)
-                        else:
-                            corePower = None
-                        corePowerMap[computingSite] = corePower
-                    corePower = corePowerMap[computingSite]
-                    if corePower in [0, None]:
+                    # --- core power by host (CPU model) ---
+                    benchmarks = []
+                    atlas_site = "NO_SITE"  # in case of no match
+                    if site_mapper:
+                        atlas_site = site_mapper.getSite(computingSite).pandasite
+                        benchmarks = self.get_cpu_benchmarks_by_host(atlas_site, modificationhost) or []
+
+                    vals = [v for _, v in benchmarks]
+                    benchmark_specific = next(
+                        (v for s, v in benchmarks if s and atlas_site and (s.upper() in atlas_site.upper() or atlas_site.upper() in s.upper())), 0
+                    )
+                    benchmark_average = mean(vals) if vals else 0
+
+                    # --- core power by site (fallback) ---
+                    if not benchmark_specific and not benchmark_average:
+                        if computingSite not in corePowerMap:
+                            self.cur.execute(sqlCore + comment, {":site": computingSite})
+                            row = self.cur.fetchone()
+                            corePowerMap[computingSite] = float(row[0]) if row and row[0] is not None else None
+                        corePower = corePowerMap[computingSite]
+                    else:
+                        corePower = benchmark_specific or benchmark_average
+
+                    # --- final fallback default ---
+                    if not corePower or corePower == 0:
                         corePower = 10
+
                     finishedJobs.append(pandaID)
                     inFSizeList.append(totalFSize)
                     jMetricsMap[pandaID] = jobMetrics

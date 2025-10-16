@@ -9,6 +9,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore.CoreUtils import clean_host_name
 from pandaserver.taskbuffer import ErrorCode, JobUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
@@ -1069,23 +1070,12 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def clean_host_name(self, host_name):
-        # If the worker node comes in the slot1@worker1.example.com format, we remove the slot1@ part
-        match = re.search(r"@(.+)", host_name)
-        host_name = match.group(1) if match else host_name
-
-        # Special handling for ATLAS worker nodes to extract the third field of the hostname, since the first 2 fields are not unique
-        # e.g. atlprd55-xyz-<third_field>.cern.ch
-        match = re.match(r"^atlprd\d+-[^-]+-([^.]+\.cern\.ch)$", host_name)
-        host_name = match.group(1) if match else host_name
-
-        return host_name
-
     def update_worker_node(
         self,
         site,
         host_name,
         cpu_model,
+        cpu_model_normalized,
         n_logical_cpus,
         n_sockets,
         cores_per_socket,
@@ -1105,7 +1095,7 @@ class WorkerModule(BaseModule):
         timestamp_utc = naive_utcnow()
 
         # clean up host name from any prefixes
-        host_name = self.clean_host_name(host_name)
+        host_name = clean_host_name(host_name)
 
         locked = True  # Track whether the worker node was locked by another pilot update
 
@@ -1144,6 +1134,7 @@ class WorkerModule(BaseModule):
                 ":site": site,
                 ":host_name": host_name,
                 ":cpu_model": cpu_model,
+                ":cpu_model_normalized": cpu_model_normalized,
                 ":n_logical_cpus": n_logical_cpus,
                 "n_sockets": n_sockets,
                 ":cores_per_socket": cores_per_socket,
@@ -1158,10 +1149,10 @@ class WorkerModule(BaseModule):
 
             sql = (
                 "INSERT INTO ATLAS_PANDA.worker_node "
-                "(site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
+                "(site, host_name, cpu_model, cpu_model_normalized, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
                 "cpu_architecture, cpu_architecture_level, clock_speed, total_memory, total_local_disk, last_seen) "
                 "VALUES "
-                "(:site, :host_name, :cpu_model, :n_logical_cpus, :n_sockets, :cores_per_socket, :threads_per_core, "
+                "(:site, :host_name, :cpu_model, :cpu_model_normalized, :n_logical_cpus, :n_sockets, :cores_per_socket, :threads_per_core, "
                 ":cpu_architecture, :cpu_architecture_level, :clock_speed, :total_memory, :total_local_disk, :last_seen)"
             )
 
@@ -1208,7 +1199,7 @@ class WorkerModule(BaseModule):
         timestamp_utc = naive_utcnow()
 
         # clean up host name from any prefixes
-        host_name = self.clean_host_name(host_name)
+        host_name = clean_host_name(host_name)
 
         locked = True  # Track whether the worker node was locked by another pilot update
 
@@ -1808,6 +1799,34 @@ class WorkerModule(BaseModule):
             raise RuntimeError("Commit error")
         tmp_log.debug("done")
         return worker_stats_dict
+
+    def get_cpu_benchmarks_by_host(self, site: str, host_name: str) -> list[tuple[str, float]]:
+        comment = " /* DBProxy.get_cpu_benchmarks_by_host */"
+        tmp_log = self.create_tagged_logger(comment, f"host_name={host_name}")
+        tmp_log.debug("Start")
+
+        host_name_clean = clean_host_name(host_name)
+
+        try:
+            sql = (
+                "SELECT cb.site, score_per_core FROM atlas_panda.worker_node wn, atlas_panda.cpu_benchmarks cb "
+                "WHERE wn.site = :site "
+                "AND wn.host_name = :host_name "
+                "AND cb.cpu_type_normalized = wn.cpu_model_normalized "
+                "AND wn.threads_per_core = cb.smt_enabled + 1"
+            )
+
+            var_map = {"site": site, "host_name": host_name_clean}
+
+            self.cur.execute(sql + comment, var_map)
+            results = self.cur.fetchall()
+
+            tmp_log.debug(f"Got {len(results)} benchmarks")
+            return results
+
+        except Exception:
+            self.dump_error_message(tmp_log)
+            return []
 
 
 # get worker module

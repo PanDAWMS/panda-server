@@ -4848,7 +4848,12 @@ class TaskComplexModule(BaseModule):
                     varMap.update(INPUT_TYPES_var_map)
                     self.cur.execute(sqlMAX + comment, varMap)
                     resMAX = self.cur.fetchone()
-                    if not ignore_hard_exhausted and task_max_attempt is not None and task_attempt_number >= task_max_attempt > 0:
+                    if (
+                        not ignore_hard_exhausted
+                        and task_max_attempt is not None
+                        and task_attempt_number is not None
+                        and task_attempt_number >= task_max_attempt > 0
+                    ):
                         # too many attempts
                         msg_str = f"exhausted upon retry since too many task attempts more than {task_max_attempt} are forbidden"
                         tmpLog.debug(msg_str)
