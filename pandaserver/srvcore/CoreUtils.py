@@ -122,8 +122,7 @@ def normalize_cpu_model(cpu_model):
     cpu_model = re.sub(r"\d+\s*KB", "", cpu_model)
     cpu_model = re.sub(r"CORE PROCESSOR\s*\([^)]*\)", "", cpu_model)
     cpu_model = re.sub(r"\b\d+-CORE\b", "", cpu_model)
-    cpu_model = re.sub(r"CPU|CORE|PROCESSOR|SCALABLE|\(R\)", "", cpu_model)
-    cpu_model = re.sub(r"\(R\)|\(TM\)", "", cpu_model)
+    cpu_model = re.sub(r"CPU|CORE|PROCESSOR|SCALABLE|\(R\)|\(TM\)", "", cpu_model)
     cpu_model = re.sub(r"\s+", " ", cpu_model)
     cpu_model = cpu_model.strip()
     return cpu_model
