@@ -119,7 +119,7 @@ def get_sites_with_data(
     element_list: list,
     max_missing_input_files: int,
     min_input_completeness: int,
-) -> tuple[Any, dict | str, bool | None, bool | None, bool | None, bool | None, bool | None]:
+) -> tuple[Any, dict | str, bool | None, bool | None, bool | None, bool | None, bool | None, list]:
     """
     Get sites where data is available and check if complete replica is available at online RSE
     1) regarded_as_complete_disk: True if a replica is regarded as complete at disk (missing files within threshold)
@@ -127,6 +127,7 @@ def get_sites_with_data(
     3) truly_complete_disk: True if a truly complete replica is available at disk (no missing files)
     4) can_be_local_source: True if the site can read the replica locally over LAN
     5) can_be_remote_source: True if the site can read the replica remotely over WAN
+    6) list_of_complete_replica_locations : list of RSEs where truly complete replica is available at disk
     Note that VP replicas are not taken into account for the above flags
 
     :param site_list: list of site names to be checked
@@ -137,18 +138,19 @@ def get_sites_with_data(
     :param max_missing_input_files: maximum number of missing files to be regarded as complete
     :param min_input_completeness: minimum completeness (%) to be regarded as complete
 
-    :return: tuple of (status code or exception type, dict of sites with data availability info, regarded_as_complete_disk, complete_tape, truly_complete_disk, can_be_local_source, can_be_remote_source)
+    :return: tuple of (status code or exception type, dict of sites with data availability info, regarded_as_complete_disk, complete_tape, truly_complete_disk, can_be_local_source, can_be_remote_source, list_of_complete_replica_locations)
     """
     # get replicas
     try:
         replica_map = {dataset_name: ddm_if.listDatasetReplicas(dataset_name, use_vp=True, skip_incomplete_element=True, element_list=element_list)}
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
-        return errtype, f"ddmIF.listDatasetReplicas failed with {errvalue}", None, None, None, None, None
+        return errtype, f"ddmIF.listDatasetReplicas failed with {errvalue}", None, None, None, None, None, []
 
     # check completeness and storage availability
     is_tape = {}
     replica_availability_info = {}
+    list_of_complete_replica_locations = []
     for tmp_rse, tmp_data_list in replica_map[dataset_name].items():
         # check tape attribute
         try:
@@ -182,6 +184,7 @@ def get_sites_with_data(
                     tmp_complete_tape = True
                 else:
                     tmp_regarded_as_complete_disk = True
+                    list_of_complete_replica_locations.append(tmp_rse)
                     if truly_complete:
                         tmp_truly_complete_disk = True
                     # check if it is locally accessible over LAN
@@ -255,7 +258,16 @@ def get_sites_with_data(
                     if replica_availability_info[tmp_rse]["can_be_remote_source"]:
                         can_be_remote_source = True
     # return
-    return Interaction.SC_SUCCEEDED, return_map, regarded_as_complete_disk, complete_tape, truly_complete_disk, can_be_local_source, can_be_remote_source
+    return (
+        Interaction.SC_SUCCEEDED,
+        return_map,
+        regarded_as_complete_disk,
+        complete_tape,
+        truly_complete_disk,
+        can_be_local_source,
+        can_be_remote_source,
+        list_of_complete_replica_locations,
+    )
 
 
 # get analysis sites where data is available at disk
