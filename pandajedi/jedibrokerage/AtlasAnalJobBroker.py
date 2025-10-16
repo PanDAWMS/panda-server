@@ -362,6 +362,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
         true_complete_disk_ok = {}
         can_be_local_source = {}
         can_be_remote_source = {}
+        list_of_complete_replica_locations = {}
         if inputChunk.getDatasets():
             for datasetSpec in inputChunk.getDatasets():
                 datasetName = datasetSpec.datasetName
@@ -369,16 +370,23 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 if datasetName not in self.dataSiteMap:
                     # get the list of sites where data is available
                     tmpLog.debug(f"getting the list of sites where {datasetName} is available")
-                    tmpSt, tmpRet, tmp_complete_disk_ok, tmp_complete_tape_ok, tmp_truly_complete_disk, tmp_can_be_local_source, tmp_can_be_remote_source = (
-                        AtlasBrokerUtils.get_sites_with_data(
-                            self.get_unified_sites(scanSiteList),
-                            self.siteMapper,
-                            self.ddmIF,
-                            datasetName,
-                            element_map.get(datasetSpec.datasetName),
-                            max_missing_input_files,
-                            min_input_completeness,
-                        )
+                    (
+                        tmpSt,
+                        tmpRet,
+                        tmp_complete_disk_ok,
+                        tmp_complete_tape_ok,
+                        tmp_truly_complete_disk,
+                        tmp_can_be_local_source,
+                        tmp_can_be_remote_source,
+                        tmp_list_of_complete_replica_locations,
+                    ) = AtlasBrokerUtils.get_sites_with_data(
+                        self.get_unified_sites(scanSiteList),
+                        self.siteMapper,
+                        self.ddmIF,
+                        datasetName,
+                        element_map.get(datasetSpec.datasetName),
+                        max_missing_input_files,
+                        min_input_completeness,
                     )
                     if tmpSt in [Interaction.JEDITemporaryError, Interaction.JEDITimeoutError]:
                         tmpLog.error(f"temporary failed to get the list of sites where data is available, since {tmpRet}")
@@ -395,6 +403,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     true_complete_disk_ok[datasetName] = tmp_truly_complete_disk
                     can_be_local_source[datasetName] = tmp_can_be_local_source
                     can_be_remote_source[datasetName] = tmp_can_be_remote_source
+                    list_of_complete_replica_locations[datasetName] = tmp_list_of_complete_replica_locations
                     if datasetName.startswith("ddo"):
                         tmpLog.debug(f" {len(tmpRet)} sites")
                     else:
@@ -424,7 +433,17 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 )
                 # check if the data is available at somewhere
                 if not complete_disk_ok[datasetName] and not complete_tape_ok[datasetName] and isDistributed is not True:
-                    err_msg = f"{datasetName} is unavailable/incomplete at storages that are currently not in downtime."
+                    err_msg = f"{datasetName} is "
+                    if list_of_complete_replica_locations[datasetName]:
+                        tmp_rse_list = ",".join(list_of_complete_replica_locations[datasetName])
+                        tmp_is_single = len(list_of_complete_replica_locations[datasetName]) == 1
+                        err_msg += f"only complete at {tmp_rse_list}. But "
+                        err_msg += "the storage is " if tmp_is_single else "the storages are "
+                        err_msg += "currently in downtime or offline, or "
+                        err_msg += "isn't " if tmp_is_single else "aren't "
+                        err_msg += "associated to any online sites. "
+                    else:
+                        err_msg += "incomplete at online storage. "
                     if not taskSpec.allow_incomplete_input():
                         tmpLog.error(err_msg)
                         taskSpec.setErrDiag(err_msg)

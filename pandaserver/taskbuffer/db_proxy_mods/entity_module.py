@@ -413,7 +413,7 @@ class EntityModule(BaseModule):
 
         comment = " /* DBProxy.reassignShare */"
         tmp_log = self.create_tagged_logger(comment)
-        tmp_log.debug("start")
+        tmp_log.debug(f"Start reassigning {jedi_task_ids} to gshare={gshare} and reassign_running={reassign_running}")
 
         try:
             if not self.is_valid_share(gshare):
@@ -461,6 +461,10 @@ class EntityModule(BaseModule):
                 locked_taskid_set = shard_taskid_set - good_taskid_set
                 if locked_taskid_set:
                     tmp_log.debug(f"skip locked tasks: {','.join([str(i) for i in locked_taskid_set])}")
+
+                # Skip if there are no tasks to update
+                if not jtid_bindings:
+                    continue
 
                 # update the task
                 sql_task = f"""

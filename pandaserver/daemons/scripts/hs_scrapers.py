@@ -8,6 +8,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
+from pandaserver.srvcore.CoreUtils import normalize_cpu_model
 
 main_logger = PandaLogger().getLogger("hs_scrapers")
 
@@ -49,11 +50,12 @@ class BaseHS06Scraper:
     def _insert_cpu_perf_rows(self, rows: list[dict], source_url: str) -> None:
         sql = (
             "INSERT INTO atlas_panda.cpu_benchmarks "
-            "(cpu_type, smt_enabled, ncores, site, score_per_core, source) "
-            "VALUES (:cpu_type, :smt_enabled, :ncores, :site, :score_per_core, :source)"
+            "(cpu_type, cpu_type_normalized, smt_enabled, ncores, site, score_per_core, source) "
+            "VALUES (:cpu_type, :cpu_type_normalized, :smt_enabled, :ncores, :site, :score_per_core, :source)"
         )
         for r in rows:
             r["source"] = source_url
+            r["cpu_type_normalized"] = normalize_cpu_model(r["cpu_type"])
             status, res = self.task_buffer.querySQLS(sql, r)
 
     def _fetch_html(self, url: str) -> str:
@@ -209,13 +211,14 @@ class HS23Ingestor:
     def _insert(self, df: pl.DataFrame) -> None:
         sql = (
             "INSERT INTO atlas_panda.cpu_benchmarks "
-            "(cpu_type, smt_enabled, sockets, cores_per_socket, ncores, site, "
+            "(cpu_type, cpu_type_normalized, smt_enabled, sockets, cores_per_socket, ncores, site, "
             "score_per_core, timestamp, source) "
-            "VALUES (:cpu_type, :smt_enabled, :sockets, :cores_per_socket, :ncores, "
+            "VALUES (:cpu_type, :cpu_type_normalized, :smt_enabled, :sockets, :cores_per_socket, :ncores, "
             ":site, :score_per_core, :timestamp, :source)"
         )
         for row in df.to_dicts():
             row["source"] = self.url
+            row["cpu_type_normalized"] = normalize_cpu_model(row["cpu_type"])
             _, _ = self.task_buffer.querySQLS(sql, row)
 
 
