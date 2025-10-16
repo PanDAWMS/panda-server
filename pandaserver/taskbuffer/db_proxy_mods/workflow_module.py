@@ -150,7 +150,9 @@ class WorkflowModule(BaseModule):
             tmp_log.warning("no steps found; skipped")
             return []
 
-    def get_data_of_workflow(self, workflow_id: int, status_filter_list: list | None = None, status_exclusion_list: list | None = None) -> list[WFDataSpec]:
+    def get_data_of_workflow(
+        self, workflow_id: int, status_filter_list: list | None = None, status_exclusion_list: list | None = None, type_filter_list: list | None = None
+    ) -> list[WFDataSpec]:
         """
         Retrieve all workflow data for a given workflow ID
 
@@ -158,6 +160,7 @@ class WorkflowModule(BaseModule):
             workflow_id (int): ID of the workflow to retrieve data for
             status_filter_list (list | None): List of statuses to filter the data by (optional)
             status_exclusion_list (list | None): List of statuses to exclude the data by (optional)
+            type_filter_list (list | None): List of types to filter the data by (optional)
 
         Returns:
             list[WFDataSpec]: List of workflow data specifications
@@ -174,6 +177,10 @@ class WorkflowModule(BaseModule):
             antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
             sql += f"AND status NOT IN ({antistatus_var_names_str}) "
             var_map.update(antistatus_var_map)
+        if type_filter_list:
+            type_var_names_str, type_var_map = get_sql_IN_bind_variables(type_filter_list, prefix=":type")
+            sql += f"AND type IN ({type_var_names_str}) "
+            var_map.update(type_var_map)
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
         if res_list is not None:
