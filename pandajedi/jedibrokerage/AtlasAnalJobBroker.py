@@ -428,20 +428,18 @@ class AtlasAnalJobBroker(JobBrokerBase):
                                     # disable VP since distributed datasets triggers transfers
                                     useVP = False
                                     avoidVP = True
+                tmp_rse_list = ",".join(list_of_complete_replica_locations[datasetName])
                 tmpLog.debug(
-                    f"replica_availability disk:{complete_disk_ok[datasetName]} tape:{complete_tape_ok[datasetName]}, is_distributed:{isDistributed}, remote_readable:{can_be_remote_source[datasetName]}"
+                    f"replica_availability disk:{complete_disk_ok[datasetName]} tape:{complete_tape_ok[datasetName]}, is_distributed:{isDistributed}, remote_readable:{can_be_remote_source[datasetName]}, rses={tmp_rse_list}"
                 )
                 # check if the data is available at somewhere
                 if not complete_disk_ok[datasetName] and not complete_tape_ok[datasetName] and isDistributed is not True:
                     err_msg = f"{datasetName} is "
                     if list_of_complete_replica_locations[datasetName]:
-                        tmp_rse_list = ",".join(list_of_complete_replica_locations[datasetName])
                         tmp_is_single = len(list_of_complete_replica_locations[datasetName]) == 1
-                        err_msg += f"only complete at {tmp_rse_list}. But "
-                        err_msg += "the storage is " if tmp_is_single else "the storages are "
-                        err_msg += "currently in downtime or offline, or "
-                        err_msg += "isn't " if tmp_is_single else "aren't "
-                        err_msg += "associated to any online sites. "
+                        err_msg += f"only complete at {tmp_rse_list} which "
+                        err_msg += "is " if tmp_is_single else "are "
+                        err_msg += "currently in downtime or offline. "
                     else:
                         err_msg += "incomplete at online storage. "
                     if not taskSpec.allow_incomplete_input():
