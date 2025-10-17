@@ -308,16 +308,23 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmpLog.debug(f"completeness check disabled for {datasetName} since it is distributed")
                     continue
                 # check if complete replicas are available at online endpoints
-                tmpSt, tmpRet, tmp_complete_disk_ok, tmp_complete_tape_ok, tmp_truly_complete_disk, tmp_can_be_local_source, tmp_can_be_remote_source = (
-                    AtlasBrokerUtils.get_sites_with_data(
-                        [],
-                        self.siteMapper,
-                        self.ddmIF,
-                        datasetName,
-                        [],
-                        max_missing_input_files,
-                        min_input_completeness,
-                    )
+                (
+                    tmpSt,
+                    tmpRet,
+                    tmp_complete_disk_ok,
+                    tmp_complete_tape_ok,
+                    tmp_truly_complete_disk,
+                    tmp_can_be_local_source,
+                    tmp_can_be_remote_source,
+                    tmp_list_of_complete_replica_locations,
+                ) = AtlasBrokerUtils.get_sites_with_data(
+                    [],
+                    self.siteMapper,
+                    self.ddmIF,
+                    datasetName,
+                    [],
+                    max_missing_input_files,
+                    min_input_completeness,
                 )
                 if tmpSt != Interaction.SC_SUCCEEDED:
                     tmpLog.error(f"failed to get available storage endpoints with {datasetName}")
@@ -325,10 +332,21 @@ class AtlasProdJobBroker(JobBrokerBase):
                     return retTmpError
                 # pending if the dataset is incomplete or missing at online endpoints
                 if not tmp_complete_disk_ok and not tmp_complete_tape_ok:
-                    tmpLog.error(f"dataset={datasetName} is incomplete/missing at online endpoints")
+                    err_msg = f"{datasetName} is "
+                    if tmp_list_of_complete_replica_locations:
+                        tmp_rse_list = ",".join(tmp_list_of_complete_replica_locations)
+                        tmp_is_single = len(tmp_list_of_complete_replica_locations) == 1
+                        err_msg += f"only complete at {tmp_rse_list}. But "
+                        err_msg += "the storage is " if tmp_is_single else "the storages are "
+                        err_msg += "currently in downtime or offline, or "
+                        err_msg += "isn't " if tmp_is_single else "aren't "
+                        err_msg += "associated to any online sites"
+                    else:
+                        err_msg += "incomplete at any online storage"
+                    tmpLog.error(err_msg)
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
                     return retTmpError
-                tmp_msg = f"complete replicas of {datasetName} are available at online endpoints"
+                tmp_msg = f"complete replicas of {datasetName} are available at online storages"
                 if not tmp_can_be_remote_source:
                     if tmp_can_be_local_source:
                         tmp_msg += ", but files cannot be sent out to satellites since read_wan is not ON"
