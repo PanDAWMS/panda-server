@@ -41,28 +41,6 @@ class TestSystemAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_https_endpoint(self):
-        url = f"{api_url_ssl}/system/get_https_endpoint"
-        print(f"Testing URL: {url}")
-        data = {}
-        status, output = self.http_client.get(url, data)
-        print(output)
-        output["status"] = status
-
-        expected_response = {"status": 0, "success": True}
-        self.assertEqual(output, expected_response)
-
-    def test_get_http_endpoint(self):
-        url = f"{api_url_ssl}/system/get_http_endpoint"
-        print(f"Testing URL: {url}")
-        data = {}
-        status, output = self.http_client.get(url, data)
-        print(output)
-        output["status"] = status
-
-        expected_response = {"status": 0, "success": True}
-        self.assertEqual(output, expected_response)
-
     def test_is_alive(self):
         url = f"{api_url_ssl}/system/is_alive"
         print(f"Testing URL: {url}")
