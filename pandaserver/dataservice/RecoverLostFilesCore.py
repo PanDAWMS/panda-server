@@ -169,7 +169,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
     dn = exec_options.get("userName")
     is_production_manager = exec_options.get("isProductionManager", False)
     log_filename = exec_options.get("logFilename")
-    print_msg(f"DN='{dn}' is_prod={is_production_manager} log_name={log_filename}", log_stream)
+    print_msg(f"User='{dn}' is_prod={is_production_manager} log_name={log_filename}", log_stream)
 
     if options.reproduceUptoNthGen > 0:
         options.reproduceUptoNthGen -= 1
@@ -177,7 +177,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
 
     # check if dataset name or taskID is given
     if options.jediTaskID is None and options.ds is None:
-        msg_str = "dataset name is required"
+        msg_str = "Dataset name or jediTaskID is required"
         print_msg(msg_str, log_stream, is_error=True, put_log=log_filename)
         return False, msg_str
 
@@ -258,11 +258,15 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
     for tmpDS in ds_files:
         files = ds_files[tmpDS]
         if not is_production_manager:
-            ts, jediTaskID, lostInputFiles = taskBuffer.resetFileStatusInJEDI(dn, False, tmpDS, files, options.reproduceParent, options.dryRun)
+            ts, jediTaskID, lostInputFiles, error_message = taskBuffer.resetFileStatusInJEDI(dn, False, tmpDS, files, options.reproduceParent, options.dryRun)
         else:
-            ts, jediTaskID, lostInputFiles = taskBuffer.resetFileStatusInJEDI("", True, tmpDS, files, options.reproduceParent, options.dryRun)
-        msg_str = f"reset file status for {tmpDS} in the DB: done with {ts} for jediTaskID={jediTaskID}"
-        print_msg(msg_str, log_stream)
+            ts, jediTaskID, lostInputFiles, error_message = taskBuffer.resetFileStatusInJEDI("", True, tmpDS, files, options.reproduceParent, options.dryRun)
+        if error_message:
+            msg_str = f"Failed to reset file status in the DB since {error_message}"
+            print_msg(msg_str, log_stream, is_error=True)
+        else:
+            msg_str = f"Reset file status for {tmpDS} in the DB: done with {ts} for jediTaskID={jediTaskID}"
+            print_msg(msg_str, log_stream)
         s |= ts
         # recover provenance
         if options.reproduceParent:
@@ -313,6 +317,6 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
         print_msg(msg_str, log_stream, put_log=log_filename)
         return True, tmp_status
     else:
-        msg_str = "failed"
+        msg_str = "Failed"
         print_msg(msg_str, log_stream, is_error=True, put_log=log_filename)
         return False, msg_str
