@@ -25,6 +25,21 @@ MESSAGE_DATABASE = "database error in the PanDA server"
 MESSAGE_JSON = "failed to load JSON"
 
 
+def get_endpoint(protocol):
+    if protocol not in ["http", "https"]:
+        return False, "Protocol must be either 'http' or 'https'"
+
+    try:
+        if protocol == "https":
+            endpoint = f"{panda_config.pserverhost}:{panda_config.pserverport}"
+        else:
+            endpoint = f"{panda_config.pserverhosthttp}:{panda_config.pserverporthttp}"
+    except Exception as e:
+        return False, str(e)
+
+    return True, endpoint
+
+
 def extract_allowed_methods(module: ModuleType) -> list:
     """
     Generate the allowed methods dynamically with all function names present in the API module, excluding

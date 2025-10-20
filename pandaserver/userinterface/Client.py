@@ -13,6 +13,9 @@ import tempfile
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 
+from pandaserver.api.v1.http_client import HttpClient as HttpClientV1
+from pandaserver.api.v1.http_client import api_url_ssl as api_url_ssl_v1
+
 # PanDA server configuration
 baseURL = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/panda")
 baseURLSSL = os.environ.get("PANDA_URL_SSL", "https://pandaserver.cern.ch:25443/server/panda")
@@ -920,13 +923,13 @@ def reassignTaskToNucleus(jediTaskID, nucleus, mode=None):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def uploadLog(logStr, logFileName):
+def uploadLog(log_string, log_file_name):
     """
     Upload log
 
     args:
         logStr: log message
-        logFileName: name of log file
+        log_file_name: name of log file
     returns:
         status code
               0: communication succeeded to the panda server
@@ -934,21 +937,22 @@ def uploadLog(logStr, logFileName):
 
     """
 
-    http_client = HttpClient()
+    http_client = HttpClientV1()
 
     # write log to a tmp file
     fh = tempfile.NamedTemporaryFile(delete=False)
     gfh = gzip.open(fh.name, mode="wb")
     if sys.version_info[0] >= 3:
-        logStr = logStr.encode("utf-8")
-    gfh.write(logStr)
+        log_string = log_string.encode("utf-8")
+    gfh.write(log_string)
     gfh.close()
     # execute
-    url = f"{baseURLSSL}/uploadLog"
+    url = f"{api_url_ssl_v1}/file_server/upload_jedi_log"
+
     # sometimes the destination file name (=logFileName) comes as an integer (e.g. a JEDI task ID) and it needs to be converted to a string
-    logFileName = str(logFileName)
-    data = {"file": (logFileName, fh.name)}
-    return_value = http_client.post_files(url, data)
+    log_file_name = str(log_file_name)
+    data = {"file": (log_file_name, fh.name)}
+    return_value = http_client.post_files(url, data, encoding="gzip")
     os.unlink(fh.name)
     return return_value
 
