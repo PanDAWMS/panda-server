@@ -370,7 +370,6 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
         if not to_insert:
             tmp_logger.debug("skipped to insert to DB")
         else:
-            # TODO: change to the new API method once implemented
             status_client, output_client = Client.register_cache_file(user_name, file.filename, file_size, checksum)
             if status_client != 0 or output_client.startswith("ERROR"):
                 error_message = f"ERROR : failed to register file in database with {status_client} {output_client}"
