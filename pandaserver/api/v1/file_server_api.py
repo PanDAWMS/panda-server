@@ -492,8 +492,10 @@ def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_
 
     message = global_task_buffer.insertSandboxFileInfo(user_name, host_name, file_name, file_size, checksum)
     if message != "OK":
+        tmp_logger.debug("Done")
         return generate_response(False, message)
 
+    tmp_logger.debug("Done")
     return generate_response(True)
 
 
