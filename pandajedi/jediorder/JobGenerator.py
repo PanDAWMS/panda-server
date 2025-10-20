@@ -823,7 +823,7 @@ class JobGeneratorThread(WorkerThread):
                                             continue
                                         pandaIDsForExec.append(pandaID)
                                     tmpLog.debug(main_stop_watch.get_elapsed_time(f"{len(pandaIDsForExec)} job execution"))
-                                    statExe, retExe = PandaClient.reassignJobs(pandaIDsForExec, forPending=True, firstSubmission=firstSubmission)
+                                    statExe, retExe = PandaClient.reassign_jobs(pandaIDsForExec, forPending=True, firstSubmission=firstSubmission)
                                     tmpLog.info(f"exec {len(pandaIDsForExec)} jobs with status={retExe}")
                                 jobsSubmitted = True
                                 nSubmitSucceeded += 1

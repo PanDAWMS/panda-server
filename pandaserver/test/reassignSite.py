@@ -71,7 +71,7 @@ if len(jobs):
     iJob = 0
     while iJob < len(jobs):
         print(f"reassign  {str(jobs[iJob:iJob + nJob])}")
-        Client.reassignJobs(jobs[iJob : iJob + nJob])
+        Client.reassign_jobs(jobs[iJob : iJob + nJob])
         iJob += nJob
 if len(jediJobs) != 0:
     nJob = 100
