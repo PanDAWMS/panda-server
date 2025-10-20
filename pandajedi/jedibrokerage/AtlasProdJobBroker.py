@@ -336,11 +336,9 @@ class AtlasProdJobBroker(JobBrokerBase):
                     if tmp_list_of_complete_replica_locations:
                         tmp_rse_list = ",".join(tmp_list_of_complete_replica_locations)
                         tmp_is_single = len(tmp_list_of_complete_replica_locations) == 1
-                        err_msg += f"only complete at {tmp_rse_list}. But "
-                        err_msg += "the storage is " if tmp_is_single else "the storages are "
-                        err_msg += "currently in downtime or offline, or "
-                        err_msg += "isn't " if tmp_is_single else "aren't "
-                        err_msg += "associated to any online sites"
+                        err_msg += f"only complete at {tmp_rse_list} which "
+                        err_msg += "is " if tmp_is_single else "are "
+                        err_msg += "currently in downtime or offline"
                     else:
                         err_msg += "incomplete at any online storage"
                     tmpLog.error(err_msg)

@@ -180,19 +180,19 @@ def get_sites_with_data(
                     truly_complete = False
                 else:
                     continue
+                list_of_complete_replica_locations.append(tmp_rse)
                 if is_tape[tmp_rse]:
                     tmp_complete_tape = True
                 else:
                     tmp_regarded_as_complete_disk = True
-                    list_of_complete_replica_locations.append(tmp_rse)
                     if truly_complete:
                         tmp_truly_complete_disk = True
-                    # check if it is locally accessible over LAN
-                    if site_mapper.is_readable_locally(tmp_rse):
-                        tmp_can_be_local_source = True
-                    # check if it is remotely accessible over WAN
-                    if site_mapper.is_readable_remotely(tmp_rse):
-                        tmp_can_be_remote_source = True
+                # check if it is locally accessible over LAN
+                if site_mapper.is_readable_locally(tmp_rse):
+                    tmp_can_be_local_source = True
+                # check if it is remotely accessible over WAN
+                if site_mapper.is_readable_remotely(tmp_rse):
+                    tmp_can_be_remote_source = True
         replica_availability_info[tmp_rse] = {
             "regarded_as_complete_disk": tmp_regarded_as_complete_disk,
             "truly_complete_disk": tmp_truly_complete_disk,
@@ -212,19 +212,15 @@ def get_sites_with_data(
         # make sure at least one loop to set the flags
         site_list = [None]
     for tmp_site_name in site_list:
-        if tmp_site_name is None:
-            # use all endpoints
-            input_endpoints = replica_availability_info.keys()
-        else:
-            if not site_mapper.checkSite(tmp_site_name):
-                continue
-            # get associated DDM endpoints
-            tmp_site_spec = site_mapper.getSite(tmp_site_name)
-            scope_input, scope_output = select_scope(tmp_site_spec, JobUtils.ANALY_PS, JobUtils.ANALY_PS)
-            try:
-                input_endpoints = tmp_site_spec.ddm_endpoints_input[scope_input].all.keys()
-            except Exception:
-                input_endpoints = {}
+        if not site_mapper.checkSite(tmp_site_name):
+            continue
+        # get associated DDM endpoints
+        tmp_site_spec = site_mapper.getSite(tmp_site_name)
+        scope_input, scope_output = select_scope(tmp_site_spec, JobUtils.ANALY_PS, JobUtils.ANALY_PS)
+        try:
+            input_endpoints = tmp_site_spec.ddm_endpoints_input[scope_input].all.keys()
+        except Exception:
+            input_endpoints = {}
         # loop over all associated endpoints
         for tmp_rse in input_endpoints:
             if tmp_rse in replica_map[dataset_name]:
@@ -239,24 +235,24 @@ def get_sites_with_data(
                 else:
                     tmp_dataset_completeness = "incomplete"
                 # append
-                if tmp_site_name is not None:
-                    if tmp_site_name not in return_map:
-                        return_map[tmp_site_name] = {}
-                    return_map[tmp_site_name][tmp_rse] = {"tape": is_tape[tmp_rse], "state": tmp_dataset_completeness}
-                    if "vp" in tmp_statistics:
-                        return_map[tmp_site_name][tmp_rse]["vp"] = tmp_statistics["vp"]
-                # set flags
-                if tmp_rse in replica_availability_info:
-                    if replica_availability_info[tmp_rse]["regarded_as_complete_disk"]:
-                        regarded_as_complete_disk = True
-                    if replica_availability_info[tmp_rse]["truly_complete_disk"]:
-                        truly_complete_disk = True
-                    if replica_availability_info[tmp_rse]["complete_tape"]:
-                        complete_tape = True
-                    if replica_availability_info[tmp_rse]["can_be_local_source"]:
-                        can_be_local_source = True
-                    if replica_availability_info[tmp_rse]["can_be_remote_source"]:
-                        can_be_remote_source = True
+                if tmp_site_name not in return_map:
+                    return_map[tmp_site_name] = {}
+                return_map[tmp_site_name][tmp_rse] = {"tape": is_tape[tmp_rse], "state": tmp_dataset_completeness}
+                if "vp" in tmp_statistics:
+                    return_map[tmp_site_name][tmp_rse]["vp"] = tmp_statistics["vp"]
+    # set flags
+    for tmp_rse in replica_availability_info:
+        if replica_availability_info[tmp_rse]["can_be_local_source"] or replica_availability_info[tmp_rse]["can_be_remote_source"]:
+            if replica_availability_info[tmp_rse]["regarded_as_complete_disk"]:
+                regarded_as_complete_disk = True
+            if replica_availability_info[tmp_rse]["truly_complete_disk"]:
+                truly_complete_disk = True
+            if replica_availability_info[tmp_rse]["complete_tape"]:
+                complete_tape = True
+            if replica_availability_info[tmp_rse]["can_be_local_source"]:
+                can_be_local_source = True
+            if replica_availability_info[tmp_rse]["can_be_remote_source"]:
+                can_be_remote_source = True
     # return
     return (
         Interaction.SC_SUCCEEDED,
