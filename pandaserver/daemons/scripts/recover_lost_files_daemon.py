@@ -79,7 +79,13 @@ def main(tbuf=None, **kwargs):
             self.lock.acquire()
             with open(self.fileName) as f:
                 ops = json.load(f)
-                tmpLog = LogWrapper(_logger, f"< jediTaskID={ops['jediTaskID']} >")
+                tag = ops.get("jediTaskID")
+                if tag:
+                    tag = f"< jediTaskID={tag} >"
+                else:
+                    tag = ops.get("dataset")
+                    tag = f"< dataset={tag} >"
+                tmpLog = LogWrapper(_logger, tag)
                 tmpLog.info(f"start {self.fileName}")
                 s, o = RecoverLostFilesCore.main(self.taskBuffer, ops, tmpLog)
                 tmpLog.info(f"status={s}. {o}")
