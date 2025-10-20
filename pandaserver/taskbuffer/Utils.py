@@ -199,17 +199,25 @@ def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
             tmp_log.debug("skipped to insert to DB")
         else:
             status_client, output_client = Client.register_cache_file(user_name, file.filename, file_size, checksum)
-            if status_client != 0 or output_client.startswith("ERROR"):
+            if status_client != 0:
                 error_message = f"ERROR : failed to register sandbox to DB with {status_client} {output_client}"
                 tmp_log.error(error_message)
-                tmp_log.debug("end")
+                tmp_log.debug("Done")
                 return error_message
 
-            tmp_log.debug(f"inserted sandbox to DB with {output_client}")
+            success = output_client["success"]
+            message = output_client["message"]
+            if not success:
+                error_message = f"ERROR : failed to register sandbox to DB with {message}"
+                tmp_log.error(error_message)
+                tmp_log.debug("Done")
+                return error_message
+
+            tmp_log.debug(f"Inserted sandbox to DB with {output_client}")
 
     tmp_log.debug("trigger garbage collection")
     gc.collect()
-    tmp_log.debug("end")
+    tmp_log.debug("Done")
 
     return "True"
 

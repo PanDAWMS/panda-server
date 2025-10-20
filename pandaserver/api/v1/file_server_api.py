@@ -372,8 +372,16 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
             tmp_logger.debug("skipped to insert to DB")
         else:
             status_client, output_client = Client.register_cache_file(user_name, file.filename, file_size, checksum)
-            if status_client != 0 or output_client.startswith("ERROR"):
-                error_message = f"ERROR : failed to register file in database with {status_client} {output_client}"
+            if status_client != 0:
+                error_message = f"ERROR : failed to register sandbox to DB with {status_client} {output_client}"
+                tmp_logger.error(error_message)
+                tmp_logger.debug("Done")
+                return generate_response(False, error_message)
+
+            success = output_client["success"]
+            message = output_client["message"]
+            if not success:
+                error_message = f"ERROR : failed to register sandbox to DB with {message}"
                 tmp_logger.error(error_message)
                 tmp_logger.debug("Done")
                 return generate_response(False, error_message)
