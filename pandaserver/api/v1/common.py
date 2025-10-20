@@ -221,7 +221,12 @@ def request_validation(logger, secure=True, production=False, request_method=Non
             # Get function signature and type hints
             sig = inspect.signature(func)
             args_tmp = (req,) + args
-            bound_args = sig.bind(*args_tmp, **kwargs)
+            try:
+                bound_args = sig.bind(*args_tmp, **kwargs)
+            except TypeError as e:
+                message = f"Argument error: {str(e)}"
+                tmp_logger.error(message)
+                return generate_response(False, message=message)
             bound_args.apply_defaults()
 
             for param_name, param_value in bound_args.arguments.items():

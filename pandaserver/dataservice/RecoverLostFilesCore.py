@@ -1,6 +1,8 @@
 import argparse
+import os
 import sys
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.thread_utils import GenericThread
 from rucio.client import Client as RucioClient
 from rucio.common.exception import DataIdentifierNotFound
@@ -11,7 +13,7 @@ from pandaserver.userinterface import Client
 
 
 # get files form rucio
-def get_files_from_rucio(ds_name, log_stream):
+def get_files_from_rucio(ds_name):
     # get files from rucio
     try:
         rc = RucioClient()
@@ -25,31 +27,61 @@ def get_files_from_rucio(ds_name, log_stream):
     except DataIdentifierNotFound:
         return False, f"unknown dataset {ds_name}"
     except Exception as e:
-        msgStr = f"failed to get files from rucio: {str(e)}"
-        return None, msgStr
+        msg_str = f"failed to get files from rucio: {str(e)}"
+        return None, msg_str
+
+
+# print a message
+def print_msg(message: str, log_stream: LogWrapper | None, is_error: bool = False, put_log: str | None = None):
+    """
+    Print a message to log stream or stdout.
+
+    :param message: Message string.
+    :param log_stream: LogWrapper object or None.
+    :param is_error: If True, log as error.
+    :param put_log: Log filename to dump log to this file in cache_dir.
+    """
+    if log_stream:
+        if is_error:
+            log_stream.error("Error: " + message)
+        else:
+            log_stream.info(message)
+        if put_log:
+            with open(os.path.join(panda_config.cache_dir, put_log), "w") as f:
+                f.write(log_stream.dumpToString())
+                f.write("done\n")
+    else:
+        if is_error:
+            print("ERROR: ", message)
+        else:
+            print(message)
 
 
 # main
 def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
     # options
     parser = argparse.ArgumentParser()
-    if taskBuffer:
-        parser.add_argument("--ds", action="store", dest="ds", default=None, help="dataset name")
-    else:
-        parser.add_argument(
-            "--ds",
-            action="store",
-            dest="ds",
-            default=None,
-            required=True,
-            help="dataset name",
-        )
+    parser.add_argument(
+        "--ds",
+        action="store",
+        dest="ds",
+        default=None,
+        help="dataset name",
+    )
     parser.add_argument(
         "--files",
         action="store",
         dest="files",
         default=None,
-        help="comma-separated list of lost file names. The list is dedeuced if this option is omitted",
+        help="comma-separated list of lost file names. The list is deduced if this option is omitted",
+    )
+    parser.add_argument(
+        "--jediTaskID",
+        action="store",
+        dest="jediTaskID",
+        type=int,
+        default=None,
+        help="JEDI task ID that produced the dataset",
     )
     parser.add_argument(
         "--noChildRetry",
@@ -113,10 +145,6 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
         else:
             options = parser.parse_args()
 
-    # executed via command-line
-    givenTaskID = None
-    dn = None
-
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     if taskBuffer is None:
@@ -130,22 +158,28 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
             requester=requester_id,
         )
 
-    else:
-        # set options from dict
-        if exec_options is None:
-            exec_options = {}
-        keys = set(vars(options).keys())
-        for k in exec_options:
-            if k in keys:
-                setattr(options, k, exec_options[k])
-        if "jediTaskID" in exec_options:
-            givenTaskID = exec_options["jediTaskID"]
-        if "userName" in exec_options:
-            dn = exec_options["userName"]
+    # set options from dict
+    if exec_options is None:
+        exec_options = {}
+    keys = set(vars(options).keys())
+    for k in exec_options:
+        if k in keys:
+            setattr(options, k, exec_options[k])
+
+    dn = exec_options.get("userName")
+    is_production_manager = exec_options.get("isProductionManager", False)
+    log_filename = exec_options.get("logFilename")
+    print_msg(f"DN='{dn}' is_prod={is_production_manager} log_name={log_filename}", log_stream)
 
     if options.reproduceUptoNthGen > 0:
         options.reproduceUptoNthGen -= 1
         options.reproduceParent = True
+
+    # check if dataset name or taskID is given
+    if options.jediTaskID is None and options.ds is None:
+        msg_str = "dataset name is required"
+        print_msg(msg_str, log_stream, is_error=True, put_log=log_filename)
+        return False, msg_str
 
     ds_files = {}
     if options.files is not None:
@@ -153,10 +187,11 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
         ds_files[options.ds] = files
     else:
         # look for lost files
-        if not givenTaskID:
+        if not options.jediTaskID:
             # get files from rucio
-            st, files_rucio = get_files_from_rucio(options.ds, log_stream)
+            st, files_rucio = get_files_from_rucio(options.ds)
             if st is not True:
+                print_msg(files_rucio, log_stream, is_error=True, put_log=log_filename)
                 return st, files_rucio
             # get files from panda
             dsName = options.ds.split(":")[-1]
@@ -180,13 +215,14 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
             # get dataset names
             dd, do = taskBuffer.querySQLS(
                 "SELECT datasetName FROM ATLAS_PANDA.JEDI_Datasets " "WHERE jediTaskID=:jediTaskID AND type=:t1 ",
-                {":t1": "output", ":jediTaskID": givenTaskID},
+                {":t1": "output", ":jediTaskID": options.jediTaskID},
             )
             # get files from rucio
             files_rucio = set()
             for (tmpDS,) in do:
-                st, tmp_files_rucio = get_files_from_rucio(tmpDS, log_stream)
+                st, tmp_files_rucio = get_files_from_rucio(tmpDS)
                 if st is None:
+                    print_msg(tmp_files_rucio, log_stream, is_error=True, put_log=log_filename)
                     return st, tmp_files_rucio
                 # ignore unknown dataset
                 if st:
@@ -199,7 +235,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
                 {
                     ":s": "finished",
                     ":t1": "output",
-                    ":jediTaskID": givenTaskID,
+                    ":jediTaskID": options.jediTaskID,
                 },
             )
             for tmpDS, tmpLFN in fo:
@@ -208,29 +244,25 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
                     ds_files[tmpDS].append(tmpLFN)
         for tmpDS in ds_files:
             files = ds_files[tmpDS]
-            msgStr = f"{tmpDS} has {len(files)} lost files -> {','.join(files)}"
-            if log_stream:
-                log_stream.info(msgStr)
-            else:
-                print(msgStr)
+            msg_str = f"{tmpDS} has {len(files)} lost files -> {','.join(files)}"
+            print_msg(msg_str, log_stream)
 
     # no lost files
     if not ds_files and not options.force:
-        return True, "No lost files. Use --force to ignore this check"
+        msg_str = "No lost files. Use --force to ignore this check"
+        print_msg(msg_str, log_stream, put_log=log_filename)
+        return True, msg_str
 
     # reset file status
     s = False
     for tmpDS in ds_files:
         files = ds_files[tmpDS]
-        if dn:
+        if not is_production_manager:
             ts, jediTaskID, lostInputFiles = taskBuffer.resetFileStatusInJEDI(dn, False, tmpDS, files, options.reproduceParent, options.dryRun)
         else:
             ts, jediTaskID, lostInputFiles = taskBuffer.resetFileStatusInJEDI("", True, tmpDS, files, options.reproduceParent, options.dryRun)
-        msgStr = f"reset file status for {tmpDS} in the DB: done with {ts} for jediTaskID={jediTaskID}"
-        if log_stream:
-            log_stream.info(msgStr)
-        else:
-            print(msgStr)
+        msg_str = f"reset file status for {tmpDS} in the DB: done with {ts} for jediTaskID={jediTaskID}"
+        print_msg(msg_str, log_stream)
         s |= ts
         # recover provenance
         if options.reproduceParent:
@@ -249,7 +281,9 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
 
     # go ahead
     if options.dryRun:
-        return True, f"Done in the dry-run mode with {s}"
+        msg_str = f"Done in the dry-run mode with {s}"
+        print_msg(msg_str, log_stream, put_log=log_filename)
+        return True, msg_str
     if s or options.force:
         if options.resurrectDS:
             sd, so = taskBuffer.querySQLS(
@@ -264,26 +298,21 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
                         rc.get_did(scope, name)
                         break
                     except DataIdentifierNotFound:
-                        print(f"resurrect {datasetName}")
+                        msg_str = f"resurrect {datasetName}"
+                        print_msg(msg_str, log_stream)
                         rc.resurrect([{"scope": scope, "name": name}])
                         try:
                             rc.set_metadata(scope, name, "lifetime", None)
                         except Exception:
                             pass
         if not options.reproduceParent:
-            msgStr = Client.retryTask(jediTaskID, noChildRetry=options.noChildRetry)[-1][-1]
+            tmp_status = Client.retryTask(jediTaskID, noChildRetry=options.noChildRetry)[-1][-1]
         else:
-            msgStr = Client.reloadInput(jediTaskID)[-1][-1]
-        if log_stream:
-            log_stream.info(f"Retried task {jediTaskID} with {msgStr}")
-            log_stream.info("Done")
-        else:
-            print(f"Retried task {jediTaskID}: done with {msgStr}")
-        return True, msgStr
+            tmp_status = Client.reloadInput(jediTaskID)[-1][-1]
+        msg_str = f"Retried task {jediTaskID}: done with {tmp_status}"
+        print_msg(msg_str, log_stream, put_log=log_filename)
+        return True, tmp_status
     else:
-        msgStr = "failed"
-        if log_stream:
-            log_stream.error(msgStr)
-        else:
-            print(msgStr)
-        return False, msgStr
+        msg_str = "failed"
+        print_msg(msg_str, log_stream, is_error=True, put_log=log_filename)
+        return False, msg_str

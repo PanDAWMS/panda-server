@@ -1,3 +1,4 @@
+import datetime
 import gc
 import gzip
 import json
@@ -8,7 +9,8 @@ import sys
 import traceback
 import uuid
 import zlib
-from typing import Dict
+from pathlib import Path
+from typing import Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -19,6 +21,7 @@ from pandaserver.api.v1.common import (
     generate_response,
     get_dn,
     get_endpoint,
+    has_production_role,
     request_validation,
 )
 from pandaserver.config import panda_config
@@ -628,11 +631,22 @@ def delete_hpo_checkpoint(req: PandaRequest, task_id: str, sub_id: str) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_file_recovery_request(req: PandaRequest, task_id: int, dry_run: bool = None) -> Dict:
+def upload_file_recovery_request(
+    req: PandaRequest,
+    task_id: int = None,
+    dry_run: bool = None,
+    dataset: str = None,
+    files: List[str] = None,
+    no_child_retry: bool = False,
+    resurrect_datasets: bool = False,
+    force: bool = False,
+    reproduce_parent: bool = False,
+    reproduce_upto_nth_gen: int = 0,
+) -> Dict:
     """
     Upload file recovery request
 
-    Upload request to recover lost files. Requires a secure connection.
+    Upload request to recover lost files. Either task_id or dataset needs to be specified. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -640,8 +654,15 @@ def upload_file_recovery_request(req: PandaRequest, task_id: int, dry_run: bool 
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        task_id(int): JEDI task ID.
-        dry_run(bool): dry run flag.
+        task_id(int, optional): JEDI task ID. Either task_id or dataset must be provided.
+        dry_run(bool, optional): dry run flag.
+        dataset(string, optional): the dataset name in which to recover files. Either task_id or dataset must be provided.
+        files(list of str, optional): list of file names to recover.
+        no_child_retry(bool, optional): flag to avoid retrying child tasks. Default is False.
+        resurrect_datasets(bool, optional): Specifies whether to resurrect datasets when they were already deleted. Default is False.
+        force(bool, optional): To force recovery even if there is no lost file. Default is False.
+        reproduce_parent(bool, optional): Specifies whether to reproduce the parent task if the input files that originally generated the lost files have been deleted. Default: False.
+        reproduce_upto_nth_gen(int, optional): Defines how many generations of parent tasks should be reproduced. Default 0, meaning no parent tasks are reproduced. When this is set to N>0, reproduce_parent is set to True automatically.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
@@ -654,19 +675,47 @@ def upload_file_recovery_request(req: PandaRequest, task_id: int, dry_run: bool 
     tmp_logger.debug(f"Start user={user_name}")
 
     try:
+        # check that at least task_id or dataset is provided
+        if not task_id and not dataset:
+            error_message = "Either task_id or dataset must be provided"
+            tmp_logger.error(error_message)
+            return generate_response(False, error_message)
+
         # generate the filename
         file_name = f"{panda_config.cache_dir}/recov.{str(uuid.uuid4())}"
+        log_filename = f"lost_file_recovery.{str(uuid.uuid4())}.log"
         tmp_logger.debug(f"file={file_name}")
 
+        # check if the user has production manager role
+        is_production_manager = has_production_role(req)
+
         # write the file content
+
         with open(file_name, "w") as file_object:
             data = {
                 "userName": user_name,
                 "creationTime": creation_time,
-                "jediTaskID": task_id,
+                "logFilename": log_filename,
+                "isProductionManager": is_production_manager,
             }
+            if task_id:
+                data["jediTaskID"] = task_id
             if dry_run:
                 data["dryRun"] = True
+            if dataset:
+                data["ds"] = dataset
+            if files:
+                data["files"] = ",".join(files)
+            if no_child_retry:
+                data["noChildRetry"] = True
+            if resurrect_datasets:
+                data["resurrectDS"] = True
+            if force:
+                data["force"] = True
+            if reproduce_parent:
+                data["reproduceParent"] = True
+            if reproduce_upto_nth_gen > 0:
+                data["reproduceUptoNthGen"] = reproduce_upto_nth_gen
 
             json.dump(data, file_object)
     except Exception as exc:
@@ -674,8 +723,17 @@ def upload_file_recovery_request(req: PandaRequest, task_id: int, dry_run: bool 
         tmp_logger.error(error_message + traceback.format_exc())
         return generate_response(False, error_message)
 
+    # create an empty log file to be filled later
+    Path(os.path.join(panda_config.cache_dir, log_filename)).touch()
+
+    # return the URL depending on the protocol
+    protocol = "https" if panda_config.disableHTTP else "http"
+    _, server = get_endpoint(protocol)
+    log_file_url = f"{protocol}://{server}/cache/{log_filename}"
+
     tmp_logger.debug("done")
-    return generate_response(True, message="The request was accepted and will be processed in a few minutes")
+    data = {"logFileURL": log_file_url}
+    return generate_response(True, message="The request was accepted and will be processed in a few minutes", data=data)
 
 
 @request_validation(_logger, secure=True, request_method="POST")
