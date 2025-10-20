@@ -1746,7 +1746,7 @@ def send_command_to_job(panda_id, com):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def get_ban_users():
+def get_banned_users():
     """
     Get list of banned users
 
@@ -1758,19 +1758,21 @@ def get_ban_users():
 
     """
 
-    http_client = HttpClient()
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/metaconfig/get_banned_users"
 
-    # execute
-    url = f"{baseURL}/get_ban_users"
-    output = None
-    try:
-        status, output = http_client.post(url, {})
-        if status == 0:
-            return json.loads(output)
-        else:
-            return False, f"bad response: {output}"
-    except Exception:
-        return False, f"broken response: {output}"
+    status, output = http_client.get(url)
+    if status != 0:
+        return False, f"bad response: {output}"
+
+    success = output["success"]
+    message = output.get("message", "")
+    data = output.get("data", None)
+
+    if success:
+        return True, data
+    else:
+        return False, f"error message: {message}"
 
 
 def release_task(jedi_task_id):
