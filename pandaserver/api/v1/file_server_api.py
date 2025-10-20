@@ -654,15 +654,15 @@ def upload_file_recovery_request(
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        task_id(int): JEDI task ID.
-        dry_run(bool): dry run flag.
-        dataset(string): the dataset name in which to recover files.
+        task_id(int, optional): JEDI task ID. Either task_id or dataset must be provided.
+        dry_run(bool, optional): dry run flag.
+        dataset(string, optional): the dataset name in which to recover files. Either task_id or dataset must be provided.
         files(list of str, optional): list of file names to recover.
-        no_child_retry(bool): flag to avoid retrying child tasks. Default is False.
-        resurrect_datasets(bool): Specifies whether to resurrect datasets when they were already deleted. Default is False.
-        force(bool): To force recovery even if there is no lost file. Default is False.
-        reproduce_parent(bool): Specifies whether to reproduce the parent task if the input files that originally generated the lost files have been deleted. Default: False.
-        reproduce_upto_nth_gen(int): Defines how many generations of parent tasks should be reproduced. Default 0, meaning no parent tasks are reproduced. When this is set to N>0, reproduce_parent is set to True automatically.
+        no_child_retry(bool, optional): flag to avoid retrying child tasks. Default is False.
+        resurrect_datasets(bool, optional): Specifies whether to resurrect datasets when they were already deleted. Default is False.
+        force(bool, optional): To force recovery even if there is no lost file. Default is False.
+        reproduce_parent(bool, optional): Specifies whether to reproduce the parent task if the input files that originally generated the lost files have been deleted. Default: False.
+        reproduce_upto_nth_gen(int, optional): Defines how many generations of parent tasks should be reproduced. Default 0, meaning no parent tasks are reproduced. When this is set to N>0, reproduce_parent is set to True automatically.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
