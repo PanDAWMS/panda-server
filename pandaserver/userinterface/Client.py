@@ -594,31 +594,30 @@ def get_job_statistics_per_site_label_resource(time_window=None):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def insertSandboxFileInfo(userName, fileName, fileSize, checkSum):
+def register_cache_file(user_name: str, file_name: str, file_size: int, checksum: str):
     """
-    Insert information of input sandbox
+    Register information about the input sandbox that is being stored in PanDA cache
 
     args:
-        userName: the name of the user
-        fileName: the file name
-        fileSize: the file size
-        fileSize: md5sum of the file
+        user_name: the name of the user
+        file_name: the file name
+        file_size: the file size
+        checksum: md5sum of the file
     returns:
         status code
               0: communication succeeded to the panda server
               else: communication failure
 
     """
+    http_client = HttpClientV1()
 
-    http_client = HttpClient()
+    url = f"{api_url_ssl_v1}/file_server/register_cache_file"
 
-    # execute
-    url = f"{baseURLSSL}/insertSandboxFileInfo"
     data = {
-        "userName": userName,
-        "fileName": fileName,
-        "fileSize": fileSize,
-        "checkSum": checkSum,
+        "user_name": userName,
+        "file_name": fileName,
+        "file_size": fileSize,
+        "checksum": checkSum,
     }
     return http_client.post(url, data)
 
