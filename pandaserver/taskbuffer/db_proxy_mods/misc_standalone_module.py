@@ -6,6 +6,7 @@ import os
 import random
 import re
 import time
+from typing import Dict, List, Tuple
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -1872,10 +1873,34 @@ class MiscStandaloneModule(BaseModule):
             return []
 
     # reset files in JEDI
-    def resetFileStatusInJEDI(self, dn, prodManager, datasetName, lostFiles, recoverParent, simul):
+    def resetFileStatusInJEDI(
+        self, dn: str, is_prod_manager: bool, dataset_name: str, lost_files: List[str], recover_parent: bool, simul: bool
+    ) -> Tuple[bool, int | None, Dict[str, List[str]] | None, str | None]:
+        """
+        Reset file status in JEDI for lost files
+        1) check ownership
+        2) set file status from 'finished' to 'lost' in JEDI_Dataset_Contents
+        3) cancel events in JEDI_Events
+        4) if recoverParent is True, set parent files from 'finished' to 'ready'
+        5) if simul is True, do not commit changes
+        6) return list of input files that produced the lost files
+
+        :param dn: DN of the requester
+        :param is_prod_manager: whether the requester is a production manager
+        :param dataset_name: name of the dataset
+        :param lost_files: list of lost LFNs
+        :param recover_parent: whether to recover parent files
+        :param simul: whether to simulate without committing changes
+        :return: tuple of
+            success flag,
+            jediTaskID (None if failed),
+            dictionary of list of input files that produced the lost files (None if failed),
+            error message (None if succeeded)
+        """
         comment = " /* DBProxy.resetFileStatusInJEDI */"
-        tmp_log = self.create_tagged_logger(comment, f"dasetName={datasetName}")
+        tmp_log = self.create_tagged_logger(comment, f"datasetName={dataset_name}")
         tmp_log.debug("start")
+        error_message = None
         try:
             # list of lost input files
             lostInputFiles = {}
@@ -1891,8 +1916,8 @@ class MiscStandaloneModule(BaseModule):
             varMap = {}
             varMap[":type1"] = "log"
             varMap[":type2"] = "output"
-            varMap[":name1"] = datasetName
-            varMap[":name2"] = datasetName.split(":")[-1]
+            varMap[":name1"] = dataset_name
+            varMap[":name2"] = dataset_name.split(":")[-1]
             sqlGI = f"SELECT jediTaskID,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
             sqlGI += "WHERE type IN (:type1,:type2) AND datasetName IN (:name1,:name2) "
             self.cur.execute(sqlGI + comment, varMap)
@@ -1907,7 +1932,8 @@ class MiscStandaloneModule(BaseModule):
                 elif datasetID < tmpDatasetID:
                     datasetID = tmpDatasetID
             if jediTaskID is None:
-                tmp_log.debug("jediTaskID not found")
+                error_message = "jediTaskID not found"
+                tmp_log.debug(error_message)
                 toSkip = True
             if not toSkip:
                 # get task status and owner
@@ -1920,8 +1946,9 @@ class MiscStandaloneModule(BaseModule):
                 resOW = self.cur.fetchone()
                 taskStatus, ownerName, useJumbo = resOW
                 # check ownership
-                if not prodManager and ownerName != compactDN:
-                    tmp_log.debug(f"not the owner = {ownerName}")
+                if not is_prod_manager and ownerName != compactDN:
+                    error_message = f"Not the owner: {ownerName} != {compactDN}"
+                    tmp_log.debug(error_message)
                     toSkip = True
             if not toSkip:
                 # get affected PandaIDs
@@ -1945,7 +1972,7 @@ class MiscStandaloneModule(BaseModule):
                 # get affected PandaIDs
                 lostPandaIDs = set([])
                 nDiff = {}
-                for lostFile in lostFiles:
+                for lostFile in lost_files:
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
                     varMap[":datasetID"] = datasetID
@@ -2077,7 +2104,7 @@ class MiscStandaloneModule(BaseModule):
                     for tmpFileID, tmpDatasetID, tmpLFN, tmpOutPandaID in newResAI:
                         # collect if dataset was already deleted
                         is_lost = False
-                        if recoverParent and tmpDatasetID == masterID:
+                        if recover_parent and tmpDatasetID == masterID:
                             lostInputFiles.setdefault(inputDatasets[tmpDatasetID], [])
                             lostInputFiles[inputDatasets[tmpDatasetID]].append(tmpLFN)
                             is_lost = True
@@ -2144,13 +2171,13 @@ class MiscStandaloneModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             tmp_log.debug("done")
-            return True, jediTaskID, lostInputFiles
+            return True, jediTaskID, lostInputFiles, error_message
         except Exception:
             # roll back
             self._rollback()
             # error
             self.dump_error_message(tmp_log)
-            return False, None, None
+            return False, None, None, "database error"
 
     # copy file records
     def copy_file_records(self, new_lfns, file_spec):
