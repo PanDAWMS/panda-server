@@ -500,7 +500,7 @@ def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def validate_cache_file(req: PandaRequest, file_size: int, checksum: int) -> Dict:
+def validate_cache_file(req: PandaRequest, file_size: int, checksum: int | str) -> Dict:
     """
     Validate cache file
 
