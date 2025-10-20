@@ -25,6 +25,21 @@ MESSAGE_DATABASE = "database error in the PanDA server"
 MESSAGE_JSON = "failed to load JSON"
 
 
+def get_endpoint(protocol):
+    if protocol not in ["http", "https"]:
+        return False, "Protocol must be either 'http' or 'https'"
+
+    try:
+        if protocol == "https":
+            endpoint = f"{panda_config.pserverhost}:{panda_config.pserverport}"
+        else:
+            endpoint = f"{panda_config.pserverhosthttp}:{panda_config.pserverporthttp}"
+    except Exception as e:
+        return False, str(e)
+
+    return True, endpoint
+
+
 def extract_allowed_methods(module: ModuleType) -> list:
     """
     Generate the allowed methods dynamically with all function names present in the API module, excluding
@@ -206,7 +221,12 @@ def request_validation(logger, secure=True, production=False, request_method=Non
             # Get function signature and type hints
             sig = inspect.signature(func)
             args_tmp = (req,) + args
-            bound_args = sig.bind(*args_tmp, **kwargs)
+            try:
+                bound_args = sig.bind(*args_tmp, **kwargs)
+            except TypeError as e:
+                message = f"Argument error: {str(e)}"
+                tmp_logger.error(message)
+                return generate_response(False, message=message)
             bound_args.apply_defaults()
 
             for param_name, param_value in bound_args.arguments.items():
