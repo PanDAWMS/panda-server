@@ -174,11 +174,12 @@ def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
         # decode Footer
         footer = file_content[-8:]
         checksum, _ = struct.unpack("II", footer)
+        checksum = str(checksum)
         tmp_log.debug(f"CRC from gzip Footer {checksum}")
     except Exception:
         # use None to avoid delay for now
-        checksum = None
-        tmp_log.debug(f"No CRC calculated {checksum}")
+        checksum = ""
+        tmp_log.debug(f"No CRC calculated")
 
     # calculate the file size
     file_size = len(file_content)
@@ -197,7 +198,6 @@ def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
         if not to_insert:
             tmp_log.debug("skipped to insert to DB")
         else:
-            checksum = str(checksum)
             status_client, output_client = Client.register_cache_file(user_name, file.filename, file_size, checksum)
             if status_client != 0 or output_client.startswith("ERROR"):
                 error_message = f"ERROR : failed to register sandbox to DB with {status_client} {output_client}"

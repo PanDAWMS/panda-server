@@ -347,6 +347,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
         # decode Footer
         footer = file_content[-8:]
         checksum, _ = struct.unpack("II", footer)
+        checksum = str(checksum)
         tmp_logger.debug(f"CRC from gzip Footer {checksum}")
     except Exception:
         # use None to avoid delay for now

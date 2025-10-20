@@ -596,7 +596,7 @@ def register_cache_file(user_name: str, file_name: str, file_size: int, checksum
         "user_name": user_name,
         "file_name": file_name,
         "file_size": file_size,
-        "checksum": checksum,
+        "checksum": str(checksum),
     }
     return http_client.post(url, data)
 
