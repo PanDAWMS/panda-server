@@ -152,7 +152,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                                         _, res_missing = taskBuffer.querySQLS(sql_missing, var_map)
                                         missing_ids = [p for p, in res_missing]
                                         tmp_log.debug(f"missing {tmpFileSpec.destinationDBlock} to kill {missing_ids}")
-                                        Client.killJobs(missing_ids, 2)
+                                        Client.kill_jobs(missing_ids, 2)
                                         killed_for_bad_record = True
                                         break
                                     elif datasetSpec.status == "deleted":
@@ -167,7 +167,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                                         _, res_deleted = taskBuffer.querySQLS(sql_deleted, var_map)
                                         deleted_ids = [p for p, in res_deleted]
                                         tmp_log.debug(f"deleted {tmpFileSpec.destinationDBlock} to kill {deleted_ids}")
-                                        Client.killJobs(deleted_ids, 2)
+                                        Client.kill_jobs(deleted_ids, 2)
                                         killed_for_bad_record = True
                                         break
                                     else:
@@ -499,7 +499,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             jobs.append(pandaID)
     if len(jobs):
         _logger.debug(f"killJobs for Defined ({str(jobs)})")
-        Client.killJobs(jobs, 2)
+        Client.kill_jobs(jobs, 2)
 
     # kill long-waiting jobs in active table
     timeLimit = naive_utcnow() - datetime.timedelta(days=7)
@@ -516,7 +516,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             jobs.append(id)
     if len(jobs):
         _logger.debug(f"killJobs for Active ({str(jobs)})")
-        Client.killJobs(jobs, 2)
+        Client.kill_jobs(jobs, 2)
 
     # fast rebrokerage at PQs where Nq/Nr overshoots
     _logger.debug("fast rebrokerage at PQs where Nq/Nr overshoots")
@@ -627,7 +627,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                             iJob = 0
                             while iJob < len(jediJobs):
                                 _logger.debug(f"reassignJobs for JEDI at Nq/Nr overshoot site {computingSite} ({str(jediJobs[iJob:iJob + nJob])})")
-                                Client.killJobs(jediJobs[iJob : iJob + nJob], 10, keepUnmerged=True)
+                                Client.kill_jobs(jediJobs[iJob : iJob + nJob], 10, keep_unmerged=True)
                                 iJob += nJob
     except Exception as e:
         _logger.error(f"failed with {str(e)} {traceback.format_exc()}")
@@ -710,7 +710,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 iJob = 0
                 while iJob < len(jediJobs):
                     _logger.debug(f"reassignJobs for JEDI at inactive site {tmpSite} ({jediJobs[iJob:iJob + nJob]})")
-                    Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
+                    Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
                     iJob += nJob
 
     # reassign defined jobs in defined table
@@ -743,7 +743,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         iJob = 0
         while iJob < len(jediJobs):
             _logger.debug(f"reassignJobs for JEDI defined jobs ({jediJobs[iJob:iJob + nJob]})")
-            Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
+            Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
     # reassign stalled defined build and non-JEDI jobs
@@ -763,7 +763,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             jobs.append(id)
     # kill
     if len(jobs):
-        Client.killJobs(jobs, 2)
+        Client.kill_jobs(jobs, 2)
         _logger.debug(f"reassign stalled defined build and non-JEDI jobs with timeout {timeoutValue}min ({str(jobs)})")
 
     # reassign long-waiting jobs in defined table
@@ -783,7 +783,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         iJob = 0
         while iJob < len(jediJobs):
             _logger.debug(f"reassignJobs for long JEDI in defined table ({jediJobs[iJob:iJob + nJob]})")
-            Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
+            Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
     # reassign too long activated jobs in active table
@@ -824,7 +824,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         iJob = 0
         while iJob < len(jediJobs):
             _logger.debug(f"reassignJobs for long activated JEDI in active table ({jediJobs[iJob:iJob + nJob]})")
-            Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
+            Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
     # reassign too long starting jobs in active table
@@ -857,7 +857,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         iJob = 0
         while iJob < len(jediJobs):
             _logger.debug(f"reassignJobs for long stating JEDI in active table ({jediJobs[iJob:iJob + nJob]})")
-            Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
+            Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
     # kill too long-standing analysis jobs in active table
@@ -877,7 +877,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             jobs.append(id)
     # kill
     if len(jobs):
-        Client.killJobs(jobs, 2)
+        Client.kill_jobs(jobs, 2)
         _logger.debug(f"killJobs for Anal Active ({str(jobs)})")
 
     # kill too long pending jobs
@@ -900,7 +900,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             iJob = 0
             while iJob < len(jobs):
                 _logger.debug(f"killJobs for Pending ({str(jobs[iJob:iJob + nJob])})")
-                Client.killJobs(jobs[iJob : iJob + nJob], 4)
+                Client.kill_jobs(jobs[iJob : iJob + nJob], 4)
                 iJob += nJob
 
     # kick waiting ES merge jobs which were generated from fake co-jumbo
@@ -926,7 +926,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             iJob = 0
             while iJob < len(jobs):
                 _logger.debug(f"kick waiting ES merge ({str(jobs[iJob:iJob + nJob])})")
-                Client.killJobs(jobs[iJob : iJob + nJob], 2)
+                Client.kill_jobs(jobs[iJob : iJob + nJob], 2)
                 iJob += nJob
 
     # kill too long waiting jobs
@@ -949,7 +949,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             iJob = 0
             while iJob < len(jobs):
                 _logger.debug(f"killJobs for Waiting ({str(jobs[iJob:iJob + nJob])})")
-                Client.killJobs(jobs[iJob : iJob + nJob], 4)
+                Client.kill_jobs(jobs[iJob : iJob + nJob], 4)
                 iJob += nJob
 
     # kill too long running ES jobs
@@ -976,8 +976,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             Client.killJobs(
                 jobs[iJob : iJob + nJob],
                 2,
-                keepUnmerged=True,
-                jobSubStatus="es_toolong",
+                keep_unmerged=True,
+                job_sub_status="es_toolong",
             )
             iJob += nJob
 
@@ -1001,7 +1001,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         iJob = 0
         while iJob < len(jobs):
             _logger.debug(f"killJobs for long running ES merge jobs ({str(jobs[iJob:iJob + nJob])})")
-            Client.killJobs(jobs[iJob : iJob + nJob], 2)
+            Client.kill_jobs(jobs[iJob : iJob + nJob], 2)
             iJob += nJob
 
     # rebrokerage
@@ -1214,7 +1214,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         while iJob < len(jobs):
             # set tobekill
             _logger.debug(f"killJobs for Running ({jobs[iJob:iJob + nJob]})")
-            Client.killJobs(jobs[iJob : iJob + nJob], 2)
+            Client.kill_jobs(jobs[iJob : iJob + nJob], 2)
             # run watcher
             for id in jobs[iJob : iJob + nJob]:
                 thr = Watcher(
@@ -1245,7 +1245,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             jobs.append(id)
     # kill
     if len(jobs):
-        Client.killJobs(jobs, 2)
+        Client.kill_jobs(jobs, 2)
         _logger.debug(f"killJobs for throttled ({str(jobs)})")
 
     # check if merge job is valid

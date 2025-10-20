@@ -78,7 +78,7 @@ if len(jobs):
     while iJob < len(jobs):
         subJobs = jobs[iJob : iJob + nJob]
         print(f"kill {str(subJobs)} {iJob}/{len(jobs)}")
-        Client.killJobs(subJobs, code=9)
+        Client.kill_jobs(subJobs, code=9)
         iJob += nJob
 else:
     print("no job was killed")

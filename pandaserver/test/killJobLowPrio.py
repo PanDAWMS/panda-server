@@ -95,8 +95,8 @@ if len(jobs):
     while iJob < len(jobs):
         print(f"kill {str(jobs[iJob:iJob + nJob])}")
         if options.forceKill:
-            Client.killJobs(jobs[iJob : iJob + nJob], 9)
+            Client.kill_jobs(jobs[iJob : iJob + nJob], 9)
         else:
-            Client.killJobs(jobs[iJob : iJob + nJob])
+            Client.kill_jobs(jobs[iJob : iJob + nJob])
         iJob += nJob
         time.sleep(1)

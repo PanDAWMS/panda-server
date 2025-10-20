@@ -259,12 +259,11 @@ def getJobStatus(panda_ids):
         return EC_Failed, f"{output}\n{err_str}"
 
 
-def killJobs(
-    ids,
+def kill_jobs(
+    job_ids,
     code=None,
-    useMailAsID=False,
-    keepUnmerged=False,
-    jobSubStatus=None,
+    keep_unmerged=False,
+    job_sub_status=None,
 ):
     """
     Kill jobs. Normal users can kill only their own jobs.
@@ -273,7 +272,7 @@ def killJobs(
     Set code=9 if running jobs need to be killed immediately.
 
        args:
-           ids: the list of PandaIDs
+           job_ids: the list of PandaIDs
            code: specify why the jobs are killed
                  2: expire
                  3: aborted
@@ -284,47 +283,41 @@ def killJobs(
                  10: fast re-brokerage on overloaded PQs
                  50: kill by JEDI
                  91: kill user jobs with prod role
-           useMailAsID: obsolete
-           keepUnmerged: set True not to cancel unmerged jobs when pmerge is killed.
-           jobSubStatus: set job sub status if any
+           keep_unmerged: set True not to cancel unmerged jobs when pmerge is killed.
+           job_sub_status: set job sub status if any
        returns:
            status code
                  0: communication succeeded to the panda server
                  255: communication failure
            the list of clouds (or Nones if tasks are not yet assigned)
     """
-    # serialize
-    str_panda_ids = pickle_dumps(ids)
 
-    http_client = HttpClient()
+    http_client = HttpClientV1()
 
-    # execute
-    url = f"{baseURLSSL}/killJobs"
-    data = {"ids": str_panda_ids, "code": code, "useMailAsID": useMailAsID}
-    kill_options = ""
-    if keepUnmerged:
-        kill_options += "keepUnmerged,"
-    if jobSubStatus is not None:
-        kill_options += f"jobSubStatus={jobSubStatus},"
-    data["killOpts"] = kill_options[:-1]
+    url = f"{api_url_ssl_v1}/job/kill"
+    data = {"job_ids": job_ids}
+
+    if code:
+        data["code"] = code
+
+    kill_options = []
+    if keep_unmerged == True:
+        kill_options.append("keepUnmerged")
+    if job_sub_status:
+        kill_options.append(f"jobSubStatus={job_sub_status}")
+    if kill_options:
+        data["kill_options"] = ",".join(kill_options)
+
     status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        error_type, error_value, _ = sys.exc_info()
-        error_str = f"ERROR killJobs : {error_type} {error_value}"
-        print(error_str)
-        return EC_Failed, f"{output}\n{error_str}"
+    return status, output
 
 
-def reassignJobs(ids, forPending=False, firstSubmission=None):
+def reassign_jobs(job_ids):
     """
-    Triggers reassignment of jobs. This is not effective if jobs were preassigned to sites before being submitted.
+    Triggers reassignment of jobs.
 
     args:
         ids: the list of taskIDs
-        forPending: set True if pending jobs are reassigned
-        firstSubmission: set True if first jobs are submitted for a task, or False if not
     returns:
         status code
               0: communication succeeded to the panda server
@@ -334,26 +327,12 @@ def reassignJobs(ids, forPending=False, firstSubmission=None):
               False: not processed
 
     """
-    # serialize
-    str_task_ids = pickle_dumps(ids)
+    http_client = HttpClientV1()
 
-    http_client = HttpClient()
-
-    # execute
-    url = f"{baseURLSSL}/reassignJobs"
-    data = {"ids": str_task_ids}
-    if forPending:
-        data["forPending"] = True
-    if firstSubmission is not None:
-        data["firstSubmission"] = firstSubmission
+    url = f"{api_url_ssl_v1}/job/reassign"
+    data = {"job_ids": job_ids}
     status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        error_type, error_value, _ = sys.exc_info()
-        error_str = f"ERROR reassignJobs : {error_type} {error_value}"
-        print(error_str)
-        return EC_Failed, f"stat={status} err={output} {error_str}"
+    return status, output
 
 
 def getJobStatistics(sourcetype=None):
@@ -614,10 +593,10 @@ def register_cache_file(user_name: str, file_name: str, file_size: int, checksum
     url = f"{api_url_ssl_v1}/file_server/register_cache_file"
 
     data = {
-        "user_name": userName,
-        "file_name": fileName,
-        "file_size": fileSize,
-        "checksum": checkSum,
+        "user_name": user_name,
+        "file_name": file_name,
+        "file_size": file_size,
+        "checksum": checksum,
     }
     return http_client.post(url, data)
 

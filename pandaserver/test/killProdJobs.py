@@ -26,4 +26,4 @@ while True:
 
 # kill
 if len(ids) != 0:
-    Client.killJobs(ids)
+    Client.kill_jobs(ids)

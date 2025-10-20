@@ -78,5 +78,5 @@ if len(jediJobs) != 0:
     iJob = 0
     while iJob < len(jediJobs):
         print(f"kill JEDI jobs {str(jediJobs[iJob:iJob + nJob])}")
-        Client.killJobs(jediJobs[iJob : iJob + nJob], 51)
+        Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51)
         iJob += nJob
