@@ -1761,7 +1761,7 @@ def get_banned_users():
     http_client = HttpClientV1()
     url = f"{api_url_ssl_v1}/metaconfig/get_banned_users"
 
-    status, output = http_client.get(url)
+    status, output = http_client.get(url, {})
     if status != 0:
         return False, f"bad response: {output}"
 
