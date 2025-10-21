@@ -103,7 +103,7 @@ if len(jobs):
     iJob = 0
     while iJob < len(jobs):
         print(f"reassign  {str(jobs[iJob:iJob + nJob])}")
-        Client.reassignJobs(jobs[iJob : iJob + nJob])
+        Client.reassign_jobs(jobs[iJob : iJob + nJob])
         iJob += nJob
         time.sleep(10)
 
@@ -112,7 +112,7 @@ if len(jediJobs) != 0:
     iJob = 0
     while iJob < len(jediJobs):
         print(f"kill JEDI jobs {str(jediJobs[iJob:iJob + nJob])}")
-        Client.killJobs(jediJobs[iJob : iJob + nJob], codeV, keepUnmerged=options.keepUnmerged)
+        Client.kill_jobs(jediJobs[iJob : iJob + nJob], codeV, keep_unmerged=options.keepUnmerged)
         iJob += nJob
 
 print(f"\nreassigned {len(jobs + jediJobs)} jobs")
