@@ -161,7 +161,7 @@ def get_user_attributes(req: PandaRequest) -> Dict:
     return generate_response(True, text_representation, dictionary_representation)
 
 
-@request_validation(_logger, request_method="GET")
+@request_validation(_logger, secure=False, request_method="GET")
 def is_alive(req: PandaRequest) -> Dict:
     """
     Is alive
