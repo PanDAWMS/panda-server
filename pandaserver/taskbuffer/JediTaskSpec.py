@@ -105,7 +105,7 @@ class JediTaskSpec(object):
     # mapping between sequence and attr
     _seqAttrMap = {}
     # limit length
-    _limitLength = {"errorDialog": 255}
+    _limitLength = {"errorDialog": 510}
     # attribute length
     _attrLength = {"workingGroup": 32}
 
