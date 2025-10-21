@@ -683,7 +683,7 @@ def upload_file_recovery_request(
 
         # generate the filename
         file_name = f"{panda_config.cache_dir}/recov.{str(uuid.uuid4())}"
-        log_filename = f"lost_file_recovery.{str(uuid.uuid4())}.log"
+        log_filename = f"jedilog/lost_file_recovery.{str(uuid.uuid4())}.log"
         tmp_logger.debug(f"file={file_name}")
 
         # check if the user has production manager role
