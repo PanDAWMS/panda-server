@@ -306,7 +306,7 @@ def kill_jobs(
     if job_sub_status:
         kill_options.append(f"jobSubStatus={job_sub_status}")
     if kill_options:
-        data["kill_options"] = ",".join(kill_options)
+        data["kill_options"] = kill_options
 
     status, output = http_client.post(url, data)
     return status, output
