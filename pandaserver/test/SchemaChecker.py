@@ -13,7 +13,7 @@ from pandaserver.taskbuffer.OraDBProxy import DBProxy
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost, panda_config.dbpasswd, panda_config.dbuser, panda_config.dbname)
 
-sql = "select major || '.' || minor || '.' || patch from ATLAS_PANDA.pandadb_version where component = 'SERVER'"
+sql = "select major || '.' || minor || '.' || patch from ATLAS_PANDA.pandadb_version where component = 'PanDA'"
 
 res = proxyS.querySQL(sql)
 dbVersion = res[0][0]
