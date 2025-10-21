@@ -15,7 +15,7 @@ from pandaserver.srvcore.MailUtils import MailUtils
 proxyS = DBProxy()
 proxyS.connect(jedi_config.db.dbhost, jedi_config.db.dbpasswd, jedi_config.db.dbuser, jedi_config.db.dbname)
 
-sql = "select major || '.' || minor || '.' || patch from ATLAS_PANDA.pandadb_version where component = 'JEDI'"
+sql = "select major || '.' || minor || '.' || patch from ATLAS_PANDA.pandadb_version where component = 'PanDA'"
 
 res = proxyS.querySQL(sql)
 dbVersion = res[0][0]
