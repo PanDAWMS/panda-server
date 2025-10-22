@@ -160,20 +160,35 @@ class DataLocalityUpdaterThread(WorkerThread):
                     if item is None:
                         n_skipped_ds += 1
                         continue
-                    jediTaskID, datasetID, datasetName = item
-                    _, task_spec = self.taskBufferIF.getTaskWithID_JEDI(jediTaskID)
-                    dataset_replicas_map = self.ddmIF.listDatasetReplicas(datasetName)
-                    is_distributed_ds = self.ddmIF.isDistributedDataset(datasetName)
-                    for tmpRSE, tmpList in dataset_replicas_map.items():
-                        # check data locality unless input is distributed or uses data carousel
-                        if not is_distributed_ds and not task_spec.inputPreStaging():
-                            tmpStatistics = tmpList[-1]
+                    jedi_task_id, dataset_id, dataset_name = item
+                    _, task_spec = self.taskBufferIF.getTaskWithID_JEDI(jedi_task_id)
+                    dataset_replicas_map = self.ddmIF.listDatasetReplicas(dataset_name)
+                    is_distributed_ds = self.ddmIF.isDistributedDataset(dataset_name)
+                    # get rules when using data carousel
+                    rule_rse_list = []
+                    if task_spec.inputPreStaging():
+                        _, tmp_rules = self.ddmIF.get_rules_state(dataset_name)
+                        rule_rse_list = [r["rse_expression"] for r in tmp_rules.values()]
+                    # loop over all replicas
+                    for tmp_rse, tmp_stat_list in dataset_replicas_map.items():
+                        # pre-checks
+                        if is_distributed_ds:
+                            # no checks for distributed datasets
+                            pass
+                        elif task_spec.inputPreStaging():
+                            # use only replicas with rules when using data carousel
+                            if tmp_rse not in rule_rse_list:
+                                n_skipped_replicas += 1
+                                continue
+                        else:
+                            # use only complete replicas unless input is distributed or uses data carousel
+                            tmp_statistics = tmp_stat_list[-1]
                             # skip unknown and incomplete
-                            if tmpStatistics["found"] is None or tmpStatistics["found"] != tmpStatistics["total"]:
+                            if tmp_statistics["found"] is None or tmp_statistics["found"] != tmp_statistics["total"]:
                                 n_skipped_replicas += 1
                                 continue
                         # update dataset locality table
-                        self.taskBufferIF.updateDatasetLocality_JEDI(jedi_taskid=jediTaskID, datasetid=datasetID, rse=tmpRSE)
+                        self.taskBufferIF.updateDatasetLocality_JEDI(jedi_taskid=jedi_task_id, datasetid=dataset_id, rse=tmp_rse)
                         n_updated_replicas += 1
                     n_updated_ds += 1
             except Exception as e:
