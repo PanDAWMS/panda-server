@@ -135,7 +135,7 @@ def retry(
     tmp_logger.debug("Done")
 
     data, message = ret
-    success = data == 0
+    success = True
     return generate_response(success, message, data)
 
 
