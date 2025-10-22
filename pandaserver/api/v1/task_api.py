@@ -40,7 +40,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 def retry(
     req: PandaRequest,
     task_id: int,
-    new_parameters: dict = None,
+    new_parameters: str = None,
     no_child_retry: bool = False,
     discard_events: bool = False,
     disable_staging_mode: bool = False,
@@ -59,7 +59,7 @@ def retry(
     Args:
         req(PandaRequest): internally generated request object
         task_id(int): JEDI Task ID
-        new_parameters(Dict, optional): a json dictionary with the new parameters for rerunning the task. The new parameters are merged with the existing ones.
+        new_parameters(str, optional): a json dictionary with the new parameters for rerunning the task. The new parameters are merged with the existing ones.
                                         The parameters are the attributes in the JediTaskSpec object (https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jedicore/JediTaskSpec.py).
         no_child_retry(bool, optional): if True, the child tasks are not retried
         discard_events(bool, optional): if True, events will be discarded
