@@ -19,6 +19,7 @@ from pandaserver.api.v1.common import (
     has_production_role,
     request_validation,
 )
+from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
@@ -117,6 +118,20 @@ def retry(
             properErrorCode=True,
             comQualifier=qualifier,
         )
+
+    if ret[0] == 5:
+        # retry failed analysis jobs
+        job_ids = global_task_buffer.getJobdefIDsForFailedJob(task_id)
+        clean_id = clean_user_id(user)
+        for job_id in job_ids:
+            global_task_buffer.finalizePendingJobs(clean_id, job_id)
+        global_task_buffer.increaseAttemptNrPanda(task_id, 5)
+        return_str = f"retry has been triggered for failed jobs while the task is still {ret[1]}"
+        if not new_parameters:
+            ret = 0, return_str
+        else:
+            ret = 3, return_str
+
     tmp_logger.debug("Done")
 
     data, message = ret
