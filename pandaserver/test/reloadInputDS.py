@@ -49,5 +49,3 @@ if True:
 
     print(Client.reload_input(jediTaskID))
     print(f"done for jediTaskID={jediTaskID}")
-else:
-    print("failed")
