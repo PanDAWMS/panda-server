@@ -68,7 +68,7 @@ if options.killOwnProdJobs:
     useMailAsIDV = True
 
 if len(args) == 1:
-    Client.kill_jobs([args[0]], code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
+    ret = Client.kill_jobs([args[0]], code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
 else:
     job_id_start = int(args[0])
     job_id_end = int(args[1])
@@ -76,4 +76,6 @@ else:
         print(f"{job_id_end} is less than {job_id_start}")
         sys.exit(1)
 
-    Client.kill_jobs(range(job_id_start, job_id_end + 1), code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
+    ret = Client.kill_jobs(range(job_id_start, job_id_end + 1), code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
+
+print(ret)
