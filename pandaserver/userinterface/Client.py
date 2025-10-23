@@ -698,12 +698,12 @@ def insertTaskParams(taskParams):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def killTask(jediTaskID, broadcast=False):
+def kill_task(task_id, broadcast=False):
     """
     Kill a task
 
     args:
-        jediTaskID: jediTaskID of the task to be killed
+        task_id: task ID of the task to be killed
         broadcast: True to push the message to the pilot subscribing the MB
     returns:
         status code
@@ -719,28 +719,24 @@ def killTask(jediTaskID, broadcast=False):
             101: irrelevant taskID
     """
 
-    http_client = HttpClient()
+    http_client = HttpClientV1()
 
-    # execute
-    url = f"{baseURLSSL}/killTask"
-    data = {"jediTaskID": jediTaskID, "properErrorCode": True, "broadcast": broadcast}
+    url = f"{api_url_ssl_v1}/task/kill"
+    data = {"task_id": task_id, "broadcast": broadcast}
+
     status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_str = f"ERROR killTask : {error_type} {error_value}"
-        return EC_Failed, f"{output}\n{error_str}"
+
+    return status, output
 
 
-def finishTask(jediTaskID, soft=False, broadcast=False):
+def finish_task(task_id, soft=False, broadcast=False):
     """
     Finish a task
 
     args:
         jediTaskID: jediTaskID of the task to be finished
         soft: If True, new jobs are not generated and the task is
-              finihsed once all remaining jobs are done.
+              finished once all remaining jobs are done.
               If False, all remaining jobs are killed and then the
               task is finished
         broadcast: True to push the message to the pilot subscribing the MB
@@ -757,21 +753,14 @@ def finishTask(jediTaskID, soft=False, broadcast=False):
             100: non SSL connection
             101: irrelevant taskID
     """
+    http_client = HttpClientV1()
 
-    http_client = HttpClient()
+    url = f"{api_url_ssl_v1}/task/kill"
+    data = {"task_id": task_id, "soft": soft, "broadcast": broadcast}
 
-    # execute
-    url = f"{baseURLSSL}/finishTask"
-    data = {"jediTaskID": jediTaskID, "properErrorCode": True, "broadcast": broadcast}
-    if soft:
-        data["soft"] = True
     status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_str = f"ERROR finishTask : {error_type} {error_value}"
-        return EC_Failed, f"{output}\n{error_str}"
+
+    return status, output
 
 
 def reassignTaskToSite(jediTaskID, site, mode=None):

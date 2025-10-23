@@ -7,7 +7,7 @@ aSrvID = None
 optP = optparse.OptionParser(conflict_handler="resolve")
 options, args = optP.parse_args()
 
-jediTaskID = args[0]
+task_id = args[0]
 
-s, o = Client.killTask(jediTaskID)
+s, o = Client.kill_task(task_id)
 print(o)
