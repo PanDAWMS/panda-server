@@ -15,6 +15,7 @@ from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 
 from pandaserver.api.v1.http_client import HttpClient as HttpClientV1
 from pandaserver.api.v1.http_client import api_url_ssl as api_url_ssl_v1
+from pandaserver.taskbuffer.JobUtils import dump_jobs_json
 
 # PanDA server configuration
 baseURL = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/panda")
@@ -186,14 +187,12 @@ Client API
 """
 
 
-def submitJobs(jobs, toPending=False):
+def submit_jobs(jobs):
     """
     Submit jobs
 
     args:
         jobs: the list of JobSpecs
-        toPending: set True if jobs need to be pending state for the
-                   two-staged submission mechanism
     returns:
         status code
               0: communication succeeded to the panda server
@@ -202,30 +201,21 @@ def submitJobs(jobs, toPending=False):
               True: request is processed
               False: not processed
     """
-    # set hostname
+    # set hostname to jobs
     hostname = socket.getfqdn()
     for job in jobs:
         job.creationHost = hostname
-    # serialize
-    str_jobs = pickle_dumps(jobs)
 
-    http_client = HttpClient()
+    # serialize the jobs to json
+    jobs = dump_jobs_json(jobs)
 
-    url = f"{baseURLSSL}/submitJobs"
-    data = {"jobs": str_jobs}
-    if toPending:
-        data["toPending"] = True
+    http_client = HttpClientV1()
+
+    url = f"{api_url_ssl_v1}/job/submit"
+    data = {"jobs": jobs}
+
     status, output = http_client.post(url, data)
-    if status != 0:
-        print(output)
-        return status, output
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        err_type, err_value, _ = sys.exc_info()
-        err_str = f"ERROR submitJobs : {err_type} {err_value}"
-        print(err_str)
-        return EC_Failed, f"{output}\n{err_str}"
+    return status, output
 
 
 def getJobStatus(panda_ids):
@@ -966,13 +956,13 @@ def changeTaskPriority(jediTaskID, newPriority):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def setDebugMode(pandaID, modeOn):
+def set_debug_mode(job_id, mode):
     """
     Turn debug mode for a job on/off
 
     args:
-        pandaID: PandaID of the job
-        modeOn: True to turn it on. Oppositely, False
+        job_id: job_id of the job
+        mode: True to turn it on. Oppositely, False
     returns:
         status code
               0: communication succeeded to the panda server
@@ -980,12 +970,14 @@ def setDebugMode(pandaID, modeOn):
         error message
     """
 
-    http_client = HttpClient()
+    http_client = HttpClientV1()
 
-    # execute
-    url = f"{baseURLSSL}/setDebugMode"
-    data = {"pandaID": pandaID, "modeOn": modeOn}
-    return http_client.post(url, data)
+    url = f"{api_url_ssl_v1}/job/set_debug_mode"
+    data = {"job_id": job_id, "mode": mode}
+
+    status, output = http_client.post(url, data)
+
+    return status, output
 
 
 def retryTask(jediTaskID, noChildRetry=False, discardEvents=False, disable_staging_mode=False, keep_gshare_priority=False):

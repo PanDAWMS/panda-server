@@ -9,6 +9,7 @@ You can run the test as
 $ nosetests test_job_flow_ATLAS.py
 $ python test_job_flow_ATLAS.py
 """
+
 import socket
 import sys
 import time
@@ -23,9 +24,10 @@ except ImportError:
 
 import hashlib
 
-import pandaserver.userinterface.Client as Client
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+
+import pandaserver.userinterface.Client as Client
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
@@ -153,7 +155,7 @@ class JobFlowATLAS(object):
             job = self.defineEvgen16Job(i)
             self.__jobList.append({"jobSpec": job, "jobID": None})
 
-        status, output = Client.submitJobs(
+        status, output = Client.submit_jobs(
             [job["jobSpec"] for job in self.__jobList]
         )  # Return from submitJobs: ret.append((job.PandaID,job.jobDefinitionID,{'jobsetID':job.jobsetID}))
 

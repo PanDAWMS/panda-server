@@ -28,15 +28,9 @@ if (options.modeOn and options.modeOff) or (not options.modeOn and not options.m
     sys.exit(1)
 
 if options.modeOn:
-    s, o = Client.setDebugMode(args[0], True)
+    s, o = Client.set_debug_mode(args[0], True)
 else:
-    s, o = Client.setDebugMode(args[0], False)
+    s, o = Client.set_debug_mode(args[0], False)
 
-if o == "Succeeded":
-    print(o)
-else:
-    print("ERROR:", o)
-if s != 0:
-    print("ERROR: communication failure to the panda server")
-    sys.exit(1)
+print(f"status: {s}, output: {o}")
 sys.exit(0)

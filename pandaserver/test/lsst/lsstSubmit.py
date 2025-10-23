@@ -6,7 +6,6 @@ import pandaserver.userinterface.Client as Client
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
-aSrvID = None
 prodUserNameDefault = "unknown-user"
 prodUserName = None
 prodUserNameDP = None
@@ -72,11 +71,6 @@ for idx, argv in enumerate(sys.argv):
             lsstJobParams += f"PIPELINE_STREAM={str(PIPELINE_STREAM)}"
         except Exception:
             PIPELINE_STREAM = None
-    if argv == "-s":
-        aSrvID = sys.argv[idx + 1]
-        sys.argv = sys.argv[:idx]
-        break
-
 
 # DP_USER and PIPELINE_USER preference
 if prodUserNameDP is not None:
@@ -139,7 +133,7 @@ fileOL.type = "log"
 job.addFile(fileOL)
 
 
-s, o = Client.submitJobs([job], srvID=aSrvID)
+s, o = Client.submit_jobs([job])
 print(s)
 for x in o:
     print(f"PandaID={x[0]}")

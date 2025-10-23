@@ -378,7 +378,7 @@ def set_debug_mode(req: PandaRequest, job_id: int, mode: bool):
 @request_validation(_logger, secure=True, request_method="POST")
 def submit(req: PandaRequest, jobs: str):
     """
-    Set the debug mode
+    Submit jobs
 
     Sets the debug mode for a job. Requires a secure connection.
 

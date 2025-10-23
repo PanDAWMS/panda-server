@@ -52,7 +52,7 @@ for i in range(1):
     jobList.append(job)
 
 for i in range(1):
-    s, o = Client.submitJobs(jobList)
+    s, o = Client.submit_jobs(jobList)
     print("---------------------")
     print(s)
     for x in o:

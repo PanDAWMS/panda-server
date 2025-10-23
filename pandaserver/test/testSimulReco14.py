@@ -96,7 +96,7 @@ for lfn in files:
 
     jobList.append(job)
 
-s, o = Client.submitJobs(jobList)
+s, o = Client.submit_jobs(jobList)
 print("---------------------")
 print(s)
 for x in o:
