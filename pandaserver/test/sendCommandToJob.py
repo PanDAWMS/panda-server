@@ -8,6 +8,7 @@ parser.add_argument(
     "--panda_id",
     action="store",
     dest="panda_id",
+    type=int,
     required=True,
     help="PandaID of the job",
 )
@@ -21,11 +22,5 @@ parser.add_argument(
 
 options = parser.parse_args()
 
-s, o = Client.send_command_to_job(options.panda_id, options.com)
-if s != 0:
-    print(o)
-else:
-    if not o[0]:
-        print(f"ERROR: {o[1]}")
-    else:
-        print(f"INFO: {o[1]}")
+status, output = Client.send_command_to_job(options.panda_id, options.com)
+print(f"Status: {status}. Output: {output}")
