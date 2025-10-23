@@ -133,7 +133,7 @@ def change_staging_source(
     If the request is queued, its source_rse will be rechosen, excluding the original source.
     If the request is staging, the source_replica_expression of its DDM rule is unset so new source can be tried.
     Only effective on queued or staging requests.
-    The reqeusts can be specified by request_id or dataset (if both exist, request_id is taken).
+    The requests can be specified by request_id or dataset (if both exist, request_id is taken).
     Requires a secure connection production role.
 
     API details:

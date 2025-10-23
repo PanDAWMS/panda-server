@@ -347,6 +347,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
         # decode Footer
         footer = file_content[-8:]
         checksum, _ = struct.unpack("II", footer)
+        checksum = str(checksum)
         tmp_logger.debug(f"CRC from gzip Footer {checksum}")
     except Exception:
         # use None to avoid delay for now
@@ -370,10 +371,17 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
         if not to_insert:
             tmp_logger.debug("skipped to insert to DB")
         else:
-            # TODO: change to the new API method once implemented
-            status_client, output_client = Client.insertSandboxFileInfo(user_name, file.filename, file_size, checksum)
-            if status_client != 0 or output_client.startswith("ERROR"):
-                error_message = f"ERROR : failed to register file in database with {status_client} {output_client}"
+            status_client, output_client = Client.register_cache_file(user_name, file.filename, file_size, checksum)
+            if status_client != 0:
+                error_message = f"ERROR : failed to register sandbox to DB with {status_client} {output_client}"
+                tmp_logger.error(error_message)
+                tmp_logger.debug("Done")
+                return generate_response(False, error_message)
+
+            success = output_client["success"]
+            message = output_client["message"]
+            if not success:
+                error_message = f"ERROR : failed to register sandbox to DB with {message}"
                 tmp_logger.error(error_message)
                 tmp_logger.debug("Done")
                 return generate_response(False, error_message)
@@ -484,13 +492,15 @@ def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_
 
     message = global_task_buffer.insertSandboxFileInfo(user_name, host_name, file_name, file_size, checksum)
     if message != "OK":
+        tmp_logger.debug("Done")
         return generate_response(False, message)
 
+    tmp_logger.debug("Done")
     return generate_response(True)
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def validate_cache_file(req: PandaRequest, file_size: int, checksum: int) -> Dict:
+def validate_cache_file(req: PandaRequest, file_size: int, checksum: int | str) -> Dict:
     """
     Validate cache file
 

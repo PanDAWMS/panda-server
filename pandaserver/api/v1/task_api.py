@@ -19,6 +19,7 @@ from pandaserver.api.v1.common import (
     has_production_role,
     request_validation,
 )
+from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
@@ -40,7 +41,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 def retry(
     req: PandaRequest,
     task_id: int,
-    new_parameters: dict = None,
+    new_parameters: Dict | str = None,
     no_child_retry: bool = False,
     discard_events: bool = False,
     disable_staging_mode: bool = False,
@@ -59,7 +60,7 @@ def retry(
     Args:
         req(PandaRequest): internally generated request object
         task_id(int): JEDI Task ID
-        new_parameters(Dict, optional): a json dictionary with the new parameters for rerunning the task. The new parameters are merged with the existing ones.
+        new_parameters(Dict, optional): a dictionary with the new parameters for rerunning the task. The new parameters are merged with the existing ones.
                                         The parameters are the attributes in the JediTaskSpec object (https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jedicore/JediTaskSpec.py).
         no_child_retry(bool, optional): if True, the child tasks are not retried
         discard_events(bool, optional): if True, events will be discarded
@@ -78,6 +79,9 @@ def retry(
 
     # retry with new parameters
     if new_parameters:
+        if isinstance(new_parameters, str):
+            new_parameters = json.loads(new_parameters)
+
         try:
             # get original parameters
             old_parameters_json = global_task_buffer.getTaskParamsPanda(task_id)
@@ -114,10 +118,24 @@ def retry(
             properErrorCode=True,
             comQualifier=qualifier,
         )
+
+    if ret[0] == 5:
+        # retry failed analysis jobs
+        job_ids = global_task_buffer.getJobdefIDsForFailedJob(task_id)
+        clean_id = clean_user_id(user)
+        for job_id in job_ids:
+            global_task_buffer.finalizePendingJobs(clean_id, job_id)
+        global_task_buffer.increaseAttemptNrPanda(task_id, 5)
+        return_str = f"retry has been triggered for failed jobs while the task is still {ret[1]}"
+        if not new_parameters:
+            ret = 0, return_str
+        else:
+            ret = 3, return_str
+
     tmp_logger.debug("Done")
 
     data, message = ret
-    success = data == 0
+    success = True
     return generate_response(success, message, data)
 
 

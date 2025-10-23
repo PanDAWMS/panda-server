@@ -214,7 +214,7 @@ if panda_config.nDBConnection != 0:
     ban_user_list = CoreUtils.CachedObject("ban_list", 600, taskBuffer.get_ban_users, _logger)
 else:
     # get ban list from remote
-    ban_user_list = CoreUtils.CachedObject("ban_list", 600, Client.get_ban_users, _logger)
+    ban_user_list = CoreUtils.CachedObject("ban_list", 600, Client.get_banned_users, _logger)
 
 
 def pre_validate_request(panda_request):

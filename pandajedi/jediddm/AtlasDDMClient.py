@@ -1548,8 +1548,7 @@ class AtlasDDMClient(DDMClientBase):
             # get rules and state
             for rule in client.list_did_rules(scope=scope, name=dsn):
                 rule_id = rule["id"]
-                state = rule["state"]
-                res_dict[rule_id] = state
+                res_dict[rule_id] = {"state": rule["state"], "rse_expression": rule["rse_expression"]}
             # if all ok
             if all((x == "OK" for x in res_dict.values())):
                 all_ok = True
