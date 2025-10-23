@@ -50,10 +50,13 @@ class WFStepStatus(object):
     running = "running"
     done = "done"
     failed = "failed"
+    closed = "closed"
     cancelled = "cancelled"
 
+    checked_statuses = (checked_true, checked_false)
     after_submitted_statuses = (running, done, failed, cancelled)
     after_running_statuses = (done, failed, cancelled)
+    final_statuses = (done, failed, closed, cancelled)
 
 
 class WFDataStatus(object):
@@ -64,16 +67,19 @@ class WFDataStatus(object):
     registered = "registered"
     checking = "checking"
     checked_nonex = "checked_nonex"
+    checked_partex = "checked_partex"
     checked_exist = "checked_exist"
     generating_start = "generating_start"
     generating_ready = "generating_ready"
+    waiting_ready = "waiting_ready"
     done_generated = "done_generated"
+    done_waited = "done_waited"
     done_skipped = "done_skipped"
     cancelled = "cancelled"
     retired = "retired"
 
-    good_input_statuses = (generating_ready, done_generated, done_skipped)
-    good_output_statuses = (done_generated, done_skipped)
+    good_input_statuses = (generating_ready, waiting_ready, done_generated, done_waited, done_skipped)
+    good_output_statuses = (done_generated, done_waited, done_skipped)
 
 
 # ==== Types ===================================================
@@ -344,6 +350,22 @@ class WFDataSpec(WorkflowBaseSpec):
 
 
 @dataclass(slots=True)
+class WFDataProcessResult:
+    """
+    Result of processing data.
+
+    Fields:
+        success (bool | None): Indicates if the processing was successful.
+        new_status (WFDataStatus | None): The new status of the data after processing, None if no change.
+        message (str): A message providing additional information about the processing result.
+    """
+
+    success: bool | None = None
+    new_status: WFDataStatus | None = None
+    message: str = ""
+
+
+@dataclass(slots=True)
 class WFStepProcessResult:
     """
     Result of processing a step.
@@ -409,6 +431,27 @@ class WFStepTargetCheckResult:
     success: bool | None = None
     status: WFStepStatus | None = None
     native_status: str | None = None
+    message: str = ""
+
+
+# ==== Return objects of data handler methods ==================
+
+
+@dataclass(slots=True)
+class WFDataTargetCheckResult:
+    """
+    Result of checking the status of a data target.
+
+    Fields:
+        success (bool | None): Indicates if the status check was successful.
+        status (WFDataStatus | None): The status of the data to move to.
+        native_metadata (dict | None): The native metadata from the target system.
+        message (str): A message providing additional information about the status check result.
+    """
+
+    success: bool | None = None
+    status: WFDataStatus | None = None
+    native_metadata: dict | None = None
     message: str = ""
 
 

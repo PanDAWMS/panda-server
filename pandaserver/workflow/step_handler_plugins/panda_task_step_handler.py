@@ -5,17 +5,15 @@ import uuid
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.workflow.step_handler_plugins.base_step_handler import (
-    BaseStepHandler,
-    WFStepTargetCheckResult,
-    WFStepTargetSubmitResult,
-)
+from pandaserver.workflow.step_handler_plugins.base_step_handler import BaseStepHandler
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
     WFDataStatus,
     WFDataType,
     WFStepSpec,
     WFStepStatus,
+    WFStepTargetCheckResult,
+    WFStepTargetSubmitResult,
     WFStepType,
     WorkflowSpec,
     WorkflowStatus,

@@ -21,6 +21,7 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.workflow.workflow_base import (
+    WFDataProcessResult,
     WFDataSpec,
     WFDataStatus,
     WFDataType,
@@ -56,9 +57,9 @@ PLUGIN_RAW_MAP = {
         "panda_task": ("panda_task_step_handler", "PandaTaskStepHandler"),
         # Add more step handler plugins here
     },
-    # "data_handler": {
-    #     "example_data": ("example_data_handler", "ExampleDataHandler"),
-    # },
+    "data_handler": {
+        "ddm_collection": ("ddm_collection_data_handler", "DDMCollectionDataHandler"),
+    },
     # Add more plugin types here
 }
 
@@ -286,18 +287,91 @@ class WorkflowInterface(object):
         """
         tmp_log = LogWrapper(logger, f"process_data_registered data_id={data_spec.data_id}")
         tmp_log.debug("Start")
+        # Initialize
+        process_result = WFDataProcessResult()
         # Check status
         if data_spec.status != WFDataStatus.registered:
-            tmp_log.warning(f"Data status changed unexpectedly from {WFDataStatus.registered} to {data_spec.status}; skipped")
-            return
+            process_result.message = f"Data status changed unexpectedly from {WFDataStatus.registered} to {data_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
         # Process
         try:
             # For now, just update status to checking
             data_spec.status = WFDataStatus.checking
             self.tbif.update_workflow_data(data_spec)
             tmp_log.info(f"Done, status={data_spec.status}")
-        except Exception:
-            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"{process_result.message}")
+        return process_result
+
+    def process_data_checking(self, data_spec: WFDataSpec):
+        """
+        Process data in checking status
+        """
+        tmp_log = LogWrapper(logger, f"process_data_checking data_id={data_spec.data_id}")
+        tmp_log.debug("Start")
+        # Initialize
+        process_result = WFDataProcessResult()
+        # Check status
+        if data_spec.status != WFDataStatus.checking:
+            process_result.message = f"Data status changed unexpectedly from {WFDataStatus.checking} to {data_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
+        # Process
+        try:
+            # Check data availability
+            # FIXME: For now, always advance to checked_nonex
+            data_spec.status = WFDataStatus.checked_nonex
+            data_spec.check_time = naive_utcnow()
+            self.tbif.update_workflow_data(data_spec)
+            tmp_log.info(f"Done, status={data_spec.status}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"{process_result.message}")
+        return process_result
+
+    def process_data_checked(self, data_spec: WFDataSpec):
+        """
+        Process data in checked status
+        """
+        tmp_log = LogWrapper(logger, f"process_data_checked data_id={data_spec.data_id}")
+        tmp_log.debug("Start")
+        # Initialize
+        process_result = WFDataProcessResult()
+        # Check status
+        if data_spec.status not in (WFDataStatus.checked_nonex, WFDataStatus.checked_partex, WFDataStatus.checked_exist):
+            process_result.message = f"Data status changed unexpectedly from checked_* to {data_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
+        # Process
+        try:
+            original_status = data_spec.status
+            # Update data status based on check result
+            now_time = naive_utcnow()
+            match data_spec.status:
+                case WFDataStatus.checked_nonex:
+                    # Data does not exist, advance to generating_start
+                    data_spec.status = WFDataStatus.generating_start
+                    data_spec.check_time = now_time
+                    data_spec.start_time = now_time
+                    self.tbif.update_workflow_data(data_spec)
+                case WFDataStatus.checked_partex:
+                    # Data partially exist, advance to waiting_ready
+                    data_spec.status = WFDataStatus.waiting_ready
+                    data_spec.check_time = now_time
+                    self.tbif.update_workflow_data(data_spec)
+                case WFDataStatus.checked_exist:
+                    # Data already fully exist, advance to done_exist
+                    data_spec.status = WFDataStatus.done_exist
+                    data_spec.check_time = now_time
+                    data_spec.end_time = now_time
+                    self.tbif.update_workflow_data(data_spec)
+            tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"{process_result.message}")
+        return process_result
 
     # ---- Step status transitions -----------------------------
 
@@ -323,13 +397,86 @@ class WorkflowInterface(object):
             return process_result
         # Process
         try:
-            # For now, just update status to pending
-            step_spec.status = WFStepStatus.pending
+            step_spec.status = WFStepStatus.checking
             self.tbif.update_workflow_step(step_spec)
             tmp_log.info(f"Done, status={step_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"{process_result.message}")
+        return process_result
+
+    def process_step_checking(self, step_spec: WFStepSpec) -> WFStepProcessResult:
+        """
+        Process a step in checking status
+        To check the conditions about whether to process the step
+
+        Args:
+            step_spec (WFStepSpec): The workflow step specification to process
+
+        Returns:
+            WFStepProcessResult: The result of processing the step
+        """
+        tmp_log = LogWrapper(logger, f"process_step_checking workflow_id={step_spec.workflow_id} step_id={step_spec.step_id}")
+        tmp_log.debug("Start")
+        # Initialize
+        process_result = WFStepProcessResult()
+        # Check status
+        if step_spec.status != WFStepStatus.checking:
+            process_result.message = f"Step status changed unexpectedly from {WFStepStatus.checking} to {step_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
+        # Process
+        try:
+            # FIXME: For now, always advance to checked_true
+            if True:
+                step_spec.status = WFStepStatus.checked_true
+                self.tbif.update_workflow_step(step_spec)
+                tmp_log.info(f"Done, status={step_spec.status}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"{process_result.message}")
+        return process_result
+
+    def process_step_checked(self, step_spec: WFStepSpec) -> WFStepProcessResult:
+        """
+        Process a step in checked status
+        To advance to pending or closed based on check result
+
+        Args:
+            step_spec (WFStepSpec): The workflow step specification to process
+
+        Returns:
+            WFStepProcessResult: The result of processing the step
+        """
+        tmp_log = LogWrapper(logger, f"process_step_checked workflow_id={step_spec.workflow_id} step_id={step_spec.step_id}")
+        tmp_log.debug("Start")
+        # Initialize
+        process_result = WFStepProcessResult()
+        # Check status
+        if step_spec.status not in WFStepStatus.checked_statuses:
+            process_result.message = f"Step status changed unexpectedly from checked_* to {step_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
+        # Process
+        original_status = step_spec.status
+        try:
+            now_time = naive_utcnow()
+            match step_spec.status:
+                case WFStepStatus.checked_true:
+                    # Conditions met, advance to pending
+                    step_spec.status = WFStepStatus.pending
+                    step_spec.check_time = now_time
+                    self.tbif.update_workflow_step(step_spec)
+                case WFStepStatus.checked_false:
+                    # Conditions not met, advanced to closed
+                    step_spec.status = WFStepStatus.closed
+                    step_spec.check_time = now_time
+                    self.tbif.update_workflow_step(step_spec)
+            tmp_log.info(f"Done, from {original_status} to status={step_spec.status}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"{process_result.message}")
+        return process_result
 
     def process_step_pending(self, step_spec: WFStepSpec, data_spec_map: Dict[str, WFDataSpec] | None = None) -> WFStepProcessResult:
         """
@@ -548,8 +695,10 @@ class WorkflowInterface(object):
             self.tbif.update_workflow_step(step_spec)
             process_result.success = True
             tmp_log.info(f"Checked step, flavor={step_spec.flavor}, target_id={step_spec.target_id}, status={step_spec.status}")
-        except Exception:
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
+        return process_result
 
     def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None) -> Dict:
         """
