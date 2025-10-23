@@ -969,14 +969,14 @@ def set_debug_mode(job_id, mode):
     return status, output
 
 
-def retryTask(jediTaskID, noChildRetry=False, discardEvents=False, disable_staging_mode=False, keep_gshare_priority=False):
+def retry_task(task_id, no_child_retry=False, discard_events=False, disable_staging_mode=False, keep_gshare_priority=False):
     """
     Retry a task
 
     args:
-        jediTaskID: jediTaskID of the task to retry
-        noChildRetry: True not to retry child tasks
-        discardEvents: discard events
+        task_id: jediTaskID of the task to retry
+        no_child_retry: True not to retry child tasks
+        discard_events: discard events
         disable_staging_mode: disable staging mode
         keep_gshare_priority: keep current gshare and priority
     returns:
@@ -993,29 +993,24 @@ def retryTask(jediTaskID, noChildRetry=False, discardEvents=False, disable_stagi
             101: irrelevant taskID
     """
 
-    http_client = HttpClient()
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/task/retry"
 
-    # execute
-    url = f"{baseURLSSL}/retryTask"
-    data = {"jediTaskID": jediTaskID, "properErrorCode": True}
-    if noChildRetry:
-        data["noChildRetry"] = True
-    if discardEvents:
-        data["discardEvents"] = True
+    data = {"task_id": task_id}
+    if no_child_retry:
+        data["no_child_retry"] = True
+    if discard_events:
+        data["discard_events"] = True
     if disable_staging_mode:
         data["disable_staging_mode"] = True
     if keep_gshare_priority:
         data["keep_gshare_priority"] = True
+
     status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_str = f"ERROR retryTask : {error_type} {error_value}"
-        return EC_Failed, f"{output}\n{error_str}"
+    return status, output
 
 
-def reloadInput(jediTaskID):
+def reload_input(task_id):
     """
     Reload the input for a task
 
@@ -1034,19 +1029,14 @@ def reloadInput(jediTaskID):
             100: non SSL connection
             101: irrelevant taskID
     """
+    http_client = HttpClientV1()
 
-    http_client = HttpClient()
+    url = f"{api_url_ssl_v1}/task/reload_input"
+    data = {"task_id": task_id}
 
-    # execute
-    url = f"{baseURLSSL}/reloadInput"
-    data = {"jediTaskID": jediTaskID}
     status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_str = f"ERROR reloadInput : {error_type} {error_value}"
-        return EC_Failed, f"{output}\n{error_str}"
+
+    return status, output
 
 
 def changeTaskWalltime(jediTaskID, wallTime):

@@ -1,11 +1,12 @@
 import argparse
 
+from rucio.client import Client as RucioClient
+from rucio.common.exception import DataIdentifierNotFound
+
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.userinterface import Client
-from rucio.client import Client as RucioClient
-from rucio.common.exception import DataIdentifierNotFound
 
 taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 
@@ -45,7 +46,8 @@ if True:
                         rc.set_metadata(scope, name, "lifetime", None)
                     except Exception:
                         pass
-    print(Client.reloadInput(jediTaskID)[-1])
+
+    print(Client.reload_input(jediTaskID))
     print(f"done for jediTaskID={jediTaskID}")
 else:
     print("failed")

@@ -310,10 +310,10 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
                         except Exception:
                             pass
         if not options.reproduceParent:
-            tmp_status = Client.retryTask(jediTaskID, noChildRetry=options.noChildRetry)[-1][-1]
+            tmp_ret = Client.retry_task(jediTaskID, no_child_retry=options.noChildRetry)
         else:
-            tmp_status = Client.reloadInput(jediTaskID)[-1][-1]
-        msg_str = f"Retried task {jediTaskID}: done with {tmp_status}"
+            tmp_ret = Client.reload_input(jediTaskID)
+        msg_str = f"Retried task {jediTaskID}: done with {tmp_ret}"
         print_msg(msg_str, log_stream, put_log=log_filename)
         return True, tmp_status
     else:
