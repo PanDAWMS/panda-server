@@ -973,7 +973,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         iJob = 0
         while iJob < len(jobs):
             _logger.debug(f"killJobs for long running ES jobs ({str(jobs[iJob:iJob + nJob])})")
-            Client.killJobs(
+            Client.kill_jobs(
                 jobs[iJob : iJob + nJob],
                 2,
                 keep_unmerged=True,
