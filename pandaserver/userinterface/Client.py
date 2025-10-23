@@ -755,7 +755,7 @@ def finish_task(task_id, soft=False, broadcast=False):
     """
     http_client = HttpClientV1()
 
-    url = f"{api_url_ssl_v1}/task/kill"
+    url = f"{api_url_ssl_v1}/task/finish"
     data = {"task_id": task_id, "soft": soft, "broadcast": broadcast}
 
     status, output = http_client.post(url, data)
