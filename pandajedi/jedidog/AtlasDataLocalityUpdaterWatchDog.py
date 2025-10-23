@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 import socket
 import sys
 import traceback
@@ -160,20 +161,53 @@ class DataLocalityUpdaterThread(WorkerThread):
                     if item is None:
                         n_skipped_ds += 1
                         continue
-                    jediTaskID, datasetID, datasetName = item
-                    _, task_spec = self.taskBufferIF.getTaskWithID_JEDI(jediTaskID)
-                    dataset_replicas_map = self.ddmIF.listDatasetReplicas(datasetName)
-                    is_distributed_ds = self.ddmIF.isDistributedDataset(datasetName)
-                    for tmpRSE, tmpList in dataset_replicas_map.items():
-                        # check data locality unless input is distributed or uses data carousel
-                        if not is_distributed_ds and not task_spec.inputPreStaging():
-                            tmpStatistics = tmpList[-1]
+                    jedi_task_id, dataset_id, dataset_name = item
+                    _, task_spec = self.taskBufferIF.getTaskWithID_JEDI(jedi_task_id)
+                    dataset_replicas_map = self.ddmIF.listDatasetReplicas(dataset_name)
+                    is_distributed_ds = self.ddmIF.isDistributedDataset(dataset_name)
+                    # get rules when using data carousel
+                    rule_rse_list = []
+                    rule_rse_types = []
+                    if task_spec.inputPreStaging():
+                        # collect rse expressions from rules
+                        _, tmp_rules = self.ddmIF.get_rules_state(dataset_name)
+                        rule_rse_list = [r["rse_expression"] for r in tmp_rules.values()]
+                        rule_rse_types = []
+                        # extract rse types from rse expressions
+                        for tmp_rse in rule_rse_list:
+                            m = re.search(r"type=([^)]+)", tmp_rse)
+                            if m:
+                                rule_rse_types.append(m.group(1))
+                    # loop over all replicas
+                    for tmp_rse, tmp_stat_list in dataset_replicas_map.items():
+                        # pre-checks
+                        if is_distributed_ds:
+                            # no checks for distributed datasets
+                            pass
+                        elif task_spec.inputPreStaging():
+                            # use only replicas with rules when using data carousel
+                            if tmp_rse not in rule_rse_list:
+                                # check rse type
+                                to_skip = True
+                                for rse_type in rule_rse_types:
+                                    if rse_type in tmp_rse:
+                                        to_skip = False
+                                        break
+                                if to_skip:
+                                    n_skipped_replicas += 1
+                                    self.logger.debug(
+                                        f"skipped {tmp_rse} for dataset {dataset_name} due to missing rule in {rule_rse_list} or rse type in {rule_rse_types}"
+                                    )
+                                    continue
+                        else:
+                            # use only complete replicas unless input is distributed or uses data carousel
+                            tmp_statistics = tmp_stat_list[-1]
                             # skip unknown and incomplete
-                            if tmpStatistics["found"] is None or tmpStatistics["found"] != tmpStatistics["total"]:
+                            if tmp_statistics["found"] is None or tmp_statistics["found"] != tmp_statistics["total"]:
                                 n_skipped_replicas += 1
                                 continue
                         # update dataset locality table
-                        self.taskBufferIF.updateDatasetLocality_JEDI(jedi_taskid=jediTaskID, datasetid=datasetID, rse=tmpRSE)
+                        self.taskBufferIF.updateDatasetLocality_JEDI(jedi_taskid=jedi_task_id, datasetid=dataset_id, rse=tmp_rse)
                         n_updated_replicas += 1
                     n_updated_ds += 1
             except Exception as e:
