@@ -1708,7 +1708,7 @@ def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def send_command_to_job(panda_id, com):
+def send_command_to_job(panda_id, command):
     """
     Send a command to a job
 
@@ -1724,18 +1724,13 @@ def send_command_to_job(panda_id, com):
               True: the command received
     """
 
-    http_client = HttpClient()
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/job/set_command"
+    data = {"job_id": panda_id, "command": command}
 
-    # execute
-    url = f"{baseURLSSL}/send_command_to_job"
-    data = {"panda_id": panda_id, "com": com}
     status, output = http_client.post(url, data)
 
-    try:
-        return status, json.loads(output)
-    except Exception as e:
-        error_str = f"ERROR send_command_to_job : {str(e)}"
-        return EC_Failed, f"{output}\n{error_str}"
+    return status, output
 
 
 def get_banned_users():
