@@ -68,7 +68,8 @@ if options.killOwnProdJobs:
     useMailAsIDV = True
 
 if len(args) == 1:
-    ret = Client.kill_jobs([args[0]], code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
+    job_id = int(args[0])
+    ret = Client.kill_jobs([job_id], code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
 else:
     job_id_start = int(args[0])
     job_id_end = int(args[1])
