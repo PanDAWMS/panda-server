@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 import socket
 import sys
 import traceback
@@ -166,9 +167,17 @@ class DataLocalityUpdaterThread(WorkerThread):
                     is_distributed_ds = self.ddmIF.isDistributedDataset(dataset_name)
                     # get rules when using data carousel
                     rule_rse_list = []
+                    rule_rse_types = []
                     if task_spec.inputPreStaging():
+                        # collect rse expressions from rules
                         _, tmp_rules = self.ddmIF.get_rules_state(dataset_name)
                         rule_rse_list = [r["rse_expression"] for r in tmp_rules.values()]
+                        rule_rse_types = []
+                        # extract rse types from rse expressions
+                        for tmp_rse in rule_rse_list:
+                            m = re.search(r"type=([^)]+)", tmp_rse)
+                            if m:
+                                rule_rse_types.append(m.group(1))
                     # loop over all replicas
                     for tmp_rse, tmp_stat_list in dataset_replicas_map.items():
                         # pre-checks
@@ -178,8 +187,18 @@ class DataLocalityUpdaterThread(WorkerThread):
                         elif task_spec.inputPreStaging():
                             # use only replicas with rules when using data carousel
                             if tmp_rse not in rule_rse_list:
-                                n_skipped_replicas += 1
-                                continue
+                                # check rse type
+                                to_skip = True
+                                for rse_type in rule_rse_types:
+                                    if rse_type in tmp_rse:
+                                        to_skip = False
+                                        break
+                                if to_skip:
+                                    n_skipped_replicas += 1
+                                    self.logger.debug(
+                                        f"skipped {tmp_rse} for dataset {dataset_name} due to missing rule in {rule_rse_list} or rse type in {rule_rse_types}"
+                                    )
+                                    continue
                         else:
                             # use only complete replicas unless input is distributed or uses data carousel
                             tmp_statistics = tmp_stat_list[-1]
