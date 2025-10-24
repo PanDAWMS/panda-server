@@ -218,35 +218,24 @@ def submit_jobs(jobs):
     return status, output
 
 
-def getJobStatus(panda_ids):
+def get_job_status(job_ids):
     """
     Get job status
 
     args:
-        ids: the list of PandaIDs
-        use_json: using json instead of pickle
+        job_ids: the list of PandaIDs
     returns:
         status code
               0: communication succeeded to the panda server
               255: communication failure
         the list of JobSpecs (or Nones for non-existing PandaIDs)
     """
-    # Serialize the panda IDs
-    str_ids = json.dumps(panda_ids)
-
-    http_client = HttpClient()
-    http_client.use_json = True
-
-    # Execute
-    url = f"{baseURL}/getJobStatus"
-    data = {"ids": str_ids}
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/pilot/get_job_status"
+    data = {"job_ids": job_ids}
     status, output = http_client.post(url, data)
-    try:
-        return status, json.loads(output)
-    except Exception as e:
-        err_str = f"ERROR getJobStatus: {str(e)}"
-        print(err_str)
-        return EC_Failed, f"{output}\n{err_str}"
+
+    return status, output
 
 
 def kill_jobs(
@@ -591,9 +580,9 @@ def register_cache_file(user_name: str, file_name: str, file_size: int, checksum
     return http_client.post(url, data)
 
 
-def putFile(file):
+def put_file(file):
     """
-    Upload input sandbox
+    Upload input sandbox to PanDA cache
 
     args:
         file: the file name
@@ -604,33 +593,18 @@ def putFile(file):
 
     """
 
-    http_client = HttpClient()
-
-    # execute
-    url = f"{baseURLSSL}/putFile"
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/file_server/upload_cache_file"
     data = {"file": file}
     return http_client.post_files(url, data)
 
 
-# delete file (obsolete)
-# TODO: is this really obsolete? I think it's used in panda cache
-def deleteFile(file):
-    http_client = HttpClient()
-
-    # execute
-    url = f"{baseURLSSL}/deleteFile"
-    data = {"file": file}
-    return http_client.post(url, data)
-
-
-# touch file (obsolete)
-# TODO: is this really obsolete? I think it's used in panda cache
-def touchFile(source_url, filename):
-    http_client = HttpClient()
-
-    # execute
-    url = f"{source_url}/server/panda/touchFile"
-    data = {"filename": filename}
+def touch_file(source_url, file_name):
+    http_client = HttpClientV1()
+    # Note the special construction of the URL here, since it is not going through the api_url_ssl_v1,
+    # but directly to the source_url pointing at the concrete instance provided
+    url = f"{source_url}/api/v1/file_server/touch_cache_file"
+    data = {"file_name": file_name}
     return http_client.post(url, data)
 
 
