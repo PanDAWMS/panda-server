@@ -3,8 +3,8 @@ import sys
 
 import pandaserver.userinterface.Client as Client
 
-optP = optparse.OptionParser(conflict_handler="resolve", usage="%prog [options] <PandaID>")
-optP.add_option(
+option_parser = optparse.OptionParser(conflict_handler="resolve", usage="%prog [options] <PandaID>")
+option_parser.add_option(
     "--on",
     action="store_const",
     const=True,
@@ -12,7 +12,7 @@ optP.add_option(
     default=False,
     help="turn the debug mode on",
 )
-optP.add_option(
+option_parser.add_option(
     "--off",
     action="store_const",
     const=True,
@@ -20,17 +20,19 @@ optP.add_option(
     default=False,
     help="turn the debug mode off",
 )
-options, args = optP.parse_args()
+options, args = option_parser.parse_args()
 
 
 if (options.modeOn and options.modeOff) or (not options.modeOn and not options.modeOff):
     print("ERROR: please set --on or --off")
     sys.exit(1)
 
-if options.modeOn:
-    s, o = Client.set_debug_mode(int(args[0]), True)
-else:
-    s, o = Client.set_debug_mode(int(args[0]), False)
+job_id = int(args[0])
 
-print(f"status: {s}, output: {o}")
+if options.modeOn:
+    status, output = Client.set_debug_mode(job_id, True)
+else:
+    status, output = Client.set_debug_mode(job_id, False)
+
+print(f"status: {status}, output: {output}")
 sys.exit(0)
