@@ -1329,7 +1329,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         for hostName, fileName, creationTime, userName in res:
             base_url = f"https://{hostName}:{panda_config.pserverport}"
             _logger.debug(f"touch {fileName} on {hostName} created at {creationTime}")
-            s, o = Client.touchFile(base_url, fileName)
+            s, o = Client.touch_file(base_url, fileName)
             _logger.debug(o)
             if o == "True":
                 var_map = dict()
