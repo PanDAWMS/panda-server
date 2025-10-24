@@ -2,17 +2,17 @@ import sys
 import time
 import uuid
 
-import pandaserver.userinterface.Client as Client
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.userinterface import Client
 
 if len(sys.argv) > 1:
     site = sys.argv[1]
 else:
     site = None
 
-datasetName = f"panda.destDB.{str(uuid.uuid4())}"
-destName = None
+dataset_name = f"panda.destDB.{str(uuid.uuid4())}"
+destination_se = None
 
 files = {
     "misal1_mc12.005802.JF17_pythia_jet_filter.digit.RDO.v12000601_tid008610._11615.pool.root.1": None,
@@ -22,7 +22,7 @@ files = {
     # 'misal1_mc12.005200.T1_McAtNlo_Jimmy.digit.RDO.v12000601_tid007554._03634.pool.root.1':None,
 }
 
-jobList = []
+job_list = []
 
 index = 0
 for lfn in files:
@@ -33,8 +33,8 @@ for lfn in files:
     job.AtlasRelease = "Atlas-12.0.6"
     job.homepackage = "AtlasProduction/12.0.6.4"
     job.transformation = "csc_reco_trf.py"
-    job.destinationDBlock = datasetName
-    job.destinationSE = destName
+    job.destinationDBlock = dataset_name
+    job.destinationSE = destination_se
     job.computingSite = site
     # job.prodDBlock        = 'misal1_mc12.005200.T1_McAtNlo_Jimmy.digit.RDO.v12000601_tid007554'
     job.prodDBlock = "misal1_mc12.005802.JF17_pythia_jet_filter.digit.RDO.v12000601_tid008610"
@@ -96,10 +96,8 @@ for lfn in files:
 
     job.jobParameters = f"{fileI.lfn} {fileOE.lfn} {fileOA.lfn} {fileOC.lfn} 250 0 ATLAS-CSC-01-02-00 CSC-06 NoRestrictedESDRecConfig.py {fileD.lfn}"
 
-    jobList.append(job)
+    job_list.append(job)
 
-s, o = Client.submit_jobs(jobList)
+status, output = Client.submit_jobs(job_list)
 print("---------------------")
-print(s)
-for x in o:
-    print(f"PandaID={x[0]}")
+print(f"Status: {status}. Output: {output}")

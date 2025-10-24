@@ -1,16 +1,13 @@
 import optparse
 import time
 
-import pandaserver.userinterface.Client as Client
-
 # password
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
+from pandaserver.userinterface import Client
 
-aSrvID = None
-
-optP = optparse.OptionParser(conflict_handler="resolve")
-optP.add_option(
+option_parser = optparse.OptionParser(conflict_handler="resolve")
+option_parser.add_option(
     "-9",
     action="store_const",
     const=True,
@@ -18,7 +15,7 @@ optP.add_option(
     default=False,
     help="kill jobs before next heartbeat is coming",
 )
-options, args = optP.parse_args()
+options, args = option_parser.parse_args()
 
 useMailAsIDV = False
 if options.killOwnProdJobs:

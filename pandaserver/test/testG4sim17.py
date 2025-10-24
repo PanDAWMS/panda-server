@@ -2,29 +2,29 @@ import sys
 import time
 import uuid
 
-import pandaserver.userinterface.Client as Client
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.userinterface import Client
 
 site = sys.argv[1]
 cloud = sys.argv[2]
 
-prodDBlock = "mc10_7TeV.105001.pythia_minbias.evgen.EVNT.e574_tid153937_00"
-inputFile = "EVNT.153937._000184.pool.root.1"
+prod_destination_block = "mc10_7TeV.105001.pythia_minbias.evgen.EVNT.e574_tid153937_00"
+input_file = "EVNT.153937._000184.pool.root.1"
 
 if len(sys.argv) == 5:
     site = sys.argv[1]
     cloud = sys.argv[2]
-    prodDBlock = sys.argv[3]
-    inputFile = sys.argv[4]
+    prod_destination_block = sys.argv[3]
+    input_file = sys.argv[4]
 
 datasetName = f"panda.destDB.{str(uuid.uuid4())}"
 
 files = {
-    inputFile: None,
+    input_file: None,
 }
 
-jobList = []
+job_list = []
 
 index = 0
 for lfn in files:
@@ -37,7 +37,7 @@ for lfn in files:
     job.transformation = "AtlasG4_trf.py"
     job.destinationDBlock = datasetName
     job.computingSite = site
-    job.prodDBlock = prodDBlock
+    job.prodDBlock = prod_destination_block
 
     job.prodSourceLabel = "test"
     job.processingType = "test"
@@ -76,16 +76,15 @@ for lfn in files:
     fileOL.destinationDBlockToken = "ATLASDATADISK"
     fileOL.type = "log"
     job.addFile(fileOL)
-
     job.jobParameters = (
-        "inputEvgenFile=%s outputHitsFile=%s maxEvents=3 skipEvents=0 DBRelease=%s geometryVersion=ATLAS-GEO-18-01-03_VALIDATION conditionsTag=OFLCOND-SDR-BS7T-05-14 randomSeed=1 physicsList=QGSP_BERT RunNumber=116870 firstEvent=1"
-        % (fileI.lfn, fileOA.lfn, fileD.lfn)
+        f"inputEvgenFile={fileI.lfn} outputHitsFile={fileOA.lfn} maxEvents=3 skipEvents=0 "
+        f"DBRelease={fileD.lfn} geometryVersion=ATLAS-GEO-18-01-03_VALIDATION "
+        f"conditionsTag=OFLCOND-SDR-BS7T-05-14 randomSeed=1 physicsList=QGSP_BERT "
+        f"RunNumber=116870 firstEvent=1"
     )
 
-    jobList.append(job)
+    job_list.append(job)
 
-s, o = Client.submit_jobs(jobList)
+status, output = Client.submit_jobs(job_list)
 print("---------------------")
-print(s)
-for x in o:
-    print(f"PandaID={x[0]}")
+print(f"Status: {status}. Output: {output}")

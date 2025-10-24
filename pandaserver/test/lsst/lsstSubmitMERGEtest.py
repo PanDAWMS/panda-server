@@ -2,9 +2,9 @@ import sys
 import time
 import uuid
 
-import pandaserver.userinterface.Client as Client
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.userinterface import Client
 
 prodUserNameDefault = "jschovan"
 prodUserName = None

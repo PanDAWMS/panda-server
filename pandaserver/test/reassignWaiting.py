@@ -3,11 +3,10 @@ import time
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
-import pandaserver.userinterface.Client as Client
-
 # password
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
+from pandaserver.userinterface import Client
 
 # time limit
 timeLimit = naive_utcnow() - datetime.timedelta(hours=1)

@@ -1,10 +1,10 @@
 import optparse
 import sys
 
-import pandaserver.userinterface.Client as Client
+from pandaserver.userinterface import Client
 
-optP = optparse.OptionParser(conflict_handler="resolve")
-optP.add_option(
+option_parser = optparse.OptionParser(conflict_handler="resolve")
+option_parser.add_option(
     "-9",
     action="store_const",
     const=True,
@@ -12,15 +12,15 @@ optP.add_option(
     default=False,
     help="kill jobs before next heartbeat is coming",
 )
-optP.add_option("--codeV", action="store", dest="codeV", default=None, help="kill code")
-optP.add_option(
+option_parser.add_option("--codeV", action="store", dest="codeV", default=None, help="kill code")
+option_parser.add_option(
     "--jobSubStatus",
     action="store",
     dest="jobSubStatus",
     default=None,
     help="set job sub status if any",
 )
-optP.add_option(
+option_parser.add_option(
     "--killOwnProdJobs",
     action="store_const",
     const=True,
@@ -28,7 +28,7 @@ optP.add_option(
     default=False,
     help="kill own production jobs without a production role",
 )
-optP.add_option(
+option_parser.add_option(
     "--killUserJobs",
     action="store_const",
     const=True,
@@ -36,7 +36,7 @@ optP.add_option(
     default=False,
     help="kill user jobs using a production role",
 )
-optP.add_option(
+option_parser.add_option(
     "--keepUnmerged",
     action="store_const",
     const=True,
@@ -44,10 +44,7 @@ optP.add_option(
     default=False,
     help="generate a new job after kiliing, to keep unmerged events",
 )
-options, args = optP.parse_args()
-
-
-aSrvID = None
+options, args = option_parser.parse_args()
 
 codeV = None
 useMailAsIDV = False

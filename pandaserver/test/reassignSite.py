@@ -4,13 +4,13 @@ import re
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
-import pandaserver.userinterface.Client as Client
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
+from pandaserver.userinterface import Client
 
 usage = "%prog [options] siteName"
-optP = optparse.OptionParser(usage=usage, conflict_handler="resolve")
-optP.add_option(
+option_parser = optparse.OptionParser(usage=usage, conflict_handler="resolve")
+option_parser.add_option(
     "--assigned",
     action="store_const",
     const=True,
@@ -18,14 +18,14 @@ optP.add_option(
     default=False,
     help="reassign jobs in assigned state. Jobs in activated state are reassigned by default",
 )
-optP.add_option(
+option_parser.add_option(
     "--olderThan",
     action="store",
     dest="olderThan",
     default=1,
     help="reassign jobs with modificationTime older than N hours (1 by default)",
 )
-options, args = optP.parse_args()
+options, args = option_parser.parse_args()
 
 # password
 

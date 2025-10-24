@@ -2,9 +2,9 @@ import sys
 import time
 import uuid
 
-import pandaserver.userinterface.Client as Client
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.userinterface import Client
 
 if len(sys.argv) > 1:
     site = sys.argv[1]
@@ -13,20 +13,17 @@ else:
     site = None
     cloud = "US"
 
-
-# cloud = 'TW'
-# Recent changes (BNL migration to LFC?) forvce the cloud to be specified
 cloud = "US"
 
-datasetName = f"panda.destDB.{str(uuid.uuid4())}"
-destName = "BNL_ATLAS_2"
+dataset_name = f"panda.destDB.{str(uuid.uuid4())}"
+destination_se = "BNL_ATLAS_2"
 
 files = {
     "EVNT.023986._00001.pool.root.1": None,
     # 'EVNT.023989._00001.pool.root.1':None,
 }
 
-jobList = []
+job_list = []
 
 index = 0
 for lfn in files:
@@ -37,8 +34,8 @@ for lfn in files:
     job.AtlasRelease = "Atlas-14.2.20"
     job.homepackage = "AtlasProduction/14.2.20.1"
     job.transformation = "csc_simul_reco_trf.py"
-    job.destinationDBlock = datasetName
-    job.destinationSE = destName
+    job.destinationDBlock = dataset_name
+    job.destinationSE = destination_se
     job.computingSite = site
     job.prodDBlock = "mc08.105031.Jimmy_jetsJ2.evgen.EVNT.e347_tid023986"
     # job.prodDBlock        = 'mc08.105034.Jimmy_jetsJ5.evgen.EVNT.e347_tid023989'
@@ -94,10 +91,8 @@ for lfn in files:
         % (fileI.lfn, fileOA.lfn, fileD.lfn, fileOE.lfn)
     )
 
-    jobList.append(job)
+    job_list.append(job)
 
-s, o = Client.submit_jobs(jobList)
+status, output = Client.submit_jobs(job_list)
 print("---------------------")
-print(s)
-for x in o:
-    print(f"PandaID={x[0]}")
+print(f"Status: {status}. Output: {output}")

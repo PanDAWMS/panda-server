@@ -1,6 +1,6 @@
 import sys
 
-import pandaserver.userinterface.Client as Client
+from pandaserver.userinterface import Client
 
 if len(sys.argv) == 2:
     job_id = int(sys.argv[1])

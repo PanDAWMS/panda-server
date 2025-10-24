@@ -4,19 +4,18 @@ import time
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
-import pandaserver.userinterface.Client as Client
-
 # password
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
+from pandaserver.userinterface import Client
 
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost, panda_config.dbpasswd, panda_config.dbuser, panda_config.dbname)
 
 
-optP = argparse.ArgumentParser(conflict_handler="resolve", description="Reassign jobs in a task")
-optP.add_argument("taskid", action="store", metavar="TASKID", help="taskID of the task")
-optP.add_argument(
+option_parser = argparse.ArgumentParser(conflict_handler="resolve", description="Reassign jobs in a task")
+option_parser.add_argument("taskid", action="store", metavar="TASKID", help="taskID of the task")
+option_parser.add_argument(
     "-m",
     dest="limit",
     type=int,
@@ -25,7 +24,7 @@ optP.add_argument(
     metavar="MIMUTES",
     help="time limit in minute",
 )
-optP.add_argument(
+option_parser.add_argument(
     "-9",
     action="store_const",
     const=True,
@@ -33,7 +32,7 @@ optP.add_argument(
     default=False,
     help="kill jobs before next heartbeat is coming",
 )
-optP.add_argument(
+option_parser.add_argument(
     "--keepUnmerged",
     action="store_const",
     const=True,
@@ -41,7 +40,7 @@ optP.add_argument(
     default=False,
     help="generate new jobs after kiliing old jobs, to keep unmerged events",
 )
-options = optP.parse_args()
+options = option_parser.parse_args()
 
 taskid = options.taskid
 

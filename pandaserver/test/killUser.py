@@ -1,23 +1,22 @@
 import optparse
 import sys
 
-import pandaserver.userinterface.Client as Client
-
 # password
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
+from pandaserver.userinterface import Client
 
-optP = optparse.OptionParser(conflict_handler="resolve")
-optP.add_option("--user", action="store", dest="user", default=None, help="prodUserName")
-optP.add_option("--jobID", action="store", dest="jobID", default=None, help="jobDefinitionID")
-optP.add_option(
+option_parser = optparse.OptionParser(conflict_handler="resolve")
+option_parser.add_option("--user", action="store", dest="user", default=None, help="prodUserName")
+option_parser.add_option("--jobID", action="store", dest="jobID", default=None, help="jobDefinitionID")
+option_parser.add_option(
     "--jobsetID",
     action="store",
     dest="jobsetID",
     default=None,
     help="jobsetID, or 'all' to kill all jobs",
 )
-optP.add_option(
+option_parser.add_option(
     "--prodSourceLabel",
     action="store",
     dest="prodSourceLabel",
@@ -26,7 +25,7 @@ optP.add_option(
 )
 
 
-options, args = optP.parse_args()
+options, args = option_parser.parse_args()
 
 if options.user is None:
     print("--user=<prodUserName> is required")

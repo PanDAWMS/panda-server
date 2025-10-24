@@ -1,7 +1,7 @@
 import optparse
 import sys
 
-import pandaserver.userinterface.Client as Client
+from pandaserver.userinterface import Client
 
 option_parser = optparse.OptionParser(conflict_handler="resolve", usage="%prog [options] <PandaID>")
 option_parser.add_option(

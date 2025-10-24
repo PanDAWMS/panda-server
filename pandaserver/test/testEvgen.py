@@ -2,29 +2,31 @@ import sys
 import time
 import uuid
 
-import pandaserver.userinterface.Client as Client
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.userinterface import Client
 
 if len(sys.argv) > 1:
     site = sys.argv[1]
 else:
     site = None
 
-datasetName = f"panda.destDB.{str(uuid.uuid4())}"
-destName = None
+dataset_name = f"panda.destDB.{str(uuid.uuid4())}"
+destination_se = None
 
-jobList = []
+job_list = []
 
-for i in range(1):
+n_jobs = 1
+
+for i in range(n_jobs):
     job = JobSpec()
     job.jobDefinitionID = int(time.time()) % 10000
     job.jobName = "%s_%d" % (str(uuid.uuid4()), i)
     job.AtlasRelease = "Atlas-14.1.0"
     job.homepackage = "AtlasProduction/14.1.0.3"
     job.transformation = "csc_evgen_trf.py"
-    job.destinationDBlock = datasetName
-    job.destinationSE = destName
+    job.destinationDBlock = dataset_name
+    job.destinationSE = destination_se
     job.currentPriority = 100
     job.prodSourceLabel = "test"
     job.computingSite = site
@@ -50,11 +52,9 @@ for i in range(1):
     job.addFile(fileOL)
 
     job.jobParameters = f"5144 1 5000 1 CSC.005144.PythiaZee.py {file.lfn} NONE NONE NONE"
-    jobList.append(job)
+    job_list.append(job)
 
-for i in range(1):
-    s, o = Client.submit_jobs(jobList)
+for i in range(n_jobs):
+    status, output = Client.submit_jobs(job_list)
     print("---------------------")
-    print(s)
-    for x in o:
-        print(f"PandaID={x[0]}")
+    print(f"Status: {status}. Output: {output}")
