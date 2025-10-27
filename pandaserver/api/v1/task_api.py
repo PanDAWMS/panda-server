@@ -62,11 +62,11 @@ def retry(
         task_id(int): JEDI Task ID
         new_parameters(Dict, optional): a dictionary with the new parameters for rerunning the task. The new parameters are merged with the existing ones.
                                         The parameters are the attributes in the JediTaskSpec object (https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jedicore/JediTaskSpec.py).
-        no_child_retry(bool, optional): if True, the child tasks are not retried
-        discard_events(bool, optional): if True, events will be discarded
-        disable_staging_mode(bool, optional): if True, the task skips staging state and directly goes to subsequent state
-        keep_gshare_priority(bool, optional): if True, the task keeps current gshare and priority
-        ignore_hard_exhausted(bool, optional): if True, the task ignores the limits for hard exhausted state and can be retried even if it is very faulty
+        no_child_retry(bool, optional): if True, the child tasks are not retried. Defaults to False
+        discard_events(bool, optional): if True, events will be discarded. Defaults to False
+        disable_staging_mode(bool, optional): if True, the task skips staging state and directly goes to subsequent state. Defaults to False
+        keep_gshare_priority(bool, optional): if True, the task keeps current gshare and priority. Defaults to False
+        ignore_hard_exhausted(bool, optional): if True, the task ignores the limits for hard exhausted state and can be retried even if it is very faulty. Defaults to False
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.

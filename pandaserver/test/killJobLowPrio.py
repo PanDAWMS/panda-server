@@ -1,19 +1,16 @@
 import optparse
 import time
 
-import pandaserver.userinterface.Client as Client
-
 # password
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
-
-aSrvID = None
+from pandaserver.userinterface import Client
 
 usageStr = """%prog [options] <priority>
 
 Description: kill jobs with low priorities below a given value"""
-optP = optparse.OptionParser(conflict_handler="resolve", usage=usageStr)
-optP.add_option(
+option_parser = optparse.OptionParser(conflict_handler="resolve", usage=usageStr)
+option_parser.add_option(
     "-9",
     action="store_const",
     const=True,
@@ -21,7 +18,7 @@ optP.add_option(
     default=False,
     help="kill jobs before next heartbeat is coming",
 )
-optP.add_option(
+option_parser.add_option(
     "--running",
     action="store_const",
     const=True,
@@ -29,19 +26,19 @@ optP.add_option(
     default=False,
     help="kill running jobs to free up CPU slots. jobs will be killed regardless of job status if omitted",
 )
-optP.add_option("--site", action="store", dest="site", default=None, help="computingSite")
-optP.add_option("--cloud", action="store", dest="cloud", default=None, help="cloud")
-optP.add_option(
+option_parser.add_option("--site", action="store", dest="site", default=None, help="computingSite")
+option_parser.add_option("--cloud", action="store", dest="cloud", default=None, help="cloud")
+option_parser.add_option(
     "--maxJobs",
     action="store",
     dest="maxJobs",
     default=None,
     help="max number of jobs to be killed",
 )
-options, args = optP.parse_args()
+options, args = option_parser.parse_args()
 
 if options.cloud is None and options.site is None:
-    optP.error("--site=<computingSite> and/or --cloud=<cloud> is required")
+    option_parser.error("--site=<computingSite> and/or --cloud=<cloud> is required")
 
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost, panda_config.dbpasswd, panda_config.dbuser, panda_config.dbname)
@@ -49,7 +46,7 @@ proxyS.connect(panda_config.dbhost, panda_config.dbpasswd, panda_config.dbuser, 
 jobsMap = {}
 
 if len(args) == 0:
-    optP.error("priority is required")
+    option_parser.error("priority is required")
 
 varMap = {}
 varMap[":prodSourceLabel"] = "managed"

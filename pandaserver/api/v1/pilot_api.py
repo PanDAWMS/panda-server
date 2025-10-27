@@ -284,7 +284,7 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
-        job_ids(list of int): list of job IDs.
+        job_ids(list): list of job IDs.
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:

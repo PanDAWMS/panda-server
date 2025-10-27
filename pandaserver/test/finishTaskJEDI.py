@@ -1,11 +1,11 @@
 import optparse
 
-import pandaserver.userinterface.Client as Client
+from pandaserver.userinterface import Client
 
-optP = optparse.OptionParser(conflict_handler="resolve")
-options, args = optP.parse_args()
+option_parser = optparse.OptionParser(conflict_handler="resolve")
+options, args = option_parser.parse_args()
 
-jediTaskID = args[0]
+task_id = int(args[0])
 
-s, o = Client.finishTask(jediTaskID)
+s, o = Client.finish_task(task_id)
 print(o)

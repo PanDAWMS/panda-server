@@ -1,11 +1,12 @@
 import argparse
 
+from rucio.client import Client as RucioClient
+from rucio.common.exception import DataIdentifierNotFound
+
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.userinterface import Client
-from rucio.client import Client as RucioClient
-from rucio.common.exception import DataIdentifierNotFound
 
 taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 
@@ -23,29 +24,28 @@ parser.add_argument(
 
 options = parser.parse_args()
 
-jediTaskID = int(options.tid)
+task_id = int(options.tid)
 
 if True:
     if options.resurrectDS:
         sd, so = taskBuffer.querySQLS(
             "SELECT datasetName FROM ATLAS_PANDA.JEDI_Datasets WHERE jediTaskID=:id AND type IN (:t1,:t2)",
-            {":id": jediTaskID, ":t1": "output", ":t2": "log"},
+            {":id": task_id, ":t1": "output", ":t2": "log"},
         )
-        rc = RucioClient()
-        for (datasetName,) in so:
+        rucio_client = RucioClient()
+        for (dataset_name,) in so:
             for i in range(3):
                 try:
-                    scope, name = rucioAPI.extract_scope(datasetName)
-                    rc.get_did(scope, name)
+                    scope, name = rucioAPI.extract_scope(dataset_name)
+                    rucio_client.get_did(scope, name)
                     break
                 except DataIdentifierNotFound:
-                    print(f"resurrect {datasetName}")
-                    rc.resurrect([{"scope": scope, "name": name}])
+                    print(f"resurrect {dataset_name}")
+                    rucio_client.resurrect([{"scope": scope, "name": name}])
                     try:
-                        rc.set_metadata(scope, name, "lifetime", None)
+                        rucio_client.set_metadata(scope, name, "lifetime", None)
                     except Exception:
                         pass
-    print(Client.reloadInput(jediTaskID)[-1])
-    print(f"done for jediTaskID={jediTaskID}")
-else:
-    print("failed")
+
+    print(Client.reload_input(task_id))
+    print(f"done for task_id={task_id}")

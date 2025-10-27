@@ -15,6 +15,7 @@ from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 
 from pandaserver.api.v1.http_client import HttpClient as HttpClientV1
 from pandaserver.api.v1.http_client import api_url_ssl as api_url_ssl_v1
+from pandaserver.taskbuffer.JobUtils import dump_jobs_json
 
 # PanDA server configuration
 baseURL = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/panda")
@@ -186,14 +187,12 @@ Client API
 """
 
 
-def submitJobs(jobs, toPending=False):
+def submit_jobs(jobs):
     """
     Submit jobs
 
     args:
         jobs: the list of JobSpecs
-        toPending: set True if jobs need to be pending state for the
-                   two-staged submission mechanism
     returns:
         status code
               0: communication succeeded to the panda server
@@ -202,61 +201,41 @@ def submitJobs(jobs, toPending=False):
               True: request is processed
               False: not processed
     """
-    # set hostname
+    # set hostname to jobs
     hostname = socket.getfqdn()
     for job in jobs:
         job.creationHost = hostname
-    # serialize
-    str_jobs = pickle_dumps(jobs)
 
-    http_client = HttpClient()
+    # serialize the jobs to json
+    jobs = dump_jobs_json(jobs)
 
-    url = f"{baseURLSSL}/submitJobs"
-    data = {"jobs": str_jobs}
-    if toPending:
-        data["toPending"] = True
+    http_client = HttpClientV1()
+
+    url = f"{api_url_ssl_v1}/job/submit"
+    data = {"jobs": jobs}
+
     status, output = http_client.post(url, data)
-    if status != 0:
-        print(output)
-        return status, output
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        err_type, err_value, _ = sys.exc_info()
-        err_str = f"ERROR submitJobs : {err_type} {err_value}"
-        print(err_str)
-        return EC_Failed, f"{output}\n{err_str}"
+    return status, output
 
 
-def getJobStatus(panda_ids):
+def get_job_status(job_ids):
     """
     Get job status
 
     args:
-        ids: the list of PandaIDs
-        use_json: using json instead of pickle
+        job_ids: the list of PandaIDs
     returns:
         status code
               0: communication succeeded to the panda server
               255: communication failure
         the list of JobSpecs (or Nones for non-existing PandaIDs)
     """
-    # Serialize the panda IDs
-    str_ids = json.dumps(panda_ids)
-
-    http_client = HttpClient()
-    http_client.use_json = True
-
-    # Execute
-    url = f"{baseURL}/getJobStatus"
-    data = {"ids": str_ids}
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/pilot/get_job_status"
+    data = {"job_ids": job_ids}
     status, output = http_client.post(url, data)
-    try:
-        return status, json.loads(output)
-    except Exception as e:
-        err_str = f"ERROR getJobStatus: {str(e)}"
-        print(err_str)
-        return EC_Failed, f"{output}\n{err_str}"
+
+    return status, output
 
 
 def kill_jobs(
@@ -601,9 +580,9 @@ def register_cache_file(user_name: str, file_name: str, file_size: int, checksum
     return http_client.post(url, data)
 
 
-def putFile(file):
+def put_file(file):
     """
-    Upload input sandbox
+    Upload input sandbox to PanDA cache
 
     args:
         file: the file name
@@ -614,33 +593,18 @@ def putFile(file):
 
     """
 
-    http_client = HttpClient()
-
-    # execute
-    url = f"{baseURLSSL}/putFile"
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/file_server/upload_cache_file"
     data = {"file": file}
     return http_client.post_files(url, data)
 
 
-# delete file (obsolete)
-# TODO: is this really obsolete? I think it's used in panda cache
-def deleteFile(file):
-    http_client = HttpClient()
-
-    # execute
-    url = f"{baseURLSSL}/deleteFile"
-    data = {"file": file}
-    return http_client.post(url, data)
-
-
-# touch file (obsolete)
-# TODO: is this really obsolete? I think it's used in panda cache
-def touchFile(source_url, filename):
-    http_client = HttpClient()
-
-    # execute
-    url = f"{source_url}/server/panda/touchFile"
-    data = {"filename": filename}
+def touch_file(source_url, file_name):
+    http_client = HttpClientV1()
+    # Note the special construction of the URL here, since it is not going through the api_url_ssl_v1,
+    # but directly to the source_url pointing at the concrete instance provided
+    url = f"{source_url}/api/v1/file_server/touch_cache_file"
+    data = {"file_name": file_name}
     return http_client.post(url, data)
 
 
@@ -708,12 +672,12 @@ def insertTaskParams(taskParams):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def killTask(jediTaskID, broadcast=False):
+def kill_task(task_id, broadcast=False):
     """
     Kill a task
 
     args:
-        jediTaskID: jediTaskID of the task to be killed
+        task_id: task ID of the task to be killed
         broadcast: True to push the message to the pilot subscribing the MB
     returns:
         status code
@@ -729,28 +693,24 @@ def killTask(jediTaskID, broadcast=False):
             101: irrelevant taskID
     """
 
-    http_client = HttpClient()
+    http_client = HttpClientV1()
 
-    # execute
-    url = f"{baseURLSSL}/killTask"
-    data = {"jediTaskID": jediTaskID, "properErrorCode": True, "broadcast": broadcast}
+    url = f"{api_url_ssl_v1}/task/kill"
+    data = {"task_id": task_id, "broadcast": broadcast}
+
     status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_str = f"ERROR killTask : {error_type} {error_value}"
-        return EC_Failed, f"{output}\n{error_str}"
+
+    return status, output
 
 
-def finishTask(jediTaskID, soft=False, broadcast=False):
+def finish_task(task_id, soft=False, broadcast=False):
     """
     Finish a task
 
     args:
         jediTaskID: jediTaskID of the task to be finished
         soft: If True, new jobs are not generated and the task is
-              finihsed once all remaining jobs are done.
+              finished once all remaining jobs are done.
               If False, all remaining jobs are killed and then the
               task is finished
         broadcast: True to push the message to the pilot subscribing the MB
@@ -767,21 +727,14 @@ def finishTask(jediTaskID, soft=False, broadcast=False):
             100: non SSL connection
             101: irrelevant taskID
     """
+    http_client = HttpClientV1()
 
-    http_client = HttpClient()
+    url = f"{api_url_ssl_v1}/task/finish"
+    data = {"task_id": task_id, "soft": soft, "broadcast": broadcast}
 
-    # execute
-    url = f"{baseURLSSL}/finishTask"
-    data = {"jediTaskID": jediTaskID, "properErrorCode": True, "broadcast": broadcast}
-    if soft:
-        data["soft"] = True
     status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_str = f"ERROR finishTask : {error_type} {error_value}"
-        return EC_Failed, f"{output}\n{error_str}"
+
+    return status, output
 
 
 def reassignTaskToSite(jediTaskID, site, mode=None):
@@ -966,13 +919,13 @@ def changeTaskPriority(jediTaskID, newPriority):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def setDebugMode(pandaID, modeOn):
+def set_debug_mode(job_id, mode):
     """
     Turn debug mode for a job on/off
 
     args:
-        pandaID: PandaID of the job
-        modeOn: True to turn it on. Oppositely, False
+        job_id: job_id of the job
+        mode: True to turn it on. Oppositely, False
     returns:
         status code
               0: communication succeeded to the panda server
@@ -980,22 +933,24 @@ def setDebugMode(pandaID, modeOn):
         error message
     """
 
-    http_client = HttpClient()
+    http_client = HttpClientV1()
 
-    # execute
-    url = f"{baseURLSSL}/setDebugMode"
-    data = {"pandaID": pandaID, "modeOn": modeOn}
-    return http_client.post(url, data)
+    url = f"{api_url_ssl_v1}/job/set_debug_mode"
+    data = {"job_id": job_id, "mode": mode}
+
+    status, output = http_client.post(url, data)
+
+    return status, output
 
 
-def retryTask(jediTaskID, noChildRetry=False, discardEvents=False, disable_staging_mode=False, keep_gshare_priority=False):
+def retry_task(task_id, no_child_retry=False, discard_events=False, disable_staging_mode=False, keep_gshare_priority=False):
     """
     Retry a task
 
     args:
-        jediTaskID: jediTaskID of the task to retry
-        noChildRetry: True not to retry child tasks
-        discardEvents: discard events
+        task_id: jediTaskID of the task to retry
+        no_child_retry: True not to retry child tasks
+        discard_events: discard events
         disable_staging_mode: disable staging mode
         keep_gshare_priority: keep current gshare and priority
     returns:
@@ -1012,29 +967,24 @@ def retryTask(jediTaskID, noChildRetry=False, discardEvents=False, disable_stagi
             101: irrelevant taskID
     """
 
-    http_client = HttpClient()
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/task/retry"
 
-    # execute
-    url = f"{baseURLSSL}/retryTask"
-    data = {"jediTaskID": jediTaskID, "properErrorCode": True}
-    if noChildRetry:
-        data["noChildRetry"] = True
-    if discardEvents:
-        data["discardEvents"] = True
+    data = {"task_id": task_id}
+    if no_child_retry:
+        data["no_child_retry"] = True
+    if discard_events:
+        data["discard_events"] = True
     if disable_staging_mode:
         data["disable_staging_mode"] = True
     if keep_gshare_priority:
         data["keep_gshare_priority"] = True
+
     status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_str = f"ERROR retryTask : {error_type} {error_value}"
-        return EC_Failed, f"{output}\n{error_str}"
+    return status, output
 
 
-def reloadInput(jediTaskID):
+def reload_input(task_id):
     """
     Reload the input for a task
 
@@ -1053,19 +1003,14 @@ def reloadInput(jediTaskID):
             100: non SSL connection
             101: irrelevant taskID
     """
+    http_client = HttpClientV1()
 
-    http_client = HttpClient()
+    url = f"{api_url_ssl_v1}/task/reload_input"
+    data = {"task_id": task_id}
 
-    # execute
-    url = f"{baseURLSSL}/reloadInput"
-    data = {"jediTaskID": jediTaskID}
     status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_str = f"ERROR reloadInput : {error_type} {error_value}"
-        return EC_Failed, f"{output}\n{error_str}"
+
+    return status, output
 
 
 def changeTaskWalltime(jediTaskID, wallTime):
@@ -1716,7 +1661,7 @@ def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def send_command_to_job(panda_id, com):
+def send_command_to_job(panda_id, command):
     """
     Send a command to a job
 
@@ -1732,18 +1677,13 @@ def send_command_to_job(panda_id, com):
               True: the command received
     """
 
-    http_client = HttpClient()
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/job/set_command"
+    data = {"job_id": panda_id, "command": command}
 
-    # execute
-    url = f"{baseURLSSL}/send_command_to_job"
-    data = {"panda_id": panda_id, "com": com}
     status, output = http_client.post(url, data)
 
-    try:
-        return status, json.loads(output)
-    except Exception as e:
-        error_str = f"ERROR send_command_to_job : {str(e)}"
-        return EC_Failed, f"{output}\n{error_str}"
+    return status, output
 
 
 def get_banned_users():

@@ -2,17 +2,9 @@ import sys
 import time
 import uuid
 
-import pandaserver.userinterface.Client as Client
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
-
-aSrvID = None
-
-for idx, argv in enumerate(sys.argv):
-    if argv == "-s":
-        aSrvID = sys.argv[idx + 1]
-        sys.argv = sys.argv[:idx]
-        break
+from pandaserver.userinterface import Client
 
 # site = sys.argv[1]
 site = "ANALY_BNL-LSST"  # orig
@@ -55,7 +47,7 @@ fileOL.type = "log"
 job.addFile(fileOL)
 
 
-s, o = Client.submitJobs([job], srvID=aSrvID)
+s, o = Client.submit_jobs([job])
 print(s)
 for x in o:
     print(f"PandaID={x[0]}")

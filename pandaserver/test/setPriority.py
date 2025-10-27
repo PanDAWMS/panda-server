@@ -9,8 +9,8 @@ usage = """%prog <taskID> <priority>
 
   Set a priority to jobs in a task"""
 
-optP = optparse.OptionParser(usage=usage, conflict_handler="resolve")
-options, args = optP.parse_args()
+option_parser = optparse.OptionParser(usage=usage, conflict_handler="resolve")
+options, args = option_parser.parse_args()
 
 
 proxyS = DBProxy()

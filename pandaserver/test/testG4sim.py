@@ -2,25 +2,25 @@ import sys
 import time
 import uuid
 
-import pandaserver.userinterface.Client as Client
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.userinterface import Client
 
 if len(sys.argv) > 1:
     site = sys.argv[1]
 else:
     site = None
 
-datasetName = f"panda.destDB.{str(uuid.uuid4())}"
-destName = "BNL_ATLAS_2"
-# destName    = 'BU_ATLAS_Tier2'
+dataset_name = f"panda.destDB.{str(uuid.uuid4())}"
+destination_se = "BNL_ATLAS_2"
+# destination_se    = 'BU_ATLAS_Tier2'
 
 files = {
     "mc11.007204.singlepart_mu4.evgen.EVNT.v11000302._00037.pool.root.1": None,
     "mc11.007204.singlepart_mu4.evgen.EVNT.v11000302._00038.pool.root.1": None,
 }
 
-jobList = []
+job_list = []
 
 for lfn in files:
     job = JobSpec()
@@ -29,8 +29,8 @@ for lfn in files:
     job.AtlasRelease = "Atlas-11.0.3"
     job.homepackage = "JobTransforms-11-00-03-02"
     job.transformation = "share/csc.simul.trf"
-    job.destinationDBlock = datasetName
-    job.destinationSE = destName
+    job.destinationDBlock = dataset_name
+    job.destinationSE = destination_se
     job.computingSite = site
     job.prodDBlock = "mc11.007204.singlepart_mu4.evgen.EVNT.v11000302"
     job.cmtConfig = "i686-slc4-gcc34-opt"
@@ -74,10 +74,8 @@ for lfn in files:
 
     job.jobParameters = f"{fileI.lfn} {fileOE.lfn} {fileOA.lfn}  100 700 2158"
 
-    jobList.append(job)
+    job_list.append(job)
 
-s, o = Client.submitJobs(jobList)
+status, output = Client.submit_jobs(job_list)
 print("---------------------")
-print(s)
-for x in o:
-    print(f"PandaID={x[0]}")
+print(f"Status: {status}. Output: {output}")

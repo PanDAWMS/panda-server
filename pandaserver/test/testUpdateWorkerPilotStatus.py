@@ -1,14 +1,9 @@
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandaserver.test.testutils import sendCommand
+from pandaserver.api.v1.http_client import HttpClient as HttpClientV1
+from pandaserver.api.v1.http_client import api_url_ssl as api_url_ssl_v1
 
-_logger = PandaLogger().getLogger("testUpdateWorkerPilotStatus")
+http_client = HttpClientV1()
 
-node = {}
-node["workerID"] = 9139456
-node["harvesterID"] = "CERN_central_k8s"
-node["status"] = "started"
-node["site"] = "CERN"
-
-function = "updateWorkerPilotStatus"
-data = sendCommand(function, node, _logger)
-_logger.debug(data)
+url = f"{api_url_ssl_v1}/pilot/update_worker_status"
+data = {"worker_id": 9139456, "harvester_id": "CERN_central_k8s", "status": "started"}
+status, output = http_client.post(url, data)
+print(f"Status: {status}. Output: {output}")
