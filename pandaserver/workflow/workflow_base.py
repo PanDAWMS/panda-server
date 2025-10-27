@@ -34,6 +34,9 @@ class WorkflowStatus(object):
     failed = "failed"
     cancelled = "cancelled"
 
+    active_statuses = (registered, parsed, checking, checked, starting, running)
+    final_statuses = (done, failed, cancelled)
+
 
 class WFStepStatus(object):
     """

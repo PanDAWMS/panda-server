@@ -49,6 +49,11 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # named tuple for attribute with type
 AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 
+# ==== Global Parameters =======================================
+
+WORKFLOW_CHECK_INTERVAL_SEC = 300
+STEP_CHECK_INTERVAL_SEC = 300
+DATA_CHECK_INTERVAL_SEC = 300
 
 # ==== Plugin Map ==============================================
 
@@ -814,7 +819,7 @@ class WorkflowInterface(object):
                 tmp_log.error(f"{process_result.message}")
                 return process_result
             # Update step status
-            if check_result.step_status in WorkflowInterface.after_submitted_statuses:
+            if check_result.step_status in WFStepStatus.after_submitted_statuses:
                 # Step status advanced
                 step_spec.status = check_result.step_status
                 process_result.new_status = step_spec.status
@@ -864,7 +869,7 @@ class WorkflowInterface(object):
                 tmp_log.error(f"{process_result.message}")
                 return process_result
             # Update step status
-            if check_result.step_status in WorkflowInterface.after_running_statuses:
+            if check_result.step_status in WFStepStatus.after_running_statuses:
                 # Step status advanced
                 step_spec.status = check_result.step_status
                 process_result.new_status = step_spec.status
@@ -1250,3 +1255,79 @@ class WorkflowInterface(object):
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return process_result
+
+    def process_workflow(self, workflow_spec: WorkflowSpec) -> WorkflowProcessResult:
+        """
+        Process a workflow based on its current status
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow specification to process
+
+        Returns:
+            WorkflowProcessResult: The result of processing the workflow
+        """
+        tmp_log = LogWrapper(logger, f"process_workflow workflow_id={workflow_spec.workflow_id}")
+        tmp_log.debug(f"Start, current status={workflow_spec.status}")
+        # Initialize
+        process_result = WorkflowProcessResult()
+        # Process based on status
+        match workflow_spec.status:
+            case WorkflowStatus.registered:
+                process_result = self.process_workflow_registered(workflow_spec)
+            case WorkflowStatus.checked:
+                process_result = self.process_workflow_checked(workflow_spec)
+            case WorkflowStatus.starting:
+                process_result = self.process_workflow_starting(workflow_spec)
+            case WorkflowStatus.running:
+                process_result = self.process_workflow_running(workflow_spec)
+            case _:
+                process_result.message = f"Workflow status {workflow_spec.status} is not handled in this context; skipped"
+                tmp_log.warning(f"{process_result.message}")
+        return process_result
+
+    # ---- Process all workflows -------------------------------------
+
+    def process_active_workflows(self) -> Dict:
+        """
+        Process all active workflows in the system
+
+        Returns:
+            Dict: Statistics of the processing results
+        """
+        tmp_log = LogWrapper(logger, "process_active_workflows")
+        tmp_log.debug("Start")
+        # Initialize
+        workflows_status_stats = {"n_workflows": 0, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
+        try:
+            # Get workflows
+            workflow_specs = self.tbif.get_workflows(status_filter_list=WorkflowStatus.active_statuses)
+            n_workflows = len(workflow_specs)
+            tmp_log.debug(f"Got {n_workflows} workflows to process")
+            if n_workflows == 0:
+                tmp_log.info("Done, no workflow to process")
+                return workflows_status_stats
+            # Process each workflow
+            for workflow_spec in workflow_specs:
+                with self.workflow_lock(workflow_spec.workflow_id) as locked_workflow_spec:
+                    if locked_workflow_spec is None:
+                        tmp_log.warning(f"Failed to acquire lock for workflow_id={workflow_spec.workflow_id}; skipped")
+                        continue
+                    workflow_spec = locked_workflow_spec
+                    # Process the workflow
+                    tmp_res = self.process_workflow(workflow_spec)
+                    if tmp_res and tmp_res.success:
+                        # update stats
+                        if tmp_res.new_status and tmp_res.new_status != workflow_spec.status:
+                            workflows_status_stats["changed"].setdefault(workflow_spec.status, 0)
+                            workflows_status_stats["changed"][workflow_spec.status] += 1
+                        else:
+                            workflows_status_stats["unchanged"].setdefault(workflow_spec.status, 0)
+                            workflows_status_stats["unchanged"][workflow_spec.status] += 1
+                        workflows_status_stats["processed"].setdefault(workflow_spec.status, 0)
+                        workflows_status_stats["processed"][workflow_spec.status] += 1
+                        workflows_status_stats["n_processed"] += 1
+            workflows_status_stats["n_workflows"] = n_workflows
+            tmp_log.info(f"Done, processed workflows: {workflows_status_stats}")
+        except Exception as e:
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+        return workflows_status_stats
