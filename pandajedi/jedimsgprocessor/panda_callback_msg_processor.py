@@ -1,4 +1,5 @@
 import re
+import traceback
 
 import yaml
 from pandacommon.pandalogger import LogWrapper, logger_utils
@@ -54,7 +55,7 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
                 if self.verbose:
                     tmp_log.debug(f"skip event_type={event_type}")
         except Exception as e:
-            err_str = f"failed to run, skipped. {e.__class__.__name__} : {e}"
+            err_str = f"failed to run, skipped. {e.__class__.__name__} : {e}\n{traceback.format_exc()}"
             tmp_log.error(err_str)
             raise
 
