@@ -1,10 +1,10 @@
 import optparse
 import sys
 
-import pandaserver.userinterface.Client as Client
+from pandaserver.userinterface import Client
 
-optP = optparse.OptionParser(conflict_handler="resolve")
-optP.add_option(
+option_parser = optparse.OptionParser(conflict_handler="resolve")
+option_parser.add_option(
     "-9",
     action="store_const",
     const=True,
@@ -12,15 +12,15 @@ optP.add_option(
     default=False,
     help="kill jobs before next heartbeat is coming",
 )
-optP.add_option("--codeV", action="store", dest="codeV", default=None, help="kill code")
-optP.add_option(
+option_parser.add_option("--codeV", action="store", dest="codeV", default=None, help="kill code")
+option_parser.add_option(
     "--jobSubStatus",
     action="store",
     dest="jobSubStatus",
     default=None,
     help="set job sub status if any",
 )
-optP.add_option(
+option_parser.add_option(
     "--killOwnProdJobs",
     action="store_const",
     const=True,
@@ -28,7 +28,7 @@ optP.add_option(
     default=False,
     help="kill own production jobs without a production role",
 )
-optP.add_option(
+option_parser.add_option(
     "--killUserJobs",
     action="store_const",
     const=True,
@@ -36,7 +36,7 @@ optP.add_option(
     default=False,
     help="kill user jobs using a production role",
 )
-optP.add_option(
+option_parser.add_option(
     "--keepUnmerged",
     action="store_const",
     const=True,
@@ -44,10 +44,7 @@ optP.add_option(
     default=False,
     help="generate a new job after kiliing, to keep unmerged events",
 )
-options, args = optP.parse_args()
-
-
-aSrvID = None
+options, args = option_parser.parse_args()
 
 codeV = None
 useMailAsIDV = False
@@ -68,11 +65,15 @@ if options.killOwnProdJobs:
     useMailAsIDV = True
 
 if len(args) == 1:
-    Client.kill_jobs([args[0]], code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
+    job_id = int(args[0])
+    ret = Client.kill_jobs([job_id], code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
 else:
-    startID = int(args[0])
-    endID = int(args[1])
-    if startID > endID:
-        print("%d is less than %d" % (endID, startID))
+    job_id_start = int(args[0])
+    job_id_end = int(args[1])
+    if job_id_start > job_id_end:
+        print(f"{job_id_end} is less than {job_id_start}")
         sys.exit(1)
-    Client.kill_jobs(range(startID, endID + 1), code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
+
+    ret = Client.kill_jobs(range(job_id_start, job_id_end + 1), code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
+
+print(ret)

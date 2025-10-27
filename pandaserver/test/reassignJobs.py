@@ -1,13 +1,17 @@
 import sys
 
-import pandaserver.userinterface.Client as Client
+from pandaserver.userinterface import Client
 
 if len(sys.argv) == 2:
-    Client.reassign_jobs([sys.argv[1]])
+    job_id = int(sys.argv[1])
+    ret = Client.reassign_jobs([job_id])
 else:
-    startID = int(sys.argv[1])
-    endID = int(sys.argv[2])
-    if startID > endID:
-        print("%d is less than %d" % (endID, startID))
+    job_id_start = int(sys.argv[1])
+    job_id_end = int(sys.argv[2])
+    if job_id_start > job_id_end:
+        print(f"{job_id_end} is less than {job_id_start}")
         sys.exit(1)
-    Client.reassign_jobs(range(startID, endID + 1))
+
+    ret = Client.reassign_jobs(range(job_id_start, job_id_end + 1))
+
+print(ret)

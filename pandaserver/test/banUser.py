@@ -5,9 +5,9 @@ import sys
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
-optP = optparse.OptionParser(conflict_handler="resolve")
-optP.add_option("--user", action="store", dest="user", default=None, help="prodUserName")
-optP.add_option(
+option_parser = optparse.OptionParser(conflict_handler="resolve")
+option_parser.add_option("--user", action="store", dest="user", default=None, help="prodUserName")
+option_parser.add_option(
     "--unban",
     action="store_const",
     const=True,
@@ -16,7 +16,7 @@ optP.add_option(
     help="unban the user",
 )
 
-options, args = optP.parse_args()
+options, args = option_parser.parse_args()
 
 if options.user is None:
     print("--user=<prodUserName> is required")
