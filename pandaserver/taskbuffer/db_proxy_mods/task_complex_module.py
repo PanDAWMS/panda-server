@@ -4863,6 +4863,7 @@ class TaskComplexModule(BaseModule):
                         not ignore_hard_exhausted
                         and max_failed_hep_score_hours is not None
                         and failure_metrics
+                        and failure_metrics["failed_hep_score_hour"] is not None
                         and failure_metrics["failed_hep_score_hour"] >= max_failed_hep_score_hours > 0
                     ):
                         # failed HEP score hours are too large
