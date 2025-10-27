@@ -6,7 +6,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.dataservice.ddm import rucioAPI
-from pandaserver.workflow.data_handler_plugins.base_data_handler import BaseStepHandler
+from pandaserver.workflow.data_handler_plugins.base_data_handler import BaseDataHandler
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
     WFDataStatus,
@@ -42,7 +42,7 @@ class DDMCollectionState:
     missing = "missing"
 
 
-class DDMCollectionDataHandler(BaseStepHandler):
+class DDMCollectionDataHandler(BaseDataHandler):
     """
     Handler for DDM collection data in the workflow.
     This class is responsible for managing the DDM collection data within a workflow.
