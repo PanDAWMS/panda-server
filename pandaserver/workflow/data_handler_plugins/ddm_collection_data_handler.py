@@ -5,6 +5,7 @@ import uuid
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.workflow.data_handler_plugins.base_data_handler import BaseStepHandler
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
@@ -22,6 +23,25 @@ from pandaserver.workflow.workflow_base import (
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
+class DDMCollectionDIDType:
+    """
+    Data Identifier Types for DDM Collections
+    """
+
+    DATASET = "DATASET"
+    CONTAINER = "CONTAINER"
+
+
+class DDMCollectionState:
+    """
+    States for DDM Collections
+    """
+
+    open = "open"
+    closed = "closed"
+    missing = "missing"
+
+
 class DDMCollectionDataHandler(BaseStepHandler):
     """
     Handler for DDM collection data in the workflow.
@@ -34,6 +54,7 @@ class DDMCollectionDataHandler(BaseStepHandler):
         """
         # Initialize base class or any required modules here
         super().__init__(*args, **kwargs)
+        self.ddmIF = rucioAPI
 
     def check_target(self, data_spec: WFDataSpec, **kwargs) -> WFDataTargetCheckResult:
         """
@@ -56,4 +77,18 @@ class DDMCollectionDataHandler(BaseStepHandler):
             check_result.message = f"type not ddm_collection; skipped"
             return check_result
         # TODO: Implement the actual checking logic here
-        ...
+        collection = data_spec.target_id
+        collection_meta = self.ddmIF.get_dataset_metadata(collection, ignore_missing=True)
+        if collection_meta is None:
+            check_result.success = False
+            check_result.message = f"Failed to get metadata for collection {collection}"
+            tmp_log.error(f"{check_result.message}")
+            return check_result
+        match collection_meta.get("state"):
+            case DDMCollectionState.missing:
+                check_result.status = WFDataStatus.generating_start
+            case DDMCollectionState.open:
+                check_result.status = WFDataStatus.generating_ready
+            case DDMCollectionState.closed:
+                check_result.status = WFDataStatus.done_generated
+        check_result.metadata = collection_meta

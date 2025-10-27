@@ -78,8 +78,14 @@ class WFDataStatus(object):
     cancelled = "cancelled"
     retired = "retired"
 
+    checked_statuses = (checked_nonex, checked_partex, checked_exist)
+    generating_statues = (generating_start, generating_ready)
+    done_statuses = (done_generated, done_waited, done_skipped)
     good_input_statuses = (generating_ready, waiting_ready, done_generated, done_waited, done_skipped)
     good_output_statuses = (done_generated, done_waited, done_skipped)
+    after_generating_start_statuses = (generating_ready, done_generated, cancelled)
+    after_generating_ready_statuses = (done_generated, cancelled)
+    after_waiting_ready_statuses = (done_waited, cancelled)
 
 
 # ==== Types ===================================================
@@ -334,6 +340,7 @@ class WFDataSpec(WorkflowBaseSpec):
         AttributeWithType("check_time", datetime),
         AttributeWithType("locked_by", str),
         AttributeWithType("lock_time", datetime),
+        AttributeWithType("metadata", str),
         AttributeWithType("parameters", str),
     )
     # attributes
@@ -344,6 +351,29 @@ class WFDataSpec(WorkflowBaseSpec):
     _forceUpdateAttrs = ()
     # mapping between sequence and attr
     _seqAttrMap = {"data_id": f"{panda_config.schemaJEDI}.WORKFLOW_DATA_ID_SEQ.nextval"}
+
+    @property
+    def metadata_map(self) -> dict:
+        """
+        Get the dictionary parsed by metadata attribute in JSON
+
+        Returns:
+            dict : dict of metadata if it is JSON or empty dict if null
+        """
+        if self.metadata is None:
+            return {}
+        else:
+            return json.loads(self.metadata)
+
+    @metadata_map.setter
+    def metadata_map(self, value_map: dict):
+        """
+        Set the dictionary and store in metadata attribute in JSON
+
+        Args:
+            value_map (dict): dict to set the metadata map
+        """
+        self.metadata = json.dumps(value_map)
 
 
 # === Return objects of core methods which process status ======
@@ -445,13 +475,13 @@ class WFDataTargetCheckResult:
     Fields:
         success (bool | None): Indicates if the status check was successful.
         status (WFDataStatus | None): The status of the data to move to.
-        native_metadata (dict | None): The native metadata from the target system.
+        metadata (dict | None): The native metadata from the target system.
         message (str): A message providing additional information about the status check result.
     """
 
     success: bool | None = None
     status: WFDataStatus | None = None
-    native_metadata: dict | None = None
+    metadata: dict | None = None
     message: str = ""
 
 

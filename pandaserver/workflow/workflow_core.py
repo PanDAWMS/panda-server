@@ -277,13 +277,16 @@ class WorkflowInterface(object):
 
     # ---- Data status transitions -----------------------------
 
-    def process_data_registered(self, data_spec: WFDataSpec):
+    def process_data_registered(self, data_spec: WFDataSpec) -> WFDataProcessResult:
         """
         Process data in registered status
         To prepare for checking the data
 
         Args:
             data_spec (WFDataSpec): The workflow data specification to process
+
+        Returns:
+            WFDataProcessResult: The result of processing the data
         """
         tmp_log = LogWrapper(logger, f"process_data_registered data_id={data_spec.data_id}")
         tmp_log.debug("Start")
@@ -305,9 +308,16 @@ class WorkflowInterface(object):
             tmp_log.error(f"{process_result.message}")
         return process_result
 
-    def process_data_checking(self, data_spec: WFDataSpec):
+    def process_data_checking(self, data_spec: WFDataSpec) -> WFDataProcessResult:
         """
         Process data in checking status
+        To check the conditions about whether the data is available
+
+        Args:
+            data_spec (WFDataSpec): The workflow data specification to process
+
+        Returns:
+            WFDataProcessResult: The result of processing the data
         """
         tmp_log = LogWrapper(logger, f"process_data_checking data_id={data_spec.data_id}")
         tmp_log.debug("Start")
@@ -331,9 +341,16 @@ class WorkflowInterface(object):
             tmp_log.error(f"{process_result.message}")
         return process_result
 
-    def process_data_checked(self, data_spec: WFDataSpec):
+    def process_data_checked(self, data_spec: WFDataSpec) -> WFDataProcessResult:
         """
         Process data in checked status
+        To advance to next status based on check result
+
+        Args:
+            data_spec (WFDataSpec): The workflow data specification to process
+
+        Returns:
+            WFDataProcessResult: The result of processing the data
         """
         tmp_log = LogWrapper(logger, f"process_data_checked data_id={data_spec.data_id}")
         tmp_log.debug("Start")
@@ -372,6 +389,172 @@ class WorkflowInterface(object):
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"{process_result.message}")
         return process_result
+
+    def process_data_generating(self, data_spec: WFDataSpec) -> WFDataProcessResult:
+        """
+        Process data in generating status
+        To check the status of the data being generated
+
+        Args:
+            data_spec (WFDataSpec): The workflow data specification to process
+
+        Returns:
+            WFDataProcessResult: The result of processing the data
+        """
+        tmp_log = LogWrapper(logger, f"process_data_generating data_id={data_spec.data_id}")
+        tmp_log.debug("Start")
+        # Initialize
+        process_result = WFDataProcessResult()
+        # Check status
+        if data_spec.status not in (WFDataStatus.generating_start, WFDataStatus.generating_ready):
+            process_result.message = f"Data status changed unexpectedly from generating_* to {data_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
+        # Process
+        try:
+            original_status = data_spec.status
+            # Get the data handler plugin
+            data_handler = self.get_plugin("data_handler", data_spec.flavor)
+            # Check the data status
+            check_result = data_handler.check_target(data_spec)
+            if not check_result.success or check_result.data_status is None:
+                process_result.message = f"Failed to check data; {check_result.message}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
+            # Update data status
+            now_time = naive_utcnow()
+            match original_status:
+                case WFDataStatus.generating_start:
+                    if check_result.data_status in WFDataStatus.after_generating_start_statuses:
+                        # Data status advanced
+                        data_spec.status = check_result.data_status
+                        process_result.new_status = data_spec.status
+                    elif check_result.data_status == WFDataStatus.generating_start:
+                        # Still in generating_start, do nothing
+                        pass
+                    else:
+                        tmp_log.warning(f"Invalid data_status {check_result.data_status} from target check result; skipped")
+                    self.tbif.update_workflow_data(data_spec)
+                case WFDataStatus.generating_ready:
+                    if check_result.data_status in WFDataStatus.after_generating_ready_statuses:
+                        # Data status advanced to terminal
+                        data_spec.status = check_result.data_status
+                        process_result.new_status = data_spec.status
+                        data_spec.end_time = now_time
+                    elif check_result.data_status == WFDataStatus.generating_ready:
+                        # Still in generating_ready, do nothing
+                        pass
+                    else:
+                        tmp_log.warning(f"Invalid data_status {check_result.data_status} from target check result; skipped")
+            data_spec.check_time = now_time
+            self.tbif.update_workflow_data(data_spec)
+            tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"{process_result.message}")
+        return process_result
+
+    def process_data_waiting(self, data_spec: WFDataSpec) -> WFDataProcessResult:
+        """
+        Process data in waiting status
+        To check the status of the data being waited for, probably generating by other workflow steps or external sources
+
+        Args:
+            data_spec (WFDataSpec): The workflow data specification to process
+
+        Returns:
+            WFDataProcessResult: The result of processing the data
+        """
+        tmp_log = LogWrapper(logger, f"process_data_waiting data_id={data_spec.data_id}")
+        tmp_log.debug("Start")
+        # Initialize
+        process_result = WFDataProcessResult()
+        # Check status
+        if data_spec.status not in (WFDataStatus.waiting_ready,):
+            process_result.message = f"Data status changed unexpectedly from waiting_* to {data_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
+        # Process
+        try:
+            original_status = data_spec.status
+            # Get the data handler plugin
+            data_handler = self.get_plugin("data_handler", data_spec.flavor)
+            # Check the data status
+            check_result = data_handler.check_target(data_spec)
+            if not check_result.success or check_result.data_status is None:
+                process_result.message = f"Failed to check data; {check_result.message}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
+            # Update data status
+            now_time = naive_utcnow()
+            match original_status:
+                case WFDataStatus.waiting_ready:
+                    if check_result.data_status in WFDataStatus.after_waiting_ready_statuses:
+                        # Data status advanced to terminal
+                        data_spec.status = check_result.data_status
+                        process_result.new_status = data_spec.status
+                        data_spec.end_time = now_time
+                    elif check_result.data_status == WFDataStatus.waiting_ready:
+                        # Still in waiting_ready, do nothing
+                        pass
+                    else:
+                        tmp_log.warning(f"Invalid data_status {check_result.data_status} from target check result; skipped")
+            data_spec.check_time = now_time
+            self.tbif.update_workflow_data(data_spec)
+            tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"{process_result.message}")
+        return process_result
+
+    def process_data(self, data_specs: List[WFDataSpec]) -> Dict:
+        """
+        Process a list of workflow data specifications
+
+        Args:
+            data_specs (List[WFDataSpec]): List of workflow data specifications to process
+
+        Returns:
+            Dict: Statistics of the processing results
+        """
+        tmp_log = LogWrapper(logger, f"process_data workflow_id={data_specs[0].workflow_id}")
+        n_data = len(data_specs)
+        tmp_log.debug(f"Start, processing {n_data} data specs")
+        data_status_stats = {"n_data": n_data, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
+        for data_spec in data_specs:
+            with self.workflow_data_lock(data_spec.data_id) as locked_data_spec:
+                if locked_data_spec is None:
+                    tmp_log.warning(f"Failed to acquire lock for data_id={data_spec.data_id}; skipped")
+                    continue
+                data_spec = locked_data_spec
+                # Process the data
+                tmp_res = None
+                match data_spec.status:
+                    case WFDataStatus.registered:
+                        tmp_res = self.process_data_registered(data_spec)
+                    case WFDataStatus.checking:
+                        tmp_res = self.process_data_checking(data_spec)
+                    case WFDataStatus.checked_nonex | WFDataStatus.checked_partex | WFDataStatus.checked_exist:
+                        tmp_res = self.process_data_checked(data_spec)
+                    case WFDataStatus.generating_start | WFDataStatus.generating_ready:
+                        tmp_res = self.process_data_generating(data_spec)
+                    case WFDataStatus.waiting_ready:
+                        tmp_res = self.process_data_waiting(data_spec)
+                    case _:
+                        tmp_log.debug(f"Data status {data_spec.status} is not handled in this context; skipped")
+                        continue
+                if tmp_res and tmp_res.success:
+                    # update stats
+                    if tmp_res.new_status and tmp_res.new_status != data_spec.status:
+                        data_status_stats["changed"].setdefault(data_spec.status, 0)
+                        data_status_stats["changed"][data_spec.status] += 1
+                    else:
+                        data_status_stats["unchanged"].setdefault(data_spec.status, 0)
+                        data_status_stats["unchanged"][data_spec.status] += 1
+                    data_status_stats["processed"].setdefault(data_spec.status, 0)
+                    data_status_stats["processed"][data_spec.status] += 1
+                    data_status_stats["n_processed"] += 1
+        tmp_log.info(f"Done, processed data specs: {data_status_stats}")
 
     # ---- Step status transitions -----------------------------
 
@@ -542,7 +725,7 @@ class WorkflowInterface(object):
                     data_spec.target_id = None  # to be filled later
                     data_spec.status = WFDataStatus.registered
                     data_spec.type = WFDataType.mid
-                    data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
+                    data_spec.flavor = "ddm_collection"  # FIXME: hardcoded flavor, should be configurable
                     data_spec.creation_time = now_time
                     self.tbif.insert_workflow_data(data_spec)
                     tmp_log.debug(f"Registered mid data {output_data_name} of step_id={step_spec.step_id}")
@@ -863,7 +1046,7 @@ class WorkflowInterface(object):
                 data_spec.target_id = input_target
                 data_spec.status = WFDataStatus.registered
                 data_spec.type = WFDataType.input
-                data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
+                data_spec.flavor = "ddm_collection"  # FIXME: hardcoded flavor, should be configurable
                 data_spec.creation_time = now_time
                 data_specs.append(data_spec)
             for output_name, output_dict in workflow_definition["root_outputs"].items():
@@ -873,7 +1056,7 @@ class WorkflowInterface(object):
                 data_spec.target_id = output_dict.get("value")
                 data_spec.status = WFDataStatus.registered
                 data_spec.type = WFDataType.output
-                data_spec.flavor = "ddm_ds"  # FIXME: hardcoded flavor, should be configurable
+                data_spec.flavor = "ddm_collection"  # FIXME: hardcoded flavor, should be configurable
                 data_spec.creation_time = now_time
                 data_specs.append(data_spec)
             # Register steps based on nodes in the definition
@@ -951,6 +1134,8 @@ class WorkflowInterface(object):
             return process_result
         # Process
         try:
+            # Get data
+            data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id)
             # Get steps in registered status
             required_step_statuses = [WFStepStatus.registered, WFStepStatus.pending, WFStepStatus.ready, WFStepStatus.submitted]
             over_advanced_step_statuses = [WFStepStatus.running, WFStepStatus.done, WFStepStatus.failed]
@@ -974,7 +1159,7 @@ class WorkflowInterface(object):
             # Get data spec map of the workflow
             data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id)
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
-            # Process each step
+            # Process steps
             steps_status_stats = self.process_steps(step_specs, data_spec_map=data_spec_map)
             # Update workflow status to running if any of step is submitted
             if steps_status_stats["processed"].get(WFStepStatus.submitted):
