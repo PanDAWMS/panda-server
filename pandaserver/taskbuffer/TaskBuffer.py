@@ -2756,6 +2756,10 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.get_data_of_workflow(workflow_id, status_filter_list, status_exclusion_list, type_filter_list)
 
+    def query_workflows(self, status_filter_list=None, status_exclusion_list=None, check_interval_sec=300):
+        with self.proxyPool.get() as proxy:
+            return proxy.query_workflows(status_filter_list, status_exclusion_list, check_interval_sec)
+
     def lock_workflow(self, workflow_id, locked_by, lock_expiration_sec=120):
         with self.proxyPool.get() as proxy:
             return proxy.lock_workflow(workflow_id, locked_by, lock_expiration_sec)

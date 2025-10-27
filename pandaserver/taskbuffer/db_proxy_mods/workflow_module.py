@@ -194,6 +194,48 @@ class WorkflowModule(BaseModule):
             tmp_log.warning("no data found; skipped")
             return []
 
+    def query_workflows(
+        self, status_filter_list: list | None = None, status_exclusion_list: list | None = None, check_interval_sec: int = 300
+    ) -> list[WorkflowSpec]:
+        """
+        Retrieve list of workflows with optional status filtering
+
+        Args:
+            status_filter_list (list | None): List of statuses to filter the workflows by (optional)
+            status_exclusion_list (list | None): List of statuses to exclude the workflows by (optional)
+            check_interval_sec (int): Time in seconds to wait between checks (default: 300)
+
+        Returns:
+            list[WorkflowSpec]: List of workflow specifications
+        """
+        comment = " /* DBProxy.query_workflows */"
+        tmp_log = self.create_tagged_logger(comment, "query_workflows")
+        tmp_log.debug(f"start, status_filter_list={status_filter_list} status_exclusion_list={status_exclusion_list} check_interval_sec={check_interval_sec}")
+        sql = f"SELECT {WorkflowSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflows " f"WHERE (check_time IS NULL OR check_time<:check_time) "
+        now_time = naive_utcnow()
+        var_map = {":check_time": now_time - timedelta(seconds=check_interval_sec)}
+        if status_filter_list:
+            status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
+            sql += f"AND status IN ({status_var_names_str}) "
+            var_map.update(status_var_map)
+        if status_exclusion_list:
+            antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
+            sql += f"AND status NOT IN ({antistatus_var_names_str}) "
+            var_map.update(antistatus_var_map)
+        self.cur.execute(sql + comment, var_map)
+        res_list = self.cur.fetchall()
+        if res_list is not None:
+            workflow_specs = []
+            for res in res_list:
+                workflow_spec = WorkflowSpec()
+                workflow_spec.pack(res)
+                workflow_specs.append(workflow_spec)
+            tmp_log.debug(f"got {len(workflow_specs)} workflows")
+            return workflow_specs
+        else:
+            tmp_log.warning("no workflows found; skipped")
+            return []
+
     def lock_workflow(self, workflow_id: int, locked_by: str, lock_expiration_sec: int = 120) -> bool | None:
         """
         Lock a workflow to prevent concurrent modifications

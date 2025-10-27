@@ -1300,7 +1300,7 @@ class WorkflowInterface(object):
         workflows_status_stats = {"n_workflows": 0, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         try:
             # Get workflows
-            workflow_specs = self.tbif.get_workflows(status_filter_list=WorkflowStatus.active_statuses)
+            workflow_specs = self.tbif.get_workflows(status_filter_list=WorkflowStatus.active_statuses, check_interval=WORKFLOW_CHECK_INTERVAL_SEC)
             n_workflows = len(workflow_specs)
             tmp_log.debug(f"Got {n_workflows} workflows to process")
             if n_workflows == 0:

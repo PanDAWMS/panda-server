@@ -968,130 +968,52 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         with self.proxyPool.get() as proxy:
             return proxy.get_max_events_in_dataset(jedi_task_id, dataset_id)
 
-    # ==== Data Carousel functions =============================
+    # # insert data carousel requests
+    # def insert_data_carousel_requests_JEDI(self, task_id, dc_req_specs):
+    #     with self.proxyPool.get() as proxy:
+    #         return proxy.insert_data_carousel_requests_JEDI(task_id, dc_req_specs)
 
-    # insert data carousel requests
-    def insert_data_carousel_requests_JEDI(self, task_id, dc_req_specs):
-        with self.proxyPool.get() as proxy:
-            return proxy.insert_data_carousel_requests_JEDI(task_id, dc_req_specs)
+    # # update a data carousel request
+    # def update_data_carousel_request_JEDI(self, dc_req_spec):
+    #     with self.proxyPool.get() as proxy:
+    #         return proxy.update_data_carousel_request_JEDI(dc_req_spec)
 
-    # update a data carousel request
-    def update_data_carousel_request_JEDI(self, dc_req_spec):
-        with self.proxyPool.get() as proxy:
-            return proxy.update_data_carousel_request_JEDI(dc_req_spec)
+    # # get data carousel queued requests and info of their related tasks
+    # def get_data_carousel_queued_requests_JEDI(self):
+    #     with self.proxyPool.get() as proxy:
+    #         return proxy.get_data_carousel_queued_requests_JEDI()
 
-    # get data carousel queued requests and info of their related tasks
-    def get_data_carousel_queued_requests_JEDI(self):
-        with self.proxyPool.get() as proxy:
-            return proxy.get_data_carousel_queued_requests_JEDI()
+    # # get data carousel requests of tasks by task status
+    # def get_data_carousel_requests_by_task_status_JEDI(self, status_filter_list=None, status_exclusion_list=None):
+    #     with self.proxyPool.get() as proxy:
+    #         return proxy.get_data_carousel_requests_by_task_status_JEDI(status_filter_list=status_filter_list, status_exclusion_list=status_exclusion_list)
 
-    # get data carousel requests of tasks by task status
-    def get_data_carousel_requests_by_task_status_JEDI(self, status_filter_list=None, status_exclusion_list=None):
-        with self.proxyPool.get() as proxy:
-            return proxy.get_data_carousel_requests_by_task_status_JEDI(status_filter_list=status_filter_list, status_exclusion_list=status_exclusion_list)
+    # # get data carousel staging requests
+    # def get_data_carousel_staging_requests_JEDI(self):
+    #     with self.proxyPool.get() as proxy:
+    #         return proxy.get_data_carousel_staging_requests_JEDI()
 
-    # get data carousel staging requests
-    def get_data_carousel_staging_requests_JEDI(self):
-        with self.proxyPool.get() as proxy:
-            return proxy.get_data_carousel_staging_requests_JEDI()
+    # # delete data carousel requests
+    # def delete_data_carousel_requests_JEDI(self, request_id_list):
+    #     with self.proxyPool.get() as proxy:
+    #         return proxy.delete_data_carousel_requests_JEDI(request_id_list)
 
-    # delete data carousel requests
-    def delete_data_carousel_requests_JEDI(self, request_id_list):
-        with self.proxyPool.get() as proxy:
-            return proxy.delete_data_carousel_requests_JEDI(request_id_list)
+    # # clean up data carousel requests
+    # def clean_up_data_carousel_requests_JEDI(self, time_limit_days=30):
+    #     with self.proxyPool.get() as proxy:
+    #         return proxy.clean_up_data_carousel_requests_JEDI(time_limit_days)
 
-    # clean up data carousel requests
-    def clean_up_data_carousel_requests_JEDI(self, time_limit_days=30):
-        with self.proxyPool.get() as proxy:
-            return proxy.clean_up_data_carousel_requests_JEDI(time_limit_days)
+    # # cancel a data carousel request
+    # def cancel_data_carousel_request_JEDI(self, request_id):
+    #     with self.proxyPool.get() as proxy:
+    #         return proxy.cancel_data_carousel_request_JEDI(request_id)
 
-    # cancel a data carousel request
-    def cancel_data_carousel_request_JEDI(self, request_id):
-        with self.proxyPool.get() as proxy:
-            return proxy.cancel_data_carousel_request_JEDI(request_id)
+    # # retire a data carousel request
+    # def retire_data_carousel_request_JEDI(self, request_id):
+    #     with self.proxyPool.get() as proxy:
+    #         return proxy.retire_data_carousel_request_JEDI(request_id)
 
-    # retire a data carousel request
-    def retire_data_carousel_request_JEDI(self, request_id):
-        with self.proxyPool.get() as proxy:
-            return proxy.retire_data_carousel_request_JEDI(request_id)
-
-    # resubmit a data carousel request
-    def resubmit_data_carousel_request_JEDI(self, request_id, exclude_prev_dst=False):
-        with self.proxyPool.get() as proxy:
-            return proxy.resubmit_data_carousel_request_JEDI(request_id, exclude_prev_dst)
-
-    # ==== Workflow fucntions ==================================
-
-    def get_workflow(self, workflow_id):
-        with self.proxyPool.get() as proxy:
-            return proxy.get_workflow(workflow_id)
-
-    def get_workflow_step(self, step_id):
-        with self.proxyPool.get() as proxy:
-            return proxy.get_workflow_step(step_id)
-
-    def get_workflow_data(self, data_id):
-        with self.proxyPool.get() as proxy:
-            return proxy.get_workflow_data(data_id)
-
-    def get_steps_of_workflow(self, workflow_id, status_filter_list=None, status_exclusion_list=None):
-        with self.proxyPool.get() as proxy:
-            return proxy.get_steps_of_workflow(workflow_id, status_filter_list, status_exclusion_list)
-
-    def get_data_of_workflow(self, workflow_id, status_filter_list=None, status_exclusion_list=None, type_filter_list=None):
-        with self.proxyPool.get() as proxy:
-            return proxy.get_data_of_workflow(workflow_id, status_filter_list, status_exclusion_list, type_filter_list)
-
-    def lock_workflow(self, workflow_id, locked_by, lock_expiration_sec=120):
-        with self.proxyPool.get() as proxy:
-            return proxy.lock_workflow(workflow_id, locked_by, lock_expiration_sec)
-
-    def unlock_workflow(self, workflow_id, locked_by):
-        with self.proxyPool.get() as proxy:
-            return proxy.unlock_workflow(workflow_id, locked_by)
-
-    def lock_workflow_step(self, step_id, locked_by, lock_expiration_sec=120):
-        with self.proxyPool.get() as proxy:
-            return proxy.lock_workflow_step(step_id, locked_by, lock_expiration_sec)
-
-    def unlock_workflow_step(self, step_id, locked_by):
-        with self.proxyPool.get() as proxy:
-            return proxy.unlock_workflow_step(step_id, locked_by)
-
-    def lock_workflow_data(self, data_id, locked_by, lock_expiration_sec=120):
-        with self.proxyPool.get() as proxy:
-            return proxy.lock_workflow_data(data_id, locked_by, lock_expiration_sec)
-
-    def unlock_workflow_data(self, data_id, locked_by):
-        with self.proxyPool.get() as proxy:
-            return proxy.unlock_workflow_data(data_id, locked_by)
-
-    def insert_workflow(self, workflow_spec):
-        with self.proxyPool.get() as proxy:
-            return proxy.insert_workflow(workflow_spec)
-
-    def insert_workflow_step(self, wf_step_spec):
-        with self.proxyPool.get() as proxy:
-            return proxy.insert_workflow_step(wf_step_spec)
-
-    def insert_workflow_data(self, wf_data_spec):
-        with self.proxyPool.get() as proxy:
-            return proxy.insert_workflow_data(wf_data_spec)
-
-    def update_workflow(self, workflow_spec):
-        with self.proxyPool.get() as proxy:
-            return proxy.update_workflow(workflow_spec)
-
-    def update_workflow_step(self, wf_step_spec):
-        with self.proxyPool.get() as proxy:
-            return proxy.update_workflow_step(wf_step_spec)
-
-    def update_workflow_data(self, wf_data_spec):
-        with self.proxyPool.get() as proxy:
-            return proxy.update_workflow_data(wf_data_spec)
-
-    def upsert_workflow_entities(self, workflow_id, actions_dict=None, workflow_spec=None, step_specs=None, data_specs=None):
-        with self.proxyPool.get() as proxy:
-            return proxy.upsert_workflow_entities(workflow_id, actions_dict, workflow_spec, step_specs, data_specs)
-
-    # ==========================================================
+    # # resubmit a data carousel request
+    # def resubmit_data_carousel_request_JEDI(self, request_id, exclude_prev_dst=False):
+    #     with self.proxyPool.get() as proxy:
+    #         return proxy.resubmit_data_carousel_request_JEDI(request_id, exclude_prev_dst)
