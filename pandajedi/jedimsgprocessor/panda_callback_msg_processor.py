@@ -45,7 +45,6 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
             to_continue = True
             dsn = "UNKNOWN"
             # check event type
-            tmp_log.debug(f"type:{type(message_dict)} message_dict:{message_dict}")
             event_type = message_dict["event_type"]
             message_ids = f"sub_id={msg_obj.sub_id} ; msg_id={msg_obj.msg_id}"
             if event_type in ["datasetlock_ok"]:
