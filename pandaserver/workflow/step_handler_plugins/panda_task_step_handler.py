@@ -35,6 +35,8 @@ class PandaTaskStepHandler(BaseStepHandler):
         """
         # Initialize base class or any required modules here
         super().__init__(*args, **kwargs)
+        # plugin flavor
+        self.plugin_flavor = "panda_task"
 
     def submit_target(self, step_spec: WFStepSpec, **kwargs) -> WFStepTargetSubmitResult:
         """
@@ -51,10 +53,10 @@ class PandaTaskStepHandler(BaseStepHandler):
         tmp_log = LogWrapper(logger, f"submit_target workflow_id={step_spec.workflow_id} step_id={step_spec.step_id}")
         # Initialize
         submit_result = WFStepTargetSubmitResult()
-        # Check step type
-        if step_spec.type != WFStepType.panda_task:
-            tmp_log.warning(f"type={step_spec.type} not panda_task; skipped")
-            submit_result.message = f"type not panda_task; skipped"
+        # Check step flavor
+        if step_spec.flavor != self.plugin_flavor:
+            tmp_log.warning(f"flavor={step_spec.flavor} not {self.plugin_flavor}; skipped")
+            submit_result.message = f"flavor not {self.plugin_flavor}; skipped"
             return submit_result
         ...
         # task_param_map = {}
@@ -150,9 +152,9 @@ class PandaTaskStepHandler(BaseStepHandler):
                 check_result.message = f"not in status to check; skipped"
                 tmp_log.warning(f"status={step_spec.status} not in status to check; skipped")
                 return check_result
-            if step_spec.type != WFStepType.panda_task:
-                check_result.message = f"type not panda_task; skipped"
-                tmp_log.warning(f"type={step_spec.type} not panda_task; skipped")
+            if step_spec.flavor != self.plugin_flavor:
+                check_result.message = f"flavor not {self.plugin_flavor}; skipped"
+                tmp_log.warning(f"flavor={step_spec.flavor} not {self.plugin_flavor}; skipped")
                 return check_result
             if step_spec.target_id is None:
                 check_result.message = f"target_id is None; skipped"
@@ -170,13 +172,13 @@ class PandaTaskStepHandler(BaseStepHandler):
             check_result.success = True
             check_result.native_status = task_status
             if task_status in ["running", "transferring", "transferred", "merging"]:
-                check_result.status = WFStepStatus.running
-            elif task_status in ["defined", "assigned", "activated", "starting", "ready"]:
-                check_result.status = WFStepStatus.submitted
+                check_result.step_status = WFStepStatus.running
+            elif task_status in ["defined", "assigned", "activated", "starting", "ready", "pending"]:
+                check_result.step_status = WFStepStatus.submitted
             elif task_status in ["done", "finished"]:
-                check_result.status = WFStepStatus.finished
+                check_result.step_status = WFStepStatus.finished
             elif task_status in ["failed", "exhausted", "aborted", "toabort", "aborting", "broken", "tobroken"]:
-                check_result.status = WFStepStatus.failed
+                check_result.step_status = WFStepStatus.failed
             else:
                 check_result.success = False
                 check_result.message = f"unknown task_status {task_status}"

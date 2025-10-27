@@ -512,7 +512,7 @@ class WorkflowInterface(object):
             tmp_log.error(f"{process_result.message}")
         return process_result
 
-    def process_data(self, data_specs: List[WFDataSpec]) -> Dict:
+    def process_data_specs(self, data_specs: List[WFDataSpec]) -> Dict:
         """
         Process a list of workflow data specifications
 
@@ -522,7 +522,7 @@ class WorkflowInterface(object):
         Returns:
             Dict: Statistics of the processing results
         """
-        tmp_log = LogWrapper(logger, f"process_data workflow_id={data_specs[0].workflow_id}")
+        tmp_log = LogWrapper(logger, f"process_data_specs workflow_id={data_specs[0].workflow_id}")
         n_data = len(data_specs)
         tmp_log.debug(f"Start, processing {n_data} data specs")
         data_status_stats = {"n_data": n_data, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
@@ -560,6 +560,7 @@ class WorkflowInterface(object):
                     data_status_stats["processed"][data_spec.status] += 1
                     data_status_stats["n_processed"] += 1
         tmp_log.info(f"Done, processed data specs: {data_status_stats}")
+        return data_status_stats
 
     # ---- Step status transitions -----------------------------
 
@@ -899,7 +900,7 @@ class WorkflowInterface(object):
         Returns:
             Dict: Statistics of the processing results
         """
-        tmp_log = LogWrapper(logger, f"process_steps workflow_id={step_spec.workflow_id}")
+        tmp_log = LogWrapper(logger, f"process_steps workflow_id={step_specs[0].workflow_id}")
         n_steps = len(step_specs)
         tmp_log.debug(f"Start, processing {n_steps} steps")
         steps_status_stats = {"n_steps": n_steps, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
@@ -937,6 +938,7 @@ class WorkflowInterface(object):
                     steps_status_stats["processed"][step_spec.status] += 1
                     steps_status_stats["n_processed"] += 1
         tmp_log.info(f"Done, processed steps: {steps_status_stats}")
+        return steps_status_stats
 
     # ---- Workflow status transitions -------------------------
 
@@ -1299,8 +1301,8 @@ class WorkflowInterface(object):
         # Initialize
         workflows_status_stats = {"n_workflows": 0, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         try:
-            # Get workflows
-            workflow_specs = self.tbif.get_workflows(status_filter_list=WorkflowStatus.active_statuses, check_interval=WORKFLOW_CHECK_INTERVAL_SEC)
+            # Query active workflows to process
+            workflow_specs = self.tbif.query_workflows(status_filter_list=WorkflowStatus.active_statuses, check_interval_sec=WORKFLOW_CHECK_INTERVAL_SEC)
             n_workflows = len(workflow_specs)
             tmp_log.debug(f"Got {n_workflows} workflows to process")
             if n_workflows == 0:

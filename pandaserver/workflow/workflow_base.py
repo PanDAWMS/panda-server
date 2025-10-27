@@ -462,7 +462,7 @@ class WFStepTargetCheckResult:
     """
 
     success: bool | None = None
-    status: WFStepStatus | None = None
+    step_status: WFStepStatus | None = None
     native_status: str | None = None
     message: str = ""
 
@@ -483,7 +483,7 @@ class WFDataTargetCheckResult:
     """
 
     success: bool | None = None
-    status: WFDataStatus | None = None
+    data_status: WFDataStatus | None = None
     metadata: dict | None = None
     message: str = ""
 
