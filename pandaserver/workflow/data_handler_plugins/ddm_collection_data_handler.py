@@ -95,4 +95,5 @@ class DDMCollectionDataHandler(BaseDataHandler):
                 check_result.check_status = WFDataTargetCheckStatus.exist
         check_result.metadata = collection_meta
         check_result.success = True
+        tmp_log.info(f"Got collection {collection} check_status={check_result.check_status}")
         return check_result
