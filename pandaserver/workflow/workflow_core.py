@@ -475,7 +475,10 @@ class WorkflowInterface(object):
                         tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
-            tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
+            if data_spec.status == original_status:
+                tmp_log.info(f"Done, status stays {data_spec.status}")
+            else:
+                tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"{process_result.message}")
@@ -748,12 +751,13 @@ class WorkflowInterface(object):
             if not step_spec_definition.get("is_tail"):
                 # is intermediate step, register their outputs as mid type
                 output_data_list = step_spec_definition.get("output_data_list", [])
+                outputs_raw_dict = step_spec_definition.get("outputs", {})
                 now_time = naive_utcnow()
                 for output_data_name in output_data_list:
                     data_spec = WFDataSpec()
                     data_spec.workflow_id = step_spec.workflow_id
                     data_spec.name = output_data_name
-                    data_spec.target_id = None  # to be filled later
+                    data_spec.target_id = outputs_raw_dict.get(output_data_name, {}).get("value")  # caution: may be None
                     data_spec.status = WFDataStatus.registered
                     data_spec.type = WFDataType.mid
                     data_spec.flavor = "ddm_collection"  # FIXME: hardcoded flavor, should be configurable

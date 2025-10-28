@@ -94,3 +94,5 @@ class DDMCollectionDataHandler(BaseDataHandler):
             case DDMCollectionState.closed:
                 check_result.check_status = WFDataTargetCheckStatus.exist
         check_result.metadata = collection_meta
+        check_result.success = True
+        return check_result
