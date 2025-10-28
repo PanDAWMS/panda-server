@@ -24,6 +24,7 @@ from pandaserver.workflow.workflow_base import (
     WFDataProcessResult,
     WFDataSpec,
     WFDataStatus,
+    WFDataTargetCheckStatus,
     WFDataType,
     WFStepProcessResult,
     WFStepSpec,
@@ -336,9 +337,25 @@ class WorkflowInterface(object):
         # Process
         try:
             # Check data availability
-            # FIXME: For now, always advance to checked_nonex
-            data_spec.status = WFDataStatus.checked_nonex
-            data_spec.check_time = naive_utcnow()
+            original_status = data_spec.status
+            # Get the data handler plugin
+            data_handler = self.get_plugin("data_handler", data_spec.flavor)
+            # Check the data status
+            check_result = data_handler.check_target(data_spec)
+            if not check_result.success or check_result.check_status is None:
+                process_result.message = f"Failed to check data; {check_result.message}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
+            # Update data status
+            now_time = naive_utcnow()
+            match check_result.check_status:
+                case WFDataTargetCheckStatus.nonex:
+                    data_spec.status = WFDataStatus.checked_nonex
+                case WFDataTargetCheckStatus.partex:
+                    data_spec.status = WFDataStatus.checked_partex
+                case WFDataTargetCheckStatus.exist:
+                    data_spec.status = WFDataStatus.checked_exist
+            data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
             tmp_log.info(f"Done, status={data_spec.status}")
         except Exception as e:
@@ -422,35 +439,40 @@ class WorkflowInterface(object):
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
             # Check the data status
             check_result = data_handler.check_target(data_spec)
-            if not check_result.success or check_result.data_status is None:
+            if not check_result.success or check_result.check_status is None:
                 process_result.message = f"Failed to check data; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
             # Update data status
             now_time = naive_utcnow()
-            match original_status:
-                case WFDataStatus.generating_start:
-                    if check_result.data_status in WFDataStatus.after_generating_start_statuses:
-                        # Data status advanced
-                        data_spec.status = check_result.data_status
+            if original_status == WFDataStatus.generating_start:
+                match check_result.check_status:
+                    case WFDataTargetCheckStatus.partex | WFDataTargetCheckStatus.exist:
+                        # Data exist, advance to generating_ready
+                        data_spec.status = WFDataStatus.generating_ready
                         process_result.new_status = data_spec.status
-                    elif check_result.data_status == WFDataStatus.generating_start:
-                        # Still in generating_start, do nothing
+                    case WFDataTargetCheckStatus.nonex:
+                        # Data not yet exist, stay in generating_start
                         pass
-                    else:
-                        tmp_log.warning(f"Invalid data_status {check_result.data_status} from target check result; skipped")
-                    self.tbif.update_workflow_data(data_spec)
-                case WFDataStatus.generating_ready:
-                    if check_result.data_status in WFDataStatus.after_generating_ready_statuses:
-                        # Data status advanced to terminal
-                        data_spec.status = check_result.data_status
+                    case _:
+                        # Unexpected status, log and skip
+                        tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
+            elif original_status == WFDataStatus.generating_ready:
+                match check_result.check_status:
+                    case WFDataTargetCheckStatus.exist:
+                        # Data fully exist, advance to final status done_exist
+                        data_spec.status = WFDataStatus.done_exist
                         process_result.new_status = data_spec.status
                         data_spec.end_time = now_time
-                    elif check_result.data_status == WFDataStatus.generating_ready:
-                        # Still in generating_ready, do nothing
+                    case WFDataTargetCheckStatus.partex:
+                        # Data still partially exist, stay in generating_ready
                         pass
-                    else:
-                        tmp_log.warning(f"Invalid data_status {check_result.data_status} from target check result; skipped")
+                    case WFDataTargetCheckStatus.nonex:
+                        # Data not exist anymore, unexpected, log and skip
+                        tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
+                    case _:
+                        # Unexpected status, log and skip
+                        tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
             tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
@@ -486,24 +508,27 @@ class WorkflowInterface(object):
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
             # Check the data status
             check_result = data_handler.check_target(data_spec)
-            if not check_result.success or check_result.data_status is None:
+            if not check_result.success or check_result.check_status is None:
                 process_result.message = f"Failed to check data; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
             # Update data status
             now_time = naive_utcnow()
-            match original_status:
-                case WFDataStatus.waiting_ready:
-                    if check_result.data_status in WFDataStatus.after_waiting_ready_statuses:
-                        # Data status advanced to terminal
-                        data_spec.status = check_result.data_status
+            if original_status == WFDataStatus.waiting_ready:
+                match check_result.check_status:
+                    case WFDataTargetCheckStatus.exist:
+                        # Data fully exist, advance to final status done_waited
+                        data_spec.status = WFDataStatus.done_waited
                         process_result.new_status = data_spec.status
                         data_spec.end_time = now_time
-                    elif check_result.data_status == WFDataStatus.waiting_ready:
-                        # Still in waiting_ready, do nothing
+                    case WFDataTargetCheckStatus.partex:
+                        # Data still partially exist, stay in waiting_ready
                         pass
-                    else:
-                        tmp_log.warning(f"Invalid data_status {check_result.data_status} from target check result; skipped")
+                    case WFDataTargetCheckStatus.nonex:
+                        # Data not exist anymore, unexpected, log and skip
+                        tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
+                    case _:
+                        tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
             tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
@@ -1141,8 +1166,9 @@ class WorkflowInterface(object):
             return process_result
         # Process
         try:
-            # Get data
+            # Process data specs first
             data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id)
+            data_status_stats = self.process_data_specs(data_specs)
             # Get steps in registered status
             required_step_statuses = [WFStepStatus.registered, WFStepStatus.pending, WFStepStatus.ready, WFStepStatus.submitted]
             over_advanced_step_statuses = [WFStepStatus.running, WFStepStatus.done, WFStepStatus.failed]
@@ -1206,6 +1232,9 @@ class WorkflowInterface(object):
             return process_result
         # Process
         try:
+            # Process data specs first
+            data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id)
+            data_status_stats = self.process_data_specs(data_specs)
             # Get steps
             step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id)
             if not step_specs:

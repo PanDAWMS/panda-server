@@ -11,6 +11,7 @@ from pandaserver.workflow.workflow_base import (
     WFDataSpec,
     WFDataStatus,
     WFDataTargetCheckResult,
+    WFDataTargetCheckStatus,
     WFDataType,
     WFStepSpec,
     WFStepStatus,
@@ -77,7 +78,7 @@ class DDMCollectionDataHandler(BaseDataHandler):
             tmp_log.warning(f"flavor={data_spec.flavor} not {self.plugin_flavor}; skipped")
             check_result.message = f"flavor not {self.plugin_flavor}; skipped"
             return check_result
-        # TODO: Implement the actual checking logic here
+        # Check DDM collection status
         collection = data_spec.target_id
         collection_meta = self.ddmIF.get_dataset_metadata(collection, ignore_missing=True)
         if collection_meta is None:
@@ -87,9 +88,9 @@ class DDMCollectionDataHandler(BaseDataHandler):
             return check_result
         match collection_meta.get("state"):
             case DDMCollectionState.missing:
-                check_result.data_status = WFDataStatus.generating_start
+                check_result.check_status = WFDataTargetCheckStatus.nonex
             case DDMCollectionState.open:
-                check_result.data_status = WFDataStatus.generating_ready
+                check_result.check_status = WFDataTargetCheckStatus.partex
             case DDMCollectionState.closed:
-                check_result.data_status = WFDataStatus.done_generated
+                check_result.check_status = WFDataTargetCheckStatus.exist
         check_result.metadata = collection_meta

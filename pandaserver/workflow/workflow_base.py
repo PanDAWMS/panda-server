@@ -470,6 +470,16 @@ class WFStepTargetCheckResult:
 # ==== Return objects of data handler methods ==================
 
 
+class WFDataTargetCheckStatus:
+    """
+    Possible statuses returned by data target check
+    """
+
+    exist = "exist"  # data fully exists
+    partex = "partex"  # data partially exists
+    nonex = "nonex"  # data does not exist
+
+
 @dataclass(slots=True)
 class WFDataTargetCheckResult:
     """
@@ -477,13 +487,13 @@ class WFDataTargetCheckResult:
 
     Fields:
         success (bool | None): Indicates if the status check was successful.
-        status (WFDataStatus | None): The status of the data to move to.
+        check_status (WFDataTargetCheckStatus | None): The status of the data target.
         metadata (dict | None): The native metadata from the target system.
         message (str): A message providing additional information about the status check result.
     """
 
     success: bool | None = None
-    data_status: WFDataStatus | None = None
+    check_status: WFDataTargetCheckStatus | None = None
     metadata: dict | None = None
     message: str = ""
 
