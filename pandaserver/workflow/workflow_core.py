@@ -52,9 +52,7 @@ AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 
 # ==== Global Parameters =======================================
 
-WORKFLOW_CHECK_INTERVAL_SEC = 300
-STEP_CHECK_INTERVAL_SEC = 300
-DATA_CHECK_INTERVAL_SEC = 300
+WORKFLOW_CHECK_INTERVAL_SEC = 60
 
 # ==== Plugin Map ==============================================
 
@@ -748,14 +746,25 @@ class WorkflowInterface(object):
                 return process_result
             # All inputs are good, register outputs of the step and update step status to ready
             tmp_log.debug(f"All input data are good; proceeding")
-            if not step_spec_definition.get("is_tail"):
-                # is intermediate step, register their outputs as mid type
-                output_data_list = step_spec_definition.get("output_data_list", [])
-                outputs_raw_dict = step_spec_definition.get("outputs", {})
-                now_time = naive_utcnow()
+            output_data_list = step_spec_definition.get("output_data_list", [])
+            outputs_raw_dict = step_spec_definition.get("outputs", {})
+            now_time = naive_utcnow()
+            if step_spec_definition.get("is_tail"):
+                # Tail step, set root output source_step_id
+                for output_data_name in output_data_list:
+                    data_spec = self.tbif.get_workflow_data_by_name(output_data_name, step_spec.workflow_id)
+                    if data_spec is not None:
+                        data_spec.source_step_id = step_spec.step_id
+                        self.tbif.update_workflow_data(data_spec)
+                        tmp_log.debug(f"Updated output data_id={data_spec.id} name={output_data_name} of source_step_id={step_spec.step_id}")
+                    else:
+                        tmp_log.warning(f"Output data {output_data_name} not found in workflow data; skipped")
+            else:
+                # Intermediate step, register their outputs as mid type
                 for output_data_name in output_data_list:
                     data_spec = WFDataSpec()
                     data_spec.workflow_id = step_spec.workflow_id
+                    data_spec.source_step_id = step_spec.step_id
                     data_spec.name = output_data_name
                     data_spec.target_id = outputs_raw_dict.get(output_data_name, {}).get("value")  # caution: may be None
                     data_spec.status = WFDataStatus.registered
@@ -944,6 +953,10 @@ class WorkflowInterface(object):
                 match step_spec.status:
                     case WFStepStatus.registered:
                         tmp_res = self.process_step_registered(step_spec)
+                    case WFStepStatus.checking:
+                        tmp_res = self.process_step_checking(step_spec)
+                    case WFStepStatus.checked_true | WFStepStatus.checked_false:
+                        tmp_res = self.process_step_checked(step_spec)
                     case WFStepStatus.pending:
                         tmp_res = self.process_step_pending(step_spec, data_spec_map=data_spec_map)
                     case WFStepStatus.ready:
@@ -1088,6 +1101,7 @@ class WorkflowInterface(object):
             for output_name, output_dict in workflow_definition["root_outputs"].items():
                 data_spec = WFDataSpec()
                 data_spec.workflow_id = workflow_spec.workflow_id
+                data_spec.source_step_id = None  # root output
                 data_spec.name = output_name
                 data_spec.target_id = output_dict.get("value")
                 data_spec.status = WFDataStatus.registered
@@ -1174,16 +1188,8 @@ class WorkflowInterface(object):
             data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id)
             data_status_stats = self.process_data_specs(data_specs)
             # Get steps in registered status
-            required_step_statuses = [
-                WFStepStatus.registered,
-                WFStepStatus.checking,
-                WFStepStatus.checked_true,
-                WFStepStatus.checked_false,
-                WFStepStatus.pending,
-                WFStepStatus.ready,
-                WFStepStatus.submitted,
-            ]
-            over_advanced_step_statuses = [WFStepStatus.running, WFStepStatus.done, WFStepStatus.failed]
+            required_step_statuses = list(WFStepStatus.to_advance_step_statuses)
+            over_advanced_step_statuses = list(WFStepStatus.after_submitted_uninterrupted_statuses)
             step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_filter_list=required_step_statuses)
             over_advanced_step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_filter_list=over_advanced_step_statuses)
             if not step_specs:

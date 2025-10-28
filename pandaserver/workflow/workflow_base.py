@@ -57,7 +57,9 @@ class WFStepStatus(object):
     cancelled = "cancelled"
 
     checked_statuses = (checked_true, checked_false)
+    to_advance_step_statuses = (registered, checking, checked_true, checked_false, pending, ready, submitted)
     after_submitted_statuses = (running, done, failed, cancelled)
+    after_submitted_uninterrupted_statuses = (running, done, failed)
     after_running_statuses = (done, failed, cancelled)
     final_statuses = (done, failed, closed, cancelled)
 
@@ -332,6 +334,7 @@ class WFDataSpec(WorkflowBaseSpec):
         AttributeWithType("data_id", int),
         AttributeWithType("name", str),
         AttributeWithType("workflow_id", int),
+        AttributeWithType("source_step_id", int),
         AttributeWithType("type", str),
         AttributeWithType("status", str),
         AttributeWithType("flavor", str),

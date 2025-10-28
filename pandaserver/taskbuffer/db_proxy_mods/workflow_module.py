@@ -113,6 +113,39 @@ class WorkflowModule(BaseModule):
             tmp_log.warning("no data found; skipped")
             return None
 
+    def get_workflow_data_by_name(self, name: str, workflow_id: int | None) -> WFDataSpec | None:
+        """
+        Retrieve a workflow data specification by its name and workflow ID
+
+        Args:
+            name (str): Name of the workflow data to retrieve
+            workflow_id (int | None): ID of the workflow to which the data belongs (optional)
+
+        Returns:
+            WFDataSpec | None: The workflow data specification if found, otherwise None
+        """
+        comment = " /* DBProxy.get_workflow_data_by_name */"
+        tmp_log = self.create_tagged_logger(comment, f"name={name}, workflow_id={workflow_id}")
+        sql = f"SELECT {WFDataSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_data " f"WHERE name=:name "
+        var_map = {":name": name}
+        if workflow_id is not None:
+            sql += "AND workflow_id=:workflow_id "
+            var_map[":workflow_id"] = workflow_id
+        self.cur.execute(sql + comment, var_map)
+        res_list = self.cur.fetchall()
+        if res_list is not None:
+            if len(res_list) > 1:
+                tmp_log.error("more than one data; unexpected")
+                return None
+            else:
+                for res in res_list:
+                    data_spec = WFDataSpec()
+                    data_spec.pack(res)
+                    return data_spec
+        else:
+            tmp_log.warning("no data found; skipped")
+            return None
+
     def get_steps_of_workflow(self, workflow_id: int, status_filter_list: list | None = None, status_exclusion_list: list | None = None) -> list[WFStepSpec]:
         """
         Retrieve all workflow steps for a given workflow ID
