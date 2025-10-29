@@ -314,15 +314,60 @@ def reassign_jobs(job_ids):
     return status, output
 
 
+def job_stats_by_cloud(job_type=None):
+    """
+    Get job statistics by cloud. Used by panglia monitor in TRIUMF
+
+    args:
+        job_type: string with the type of jobs to consider
+            analysis: analysis jobs
+            production: production jobs
+    returns:
+        status code
+              0: communication succeeded to the panda server
+              255: communication failure
+        map of the number jobs per job status in each site
+
+    """
+    if job_type not in [None, "analysis", "production"]:
+        print("Invalid job type, must be one of [None, 'analysis', 'production'']")
+        return EC_Failed, "Invalid job type"
+
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/statistics/job_stats_by_cloud"
+
+    data = {}
+    if job_type:
+        data["type"] = job_type
+
+    status, output = http_client.get(url, data)
+    if status != 0 or not output.get("status"):
+        print(f"Failed to retrieve job_stats_by_cloud for {job_type}. Status: {status}, Output: {output}")
+        return status, output
+
+    statistics = output["data"]
+    ret = {}
+    for cloud, values in statistics.items():
+        if cloud not in ret:
+            # append cloud values (make a shallow copy to avoid mutating original)
+            ret[cloud] = dict(values)
+        else:
+            # sum statistics per status
+            for job_status, count in values.items():
+                ret[cloud][job_status] = ret[cloud].get(job_status, 0) + count
+
+    return 0, ret
+
+
+# alias the old name to the new function for backwards compatibility
 def getJobStatistics(sourcetype=None):
-    """
-    Get job statistics
+    return get_job_stats_by_cloud(sourcetype)
 
-    args:
-        sourcetype: type of jobs
-            all: all jobs
-            analysis: analysis jobs
-            production: production jobs
+
+def production_job_stats_by_cloud_and_processing_type():
+    """
+    Get job statistics by cloud and processing type. Used by panglia monitor in TRIUMF
+
     returns:
         status code
               0: communication succeeded to the panda server
@@ -331,172 +376,50 @@ def getJobStatistics(sourcetype=None):
 
     """
 
-    http_client = HttpClient()
-    # execute
-    ret = {}
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/statistics/production_job_stats_by_cloud_and_processing_type"
+    status, output = http_client.get(url, {})
 
-    url = f"{baseURL}/getJobStatistics"
-    data = {}
-    if sourcetype is not None:
-        data["sourcetype"] = sourcetype
-    status, output = http_client.get(url, data)
-    try:
-        tmp_return = status, pickle_loads(output)
-        if status != 0:
-            return tmp_return
-    except Exception:
-        print(output)
-        error_type, error_value, _ = sys.exc_info()
-        error_str = f"ERROR getJobStatistics : {error_type} {error_value}"
-        print(error_str)
-        return EC_Failed, f"{output}\n{error_str}"
-    # gather
-    for tmpCloud in tmp_return[1]:
-        tmpVal = tmp_return[1][tmpCloud]
-        if tmpCloud not in ret:
-            # append cloud values
-            ret[tmpCloud] = tmpVal
-        else:
-            # sum statistics
-            for tmpStatus in tmpVal:
-                tmpCount = tmpVal[tmpStatus]
-                if tmpStatus in ret[tmpCloud]:
-                    ret[tmpCloud][tmpStatus] += tmpCount
-                else:
-                    ret[tmpCloud][tmpStatus] = tmpCount
+    if status != 0 or not output.get("status"):
+        print(f"Failed to retrieve production_job_stats_by_cloud_and_processing_type. Status: {status}, Output: {output}")
+        return status, output
 
-    return 0, ret
+    statistics = output["data"]
+    aggregated = {}
+
+    for cloud, processing_type_map in statistics.items():
+        # ensure we work with a shallow copy of the incoming mappings
+        processing_type_map = dict(processing_type_map)
+
+        if cloud not in aggregated:
+            # copy nested structures to avoid mutating the original
+            aggregated[cloud] = {processing_type: dict(status_map) for processing_type, status_map in processing_type_map.items()}
+            continue
+
+        # merge into existing cloud entry
+        for processing_type, status_map in processing_type_map.items():
+            status_map = dict(status_map)
+            if processing_type not in aggregated[cloud]:
+                aggregated[cloud][processing_type] = status_map
+                continue
+
+            # sum counts per status
+            for status, count in status_map.items():
+                aggregated[cloud][processing_type][status] = aggregated[cloud][processing_type].get(status, 0) + count
+    return 0, aggregated
 
 
+# alias the old name to the new function for backwards compatibility
 def getJobStatisticsForBamboo(useMorePG=False):
+    return production_job_stats_by_cloud_and_processing_type()
+
+
+def job_stats_by_site_and_resource_type(time_window=None):
     """
-    Get job statistics for Bamboo (used by TRIUMF panglia monitoring)
+    Get job statistics per site and resource. Used by panglia monitor in TRIUMF
 
     args:
-        useMorePG: set True if fine-grained classification is required
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of the number jobs per job status in each site
-
-    """
-
-    http_client = HttpClient()
-    # execute
-    ret = {}
-    url = f"{baseURL}/getJobStatisticsForBamboo"
-    data = {}
-    if useMorePG is not False:
-        data["useMorePG"] = useMorePG
-    status, output = http_client.get(url, data)
-    try:
-        tmp_return = status, pickle_loads(output)
-        if status != 0:
-            return tmp_return
-    except Exception:
-        print(output)
-        error_type, error_value, _ = sys.exc_info()
-        error_str = f"ERROR getJobStatisticsForBamboo : {error_type} {error_value}"
-        print(error_str)
-        return EC_Failed, f"{output}\n{error_str}"
-    # gather
-    for tmpCloud in tmp_return[1]:
-        tmpMap = tmp_return[1][tmpCloud]
-        if tmpCloud not in ret:
-            # append cloud values
-            ret[tmpCloud] = tmpMap
-        else:
-            # sum statistics
-            for tmpPType in tmpMap:
-                tmpVal = tmpMap[tmpPType]
-                if tmpPType not in ret[tmpCloud]:
-                    ret[tmpCloud][tmpPType] = tmpVal
-                else:
-                    for tmpStatus in tmpVal:
-                        tmpCount = tmpVal[tmpStatus]
-                        if tmpStatus in ret[tmpCloud][tmpPType]:
-                            ret[tmpCloud][tmpPType][tmpStatus] += tmpCount
-                        else:
-                            ret[tmpCloud][tmpPType][tmpStatus] = tmpCount
-    return 0, ret
-
-
-def getJobStatisticsPerSite(
-    predefined=False,
-    workingGroup="",
-    countryGroup="",
-    jobType="",
-    minPriority=None,
-    readArchived=None,
-):
-    """
-    Get job statistics with job attributes
-
-    args:
-        predefined: get jobs which are assigned to sites before being submitted
-        workingGroup: comma-separated list of workingGroups
-        countryGroup: comma-separated list of countryGroups
-        jobType: type of jobs
-            all: all jobs
-            analysis: analysis jobs
-            production: production jobs
-        minPriority: get jobs with higher priorities than this value
-        readArchived: get jobs with finished/failed/cancelled state in addition
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of the number jobs per job status in each site
-
-    """
-
-    http_client = HttpClient()
-    # execute
-    ret = {}
-    url = f"{baseURL}/getJobStatisticsPerSite"
-    data = {"predefined": predefined}
-    if workingGroup not in ["", None]:
-        data["workingGroup"] = workingGroup
-    if countryGroup not in ["", None]:
-        data["countryGroup"] = countryGroup
-    if jobType not in ["", None]:
-        data["jobType"] = jobType
-    if minPriority not in ["", None]:
-        data["minPriority"] = minPriority
-    if readArchived not in ["", None]:
-        data["readArchived"] = readArchived
-    status, output = http_client.get(url, data)
-    try:
-        tmp_return = status, pickle_loads(output)
-        if status != 0:
-            return tmp_return
-    except Exception:
-        print(output)
-        error_type, error_value, _ = sys.exc_info()
-        error_str = f"ERROR getJobStatisticsPerSite : {error_type} {error_value}"
-        print(error_str)
-        return EC_Failed, f"{output}\n{error_str}"
-
-    # gather
-    for tmp_site, tmp_value in tmp_return[1].items():
-        if tmp_site not in ret:
-            # append site values
-            ret[tmp_site] = tmp_value
-        else:
-            # sum statistics
-            for tmp_status, tmp_count in tmp_value.items():
-                ret[tmp_site][tmp_status] = ret[tmp_site].get(tmp_status, 0) + tmp_count
-
-    return 0, ret
-
-
-def getJobStatisticsPerSiteResource(timeWindow=None):
-    """
-    Get job statistics per site and resource. This is used by panglia (TRIUMF monitoring)
-
-    args:
-       timeWindow: to count number of jobs that finish/failed/cancelled for last N minutes. 12*60 by default
+       time_window: to count number of jobs that finish/failed/cancelled for last N minutes. 12*60 by default
     returns:
         status code
               0: communication succeeded to the panda server
@@ -505,24 +428,27 @@ def getJobStatisticsPerSiteResource(timeWindow=None):
 
     """
 
-    http_client = HttpClient()
-    # execute
-    url = f"{baseURL}/getJobStatisticsPerSiteResource"
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/statistics/job_stats_by_site_and_resource_type"
     data = {}
-    if timeWindow is not None:
-        data["timeWindow"] = timeWindow
+    if time_window:
+        data["time_window"] = time_window
+
     status, output = http_client.get(url, data)
-    try:
-        return status, json.loads(output)
-    except Exception:
-        print(output)
-        error_type, error_value, _ = sys.exc_info()
-        error_str = f"ERROR getJobStatisticsPerSiteResource : {error_type} {error_value}"
-        print(error_str)
-        return EC_Failed, f"{output}\n{error_str}"
+
+    if status != 0 or not output.get("status"):
+        print(f"Failed to retrieve job_stats_by_site_and_resource_type. Status: {status}, Output: {output}")
+        return status, output
+
+    return 0, output.get("data")
 
 
-def get_job_statistics_per_site_label_resource(time_window=None):
+# alias the old name to the new function for backwards compatibility
+def getJobStatisticsPerSiteResource(timeWindow=None):
+    return production_job_stats_by_cloud_and_processing_type(timeWindow)
+
+
+def job_stats_by_site_share_and_resource_type(time_window=None):
     """
     Get job statistics per site, label, and resource
 
@@ -536,20 +462,65 @@ def get_job_statistics_per_site_label_resource(time_window=None):
 
     """
 
-    http_client = HttpClient()
-    # execute
-    url = f"{baseURL}/get_job_statistics_per_site_label_resource"
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/statistics/job_stats_by_site_share_and_resource_type"
     data = {}
-    if time_window is not None:
+    if time_window:
         data["time_window"] = time_window
+
     status, output = http_client.get(url, data)
-    try:
-        return status, json.loads(output)
-    except Exception as e:
-        print(output)
-        error_str = f"ERROR get_job_statistics_per_site_label_resource : {str(e)}"
-        print(error_str)
-        return EC_Failed, f"{output}\n{error_str}"
+
+    if status != 0 or not output.get("status"):
+        print(f"Failed to retrieve job_stats_by_site_share_and_resource_type. Status: {status}, Output: {output}")
+        return status, output
+
+    return 0, output.get("data")
+
+
+# alias the old name to the new function for backwards compatibility
+def get_job_statistics_per_site_label_resource(time_window=None):
+    return job_stats_by_site_share_and_resource_type(time_window)
+
+
+def get_site_specs(site_type=None):
+    """
+    Get list of site specifications. Used by panglia monitor in TRIUMF
+
+    args:
+        site_type: type of sites
+            all: all sites
+            None: defaults to analysis sites
+            analysis: analysis sites
+            production: production sites
+            unified: unified sites
+    returns:
+        status code
+              0: communication succeeded to the panda server
+              255: communication failure
+        map of site and attributes
+
+    """
+    http_client = HttpClientV1()
+    url = f"{api_url_ssl_v1}/metaconfig/get_site_specs"
+    if site_type not in [None, "all", "analysis", "production", "unified"]:
+        return EC_Failed, "Invalid site type"
+
+    data = {}
+    if site_type:
+        data = {"type": site_type}
+
+    status, output = http_client.get(url, data)
+
+    if status != 0 or not output.get("status"):
+        print(f"Failed to retrieve get_site_specs. Status: {status}, Output: {output}")
+        return status, output
+
+    return 0, output.get("data")
+
+
+# alias the old name to the new function for backwards compatibility
+def getSiteSpecs(siteType=None):
+    return get_site_specs(siteType)
 
 
 def register_cache_file(user_name: str, file_name: str, file_size: int, checksum: str):
@@ -606,39 +577,6 @@ def touch_file(source_url, file_name):
     url = f"{source_url}/api/v1/file_server/touch_cache_file"
     data = {"file_name": file_name}
     return http_client.post(url, data)
-
-
-def getSiteSpecs(siteType=None):
-    """
-    Get list of site specifications
-
-    args:
-        siteType: type of sites
-            None: all sites
-            analysis: analysis sites
-            production: production sites
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of site and attributes
-
-    """
-
-    http_client = HttpClient()
-    # execute
-    url = f"{baseURL}/getSiteSpecs"
-    data = {}
-    if siteType is not None:
-        data = {"siteType": siteType}
-    status, output = http_client.get(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        error_type, error_value, _ = sys.exc_info()
-        error_str = f"ERROR getSiteSpecs : {error_type} {error_value}"
-        print(error_str)
-        return EC_Failed, f"{output}\n{error_str}"
 
 
 def insertTaskParams(taskParams):

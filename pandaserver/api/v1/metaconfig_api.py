@@ -64,12 +64,11 @@ def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict:
 
     Args:
         req(PandaRequest): internally generated request object
-        type(str): type of site as defined in CRIC (currently `unified`, `production`, `analysis`, `all`)
+        type(str, optional): type of site as defined in CRIC (currently `unified`, `production`, `analysis`, `all`). Defaults to `analysis`.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
               When successful, the data field contains a dictionary with the site data of the requested type.
-
     """
 
     tmp_logger = LogWrapper(_logger, f"get_site_specs")
