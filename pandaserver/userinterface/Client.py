@@ -361,7 +361,7 @@ def job_stats_by_cloud(job_type=None):
 
 # alias the old name to the new function for backwards compatibility
 def getJobStatistics(sourcetype=None):
-    return get_job_stats_by_cloud(sourcetype)
+    return job_stats_by_cloud(sourcetype)
 
 
 def production_job_stats_by_cloud_and_processing_type():
