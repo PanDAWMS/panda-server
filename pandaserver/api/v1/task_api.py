@@ -259,6 +259,7 @@ def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = Non
     is_production_role = has_production_role(req)
 
     # reassign to site, nucleus or cloud
+    # note that ProdSys sets site or nucleus to "" for a rebrokerage
     if site is not None:
         comment = f"site:{site}:y"  # set 'y' to go back to oldStatus immediately
     elif nucleus is not None:
