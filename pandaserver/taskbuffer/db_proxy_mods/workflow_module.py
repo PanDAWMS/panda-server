@@ -170,6 +170,7 @@ class WorkflowModule(BaseModule):
             antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
             sql += f"AND status NOT IN ({antistatus_var_names_str}) "
             var_map.update(antistatus_var_map)
+        sql += "ORDER BY step_id "
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
         if res_list is not None:
@@ -214,6 +215,7 @@ class WorkflowModule(BaseModule):
             type_var_names_str, type_var_map = get_sql_IN_bind_variables(type_filter_list, prefix=":type")
             sql += f"AND type IN ({type_var_names_str}) "
             var_map.update(type_var_map)
+        sql += "ORDER BY data_id "
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
         if res_list is not None:
@@ -255,6 +257,7 @@ class WorkflowModule(BaseModule):
             antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
             sql += f"AND status NOT IN ({antistatus_var_names_str}) "
             var_map.update(antistatus_var_map)
+        sql += "ORDER BY check_time, creation_time "
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
         if res_list is not None:
