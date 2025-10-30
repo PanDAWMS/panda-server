@@ -341,7 +341,7 @@ def job_stats_by_cloud(job_type=None):
         data["type"] = job_type
 
     status, output = http_client.get(url, data)
-    if status != 0 or not output.get("status"):
+    if status != 0 or not output.get("success"):
         print(f"Failed to retrieve job_stats_by_cloud for {job_type}. Status: {status}, Output: {output}")
         return status, output
 
@@ -380,7 +380,7 @@ def production_job_stats_by_cloud_and_processing_type():
     url = f"{api_url_ssl_v1}/statistics/production_job_stats_by_cloud_and_processing_type"
     status, output = http_client.get(url, {})
 
-    if status != 0 or not output.get("status"):
+    if status != 0 or not output.get("success"):
         print(f"Failed to retrieve production_job_stats_by_cloud_and_processing_type. Status: {status}, Output: {output}")
         return status, output
 
@@ -436,7 +436,7 @@ def job_stats_by_site_and_resource_type(time_window=None):
 
     status, output = http_client.get(url, data)
 
-    if status != 0 or not output.get("status"):
+    if status != 0 or not output.get("success"):
         print(f"Failed to retrieve job_stats_by_site_and_resource_type. Status: {status}, Output: {output}")
         return status, output
 
@@ -445,7 +445,7 @@ def job_stats_by_site_and_resource_type(time_window=None):
 
 # alias the old name to the new function for backwards compatibility
 def getJobStatisticsPerSiteResource(timeWindow=None):
-    return production_job_stats_by_cloud_and_processing_type(timeWindow)
+    return job_stats_by_site_and_resource_type(timeWindow)
 
 
 def job_stats_by_site_share_and_resource_type(time_window=None):
@@ -470,7 +470,7 @@ def job_stats_by_site_share_and_resource_type(time_window=None):
 
     status, output = http_client.get(url, data)
 
-    if status != 0 or not output.get("status"):
+    if status != 0 or not output.get("success"):
         print(f"Failed to retrieve job_stats_by_site_share_and_resource_type. Status: {status}, Output: {output}")
         return status, output
 
@@ -511,7 +511,7 @@ def get_site_specs(site_type=None):
 
     status, output = http_client.get(url, data)
 
-    if status != 0 or not output.get("status"):
+    if status != 0 or not output.get("success"):
         print(f"Failed to retrieve get_site_specs. Status: {status}, Output: {output}")
         return status, output
 
