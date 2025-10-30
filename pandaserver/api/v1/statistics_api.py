@@ -126,7 +126,7 @@ def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int = No
 
     Args:
         req(PandaRequest): internally generated request object
-        time_window(int): time window in minutes for the statistics (affects only archived jobs)
+        time_window(int, optional): time window in minutes for the statistics (affects only archived jobs)
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
