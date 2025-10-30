@@ -80,7 +80,7 @@ def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict:
 
     excluded_attrs = {"ddm_endpoints_input", "ddm_endpoints_output", "ddm_input", "ddm_output", "setokens_input", "num_slots_map"}
 
-    for site_id, site_spec in site_mapper.site_specs.items():
+    for site_id, site_spec in site_mapper.siteSpecList.items():
         if type == "all" or site_spec.type == type:
             # Convert site_spec attributes to a dictionary, excluding specific attributes
             site_specs[site_id] = {attr: value for attr, value in vars(site_spec).items() if attr not in excluded_attrs}
