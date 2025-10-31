@@ -16,6 +16,7 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
     def __init__(self, **params):
         super().__init__(**params)
         self.activities_with_file_callback = []
+        self.component_action_map = []
         self.site_mapper = None
         self.verbose = False
 
@@ -23,6 +24,9 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
         BaseMsgProcPlugin.initialize(self, **params)
         # activity list to use file callback
         self.activities_with_file_callback = self.params.get("activities_with_file_callback", [])
+        # component action map
+        # [{"event_type": "<event_type>", "component": "<component_name>", "criteria": {"key": <value>,}, "to_id": "<how_to_get_task_id>}, ...]
+        self.component_action_map = self.params.get("component_action_map", [])
         # site mapper
         self.site_mapper = self.tbIF.get_site_mapper()
         # verbose logging
@@ -54,6 +58,10 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
             else:
                 if self.verbose:
                     tmp_log.debug(f"skip event_type={event_type}")
+            # trigger component actions
+            if self.component_action_map:
+                self.trigger_component_action(event_type, message_ids, message_dict, tmp_log)
+            # end
         except Exception as e:
             err_str = f"failed to run, skipped. {e.__class__.__name__} : {e}\n{traceback.format_exc()}"
             tmp_log.error(err_str)
@@ -113,4 +121,58 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
         # activate jobs
         self.tbIF.activateJobs(jobs)
         tmp_log.debug(f"done")
+        return
+
+    def trigger_component_action(self, event_type: str, message_ids: str, message_dict: dict, tmp_log: LogWrapper.LogWrapper) -> None:
+        """
+        Trigger component action based on the event type
+        Args:
+            event_type: message event type
+            message_ids: subscription and message IDs
+            message_dict: message dictionary
+            tmp_log: logger instance
+        """
+        message_payload = message_dict["payload"]
+        for action_item in self.component_action_map:
+            # check event type
+            if action_item["event_type"] != event_type:
+                continue
+            # check criteria
+            criteria_matched = True
+            for key, value in action_item.get("criteria", {}).items():
+                dict_value = message_payload.get(key)
+                if dict_value is None:
+                    criteria_matched = False
+                    break
+                if dict_value != value and not re.match(value, str(dict_value)):
+                    criteria_matched = False
+                    break
+            if not criteria_matched:
+                continue
+            component_name = action_item["component"]
+            to_id = action_item["to_id"]
+            # extract task ID based on to_id
+            jedi_task_ids = None
+            if to_id == "from_input_dataset":
+                dataset_name = message_payload["name"].split(":")[-1]
+                jedi_task_ids = self.tbIF.get_task_ids_with_dataset_attributes({"datasetName": dataset_name, "type": "input"})
+            else:
+                tmp_log.warning(f"unknown to_id={to_id} for action_item={action_item} ; skipped")
+                continue
+            if jedi_task_ids is None:
+                tmp_log.warning(f"failed to extract jediTaskID for action_item={action_item} ; skipped")
+                continue
+            if not jedi_task_ids:
+                tmp_log.debug(f"no jediTaskID found for action_item={action_item} ; skipped")
+                continue
+            # loop over task IDs
+            for jedi_task_id in jedi_task_ids:
+                # release task just in case
+                self.tbIF.release_task_on_hold(jedi_task_id)
+                # push trigger message
+                push_ret = self.tbIF.push_task_trigger_message(component_name, jedi_task_ids)
+                if push_ret:
+                    tmp_log.debug(f"pushed trigger message to {component_name} for jediTaskID={jedi_task_ids}")
+                else:
+                    tmp_log.warning(f"failed to push trigger to {component_name} for jediTaskID={jedi_task_ids}")
         return

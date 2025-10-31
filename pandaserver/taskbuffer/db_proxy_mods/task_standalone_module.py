@@ -2950,37 +2950,64 @@ class TaskStandaloneModule(BaseModule):
             self.dump_error_message(tmpLog)
             return None
 
-    # release throttled task
-    def releaseThrottledTask_JEDI(self, jediTaskID):
-        comment = " /* JediDBProxy.releaseThrottledTask_JEDI */"
-        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmpLog.debug("start")
+    # release a task with on-hold status
+    def release_task_on_hold(self, jedi_task_id: int, target_status: str = None) -> bool:
+        """Release a JEDI task with non-empty old status.
+        Args:
+            jedi_task_id: JEDI task ID to be released.
+            target_status: If specified, check that the current status matches this value before releasing.
+        Returns:
+            True if succeeded, False otherwise.
+        """
+        comment = " /* JediDBProxy.release_task_on_hold */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log.debug("start")
         try:
             # sql to update tasks
-            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTU += "SET status=oldStatus,oldStatus=NULL,errorDialog=NULL,modificationtime=CURRENT_DATE "
-            sqlTU += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus AND lockedBy IS NULL "
+            sql_check = f"SELECT status,oldStatus,lockedBy FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE "
+            sql_update = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET status=oldStatus,oldStatus=NULL,errorDialog=NULL,modificationtime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND status=:oldStatus AND lockedBy IS NULL "
+            )
             # start transaction
             self.conn.begin()
-            varMap = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":oldStatus"] = "throttled"
-            self.cur.execute(sqlTU + comment, varMap)
-            nRow = self.cur.rowcount
-            tmpLog.debug(f"done with {nRow}")
-            if nRow > 0:
-                self.record_task_status_change(jediTaskID)
-                self.push_task_status_message(None, jediTaskID, None)
+            var_map = {":jediTaskID": jedi_task_id}
+            self.cur.execute(sql_check + comment, var_map)
+            res = self.cur.fetchone()
+            return_value = False
+            if res is None:
+                tmp_log.debug("unknown jediTaskID")
+            else:
+                status, old_status, locked_by = res
+                if locked_by is not None:
+                    tmp_log.debug(f"task is locked by {locked_by}")
+                elif old_status in [None, ""]:
+                    tmp_log.debug("cannot release since oldStatus is empty")
+                elif status in JediTaskSpec.statusToRejectExtChange():
+                    tmp_log.debug(f"cannot release since current status is {status}")
+                elif target_status is not None and status != target_status:
+                    tmp_log.debug(f"cannot release since current status {status} != target_status {target_status}")
+                else:
+                    # release
+                    var_map = {":jediTaskID": jedi_task_id, ":oldStatus": old_status}
+                    self.cur.execute(sql_update + comment, var_map)
+                    n_row = self.cur.rowcount
+                    tmp_log.debug(f"done with {n_row}")
+                    if n_row > 0:
+                        self.record_task_status_change(jedi_task_id)
+                        self.push_task_status_message(None, jedi_task_id, None)
+                        return_value = True
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return
-            return True
+            return return_value
         except Exception:
             # roll back
             self._rollback()
             # error
-            self.dump_error_message(tmpLog)
+            self.dump_error_message(tmp_log)
             return False
 
     # get throttled users
