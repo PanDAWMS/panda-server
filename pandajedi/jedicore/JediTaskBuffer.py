@@ -163,6 +163,11 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
             # return
             return retStat, datasetSpecList
 
+    # get jediTaskIDs with dataset attributes
+    def get_task_ids_with_dataset_attributes(self, dataset_attributes, only_active_tasks=True):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_task_ids_with_dataset_attributes(dataset_attributes, only_active_tasks)
+
     # insert task to the JEDI tasks table
     def insertTask_JEDI(self, taskSpec):
         with self.proxyPool.get() as proxy:
@@ -677,10 +682,10 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         with self.proxyPool.get() as proxy:
             return proxy.releaseThrottledTasks_JEDI(vo, prodSourceLabel)
 
-    # release throttled task
-    def releaseThrottledTask_JEDI(self, jediTaskID):
+    # release a task with on-hold status
+    def release_task_on_hold(self, jedi_task_id, target_status=None):
         with self.proxyPool.get() as proxy:
-            return proxy.releaseThrottledTask_JEDI(jediTaskID)
+            return proxy.release_task_on_hold(jedi_task_id, target_status)
 
     # get throttled users
     def getThrottledUsersTasks_JEDI(self, vo, prodSourceLabel):

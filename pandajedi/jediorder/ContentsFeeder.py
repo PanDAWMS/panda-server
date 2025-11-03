@@ -188,6 +188,7 @@ class ContentsFeederThread(WorkerThread):
             checkedMaster = False
             setFrozenTime = True
             master_offset = None
+            master_is_open = False
             if not taskBroken:
                 ddmIF = self.ddmIF.getInterface(taskSpec.vo, taskSpec.cloud)
                 origNumFiles = None
@@ -220,7 +221,6 @@ class ContentsFeederThread(WorkerThread):
                         inputPreStaging = False
                     # get dataset metadata
                     tmpLog.debug("get metadata")
-                    gotMetadata = False
                     stateUpdateTime = naive_utcnow()
                     try:
                         if not datasetSpec.isPseudo():
@@ -228,6 +228,9 @@ class ContentsFeederThread(WorkerThread):
                         else:
                             # dummy metadata for pseudo dataset
                             tmpMetadata = {"state": "closed"}
+                        # check if master is open
+                        if datasetSpec.isMaster() and tmpMetadata["state"] == "open":
+                            master_is_open = True
                         # set mutable when the dataset is open and parent is running or task is configured to run until the dataset is closed
                         if (noWaitParent or taskSpec.runUntilClosed() or inputPreStaging) and (
                             tmpMetadata["state"] == "open"
@@ -237,7 +240,6 @@ class ContentsFeederThread(WorkerThread):
                         ):
                             # dummy metadata when parent is running
                             tmpMetadata = {"state": "mutable"}
-                        gotMetadata = True
                     except Exception:
                         errtype, errvalue = sys.exc_info()[:2]
                         tmpLog.error(f"{self.__class__.__name__} failed to get metadata to {errtype.__name__}:{errvalue}")
@@ -624,11 +626,18 @@ class ContentsFeederThread(WorkerThread):
                 tmpLog.error(tmpErrStr)
                 taskSpec.setErrDiag(tmpErrStr, None)
                 if noWaitParent:
+                    # parent is running
                     taskOnHold = True
                 else:
-                    if not taskSpec.allowEmptyInput():
+                    # the task has no parent or parent is finished
+                    if master_is_open and taskSpec.runUntilClosed():
+                        # wait until the input dataset is closed
+                        taskOnHold = True
+                    elif not taskSpec.allowEmptyInput():
+                        # empty input is not allowed
                         taskBroken = True
                     else:
+                        # finish the task with empty input
                         taskToFinish = True
             # index consistency
             if not taskOnHold and not taskBroken and len(datasetsIdxConsistency) > 0:
