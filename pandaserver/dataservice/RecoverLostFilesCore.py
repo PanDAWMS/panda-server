@@ -315,7 +315,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
             tmp_ret = Client.reload_input(jediTaskID)
         msg_str = f"Retried task {jediTaskID}: done with {tmp_ret}"
         print_msg(msg_str, log_stream, put_log=log_filename)
-        return True, tmp_status
+        return True, msg_str
     else:
         msg_str = "Failed"
         print_msg(msg_str, log_stream, is_error=True, put_log=log_filename)
