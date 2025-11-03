@@ -1171,7 +1171,7 @@ class TaskBuffer:
                                 attemptNr=tmpJobSpec.attemptNr,
                                 recoverableEsMerge=True,
                             )
-                        elif EventServiceUtils.isEventServiceJob(tmpJobSpec):
+                        elif EventServiceUtils.isEventServiceJob(tmpJobSpec) and not EventServiceUtils.isJobCloningJob(tmpJobSpec):
                             # get number of started events
                             nEvt = proxy.getNumStartedEvents(tmpJobSpec)
                             # not to kill jobset if there are started events
