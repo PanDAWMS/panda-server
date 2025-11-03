@@ -4533,7 +4533,7 @@ class TaskComplexModule(BaseModule):
                 # check parent
                 parentRunning = False
                 if parent_tid not in [None, jediTaskID]:
-                    tmpStat = get_task_utils_module(self).checkParentTask_JEDI(parent_tid, useCommit=False)
+                    tmpStat = get_task_utils_module(self).checkParentTask_JEDI(parent_tid, jediTaskID, use_commit=False)
                     # if parent is running
                     if tmpStat == "running":
                         parentRunning = True

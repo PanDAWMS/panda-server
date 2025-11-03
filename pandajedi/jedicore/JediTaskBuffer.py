@@ -623,9 +623,9 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
             )
 
     # check parent task status
-    def checkParentTask_JEDI(self, jediTaskID):
+    def checkParentTask_JEDI(self, parent_task_id, jedi_task_id=None):
         with self.proxyPool.get() as proxy:
-            return proxy.checkParentTask_JEDI(jediTaskID)
+            return proxy.checkParentTask_JEDI(parent_task_id, jedi_task_id)
 
     # get task status
     def getTaskStatus_JEDI(self, jediTaskID):

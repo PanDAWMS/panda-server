@@ -111,7 +111,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                     # check parent
                     parentState = None
                     if parent_tid not in [None, jediTaskID]:
-                        parentState = self.taskBufferIF.checkParentTask_JEDI(parent_tid)
+                        parentState = self.taskBufferIF.checkParentTask_JEDI(parent_tid, jediTaskID)
                         if parentState != "completed":
                             gTmpLog.info(
                                 f"#ATM #KV label=managed jediTaskID={jediTaskID} skip prio boost since parent_id={parent_tid} has parent_status={parentState}"
