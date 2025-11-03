@@ -229,7 +229,7 @@ class TaskRefinerThread(WorkerThread):
                     if tmpStat == Interaction.SC_SUCCEEDED and parent_tid not in [None, jediTaskID]:
                         tmpLog.info("check parent task")
                         try:
-                            tmpStat = self.taskBufferIF.checkParentTask_JEDI(parent_tid)
+                            tmpStat = self.taskBufferIF.checkParentTask_JEDI(parent_tid, jediTaskID)
                             parentState = tmpStat
                             if tmpStat == "completed":
                                 # parent is done

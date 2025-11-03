@@ -1807,51 +1807,64 @@ class TaskUtilsModule(BaseModule):
             return failedRet
 
     # check parent task status
-    def checkParentTask_JEDI(self, jediTaskID, useCommit=True):
+    def checkParentTask_JEDI(self, parent_task_id: int, jedi_task_id: int = None, use_commit: bool = True) -> str | None:
+        """
+        Check the status of parent task
+        Args:
+            parent_task_id: JEDI task ID of parent task
+            jedi_task_id: JEDI task ID of child task (for logging purpose)
+            use_commit: whether to use commit/rollback
+        Returns:
+          "completed": parent task is done/finished
+          "corrupted": parent task is broken/aborted/failed
+          "running": parent task is still running
+          "unknown": parent task is not found
+          None: error
+        """
         comment = " /* JediDBProxy.checkParentTask_JEDI */"
-        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmpLog.debug("start")
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} parent={parent_task_id}")
+        tmp_log.debug("start")
+        ret_val = None
         try:
-            retVal = None
+
             sql = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sql += "WHERE jediTaskID=:jediTaskID "
-            varMap = {}
-            varMap[":jediTaskID"] = jediTaskID
+            var_map = {":jediTaskID": parent_task_id}
             # start transaction
-            if useCommit:
+            if use_commit:
                 self.conn.begin()
-            self.cur.execute(sql + comment, varMap)
-            resTK = self.cur.fetchone()
-            if useCommit:
+            self.cur.execute(sql + comment, var_map)
+            res_tk = self.cur.fetchone()
+            if use_commit:
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-            if resTK is None:
-                tmpLog.error("parent not found")
-                retVal = "unknown"
+            if res_tk is None:
+                tmp_log.error("parent not found")
+                ret_val = "unknown"
             else:
                 # task status
-                (taskStatus,) = resTK
-                tmpLog.debug(f"parent status = {taskStatus}")
-                if taskStatus in ["done", "finished"]:
+                (task_status,) = res_tk
+                tmp_log.debug(f"parent status = {task_status}")
+                if task_status in ["done", "finished"]:
                     # parent is completed
-                    retVal = "completed"
-                elif taskStatus in ["broken", "aborted", "failed"]:
+                    ret_val = "completed"
+                elif task_status in ["broken", "aborted", "failed"]:
                     # parent is corrupted
-                    retVal = "corrupted"
+                    ret_val = "corrupted"
                 else:
                     # parent is running
-                    retVal = "running"
+                    ret_val = "running"
             # return
-            tmpLog.debug(f"done with {retVal}")
-            return retVal
+            tmp_log.debug(f"done with {ret_val}")
+            return ret_val
         except Exception:
-            if useCommit:
+            if use_commit:
                 # roll back
                 self._rollback()
             # error
-            self.dump_error_message(tmpLog)
-            return retVal
+            self.dump_error_message(tmp_log)
+            return ret_val
 
 
 # get module
