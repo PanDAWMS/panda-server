@@ -175,7 +175,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                     # unthrottle tasks
                     for taskID in taskIDs:
                         tmpLog.debug(f"action=release_{transferType} jediTaskID={taskID} for user={userName}")
-                        self.taskBufferIF.releaseThrottledTask_JEDI(taskID)
+                        self.taskBufferIF.release_task_on_hold(taskID, "throttled")
             tmpLog.debug("done")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]

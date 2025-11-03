@@ -4523,6 +4523,53 @@ class MiscStandaloneModule(BaseModule):
             self.dump_error_message(tmpLog)
             return failedRet
 
+    # get jediTaskIDs with dataset attributes
+    def get_task_ids_with_dataset_attributes(self, dataset_attributes: dict, only_active_tasks: bool = True) -> tuple[bool, list[int] | None]:
+        """Get jediTaskIDs with dataset attributes.
+        Args:
+            dataset_attributes (dict): A dictionary of dataset attributes to filter on.
+            only_active_tasks (bool): If True, only consider active tasks.
+        Returns:
+            tuple: A tuple containing a boolean indicating success, and a list of jediTaskIDs or None.
+        """
+        comment = " /* JediDBProxy.get_task_ids_with_dataset_attributes */"
+        tmp_log = self.create_tagged_logger(comment, f"dataset_attributes={dataset_attributes} only_active_tasks={only_active_tasks}")
+        tmp_log.debug("start")
+        try:
+            # sql
+            sql = (
+                f"SELECT DISTINCT  tabT.jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT,{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA,{panda_config.schemaJEDI}.JEDI_Datasets tabD "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
+            )
+            for k, v in dataset_attributes.items():
+                sql += f"AND tabD.{k}=:{k} "
+            var_map = copy.copy(dataset_attributes)
+            if only_active_tasks:
+                task_var_names_str, task_var_map = get_sql_IN_bind_variables(
+                    JediTaskSpec.statusToRejectExtChange(), prefix=":task_status_", value_as_suffix=True
+                )
+                sql += f"AND tabT.status NOT IN ({task_var_names_str}) "
+                var_map.update(task_var_map)
+            # begin transaction
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            # select
+            print(sql, str(var_map))
+            self.cur.execute(sql + comment, var_map)
+            tmp_res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            task_id_list = [row[0] for row in tmp_res]
+            tmp_log.debug(f"done with {len(task_id_list)} tasks")
+            return True, task_id_list
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return False, None
+
     # extend lifetime of sandbox file
     def extendSandboxLifetime_JEDI(self, jedi_taskid, file_name):
         comment = " /* JediDBProxy.extendSandboxLifetime_JEDI */"
