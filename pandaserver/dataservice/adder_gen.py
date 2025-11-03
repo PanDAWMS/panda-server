@@ -90,7 +90,7 @@ class AdderGen:
             self.get_report()
 
             # query job
-            self.job = self.taskBuffer.peekJobs([self.job_id], fromDefined=False, fromWaiting=False, forAnal=True)[0]
+            self.job = self.taskBuffer.peekJobs([self.job_id], fromDefined=False, fromWaiting=False, fromArchived=False, forAnal=True)[0]
 
             # execute plugin to process job report and update the job
             processed = self.process_job_report()
