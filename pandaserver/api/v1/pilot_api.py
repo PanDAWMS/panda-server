@@ -749,6 +749,7 @@ def update_worker_node(
     site: str,
     host_name: str,
     cpu_model: str,
+    panda_queue: str = None,
     n_logical_cpus: int = None,
     n_sockets: int = None,
     cores_per_socket: int = None,
@@ -774,6 +775,7 @@ def update_worker_node(
         site(str): Site name (e.g. ATLAS site name, not PanDA queue).
         host_name(str): Host name. In the case of reporting in format `slot@worker_node.example.com`, the slot ID will be parsed out.
         cpu_model(str): CPU model, e.g. `AMD EPYC 7351`.
+        panda_queue(str, optional): PanDA queue the worker node is associated to. Optional, defaults to `None`.
         n_logical_cpus(int, optional): Number of logical CPUs: n_sockets * cores_per_socket * threads_per_core.
                              When SMT is enabled, this is the number of threads. Otherwise it is the number of cores. Optional, defaults to `None`.
         n_sockets(int, optional): Number of sockets. Optional, defaults to `None`.
@@ -789,7 +791,7 @@ def update_worker_node(
     Returns:
         dict: The system response  `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
     """
-    tmp_logger = LogWrapper(_logger, f"update_worker_node site={site} host_name={host_name} cpu_model={cpu_model}")
+    tmp_logger = LogWrapper(_logger, f"update_worker_node site={site} host_name={host_name} cpu_model={cpu_model} panda_queue={panda_queue}")
     tmp_logger.debug("Start")
 
     cpu_model_normalized = normalize_cpu_model(cpu_model)
