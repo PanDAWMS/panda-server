@@ -766,6 +766,12 @@ class TaskBuffer:
             )
         return ret
 
+    def get_architecture_level_map(self):
+        # get DB proxy
+        with self.proxyPool.get() as proxy:
+            ret = proxy.get_architecture_level_map()
+        return ret
+
     # finalize pending analysis jobs
     def finalizePendingJobs(self, prodUserName, jobDefinitionID, waitLock=False):
         # get DB proxy

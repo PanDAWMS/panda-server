@@ -89,6 +89,13 @@ class AtlasProdJobBroker(JobBrokerBase):
             logger.error("Failed to load the SW tags map!!!")
             self.sw_map = {}
 
+        # load the worker node CPU architecture-level map
+        try:
+            self.architecture_level_map = taskBufferIF.get_architecture_level_map()
+        except BaseException:
+            logger.error("Failed to load the WN architecture level map!!!")
+            self.architecture_level_map = {}
+
     def convertMBpsToWeight(self, mbps):
         """
         Takes MBps value and converts to a weight between 1 and 2
