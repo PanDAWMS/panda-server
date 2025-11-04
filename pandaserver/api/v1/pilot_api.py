@@ -799,6 +799,7 @@ def update_worker_node(
     timed_method = TimedMethod(global_task_buffer.update_worker_node, timeout)
     timed_method.run(
         site,
+        panda_queue,
         host_name,
         cpu_model,
         cpu_model_normalized,
