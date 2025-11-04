@@ -1222,8 +1222,8 @@ class WorkerModule(BaseModule):
             self._rollback(True)
 
             # Failed because of the NOWAIT clause
-            if locked_site:
-                return False, "Another pilot was updating the worker node at the same time."
+            if locked_site or locked_queue:
+                return True, "Another pilot was updating the worker node at the same time."
 
             # General failure
             err_type, err_value = sys.exc_info()[:2]
