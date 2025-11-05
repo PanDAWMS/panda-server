@@ -2134,21 +2134,22 @@ class EntityModule(BaseModule):
             # get dicts
             res_dicts = self.getConfigValue("dbproxy", "USER_JOB_PRIO_BOOST_DICTS", "pandaserver")
             # parse list
-            for tmp_item in res_dicts:
-                try:
-                    tmp_name = tmp_item["name"]
-                    tmp_type = tmp_item["type"]
-                    tmp_prio = tmp_item["prio"]
-                    tmp_expire = tmp_item.get("expire", None)
-                    # check expiration
-                    if tmp_expire:
-                        tmp_expire = datetime.datetime.strptime(tmp_expire, "%Y%m%d")
-                        if tmp_expire < naive_utcnow():
-                            continue
-                    self.job_prio_boost_dict.setdefault(tmp_type, {})
-                    self.job_prio_boost_dict[tmp_type][tmp_name] = int(tmp_prio)
-                except Exception as e:
-                    tmp_log.error(str(e))
+            if res_dicts:
+                for tmp_item in res_dicts:
+                    try:
+                        tmp_name = tmp_item["name"]
+                        tmp_type = tmp_item["type"]
+                        tmp_prio = tmp_item["prio"]
+                        tmp_expire = tmp_item.get("expire", None)
+                        # check expiration
+                        if tmp_expire:
+                            tmp_expire = datetime.datetime.strptime(tmp_expire, "%Y%m%d")
+                            if tmp_expire < naive_utcnow():
+                                continue
+                        self.job_prio_boost_dict.setdefault(tmp_type, {})
+                        self.job_prio_boost_dict[tmp_type][tmp_name] = int(tmp_prio)
+                    except Exception as e:
+                        tmp_log.error(str(e))
             tmp_log.debug(f"got {self.job_prio_boost_dict}")
             return self.job_prio_boost_dict
         except Exception:
