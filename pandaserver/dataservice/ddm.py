@@ -23,6 +23,7 @@ from rucio.common.exception import (
     DuplicateRule,
     FileAlreadyExists,
     InvalidObject,
+    InvalidRSEExpression,
     RSENotFound,
     RuleNotFound,
     UnsupportedOperation,
@@ -1028,7 +1029,9 @@ class RucioAPI:
                 for x in result:
                     rse = x["rse"]
                     ret_list.append(rse)
-        except Exception as e:
+        except InvalidRSEExpression:
+            tmp_log.warning("Provided filter is considered invalid")
+        except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
         tmp_log.debug(f"got {ret_list}")

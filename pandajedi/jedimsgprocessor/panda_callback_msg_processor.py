@@ -49,6 +49,10 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
             to_continue = True
             dsn = "UNKNOWN"
             # check event type
+            if not isinstance(message_dict, dict):
+                err_str = f"skip due to invalid message format:{type(message_dict).__name__}. msg:{str(message_dict)}"
+                tmp_log.warning(err_str)
+                return
             event_type = message_dict["event_type"]
             message_ids = f"sub_id={msg_obj.sub_id} ; msg_id={msg_obj.msg_id}"
             if event_type in ["datasetlock_ok"]:
