@@ -1215,6 +1215,7 @@ class WorkerModule(BaseModule):
                         raise RuntimeError("Commit error")
                     tmp_logger.debug("Inserted as new worker node.")
 
+            tmp_logger.debug("Done.")
             return True, "Inserted new worker node."
 
         except Exception:
