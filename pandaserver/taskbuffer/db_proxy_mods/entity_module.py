@@ -2021,7 +2021,9 @@ class EntityModule(BaseModule):
 
             ddm_endpoint_name = tmp_endpoint["ddm_endpoint_name"]
             try:
-                tmp_detailed_status = json.loads(tmp_endpoint["detailed_status"])
+                tmp_detailed_status = tmp_endpoint["detailed_status"]
+                if not isinstance(tmp_detailed_status, dict):
+                    tmp_detailed_status = json.loads(tmp_detailed_status)
                 # make a summary of detailed status of all endpoints
                 if tmp_detailed_status:
                     for tmp_activity, tmp_status in tmp_detailed_status.items():
