@@ -21,6 +21,7 @@ from pandaserver.api.v1.common import (
 )
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.srvcore.panda_request import PandaRequest
+from pandaserver.taskbuffer import task_split_rules
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
@@ -1068,7 +1069,7 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
     Args:
         req(PandaRequest): internally generated request object
         task_id(int): JEDI task ID
-        attribute_name(str): split rule attribute to change. The allowed attributes are one of: `"AI", "TW", "EC", "ES", "MF", "NG", "NI", "NF", "NJ", "AV", "IL", "LI", "LC", "CC", "OT", "UZ"`
+        attribute_name(str): split rule attribute to change. The allowed attributes are defined in `task_split_rules.changeable_split_rule_tags`
         value(str): value to set to the attribute
 
     Returns:
@@ -1085,12 +1086,10 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
         tmp_logger.error("Failed due to invalid task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
-    # see what the attributes mean in pandaserver/taskbuffer/task_split_rules.py
-    valid_attributes = ["AI", "TW", "EC", "ES", "MF", "NG", "NI", "NF", "NJ", "AV", "IL", "LI", "LC", "CC", "OT", "UZ"]
     # check attribute
-    if attribute_name not in valid_attributes:
+    if attribute_name not in task_split_rules.changeable_split_rule_tags:
         tmp_logger.error("Failed due to invalid attribute_name")
-        return generate_response(False, message=f"{attribute_name} is not a valid attribute. Valid attributes are {valid_attributes}", data=2)
+        return generate_response(False, message=f"{attribute_name} is not a valid attribute. Valid attributes are {changeable_split_rule_tags}", data=2)
 
     n_tasks_changed = global_task_buffer.changeTaskSplitRulePanda(task_id, attribute_name, value)
     if n_tasks_changed is None:  # method excepted
