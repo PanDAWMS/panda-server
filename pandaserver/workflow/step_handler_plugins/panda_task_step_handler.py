@@ -176,7 +176,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             elif task_status in ["defined", "assigned", "activated", "starting", "ready", "pending"]:
                 check_result.step_status = WFStepStatus.submitted
             elif task_status in ["done", "finished"]:
-                check_result.step_status = WFStepStatus.finished
+                check_result.step_status = WFStepStatus.done
             elif task_status in ["failed", "exhausted", "aborted", "toabort", "aborting", "broken", "tobroken"]:
                 check_result.step_status = WFStepStatus.failed
             else:

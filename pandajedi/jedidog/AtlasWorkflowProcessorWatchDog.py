@@ -37,7 +37,7 @@ class AtlasWorkflowProcessorWatchDog(WatchDogBase):
         tmpLog.debug("start")
         try:
             # watchdog lock
-            got_lock = self.get_process_lock("AtlasWorkflowProcessorWatchDog.doProcessWorkflows", timeLimit=1)
+            got_lock = self.get_process_lock("AtlasWFProcDog.doProcessWorkflows", timeLimit=1)
             if not got_lock:
                 tmpLog.debug("locked by another watchdog process. Skipped")
                 return

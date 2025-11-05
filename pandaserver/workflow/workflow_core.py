@@ -306,6 +306,8 @@ class WorkflowInterface(object):
             # For now, just update status to checking
             data_spec.status = WFDataStatus.checking
             self.tbif.update_workflow_data(data_spec)
+            process_result.success = True
+            process_result.new_status = data_spec.status
             tmp_log.info(f"Done, status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
@@ -355,6 +357,8 @@ class WorkflowInterface(object):
                     data_spec.status = WFDataStatus.checked_exist
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
+            process_result.new_status = data_spec.status
+            process_result.success = True
             tmp_log.info(f"Done, status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
@@ -404,6 +408,8 @@ class WorkflowInterface(object):
                     data_spec.check_time = now_time
                     data_spec.end_time = now_time
                     self.tbif.update_workflow_data(data_spec)
+            process_result.success = True
+            process_result.new_status = data_spec.status
             tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
@@ -473,6 +479,7 @@ class WorkflowInterface(object):
                         tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
+            process_result.success = True
             if data_spec.status == original_status:
                 tmp_log.info(f"Done, status stays {data_spec.status}")
             else:
@@ -532,6 +539,7 @@ class WorkflowInterface(object):
                         tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
+            process_result.success = True
             tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
@@ -558,6 +566,7 @@ class WorkflowInterface(object):
                     tmp_log.warning(f"Failed to acquire lock for data_id={data_spec.data_id}; skipped")
                     continue
                 data_spec = locked_data_spec
+                orig_status = data_spec.status
                 # Process the data
                 tmp_res = None
                 match data_spec.status:
@@ -576,7 +585,7 @@ class WorkflowInterface(object):
                         continue
                 if tmp_res and tmp_res.success:
                     # update stats
-                    if tmp_res.new_status and tmp_res.new_status != data_spec.status:
+                    if tmp_res.new_status and data_spec.status != orig_status:
                         data_status_stats["changed"].setdefault(data_spec.status, 0)
                         data_status_stats["changed"][data_spec.status] += 1
                     else:
@@ -614,6 +623,8 @@ class WorkflowInterface(object):
         try:
             step_spec.status = WFStepStatus.checking
             self.tbif.update_workflow_step(step_spec)
+            process_result.success = True
+            process_result.new_status = step_spec.status
             tmp_log.info(f"Done, status={step_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
@@ -646,6 +657,8 @@ class WorkflowInterface(object):
             if True:
                 step_spec.status = WFStepStatus.checked_true
                 self.tbif.update_workflow_step(step_spec)
+                process_result.success = True
+                process_result.new_status = step_spec.status
                 tmp_log.info(f"Done, status={step_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
@@ -687,6 +700,8 @@ class WorkflowInterface(object):
                     step_spec.status = WFStepStatus.closed
                     step_spec.check_time = now_time
                     self.tbif.update_workflow_step(step_spec)
+            process_result.success = True
+            process_result.new_status = step_spec.status
             tmp_log.info(f"Done, from {original_status} to status={step_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
@@ -948,6 +963,7 @@ class WorkflowInterface(object):
                     tmp_log.warning(f"Failed to acquire lock for step_id={step_spec.step_id}; skipped")
                     continue
                 step_spec = locked_step_spec
+                orig_status = step_spec.status
                 # Process the step
                 tmp_res = None
                 match step_spec.status:
@@ -970,7 +986,7 @@ class WorkflowInterface(object):
                         continue
                 if tmp_res and tmp_res.success:
                     # update stats
-                    if tmp_res.new_status and tmp_res.new_status != step_spec.status:
+                    if tmp_res.new_status and step_spec.status != orig_status:
                         steps_status_stats["changed"].setdefault(step_spec.status, 0)
                         steps_status_stats["changed"][step_spec.status] += 1
                     else:
@@ -1362,11 +1378,12 @@ class WorkflowInterface(object):
                         tmp_log.warning(f"Failed to acquire lock for workflow_id={workflow_spec.workflow_id}; skipped")
                         continue
                     workflow_spec = locked_workflow_spec
+                    orig_status = workflow_spec.status
                     # Process the workflow
                     tmp_res = self.process_workflow(workflow_spec)
                     if tmp_res and tmp_res.success:
                         # update stats
-                        if tmp_res.new_status and tmp_res.new_status != workflow_spec.status:
+                        if tmp_res.new_status and workflow_spec.status != orig_status:
                             workflows_status_stats["changed"].setdefault(workflow_spec.status, 0)
                             workflows_status_stats["changed"][workflow_spec.status] += 1
                         else:

@@ -43,7 +43,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_wfif = WorkflowInterface(global_task_buffer)
 
 
-@request_validation(_logger, secure=True, production=True, request_method="POST")
+@request_validation(_logger, secure=True, production=False, request_method="POST")
 def submit_workflow_raw_request(req: PandaRequest, params: dict | str) -> dict:
     """
     Submit raw request of PanDA native workflow.
@@ -94,7 +94,7 @@ def submit_workflow_raw_request(req: PandaRequest, params: dict | str) -> dict:
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True, production=True, request_method="POST")
+@request_validation(_logger, secure=True, production=False, request_method="POST")
 def submit_workflow(req: PandaRequest, workflow_definition: dict) -> dict:
     """
     Submit a PanDA native workflow.
