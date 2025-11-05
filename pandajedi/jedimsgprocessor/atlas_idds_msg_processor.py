@@ -40,7 +40,7 @@ class AtlasIddsMsgProcPlugin(BaseMsgProcPlugin):
             raise
         # sanity check
         try:
-            msg_type = msg_dict["msg_type"]
+            msg_type = msg_dict.get("msg_type")
         except Exception as e:
             err_str = f"failed to parse message object dict {msg_dict} , skipped. {e.__class__.__name__} : {e}"
             tmp_log.error(err_str)
@@ -58,7 +58,7 @@ class AtlasIddsMsgProcPlugin(BaseMsgProcPlugin):
                 self.plugin_Processing.process(msg_obj, decoded_data=msg_dict)
             else:
                 # Asked by iDDS and message broker guys, JEDI needs to consume unknown types of messages and do nothing...
-                warn_str = f"unknown msg_type : {msg_type}"
+                warn_str = f"unknown msg_type: {msg_type} msg_dict: {str(msg_dict)}"
                 tmp_log.warning(warn_str)
         except Exception:
             raise

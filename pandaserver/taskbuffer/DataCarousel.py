@@ -809,7 +809,7 @@ class DataCarouselInterface(object):
                 # get DC config from DB
                 res_dict = self.taskBufferIF.getConfigValue("data_carousel", f"DATA_CAROUSEL_CONFIG", "jedi", "atlas")
                 if res_dict is None:
-                    tmp_log.error(f"got None from DB ; skipped")
+                    tmp_log.warning(f"got None from DB ; skipped")
                     return
                 # check schema version
                 try:
