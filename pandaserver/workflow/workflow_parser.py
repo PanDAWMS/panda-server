@@ -151,6 +151,8 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                         nodes_list.append(vars(node))
                         if node.is_tail:
                             root_outputs_dict.update(node.outputs)
+                            for out_val in root_outputs_dict.values():
+                                out_val["output_types"] = node.output_types
                     # workflow definition
                     workflow_definition_dict = {
                         "workflow_name": workflow_name,

@@ -763,6 +763,7 @@ class WorkflowInterface(object):
             tmp_log.debug(f"All input data are good; proceeding")
             output_data_list = step_spec_definition.get("output_data_list", [])
             outputs_raw_dict = step_spec_definition.get("outputs", {})
+            output_types = step_spec_definition.get("output_types", [])
             now_time = naive_utcnow()
             if step_spec_definition.get("is_tail"):
                 # Tail step, set root output source_step_id
@@ -771,7 +772,7 @@ class WorkflowInterface(object):
                     if data_spec is not None:
                         data_spec.source_step_id = step_spec.step_id
                         self.tbif.update_workflow_data(data_spec)
-                        tmp_log.debug(f"Updated output data_id={data_spec.id} name={output_data_name} about source_step_id")
+                        tmp_log.debug(f"Updated output data_id={data_spec.data_id} name={output_data_name} about source_step_id")
                     else:
                         tmp_log.warning(f"Output data {output_data_name} not found in workflow data; skipped")
             else:
@@ -782,6 +783,7 @@ class WorkflowInterface(object):
                     data_spec.source_step_id = step_spec.step_id
                     data_spec.name = output_data_name
                     data_spec.target_id = outputs_raw_dict.get(output_data_name, {}).get("value")  # caution: may be None
+                    data_spec.set_parameter("output_types", output_types)
                     data_spec.status = WFDataStatus.registered
                     data_spec.type = WFDataType.mid
                     data_spec.flavor = "ddm_collection"  # FIXME: hardcoded flavor, should be configurable
@@ -1120,6 +1122,7 @@ class WorkflowInterface(object):
                 data_spec.source_step_id = None  # root output
                 data_spec.name = output_name
                 data_spec.target_id = output_dict.get("value")
+                data_spec.set_parameter("output_types", output_dict.get("output_types"))
                 data_spec.status = WFDataStatus.registered
                 data_spec.type = WFDataType.output
                 data_spec.flavor = "ddm_collection"  # FIXME: hardcoded flavor, should be configurable
