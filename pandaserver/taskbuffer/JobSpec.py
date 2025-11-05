@@ -941,7 +941,7 @@ class JobSpec(object):
             self.outputFileType = ",".join(out_types)[: self._limitLength["outputFileType"]]
 
     # set task queued time
-    def set_task_queued_time(self, queued_time: float | None):
+    def set_task_queued_time(self, queued_time):
         """
         Set task queued time in job metrics. Skip if queued_time is None
 
@@ -969,7 +969,7 @@ def push_status_changes(special_handling):
 
 
 # get task queued time
-def get_task_queued_time(special_handling) -> datetime.datetime | None:
+def get_task_queued_time(special_handling):
     """
     Get task queued time from job metrics
 

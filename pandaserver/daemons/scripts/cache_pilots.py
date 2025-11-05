@@ -1,8 +1,10 @@
+import os
 import shutil
 import traceback
 from pathlib import Path
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 
 # logger
@@ -29,6 +31,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             _logger.error(f"failed to mkdir {dest_dir_path}: {e}")
         # copy
         for source_file in source_file_list:
+            if not os.path.exists(source_file):
+                _logger.warning(f"source file {source_file} does not exist, skipped")
+                continue
             dest_file_path = shutil.copy(source_file, dest_dir_path)
             _logger.debug(f"copied {source_file} to {dest_file_path}")
     except Exception as e:
