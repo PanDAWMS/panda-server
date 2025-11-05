@@ -104,6 +104,7 @@ class TestPilotAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {
             "site": "CERN",
+            "panda_queue": "CERN",
             "host_name": "slot1@wn1.cern.ch",
             "cpu_model": "AMD EPYC 7B12",
             "n_logical_cpus": 64,

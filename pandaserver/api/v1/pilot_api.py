@@ -791,7 +791,7 @@ def update_worker_node(
     Returns:
         dict: The system response  `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
     """
-    tmp_logger = LogWrapper(_logger, f"update_worker_node site={site} host_name={host_name} cpu_model={cpu_model} panda_queue={panda_queue}")
+    tmp_logger = LogWrapper(_logger, f"update_worker_node site={site} panda_queue={panda_queue} host_name={host_name} cpu_model={cpu_model}")
     tmp_logger.debug("Start")
 
     cpu_model_normalized = normalize_cpu_model(cpu_model)
@@ -799,6 +799,7 @@ def update_worker_node(
     timed_method = TimedMethod(global_task_buffer.update_worker_node, timeout)
     timed_method.run(
         site,
+        panda_queue,
         host_name,
         cpu_model,
         cpu_model_normalized,
