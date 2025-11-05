@@ -168,6 +168,12 @@ class AtlasAnalTaskRefiner(TaskRefinerBase):
         # disable skipScout fot tasks without for group production role
         if "skipScout" in taskParamMap and ("official" not in taskParamMap or not taskParamMap["official"]):
             del taskParamMap["skipScout"]
+        # max core count
+        if "maxCoreCount" not in taskParamMap:
+            max_core_count = self.taskBufferIF.getConfigValue("taskrefiner", "USER_TASKS_MAX_CORE_COUNT", "jedi", "atlas")
+            if max_core_count is None:
+                max_core_count = 16
+            taskParamMap["maxCoreCount"] = max_core_count
         # update task parameters
         self.updatedTaskParams = taskParamMap
         # call base method
