@@ -210,10 +210,10 @@ class AtlasProdJobBroker(JobBrokerBase):
                 siteListPreAssigned = True
                 scanSiteList = DataServiceUtils.getSitesShareDDM(self.siteMapper, inputChunk.getPreassignedSite(), JobUtils.PROD_PS, JobUtils.PROD_PS)
                 scanSiteList.append(inputChunk.getPreassignedSite())
-                tmp_msg = "use site={0} since they share DDM endpoints with original_site={1} which is pre-assigned in masterDS ".format(
-                    str(scanSiteList), inputChunk.getPreassignedSite()
+                tmp_msg = (
+                    f"use site={scanSiteList} since they share DDM endpoints with original_site={inputChunk.getPreassignedSite()} "
+                    f"which is pre-assigned in masterDS criteria=+premerge"
                 )
-                tmp_msg += "criteria=+premerge"
                 tmpLog.info(tmp_msg)
 
         else:
@@ -542,10 +542,10 @@ class AtlasProdJobBroker(JobBrokerBase):
                 )
 
                 if tmpSiteName in inactiveSites and nToGetAll > 0:
-                    tmp_msg = "  skip site={0} since high prio/scouts/merge needs to avoid inactive sites (laststart is older than {1}h) ".format(
-                        tmpSiteName, inactiveTimeLimit
+                    tmp_msg = (
+                        f"  skip site={tmpSiteName} since high prio/scouts/merge needs to avoid inactive sites "
+                        f"(laststart is older than {inactiveTimeLimit}h) criteria=-inactive"
                     )
-                    tmp_msg += "criteria=-inactive"
                     # temporary problem
                     newSkippedTmp[tmpSiteName] = tmp_msg
                 newScanSiteList.append(tmpSiteName)
@@ -712,7 +712,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 return retTmpError
 
         ######################################
-        # selection for release
+        # selection for release and CPU/GPU architectures
         cmt_config = taskSpec.get_sw_platform()
         is_regexp_cmt_config = False
         if cmt_config:
@@ -952,8 +952,9 @@ class AtlasProdJobBroker(JobBrokerBase):
                 if (
                     tmpSpaceSize < diskThreshold and "skip_RSE_check" not in tmpSiteSpec.catchall
                 ):  # skip_RSE_check: exceptional bypass of RSEs without storage reporting
-                    tmp_msg = "  skip site={0} due to disk shortage at {1} {2}GB < {3}GB criteria=-disk".format(
-                        tmpSiteName, tmpSiteSpec.ddm_output[scope_output], tmpSpaceSize, diskThreshold
+                    tmp_msg = (
+                        f"  skip site={tmpSiteName} due to disk shortage at "
+                        f"{tmpSiteSpec.ddm_output[scope_output]} {tmpSpaceSize}GB < {diskThreshold}GB criteria=-disk"
                     )
             # check if blacklisted
             if not tmp_msg:
@@ -1719,23 +1720,11 @@ class AtlasProdJobBroker(JobBrokerBase):
             else:
                 weight = float(nRunning + 1) / float(nActivated + nAssigned + nStarting + nDefined + 10) / manyAssigned
                 weightStr = (
-                    "nRun={0} nAct={1} nAss={2} nStart={3} nDef={4} manyAss={6} nPilot={7}{9} totalSizeMB={5} "
-                    "totalNumFiles={8} nRun_rt={10} nQueued_rt={11} "
+                    f"nRun={nRunning} nAct={nActivated} nAss={nAssigned} nStart={nStarting} nDef={nDefined} manyAss={manyAssigned} "
+                    f"nPilot={nPilot}{corrNumPilotStr} totalSizeMB={int(totalSize / 1024 / 1024)} "
+                    f"totalNumFiles={maxNumFiles} nRun_rt={tmpRTrunning} nQueued_rt={tmpRTqueue} "
                 )
-            weightStr = weightStr.format(
-                nRunning,
-                nActivated,
-                nAssigned,
-                nStarting,
-                nDefined,
-                int(totalSize / 1024 / 1024),
-                manyAssigned,
-                nPilot,
-                maxNumFiles,
-                corrNumPilotStr,
-                tmpRTrunning,
-                tmpRTqueue,
-            )
+
             # reduce weights by taking data availability into account
             skipRemoteData = False
             if totalSize > 0:
@@ -1808,10 +1797,8 @@ class AtlasProdJobBroker(JobBrokerBase):
                     weight *= weightNw
 
                 tmpLog.info(
-                    "subject=network_data src={1} dst={2} weight={3} weightNw={4} "
-                    "weightNwThroughput={5} weightNwQueued={6} mbps={7} closeness={8} nqueued={9}".format(
-                        taskSpec.jediTaskID, tmpAtlasSiteName, nucleus, weight, weightNw, weightNwThroughput, weightNwQueue, mbps, closeness, nFilesInQueue
-                    )
+                    f"subject=network_data src={tmpAtlasSiteName} dst={nucleus} weight={weight} weightNw={weightNw} "
+                    f"weightNwThroughput={weightNwThroughput} weightNwQueued={weightNwQueue} mbps={mbps} closeness={closeness} nqueued={nFilesInQueue}"
                 )
 
             # make candidate
@@ -1894,7 +1881,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     ngMsg += f"nDefined_rt+nActivated_rt+nStarting_rt={tmpRTqueue} "
                     ngMsg += "(nAssigned_rt ignored due to data locally available) "
                 ngMsg += "with gshare+resource_type is greater than "
-                ngMsg += "max({0},{1}*nRun_rt={1}*{2}) ".format(cutOffValue, RT_Cap, tmpRTrunning)
+                ngMsg += f"max({cutOffValue},{RT_Cap}*nRun_rt={RT_Cap}*{tmpRTrunning}) "
                 ngMsg += "criteria=-cap_rt"
             elif (
                 nRunning + nActivated + nAssigned + nStarting + nDefined == 0
