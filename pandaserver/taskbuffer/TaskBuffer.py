@@ -703,6 +703,7 @@ class TaskBuffer:
     def update_worker_node(
         self,
         site,
+        panda_queue,
         host_name,
         cpu_model,
         cpu_model_normalized,
@@ -721,6 +722,7 @@ class TaskBuffer:
             # update DB and buffer
             ret = proxy.update_worker_node(
                 site,
+                panda_queue,
                 host_name,
                 cpu_model,
                 cpu_model_normalized,
