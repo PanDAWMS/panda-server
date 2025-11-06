@@ -134,7 +134,6 @@ class AtlasProdJobBroker(JobBrokerBase):
         timeNow = naive_utcnow()
 
         # return for failure
-        retFatal = self.SC_FATAL, inputChunk
         retTmpError = self.SC_FAILED, inputChunk
 
         # new maxwdir
@@ -949,9 +948,8 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmpSpaceSize += tmp_default_output_endpoint["space_expired"]
                 diskThreshold = 200
 
-                if (
-                    tmpSpaceSize < diskThreshold and "skip_RSE_check" not in tmpSiteSpec.catchall
-                ):  # skip_RSE_check: exceptional bypass of RSEs without storage reporting
+                # skip_RSE_check: exceptional bypass of RSEs without storage reporting
+                if tmpSpaceSize < diskThreshold and "skip_RSE_check" not in tmpSiteSpec.catchall:
                     tmp_msg = (
                         f"  skip site={tmpSiteName} due to disk shortage at "
                         f"{tmpSiteSpec.ddm_output[scope_output]} {tmpSpaceSize}GB < {diskThreshold}GB criteria=-disk"
@@ -1526,7 +1524,6 @@ class AtlasProdJobBroker(JobBrokerBase):
             msgList = []
             msgListDT = []
             for tmpSiteName in self.get_unified_sites(scanSiteList):
-                tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 # file size to move in MB
                 mbToMove = int((totalSize - siteSizeMap[tmpSiteName]) / (1024 * 1024))
                 nFilesToMove = maxNumFiles - len(siteFilesMap[tmpSiteName])
@@ -1625,7 +1622,6 @@ class AtlasProdJobBroker(JobBrokerBase):
         weightMapSecondary = {}
         weightMapJumbo = {}
         largestNumRun = None
-        newScanSiteList = []
         for tmpPseudoSiteName in scanSiteList:
             tmpSiteSpec = self.siteMapper.getSite(tmpPseudoSiteName)
             tmpSiteName = tmpSiteSpec.get_unified_name()
@@ -1774,7 +1770,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                         tmpLog.debug(f"No dynamic FTS mbps information found in network matrix from {tmpAtlasSiteName}({tmpSiteName}) to {nucleus}")
 
                 # network weight: value between 1 and 2, except when nucleus == satellite
-                if nucleus == tmpAtlasSiteName:  # 25 per cent weight boost for processing in nucleus itself
+                if nucleus == tmpAtlasSiteName:  # 25 percent weight boost for processing in nucleus itself
                     weightNwQueue = 2.5
                     weightNwThroughput = 2.5
                 else:
@@ -1849,10 +1845,10 @@ class AtlasProdJobBroker(JobBrokerBase):
             # OK message. Use jumbo as primary by default
             if not forJumbo:
                 okMsg = f"  use site={tmpPseudoSiteName} with weight={weight} {weightStr} criteria=+use"
-                okAsPrimay = False
+                okAsPrimary = False
             else:
                 okMsg = f"  use site={tmpPseudoSiteName} for jumbo jobs with weight={weight} {weightStr} criteria=+usejumbo"
-                okAsPrimay = True
+                okAsPrimary = True
             # checks
             if lockedByBrokerage:
                 ngMsg = f"  skip site={tmpPseudoSiteName} due to locked by another brokerage "
@@ -1893,7 +1889,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 ngMsg = f"  skip site={tmpPseudoSiteName} as others being bootstrapped (no running or queued jobs), "
                 ngMsg += f"weight={weight} {weightStr} "
                 ngMsg += "criteria=-others_bootstrap"
-                okAsPrimay = True
+                okAsPrimary = True
                 # set weight to 0 for subsequent processing
                 weight = 0
                 siteCandidateSpec.weight = weight
@@ -1908,7 +1904,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     ngMsg += "criteria=-t1_weight"
                     if not largestNumRun or largestNumRun[-1] < nRunningAll:
                         largestNumRun = (tmpPseudoSiteName, nRunningAll)
-                        okAsPrimay = True
+                        okAsPrimary = True
                         # copy primaries to secondary map
                         for tmpWeight, tmpCandidates in weightMapPrimary.items():
                             weightMapSecondary.setdefault(tmpWeight, [])
@@ -1918,14 +1914,14 @@ class AtlasProdJobBroker(JobBrokerBase):
                     ngMsg = f"  skip site={tmpPseudoSiteName} due to low weight, "
                     ngMsg += f"weight={weight} {weightStr} "
                     ngMsg += "criteria=-low_weight"
-                    okAsPrimay = True
+                    okAsPrimary = True
             # add to jumbo or primary or secondary
             if forJumbo:
                 # only OK sites for jumbo
-                if not okAsPrimay:
+                if not okAsPrimary:
                     continue
                 weightMap = weightMapJumbo
-            elif okAsPrimay:
+            elif okAsPrimary:
                 weightMap = weightMapPrimary
             else:
                 weightMap = weightMapSecondary
