@@ -720,7 +720,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         base_platform = taskSpec.get_base_platform()
         resolved_platforms = {}
         if taskSpec.transHome is not None:
-            jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map)
+            jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map, self.architecture_level_map)
             unified_site_list = self.get_unified_sites(scanSiteList)
 
             host_cpu_spec = taskSpec.get_host_cpu_spec()
