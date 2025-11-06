@@ -1375,6 +1375,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 tmpLog.error("no candidates")
                 taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
                 return retTmpError
+
         ######################################
         # selection for nPilot
         nPilotMap = {}
@@ -1535,8 +1536,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                         tmp_msg += f"since size of missing input is too large ({int(mbToMove / 1024)} GB > {moveSizeCutoffGB} GB) "
                     else:
                         tmp_msg += f"since the number of missing input files is too large ({nFilesToMove} > {moveNumFilesCutoff}) "
-                    tmp_msg += f"for IO intensive task ({taskSpec.ioIntensity} > {self.io_intensity_cutoff} kBPerS) "
-                    tmp_msg += "criteria=-io"
+                    tmp_msg += f"for IO intensive task ({taskSpec.ioIntensity} > {self.io_intensity_cutoff} kBPerS) criteria=-io"
                     msgListDT.append(tmp_msg)
                     continue
                 if mbToMove > moveSizeCutoffGB * 1024 or nFilesToMove > moveNumFilesCutoff:
@@ -1545,8 +1545,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                         tmp_msg += f"since size of missing disk input is too large ({int(mbToMove / 1024)} GB > {moveSizeCutoffGB} GB) "
                     else:
                         tmp_msg += f"since the number of missing disk input files is too large ({nFilesToMove} > {moveNumFilesCutoff}) "
-                    tmp_msg += f"for IO intensive task ({taskSpec.ioIntensity} > {self.io_intensity_cutoff} kBPerS) "
-                    tmp_msg += "criteria=-io"
+                    tmp_msg += f"for IO intensive task ({taskSpec.ioIntensity} > {self.io_intensity_cutoff} kBPerS) criteria=-io"
                     msgList.append(tmp_msg)
                     newScanSiteListWT.append(tmpSiteName)
                 else:
@@ -1851,34 +1850,28 @@ class AtlasProdJobBroker(JobBrokerBase):
                 okAsPrimary = True
             # checks
             if lockedByBrokerage:
-                ngMsg = f"  skip site={tmpPseudoSiteName} due to locked by another brokerage "
-                ngMsg += "criteria=-lock"
+                ngMsg = f"  skip site={tmpPseudoSiteName} due to locked by another brokerage criteria=-lock"
             elif skipRemoteData:
-                ngMsg = f"  skip site={tmpPseudoSiteName} due to non-local data "
-                ngMsg += "criteria=-non_local"
+                ngMsg = f"  skip site={tmpPseudoSiteName} due to non-local data criteria=-non_local"
             elif not inputChunk.isExpress() and tmpSiteSpec.capability != "ucore" and siteCandidateSpec.nQueuedJobs > siteCandidateSpec.nRunningJobsCap:
                 if not useAssigned:
                     ngMsg = f"  skip site={tmpPseudoSiteName} weight={weight} due to nDefined+nActivated+nStarting={siteCandidateSpec.nQueuedJobs} "
                     ngMsg += "(nAssigned ignored due to data locally available) "
                 else:
                     ngMsg = f"  skip site={tmpPseudoSiteName} weight={weight} due to nDefined+nActivated+nAssigned+nStarting={siteCandidateSpec.nQueuedJobs} "
-                ngMsg += f"greater than max({cutOffValue},{cutOffFactor}*nRun) "
-                ngMsg += f"{weightStr} "
-                ngMsg += "criteria=-cap"
+                ngMsg += f"greater than max({cutOffValue},{cutOffFactor}*nRun) {weightStr} criteria=-cap"
             elif self.nwActive and inputChunk.isExpress() and weightNw < self.nw_threshold * self.nw_weight_multiplier:
-                ngMsg = f"  skip site={tmpPseudoSiteName} due to low network weight for express task weightNw={weightNw} threshold={self.nw_threshold} "
-                ngMsg += f"{weightStr} "
-                ngMsg += "criteria=-lowNetworkWeight"
+                ngMsg = (
+                    f"  skip site={tmpPseudoSiteName} due to low network weight for express task weightNw={weightNw} threshold={self.nw_threshold} "
+                    f"{weightStr} criteria=-lowNetworkWeight"
+                )
             elif useCapRT and tmpRTqueue > max(cutOffValue, tmpRTrunning * RT_Cap) and not inputChunk.isExpress():
                 ngMsg = f"  skip site={tmpSiteName} since "
                 if useAssigned:
                     ngMsg += f"nDefined_rt+nActivated_rt+nAssigned_rt+nStarting_rt={tmpRTqueue} "
                 else:
-                    ngMsg += f"nDefined_rt+nActivated_rt+nStarting_rt={tmpRTqueue} "
-                    ngMsg += "(nAssigned_rt ignored due to data locally available) "
-                ngMsg += "with gshare+resource_type is greater than "
-                ngMsg += f"max({cutOffValue},{RT_Cap}*nRun_rt={RT_Cap}*{tmpRTrunning}) "
-                ngMsg += "criteria=-cap_rt"
+                    ngMsg += f"nDefined_rt+nActivated_rt+nStarting_rt={tmpRTqueue} (nAssigned_rt ignored due to data locally available) "
+                ngMsg += "with gshare+resource_type is greater than max({cutOffValue},{RT_Cap}*nRun_rt={RT_Cap}*{tmpRTrunning}) criteria=-cap_rt"
             elif (
                 nRunning + nActivated + nAssigned + nStarting + nDefined == 0
                 and taskSpec.currentPriority <= self.max_prio_for_bootstrap
@@ -1886,22 +1879,22 @@ class AtlasProdJobBroker(JobBrokerBase):
                 and not inputChunk.isExpress()
             ):
                 okMsg = f"  use site={tmpPseudoSiteName} to bootstrap (no running or queued jobs) criteria=+use"
-                ngMsg = f"  skip site={tmpPseudoSiteName} as others being bootstrapped (no running or queued jobs), "
-                ngMsg += f"weight={weight} {weightStr} "
-                ngMsg += "criteria=-others_bootstrap"
+                ngMsg = (
+                    f"  skip site={tmpPseudoSiteName} as others being bootstrapped (no running or queued jobs), "
+                    f"weight={weight} {weightStr} criteria=-others_bootstrap"
+                )
                 okAsPrimary = True
                 # set weight to 0 for subsequent processing
                 weight = 0
                 siteCandidateSpec.weight = weight
             else:
                 if min_weight > 0 and weight < min_weight:
-                    ngMsg = f"  skip site={tmpPseudoSiteName} due to weight below the minimum {min_weight_param}={min_weight}, "
-                    ngMsg += f"weight={weight} {weightStr} "
-                    ngMsg += "criteria=-below_min_weight"
+                    ngMsg = (
+                        f"  skip site={tmpPseudoSiteName} due to weight below the minimum {min_weight_param}={min_weight}, "
+                        f"weight={weight} {weightStr} criteria=-below_min_weight"
+                    )
                 elif useT1Weight:
-                    ngMsg = f"  skip site={tmpPseudoSiteName} due to low total "
-                    ngMsg += f"nRunningAll={nRunningAll} for negative T1 weight "
-                    ngMsg += "criteria=-t1_weight"
+                    ngMsg = f"  skip site={tmpPseudoSiteName} due to low total nRunningAll={nRunningAll} for negative T1 weight criteria=-t1_weight"
                     if not largestNumRun or largestNumRun[-1] < nRunningAll:
                         largestNumRun = (tmpPseudoSiteName, nRunningAll)
                         okAsPrimary = True
@@ -1911,9 +1904,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                             weightMapSecondary[tmpWeight] += tmpCandidates
                         weightMapPrimary = {}
                 else:
-                    ngMsg = f"  skip site={tmpPseudoSiteName} due to low weight, "
-                    ngMsg += f"weight={weight} {weightStr} "
-                    ngMsg += "criteria=-low_weight"
+                    ngMsg = f"  skip site={tmpPseudoSiteName} due to low weight, weight={weight} {weightStr} criteria=-low_weight"
                     okAsPrimary = True
             # add to jumbo or primary or secondary
             if forJumbo:
