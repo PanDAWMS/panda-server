@@ -495,7 +495,10 @@ class DaemonMaster(object):
         """
         try:
             config_json = daemon_config.config
-            config_dict = json.loads(config_json)
+            if isinstance(config_json, dict):
+                config_dict = config_json
+            else:
+                config_dict = json.loads(config_json)
             self.dem_config = copy.deepcopy(config_dict)
             # loop over daemons
             for dem_name, attrs in config_dict.items():
@@ -655,7 +658,7 @@ class DaemonMaster(object):
             self.global_state_map["last_warn_super_delayed_ts"] = now_ts
             self.global_state_map["last_n_super_delayed_dems"] = n_super_delayed_dems
         # call revive if too many daemons are delayed too much (probably the queue is stuck)
-        if n_super_delayed_dems >= min(4, int(len(self.dem_config) * 0.667)):
+        if n_super_delayed_dems >= max(min(4, int(len(self.dem_config) * 0.667)), 1):
             self.logger.warning(f"found {n_super_delayed_dems} daemons delayed too much; start to revive")
             self.revive()
         # spawn new workers if there are less than n_workers
