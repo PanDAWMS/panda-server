@@ -106,7 +106,7 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
                 "ava_size_any": avaSizeAny,
                 "can_be_remote_source": can_be_remote_source,
             }
-    # return
+
     return Interaction.SC_SUCCEEDED, retMap, remote_source_available
 
 
@@ -253,7 +253,7 @@ def get_sites_with_data(
                 can_be_local_source = True
             if replica_availability_info[tmp_rse]["can_be_remote_source"]:
                 can_be_remote_source = True
-    # return
+
     return (
         Interaction.SC_SUCCEEDED,
         return_map,
@@ -324,7 +324,7 @@ def getNumJobs(jobStatMap, computingSite, jobStatus, cloud=None, workQueue_tag=N
         for tmpJobStatus, tmpCount in tmpWorkQueueVal.items():
             if tmpJobStatus == jobStatus:
                 nJobs += tmpCount
-    # return
+
     return nJobs
 
 
@@ -477,7 +477,7 @@ def isMatched(siteName, nameList):
             # normal pattern
             if tmpName == siteName:
                 return True
-    # return
+
     return False
 
 
@@ -647,7 +647,7 @@ def getSiteToRunRateStats(tbIF, vo, time_window=21600, cutoff=300, cache_lifetim
                 except Exception as e:
                     err_str = f"AtlasBrokerUtils.getSiteToRunRateStats when deleting outdated entries got {e.__class__.__name__}: {e} \n"
                     sys.stderr.write(err_str)
-    # return
+
     return ret_val, ret_map
 
 
@@ -735,7 +735,7 @@ def getUsersJobsStats(tbIF, vo, prod_source_label, cache_lifetime=60):
                 sys.stderr.write(err_str)
                 # break trying
                 break
-    # return
+
     return ret_val, ret_map
 
 
@@ -756,20 +756,15 @@ def getGShareUsage(tbIF, gshare, fresher_than_minutes_ago=15):
         try:
             # query from PanDA DB directly
             sql_get_gshare = (
-                """SELECT m.value_json """
-                """FROM ATLAS_PANDA.Metrics m """
-                """WHERE m.metric=:metric """
-                """AND m.gshare=:gshare """
-                """AND m.timestamp>=:min_timestamp """
+                "SELECT m.value_json " "FROM ATLAS_PANDA.Metrics m " "WHERE m.metric=:metric " "AND m.gshare=:gshare " "AND m.timestamp>=:min_timestamp "
             )
-            # varMap
-            varMap = {
+            var_map = {
                 ":metric": "gshare_preference",
                 ":gshare": gshare,
                 ":min_timestamp": now_time - datetime.timedelta(minutes=fresher_than_minutes_ago),
             }
             # result
-            res = tbIF.querySQL(sql_get_gshare, varMap)
+            res = tbIF.querySQL(sql_get_gshare, var_map)
             if res:
                 value_json = res[0][0]
                 # json of data
@@ -784,7 +779,7 @@ def getGShareUsage(tbIF, gshare, fresher_than_minutes_ago=15):
             sys.stderr.write(err_str)
             # break trying
             break
-    # return
+
     return ret_val, ret_map
 
 
@@ -805,13 +800,12 @@ def getUserEval(tbIF, user, fresher_than_minutes_ago=20):
         try:
             # query from PanDA DB directly
             sql_get_user_eval = f'SELECT m.value_json."{user}" FROM ATLAS_PANDA.Metrics m WHERE m.metric=:metric AND m.timestamp>=:min_timestamp '
-            # varMap
-            varMap = {
+            var_map = {
                 ":metric": "analy_user_eval",
                 ":min_timestamp": now_time - datetime.timedelta(minutes=fresher_than_minutes_ago),
             }
             # result
-            res = tbIF.querySQL(sql_get_user_eval, varMap)
+            res = tbIF.querySQL(sql_get_user_eval, var_map)
             if res:
                 value_json = res[0][0]
                 # json of data
@@ -826,7 +820,7 @@ def getUserEval(tbIF, user, fresher_than_minutes_ago=20):
             sys.stderr.write(err_str)
             # break trying
             break
-    # return
+
     return ret_val, ret_map
 
 
@@ -847,20 +841,19 @@ def getUserTaskEval(tbIF, taskID, fresher_than_minutes_ago=15):
         try:
             # query from PanDA DB directly
             sql_get_task_eval = (
-                """SELECT tev.value_json """
-                """FROM ATLAS_PANDA.Task_Evaluation tev """
-                """WHERE tev.metric=:metric """
-                """AND tev.jediTaskID=:taskID """
-                """AND tev.timestamp>=:min_timestamp """
+                "SELECT tev.value_json "
+                "FROM ATLAS_PANDA.Task_Evaluation tev "
+                "WHERE tev.metric=:metric "
+                "AND tev.jediTaskID=:taskID "
+                "AND tev.timestamp>=:min_timestamp "
             )
-            # varMap
-            varMap = {
+            var_map = {
                 ":metric": "analy_task_eval",
                 ":taskID": taskID,
                 ":min_timestamp": now_time - datetime.timedelta(minutes=fresher_than_minutes_ago),
             }
-            # result
-            res = tbIF.querySQL(sql_get_task_eval, varMap)
+
+            res = tbIF.querySQL(sql_get_task_eval, var_map)
             if res:
                 value_json = res[0][0]
                 # json of data
@@ -875,7 +868,7 @@ def getUserTaskEval(tbIF, taskID, fresher_than_minutes_ago=15):
             sys.stderr.write(err_str)
             # break trying
             break
-    # return
+
     return ret_val, ret_map
 
 
@@ -896,18 +889,13 @@ def getAnalySitesClass(tbIF, fresher_than_minutes_ago=60):
         try:
             # query from PanDA DB directly
             sql_get_task_eval = (
-                """SELECT m.computingSite, m.value_json.class """
-                """FROM ATLAS_PANDA.Metrics m """
-                """WHERE m.metric=:metric """
-                """AND m.timestamp>=:min_timestamp """
+                "SELECT m.computingSite, m.value_json.class " "FROM ATLAS_PANDA.Metrics m " "WHERE m.metric=:metric " "AND m.timestamp>=:min_timestamp "
             )
-            # varMap
-            varMap = {
+            var_map = {
                 ":metric": "analy_site_eval",
                 ":min_timestamp": now_time - datetime.timedelta(minutes=fresher_than_minutes_ago),
             }
-            # result
-            res = tbIF.querySQL(sql_get_task_eval, varMap)
+            res = tbIF.querySQL(sql_get_task_eval, var_map)
             if res:
                 for site, class_value in res:
                     ret_map[site] = int(class_value)
@@ -921,7 +909,7 @@ def getAnalySitesClass(tbIF, fresher_than_minutes_ago=60):
             sys.stderr.write(err_str)
             # break trying
             break
-    # return
+
     return ret_val, ret_map
 
 
@@ -992,6 +980,8 @@ class JsonSoftwareCheck:
     ):
         okSite = []
         noAutoSite = []
+        preference_weight_map = {}
+
         for tmpSiteName in site_list:
             tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
             if tmpSiteSpec.releases == ["AUTO"] and tmpSiteName in self.sw_map:
