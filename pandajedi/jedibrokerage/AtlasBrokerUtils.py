@@ -984,7 +984,8 @@ class JsonSoftwareCheck:
         no_auto_sites = []
         preference_weight_map = {}
 
-        preferred_architecture_level = host_cpu_spec.get("preferred_instr")
+        # Does the task define a preferred architecture level?
+        preferred_architecture_level = host_cpu_pref.get("preferred_architecture_level") if host_cpu_pref else None
 
         for tmp_site_name in site_list:
             tmp_site_spec = self.siteMapper.getSite(tmp_site_name)
@@ -1021,8 +1022,10 @@ class JsonSoftwareCheck:
                             continue
 
                     # calculate the preference_weight_map for the site
-                    if host_cpu_specs:
-                        preferred_architecture_level = host_cpu_specs.get("preferred_instr")
+                    if preferred_architecture_level:
+                        preference_weight_map[tmp_site_name] = (
+                            1 + self.wn_architecture_level_map.get(tmp_site_name, {}).get(preferred_architecture_level, {}).get("pct_within_queue", 0) / 100
+                        )
 
                     if host_cpu_specs or host_gpu_spec:
                         # skip since the PQ doesn't describe HW spec
@@ -1183,7 +1186,7 @@ class JsonSoftwareCheck:
                 continue
             no_auto_sites.append(tmp_site_name)
 
-        return (ok_sites, no_auto_sites, preference_weight_map)
+        return ok_sites, no_auto_sites, preference_weight_map
 
 
 # resolve cmt_config

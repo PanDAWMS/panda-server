@@ -2,7 +2,6 @@ import copy
 import datetime
 import re
 
-from dataservice.DataServiceUtils import select_scope
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
@@ -10,6 +9,7 @@ from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandaserver.dataservice import DataServiceUtils
+from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 
@@ -750,7 +750,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 sw_version = None
                 cmt_config_only = False
 
-            siteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+            siteListWithSW, sitesNoJsonCheck, preference_weight_map = jsonCheck.check(
                 unified_site_list,
                 cvmfs_repo,
                 sw_project,

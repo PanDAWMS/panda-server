@@ -855,7 +855,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     and re.search("-\d+\.\d+\.\d+$", transHome) is None
                 ):
                     # cache is checked
-                    siteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+                    siteListWithSW, sitesNoJsonCheck, preference_weight_map = jsonCheck.check(
                         unified_site_list,
                         "atlas",
                         transHome.split("-")[0],
