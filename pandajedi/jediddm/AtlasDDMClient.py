@@ -1560,31 +1560,6 @@ class AtlasDDMClient(DDMClientBase):
         tmpLog.debug(f"got {all_ok}, {res_dict}")
         return self.SC_SUCCEEDED, (all_ok, res_dict)
 
-    # list RSEs
-    def list_rses(self, filter=None):
-        methodName = "list_rses"
-        methodName += f" filter={filter}"
-        tmpLog = MsgWrapper(logger, methodName)
-        tmpLog.debug("start")
-        ret_list = []
-        try:
-            # get rucio API
-            client = RucioClient()
-            # get RSEs
-            result = client.list_rses(filter)
-            if result:
-                # res is a generator yielding {"rse": "name_of_rse"}
-                for x in result:
-                    rse = x["rse"]
-                    ret_list.append(rse)
-        except Exception as e:
-            errType = e
-            errCode, errMsg = self.checkError(errType)
-            tmpLog.error(errMsg)
-            return errCode, f"{methodName} : {errMsg}"
-        tmpLog.debug(f"got {ret_list}")
-        return self.SC_SUCCEEDED, ret_list
-
     # list DID rules
     def list_did_rules(self, dataset_name, all_accounts=False):
         methodName = "list_did_rules"

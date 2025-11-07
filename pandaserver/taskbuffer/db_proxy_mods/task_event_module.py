@@ -3610,27 +3610,26 @@ class TaskEventModule(BaseModule):
                             # command line parameters
                             # splitting hints
                             # fixed source code
-                            if tmpKey.startswith("dsFor") or tmpKey in [
-                                "site",
-                                "cloud",
-                                "includedSite",
-                                "excludedSite",
-                                "cliParams",
-                                "nFilesPerJob",
-                                "nFiles",
-                                "nEvents",
-                                "nGBPerJob",
-                                "fixedSandbox",
-                                "ignoreMissingInDS",
-                                "currentPriority",
-                                "priority",
-                                "nMaxFilesPerJob",
-                                "ramCount",
-                                "noLoopingCheck",
-                                "loopingCheck",
-                                "avoidVP",
-                                "forceStaged",
-                            ]:
+                            if (
+                                tmpKey.startswith("dsFor")
+                                or tmpKey
+                                in [
+                                    "site",
+                                    "cloud",
+                                    "includedSite",
+                                    "excludedSite",
+                                    "cliParams",
+                                    "nFiles",
+                                    "nEvents",
+                                    "fixedSandbox",
+                                    "currentPriority",
+                                    "priority",
+                                    "ramCount",
+                                    "loopingCheck",
+                                    "forceStaged",
+                                ]
+                                + task_split_rules.changeable_split_rule_names
+                            ):
                                 if tmpKey == "priority":
                                     tmpKey = "currentPriority"
                                 if tmpKey == "loopingCheck":

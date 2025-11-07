@@ -108,6 +108,29 @@ split_rule_dict = {
     "nMaxFilesPerMergeJob": "ZM",
 }
 
+# changeable split rules
+changeable_split_rule_names = [
+    "allowIncompleteInDS",
+    "t1Weight",
+    "nEsConsumers",
+    "nMaxFilesPerJob",
+    "nGBPerJob",
+    "noInputPooling",
+    "nFilesPerJob",
+    "nEventsPerWorker",
+    "nJumboJobs",
+    "avoidVP",
+    "allowInputLAN",
+    "useLocalIO",
+    "noLoopingCheck",
+    "maxCoreCount",
+    "onlyTagsForFC",
+    "useZipToPin",
+    "ignoreMissingInDS",
+]
+
+changeable_split_rule_tags = [split_rule_dict[tmp_name] for tmp_name in changeable_split_rule_names]
+
 
 # extract rules
 def extract_rule_values(split_rules: str, rule_names: list, is_sub_rule: bool = False) -> dict:

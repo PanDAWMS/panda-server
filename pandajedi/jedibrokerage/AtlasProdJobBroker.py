@@ -688,14 +688,14 @@ class AtlasProdJobBroker(JobBrokerBase):
         if not sitePreAssigned:
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            max_core_count = taskSpec.get_max_core_count()
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 # check at the site
                 if useMP == "any" or (useMP == "only" and tmpSiteSpec.coreCount > 1) or (useMP == "unuse" and tmpSiteSpec.coreCount in [0, 1, None]):
-                    max_core_count = taskSpec.get_max_core_count()
                     if max_core_count and tmpSiteSpec.coreCount and tmpSiteSpec.coreCount > max_core_count:
                         tmpLog.info(
-                            f"  skip site={tmpSiteName} due to larger core count site:{tmpSiteSpec.coreCount} than task_max={max_core_count} criteria=-cpucore"
+                            f"  skip site={tmpSiteName} due to larger core count site:{tmpSiteSpec.coreCount} than task_max={max_core_count} criteria=-max_cpucore"
                         )
                     else:
                         newScanSiteList.append(tmpSiteName)
