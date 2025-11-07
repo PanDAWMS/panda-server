@@ -828,8 +828,11 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     is_regexp_cmt_config = True
             base_platform = taskSpec.get_base_platform()
             resolved_platforms = {}
+
             host_cpu_spec = taskSpec.get_host_cpu_spec()
+            host_cpu_pref = taskSpec.get_host_cpu_pref()
             host_gpu_spec = taskSpec.get_host_gpu_spec()
+
             if not sitePreAssigned:
                 unified_site_list = self.get_unified_sites(scanSiteList)
                 if taskSpec.transHome is not None:
@@ -857,6 +860,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         container_name=taskSpec.container_name,
                         only_tags_fc=taskSpec.use_only_tags_fc(),
                         host_cpu_specs=host_cpu_spec,
+                        host_cpu_pref=host_cpu_pref,
                         host_gpu_spec=host_gpu_spec,
                         log_stream=tmpLog,
                     )

@@ -976,12 +976,15 @@ class JsonSoftwareCheck:
         container_name=None,
         only_tags_fc=False,
         host_cpu_specs=None,
+        host_cpu_pref=None,
         host_gpu_spec=None,
         log_stream=None,
     ):
         ok_sites = []
         no_auto_sites = []
         preference_weight_map = {}
+
+        preferred_architecture_level = host_cpu_spec.get("preferred_instr")
 
         for tmp_site_name in site_list:
             tmp_site_spec = self.siteMapper.getSite(tmp_site_name)
@@ -994,6 +997,7 @@ class JsonSoftwareCheck:
                         for arch_spec in self.sw_map[tmp_site_name]["architectures"]:
                             if "type" in arch_spec:
                                 architecture_map[arch_spec["type"]] = arch_spec
+
                     # check if need CPU
                     if "cpu" in architecture_map:
                         need_cpu = False
@@ -1004,6 +1008,7 @@ class JsonSoftwareCheck:
                                     break
                         if need_cpu and host_cpu_specs is None:
                             continue
+
                     # check if need GPU
                     if "gpu" in architecture_map:
                         need_gpu = False
@@ -1014,6 +1019,11 @@ class JsonSoftwareCheck:
                                     break
                         if need_gpu and host_gpu_spec is None:
                             continue
+
+                    # calculate the preference_weight_map for the site
+                    if host_cpu_specs:
+                        preferred_architecture_level = host_cpu_specs.get("preferred_instr")
+
                     if host_cpu_specs or host_gpu_spec:
                         # skip since the PQ doesn't describe HW spec
                         if not architecture_map:
