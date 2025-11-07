@@ -22,7 +22,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_task_buffer = task_buffer
 
 
-@request_validation(_logger, secure=True, request_method="GET")
+@request_validation(_logger, secure=False, request_method="GET")
 def job_stats_by_cloud(req: PandaRequest, type: str = "production") -> Dict[str, Any]:
     """
     Job statistics by cloud.
@@ -56,7 +56,7 @@ def job_stats_by_cloud(req: PandaRequest, type: str = "production") -> Dict[str,
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True, request_method="GET")
+@request_validation(_logger, secure=False, request_method="GET")
 def production_job_stats_by_cloud_and_processing_type(req: PandaRequest) -> Dict[str, Any]:
     """
     Production job statistics by cloud and processing type.
@@ -85,7 +85,7 @@ def production_job_stats_by_cloud_and_processing_type(req: PandaRequest) -> Dict
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True, request_method="GET")
+@request_validation(_logger, secure=False, request_method="GET")
 def active_job_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
     """
     Active job statistics by site
@@ -113,7 +113,7 @@ def active_job_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True, request_method="GET")
+@request_validation(_logger, secure=False, request_method="GET")
 def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
     """
     Job statistics by site and resource type
@@ -146,7 +146,7 @@ def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int = No
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True, request_method="GET")
+@request_validation(_logger, secure=False, request_method="GET")
 def job_stats_by_site_share_and_resource_type(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
     """
     Job statistics by site, global share and resource type
