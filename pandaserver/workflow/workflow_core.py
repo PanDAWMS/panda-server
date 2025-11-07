@@ -403,8 +403,8 @@ class WorkflowInterface(object):
                     data_spec.check_time = now_time
                     self.tbif.update_workflow_data(data_spec)
                 case WFDataStatus.checked_exist:
-                    # Data already fully exist, advance to done_exist
-                    data_spec.status = WFDataStatus.done_exist
+                    # Data already fully exist, advance to done_skipped
+                    data_spec.status = WFDataStatus.done_skipped
                     data_spec.check_time = now_time
                     data_spec.end_time = now_time
                     self.tbif.update_workflow_data(data_spec)
@@ -464,8 +464,8 @@ class WorkflowInterface(object):
             elif original_status == WFDataStatus.generating_ready:
                 match check_result.check_status:
                     case WFDataTargetCheckStatus.exist:
-                        # Data fully exist, advance to final status done_exist
-                        data_spec.status = WFDataStatus.done_exist
+                        # Data fully exist, advance to final status done_generated
+                        data_spec.status = WFDataStatus.done_generated
                         process_result.new_status = data_spec.status
                         data_spec.end_time = now_time
                     case WFDataTargetCheckStatus.partex:
