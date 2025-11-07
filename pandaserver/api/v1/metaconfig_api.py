@@ -51,7 +51,7 @@ def get_banned_users(req: PandaRequest) -> dict:
     return generate_response(success, data=users)
 
 
-@request_validation(_logger, secure=True, request_method="GET")
+@request_validation(_logger, secure=False, request_method="GET")
 def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict:
     """
     Get site specs
