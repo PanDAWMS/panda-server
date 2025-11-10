@@ -1965,80 +1965,103 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get file spec of lib.tgz
-    def getBuildFileSpec_JEDI(self, jediTaskID, siteName, associatedSites):
-        comment = " /* JediDBProxy.getBuildFileSpec_JEDI */"
-        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} siteName={siteName}")
-        tmpLog.debug("start")
-        tmpLog.debug(f"associatedSites={str(associatedSites)}")
+    def get_previous_build_file_spec(
+        self, jedi_task_id: int, site_name: str, associated_sites: list
+    ) -> tuple[bool, JediFileSpec | None, JediDatasetSpec | None]:
+        """
+        Get the file and dataset specs of lib.tgz for a given task ID and site name which was generated in a previous submission cycle.
+
+        Args:
+            jedi_task_id (int): The JEDI task ID.
+            site_name (str): The site name where the lib.tgz is located.
+            associated_sites (list): A list of associated site names
+
+        Returns:
+            tuple: A tuple containing:
+                bool: Success flag
+                JediFileSpec | None: The file specification of lib.tgz if found, else None
+                JediDatasetSpec | None: The dataset specification if found, else None
+        """
+        comment = " /* JediDBProxy.get_previous_build_file_spec */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} siteName={site_name}")
+        tmp_log.debug("start")
+        tmp_log.debug(f"associatedSites={str(associated_sites)}")
         try:
             # sql to get dataset
-            sqlRD = f"SELECT {JediDatasetSpec.columnNames()} "
-            sqlRD += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlRD += "WHERE jediTaskID=:jediTaskID AND type=:type AND site=:site "
-            sqlRD += "AND (state IS NULL OR state<>:state) "
-            sqlRD += "ORDER BY creationTime DESC "
+            sql_read_dataset = f"SELECT {JediDatasetSpec.columnNames()} "
+            sql_read_dataset += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+            sql_read_dataset += "WHERE jediTaskID=:jediTaskID AND type=:type AND site=:site "
+            sql_read_dataset += "AND (state IS NULL OR state<>:state) "
+            sql_read_dataset += "ORDER BY creationTime DESC "
             # sql to read files
-            sqlFR = f"SELECT {JediFileSpec.columnNames()} "
-            sqlFR += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-            sqlFR += "jediTaskID=:jediTaskID AND datasetID=:datasetID AND type=:type "
-            sqlFR += "AND status IN (:status1) "
-            sqlFR += "ORDER BY creationDate DESC "
+            sql_read_file = f"SELECT {JediFileSpec.columnNames()} "
+            sql_read_file += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+            sql_read_file += "jediTaskID=:jediTaskID AND datasetID=:datasetID AND type=:type "
+            sql_read_file += "AND NOt status IN (:status1,:status2) "
+            sql_read_file += "ORDER BY creationDate DESC "
             # start transaction
             self.conn.begin()
-            foundFlag = False
-            for tmpSiteName in [siteName] + associatedSites:
+            found_flag = False
+            file_spec = None
+            dataset_spec = None
+            for tmp_site_name in [site_name] + associated_sites:
                 # get dataset
-                varMap = {}
-                varMap[":type"] = "lib"
-                varMap[":site"] = tmpSiteName
-                varMap[":state"] = "closed"
-                varMap[":jediTaskID"] = jediTaskID
-                self.cur.execute(sqlRD + comment, varMap)
-                resList = self.cur.fetchall()
+                var_map = {":type": "lib", ":site": tmp_site_name, ":state": "closed", ":jediTaskID": jedi_task_id}
+                self.cur.execute(sql_read_dataset + comment, var_map)
+                res_list = self.cur.fetchall()
                 # loop over all datasets
-                fileSpec = None
-                datasetSpec = None
-                for resItem in resList:
-                    datasetSpec = JediDatasetSpec()
-                    datasetSpec.pack(resItem)
+                for res_item in res_list:
+                    dataset_spec = JediDatasetSpec()
+                    dataset_spec.pack(res_item)
                     # get file
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":datasetID"] = datasetSpec.datasetID
-                    varMap[":type"] = "lib"
-                    varMap[":status1"] = "finished"
-                    self.cur.execute(sqlFR + comment, varMap)
-                    resFileList = self.cur.fetchall()
-                    for resFile in resFileList:
+                    var_map = {":jediTaskID": jedi_task_id, ":datasetID": dataset_spec.datasetID, ":type": "lib", ":status1": "failed", ":status2": "cancelled"}
+                    self.cur.execute(sql_read_file + comment, var_map)
+                    res_file_list = self.cur.fetchall()
+                    for res_file_item in res_file_list:
                         # make FileSpec
-                        fileSpec = JediFileSpec()
-                        fileSpec.pack(resFile)
-                        foundFlag = True
-                        break
+                        file_spec = JediFileSpec()
+                        file_spec.pack(res_file_item)
+                        if file_spec.status == "finished":
+                            found_flag = True
+                            break
                     # no more dataset lookup
-                    if foundFlag:
+                    if found_flag:
                         break
                 # no more lookup with other sites
-                if foundFlag:
+                if found_flag:
                     break
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return
-            if fileSpec is not None:
-                tmpLog.debug(f"got lib.tgz={fileSpec.lfn}")
+            if file_spec is not None:
+                tmp_log.debug(f"got lib.tgz={file_spec.lfn} status={file_spec.status}")
             else:
-                tmpLog.debug("no lib.tgz")
-            return True, fileSpec, datasetSpec
+                tmp_log.debug("no lib.tgz")
+            return True, file_spec, dataset_spec
         except Exception:
             # roll back
             self._rollback()
             # error
-            self.dump_error_message(tmpLog)
-            return False, None
+            self.dump_error_message(tmp_log)
+            return False, None, None
 
     # get file spec of old lib.tgz
-    def getOldBuildFileSpec_JEDI(self, jediTaskID, datasetID, fileID):
+    def getOldBuildFileSpec_JEDI(self, jediTaskID: int, datasetID: int, fileID: int) -> tuple[bool, JediFileSpec | None, JediDatasetSpec | None]:
+        """
+        Get the file and dataset specs of an old lib.tgz using jediTaskID, datasetID, and fileID which was generated in the current submission cycle.
+
+        Args:
+            jediTaskID (int): The JEDI task ID.
+            datasetID (int): The dataset ID.
+            fileID (int): The file ID.
+
+        Returns:
+            tuple: A tuple containing:
+                bool: Success flag
+                JediFileSpec | None: The file specification of lib.tgz if found, else None
+                JediDatasetSpec | None: The dataset specification if found, else None
+        """
         comment = " /* JediDBProxy.getOldBuildFileSpec_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID} fileID={fileID}")
         tmpLog.debug("start")

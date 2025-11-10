@@ -529,9 +529,9 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
             return proxy.kickExhaustedTasks_JEDI(vo, prodSourceLabel, timeLimit)
 
     # get file spec of lib.tgz
-    def getBuildFileSpec_JEDI(self, jediTaskID, siteName, associatedSites):
+    def get_previous_build_file_spec(self, jediTaskID, siteName, associatedSites):
         with self.proxyPool.get() as proxy:
-            return proxy.getBuildFileSpec_JEDI(jediTaskID, siteName, associatedSites)
+            return proxy.get_previous_build_file_spec(jediTaskID, siteName, associatedSites)
 
     # get file spec of old lib.tgz
     def getOldBuildFileSpec_JEDI(self, jediTaskID, datasetID, fileID):
