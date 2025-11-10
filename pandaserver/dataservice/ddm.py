@@ -1093,7 +1093,7 @@ class RucioAPI:
             return None
 
     # get files in dataset
-    def get_files_in_dataset(self, dataset_name, ski_duplicate=True, ignore_unknown=False, long_format=False, lfn_only=False):
+    def get_files_in_dataset(self, dataset_name, skip_duplicate=True, ignore_unknown=False, long_format=False, lfn_only=False):
         method_name = "get_files_in_dataset"
         method_name += f" <dataset_name={dataset_name}>"
         tmp_log = LogWrapper(_logger, method_name)
@@ -1131,7 +1131,7 @@ class RucioAPI:
                 guid = str(f"{x['guid'][0:8]}-{x['guid'][8:12]}-{x['guid'][12:16]}-{x['guid'][16:20]}-{x['guid'][20:32]}")
                 attrs["guid"] = guid
                 # skip duplicated files
-                if ski_duplicate:
+                if skip_duplicate:
                     # extract base LFN and attempt number
                     baseLFN = re.sub("(\.(\d+))$", "", lfn)
                     attNr = re.sub(baseLFN + "\.*", "", lfn)

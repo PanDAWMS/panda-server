@@ -88,11 +88,14 @@ class DDMCollectionDataHandler(BaseDataHandler):
             return check_result
         match collection_meta.get("state"):
             case DDMCollectionState.missing:
-                check_result.check_status = WFDataTargetCheckStatus.nonex
+                check_result.check_status = WFDataTargetCheckStatus.nonexist
             case DDMCollectionState.open:
-                check_result.check_status = WFDataTargetCheckStatus.partex
+                if collection_meta.get("length", 0) == 0:
+                    check_result.check_status = WFDataTargetCheckStatus.insuff
+                else:
+                    check_result.check_status = WFDataTargetCheckStatus.partial
             case DDMCollectionState.closed:
-                check_result.check_status = WFDataTargetCheckStatus.exist
+                check_result.check_status = WFDataTargetCheckStatus.complete
         check_result.metadata = collection_meta
         check_result.success = True
         tmp_log.info(f"Got collection {collection} check_status={check_result.check_status}")

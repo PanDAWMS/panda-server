@@ -71,11 +71,13 @@ class WFDataStatus(object):
 
     registered = "registered"
     checking = "checking"
-    checked_nonex = "checked_nonex"
-    checked_partex = "checked_partex"
-    checked_exist = "checked_exist"
+    checked_nonexist = "checked_nonexist"  # data does not exist
+    checked_insuff = "checked_insuff"  # data available but insufficient to be step input
+    checked_partial = "checked_partial"  # data partially available and sufficient to be step input
+    checked_complete = "checked_complete"  # data completely available
     generating_start = "generating_start"
     generating_ready = "generating_ready"
+    waiting_unready = "waiting_unready"
     waiting_ready = "waiting_ready"
     done_generated = "done_generated"
     done_waited = "done_waited"
@@ -83,7 +85,8 @@ class WFDataStatus(object):
     cancelled = "cancelled"
     retired = "retired"
 
-    checked_statuses = (checked_nonex, checked_partex, checked_exist)
+    checked_statuses = (checked_nonexist, checked_partial, checked_complete)
+    waiting_statuses = (waiting_unready, waiting_ready)
     generating_statues = (generating_start, generating_ready)
     done_statuses = (done_generated, done_waited, done_skipped)
     good_input_statuses = (generating_ready, waiting_ready, done_generated, done_waited, done_skipped)
@@ -478,9 +481,10 @@ class WFDataTargetCheckStatus:
     Possible statuses returned by data target check
     """
 
-    exist = "exist"  # data fully exists
-    partex = "partex"  # data partially exists
-    nonex = "nonex"  # data does not exist
+    complete = "complete"  # data completely exists
+    partial = "partial"  # data partially exists
+    insuff = "insuff"  # data exists but insufficient to be step input
+    nonexist = "nonexist"  # data does not exist
 
 
 @dataclass(slots=True)

@@ -63,6 +63,8 @@ PLUGIN_RAW_MAP = {
     },
     "data_handler": {
         "ddm_collection": ("ddm_collection_data_handler", "DDMCollectionDataHandler"),
+        "panda_task": ("panda_task_data_handler", "PandaTaskDataHandler"),
+        # Add more data handler plugins here
     },
     # Add more plugin types here
 }
@@ -349,12 +351,12 @@ class WorkflowInterface(object):
             # Update data status
             now_time = naive_utcnow()
             match check_result.check_status:
-                case WFDataTargetCheckStatus.nonex:
-                    data_spec.status = WFDataStatus.checked_nonex
-                case WFDataTargetCheckStatus.partex:
-                    data_spec.status = WFDataStatus.checked_partex
-                case WFDataTargetCheckStatus.exist:
-                    data_spec.status = WFDataStatus.checked_exist
+                case WFDataTargetCheckStatus.nonexist:
+                    data_spec.status = WFDataStatus.checked_nonexist
+                case WFDataTargetCheckStatus.partial:
+                    data_spec.status = WFDataStatus.checked_partial
+                case WFDataTargetCheckStatus.complete:
+                    data_spec.status = WFDataStatus.checked_complete
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
             process_result.new_status = data_spec.status
@@ -381,7 +383,7 @@ class WorkflowInterface(object):
         # Initialize
         process_result = WFDataProcessResult()
         # Check status
-        if data_spec.status not in (WFDataStatus.checked_nonex, WFDataStatus.checked_partex, WFDataStatus.checked_exist):
+        if data_spec.status not in (WFDataStatus.checked_nonexist, WFDataStatus.checked_partial, WFDataStatus.checked_complete):
             process_result.message = f"Data status changed unexpectedly from checked_* to {data_spec.status}; skipped"
             tmp_log.warning(f"{process_result.message}")
             return process_result
@@ -391,18 +393,23 @@ class WorkflowInterface(object):
             # Update data status based on check result
             now_time = naive_utcnow()
             match data_spec.status:
-                case WFDataStatus.checked_nonex:
+                case WFDataStatus.checked_nonexist:
                     # Data does not exist, advance to generating_start
                     data_spec.status = WFDataStatus.generating_start
                     data_spec.check_time = now_time
                     data_spec.start_time = now_time
                     self.tbif.update_workflow_data(data_spec)
-                case WFDataStatus.checked_partex:
+                case WFDataStatus.checked_insuff:
+                    # Data insufficient, advance to waiting_unready
+                    data_spec.status = WFDataStatus.waiting_unready
+                    data_spec.check_time = now_time
+                    self.tbif.update_workflow_data(data_spec)
+                case WFDataStatus.checked_partial:
                     # Data partially exist, advance to waiting_ready
                     data_spec.status = WFDataStatus.waiting_ready
                     data_spec.check_time = now_time
                     self.tbif.update_workflow_data(data_spec)
-                case WFDataStatus.checked_exist:
+                case WFDataStatus.checked_complete:
                     # Data already fully exist, advance to done_skipped
                     data_spec.status = WFDataStatus.done_skipped
                     data_spec.check_time = now_time
@@ -451,11 +458,11 @@ class WorkflowInterface(object):
             now_time = naive_utcnow()
             if original_status == WFDataStatus.generating_start:
                 match check_result.check_status:
-                    case WFDataTargetCheckStatus.partex | WFDataTargetCheckStatus.exist:
+                    case WFDataTargetCheckStatus.partial | WFDataTargetCheckStatus.complete:
                         # Data exist, advance to generating_ready
                         data_spec.status = WFDataStatus.generating_ready
                         process_result.new_status = data_spec.status
-                    case WFDataTargetCheckStatus.nonex:
+                    case WFDataTargetCheckStatus.nonexist:
                         # Data not yet exist, stay in generating_start
                         pass
                     case _:
@@ -463,15 +470,15 @@ class WorkflowInterface(object):
                         tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
             elif original_status == WFDataStatus.generating_ready:
                 match check_result.check_status:
-                    case WFDataTargetCheckStatus.exist:
+                    case WFDataTargetCheckStatus.complete:
                         # Data fully exist, advance to final status done_generated
                         data_spec.status = WFDataStatus.done_generated
                         process_result.new_status = data_spec.status
                         data_spec.end_time = now_time
-                    case WFDataTargetCheckStatus.partex:
+                    case WFDataTargetCheckStatus.partial:
                         # Data still partially exist, stay in generating_ready
                         pass
-                    case WFDataTargetCheckStatus.nonex:
+                    case WFDataTargetCheckStatus.nonexist:
                         # Data not exist anymore, unexpected, log and skip
                         tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
                     case _:
@@ -505,7 +512,7 @@ class WorkflowInterface(object):
         # Initialize
         process_result = WFDataProcessResult()
         # Check status
-        if data_spec.status not in (WFDataStatus.waiting_ready,):
+        if data_spec.status not in WFDataStatus.waiting_statuses:
             process_result.message = f"Data status changed unexpectedly from waiting_* to {data_spec.status}; skipped"
             tmp_log.warning(f"{process_result.message}")
             return process_result
@@ -524,15 +531,37 @@ class WorkflowInterface(object):
             now_time = naive_utcnow()
             if original_status == WFDataStatus.waiting_ready:
                 match check_result.check_status:
-                    case WFDataTargetCheckStatus.exist:
+                    case WFDataTargetCheckStatus.complete:
                         # Data fully exist, advance to final status done_waited
                         data_spec.status = WFDataStatus.done_waited
                         process_result.new_status = data_spec.status
                         data_spec.end_time = now_time
-                    case WFDataTargetCheckStatus.partex:
+                    case WFDataTargetCheckStatus.partial:
                         # Data still partially exist, stay in waiting_ready
                         pass
-                    case WFDataTargetCheckStatus.nonex:
+                    case WFDataTargetCheckStatus.insuff:
+                        # Data not sufficient anymore, unexpected, log and skip
+                        tmp_log.warning(f"Data are not sufficient anymore, unexpected; skipped")
+                    case WFDataTargetCheckStatus.nonexist:
+                        # Data not exist anymore, unexpected, log and skip
+                        tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
+                    case _:
+                        tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
+            elif original_status == WFDataStatus.waiting_unready:
+                match check_result.check_status:
+                    case WFDataTargetCheckStatus.partial:
+                        # Data partially exist, advance to waiting_ready
+                        data_spec.status = WFDataStatus.waiting_ready
+                        process_result.new_status = data_spec.status
+                    case WFDataTargetCheckStatus.complete:
+                        # Data fully exist, advance to final status done_waited
+                        data_spec.status = WFDataStatus.done_waited
+                        process_result.new_status = data_spec.status
+                        data_spec.end_time = now_time
+                    case WFDataTargetCheckStatus.insuff:
+                        # Data still insufficient, stay in waiting_unready
+                        pass
+                    case WFDataTargetCheckStatus.nonexist:
                         # Data not exist anymore, unexpected, log and skip
                         tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
                     case _:
@@ -574,7 +603,7 @@ class WorkflowInterface(object):
                         tmp_res = self.process_data_registered(data_spec)
                     case WFDataStatus.checking:
                         tmp_res = self.process_data_checking(data_spec)
-                    case WFDataStatus.checked_nonex | WFDataStatus.checked_partex | WFDataStatus.checked_exist:
+                    case WFDataStatus.checked_nonexist | WFDataStatus.checked_partial | WFDataStatus.checked_complete:
                         tmp_res = self.process_data_checked(data_spec)
                     case WFDataStatus.generating_start | WFDataStatus.generating_ready:
                         tmp_res = self.process_data_generating(data_spec)
@@ -786,7 +815,7 @@ class WorkflowInterface(object):
                     data_spec.set_parameter("output_types", output_types)
                     data_spec.status = WFDataStatus.registered
                     data_spec.type = WFDataType.mid
-                    data_spec.flavor = "ddm_collection"  # FIXME: hardcoded flavor, should be configurable
+                    data_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
                     data_spec.creation_time = now_time
                     self.tbif.insert_workflow_data(data_spec)
                     tmp_log.debug(f"Registered mid data {output_data_name} of step_id={step_spec.step_id}")
@@ -1125,7 +1154,7 @@ class WorkflowInterface(object):
                 data_spec.set_parameter("output_types", output_dict.get("output_types"))
                 data_spec.status = WFDataStatus.registered
                 data_spec.type = WFDataType.output
-                data_spec.flavor = "ddm_collection"  # FIXME: hardcoded flavor, should be configurable
+                data_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
                 data_spec.creation_time = now_time
                 data_specs.append(data_spec)
             # Register steps based on nodes in the definition
