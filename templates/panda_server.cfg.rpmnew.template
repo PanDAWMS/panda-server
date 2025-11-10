@@ -339,5 +339,5 @@ config = {
     "cache_pilots": {
         "enable": true, "period": 3600},
     "hs_scrapers": {
-        "enable": true, "period": 604800, "sync": true},
+        "enable": true, "period": 604800, "sync": true}
   }
