@@ -313,7 +313,7 @@ class WorkflowInterface(object):
             tmp_log.info(f"Done, status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
-            tmp_log.error(f"{process_result.message}")
+            tmp_log.error(f"{traceback.format_exc()}")
         return process_result
 
     def process_data_checking(self, data_spec: WFDataSpec) -> WFDataProcessResult:
@@ -364,7 +364,7 @@ class WorkflowInterface(object):
             tmp_log.info(f"Done, status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
-            tmp_log.error(f"{process_result.message}")
+            tmp_log.error(f"{traceback.format_exc()}")
         return process_result
 
     def process_data_checked(self, data_spec: WFDataSpec) -> WFDataProcessResult:
@@ -420,7 +420,7 @@ class WorkflowInterface(object):
             tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
-            tmp_log.error(f"{process_result.message}")
+            tmp_log.error(f"{traceback.format_exc()}")
         return process_result
 
     def process_data_generating(self, data_spec: WFDataSpec) -> WFDataProcessResult:
@@ -493,7 +493,7 @@ class WorkflowInterface(object):
                 tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
-            tmp_log.error(f"{process_result.message}")
+            tmp_log.error(f"{traceback.format_exc()}")
         return process_result
 
     def process_data_waiting(self, data_spec: WFDataSpec) -> WFDataProcessResult:
@@ -572,7 +572,7 @@ class WorkflowInterface(object):
             tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
-            tmp_log.error(f"{process_result.message}")
+            tmp_log.error(f"{traceback.format_exc()}")
         return process_result
 
     def process_data_specs(self, data_specs: List[WFDataSpec]) -> Dict:
