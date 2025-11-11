@@ -791,21 +791,28 @@ class RucioAPI:
         Tuple[bool, Union[int, str]]: A tuple containing a boolean indicating the success of the operation and the number of files or an error message.
         If an exception occurs, the boolean is False and the string contains the error message.
         """
+        # make logger
+        method_name = "get_number_of_files"
+        method_name = f"{method_name} dataset_name={dataset_name}"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
         # extract scope from dataset
         scope, dataset_name = self.extract_scope(dataset_name)
         if preset_scope is not None:
             scope = preset_scope
-        client = RucioClient()
-        n_files = 0
         try:
+            client = RucioClient()
+            n_files = 0
             for _ in client.list_files(scope, dataset_name):
                 n_files += 1
             return True, n_files
         except DataIdentifierNotFound:
+            tmp_log.debug("dataset not found")
             return None, "dataset not found"
         except Exception:
             err_type, err_value = sys.exc_info()[:2]
             err_msg = f"{err_type.__name__} {err_value}"
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
             return False, err_msg
 
     # list datasets with GUIDs

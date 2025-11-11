@@ -171,7 +171,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             task_status = res[0]
             check_result.success = True
             check_result.native_status = task_status
-            if task_status in ["running", "transferring", "transferred", "merging"]:
+            if task_status in ["running", "scouting", "scouted", "throttled", "prepared", "finishing", "passed"]:
                 check_result.step_status = WFStepStatus.running
             elif task_status in ["defined", "assigned", "activated", "starting", "ready", "pending"]:
                 check_result.step_status = WFStepStatus.submitted
