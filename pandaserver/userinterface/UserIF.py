@@ -196,32 +196,6 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-    # get job statistics
-    def getJobStatistics(self, sourcetype=None):
-        # get job statistics
-        ret = self.taskBuffer.getJobStatisticsForExtIF(sourcetype)
-        return WrappedPickle.dumps(ret)
-
-    # get job statistics for Bamboo
-    def getJobStatisticsForBamboo(self):
-        ret = self.taskBuffer.getJobStatisticsForBamboo()
-        return WrappedPickle.dumps(ret)
-
-    # get job statistics per site
-    def getJobStatisticsPerSite(self):
-        ret = self.taskBuffer.getJobStatistics()
-        return WrappedPickle.dumps(ret, convert_to_safe=True)
-
-    # get job statistics per site and resource
-    def getJobStatisticsPerSiteResource(self, timeWindow):
-        ret = self.taskBuffer.getJobStatisticsPerSiteResource(timeWindow)
-        return json.dumps(ret)
-
-    # get job statistics per site, source label, and resource type
-    def get_job_statistics_per_site_label_resource(self, time_window):
-        ret = self.taskBuffer.get_job_statistics_per_site_label_resource(time_window)
-        return json.dumps(ret)
-
     # kill jobs
     def killJobs(self, idsStr, user, host, code, prodManager, useMailAsID, fqans, killOpts=[]):
         # deserialize IDs
@@ -269,30 +243,6 @@ class UserIF:
             firstSubmission=firstSubmission,
         )
         return WrappedPickle.dumps(ret)
-
-    # get list of site spec
-    def getSiteSpecs(self, siteType="analysis"):
-        # get analysis site list
-        specList = {}
-        siteMapper = SiteMapper(self.taskBuffer)
-        for id in siteMapper.siteSpecList:
-            spec = siteMapper.siteSpecList[id]
-            if siteType == "all" or spec.type == siteType:
-                # convert to map
-                tmpSpec = {}
-                for attr in spec._attributes:
-                    if attr in [
-                        "ddm_endpoints_input",
-                        "ddm_endpoints_output",
-                        "ddm_input",
-                        "ddm_output",
-                        "setokens_input",
-                        "num_slots_map",
-                    ]:
-                        continue
-                    tmpSpec[attr] = getattr(spec, attr)
-                specList[id] = tmpSpec
-        return WrappedPickle.dumps(specList)
 
     # get script for offline running
     def getScriptOfflineRunning(self, pandaID, days=None):
@@ -796,27 +746,6 @@ def checkSandboxFile(req, fileSize, checkSum):
     return userIF.checkSandboxFile(user, fileSize, checkSum)
 
 
-# get job statistics
-def getJobStatistics(req, sourcetype=None):
-    return userIF.getJobStatistics(sourcetype)
-
-
-# get statistics for production jobs by processingType
-def getJobStatisticsForBamboo(req, useMorePG=None):
-    # useMorePG is an obsoleted parameter that is not used anymore
-    return userIF.getJobStatisticsForBamboo()
-
-
-# get job statistics per site and resource
-def getJobStatisticsPerSiteResource(req, timeWindow=None):
-    return userIF.getJobStatisticsPerSiteResource(timeWindow)
-
-
-# get job statistics per site and resource
-def get_job_statistics_per_site_label_resource(req, time_window=None):
-    return userIF.get_job_statistics_per_site_label_resource(time_window)
-
-
 # get job statistics per site
 def getJobStatisticsPerSite(req):
     return userIF.getJobStatisticsPerSite()
@@ -866,14 +795,6 @@ def reassignJobs(req, ids, forPending=None, firstSubmission=None):
     firstSubmission = resolve_false(firstSubmission)
 
     return userIF.reassignJobs(ids, user, host, forPending, firstSubmission)
-
-
-# get list of site spec
-def getSiteSpecs(req, siteType=None):
-    if siteType is not None:
-        return userIF.getSiteSpecs(siteType)
-    else:
-        return userIF.getSiteSpecs()
 
 
 # get ban users
