@@ -1233,7 +1233,7 @@ class WorkflowInterface(object):
         # Process
         try:
             # Process data specs first
-            data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id)
+            data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id, status_exclusion_list=list(WFDataStatus.terminated_statuses))
             data_status_stats = self.process_data_specs(data_specs)
             # Get steps in registered status
             required_step_statuses = list(WFStepStatus.to_advance_step_statuses)
@@ -1299,10 +1299,10 @@ class WorkflowInterface(object):
         # Process
         try:
             # Process data specs first
-            data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id)
+            data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id, status_exclusion_list=list(WFDataStatus.terminated_statuses))
             data_status_stats = self.process_data_specs(data_specs)
             # Get steps
-            step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id)
+            step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_exclusion_list=list(WFStepStatus.final_statuses))
             if not step_specs:
                 process_result.message = f"No step in required status; skipped"
                 tmp_log.warning(f"{process_result.message}")
