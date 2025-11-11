@@ -22,7 +22,7 @@ PANDA_HOME=/data/atlpan
 TZ=UTC
 
 # avoid to use AFS
-HOME=~atlpan
+HOME=/home/atlpan
 
 # starts with non-root
 PANDA_NO_ROOT=1

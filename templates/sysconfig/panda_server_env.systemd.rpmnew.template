@@ -22,7 +22,7 @@ TZ=UTC
 PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
 
 # avoid to use AFS
-HOME=~@@panda_user@@
+HOME=/home/@@panda_user@@
 
 # set user's proxy
 X509_USER_PROXY=/data/atlpan/x509up_u25606
