@@ -344,7 +344,13 @@ class WorkflowInterface(object):
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
             # Check the data status
             check_result = data_handler.check_target(data_spec)
-            if not check_result.success or check_result.check_status is None:
+            if check_result.success and check_result.check_status is None:
+                # No status change
+                process_result.message = f"Skipped; {check_result.message}"
+                tmp_log.debug(f"{process_result.message}")
+                process_result.success = True
+                return process_result
+            elif not check_result.success or check_result.check_status is None:
                 process_result.message = f"Failed to check data; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
@@ -353,6 +359,8 @@ class WorkflowInterface(object):
             match check_result.check_status:
                 case WFDataTargetCheckStatus.nonexist:
                     data_spec.status = WFDataStatus.checked_nonexist
+                case WFDataTargetCheckStatus.insuff:
+                    data_spec.status = WFDataStatus.checked_insuff
                 case WFDataTargetCheckStatus.partial:
                     data_spec.status = WFDataStatus.checked_partial
                 case WFDataTargetCheckStatus.complete:
@@ -383,7 +391,7 @@ class WorkflowInterface(object):
         # Initialize
         process_result = WFDataProcessResult()
         # Check status
-        if data_spec.status not in (WFDataStatus.checked_nonexist, WFDataStatus.checked_partial, WFDataStatus.checked_complete):
+        if data_spec.status not in WFDataStatus.checked_statuses:
             process_result.message = f"Data status changed unexpectedly from checked_* to {data_spec.status}; skipped"
             tmp_log.warning(f"{process_result.message}")
             return process_result
@@ -439,7 +447,7 @@ class WorkflowInterface(object):
         # Initialize
         process_result = WFDataProcessResult()
         # Check status
-        if data_spec.status not in (WFDataStatus.generating_start, WFDataStatus.generating_ready):
+        if data_spec.status not in WFDataStatus.generating_statuses:
             process_result.message = f"Data status changed unexpectedly from generating_* to {data_spec.status}; skipped"
             tmp_log.warning(f"{process_result.message}")
             return process_result
@@ -450,7 +458,13 @@ class WorkflowInterface(object):
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
             # Check the data status
             check_result = data_handler.check_target(data_spec)
-            if not check_result.success or check_result.check_status is None:
+            if check_result.success and check_result.check_status is None:
+                # No status change
+                process_result.message = f"Skipped; {check_result.message}"
+                tmp_log.debug(f"{process_result.message}")
+                process_result.success = True
+                return process_result
+            elif not check_result.success or check_result.check_status is None:
                 process_result.message = f"Failed to check data; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
@@ -462,9 +476,28 @@ class WorkflowInterface(object):
                         # Data exist, advance to generating_ready
                         data_spec.status = WFDataStatus.generating_ready
                         process_result.new_status = data_spec.status
+                    case WFDataTargetCheckStatus.insuff:
+                        # Data insufficient, move to generating_unready
+                        data_spec.status = WFDataStatus.generating_unready
+                        process_result.new_status = data_spec.status
                     case WFDataTargetCheckStatus.nonexist:
                         # Data not yet exist, stay in generating_start
                         pass
+                    case _:
+                        # Unexpected status, log and skip
+                        tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
+            elif original_status == WFDataStatus.generating_unready:
+                match check_result.check_status:
+                    case WFDataTargetCheckStatus.partial | WFDataTargetCheckStatus.complete:
+                        # Data now exist, advance to generating_ready
+                        data_spec.status = WFDataStatus.generating_ready
+                        process_result.new_status = data_spec.status
+                    case WFDataTargetCheckStatus.insuff:
+                        # Data still insufficient, stay in generating_unready
+                        pass
+                    case WFDataTargetCheckStatus.nonexist:
+                        # Data not exist anymore, unexpected, log and skip
+                        tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
                     case _:
                         # Unexpected status, log and skip
                         tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
@@ -478,6 +511,9 @@ class WorkflowInterface(object):
                     case WFDataTargetCheckStatus.partial:
                         # Data still partially exist, stay in generating_ready
                         pass
+                    case WFDataTargetCheckStatus.insuff:
+                        # Data not sufficient anymore, unexpected, log and skip
+                        tmp_log.warning(f"Data are not sufficient anymore, unexpected; skipped")
                     case WFDataTargetCheckStatus.nonexist:
                         # Data not exist anymore, unexpected, log and skip
                         tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
@@ -523,7 +559,13 @@ class WorkflowInterface(object):
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
             # Check the data status
             check_result = data_handler.check_target(data_spec)
-            if not check_result.success or check_result.check_status is None:
+            if check_result.success and check_result.check_status is None:
+                # No status change
+                process_result.message = f"Skipped; {check_result.message}"
+                tmp_log.debug(f"{process_result.message}")
+                process_result.success = True
+                return process_result
+            elif not check_result.success or check_result.check_status is None:
                 process_result.message = f"Failed to check data; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
@@ -569,7 +611,10 @@ class WorkflowInterface(object):
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
             process_result.success = True
-            tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
+            if data_spec.status == original_status:
+                tmp_log.info(f"Done, status stays {data_spec.status}")
+            else:
+                tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"{traceback.format_exc()}")
@@ -598,20 +643,20 @@ class WorkflowInterface(object):
                 orig_status = data_spec.status
                 # Process the data
                 tmp_res = None
-                match data_spec.status:
-                    case WFDataStatus.registered:
-                        tmp_res = self.process_data_registered(data_spec)
-                    case WFDataStatus.checking:
-                        tmp_res = self.process_data_checking(data_spec)
-                    case WFDataStatus.checked_nonexist | WFDataStatus.checked_partial | WFDataStatus.checked_complete:
-                        tmp_res = self.process_data_checked(data_spec)
-                    case WFDataStatus.generating_start | WFDataStatus.generating_ready:
-                        tmp_res = self.process_data_generating(data_spec)
-                    case WFDataStatus.waiting_ready:
-                        tmp_res = self.process_data_waiting(data_spec)
-                    case _:
-                        tmp_log.debug(f"Data status {data_spec.status} is not handled in this context; skipped")
-                        continue
+                status = data_spec.status
+                if status == WFDataStatus.registered:
+                    tmp_res = self.process_data_registered(data_spec)
+                elif status == WFDataStatus.checking:
+                    tmp_res = self.process_data_checking(data_spec)
+                elif status in WFDataStatus.checked_statuses:
+                    tmp_res = self.process_data_checked(data_spec)
+                elif status in WFDataStatus.generating_statuses:
+                    tmp_res = self.process_data_generating(data_spec)
+                elif status in WFDataStatus.waiting_statuses:
+                    tmp_res = self.process_data_waiting(data_spec)
+                else:
+                    tmp_log.debug(f"Data status {data_spec.status} is not handled in this context; skipped")
+                    continue
                 if tmp_res and tmp_res.success:
                     # update stats
                     if tmp_res.new_status and data_spec.status != orig_status:

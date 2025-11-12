@@ -76,6 +76,7 @@ class WFDataStatus(object):
     checked_partial = "checked_partial"  # data partially available and sufficient to be step input
     checked_complete = "checked_complete"  # data completely available
     generating_start = "generating_start"
+    generating_unready = "generating_unready"
     generating_ready = "generating_ready"
     waiting_unready = "waiting_unready"
     waiting_ready = "waiting_ready"
@@ -85,9 +86,9 @@ class WFDataStatus(object):
     cancelled = "cancelled"
     retired = "retired"
 
-    checked_statuses = (checked_nonexist, checked_partial, checked_complete)
+    checked_statuses = (checked_nonexist, checked_insuff, checked_partial, checked_complete)
+    generating_statuses = (generating_start, generating_unready, generating_ready)
     waiting_statuses = (waiting_unready, waiting_ready)
-    generating_statues = (generating_start, generating_ready)
     done_statuses = (done_generated, done_waited, done_skipped)
     good_input_statuses = (generating_ready, waiting_ready, done_generated, done_waited, done_skipped)
     good_output_statuses = (done_generated, done_waited, done_skipped)
