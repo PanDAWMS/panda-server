@@ -960,6 +960,12 @@ class WorkflowInterface(object):
                 tmp_log.warning(f"Invalid step_status {check_result.step_status} from target check result; skipped")
             now_time = naive_utcnow()
             step_spec.check_time = now_time
+            if step_spec.status in WFStepStatus.after_submitted_uninterrupted_statuses and step_spec.start_time is None:
+                # step has run, set start_time if not yet set
+                step_spec.start_time = now_time
+            if step_spec.status in WFStepStatus.final_statuses and step_spec.start_time is not None and step_spec.end_time is None:
+                # step has ended, set end_time if not yet set
+                step_spec.end_time = now_time
             self.tbif.update_workflow_step(step_spec)
             process_result.success = True
             tmp_log.info(f"Checked step, flavor={step_spec.flavor}, target_id={step_spec.target_id}, status={step_spec.status}")
@@ -1010,6 +1016,12 @@ class WorkflowInterface(object):
                 tmp_log.warning(f"Invalid step_status {check_result.step_status} from target check result; skipped")
             now_time = naive_utcnow()
             step_spec.check_time = now_time
+            if step_spec.status in WFStepStatus.after_submitted_uninterrupted_statuses and step_spec.start_time is None:
+                # step has run, set start_time if not yet set
+                step_spec.start_time = now_time
+            if step_spec.status in WFStepStatus.final_statuses and step_spec.start_time is not None and step_spec.end_time is None:
+                # step has ended, set end_time if not yet set
+                step_spec.end_time = now_time
             self.tbif.update_workflow_step(step_spec)
             process_result.success = True
             tmp_log.info(f"Checked step, flavor={step_spec.flavor}, target_id={step_spec.target_id}, status={step_spec.status}")
