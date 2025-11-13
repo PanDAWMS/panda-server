@@ -2984,14 +2984,14 @@ class TaskStandaloneModule(BaseModule):
         """
         comment = " /* JediDBProxy.release_task_on_hold */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
-        tmp_log.debug("start")
+        tmp_log.debug(f"start target={target_status}")
         try:
             # sql to update tasks
             sql_check = f"SELECT status,oldStatus,lockedBy FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE "
             sql_update = (
                 f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
                 "SET status=oldStatus,oldStatus=NULL,errorDialog=NULL,modificationtime=CURRENT_DATE "
-                "WHERE jediTaskID=:jediTaskID AND status=:oldStatus AND lockedBy IS NULL "
+                "WHERE jediTaskID=:jediTaskID AND status=:status AND lockedBy IS NULL "
             )
             # start transaction
             self.conn.begin()
@@ -3013,7 +3013,7 @@ class TaskStandaloneModule(BaseModule):
                     tmp_log.debug(f"cannot release since current status {status} != target_status {target_status}")
                 else:
                     # release
-                    var_map = {":jediTaskID": jedi_task_id, ":oldStatus": old_status}
+                    var_map = {":jediTaskID": jedi_task_id, ":status": status}
                     self.cur.execute(sql_update + comment, var_map)
                     n_row = self.cur.rowcount
                     tmp_log.debug(f"done with {n_row}")
