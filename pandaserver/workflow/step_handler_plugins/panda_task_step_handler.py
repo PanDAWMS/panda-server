@@ -143,7 +143,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             WFStepTargetCheckResult: An object containing the result of the status check, including success status, step status, native status, and message.
         """
         tmp_log = LogWrapper(logger, f"check_target workflow_id={step_spec.workflow_id} step_id={step_spec.step_id}")
-        allowed_step_statuses = [WFStepStatus.submitted, WFStepStatus.running]
+        allowed_step_statuses = [WFStepStatus.starting, WFStepStatus.running]
         try:
             # Initialize
             check_result = WFStepTargetCheckResult()
@@ -174,7 +174,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             if task_status in ["running", "scouting", "scouted", "throttled", "prepared", "finishing", "passed"]:
                 check_result.step_status = WFStepStatus.running
             elif task_status in ["defined", "assigned", "activated", "starting", "ready", "pending"]:
-                check_result.step_status = WFStepStatus.submitted
+                check_result.step_status = WFStepStatus.starting
             elif task_status in ["done", "finished"]:
                 check_result.step_status = WFStepStatus.done
             elif task_status in ["failed", "exhausted", "aborted", "toabort", "aborting", "broken", "tobroken"]:

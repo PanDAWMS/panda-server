@@ -879,7 +879,7 @@ class WorkflowInterface(object):
     def process_step_ready(self, step_spec: WFStepSpec) -> WFStepProcessResult:
         """
         Process a step in ready status
-        To submit the step for execution
+        To start the step by submitting its target
 
         Args:
             step_spec (WFStepSpec): The workflow step specification to process
@@ -900,28 +900,28 @@ class WorkflowInterface(object):
         try:
             # Get the step handler plugin
             step_handler = self.get_plugin("step_handler", step_spec.flavor)
-            # Submit the step
+            # Submit the step target
             submit_result = step_handler.submit_target(step_spec)
             if not submit_result.success or submit_result.target_id is None:
-                process_result.message = f"Failed to submit step; {submit_result.message}"
+                process_result.message = f"Failed to submit step target; {submit_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
-            # Update step status to submitted
+            # Update step status to starting
             step_spec.target_id = submit_result.target_id
-            step_spec.status = WFStepStatus.submitted
+            step_spec.status = WFStepStatus.starting
             self.tbif.update_workflow_step(step_spec)
             process_result.success = True
             process_result.new_status = step_spec.status
-            tmp_log.info(f"Submitted step, flavor={step_spec.flavor}, target_id={step_spec.target_id}, status={step_spec.status}")
+            tmp_log.info(f"Done, submitted target flavor={step_spec.flavor} target_id={step_spec.target_id}, status={step_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return process_result
 
-    def process_step_submitted(self, step_spec: WFStepSpec) -> WFStepProcessResult:
+    def process_step_starting(self, step_spec: WFStepSpec) -> WFStepProcessResult:
         """
-        Process a step in submitted status
-        To check the status of the submitted step
+        Process a step in starting status
+        To check the status of the starting step
 
         Args:
             step_spec (WFStepSpec): The workflow step specification to process
@@ -929,13 +929,13 @@ class WorkflowInterface(object):
         Returns:
             WFStepProcessResult: The result of processing the step
         """
-        tmp_log = LogWrapper(logger, f"process_step_submitted workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}")
+        tmp_log = LogWrapper(logger, f"process_step_starting workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFStepProcessResult()
         # Check status
-        if step_spec.status != WFStepStatus.submitted:
-            process_result.message = f"Step status changed unexpectedly from {WFStepStatus.submitted} to {step_spec.status}; skipped"
+        if step_spec.status != WFStepStatus.starting:
+            process_result.message = f"Step status changed unexpectedly from {WFStepStatus.starting} to {step_spec.status}; skipped"
             tmp_log.warning(f"{process_result.message}")
             return process_result
         # Process
@@ -949,18 +949,18 @@ class WorkflowInterface(object):
                 tmp_log.error(f"{process_result.message}")
                 return process_result
             # Update step status
-            if check_result.step_status in WFStepStatus.after_submitted_statuses:
+            if check_result.step_status in WFStepStatus.after_starting_statuses:
                 # Step status advanced
                 step_spec.status = check_result.step_status
                 process_result.new_status = step_spec.status
-            elif check_result.step_status == WFStepStatus.submitted:
-                # Still in submitted, do nothing
+            elif check_result.step_status == WFStepStatus.starting:
+                # Still in starting, do nothing
                 pass
             else:
                 tmp_log.warning(f"Invalid step_status {check_result.step_status} from target check result; skipped")
             now_time = naive_utcnow()
             step_spec.check_time = now_time
-            if step_spec.status in WFStepStatus.after_submitted_uninterrupted_statuses and step_spec.start_time is None:
+            if step_spec.status in WFStepStatus.after_starting_uninterrupted_statuses and step_spec.start_time is None:
                 # step has run, set start_time if not yet set
                 step_spec.start_time = now_time
             if step_spec.status in WFStepStatus.final_statuses and step_spec.start_time is not None and step_spec.end_time is None:
@@ -1016,7 +1016,7 @@ class WorkflowInterface(object):
                 tmp_log.warning(f"Invalid step_status {check_result.step_status} from target check result; skipped")
             now_time = naive_utcnow()
             step_spec.check_time = now_time
-            if step_spec.status in WFStepStatus.after_submitted_uninterrupted_statuses and step_spec.start_time is None:
+            if step_spec.status in WFStepStatus.after_starting_uninterrupted_statuses and step_spec.start_time is None:
                 # step has run, set start_time if not yet set
                 step_spec.start_time = now_time
             if step_spec.status in WFStepStatus.final_statuses and step_spec.start_time is not None and step_spec.end_time is None:
@@ -1065,8 +1065,8 @@ class WorkflowInterface(object):
                         tmp_res = self.process_step_pending(step_spec, data_spec_map=data_spec_map)
                     case WFStepStatus.ready:
                         tmp_res = self.process_step_ready(step_spec)
-                    case WFStepStatus.submitted:
-                        tmp_res = self.process_step_submitted(step_spec)
+                    case WFStepStatus.starting:
+                        tmp_res = self.process_step_starting(step_spec)
                     case WFStepStatus.running:
                         tmp_res = self.process_step_running(step_spec)
                     case _:
@@ -1295,7 +1295,7 @@ class WorkflowInterface(object):
                 data_status_stats = self.process_data_specs(data_specs)
             # Get steps in registered status
             required_step_statuses = list(WFStepStatus.to_advance_step_statuses)
-            over_advanced_step_statuses = list(WFStepStatus.after_submitted_uninterrupted_statuses)
+            over_advanced_step_statuses = list(WFStepStatus.after_starting_uninterrupted_statuses)
             step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_filter_list=required_step_statuses)
             over_advanced_step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_filter_list=over_advanced_step_statuses)
             if not step_specs:
@@ -1318,8 +1318,8 @@ class WorkflowInterface(object):
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Process steps
             steps_status_stats = self.process_steps(step_specs, data_spec_map=data_spec_map)
-            # Update workflow status to running if any of step is submitted
-            if steps_status_stats["processed"].get(WFStepStatus.submitted):
+            # Update workflow status to running if any of step is starting
+            if steps_status_stats["processed"].get(WFStepStatus.starting):
                 workflow_spec.status = WorkflowStatus.running
                 workflow_spec.start_time = naive_utcnow()
                 self.tbif.update_workflow(workflow_spec)

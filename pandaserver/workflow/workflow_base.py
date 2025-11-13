@@ -49,7 +49,7 @@ class WFStepStatus(object):
     checked_false = "checked_false"
     pending = "pending"
     ready = "ready"
-    submitted = "submitted"
+    starting = "starting"
     running = "running"
     done = "done"
     failed = "failed"
@@ -57,9 +57,9 @@ class WFStepStatus(object):
     cancelled = "cancelled"
 
     checked_statuses = (checked_true, checked_false)
-    to_advance_step_statuses = (registered, checking, checked_true, checked_false, pending, ready, submitted)
-    after_submitted_statuses = (running, done, failed, cancelled)
-    after_submitted_uninterrupted_statuses = (running, done, failed)
+    to_advance_step_statuses = (registered, checking, checked_true, checked_false, pending, ready, starting)
+    after_starting_statuses = (running, done, failed, cancelled)
+    after_starting_uninterrupted_statuses = (running, done, failed)
     after_running_statuses = (done, failed, cancelled)
     final_statuses = (done, failed, closed, cancelled)
 

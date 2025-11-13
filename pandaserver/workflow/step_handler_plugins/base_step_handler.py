@@ -38,7 +38,7 @@ class BaseStepHandler:
         This method should NOT modify step_spec. Any update information should be stored in the WFStepTargetSubmitResult returned instead.
 
         Args:
-            step_spec (WFStepSpec): Specifications of the workflow step to be submitted.
+            step_spec (WFStepSpec): Specifications of the workflow step whose target is to be submitted.
 
         Returns:
             WFStepTargetSubmitResult: An object containing the result of the submission, including success status, target ID, and message.
