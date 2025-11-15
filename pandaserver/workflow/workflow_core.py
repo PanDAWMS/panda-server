@@ -668,7 +668,9 @@ class WorkflowInterface(object):
                     data_status_stats["processed"].setdefault(data_spec.status, 0)
                     data_status_stats["processed"][data_spec.status] += 1
                     data_status_stats["n_processed"] += 1
-        tmp_log.info(f"Done, processed data specs: {data_status_stats}")
+        tmp_log.info(
+            f"Done, processed {data_status_stats['n_processed']}/{n_data} data specs, unchanged: {data_status_stats['unchanged']}, changed: {data_status_stats['changed']}"
+        )
         return data_status_stats
 
     # ---- Step status transitions -----------------------------
@@ -1083,7 +1085,9 @@ class WorkflowInterface(object):
                     steps_status_stats["processed"].setdefault(step_spec.status, 0)
                     steps_status_stats["processed"][step_spec.status] += 1
                     steps_status_stats["n_processed"] += 1
-        tmp_log.info(f"Done, processed steps: {steps_status_stats}")
+        tmp_log.info(
+            f"Done, processed {steps_status_stats['n_processed']}/{n_steps} steps, unchanged: {steps_status_stats['unchanged']}, changed: {steps_status_stats['changed']}"
+        )
         return steps_status_stats
 
     # ---- Workflow status transitions -------------------------
@@ -1484,7 +1488,9 @@ class WorkflowInterface(object):
                         workflows_status_stats["processed"][workflow_spec.status] += 1
                         workflows_status_stats["n_processed"] += 1
             workflows_status_stats["n_workflows"] = n_workflows
-            tmp_log.info(f"Done, processed workflows: {workflows_status_stats}")
+            tmp_log.info(
+                f"Done, processed {workflows_status_stats['n_processed']}/{n_workflows} workflows, unchanged: {workflows_status_stats['unchanged']}, changed: {workflows_status_stats['changed']}"
+            )
         except Exception as e:
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return workflows_status_stats
