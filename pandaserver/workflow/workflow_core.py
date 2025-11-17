@@ -404,23 +404,19 @@ class WorkflowInterface(object):
                 case WFDataStatus.checked_nonexist:
                     # Data does not exist, advance to generating_start
                     data_spec.status = WFDataStatus.generating_start
-                    data_spec.check_time = now_time
                     data_spec.start_time = now_time
                     self.tbif.update_workflow_data(data_spec)
                 case WFDataStatus.checked_insuff:
                     # Data insufficient, advance to waiting_unready
                     data_spec.status = WFDataStatus.waiting_unready
-                    data_spec.check_time = now_time
                     self.tbif.update_workflow_data(data_spec)
                 case WFDataStatus.checked_partial:
                     # Data partially exist, advance to waiting_ready
                     data_spec.status = WFDataStatus.waiting_ready
-                    data_spec.check_time = now_time
                     self.tbif.update_workflow_data(data_spec)
                 case WFDataStatus.checked_complete:
                     # Data already fully exist, advance to done_skipped
                     data_spec.status = WFDataStatus.done_skipped
-                    data_spec.check_time = now_time
                     data_spec.end_time = now_time
                     self.tbif.update_workflow_data(data_spec)
             process_result.success = True
@@ -524,7 +520,7 @@ class WorkflowInterface(object):
             self.tbif.update_workflow_data(data_spec)
             process_result.success = True
             if data_spec.status == original_status:
-                tmp_log.info(f"Done, status stays {data_spec.status}")
+                tmp_log.info(f"Done, status stays in {data_spec.status}")
             else:
                 tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
         except Exception as e:
@@ -612,7 +608,7 @@ class WorkflowInterface(object):
             self.tbif.update_workflow_data(data_spec)
             process_result.success = True
             if data_spec.status == original_status:
-                tmp_log.info(f"Done, status stays {data_spec.status}")
+                tmp_log.info(f"Done, status stays in {data_spec.status}")
             else:
                 tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
         except Exception as e:
@@ -729,9 +725,46 @@ class WorkflowInterface(object):
             return process_result
         # Process
         try:
-            # FIXME: For now, always advance to checked_true
-            if True:
-                step_spec.status = WFStepStatus.checked_true
+            # Decide whether to run the step: True = must run, False = can skip, None = undecided yet and must check later
+            to_run_step = False
+            # FIXME: For now, always check outputs, not customizable
+            check_outputs = True
+            if check_outputs and to_run_step is False:
+                to_generate_output = False
+                output_data_names = step_spec.definition_json_map.get("output_data_list", [])
+                for output_data_name in output_data_names:
+                    data_spec = self.tbif.get_workflow_data_by_name(step_spec.workflow_id, output_data_name)
+                    if data_spec is None:
+                        tmp_log.warning(f"Output {output_data_name} not found in workflow data; skipped")
+                        to_run_step = None
+                        break
+                    if data_spec.status == WFDataStatus.generating_start:
+                        tmp_log.debug(f"Output data {output_data_name} status {data_spec.status} needs generation")
+                        to_generate_output = True
+                        break
+                    elif data_spec.status in (WFDataStatus.registered, WFDataStatus.checking) or data_spec.status in WFDataStatus.checked_statuses:
+                        tmp_log.debug(f"Output data {output_data_name} status {data_spec.status} is not after checked; skipped")
+                        to_run_step = None
+                        break
+                    else:
+                        tmp_log.debug(f"Output data {output_data_name} status {data_spec.status} does not need generation")
+                        continue
+                if to_run_step is not None and to_generate_output:
+                    # Outputs are not all good; need to run the step
+                    to_run_step = True
+            # Update step status
+            now_time = naive_utcnow()
+            if to_run_step is None:
+                step_spec.check_time = now_time
+                self.tbif.update_workflow_step(step_spec)
+                process_result.success = True
+                tmp_log.info(f"Done, status stays in {step_spec.status}")
+            else:
+                if to_run_step is True:
+                    step_spec.status = WFStepStatus.checked_true
+                elif to_run_step is False:
+                    step_spec.status = WFStepStatus.checked_false
+                step_spec.check_time = now_time
                 self.tbif.update_workflow_step(step_spec)
                 process_result.success = True
                 process_result.new_status = step_spec.status
@@ -1195,7 +1228,20 @@ class WorkflowInterface(object):
             data_specs = []
             step_specs = []
             now_time = naive_utcnow()
-            # Register root inputs and outputs
+            # Register root outputs
+            for output_name, output_dict in workflow_definition["root_outputs"].items():
+                data_spec = WFDataSpec()
+                data_spec.workflow_id = workflow_spec.workflow_id
+                data_spec.source_step_id = None  # to be set when the step producing it starts
+                data_spec.name = output_name
+                data_spec.target_id = output_dict.get("value")
+                data_spec.set_parameter("output_types", output_dict.get("output_types"))
+                data_spec.status = WFDataStatus.registered
+                data_spec.type = WFDataType.output
+                data_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
+                data_spec.creation_time = now_time
+                data_specs.append(data_spec)
+            # Register root inputs
             for input_name, input_target in workflow_definition["root_inputs"].items():
                 data_spec = WFDataSpec()
                 data_spec.workflow_id = workflow_spec.workflow_id
@@ -1206,19 +1252,7 @@ class WorkflowInterface(object):
                 data_spec.flavor = "ddm_collection"  # FIXME: hardcoded flavor, should be configurable
                 data_spec.creation_time = now_time
                 data_specs.append(data_spec)
-            for output_name, output_dict in workflow_definition["root_outputs"].items():
-                data_spec = WFDataSpec()
-                data_spec.workflow_id = workflow_spec.workflow_id
-                data_spec.source_step_id = None  # root output
-                data_spec.name = output_name
-                data_spec.target_id = output_dict.get("value")
-                data_spec.set_parameter("output_types", output_dict.get("output_types"))
-                data_spec.status = WFDataStatus.registered
-                data_spec.type = WFDataType.output
-                data_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
-                data_spec.creation_time = now_time
-                data_specs.append(data_spec)
-            # Register steps based on nodes in the definition
+            # Register steps and their intermediate outputs based on nodes in the definition
             for node in workflow_definition["nodes"]:
                 # FIXME: not yet consider scatter, condition, loop, etc.
                 if not (node.get("condition") or node.get("scatter") or node.get("loop")):
@@ -1253,6 +1287,20 @@ class WorkflowInterface(object):
                     step_spec.definition_json_map = step_definition
                     step_spec.creation_time = now_time
                     step_specs.append(step_spec)
+                    # intermediate outputs of the step
+                    for output_data_name in output_data_set:
+                        if output_data_name not in workflow_definition["root_outputs"]:
+                            data_spec = WFDataSpec()
+                            data_spec.workflow_id = workflow_spec.workflow_id
+                            data_spec.source_step_id = None  # to be set when step starts
+                            data_spec.name = output_data_name
+                            data_spec.target_id = None  # to be set when step starts
+                            data_spec.set_parameter("output_types", step_definition.get("output_types", []))
+                            data_spec.status = WFDataStatus.registered
+                            data_spec.type = WFDataType.mid
+                            data_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
+                            data_spec.creation_time = now_time
+                            data_specs.append(data_spec)
             # Update status to starting
             workflow_spec.status = WorkflowStatus.starting
             # Upsert DB

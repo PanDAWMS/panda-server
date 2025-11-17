@@ -96,6 +96,7 @@ class WFDataStatus(object):
     after_generating_ready_statuses = (done_generated, cancelled)
     after_waiting_ready_statuses = (done_waited, cancelled)
     terminated_statuses = (done_generated, done_waited, done_skipped, cancelled, retired)
+    nonreusable_statuses = (cancelled, retired)
 
 
 # ==== Types ===================================================
