@@ -142,7 +142,9 @@ def get_sites_with_data(
     """
     # get replicas
     try:
-        replica_map = {dataset_name: ddm_if.listDatasetReplicas(dataset_name, use_vp=True, skip_incomplete_element=True, element_list=element_list)}
+        replica_map = {
+            dataset_name: ddm_if.listDatasetReplicas(dataset_name, use_vp=True, skip_incomplete_element=True, element_list=element_list, use_deep=True)
+        }
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         return errtype, f"ddmIF.listDatasetReplicas failed with {errvalue}", None, None, None, None, None, []
