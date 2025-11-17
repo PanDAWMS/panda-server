@@ -724,7 +724,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             unified_site_list = self.get_unified_sites(scanSiteList)
 
             host_cpu_spec = taskSpec.get_host_cpu_spec()
-            host_cpu_pref = taskSpec.get_host_cpu_pref()
+            host_cpu_pref = taskSpec.get_host_cpu_preference()
             host_gpu_spec = taskSpec.get_host_gpu_spec()
 
             if taskSpec.get_base_platform() is None:

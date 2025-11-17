@@ -836,7 +836,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
             resolved_platforms = {}
 
             host_cpu_spec = taskSpec.get_host_cpu_spec()
-            host_cpu_pref = taskSpec.get_host_cpu_pref()
+            host_cpu_pref = taskSpec.get_host_cpu_preference()
             host_gpu_spec = taskSpec.get_host_gpu_spec()
 
             if not sitePreAssigned:
