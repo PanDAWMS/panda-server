@@ -430,6 +430,8 @@ class TaskRefinerBase(object):
             self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["messageDriven"])
         if "allowIncompleteInDS" in taskParamMap and taskParamMap["allowIncompleteInDS"]:
             self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["allowIncompleteInDS"])
+        if "noAutoPause" in taskParamMap and taskParamMap["noAutoPause"]:
+            self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["noAutoPause"])
         # work queue
         workQueue = None
         if "workQueueName" in taskParamMap:
