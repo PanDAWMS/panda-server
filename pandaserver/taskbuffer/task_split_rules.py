@@ -56,6 +56,7 @@ split_rule_dict = {
     "nGBPerJob": "NG",
     "noInputPooling": "NI",
     "nJumboJobs": "NJ",
+    "noAutoPause": "NP",
     "nSitesPerJob": "NS",
     "nChunksToWait": "NT",
     "noWaitParent": "NW",
@@ -127,6 +128,7 @@ changeable_split_rule_names = [
     "onlyTagsForFC",
     "useZipToPin",
     "ignoreMissingInDS",
+    "noAutoPause",
 ]
 
 changeable_split_rule_tags = [split_rule_dict[tmp_name] for tmp_name in changeable_split_rule_names]

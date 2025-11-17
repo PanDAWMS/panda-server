@@ -2416,8 +2416,12 @@ class TaskStandaloneModule(BaseModule):
                 sqlRT += f"tabD.{tmpPar},"
             sqlRT = sqlRT[:-1]
             sqlRT += " "
-            sqlRT += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlRT += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
+            sqlRT += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA".format(panda_config.schemaJEDI)
+            if datasetCriteria:
+                sqlRT += f",{panda_config.schemaJEDI}.JEDI_Datasets tabD"
+            sqlRT += " WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+            if datasetCriteria:
+                sqlRT += "AND tabT.jediTaskID=tabD.jediTaskID "
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(taskStatusList, prefix=":status_", value_as_suffix=True)
             sqlRT += f"AND tabT.status IN ({status_var_names_str}) "
             varMap.update(status_var_map)

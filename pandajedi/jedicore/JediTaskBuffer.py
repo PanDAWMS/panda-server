@@ -1018,7 +1018,12 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
     #     with self.proxyPool.get() as proxy:
     #         return proxy.retire_data_carousel_request_JEDI(request_id)
 
-    # # resubmit a data carousel request
-    # def resubmit_data_carousel_request_JEDI(self, request_id, exclude_prev_dst=False):
-    #     with self.proxyPool.get() as proxy:
-    #         return proxy.resubmit_data_carousel_request_JEDI(request_id, exclude_prev_dst)
+    # resubmit a data carousel request
+    def resubmit_data_carousel_request_JEDI(self, request_id, exclude_prev_dst=False):
+        with self.proxyPool.get() as proxy:
+            return proxy.resubmit_data_carousel_request_JEDI(request_id, exclude_prev_dst)
+
+    # get task failure metrics
+    def get_task_failure_metrics(self, jedi_task_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_task_failure_metrics(jedi_task_id)
