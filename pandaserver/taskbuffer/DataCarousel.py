@@ -886,7 +886,7 @@ class DataCarouselInterface(object):
             dict : map in form of datasets: jobParameters
         """
         # tmp_log = LogWrapper(logger, f"_get_full_replicas_per_type dataset={dataset}")
-        ds_repli_dict = self.ddmIF.convert_list_dataset_replicas(dataset, skip_incomplete_element=True)
+        ds_repli_dict = self.ddmIF.convert_list_dataset_replicas(dataset, use_file_lookup=True, skip_incomplete_element=True)
         tape_replicas = []
         datadisk_replicas = []
         disk_replicas = []
