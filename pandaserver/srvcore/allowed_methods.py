@@ -88,6 +88,7 @@ allowed_methods += [
     "getUserJobMetadata",
     "getJumboJobDatasets",
     "sweepPQ",
+    "get_job_statistics_per_site_label_resource",
     "relay_idds_command",
     "send_command_to_job",
     "execute_idds_workflow_command",

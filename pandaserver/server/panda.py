@@ -106,6 +106,7 @@ from pandaserver.userinterface.UserIF import (
     finishTask,
     get_ban_users,
     get_files_in_datasets,
+    get_job_statistics_per_site_label_resource,
     get_user_secrets,
     getFullJobStatus,
     getJediTaskDetails,
