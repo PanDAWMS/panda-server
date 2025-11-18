@@ -196,6 +196,11 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
+    # get job statistics per site, source label, and resource type
+    def get_job_statistics_per_site_label_resource(self, time_window):
+        ret = self.taskBuffer.get_job_statistics_per_site_label_resource(time_window)
+        return json.dumps(ret)
+
     # kill jobs
     def killJobs(self, idsStr, user, host, code, prodManager, useMailAsID, fqans, killOpts=[]):
         # deserialize IDs
@@ -744,6 +749,11 @@ def checkSandboxFile(req, fileSize, checkSum):
     user = _getDN(req)
     # exec
     return userIF.checkSandboxFile(user, fileSize, checkSum)
+
+
+# get job statistics per site and resource
+def get_job_statistics_per_site_label_resource(req, time_window=None):
+    return userIF.get_job_statistics_per_site_label_resource(time_window)
 
 
 # get job statistics per site
