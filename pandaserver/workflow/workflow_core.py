@@ -1145,24 +1145,28 @@ class WorkflowInterface(object):
                 orig_status = step_spec.status
                 # Process the step
                 tmp_res = None
-                match step_spec.status:
-                    case WFStepStatus.registered:
-                        tmp_res = self.process_step_registered(step_spec)
-                    case WFStepStatus.checking:
-                        tmp_res = self.process_step_checking(step_spec)
-                    case WFStepStatus.checked_true | WFStepStatus.checked_false:
-                        tmp_res = self.process_step_checked(step_spec)
-                    case WFStepStatus.pending:
-                        tmp_res = self.process_step_pending(step_spec, data_spec_map=data_spec_map)
-                    case WFStepStatus.ready:
-                        tmp_res = self.process_step_ready(step_spec)
-                    case WFStepStatus.starting:
-                        tmp_res = self.process_step_starting(step_spec)
-                    case WFStepStatus.running:
-                        tmp_res = self.process_step_running(step_spec)
-                    case _:
-                        tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
-                        continue
+                if step_spec.status == WFStepStatus.registered:
+                    tmp_res = self.process_step_registered(step_spec)
+                elif step_spec.status == WFStepStatus.checking:
+                    tmp_res = self.process_step_checking(step_spec)
+                elif step_spec.status in WFStepStatus.checked_statuses:
+                    tmp_res = self.process_step_checked(step_spec)
+                elif step_spec.status == WFStepStatus.pending:
+                    tmp_res = self.process_step_pending(step_spec, data_spec_map=data_spec_map)
+                elif step_spec.status == WFStepStatus.ready:
+                    tmp_res = self.process_step_ready(step_spec)
+                elif step_spec.status == WFStepStatus.starting:
+                    tmp_res = self.process_step_starting(step_spec)
+                elif step_spec.status == WFStepStatus.running:
+                    tmp_res = self.process_step_running(step_spec)
+                elif step_spec.status in WFStepStatus.final_statuses:
+                    # dummy result since final steps need no processing
+                    dummy_process_result = WFStepProcessResult()
+                    dummy_process_result.success = True
+                    tmp_res = dummy_process_result
+                else:
+                    tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
+                    continue
                 if tmp_res and tmp_res.success:
                     # update stats
                     if tmp_res.new_status and step_spec.status != orig_status:
