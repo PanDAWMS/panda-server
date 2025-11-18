@@ -469,9 +469,12 @@ def application(environ, start_response):
         if exec_result in [True, False]:
             exec_result = str(exec_result)
 
-        # convert the response to json when specified through CONTENT_TYPE="application/json"
-        if json_app and new_api:
-            exec_result = json.dumps(exec_result, default=encode_special_cases)
+        # convert the response to JSON or str depending on HTTP_ACCEPT and CONTENT_TYPE
+        if new_api:
+            if json_app:
+                exec_result = json.dumps(exec_result, default=encode_special_cases)
+            elif not isinstance(exec_result, str):
+                exec_result = str(exec_result)
 
     except Exception as exc:
         tmp_log.error(f"execution failure : {str(exc)}\n {traceback.format_exc()}")
@@ -501,7 +504,9 @@ def application(environ, start_response):
 
     # log execution time and return length
     duration = naive_utcnow() - start_time
-    tmp_log.info("exec_time=%s.%03d sec, return len=%s B" % (duration.seconds, duration.microseconds / 1000, len(str(exec_result))))
+    tmp_log.info(
+        f"exec_time={duration.seconds}.{duration.microseconds // 1000:03d} sec, return_type={return_type} real_type={type(exec_result).__name__} len={len(str(exec_result))} B"
+    )
 
     # start the response and return result
     if exec_result == pandaserver.taskbuffer.ErrorCode.EC_NotFound:

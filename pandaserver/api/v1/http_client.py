@@ -90,7 +90,8 @@ class HttpClient:
         cert = None
         verify = True
         if use_https:
-            cert = (self.ssl_certificate, self.ssl_key)
+            if not self.oidc:
+                cert = (self.ssl_certificate, self.ssl_key)
 
             if not self.verifyHost:
                 verify = False
