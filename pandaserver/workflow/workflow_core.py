@@ -427,13 +427,14 @@ class WorkflowInterface(object):
             tmp_log.error(f"{traceback.format_exc()}")
         return process_result
 
-    def process_data_binding(self, data_spec: WFDataSpec) -> WFDataProcessResult:
+    def process_data_binding(self, data_spec: WFDataSpec, step_spec: WFStepSpec) -> WFDataProcessResult:
         """
         Process data in binding status
         To bind the data to the step that will generate it
 
         Args:
             data_spec (WFDataSpec): The workflow data specification to process
+            step_spec (WFStepSpec): The workflow step specification to bind the data to
 
         Returns:
             WFDataProcessResult: The result of processing the data
@@ -449,14 +450,13 @@ class WorkflowInterface(object):
             return process_result
         # Process
         try:
-            # FIXME: find the step to bind to
-            ...
-            # For now, just update status to generating_start
-            # data_spec.status = WFDataStatus.generating_start
-            # self.tbif.update_workflow_data(data_spec)
-            # process_result.success = True
-            # process_result.new_status = data_spec.status
-            # tmp_log.info(f"Done, status={data_spec.status}")
+            original_status = data_spec.status
+            data_spec.source_step_id = step_spec.step_id
+            data_spec.status = WFDataStatus.generating_start
+            self.tbif.update_workflow_data(data_spec)
+            process_result.success = True
+            process_result.new_status = data_spec.status
+            tmp_log.info(f"Done, bound to step_id={step_spec.step_id}, from {original_status} to status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"{traceback.format_exc()}")
@@ -681,6 +681,11 @@ class WorkflowInterface(object):
                     tmp_res = self.process_data_checking(data_spec)
                 elif status in WFDataStatus.checked_statuses:
                     tmp_res = self.process_data_checked(data_spec)
+                elif status == WFDataStatus.binding:
+                    # dummy result since binding data are handled in step processing
+                    dummy_process_result = WFDataProcessResult()
+                    dummy_process_result.success = True
+                    tmp_res = dummy_process_result
                 elif status in WFDataStatus.generating_statuses:
                     tmp_res = self.process_data_generating(data_spec)
                 elif status in WFDataStatus.waiting_statuses:
@@ -914,8 +919,7 @@ class WorkflowInterface(object):
                 data_spec = self.tbif.get_workflow_data_by_name(output_data_name, step_spec.workflow_id)
                 if data_spec is not None:
                     if data_spec.status == WFDataStatus.binding:
-                        data_spec.source_step_id = step_spec.step_id
-                        self.tbif.update_workflow_data(data_spec)
+                        self.process_data_binding(data_spec, step_spec)
                         tmp_log.debug(f"Bound output data_id={data_spec.data_id} name={output_data_name} to the step")
                     else:
                         tmp_log.debug(f"Output data_id={data_spec.data_id} name={output_data_name} status={data_spec.status} not in binding; skipped")
