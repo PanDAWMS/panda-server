@@ -649,7 +649,7 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        job_list(list): list of job dictionaries to update. The mandatory and optional keys for each job dictionary is the same as the arguments for `update_job`.
+        job_list(list): list of job dictionaries to update. The mandatory and optional keys for each job dictionary are the same as the arguments for `update_job`.
         harvester_id (str, optional): Harvester ID. Optional, defaults to `None`.
 
     Returns:
