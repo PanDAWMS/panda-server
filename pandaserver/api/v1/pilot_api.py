@@ -339,7 +339,7 @@ def update_job(
     pilot_log: str = "",
     meta_data: str = "",
     cpu_conversion_factor: float = None,
-    trans_exit_code: str = None,
+    trans_exit_code: int = None,
     pilot_error_code: int = None,
     pilot_error_diag: str = None,
     exe_error_code: int = None,
@@ -355,25 +355,25 @@ def update_job(
     stdout: str = "",
     job_sub_status: str = None,
     core_count: int = None,
-    max_rss: int = None,
-    max_vmem: int = None,
-    max_swap: int = None,
-    max_pss: int = None,
-    avg_rss: int = None,
-    avg_vmem: int = None,
-    avg_swap: int = None,
-    avg_pss: int = None,
-    tot_rchar: int = None,
-    tot_wchar: int = None,
-    tot_rbytes: int = None,
-    tot_wbytes: int = None,
-    rate_rchar: int = None,
-    rate_wchar: int = None,
-    rate_rbytes: int = None,
-    rate_wbytes: int = None,
+    max_rss: int | float = None,
+    max_vmem: int | float = None,
+    max_swap: int | float = None,
+    max_pss: int | float = None,
+    avg_rss: int | float = None,
+    avg_vmem: int | float = None,
+    avg_swap: int | float = None,
+    avg_pss: int | float = None,
+    tot_rchar: int | float = None,
+    tot_wchar: int | float = None,
+    tot_rbytes: int | float = None,
+    tot_wbytes: int | float = None,
+    rate_rchar: int | float = None,
+    rate_wchar: int | float = None,
+    rate_rbytes: int | float = None,
+    rate_wbytes: int | float = None,
     corrupted_files: str = None,
     mean_core_count: int = None,
-    cpu_architecture_level: int = None,
+    cpu_architecture_level: str = None,
     grid: str = None,
     source_site: str = None,
     destination_site: str = None,
@@ -401,7 +401,7 @@ def update_job(
         scheduler_id(str, optional): Scheduler ID, such as harvester instance. Optional, defaults to `None`
         pilot_id(str, optional): Pilot ID. Optional, defaults to `None`
         batch_id(str, optional): Batch ID. Optional, defaults to `None`
-        trans_exit_code(str, optional): Transformation exit code. Optional, defaults to `None`
+        trans_exit_code(int, optional): Transformation exit code. Optional, defaults to `None`
         pilot_error_code(int, optional): Pilot error code. Optional, defaults to `None`
         pilot_error_diag(str, optional): Pilot error message. Optional, defaults to `None`
         exe_error_code(int, optional): Execution error code. Optional, defaults to `None`
@@ -431,7 +431,7 @@ def update_job(
         rate_rbytes(int, optional): Measured rate for read bytes. Optional, defaults to `None`
         rate_wbytes(int, optional): Measured rate for written bytes. Optional, defaults to `None`
         corrupted_files(str, optional): List of corrupted files in comma separated format. Optional, defaults to `None`
-        cpu_architecture_level(int, optional): CPU architecture level (e.g. `x86_64-v3`). Optional, defaults to `None`
+        cpu_architecture_level(str, optional): CPU architecture level (e.g. `x86_64-v3`). Optional, defaults to `None`
         grid(str, optional): Grid type. Optional, defaults to `None`
         source_site(str, optional): Source site name. Optional, defaults to `None`
         destination_site(str, optional): Destination site name. Optional, defaults to `None`
