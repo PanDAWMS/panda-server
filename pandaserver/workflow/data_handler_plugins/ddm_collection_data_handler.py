@@ -91,9 +91,9 @@ class DDMCollectionDataHandler(BaseDataHandler):
                 check_result.check_status = WFDataTargetCheckStatus.nonexist
             case DDMCollectionState.open:
                 if collection_meta.get("length", 0) == 0:
-                    check_result.check_status = WFDataTargetCheckStatus.insuff
+                    check_result.check_status = WFDataTargetCheckStatus.insuffi
                 else:
-                    check_result.check_status = WFDataTargetCheckStatus.partial
+                    check_result.check_status = WFDataTargetCheckStatus.suffice
             case DDMCollectionState.closed:
                 check_result.check_status = WFDataTargetCheckStatus.complete
         check_result.metadata = collection_meta

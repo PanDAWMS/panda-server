@@ -359,10 +359,10 @@ class WorkflowInterface(object):
             match check_result.check_status:
                 case WFDataTargetCheckStatus.nonexist:
                     data_spec.status = WFDataStatus.checked_nonexist
-                case WFDataTargetCheckStatus.insuff:
-                    data_spec.status = WFDataStatus.checked_insuff
-                case WFDataTargetCheckStatus.partial:
-                    data_spec.status = WFDataStatus.checked_partial
+                case WFDataTargetCheckStatus.insuffi:
+                    data_spec.status = WFDataStatus.checked_insuffi
+                case WFDataTargetCheckStatus.suffice:
+                    data_spec.status = WFDataStatus.checked_suffice
                 case WFDataTargetCheckStatus.complete:
                     data_spec.status = WFDataStatus.checked_complete
             data_spec.check_time = now_time
@@ -406,13 +406,13 @@ class WorkflowInterface(object):
                     data_spec.status = WFDataStatus.binding
                     data_spec.start_time = now_time
                     self.tbif.update_workflow_data(data_spec)
-                case WFDataStatus.checked_insuff:
-                    # Data insufficient, advance to waiting_unready
-                    data_spec.status = WFDataStatus.waiting_unready
+                case WFDataStatus.checked_insuffi:
+                    # Data insufficient, advance to waiting_insuffi
+                    data_spec.status = WFDataStatus.waiting_insuffi
                     self.tbif.update_workflow_data(data_spec)
-                case WFDataStatus.checked_partial:
-                    # Data partially exist, advance to waiting_ready
-                    data_spec.status = WFDataStatus.waiting_ready
+                case WFDataStatus.checked_suffice:
+                    # Data partially exist, advance to waiting_suffice
+                    data_spec.status = WFDataStatus.waiting_suffice
                     self.tbif.update_workflow_data(data_spec)
                 case WFDataStatus.checked_complete:
                     # Data already fully exist, advance to done_skipped
@@ -452,7 +452,7 @@ class WorkflowInterface(object):
         try:
             original_status = data_spec.status
             data_spec.source_step_id = step_spec.step_id
-            data_spec.status = WFDataStatus.generating_start
+            data_spec.status = WFDataStatus.generating_bound
             self.tbif.update_workflow_data(data_spec)
             process_result.success = True
             process_result.new_status = data_spec.status
@@ -501,30 +501,30 @@ class WorkflowInterface(object):
                 return process_result
             # Update data status
             now_time = naive_utcnow()
-            if original_status == WFDataStatus.generating_start:
+            if original_status == WFDataStatus.generating_bound:
                 match check_result.check_status:
-                    case WFDataTargetCheckStatus.partial | WFDataTargetCheckStatus.complete:
-                        # Data exist, advance to generating_ready
-                        data_spec.status = WFDataStatus.generating_ready
+                    case WFDataTargetCheckStatus.suffice | WFDataTargetCheckStatus.complete:
+                        # Data exist, advance to generating_suffice
+                        data_spec.status = WFDataStatus.generating_suffice
                         process_result.new_status = data_spec.status
-                    case WFDataTargetCheckStatus.insuff:
-                        # Data insufficient, move to generating_unready
-                        data_spec.status = WFDataStatus.generating_unready
+                    case WFDataTargetCheckStatus.insuffi:
+                        # Data insufficient, move to generating_insuffi
+                        data_spec.status = WFDataStatus.generating_insuffi
                         process_result.new_status = data_spec.status
                     case WFDataTargetCheckStatus.nonexist:
-                        # Data not yet exist, stay in generating_start
+                        # Data not yet exist, stay in generating_bound
                         pass
                     case _:
                         # Unexpected status, log and skip
                         tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
-            elif original_status == WFDataStatus.generating_unready:
+            elif original_status == WFDataStatus.generating_insuffi:
                 match check_result.check_status:
-                    case WFDataTargetCheckStatus.partial | WFDataTargetCheckStatus.complete:
-                        # Data now exist, advance to generating_ready
-                        data_spec.status = WFDataStatus.generating_ready
+                    case WFDataTargetCheckStatus.suffice | WFDataTargetCheckStatus.complete:
+                        # Data now exist, advance to generating_suffice
+                        data_spec.status = WFDataStatus.generating_suffice
                         process_result.new_status = data_spec.status
-                    case WFDataTargetCheckStatus.insuff:
-                        # Data still insufficient, stay in generating_unready
+                    case WFDataTargetCheckStatus.insuffi:
+                        # Data still insufficient, stay in generating_insuffi
                         pass
                     case WFDataTargetCheckStatus.nonexist:
                         # Data not exist anymore, unexpected, log and skip
@@ -532,17 +532,17 @@ class WorkflowInterface(object):
                     case _:
                         # Unexpected status, log and skip
                         tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
-            elif original_status == WFDataStatus.generating_ready:
+            elif original_status == WFDataStatus.generating_suffice:
                 match check_result.check_status:
                     case WFDataTargetCheckStatus.complete:
                         # Data fully exist, advance to final status done_generated
                         data_spec.status = WFDataStatus.done_generated
                         process_result.new_status = data_spec.status
                         data_spec.end_time = now_time
-                    case WFDataTargetCheckStatus.partial:
-                        # Data still partially exist, stay in generating_ready
+                    case WFDataTargetCheckStatus.suffice:
+                        # Data still partially exist, stay in generating_suffice
                         pass
-                    case WFDataTargetCheckStatus.insuff:
+                    case WFDataTargetCheckStatus.insuffi:
                         # Data not sufficient anymore, unexpected, log and skip
                         tmp_log.warning(f"Data are not sufficient anymore, unexpected; skipped")
                     case WFDataTargetCheckStatus.nonexist:
@@ -602,17 +602,17 @@ class WorkflowInterface(object):
                 return process_result
             # Update data status
             now_time = naive_utcnow()
-            if original_status == WFDataStatus.waiting_ready:
+            if original_status == WFDataStatus.waiting_suffice:
                 match check_result.check_status:
                     case WFDataTargetCheckStatus.complete:
                         # Data fully exist, advance to final status done_waited
                         data_spec.status = WFDataStatus.done_waited
                         process_result.new_status = data_spec.status
                         data_spec.end_time = now_time
-                    case WFDataTargetCheckStatus.partial:
-                        # Data still partially exist, stay in waiting_ready
+                    case WFDataTargetCheckStatus.suffice:
+                        # Data still partially exist, stay in waiting_suffice
                         pass
-                    case WFDataTargetCheckStatus.insuff:
+                    case WFDataTargetCheckStatus.insuffi:
                         # Data not sufficient anymore, unexpected, log and skip
                         tmp_log.warning(f"Data are not sufficient anymore, unexpected; skipped")
                     case WFDataTargetCheckStatus.nonexist:
@@ -620,19 +620,19 @@ class WorkflowInterface(object):
                         tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
                     case _:
                         tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
-            elif original_status == WFDataStatus.waiting_unready:
+            elif original_status == WFDataStatus.waiting_insuffi:
                 match check_result.check_status:
-                    case WFDataTargetCheckStatus.partial:
-                        # Data partially exist, advance to waiting_ready
-                        data_spec.status = WFDataStatus.waiting_ready
+                    case WFDataTargetCheckStatus.suffice:
+                        # Data partially exist, advance to waiting_suffice
+                        data_spec.status = WFDataStatus.waiting_suffice
                         process_result.new_status = data_spec.status
                     case WFDataTargetCheckStatus.complete:
                         # Data fully exist, advance to final status done_waited
                         data_spec.status = WFDataStatus.done_waited
                         process_result.new_status = data_spec.status
                         data_spec.end_time = now_time
-                    case WFDataTargetCheckStatus.insuff:
-                        # Data still insufficient, stay in waiting_unready
+                    case WFDataTargetCheckStatus.insuffi:
+                        # Data still insufficient, stay in waiting_insuffi
                         pass
                     case WFDataTargetCheckStatus.nonexist:
                         # Data not exist anymore, unexpected, log and skip

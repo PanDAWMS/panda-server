@@ -130,10 +130,10 @@ class PandaTaskDataHandler(BaseDataHandler):
         if none_exist:
             check_result.check_status = WFDataTargetCheckStatus.nonexist
         elif total_n_files == 0:
-            check_result.check_status = WFDataTargetCheckStatus.insuff
+            check_result.check_status = WFDataTargetCheckStatus.insuffi
         else:
             # At least 1 file is sufficient for step input
-            check_result.check_status = WFDataTargetCheckStatus.partial
+            check_result.check_status = WFDataTargetCheckStatus.suffice
         check_result.success = True
         tmp_log.info(f"Got total_n_files={total_n_files}; check_status={check_result.check_status}")
         return check_result

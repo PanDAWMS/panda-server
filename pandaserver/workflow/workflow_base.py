@@ -72,30 +72,30 @@ class WFDataStatus(object):
     registered = "registered"
     checking = "checking"
     checked_nonexist = "checked_nonexist"  # data does not exist
-    checked_insuff = "checked_insuff"  # data available but insufficient to be step input
-    checked_partial = "checked_partial"  # data partially available and sufficient to be step input
+    checked_insuffi = "checked_insuffi"  # data available but insufficient to be step input
+    checked_suffice = "checked_suffice"  # data partially available and sufficient to be step input
     checked_complete = "checked_complete"  # data completely available
     binding = "binding"  # data being bound to a step to generate
-    generating_start = "generating_start"
-    generating_unready = "generating_unready"
-    generating_ready = "generating_ready"
-    waiting_unready = "waiting_unready"
-    waiting_ready = "waiting_ready"
+    generating_bound = "generating_bound"
+    generating_insuffi = "generating_insuffi"
+    generating_suffice = "generating_suffice"
+    waiting_insuffi = "waiting_insuffi"
+    waiting_suffice = "waiting_suffice"
     done_generated = "done_generated"
     done_waited = "done_waited"
     done_skipped = "done_skipped"
     cancelled = "cancelled"
     retired = "retired"
 
-    checked_statuses = (checked_nonexist, checked_insuff, checked_partial, checked_complete)
-    generating_statuses = (generating_start, generating_unready, generating_ready)
-    waiting_statuses = (waiting_unready, waiting_ready)
+    checked_statuses = (checked_nonexist, checked_insuffi, checked_suffice, checked_complete)
+    generating_statuses = (generating_bound, generating_insuffi, generating_suffice)
+    waiting_statuses = (waiting_insuffi, waiting_suffice)
     done_statuses = (done_generated, done_waited, done_skipped)
-    good_input_statuses = (generating_ready, waiting_ready, done_generated, done_waited, done_skipped)
+    good_input_statuses = (generating_suffice, waiting_suffice, done_generated, done_waited, done_skipped)
     good_output_statuses = (done_generated, done_waited, done_skipped)
-    after_generating_start_statuses = (generating_ready, done_generated, cancelled)
-    after_generating_ready_statuses = (done_generated, cancelled)
-    after_waiting_ready_statuses = (done_waited, cancelled)
+    after_generating_bound_statuses = (generating_suffice, done_generated, cancelled)
+    after_generating_suffice_statuses = (done_generated, cancelled)
+    after_waiting_suffice_statuses = (done_waited, cancelled)
     terminated_statuses = (done_generated, done_waited, done_skipped, cancelled, retired)
     nonreusable_statuses = (cancelled, retired)
 
@@ -486,8 +486,8 @@ class WFDataTargetCheckStatus:
     """
 
     complete = "complete"  # data completely exists
-    partial = "partial"  # data partially exists
-    insuff = "insuff"  # data exists but insufficient to be step input
+    suffice = "suffice"  # data partially exists and suffices to be step input
+    insuffi = "insuffi"  # data partially exists but is insufficient to be step input
     nonexist = "nonexist"  # data does not exist
 
 
