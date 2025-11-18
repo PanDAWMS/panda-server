@@ -81,60 +81,59 @@ class PandaTaskDataHandler(BaseDataHandler):
             check_result.message = f"flavor not {self.plugin_flavor}; skipped"
             return check_result
         # Check source step status
-        if data_spec.source_step_id is None:
-            check_result.success = True
-            check_result.message = "No source step yet; skipped"
-            tmp_log.warning(f"{check_result.message}")
-            return check_result
-        source_step_spec = self.tbif.get_workflow_step(data_spec.source_step_id)
-        if source_step_spec is None:
-            check_result.success = False
-            check_result.message = f"Failed to get source step step_id={data_spec.source_step_id}; skipped"
-            tmp_log.error(f"{check_result.message}")
-            return check_result
-        if source_step_spec.status == WFStepStatus.done:
-            # Source step done; consider data fully available
-            check_result.success = True
-            check_result.check_status = WFDataTargetCheckStatus.complete
-            tmp_log.info(f"Source step step_id={source_step_spec.step_id} done, data considered fully available; check_status={check_result.check_status}")
-            return check_result
-        elif source_step_spec.status in WFStepStatus.final_statuses:
-            # Source step in final status but not done; skip data availability
-            check_result.success = True
-            check_result.message = f"Source step step_id={source_step_spec.step_id} {source_step_spec.status}; skip data availability check"
-            tmp_log.warning(f"{check_result.message}")
-            return check_result
-        else:
-            # Source step not terminated; check number of files in DDM collections
-            total_n_files = 0
-            none_exist = True
-            output_types = data_spec.get_parameter("output_types")
-            if output_types is None:
-                output_types = []
-            for output_type in output_types:
-                collection = f"{data_spec.target_id}_{output_type}"
-                tmp_stat, tmp_res = self.ddmIF.get_number_of_files(collection)
-                if tmp_stat is None:
-                    tmp_log.debug(f"Collection {collection} does not exist")
-                elif not tmp_stat:
-                    # Error in getting number of files
-                    check_result.success = False
-                    check_result.message = f"Failed to get number of files for collection {collection}: {tmp_res}"
-                    tmp_log.error(f"{check_result.message}")
-                    return check_result
-                else:
-                    none_exist = False
-                    n_files = tmp_res
-                    total_n_files += n_files
-                    tmp_log.debug(f"Got collection {collection} n_files={n_files}")
-            # Check number of files
-            if none_exist:
-                check_result.check_status = WFDataTargetCheckStatus.nonexist
-            elif total_n_files == 0:
-                check_result.check_status = WFDataTargetCheckStatus.insuff
+        if data_spec.source_step_id is not None:
+            source_step_spec = self.tbif.get_workflow_step(data_spec.source_step_id)
+            if source_step_spec is None:
+                check_result.success = False
+                check_result.message = f"Failed to get source step step_id={data_spec.source_step_id}; skipped"
+                tmp_log.error(f"{check_result.message}")
+                return check_result
+            if source_step_spec.status == WFStepStatus.done:
+                # Source step done; consider data fully available
+                check_result.success = True
+                check_result.check_status = WFDataTargetCheckStatus.complete
+                tmp_log.info(f"Source step step_id={source_step_spec.step_id} done, data considered fully available; check_status={check_result.check_status}")
+                return check_result
+            elif source_step_spec.status in WFStepStatus.final_statuses:
+                # Source step in final status but not done; skip data availability
+                check_result.success = True
+                check_result.message = f"Source step step_id={source_step_spec.step_id} {source_step_spec.status}; skip data availability check"
+                tmp_log.warning(f"{check_result.message}")
+                return check_result
             else:
-                # At least 1 file is sufficient for step input
-                check_result.check_status = WFDataTargetCheckStatus.partial
-            check_result.success = True
-            tmp_log.info(f"Got total_n_files={total_n_files}; check_status={check_result.check_status}")
-            return check_result
+                tmp_log.info(f"Source step step_id={source_step_spec.step_id} status={source_step_spec.status}; checking data availability")
+        else:
+            tmp_log.info("No source step yet; checking data availability")
+        # Without source step or source step not terminated; check number of files in DDM collections
+        total_n_files = 0
+        none_exist = True
+        output_types = data_spec.get_parameter("output_types")
+        if output_types is None:
+            output_types = []
+        for output_type in output_types:
+            collection = f"{data_spec.target_id}_{output_type}"
+            tmp_stat, tmp_res = self.ddmIF.get_number_of_files(collection)
+            if tmp_stat is None:
+                tmp_log.debug(f"Collection {collection} does not exist")
+            elif not tmp_stat:
+                # Error in getting number of files
+                check_result.success = False
+                check_result.message = f"Failed to get number of files for collection {collection}: {tmp_res}"
+                tmp_log.error(f"{check_result.message}")
+                return check_result
+            else:
+                none_exist = False
+                n_files = tmp_res
+                total_n_files += n_files
+                tmp_log.debug(f"Got collection {collection} n_files={n_files}")
+        # Check number of files
+        if none_exist:
+            check_result.check_status = WFDataTargetCheckStatus.nonexist
+        elif total_n_files == 0:
+            check_result.check_status = WFDataTargetCheckStatus.insuff
+        else:
+            # At least 1 file is sufficient for step input
+            check_result.check_status = WFDataTargetCheckStatus.partial
+        check_result.success = True
+        tmp_log.info(f"Got total_n_files={total_n_files}; check_status={check_result.check_status}")
+        return check_result

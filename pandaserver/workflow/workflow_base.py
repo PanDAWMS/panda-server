@@ -75,6 +75,7 @@ class WFDataStatus(object):
     checked_insuff = "checked_insuff"  # data available but insufficient to be step input
     checked_partial = "checked_partial"  # data partially available and sufficient to be step input
     checked_complete = "checked_complete"  # data completely available
+    binding = "binding"  # data being bound to a step to generate
     generating_start = "generating_start"
     generating_unready = "generating_unready"
     generating_ready = "generating_ready"

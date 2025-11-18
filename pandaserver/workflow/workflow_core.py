@@ -402,8 +402,8 @@ class WorkflowInterface(object):
             now_time = naive_utcnow()
             match data_spec.status:
                 case WFDataStatus.checked_nonexist:
-                    # Data does not exist, advance to generating_start
-                    data_spec.status = WFDataStatus.generating_start
+                    # Data does not exist, advance to binding
+                    data_spec.status = WFDataStatus.binding
                     data_spec.start_time = now_time
                     self.tbif.update_workflow_data(data_spec)
                 case WFDataStatus.checked_insuff:
@@ -422,6 +422,41 @@ class WorkflowInterface(object):
             process_result.success = True
             process_result.new_status = data_spec.status
             tmp_log.info(f"Done, from {original_status} to status={data_spec.status}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"{traceback.format_exc()}")
+        return process_result
+
+    def process_data_binding(self, data_spec: WFDataSpec) -> WFDataProcessResult:
+        """
+        Process data in binding status
+        To bind the data to the step that will generate it
+
+        Args:
+            data_spec (WFDataSpec): The workflow data specification to process
+
+        Returns:
+            WFDataProcessResult: The result of processing the data
+        """
+        tmp_log = LogWrapper(logger, f"process_data_binding workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}")
+        tmp_log.debug("Start")
+        # Initialize
+        process_result = WFDataProcessResult()
+        # Check status
+        if data_spec.status != WFDataStatus.binding:
+            process_result.message = f"Data status changed unexpectedly from {WFDataStatus.binding} to {data_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
+        # Process
+        try:
+            # FIXME: find the step to bind to
+            ...
+            # For now, just update status to generating_start
+            # data_spec.status = WFDataStatus.generating_start
+            # self.tbif.update_workflow_data(data_spec)
+            # process_result.success = True
+            # process_result.new_status = data_spec.status
+            # tmp_log.info(f"Done, status={data_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"{traceback.format_exc()}")
@@ -733,13 +768,13 @@ class WorkflowInterface(object):
                 to_generate_output = False
                 output_data_names = step_spec.definition_json_map.get("output_data_list", [])
                 for output_data_name in output_data_names:
-                    data_spec = self.tbif.get_workflow_data_by_name(step_spec.workflow_id, output_data_name)
+                    data_spec = self.tbif.get_workflow_data_by_name(output_data_name, step_spec.workflow_id)
                     if data_spec is None:
                         tmp_log.warning(f"Output {output_data_name} not found in workflow data; skipped")
                         to_run_step = None
                         break
-                    if data_spec.status == WFDataStatus.generating_start:
-                        tmp_log.debug(f"Output data {output_data_name} status {data_spec.status} needs generation")
+                    if data_spec.status == WFDataStatus.binding:
+                        tmp_log.debug(f"Output data {output_data_name} status {data_spec.status} requires step to generate")
                         to_generate_output = True
                         break
                     elif data_spec.status in (WFDataStatus.registered, WFDataStatus.checking) or data_spec.status in WFDataStatus.checked_statuses:
@@ -747,7 +782,7 @@ class WorkflowInterface(object):
                         to_run_step = None
                         break
                     else:
-                        tmp_log.debug(f"Output data {output_data_name} status {data_spec.status} does not need generation")
+                        tmp_log.debug(f"Output data {output_data_name} status {data_spec.status} does not require step to generate")
                         continue
                 if to_run_step is not None and to_generate_output:
                     # Outputs are not all good; need to run the step
@@ -871,36 +906,53 @@ class WorkflowInterface(object):
             # All inputs are good, register outputs of the step and update step status to ready
             tmp_log.debug(f"All input data are good; proceeding")
             output_data_list = step_spec_definition.get("output_data_list", [])
-            outputs_raw_dict = step_spec_definition.get("outputs", {})
-            output_types = step_spec_definition.get("output_types", [])
-            now_time = naive_utcnow()
-            if step_spec_definition.get("is_tail"):
-                # Tail step, set root output source_step_id
-                for output_data_name in output_data_list:
-                    data_spec = self.tbif.get_workflow_data_by_name(output_data_name, step_spec.workflow_id)
-                    if data_spec is not None:
+            # outputs_raw_dict = step_spec_definition.get("outputs", {})
+            # output_types = step_spec_definition.get("output_types", [])
+            # now_time = naive_utcnow()
+            # New code: for all output data, set source_step_id to this step
+            for output_data_name in output_data_list:
+                data_spec = self.tbif.get_workflow_data_by_name(output_data_name, step_spec.workflow_id)
+                if data_spec is not None:
+                    if data_spec.status == WFDataStatus.binding:
                         data_spec.source_step_id = step_spec.step_id
                         self.tbif.update_workflow_data(data_spec)
-                        tmp_log.debug(f"Updated output data_id={data_spec.data_id} name={output_data_name} about source_step_id")
+                        tmp_log.debug(f"Bound output data_id={data_spec.data_id} name={output_data_name} to the step")
                     else:
-                        tmp_log.warning(f"Output data {output_data_name} not found in workflow data; skipped")
-            else:
-                # Intermediate step, register their outputs as mid type
-                for output_data_name in output_data_list:
-                    data_spec = WFDataSpec()
-                    data_spec.workflow_id = step_spec.workflow_id
-                    data_spec.source_step_id = step_spec.step_id
-                    data_spec.name = output_data_name
-                    data_spec.target_id = outputs_raw_dict.get(output_data_name, {}).get("value")  # caution: may be None
-                    data_spec.set_parameter("output_types", output_types)
-                    data_spec.status = WFDataStatus.registered
-                    data_spec.type = WFDataType.mid
-                    data_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
-                    data_spec.creation_time = now_time
-                    self.tbif.insert_workflow_data(data_spec)
-                    tmp_log.debug(f"Registered mid data {output_data_name} of step_id={step_spec.step_id}")
-                    # update data_spec_map
-                    data_spec_map[output_data_name] = data_spec
+                        tmp_log.debug(f"Output data_id={data_spec.data_id} name={output_data_name} status={data_spec.status} not in binding; skipped")
+                else:
+                    tmp_log.warning(f"Output data {output_data_name} not found in workflow data; skipped")
+            # Old code for reference
+            # if step_spec_definition.get("is_tail"):
+            #     # Tail step, set root output source_step_id
+            #     for output_data_name in output_data_list:
+            #         data_spec = self.tbif.get_workflow_data_by_name(output_data_name, step_spec.workflow_id)
+            #         if data_spec is not None:
+            #             data_spec.source_step_id = step_spec.step_id
+            #             self.tbif.update_workflow_data(data_spec)
+            #             tmp_log.debug(f"Updated output data_id={data_spec.data_id} name={output_data_name} about source_step_id")
+            #         else:
+            #             tmp_log.warning(f"Output data {output_data_name} not found in workflow data; skipped")
+            # else:
+            #     # Intermediate step, update mid output data specs source_step_id
+            #     for output_data_name in output_data_list:
+            #         data_spec = self.tbif.get_workflow_data_by_name(output_data_name, step_spec.workflow_id)
+            #         if data_spec is None:
+            #             tmp_log.warning(f"Output data {output_data_name} not found in workflow data; skipped")
+            #             continue
+            #         elif data_spec.status == WFDataStatus.binding:
+            #             # mid data in binding, bind it to the step
+            #             data_spec.source_step_id = step_spec.step_id
+            #             data_spec.name = output_data_name
+            #             data_spec.target_id = outputs_raw_dict.get(output_data_name, {}).get("value")  # caution: may be None
+            #             data_spec.set_parameter("output_types", output_types)
+            #             data_spec.status = WFDataStatus.registered
+            #             data_spec.type = WFDataType.mid
+            #             data_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
+            #             data_spec.creation_time = now_time
+            #             self.tbif.update_workflow_data(data_spec)
+            #             tmp_log.debug(f"Updated mid data {output_data_name} about source step")
+            #             # update data_spec_map
+            #             data_spec_map[output_data_name] = data_spec
             step_spec.status = WFStepStatus.ready
             self.tbif.update_workflow_step(step_spec)
             process_result.success = True
@@ -1270,7 +1322,7 @@ class WorkflowInterface(object):
                     step_definition["user_dn"] = workflow_definition.get("user_dn")
                     # resolve inputs and outputs
                     input_data_set = set()
-                    output_data_set = set()
+                    output_data_dict = dict()
                     for input_target in step_definition.get("inputs", {}).values():
                         if not input_target.get("source"):
                             continue
@@ -1280,21 +1332,21 @@ class WorkflowInterface(object):
                         else:
                             sources = [input_target["source"]]
                         input_data_set.update(sources)
-                    for output_name in step_definition.get("outputs", {}).keys():
-                        output_data_set.add(output_name)
+                    for output_name, output_value in step_definition.get("outputs", {}).items():
+                        output_data_dict[output_name] = output_value.get("value")
                     step_definition["input_data_list"] = list(input_data_set)
-                    step_definition["output_data_list"] = list(output_data_set)
+                    step_definition["output_data_list"] = list(output_data_dict.keys())
                     step_spec.definition_json_map = step_definition
                     step_spec.creation_time = now_time
                     step_specs.append(step_spec)
                     # intermediate outputs of the step
-                    for output_data_name in output_data_set:
+                    for output_data_name in output_data_dict.keys():
                         if output_data_name not in workflow_definition["root_outputs"]:
                             data_spec = WFDataSpec()
                             data_spec.workflow_id = workflow_spec.workflow_id
                             data_spec.source_step_id = None  # to be set when step starts
                             data_spec.name = output_data_name
-                            data_spec.target_id = None  # to be set when step starts
+                            data_spec.target_id = output_data_dict[output_data_name]
                             data_spec.set_parameter("output_types", step_definition.get("output_types", []))
                             data_spec.status = WFDataStatus.registered
                             data_spec.type = WFDataType.mid
