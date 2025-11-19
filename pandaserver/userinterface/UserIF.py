@@ -196,6 +196,11 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
+    # get job statistics per site
+    def getJobStatisticsPerSite(self):
+        ret = self.taskBuffer.getJobStatistics()
+        return WrappedPickle.dumps(ret, convert_to_safe=True)
+
     # get job statistics per site, source label, and resource type
     def get_job_statistics_per_site_label_resource(self, time_window):
         ret = self.taskBuffer.get_job_statistics_per_site_label_resource(time_window)
