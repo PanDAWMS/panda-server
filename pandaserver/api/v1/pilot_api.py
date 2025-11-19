@@ -338,7 +338,7 @@ def update_job(
     site_name: str = None,
     pilot_log: str = "",
     meta_data: str = "",
-    cpu_conversion_factor: float = None,
+    cpu_conversion_factor: float | int = None,
     trans_exit_code: int = None,
     pilot_error_code: int = None,
     pilot_error_diag: str = None,
