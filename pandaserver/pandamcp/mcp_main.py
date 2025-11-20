@@ -41,4 +41,4 @@ for mod, func_list in endpoints_to_expose.items():
 http_app = main_mcp.http_app(transport=mcp_config.transport)
 
 if __name__ == "__main__":
-    uvicorn.run(http_app, port=os.getenv("PANDA_SERVER_CONF_PORT_MCP", 25888), ssl_keyfile=mcp_config.ssl_keyfile, ssl_certfile=mcp_config.ssl_certfile)
+    uvicorn.run(http_app, port=int(os.getenv("PANDA_SERVER_CONF_PORT_MCP", 25888)), ssl_keyfile=mcp_config.ssl_keyfile, ssl_certfile=mcp_config.ssl_certfile)
