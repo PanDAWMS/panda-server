@@ -1224,6 +1224,7 @@ class DataCarouselInterface(object):
                 "datadisk_ds_list": [],
                 "to_pin_ds_list": [],
                 "unfound_ds_list": [],
+                "related_dcreq_ids": [],
             }
             # get active source rses
             active_source_rses_set = self._get_active_source_rses()
@@ -1270,6 +1271,10 @@ class DataCarouselInterface(object):
                     ret_map["to_skip_ds_list"].append(dataset)
                     tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
                     continue
+                # check if already in existing Data Carousel requests
+                existing_dcreq_id = self.taskBufferIF.get_data_carousel_request_id_by_dataset_JEDI(dataset)
+                if existing_dcreq_id is not None:
+                    ret_map["related_dcreq_ids"].append(existing_dcreq_id)
                 # get source type and RSEs
                 source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
                 if source_type == "datadisk":
@@ -1305,7 +1310,7 @@ class DataCarouselInterface(object):
                 else:
                     ret_map["no_tape_coll_did_list"].append(collection_did)
             # return
-            tmp_log.debug(f"got {len(ret_prestaging_list)} input datasets to prestage")
+            tmp_log.debug(f"got {len(ret_prestaging_list)} input datasets to prestage and {len(ret_map['related_dcreq_ids'])} related existing requests")
             return ret_prestaging_list, ret_map
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
@@ -1352,10 +1357,10 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, f"submit_data_carousel_requests task_id={task_id}")
         n_req_to_submit = len(prestaging_list)
+        log_str = f"to submit {len(prestaging_list)} requests"
         if options:
-            tmp_log.debug(f"options={options} to submit {len(prestaging_list)} requests")
-        else:
-            tmp_log.debug(f"to submit {len(prestaging_list)} requests")
+            log_str = f"options={options} " + log_str
+        tmp_log.debug(log_str)
         # fill dc request spec for each input dataset
         dc_req_spec_list = []
         now_time = naive_utcnow()
@@ -1394,6 +1399,28 @@ class DataCarouselInterface(object):
         tmp_log.info(f"submitted {n_req_inserted}/{n_req_to_submit} requests")
         ret = n_req_inserted is not None
         # return
+        return ret
+
+    def add_data_carousel_relations(self, task_id: int, request_ids: list[int] | None) -> bool | None:
+        """
+        Add Data Carousel relations for a task
+
+        Args:
+            task_id (int): JEDI task ID
+            request_ids (list[int]|None): list of Data Carousel request IDs to relate; None to skip
+
+        Returns:
+            bool | None : True if successful, or None if failed
+        """
+        tmp_log = LogWrapper(logger, f"add_data_carousel_relations task_id={task_id}")
+        if request_ids is None:
+            tmp_log.debug(f"request_ids is None ; skipped")
+            return True
+        n_req_to_add = len(request_ids)
+        tmp_log.debug(f"to add {n_req_to_add} relations")
+        n_req_added = self.taskBufferIF.insert_data_carousel_relations_JEDI(task_id, request_ids)
+        tmp_log.info(f"added {n_req_added}/{n_req_to_add} relations")
+        ret = n_req_added is not None
         return ret
 
     def _get_dc_requests_table_dataframe(self) -> pl.DataFrame | None:
