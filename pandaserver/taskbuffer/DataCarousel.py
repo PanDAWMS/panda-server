@@ -1401,7 +1401,7 @@ class DataCarouselInterface(object):
         # return
         return ret
 
-    def add_data_carousel_relations(self, task_id: int, request_ids: list[int] | None) -> bool | None:
+    def add_data_carousel_relations(self, task_id: int, request_ids: list[int] | None) -> bool:
         """
         Add Data Carousel relations for a task
 
@@ -1410,7 +1410,7 @@ class DataCarouselInterface(object):
             request_ids (list[int]|None): list of Data Carousel request IDs to relate; None to skip
 
         Returns:
-            bool | None : True if successful, or None if failed
+            bool : True if successful, or False if failed
         """
         tmp_log = LogWrapper(logger, f"add_data_carousel_relations task_id={task_id}")
         if request_ids is None:
@@ -1420,8 +1420,7 @@ class DataCarouselInterface(object):
         tmp_log.debug(f"to add {n_req_to_add} relations")
         n_req_added = self.taskBufferIF.insert_data_carousel_relations_JEDI(task_id, request_ids)
         tmp_log.info(f"added {n_req_added}/{n_req_to_add} relations")
-        ret = n_req_added is not None
-        return ret
+        return n_req_added is not None
 
     def _get_dc_requests_table_dataframe(self) -> pl.DataFrame | None:
         """

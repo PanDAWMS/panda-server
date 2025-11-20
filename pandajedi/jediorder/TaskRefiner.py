@@ -455,9 +455,7 @@ class TaskRefinerThread(WorkerThread):
                                     if tmp_ret:
                                         tmpLog.info(f"added relations to existing data carousel requests: {related_dcreq_ids}")
                                     else:
-                                        tmpLog.error(
-                                            f"failed to add relations to existing data carousel requests: {related_dcreq_ids}; skip and retry next time"
-                                        )
+                                        tmpLog.error(f"failed to add relations to existing data carousel requests: {related_dcreq_ids}; skipped")
                             except Exception:
                                 errtype, errvalue = sys.exc_info()[:2]
                                 errStr = f"failed to check about data carousel with {errtype.__name__}:{errvalue}"
