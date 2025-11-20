@@ -12,7 +12,8 @@ RUN yum update -y
 RUN yum install -y epel-release
 
 RUN yum install -y httpd httpd-devel gcc gridsite git psmisc less wget logrotate procps which \
-    openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel systemd-udev voms-clients
+    openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel systemd-udev voms-clients \
+    sqlite-devel
 
 # install python
 RUN mkdir /tmp/python && cd /tmp/python && \
@@ -22,7 +23,7 @@ RUN mkdir /tmp/python && cd /tmp/python && \
     ./configure --enable-shared --enable-optimizations --with-lto && \
     make altinstall && \
     echo /usr/local/lib > /etc/ld.so.conf.d/local.conf && ldconfig && \
-    cd / && rm -rf /tmp/pyton
+    cd / && rm -rf /tmp/python
 
 # install Oracle Instant Client and tnsnames.ora
 RUN wget https://download.oracle.com/otn_software/linux/instantclient/oracle-instantclient-basic-linuxx64.rpm -P /tmp/ && \

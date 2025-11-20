@@ -55,7 +55,7 @@ start() {
 
     # Start program in foreground but fork to background manually to free the shell
     # while still tracking PID.
-    nohup PROGNAME >>> $LOGSTDOUT 2>> $LOGSTDERR &
+    nohup PROGNAME >> $LOGSTDOUT 2>> $LOGSTDERR &
     ERROR=$?
 
     if [ $ERROR -ne 0 ]; then

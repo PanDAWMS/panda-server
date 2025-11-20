@@ -27,7 +27,7 @@ RUN mv /opt/panda/etc/panda/sysconfig/panda_jedi /etc/sysconfig/panda_jedi
 RUN mkdir -p /etc/rc.d/init.d
 RUN ln -s /opt/panda/etc/rc.d/init.d/panda_jedi /etc/rc.d/init.d/panda-jedi
 RUN ln -s /opt/panda/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
-RUN ln -s /opt/panda/etc/rc.d/init.d/panda_mcp /etc/rc.d/init.d/pada-mcp
+RUN ln -s /opt/panda/etc/rc.d/init.d/panda_mcp /etc/rc.d/init.d/panda-mcp
 
 RUN mkdir -p /data/atlpan
 RUN mkdir -p /data/panda
