@@ -353,7 +353,7 @@ config = {
 #
 
 # transport method: streamable-http (http) or sse
-transport = "http"
+transport = http
 
 # the list of REST API endpoints to expose through MCP
 endpoint_list_file = /opt/panda/etc/panda/panda_mcp_endpoints.json
