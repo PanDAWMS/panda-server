@@ -5,7 +5,7 @@ from collections.abc import Callable
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.tools.tool import Tool
 
-from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
+from pandaserver.api.v1.http_client import HttpClient, api_url, api_url_ssl
 from pandaserver.srvcore.panda_request import PandaRequest
 
 
@@ -20,7 +20,6 @@ def create_tool(func: Callable) -> Tool:
     # construct the URL based on the module and function name
     mod_path = inspect.getfile(inspect.getmodule(func))
     mod_name = os.path.basename(mod_path).split("_")[0]
-    url = f"{api_url_ssl}/{mod_name}/{func.__name__}"
 
     # determine http method based on the docstring
     http_method = None
@@ -33,6 +32,11 @@ def create_tool(func: Callable) -> Tool:
             break
     if http_method is None:
         raise ValueError("HTTP Method not specified in the function docstring")
+
+    if http_method == "get":
+        url = f"{api_url}/{mod_name}/{func.__name__}"
+    else:
+        url = f"{api_url_ssl}/{mod_name}/{func.__name__}"
 
     # remove PandaRequest from the signature and annotations
     sig = inspect.signature(func)

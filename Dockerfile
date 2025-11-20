@@ -7,7 +7,7 @@ RUN mkdir /tmp/src
 WORKDIR /tmp/src
 COPY . .
 
-RUN /opt/panda/bin/pip install --no-cache-dir .[postgres,oracle]
+RUN /opt/panda/bin/pip install --no-cache-dir .[postgres,oracle,mcp]
 RUN /opt/panda/bin/pip install --no-cache-dir rucio-clients
 RUN /opt/panda/bin/pip install --no-cache-dir "git+https://github.com/PanDAWMS/panda-cacheschedconfig.git"
 RUN ln -s /opt/panda/lib/python*/site-packages/mod_wsgi/server/mod_wsgi*.so /etc/httpd/modules/mod_wsgi.so
@@ -26,6 +26,8 @@ RUN mv /opt/panda/etc/panda/sysconfig/panda_jedi /etc/sysconfig/panda_jedi
 
 RUN mkdir -p /etc/rc.d/init.d
 RUN ln -s /opt/panda/etc/rc.d/init.d/panda_jedi /etc/rc.d/init.d/panda-jedi
+RUN ln -s /opt/panda/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
+RUN ln -s /opt/panda/etc/rc.d/init.d/panda_mcp /etc/rc.d/init.d/panda-mcp
 
 RUN mkdir -p /data/atlpan
 RUN mkdir -p /data/panda
@@ -41,7 +43,7 @@ RUN chown -R atlpan:zp /var/log/panda
 RUN ln -fs /opt/panda/etc/cert/hostkey.pem /etc/grid-security/hostkey.pem
 RUN ln -fs /opt/panda/etc/cert/hostcert.pem /etc/grid-security/hostcert.pem
 RUN ln -fs /opt/panda/etc/cert/chain.pem /etc/grid-security/chain.pem
-RUN ln -s /opt/panda/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
+
 RUN ln -fs /data/panda/idds.cfg /opt/panda/etc/idds/idds.cfg
 RUN ln -fs /data/panda/rucio.cfg /opt/panda/etc/rucio.cfg
 RUN ln -fs /data/panda/panda_mbproxy_config.json /opt/panda/etc/panda/panda_mbproxy_config.json
@@ -97,4 +99,4 @@ RUN chmod +x /etc/rc.d/init.d/run-jedi-services
 
 CMD ["sleep", "infinity"]
 
-EXPOSE 25080 25443
+EXPOSE 25080 25443 25888

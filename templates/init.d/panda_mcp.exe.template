@@ -1,0 +1,128 @@
+#!/bin/sh
+#
+# chkconfig: - 85 15
+#
+# description: Panda MCP
+# processname: python
+# config: /etc/panda/panda_server.cfg
+# pidfile: /var/log/panda/panda_mcp.pid
+#
+
+# When multiple arguments are given, only the error from the _last_
+# one is reported.
+#
+ARGV="$@"
+#
+# |||||||||||||||||||| START CONFIGURATION SECTION  ||||||||||||||||||||
+# --------------------                              --------------------
+#
+
+# virtual env activation
+@@virtual_env_setup@@
+
+# the path to application
+PROGNAME='python -u @@install_purelib@@/pandaserver/pandamcp/mcp_main.py'
+
+# pid and lock files
+if [[ -z "${PANDA_LOCK_DIR}" ]]; then
+    PIDFILE='/var/log/panda/panda_mcp.pid'
+else
+    PIDFILE=${PANDA_LOCK_DIR}'/panda_mcp.pid'
+fi
+
+# log files
+LOGSTDOUT='/var/log/panda/panda_mcp_stdout.log'
+LOGSTDERR='/var/log/panda/panda_mcp_stderr.log'
+
+# Source panda server env variables
+if [ -r /etc/sysconfig/panda_server ]; then
+   . /etc/sysconfig/panda_server
+fi
+
+
+start() {
+    echo "Starting PanDA MCP ..."
+
+    # Check if already running
+    if [ -f "$PIDFILE" ]; then
+        kill -0 "$(cat "$PIDFILE")" 2>/dev/null
+        ERROR=$?
+        if [ $ERROR -eq 0 ]; then
+            echo "Already running."
+            return 0
+        fi
+    fi
+
+    # Start program in foreground but fork to background manually to free the shell
+    # while still tracking PID.
+    nohup $PROGNAME >> $LOGSTDOUT 2>> $LOGSTDERR &
+    ERROR=$?
+
+    if [ $ERROR -ne 0 ]; then
+        echo "Failed to start myservice (exit code $ERROR)."
+        return $ERROR
+    fi
+
+    echo $! > "$PIDFILE"
+    echo "PanDA MCP started with PID $(cat "$PIDFILE")."
+}
+
+stop() {
+    echo "Stopping PanDA MCP ..."
+
+    if [ ! -f "$PIDFILE" ]; then
+        echo "PID file not found; is PanDA MCP running?"
+        return 0
+    fi
+
+    kill "$PID" 2>/dev/null
+    ERROR=$?
+
+    if [ $ERROR -ne 0 ]; then
+        echo "Could not stop process (exit code $ERROR)."
+        return $ERROR
+    fi
+
+    rm -f "$PIDFILE"
+    ERROR=$?
+
+    if [ $ERROR -ne 0 ]; then
+        echo "Could not remove PID file (exit code $ERROR)."
+        return $ERROR
+    fi
+
+    echo "Stopped."
+}
+
+status() {
+    if [ -f "$PIDFILE" ]; then
+        kill -0 "$(cat "$PIDFILE")" 2>/dev/null
+        ERROR=$?
+
+        if [ $ERROR -eq 0 ]; then
+            echo "Running (PID $(cat "$PIDFILE"))."
+            return 0
+        fi
+    fi
+
+    echo "Not running."
+    return 1
+}
+
+# main
+if [ "x$ARGV" = "x" ] ; then
+    ARGV="-h"
+fi
+
+case $ARGV in
+    start) start ;;
+    stop) stop ;;
+    restart) stop; start ;;
+    status) status ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+
+exit 0
