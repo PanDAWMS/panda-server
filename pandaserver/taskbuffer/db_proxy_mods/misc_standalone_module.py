@@ -3339,6 +3339,37 @@ class MiscStandaloneModule(BaseModule):
             self.dump_error_message(g_tmp_log)
             return False
 
+    # query data carousel request ID by dataset
+    def get_data_carousel_request_id_by_dataset_JEDI(self, dataset):
+        comment = " /* JediDBProxy.get_data_carousel_request_id_by_dataset_JEDI */"
+        tmp_log = self.create_tagged_logger(comment, f"dataset={dataset}")
+        tmp_log.debug("start")
+        try:
+            # sql to query request of the dataset
+            status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.reusable_statuses, prefix=":status_")
+            sql_query = (
+                f"SELECT request_id "
+                f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
+                f"WHERE dataset=:dataset "
+                f"AND status IN ({status_var_names_str}) "
+            )
+            var_map = {":dataset": dataset}
+            var_map.update(status_var_map)
+            self.cur.execute(sql_query + comment, var_map)
+            res = self.cur.fetchone()
+            if res is None:
+                tmp_log.debug("no such request")
+                return None
+            request_id = res[0]
+            tmp_log.debug(f"found request_id={request_id}")
+            return request_id
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
     # insert data carousel requests
     def insert_data_carousel_requests_JEDI(self, task_id, dc_req_specs):
         comment = " /* JediDBProxy.insert_data_carousel_requests_JEDI */"
@@ -3444,6 +3475,50 @@ class MiscStandaloneModule(BaseModule):
             # return
             tmp_log.debug(f"updated {dc_req_spec.bindUpdateChangesExpression()}")
             return dc_req_spec
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # insert data carousel relations
+    def insert_data_carousel_relations_JEDI(self, task_id, request_ids):
+        comment = " /* JediDBProxy.insert_data_carousel_relations_JEDI */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
+        tmp_log.debug("start")
+        try:
+            # start transaction
+            self.conn.begin()
+            # insert relations
+            n_rel_inserted = 0
+            n_rel_reused = 0
+            for request_id in request_ids:
+                # sql to query relation
+                sql_rel_query = (
+                    f"SELECT request_id, task_id "
+                    f"FROM {panda_config.schemaJEDI}.data_carousel_relations "
+                    f"WHERE request_id=:request_id AND task_id=:task_id "
+                )
+                var_map = {":request_id": request_id, ":task_id": task_id}
+                self.cur.execute(sql_rel_query + comment, var_map)
+                res = self.cur.fetchall()
+                if res:
+                    # have existing relation; skipped
+                    n_rel_reused += 1
+                else:
+                    # sql to insert relation
+                    sql_insert_relation = (
+                        f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_relations (request_id, task_id) " f"VALUES(:request_id, :task_id) "
+                    )
+                    self.cur.execute(sql_insert_relation + comment, var_map)
+                    n_rel_inserted += 1
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(f"inserted {n_rel_inserted} relations ; reused {n_rel_reused} relations")
+            return n_rel_inserted
         except Exception:
             # roll back
             self._rollback()
