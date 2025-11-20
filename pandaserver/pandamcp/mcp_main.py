@@ -10,6 +10,12 @@ from pandaserver.api.v1.http_client import api_url
 from pandaserver.config import mcp_config
 from pandaserver.pandamcp.mcp_utils import create_tool
 
+# remove or overwrite environment variables to avoid server's credential being used
+for var in ["PANDA_AUTH_ID_TOKEN", "PANDA_AUTH_VO", "X509_USER_PROXY"]:
+    if var in os.environ:
+        del os.environ[var]
+os.environ["X509_USER_PROXY"] = "/dev/null"
+
 # extract API's module path
 p = urlparse(api_url)
 api_module_path = ".".join([seg for seg in p.path.strip("/").split("/") if seg])
