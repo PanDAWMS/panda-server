@@ -450,6 +450,12 @@ class TaskRefinerThread(WorkerThread):
                                         # failed to submit data carousel requests; skip and retry in next cycle
                                         tmpLog.error("failed to submit data carousel requests; skip and retry next time")
                                         continue
+                                if related_dcreq_ids := ds_list_dict["related_dcreq_ids"]:
+                                    tmp_ret = self.data_carousel_interface.add_data_carousel_relations(jediTaskID, related_dcreq_ids)
+                                    if tmp_ret:
+                                        tmpLog.info(f"added relations to existing data carousel requests: {related_dcreq_ids}")
+                                    else:
+                                        tmpLog.error(f"failed to add relations to existing data carousel requests: {related_dcreq_ids}; skipped")
                             except Exception:
                                 errtype, errvalue = sys.exc_info()[:2]
                                 errStr = f"failed to check about data carousel with {errtype.__name__}:{errvalue}"
