@@ -2678,6 +2678,11 @@ class TaskBuffer:
 
     # ==== Data Carousel functions =============================
 
+    # query data carousel request ID by dataset
+    def get_data_carousel_request_id_by_dataset_JEDI(self, dataset):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_data_carousel_request_id_by_dataset_JEDI(dataset)
+
     # insert data carousel requests
     def insert_data_carousel_requests_JEDI(self, task_id, dc_req_specs):
         with self.proxyPool.get() as proxy:
@@ -2687,6 +2692,11 @@ class TaskBuffer:
     def update_data_carousel_request_JEDI(self, dc_req_spec):
         with self.proxyPool.get() as proxy:
             return proxy.update_data_carousel_request_JEDI(dc_req_spec)
+
+    # insert data carousel relations
+    def insert_data_carousel_relations_JEDI(self, task_id, request_ids):
+        with self.proxyPool.get() as proxy:
+            return proxy.insert_data_carousel_relations_JEDI(task_id, request_ids)
 
     # get data carousel queued requests and info of their related tasks
     def get_data_carousel_queued_requests_JEDI(self):
