@@ -99,6 +99,7 @@ split_rule_dict = {
     "useExhausted": "UX",
     "useZipToPin": "UZ",
     "writeInputToFile": "WF",
+    "workflowHoldup": "WH",
     "waitInput": "WI",
     "maxAttemptES": "XA",
     "decAttOnFailedES": "XF",

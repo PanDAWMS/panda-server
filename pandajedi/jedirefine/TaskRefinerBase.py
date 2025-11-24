@@ -432,6 +432,8 @@ class TaskRefinerBase(object):
             self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["allowIncompleteInDS"])
         if "noAutoPause" in taskParamMap and taskParamMap["noAutoPause"]:
             self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["noAutoPause"])
+        if "workflowHoldup" in taskParamMap and taskParamMap["workflowHoldup"]:
+            self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["workflowHoldup"])
         # work queue
         workQueue = None
         if "workQueueName" in taskParamMap:

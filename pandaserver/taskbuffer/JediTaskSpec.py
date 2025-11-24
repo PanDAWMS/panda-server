@@ -839,7 +839,7 @@ class JediTaskSpec(object):
             items = self.splitRule.split(",")
             newItems = []
             for item in items:
-                # remove rile
+                # remove rule
                 tmpRuleName = item.split("=")[0]
                 if ruleName == tmpRuleName:
                     continue
@@ -1616,6 +1616,17 @@ class JediTaskSpec(object):
     # check if incomplete input datasets are allowed
     def allow_incomplete_input(self):
         return self.check_split_rule("allowIncompleteInDS")
+
+    # check if workflow holdup
+    def is_workflow_holdup(self):
+        return self.check_split_rule("workflowHoldup")
+
+    # set workflow holdup
+    def set_workflow_holdup(self, value: bool):
+        if value:
+            self.setSplitRule("workflowHoldup", "1")
+        else:
+            self.removeSplitRule(self.splitRuleToken["workflowHoldup"])
 
     # get queued time
     def get_queued_time(self):

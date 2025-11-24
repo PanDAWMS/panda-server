@@ -628,6 +628,9 @@ class ContentsFeederThread(WorkerThread):
                 if noWaitParent:
                     # parent is running
                     taskOnHold = True
+                elif taskSpec.is_workflow_holdup():
+                    # hold up by the workflow
+                    taskOnHold = True
                 else:
                     # the task has no parent or parent is finished
                     if master_is_open and taskSpec.runUntilClosed():
