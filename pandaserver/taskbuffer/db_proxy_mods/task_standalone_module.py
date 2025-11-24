@@ -1999,6 +1999,12 @@ class TaskStandaloneModule(BaseModule):
             sql_read_file += "jediTaskID=:jediTaskID AND datasetID=:datasetID AND type=:type "
             sql_read_file += "AND NOt status IN (:status1,:status2) "
             sql_read_file += "ORDER BY creationDate DESC "
+            # sql to check the corresponding job status
+            sql_check_job = (
+                f"SELECT jobStatus FROM {panda_config.schemaPANDA}.jobsDefined4 WHERE PandaID=:PandaID "
+                "UNION "
+                f"SELECT jobStatus FROM {panda_config.schemaPANDA}.jobsActive4 WHERE PandaID=:PandaID "
+            )
             # start transaction
             self.conn.begin()
             found_flag = False
@@ -2019,11 +2025,21 @@ class TaskStandaloneModule(BaseModule):
                     res_file_list = self.cur.fetchall()
                     for res_file_item in res_file_list:
                         # make FileSpec
-                        file_spec = JediFileSpec()
-                        file_spec.pack(res_file_item)
-                        if file_spec.status == "finished":
+                        tmp_file_spec = JediFileSpec()
+                        tmp_file_spec.pack(res_file_item)
+                        if tmp_file_spec.status == "finished":
                             found_flag = True
+                            file_spec = tmp_file_spec
                             break
+                        # check if the corresponding job is still active
+                        var_map = {":PandaID": tmp_file_spec.PandaID}
+                        self.cur.execute(sql_check_job + comment, var_map)
+                        res_job = self.cur.fetchone()
+                        if res_job is None:
+                            # no active job
+                            tmp_log.debug(f"no active job for {tmp_file_spec.lfn} (PandaID={tmp_file_spec.PandaID})")
+                        else:
+                            file_spec = tmp_file_spec
                     # no more dataset lookup
                     if found_flag:
                         break

@@ -666,6 +666,27 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 continue
 
             ######################################
+            # selection for fairshare
+            if not sitePreAssigned or workQueue.queue_name not in ["test", "validation"]:
+                newScanSiteList = []
+                oldScanSiteList = copy.copy(scanSiteList)
+                for tmpSiteName in scanSiteList:
+                    tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
+                    # check at the site
+                    if AtlasBrokerUtils.hasZeroShare(tmpSiteSpec, taskSpec, inputChunk.isMerging, tmpLog):
+                        tmpLog.info(f"  skip site={tmpSiteName} due to zero share criteria=-zeroshare")
+                        continue
+                    newScanSiteList.append(tmpSiteName)
+                scanSiteList = newScanSiteList
+                tmpLog.info(f"{len(scanSiteList)} candidates passed zero share check")
+                self.add_summary_message(oldScanSiteList, scanSiteList, "zero share check")
+                if not scanSiteList:
+                    self.dump_summary(tmpLog)
+                    tmpLog.error("no candidates")
+                    taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
+                    return retTmpError
+
+            ######################################
             # selection for iointensity limits
             # get default disk IO limit from GDP config
             max_diskio_per_core_default = self.taskBufferIF.getConfigValue(COMPONENT, "MAX_DISKIO_DEFAULT", APP, VO)
