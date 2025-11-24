@@ -3897,6 +3897,11 @@ class TaskComplexModule(BaseModule):
                                 self.cur.execute(sqlMUT + comment, varMap)
                                 nRow = self.cur.rowcount
                                 tmpLog.debug(f"jediTaskID={jediTaskID} updated {nRow} mutable datasets")
+                            elif taskSpec.is_workflow_holdup():
+                                # hold up workflow tasks
+                                # go to defined to trigger CF
+                                newTaskStatus = "defined"
+                                tmpLog.debug(f"jediTaskID={jediTaskID} held up as workflow task")
                             else:
                                 # update input datasets
                                 for varMap in varMapList:

@@ -59,3 +59,14 @@ class BaseStepHandler:
             WFStepTargetCheckResult: An object containing the result of the check, including success status, current step status, and message.
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def on_all_inputs_done(self, step_spec: WFStepSpec, **kwargs) -> None:
+        """
+        Hook method called when all inputs for the step are done.
+        This method can be overridden by subclasses to perform actions when all inputs are ready.
+
+        Args:
+            step_spec (WFStepSpec): Specifications of the workflow step whose inputs are done.
+            **kwargs: Additional keyword arguments.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")

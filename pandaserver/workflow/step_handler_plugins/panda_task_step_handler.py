@@ -192,3 +192,36 @@ class PandaTaskStepHandler(BaseStepHandler):
             check_result.message = f"exception {str(e)}"
             tmp_log.error(f"Failed to check status: {traceback.format_exc()}")
         return check_result
+
+    def on_all_inputs_done(self, step_spec: WFStepSpec, **kwargs) -> None:
+        """
+        Hook method called when all inputs for the step are done.
+        For PanDA task steps, unset workflowHoldup of the target task to allow it to proceed.
+
+        Args:
+            step_spec (WFStepSpec): The workflow step specification containing details about the step.
+            **kwargs: Additional keyword arguments.
+        """
+        tmp_log = LogWrapper(logger, f"on_all_inputs_done workflow_id={step_spec.workflow_id} step_id={step_spec.step_id}")
+        try:
+            # Check step flavor
+            if step_spec.flavor != self.plugin_flavor:
+                tmp_log.warning(f"flavor={step_spec.flavor} not {self.plugin_flavor}; skipped")
+                return
+            if step_spec.target_id is None:
+                tmp_log.warning(f"target_id is None; skipped")
+                return
+            # Get task ID
+            task_id = int(step_spec.target_id)
+            # Get task spec
+            _, task_spec = self.tbif.getTaskWithID_JEDI(task_id)
+            if task_spec is None:
+                tmp_log.error(f"task_id={task_id} not found; skipped")
+                return
+            # Unset workflowHoldup
+            if task_spec.is_workflow_holdup():
+                task_spec.set_workflow_holdup(False)
+                self.tbif.updateTask_JEDI(task_spec, {"jediTaskID": task_spec.jediTaskID})
+                tmp_log.info(f"Unset workflowHoldup for task_id={task_id}")
+        except Exception as e:
+            tmp_log.error(f"Failed with: {traceback.format_exc()}")

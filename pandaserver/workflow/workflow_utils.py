@@ -423,9 +423,9 @@ class Node(object):
                         tmp_item["value"] = f"-a {task_params['buildSpec']['archiveName']}"
                 del task_params["buildSpec"]
             # parent
-            if self.parents and len(self.parents) == 1:
-                task_params["noWaitParent"] = True
-                task_params["parentTaskName"] = id_map[list(self.parents)[0]].task_params["taskName"]
+            # if self.parents and len(self.parents) == 1:
+            #     task_params["noWaitParent"] = True
+            #     task_params["parentTaskName"] = id_map[list(self.parents)[0]].task_params["taskName"]
             # notification
             if not self.is_workflow_output:
                 task_params["noEmail"] = True
