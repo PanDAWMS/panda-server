@@ -1843,6 +1843,8 @@ class JobGeneratorThread(WorkerThread):
                     pandaFileSpec.prodDBlockToken = "local"
                     if fileSpec.status == "finished":
                         pandaFileSpec.status = "ready"
+                    else:
+                        pandaFileSpec.status = None
                     # make dummy jobSpec
                     jobSpec = JobSpec()
                     jobSpec.addFile(pandaFileSpec)
