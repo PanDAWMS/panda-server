@@ -667,7 +667,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
 
             ######################################
             # selection for fairshare
-            if not sitePreAssigned or workQueue.queue_name not in ["test", "validation"]:
+            if not sitePreAssigned:
                 newScanSiteList = []
                 oldScanSiteList = copy.copy(scanSiteList)
                 for tmpSiteName in scanSiteList:
