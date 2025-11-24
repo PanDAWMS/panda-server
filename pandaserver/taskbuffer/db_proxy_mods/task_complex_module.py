@@ -4411,8 +4411,6 @@ class TaskComplexModule(BaseModule):
                 if varMap[":status"] in ["dummy", "paused"]:
                     continue
                 self.conn.begin()
-                # FIXME
-                # varMap[':timeLimit'] = naive_utcnow() - datetime.timedelta(hours=1)
                 varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=5)
                 sqlOrpS = "SELECT jediTaskID,errorDialog,oldStatus "
                 sqlOrpS += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
@@ -4424,24 +4422,38 @@ class TaskComplexModule(BaseModule):
                 if prodSourceLabel not in [None, "any"]:
                     sqlOrpS += "AND prodSourceLabel=:prodSourceLabel "
                     varMap[":prodSourceLabel"] = prodSourceLabel
-                sqlOrpS += "FOR UPDATE "
                 tmpLog.debug(sqlOrpS + comment + str(varMap))
                 self.cur.execute(sqlOrpS + comment, varMap)
                 resList = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError("Commit error")
                 # update modtime to avoid immediate reattempts
+                sql_orphaned_lock = f"SELECT modificationtime FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE NOWAIT "
                 sqlOrpU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationtime=CURRENT_DATE "
                 sqlOrpU += "WHERE jediTaskID=:jediTaskID "
                 for jediTaskID, comComment, oldStatus in resList:
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
+                    self.conn.begin()
+                    # lock
+                    try:
+                        varMap = {}
+                        varMap[":jediTaskID"] = jediTaskID
+                        self.cur.execute(sql_orphaned_lock + comment, varMap)
+                    except Exception as e:
+                        tmpLog.debug(f"skip locked jediTaskID={jediTaskID} due to {str(e)}")
+                        # commit
+                        if not self._commit():
+                            raise RuntimeError("Commit error")
+                        continue
+                    # update
                     tmpLog.debug(sqlOrpU + comment + str(varMap))
                     self.cur.execute(sqlOrpU + comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow == 1 and jediTaskID not in retTaskIDs:
                         retTaskIDs[jediTaskID] = {"command": commandStr, "comment": comComment, "oldStatus": oldStatus}
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError("Commit error")
             # read clob
             sqlCC = f"SELECT comm_parameters FROM {panda_config.schemaDEFT}.PRODSYS_COMM WHERE comm_task=:comm_task "
             for jediTaskID in retTaskIDs.keys():
