@@ -1450,6 +1450,14 @@ class TaskBuffer:
             ret = proxy.getJobStatisticsForExtIF(sourcetype)
         return ret
 
+    # get job statistics for Bamboo
+    def getJobStatisticsForBamboo(self):
+        # get DBproxy
+        with self.proxyPool.get() as proxy:
+            # get serial number
+            ret = proxy.getJobStatisticsPerProcessingType()
+        return ret
+
     # update site data
     def updateSiteData(self, hostID, pilotRequests, interval=3):
         # get DBproxy
