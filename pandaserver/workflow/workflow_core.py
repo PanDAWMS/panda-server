@@ -893,6 +893,7 @@ class WorkflowInterface(object):
                 return process_result
             # Check if all input data are good, aka ready as input
             all_inputs_good = True
+            all_inputs_complete = True
             for input_data_name in input_data_list:
                 data_spec = data_spec_map.get(input_data_name)
                 if data_spec is None:
@@ -903,6 +904,8 @@ class WorkflowInterface(object):
                     tmp_log.debug(f"Input data {input_data_name} status {data_spec.status} is not ready for input")
                     all_inputs_good = False
                     break
+                elif data_spec.status not in WFDataStatus.done_statuses:
+                    all_inputs_complete = False
             # If not all inputs are good, just return and wait for next round
             if not all_inputs_good:
                 tmp_log.debug(f"Some input data are not good; skipped")
@@ -925,6 +928,9 @@ class WorkflowInterface(object):
                         tmp_log.debug(f"Output data_id={data_spec.data_id} name={output_data_name} status={data_spec.status} not in binding; skipped")
                 else:
                     tmp_log.warning(f"Output data {output_data_name} not found in workflow data; skipped")
+            if all_inputs_complete:
+                # All inputs are complete, mark in step_spec
+                step_spec.set_parameter("all_inputs_complete", True)
             # Old code for reference
             # if step_spec_definition.get("is_tail"):
             #     # Tail step, set root output source_step_id

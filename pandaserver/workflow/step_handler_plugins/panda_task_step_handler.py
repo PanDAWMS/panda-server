@@ -116,8 +116,9 @@ class PandaTaskStepHandler(BaseStepHandler):
             user_dn = step_definition.get("user_dn")
             task_param_map = step_definition.get("task_params", {})
             # task_param_map["userName"] = user_name
-            # Always set workflowHoldup to True to hold up the workflow until released by workflow processor
-            task_param_map["workflowHoldup"] = True
+            if not step_spec.get_parameter("all_inputs_complete"):
+                # Some inputs are not complete, set workflowHoldup to True to hold up the workflow until released by workflow processor
+                task_param_map["workflowHoldup"] = True
             # Submit task
             tmp_ret_flag, temp_ret_val = self.tbif.insertTaskParamsPanda(task_param_map, user_dn, False, decode=False)
             if tmp_ret_flag:

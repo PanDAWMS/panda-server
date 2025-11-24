@@ -240,6 +240,9 @@ class ContentsFeederThread(WorkerThread):
                         ):
                             # dummy metadata when parent is running
                             tmpMetadata = {"state": "mutable"}
+                        # set mutable when workflow holdup is set
+                        if taskSpec.is_workflow_holdup():
+                            tmpMetadata = {"state": "mutable"}
                     except Exception:
                         errtype, errvalue = sys.exc_info()[:2]
                         tmpLog.error(f"{self.__class__.__name__} failed to get metadata to {errtype.__name__}:{errvalue}")
