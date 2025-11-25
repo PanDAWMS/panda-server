@@ -622,7 +622,7 @@ class ContentsFeederThread(WorkerThread):
                                 skip_secondaries = True
                     tmpLog.debug("end loop")
             # task holdup by workflow
-            if not taskOnHold and not taskBroken and allUpdated and checkedMaster and taskSpec.is_workflow_holdup():
+            if not taskOnHold and not taskBroken and allUpdated and nFilesMaster == 0 and checkedMaster and taskSpec.is_workflow_holdup():
                 # hold up by the workflow
                 taskOnHold = True
                 tmpLog.debug("task to hold up by workflow")
