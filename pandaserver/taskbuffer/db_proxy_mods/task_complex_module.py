@@ -222,8 +222,10 @@ class TaskComplexModule(BaseModule):
         tmpLog.debug(f"skipShortInput={skipShortInput} skipShortOutput={skip_short_output} inputPreStaging={inputPreStaging} order_by={order_by}")
         # return value for failure
         diagMap = {"errMsg": "", "nChunksForScout": nChunksForScout, "nActivatedPending": 0, "isRunningTask": False}
-        failedRet = False, 0, None, diagMap
-        harmlessRet = None, 0, None, diagMap
+        # failedRet = False, 0, None, diagMap
+        # harmlessRet = None, 0, None, diagMap
+        failedRet = {"ret_val": False, "missingFileList": 0, "numUniqueLfn": None, "diagMap": diagMap}
+        harmlessRet = {"ret_val": None, "missingFileList": 0, "numUniqueLfn": None, "diagMap": diagMap}
         regStart = naive_utcnow()
         # mutable
         fake_mutable_for_skip_short_output = False
@@ -632,7 +634,8 @@ class TaskComplexModule(BaseModule):
             nEventsLost = 0
             nEventsExist = 0
             stagingLB = set()
-            retVal = None, missingFileList, None, diagMap
+            # retVal = None, missingFileList, None, diagMap
+            retVal = {"ret_val": None, "missingFileList": missingFileList, "numUniqueLfn": None, "diagMap": diagMap, "nReady": nReady}
             # begin transaction
             self.conn.begin()
             # check task
@@ -741,7 +744,8 @@ class TaskComplexModule(BaseModule):
                             self.cur.execute(sqlCo + comment, varMap)
                             resCo = self.cur.fetchone()
                             numUniqueLfn = resCo[0]
-                            retVal = True, missingFileList, numUniqueLfn, diagMap
+                            # retVal = True, missingFileList, numUniqueLfn, diagMap
+                            retVal = {"ret_val": True, "missingFileList": missingFileList, "numUniqueLfn": numUniqueLfn, "diagMap": diagMap, "nReady": nReady}
                     else:
                         oldDsStatus, nFilesUnprocessed, dsStateInDB, nFilesToUseDS, nFilesUsedInDS = resDs
                         tmpLog.debug(f"ds.state={dsStateInDB} in DB")
@@ -1258,7 +1262,8 @@ class TaskComplexModule(BaseModule):
                         if nFilesUnprocessed not in [0, None]:
                             diagMap["nActivatedPending"] += nFilesUnprocessed
                         # set return value
-                        retVal = True, missingFileList, numUniqueLfn, diagMap
+                        # retVal = True, missingFileList, numUniqueLfn, diagMap
+                        retVal = {"ret_val": True, "missingFileList": missingFileList, "numUniqueLfn": numUniqueLfn, "diagMap": diagMap, "nReady": nReady}
             # fix secondary files in staging
             if inputPreStaging and datasetSpec.isSeqNumber():
                 get_task_utils_module(self).fix_associated_files_in_staging(datasetSpec.jediTaskID, secondary_id=datasetSpec.datasetID)
