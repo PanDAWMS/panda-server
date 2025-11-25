@@ -662,7 +662,7 @@ def main(tbuf=None, **kwargs):
                         # using --destSE for analysis job to transfer output
                         seList = [job.destinationSE]
                     elif tmpNucleus is not None:
-                        seList = list(tmpNucleus.allDdmEndPoints)
+                        seList = [tmpNucleus.default_ddm_endpoint_out]
 
                     # get LFN list
                     lfns = []
