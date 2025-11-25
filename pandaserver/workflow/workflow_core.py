@@ -711,6 +711,40 @@ class WorkflowInterface(object):
 
     # ---- Step status transitions -----------------------------
 
+    def _check_all_inputs_of_step(self, tmp_log: LogWrapper, input_data_list: List[str], data_spec_map: Dict[str, WFDataSpec]) -> Dict[str, bool]:
+        """
+        Check whether all input data of a step are sufficient or complete
+
+        Args:
+            tmp_log (LogWrapper): Logger for logging messages
+            input_data_list (List[str]): List of input data names for the step
+            data_spec_map (Dict[str, WFDataSpec]): Mapping of data names to their specifications
+
+        Returns:
+            Dict[str, bool]: Dictionary indicating whether all inputs sufficient and complete
+        """
+        # Check if all input data sufficient or complete
+        ret_dict = {"all_inputs_sufficient": True, "all_inputs_complete": True}
+        for input_data_name in input_data_list:
+            data_spec = data_spec_map.get(input_data_name)
+            if data_spec is None:
+                tmp_log.warning(f"Input data {input_data_name} not found in workflow data")
+                ret_dict["all_inputs_sufficient"] = False
+                ret_dict["all_inputs_complete"] = False
+                break
+            elif data_spec.status not in WFDataStatus.good_input_statuses:
+                tmp_log.debug(f"Input data {input_data_name} status {data_spec.status} is not sufficient as input")
+                ret_dict["all_inputs_sufficient"] = False
+                ret_dict["all_inputs_complete"] = False
+                break
+            elif data_spec.status not in WFDataStatus.done_statuses:
+                ret_dict["all_inputs_complete"] = False
+        if ret_dict["all_inputs_complete"]:
+            tmp_log.debug("All input data are complete")
+        elif ret_dict["all_inputs_sufficient"]:
+            tmp_log.debug("All input data are sufficient as input")
+        return ret_dict
+
     def process_step_registered(self, step_spec: WFStepSpec) -> WFStepProcessResult:
         """
         Process a step in registered status
@@ -880,10 +914,6 @@ class WorkflowInterface(object):
             return process_result
         # Process
         try:
-            # Get data spec map of the workflow
-            if data_spec_map is None:
-                data_specs = self.tbif.get_workflow_data(workflow_id=step_spec.workflow_id)
-                data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Input data list of the step
             step_spec_definition = step_spec.definition_json_map
             input_data_list = step_spec_definition.get("input_data_list")
@@ -891,28 +921,19 @@ class WorkflowInterface(object):
                 process_result.message = f"Step definition does not have input_data_list; skipped"
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
-            # Check if all input data are good, aka ready as input
-            all_inputs_good = True
-            all_inputs_complete = True
-            for input_data_name in input_data_list:
-                data_spec = data_spec_map.get(input_data_name)
-                if data_spec is None:
-                    tmp_log.warning(f"Input data {input_data_name} not found in workflow data")
-                    all_inputs_good = False
-                    break
-                elif data_spec.status not in WFDataStatus.good_input_statuses:
-                    tmp_log.debug(f"Input data {input_data_name} status {data_spec.status} is not ready for input")
-                    all_inputs_good = False
-                    break
-                elif data_spec.status not in WFDataStatus.done_statuses:
-                    all_inputs_complete = False
-            # If not all inputs are good, just return and wait for next round
-            if not all_inputs_good:
-                tmp_log.debug(f"Some input data are not good; skipped")
+            # Get data spec map of the workflow
+            if data_spec_map is None:
+                data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
+                data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
+            # Check if all input data are good
+            all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
+            # If not all inputs are sufficient as input, just return and wait for next round
+            if not all_inputs_stats["all_inputs_sufficient"]:
+                tmp_log.debug(f"Some input data are not sufficient as input; skipped")
                 process_result.success = True
                 return process_result
             # All inputs are good, register outputs of the step and update step status to ready
-            tmp_log.debug(f"All input data are good; proceeding")
+            tmp_log.debug(f"All input data are sufficient as input; proceeding")
             output_data_list = step_spec_definition.get("output_data_list", [])
             # outputs_raw_dict = step_spec_definition.get("outputs", {})
             # output_types = step_spec_definition.get("output_types", [])
@@ -928,7 +949,7 @@ class WorkflowInterface(object):
                         tmp_log.debug(f"Output data_id={data_spec.data_id} name={output_data_name} status={data_spec.status} not in binding; skipped")
                 else:
                     tmp_log.warning(f"Output data {output_data_name} not found in workflow data; skipped")
-            if all_inputs_complete:
+            if all_inputs_stats["all_inputs_complete"]:
                 # All inputs are complete, mark in step_spec
                 step_spec.set_parameter("all_inputs_complete", True)
             # Old code for reference
@@ -1037,6 +1058,18 @@ class WorkflowInterface(object):
             return process_result
         # Process
         try:
+            # Input data list of the step
+            step_spec_definition = step_spec.definition_json_map
+            input_data_list = step_spec_definition.get("input_data_list")
+            if input_data_list is None:
+                process_result.message = f"Step definition does not have input_data_list; skipped"
+                tmp_log.warning(f"{process_result.message}")
+                return process_result
+            # Get data spec map of the workflow
+            data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
+            data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
+            # Check if all input data are good
+            all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
             # Get the step handler plugin
             step_handler = self.get_plugin("step_handler", step_spec.flavor)
             # Check the step status
@@ -1045,6 +1078,10 @@ class WorkflowInterface(object):
                 process_result.message = f"Failed to check step; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
+            # If all inputs are complete, mark in step_spec and call the hook of step_handler
+            if all_inputs_stats["all_inputs_complete"]:
+                step_spec.set_parameter("all_inputs_complete", True)
+                step_handler.on_all_inputs_done(step_spec)
             # Update step status
             if check_result.step_status in WFStepStatus.after_starting_statuses:
                 # Step status advanced
@@ -1093,8 +1130,24 @@ class WorkflowInterface(object):
             return process_result
         # Process
         try:
+            # Input data list of the step
+            step_spec_definition = step_spec.definition_json_map
+            input_data_list = step_spec_definition.get("input_data_list")
+            if input_data_list is None:
+                process_result.message = f"Step definition does not have input_data_list; skipped"
+                tmp_log.warning(f"{process_result.message}")
+                return process_result
+            # Get data spec map of the workflow
+            data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
+            data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
+            # Check if all input data are good
+            all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
             # Get the step handler plugin
             step_handler = self.get_plugin("step_handler", step_spec.flavor)
+            # If all inputs are complete, mark in step_spec and call the hook of step_handler
+            if all_inputs_stats["all_inputs_complete"]:
+                step_spec.set_parameter("all_inputs_complete", True)
+                step_handler.on_all_inputs_done(step_spec)
             # Check the step status
             check_result = step_handler.check_target(step_spec)
             if not check_result.success or check_result.step_status is None:

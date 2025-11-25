@@ -224,5 +224,7 @@ class PandaTaskStepHandler(BaseStepHandler):
                 task_spec.set_workflow_holdup(False)
                 self.tbif.updateTask_JEDI(task_spec, {"jediTaskID": task_spec.jediTaskID})
                 tmp_log.info(f"Unset workflowHoldup for task_id={task_id}")
+            # Done
+            tmp_log.debug(f"Done")
         except Exception as e:
             tmp_log.error(f"Failed with: {traceback.format_exc()}")
