@@ -225,8 +225,11 @@ class PandaTaskStepHandler(BaseStepHandler):
                 self.tbif.updateTask_JEDI(task_spec, {"jediTaskID": task_spec.jediTaskID})
                 tmp_log.info(f"task_id={task_id} unset workflowHoldup")
                 if task_spec.status == "pending":
-                    self.tbif.release_task_on_hold(task_id)
-                    tmp_log.info(f"task_id={task_id} released from pending")
+                    tmp_ret = self.tbif.release_task_on_hold(task_id)
+                    if not tmp_ret:
+                        tmp_log.error(f"task_id={task_id} failed to release from pending")
+                    else:
+                        tmp_log.info(f"task_id={task_id} released from pending")
             # Done
             tmp_log.debug(f"Done")
         except Exception as e:
