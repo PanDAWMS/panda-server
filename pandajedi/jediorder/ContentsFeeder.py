@@ -621,6 +621,11 @@ class ContentsFeederThread(WorkerThread):
                                 setFrozenTime = False
                                 skip_secondaries = True
                     tmpLog.debug("end loop")
+            # task holdup by workflow
+            if not taskOnHold and not taskBroken and allUpdated and checkedMaster and taskSpec.is_workflow_holdup():
+                # hold up by the workflow
+                taskOnHold = True
+                tmpLog.debug("task to hold up by workflow")
             # no master input
             if not taskOnHold and not taskBroken and allUpdated and nFilesMaster == 0 and checkedMaster:
                 tmpErrStr = "no master input files. input dataset is empty"
@@ -630,9 +635,6 @@ class ContentsFeederThread(WorkerThread):
                 taskSpec.setErrDiag(tmpErrStr, None)
                 if noWaitParent:
                     # parent is running
-                    taskOnHold = True
-                elif taskSpec.is_workflow_holdup():
-                    # hold up by the workflow
                     taskOnHold = True
                 else:
                     # the task has no parent or parent is finished
