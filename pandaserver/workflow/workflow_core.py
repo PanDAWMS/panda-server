@@ -933,7 +933,6 @@ class WorkflowInterface(object):
                 process_result.success = True
                 return process_result
             # All inputs are good, register outputs of the step and update step status to ready
-            tmp_log.debug(f"All input data are sufficient as input; proceeding")
             output_data_list = step_spec_definition.get("output_data_list", [])
             # outputs_raw_dict = step_spec_definition.get("outputs", {})
             # output_types = step_spec_definition.get("output_types", [])

@@ -569,7 +569,7 @@ class ContentsFeederThread(WorkerThread):
                                 maxFileRecords,
                                 skip_short_output,
                             )
-                            retDB = res_dict["retDB"]
+                            retDB = res_dict["ret_val"]
                             missingFileList = res_dict["missingFileList"]
                             nFilesUnique = res_dict["numUniqueLfn"]
                             diagMap = res_dict["diagMap"]
