@@ -738,6 +738,49 @@ class WorkflowInterface(object):
             tmp_log.error(f"{traceback.format_exc()}")
         return process_result
 
+    def process_data(self, data_spec: WFDataSpec, by: str = "watchdog") -> WFDataProcessResult | None:
+        """
+        Process a single workflow data specification
+
+        Args:
+            data_spec (WFDataSpec): The workflow data specification to process
+            by (str): Identifier of the entity processing the data specification
+
+        Returns:
+            WFDataProcessResult | None: The result of processing the data specification, or None if skipped
+        """
+        tmp_log = LogWrapper(logger, f"process_data workflow_id={data_spec.workflow_id} data_id={data_spec.data_id} by={by}")
+        tmp_log.debug("Start")
+        tmp_res = None
+        with self.workflow_data_lock(data_spec.data_id) as locked_data_spec:
+            if locked_data_spec is None:
+                tmp_log.warning(f"Failed to acquire lock for data_id={data_spec.data_id}; skipped")
+                return None
+            data_spec = locked_data_spec
+            orig_status = data_spec.status
+            # Process the data
+            if data_spec.status == WFDataStatus.registered:
+                tmp_res = self.process_data_registered(data_spec)
+            elif data_spec.status == WFDataStatus.checking:
+                tmp_res = self.process_data_checking(data_spec)
+            elif data_spec.status in WFDataStatus.checked_statuses:
+                tmp_res = self.process_data_checked(data_spec)
+            elif data_spec.status == WFDataStatus.binding:
+                # dummy result since binding data are handled in step processing
+                dummy_process_result = WFDataProcessResult()
+                dummy_process_result.success = True
+                tmp_res = dummy_process_result
+            elif data_spec.status in WFDataStatus.generating_statuses:
+                tmp_res = self.process_data_generating(data_spec)
+            elif data_spec.status in WFDataStatus.waiting_statuses:
+                tmp_res = self.process_data_waiting(data_spec)
+            else:
+                tmp_log.debug(f"Data status {data_spec.status} is not handled in this context; skipped")
+            # For changes into transient status, send message to trigger processing immediately
+            if data_spec.status != orig_status and data_spec.status in WFDataStatus.transient_statuses:
+                self.send_data_message(data_spec.data_id)
+        return tmp_res
+
     def process_datas(self, data_specs: List[WFDataSpec], by: str = "watchdog") -> Dict:
         """
         Process a list of workflow data specifications
@@ -754,47 +797,19 @@ class WorkflowInterface(object):
         tmp_log.debug(f"Start, processing {n_data} data specs")
         data_status_stats = {"n_data": n_data, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         for data_spec in data_specs:
-            with self.workflow_data_lock(data_spec.data_id) as locked_data_spec:
-                if locked_data_spec is None:
-                    tmp_log.warning(f"Failed to acquire lock for data_id={data_spec.data_id}; skipped")
-                    continue
-                data_spec = locked_data_spec
-                orig_status = data_spec.status
-                # Process the data
-                tmp_res = None
-                status = data_spec.status
-                if status == WFDataStatus.registered:
-                    tmp_res = self.process_data_registered(data_spec)
-                elif status == WFDataStatus.checking:
-                    tmp_res = self.process_data_checking(data_spec)
-                elif status in WFDataStatus.checked_statuses:
-                    tmp_res = self.process_data_checked(data_spec)
-                elif status == WFDataStatus.binding:
-                    # dummy result since binding data are handled in step processing
-                    dummy_process_result = WFDataProcessResult()
-                    dummy_process_result.success = True
-                    tmp_res = dummy_process_result
-                elif status in WFDataStatus.generating_statuses:
-                    tmp_res = self.process_data_generating(data_spec)
-                elif status in WFDataStatus.waiting_statuses:
-                    tmp_res = self.process_data_waiting(data_spec)
+            orig_status = data_spec.status
+            tmp_res = self.process_data(data_spec, by=by)
+            if tmp_res and tmp_res.success:
+                # update stats
+                if tmp_res.new_status and data_spec.status != orig_status:
+                    data_status_stats["changed"].setdefault(data_spec.status, 0)
+                    data_status_stats["changed"][data_spec.status] += 1
                 else:
-                    tmp_log.debug(f"Data status {data_spec.status} is not handled in this context; skipped")
-                    continue
-                if tmp_res and tmp_res.success:
-                    # update stats
-                    if tmp_res.new_status and data_spec.status != orig_status:
-                        data_status_stats["changed"].setdefault(data_spec.status, 0)
-                        data_status_stats["changed"][data_spec.status] += 1
-                    else:
-                        data_status_stats["unchanged"].setdefault(data_spec.status, 0)
-                        data_status_stats["unchanged"][data_spec.status] += 1
-                    data_status_stats["processed"].setdefault(data_spec.status, 0)
-                    data_status_stats["processed"][data_spec.status] += 1
-                    data_status_stats["n_processed"] += 1
-                    # For changes into transient status, send message to trigger processing immediately
-                    if data_spec.status != orig_status and data_spec.status in WFDataStatus.transient_statuses:
-                        self.send_data_message(data_spec.data_id)
+                    data_status_stats["unchanged"].setdefault(data_spec.status, 0)
+                    data_status_stats["unchanged"][data_spec.status] += 1
+                data_status_stats["processed"].setdefault(data_spec.status, 0)
+                data_status_stats["processed"][data_spec.status] += 1
+                data_status_stats["n_processed"] += 1
         tmp_log.info(
             f"Done, processed {data_status_stats['n_processed']}/{n_data} data specs, unchanged: {data_status_stats['unchanged']}, changed: {data_status_stats['changed']}"
         )
@@ -1270,6 +1285,54 @@ class WorkflowInterface(object):
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return process_result
 
+    def process_step(self, step_spec: WFStepSpec, data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "watchdog") -> WFStepProcessResult | None:
+        """
+        Process a single workflow step
+
+        Args:
+            step_spec (WFStepSpec): The workflow step specification to process
+            data_spec_map (Dict[str, WFDataSpec] | None): Optional map of data name to WFDataSpec for the workflow
+            by (str): The entity processing the step, e.g., "watchdog" or "user"
+
+        Returns:
+            WFStepProcessResult | None: The result of processing the step, or None if the step was skipped
+        """
+        tmp_log = LogWrapper(logger, f"process_step workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} by={by}")
+        tmp_log.debug("Start")
+        tmp_res = None
+        with self.workflow_step_lock(step_spec.step_id) as locked_step_spec:
+            if locked_step_spec is None:
+                tmp_log.warning(f"Failed to acquire lock for step_id={step_spec.step_id}; skipped")
+                return None
+            step_spec = locked_step_spec
+            orig_status = step_spec.status
+            # Process the step
+            if step_spec.status == WFStepStatus.registered:
+                tmp_res = self.process_step_registered(step_spec)
+            elif step_spec.status == WFStepStatus.checking:
+                tmp_res = self.process_step_checking(step_spec)
+            elif step_spec.status in WFStepStatus.checked_statuses:
+                tmp_res = self.process_step_checked(step_spec)
+            elif step_spec.status == WFStepStatus.pending:
+                tmp_res = self.process_step_pending(step_spec, data_spec_map=data_spec_map)
+            elif step_spec.status == WFStepStatus.ready:
+                tmp_res = self.process_step_ready(step_spec)
+            elif step_spec.status == WFStepStatus.starting:
+                tmp_res = self.process_step_starting(step_spec)
+            elif step_spec.status == WFStepStatus.running:
+                tmp_res = self.process_step_running(step_spec)
+            elif step_spec.status in WFStepStatus.final_statuses:
+                # dummy result since final steps need no processing
+                dummy_process_result = WFStepProcessResult()
+                dummy_process_result.success = True
+                tmp_res = dummy_process_result
+            else:
+                tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
+            # For changes into transient status, send message to trigger processing immediately
+            if step_spec.status != orig_status and step_spec.status in WFStepStatus.transient_statuses:
+                self.send_step_message(step_spec.step_id)
+        return tmp_res
+
     def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "watchdog") -> Dict:
         """
         Process a list of workflow steps
@@ -1287,50 +1350,19 @@ class WorkflowInterface(object):
         tmp_log.debug(f"Start, processing {n_steps} steps")
         steps_status_stats = {"n_steps": n_steps, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         for step_spec in step_specs:
-            with self.workflow_step_lock(step_spec.step_id) as locked_step_spec:
-                if locked_step_spec is None:
-                    tmp_log.warning(f"Failed to acquire lock for step_id={step_spec.step_id}; skipped")
-                    continue
-                step_spec = locked_step_spec
-                orig_status = step_spec.status
-                # Process the step
-                tmp_res = None
-                if step_spec.status == WFStepStatus.registered:
-                    tmp_res = self.process_step_registered(step_spec)
-                elif step_spec.status == WFStepStatus.checking:
-                    tmp_res = self.process_step_checking(step_spec)
-                elif step_spec.status in WFStepStatus.checked_statuses:
-                    tmp_res = self.process_step_checked(step_spec)
-                elif step_spec.status == WFStepStatus.pending:
-                    tmp_res = self.process_step_pending(step_spec, data_spec_map=data_spec_map)
-                elif step_spec.status == WFStepStatus.ready:
-                    tmp_res = self.process_step_ready(step_spec)
-                elif step_spec.status == WFStepStatus.starting:
-                    tmp_res = self.process_step_starting(step_spec)
-                elif step_spec.status == WFStepStatus.running:
-                    tmp_res = self.process_step_running(step_spec)
-                elif step_spec.status in WFStepStatus.final_statuses:
-                    # dummy result since final steps need no processing
-                    dummy_process_result = WFStepProcessResult()
-                    dummy_process_result.success = True
-                    tmp_res = dummy_process_result
+            orig_status = step_spec.status
+            tmp_res = self.process_step(step_spec, data_spec_map=data_spec_map, by=by)
+            if tmp_res and tmp_res.success:
+                # update stats
+                if tmp_res.new_status and step_spec.status != orig_status:
+                    steps_status_stats["changed"].setdefault(step_spec.status, 0)
+                    steps_status_stats["changed"][step_spec.status] += 1
                 else:
-                    tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
-                    continue
-                if tmp_res and tmp_res.success:
-                    # update stats
-                    if tmp_res.new_status and step_spec.status != orig_status:
-                        steps_status_stats["changed"].setdefault(step_spec.status, 0)
-                        steps_status_stats["changed"][step_spec.status] += 1
-                    else:
-                        steps_status_stats["unchanged"].setdefault(step_spec.status, 0)
-                        steps_status_stats["unchanged"][step_spec.status] += 1
-                    steps_status_stats["processed"].setdefault(step_spec.status, 0)
-                    steps_status_stats["processed"][step_spec.status] += 1
-                    steps_status_stats["n_processed"] += 1
-                    # For changes into transient status, send message to trigger processing immediately
-                    if step_spec.status != orig_status and step_spec.status in WFStepStatus.transient_statuses:
-                        self.send_step_message(step_spec.step_id)
+                    steps_status_stats["unchanged"].setdefault(step_spec.status, 0)
+                    steps_status_stats["unchanged"][step_spec.status] += 1
+                steps_status_stats["processed"].setdefault(step_spec.status, 0)
+                steps_status_stats["processed"][step_spec.status] += 1
+                steps_status_stats["n_processed"] += 1
         tmp_log.info(
             f"Done, processed {steps_status_stats['n_processed']}/{n_steps} steps, unchanged: {steps_status_stats['unchanged']}, changed: {steps_status_stats['changed']}"
         )
@@ -1695,6 +1727,7 @@ class WorkflowInterface(object):
         tmp_log.debug(f"Start, current status={workflow_spec.status}")
         # Initialize
         process_result = WorkflowProcessResult()
+        orig_status = workflow_spec.status
         # Process based on status
         match workflow_spec.status:
             case WorkflowStatus.registered:
@@ -1708,6 +1741,9 @@ class WorkflowInterface(object):
             case _:
                 process_result.message = f"Workflow status {workflow_spec.status} is not handled in this context; skipped"
                 tmp_log.warning(f"{process_result.message}")
+        # For changes into transient status, send message to trigger processing immediately
+        if workflow_spec.status != orig_status and workflow_spec.status in WorkflowStatus.transient_statuses:
+            self.send_workflow_message(workflow_spec.workflow_id)
         return process_result
 
     # ---- Process all workflows -------------------------------------
@@ -1752,9 +1788,6 @@ class WorkflowInterface(object):
                         workflows_status_stats["processed"].setdefault(workflow_spec.status, 0)
                         workflows_status_stats["processed"][workflow_spec.status] += 1
                         workflows_status_stats["n_processed"] += 1
-                    # For changes into transient status, send message to trigger processing immediately
-                    if workflow_spec.status != orig_status and workflow_spec.status in WorkflowStatus.transient_statuses:
-                        self.send_workflow_message(workflow_spec.workflow_id)
             workflows_status_stats["n_workflows"] = n_workflows
             tmp_log.info(
                 f"Done, processed {workflows_status_stats['n_processed']}/{n_workflows} workflows, unchanged: {workflows_status_stats['unchanged']}, changed: {workflows_status_stats['changed']}"
