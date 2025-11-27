@@ -20,8 +20,6 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
         Initialize the plugin
         """
         BaseMsgProcPlugin.initialize(self)
-        ddmIF = DDMInterface()
-        ddmIF.setupInterface()
         the_pid = self.get_pid()
         self.workflow_interface = WorkflowInterface(self.tbIF)
 
@@ -60,18 +58,22 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
             raise
         # run
         try:
+            tmp_log.info(f"got message {msg_dict}")
             if msg_type == "workflow":
                 workflow_id = msg_dict["workflow_id"]
-                stats = self.workflow_interface.process_workflow(workflow_id)
-                tmp_log.info(f"processed workflow_id={workflow_id} : {stats}")
+                workflow_spec = self.tbIF.get_workflow(workflow_id)
+                stats = self.workflow_interface.process_workflow(workflow_spec, by="msgproc")
+                tmp_log.info(f"processed workflow_id={workflow_id}")
             elif msg_type == "wfstep":
                 step_id = msg_dict["step_id"]
-                stats = self.workflow_interface.process_workflow_step(step_id)
-                tmp_log.info(f"processed step_id={step_id} : {stats}")
+                step_spec = self.tbIF.get_workflow_step(step_id)
+                stats = self.workflow_interface.process_steps([step_spec], by="msgproc")
+                tmp_log.info(f"processed step_id={step_id}")
             elif msg_type == "wfdata":
                 data_id = msg_dict["data_id"]
-                stats = self.workflow_interface.process_workflow_data(data_id)
-                tmp_log.info(f"processed data_id={data_id} : {stats}")
+                data_spec = self.tbIF.get_workflow_data(data_id)
+                stats = self.workflow_interface.process_datas([data_spec], by="msgproc")
+                tmp_log.info(f"processed data_id={data_id}")
         except Exception as e:
             err_str = f"failed to run, skipped. {e.__class__.__name__} : {e}"
             tmp_log.error(err_str)

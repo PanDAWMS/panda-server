@@ -154,9 +154,9 @@ class WorkflowInterface(object):
         Set the message broker proxy for workflow manager messaging
         """
         try:
-            jedi_config = importlib.import_module("pandajedi.jediconfig.jedi_config")
+            jedi_config = importlib.import_module("pandajedi.jediconfig").jedi_config
             if hasattr(jedi_config, "mq") and hasattr(jedi_config.mq, "configFile") and jedi_config.mq.configFile:
-                MsgProcAgent = importlib.import_module(f"pandajedi.jediorder.JediMsgProcessor.MsgProcAgent")
+                MsgProcAgent = importlib.import_module(f"pandajedi.jediorder.JediMsgProcessor").MsgProcAgent
             else:
                 logger.warning("Message queue config not found in jedi_config; skipped workflow manager messaging")
                 return None
@@ -167,7 +167,7 @@ class WorkflowInterface(object):
             atexit.register(mq_agent.stop_passive_mode)
             # set mb_proxy
             self.mb_proxy = mb_proxy_dict["out"][MESSAGE_QUEUE_NAME]
-            logger.info(f"Set mb_proxy about queue {MESSAGE_QUEUE_NAME} for workflow manager messaging")
+            # logger.debug(f"Set mb_proxy about queue {MESSAGE_QUEUE_NAME} for workflow manager messaging")
         except Exception:
             logger.warning(f"Failed to set mb_proxy about queue {MESSAGE_QUEUE_NAME}; skipped workflow manager messaging: {traceback.format_exc()}")
             return None
@@ -198,7 +198,7 @@ class WorkflowInterface(object):
             )
             msg = json.dumps(msg_dict)
             self.mb_proxy.send(msg)
-            tmp_log.debug(f"Sent message to workflow manager queue {MESSAGE_QUEUE_NAME}: {msg}")
+            tmp_log.debug(f"Sent message")
         except Exception:
             tmp_log.error(f"Failed to send message to workflow manager queue {MESSAGE_QUEUE_NAME}: {traceback.format_exc()}")
 
@@ -738,17 +738,18 @@ class WorkflowInterface(object):
             tmp_log.error(f"{traceback.format_exc()}")
         return process_result
 
-    def process_data_specs(self, data_specs: List[WFDataSpec]) -> Dict:
+    def process_datas(self, data_specs: List[WFDataSpec], by: str = "watchdog") -> Dict:
         """
         Process a list of workflow data specifications
 
         Args:
             data_specs (List[WFDataSpec]): List of workflow data specifications to process
+            by (str): Identifier of the entity processing the data specifications
 
         Returns:
             Dict: Statistics of the processing results
         """
-        tmp_log = LogWrapper(logger, f"process_data_specs workflow_id={data_specs[0].workflow_id}")
+        tmp_log = LogWrapper(logger, f"process_datas workflow_id={data_specs[0].workflow_id} by={by}")
         n_data = len(data_specs)
         tmp_log.debug(f"Start, processing {n_data} data specs")
         data_status_stats = {"n_data": n_data, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
@@ -1269,18 +1270,19 @@ class WorkflowInterface(object):
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return process_result
 
-    def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None) -> Dict:
+    def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "watchdog") -> Dict:
         """
         Process a list of workflow steps
 
         Args:
             step_specs (List[WFStepSpec]): List of workflow step specifications to process
             data_spec_map (Dict[str, WFDataSpec] | None): Optional map of data name to WFDataSpec for the workflow
+            by (str): The entity processing the steps, e.g., "watchdog" or "user"
 
         Returns:
             Dict: Statistics of the processing results
         """
-        tmp_log = LogWrapper(logger, f"process_steps workflow_id={step_specs[0].workflow_id}")
+        tmp_log = LogWrapper(logger, f"process_steps workflow_id={step_specs[0].workflow_id} by={by}")
         n_steps = len(step_specs)
         tmp_log.debug(f"Start, processing {n_steps} steps")
         steps_status_stats = {"n_steps": n_steps, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
@@ -1555,7 +1557,7 @@ class WorkflowInterface(object):
             # Process data specs first
             data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id, status_exclusion_list=list(WFDataStatus.terminated_statuses))
             if data_specs:
-                data_status_stats = self.process_data_specs(data_specs)
+                data_status_stats = self.process_datas(data_specs)
             # Get steps in registered status
             required_step_statuses = list(WFStepStatus.to_advance_step_statuses)
             over_advanced_step_statuses = list(WFStepStatus.after_starting_uninterrupted_statuses)
@@ -1622,7 +1624,7 @@ class WorkflowInterface(object):
             # Process data specs first
             data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id, status_exclusion_list=list(WFDataStatus.terminated_statuses))
             if data_specs:
-                data_status_stats = self.process_data_specs(data_specs)
+                data_status_stats = self.process_datas(data_specs)
             # Get steps
             step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id)
             if not step_specs:
@@ -1670,22 +1672,26 @@ class WorkflowInterface(object):
             else:
                 process_result.success = True
                 tmp_log.info(f"Done, status remains {workflow_spec.status}")
+                if processed_steps_stats.get(WFStepStatus.done) == len(step_specs):
+                    # all steps are done, trigger re-check to update workflow status
+                    self.send_workflow_message(workflow_spec.workflow_id)
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return process_result
 
-    def process_workflow(self, workflow_spec: WorkflowSpec) -> WorkflowProcessResult:
+    def process_workflow(self, workflow_spec: WorkflowSpec, by: str = "watchdog") -> WorkflowProcessResult:
         """
         Process a workflow based on its current status
 
         Args:
             workflow_spec (WorkflowSpec): The workflow specification to process
+            by (str): The entity processing the workflow
 
         Returns:
             WorkflowProcessResult: The result of processing the workflow
         """
-        tmp_log = LogWrapper(logger, f"process_workflow workflow_id={workflow_spec.workflow_id}")
+        tmp_log = LogWrapper(logger, f"process_workflow workflow_id={workflow_spec.workflow_id} by={by}")
         tmp_log.debug(f"Start, current status={workflow_spec.status}")
         # Initialize
         process_result = WorkflowProcessResult()
