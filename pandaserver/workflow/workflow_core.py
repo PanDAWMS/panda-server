@@ -738,7 +738,7 @@ class WorkflowInterface(object):
             tmp_log.error(f"{traceback.format_exc()}")
         return process_result
 
-    def process_data(self, data_spec: WFDataSpec, by: str = "watchdog") -> WFDataProcessResult | None:
+    def process_data(self, data_spec: WFDataSpec, by: str = "dog") -> WFDataProcessResult | None:
         """
         Process a single workflow data specification
 
@@ -781,7 +781,7 @@ class WorkflowInterface(object):
             self.send_data_message(data_spec.data_id)
         return tmp_res
 
-    def process_datas(self, data_specs: List[WFDataSpec], by: str = "watchdog") -> Dict:
+    def process_datas(self, data_specs: List[WFDataSpec], by: str = "dog") -> Dict:
         """
         Process a list of workflow data specifications
 
@@ -1287,14 +1287,14 @@ class WorkflowInterface(object):
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return process_result
 
-    def process_step(self, step_spec: WFStepSpec, data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "watchdog") -> WFStepProcessResult | None:
+    def process_step(self, step_spec: WFStepSpec, data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> WFStepProcessResult | None:
         """
         Process a single workflow step
 
         Args:
             step_spec (WFStepSpec): The workflow step specification to process
             data_spec_map (Dict[str, WFDataSpec] | None): Optional map of data name to WFDataSpec for the workflow
-            by (str): The entity processing the step, e.g., "watchdog" or "user"
+            by (str): The entity processing the step, e.g., "dog" or "user"
 
         Returns:
             WFStepProcessResult | None: The result of processing the step, or None if the step was skipped
@@ -1335,14 +1335,14 @@ class WorkflowInterface(object):
             self.send_step_message(step_spec.step_id)
         return tmp_res
 
-    def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "watchdog") -> Dict:
+    def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> Dict:
         """
         Process a list of workflow steps
 
         Args:
             step_specs (List[WFStepSpec]): List of workflow step specifications to process
             data_spec_map (Dict[str, WFDataSpec] | None): Optional map of data name to WFDataSpec for the workflow
-            by (str): The entity processing the steps, e.g., "watchdog" or "user"
+            by (str): The entity processing the steps, e.g., "dog" or "user"
 
         Returns:
             Dict: Statistics of the processing results
@@ -1714,7 +1714,7 @@ class WorkflowInterface(object):
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return process_result
 
-    def process_workflow(self, workflow_spec: WorkflowSpec, by: str = "watchdog") -> WorkflowProcessResult:
+    def process_workflow(self, workflow_spec: WorkflowSpec, by: str = "dog") -> WorkflowProcessResult:
         """
         Process a workflow based on its current status
 

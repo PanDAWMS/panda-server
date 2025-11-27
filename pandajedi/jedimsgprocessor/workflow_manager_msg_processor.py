@@ -62,17 +62,17 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
             if msg_type == "workflow":
                 workflow_id = msg_dict["workflow_id"]
                 workflow_spec = self.tbIF.get_workflow(workflow_id)
-                stats = self.workflow_interface.process_workflow(workflow_spec, by="msgproc")
+                stats = self.workflow_interface.process_workflow(workflow_spec, by="msg")
                 tmp_log.info(f"processed workflow_id={workflow_id}")
             elif msg_type == "wfstep":
                 step_id = msg_dict["step_id"]
                 step_spec = self.tbIF.get_workflow_step(step_id)
-                stats = self.workflow_interface.process_step(step_spec, by="msgproc")
+                stats = self.workflow_interface.process_step(step_spec, by="msg")
                 tmp_log.info(f"processed step_id={step_id}")
             elif msg_type == "wfdata":
                 data_id = msg_dict["data_id"]
                 data_spec = self.tbIF.get_workflow_data(data_id)
-                stats = self.workflow_interface.process_data(data_spec, by="msgproc")
+                stats = self.workflow_interface.process_data(data_spec, by="msg")
                 tmp_log.info(f"processed data_id={data_id}")
         except Exception as e:
             err_str = f"failed to run, skipped. {e.__class__.__name__} : {e}"
