@@ -209,7 +209,7 @@ class WorkflowInterface(object):
         Args:
             workflow_id (int): ID of the workflow
         """
-        tmp_log = LogWrapper(logger, f"send_workflow_message workflow_id={workflow_id}")
+        tmp_log = LogWrapper(logger, f"send_workflow_message <workflow_id={workflow_id}>")
         self._send_message(tmp_log, "workflow", {"workflow_id": workflow_id})
 
     def send_step_message(self, step_id: int):
@@ -219,7 +219,7 @@ class WorkflowInterface(object):
         Args:
             step_id (int): ID of the workflow step
         """
-        tmp_log = LogWrapper(logger, f"send_step_message step_id={step_id}")
+        tmp_log = LogWrapper(logger, f"send_step_message <step_id={step_id}>")
         self._send_message(tmp_log, "wfstep", {"step_id": step_id})
 
     def send_data_message(self, data_id: int):
@@ -229,7 +229,7 @@ class WorkflowInterface(object):
         Args:
             data_id (int): ID of the workflow data
         """
-        tmp_log = LogWrapper(logger, f"send_data_message data_id={data_id}")
+        tmp_log = LogWrapper(logger, f"send_data_message <data_id={data_id}>")
         self._send_message(tmp_log, "wfdata", {"data_id": data_id})
 
     # --- Context managers for locking -------------------------
@@ -359,7 +359,7 @@ class WorkflowInterface(object):
         if ret_workflow_id is None:
             tmp_log.error(f"Failed to register workflow")
             return None
-        tmp_log.info(f"Registered workflow workflow_id={ret_workflow_id}")
+        tmp_log.info(f"Registered workflow <workflow_id={ret_workflow_id}>")
         return ret_workflow_id
 
     def cancel_workflow(self, workflow_id: int) -> bool: ...
@@ -381,7 +381,7 @@ class WorkflowInterface(object):
         Returns:
             WFDataProcessResult: The result of processing the data
         """
-        tmp_log = LogWrapper(logger, f"process_data_registered workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}")
+        tmp_log = LogWrapper(logger, f"process_data_registered <workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFDataProcessResult()
@@ -414,7 +414,7 @@ class WorkflowInterface(object):
         Returns:
             WFDataProcessResult: The result of processing the data
         """
-        tmp_log = LogWrapper(logger, f"process_data_checking data_id={data_spec.data_id}")
+        tmp_log = LogWrapper(logger, f"process_data_checking <workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFDataProcessResult()
@@ -473,7 +473,7 @@ class WorkflowInterface(object):
         Returns:
             WFDataProcessResult: The result of processing the data
         """
-        tmp_log = LogWrapper(logger, f"process_data_checked workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}")
+        tmp_log = LogWrapper(logger, f"process_data_checked <workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFDataProcessResult()
@@ -526,7 +526,7 @@ class WorkflowInterface(object):
         Returns:
             WFDataProcessResult: The result of processing the data
         """
-        tmp_log = LogWrapper(logger, f"process_data_binding workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}")
+        tmp_log = LogWrapper(logger, f"process_data_binding <workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFDataProcessResult()
@@ -560,7 +560,7 @@ class WorkflowInterface(object):
         Returns:
             WFDataProcessResult: The result of processing the data
         """
-        tmp_log = LogWrapper(logger, f"process_data_generating workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}")
+        tmp_log = LogWrapper(logger, f"process_data_generating <workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFDataProcessResult()
@@ -661,7 +661,7 @@ class WorkflowInterface(object):
         Returns:
             WFDataProcessResult: The result of processing the data
         """
-        tmp_log = LogWrapper(logger, f"process_data_waiting workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}")
+        tmp_log = LogWrapper(logger, f"process_data_waiting <workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFDataProcessResult()
@@ -749,7 +749,7 @@ class WorkflowInterface(object):
         Returns:
             WFDataProcessResult | None: The result of processing the data specification, or None if skipped
         """
-        tmp_log = LogWrapper(logger, f"process_data workflow_id={data_spec.workflow_id} data_id={data_spec.data_id} by={by}")
+        tmp_log = LogWrapper(logger, f"process_data <workflow_id={data_spec.workflow_id} data_id={data_spec.data_id} by={by}>")
         tmp_log.debug("Start")
         tmp_res = None
         with self.workflow_data_lock(data_spec.data_id) as locked_data_spec:
@@ -792,7 +792,7 @@ class WorkflowInterface(object):
         Returns:
             Dict: Statistics of the processing results
         """
-        tmp_log = LogWrapper(logger, f"process_datas workflow_id={data_specs[0].workflow_id} by={by}")
+        tmp_log = LogWrapper(logger, f"process_datas <workflow_id={data_specs[0].workflow_id} by={by}>")
         n_data = len(data_specs)
         tmp_log.debug(f"Start, processing {n_data} data specs")
         data_status_stats = {"n_data": n_data, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
@@ -862,7 +862,9 @@ class WorkflowInterface(object):
         Returns:
             WFStepProcessResult: The result of processing the step
         """
-        tmp_log = LogWrapper(logger, f"process_step_registered workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}")
+        tmp_log = LogWrapper(
+            logger, f"process_step_registered <workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}>"
+        )
         tmp_log.debug("Start")
         # Initialize
         process_result = WFStepProcessResult()
@@ -894,7 +896,7 @@ class WorkflowInterface(object):
         Returns:
             WFStepProcessResult: The result of processing the step
         """
-        tmp_log = LogWrapper(logger, f"process_step_checking workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}")
+        tmp_log = LogWrapper(logger, f"process_step_checking <workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFStepProcessResult()
@@ -965,7 +967,7 @@ class WorkflowInterface(object):
         Returns:
             WFStepProcessResult: The result of processing the step
         """
-        tmp_log = LogWrapper(logger, f"process_step_checked workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}")
+        tmp_log = LogWrapper(logger, f"process_step_checked <workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFStepProcessResult()
@@ -1009,7 +1011,7 @@ class WorkflowInterface(object):
         Returns:
             WFStepProcessResult: The result of processing the step
         """
-        tmp_log = LogWrapper(logger, f"process_step_pending workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}")
+        tmp_log = LogWrapper(logger, f"process_step_pending <workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFStepProcessResult()
@@ -1110,7 +1112,7 @@ class WorkflowInterface(object):
         Returns:
             WFStepProcessResult: The result of processing the step
         """
-        tmp_log = LogWrapper(logger, f"process_step_ready workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}")
+        tmp_log = LogWrapper(logger, f"process_step_ready <workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFStepProcessResult()
@@ -1152,7 +1154,7 @@ class WorkflowInterface(object):
         Returns:
             WFStepProcessResult: The result of processing the step
         """
-        tmp_log = LogWrapper(logger, f"process_step_starting workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}")
+        tmp_log = LogWrapper(logger, f"process_step_starting <workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFStepProcessResult()
@@ -1224,7 +1226,7 @@ class WorkflowInterface(object):
         Returns:
             WFStepProcessResult: The result of processing the step
         """
-        tmp_log = LogWrapper(logger, f"process_step_running workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}")
+        tmp_log = LogWrapper(logger, f"process_step_running <workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WFStepProcessResult()
@@ -1297,7 +1299,7 @@ class WorkflowInterface(object):
         Returns:
             WFStepProcessResult | None: The result of processing the step, or None if the step was skipped
         """
-        tmp_log = LogWrapper(logger, f"process_step workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} by={by}")
+        tmp_log = LogWrapper(logger, f"process_step <workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id} by={by}>")
         tmp_log.debug("Start")
         tmp_res = None
         with self.workflow_step_lock(step_spec.step_id) as locked_step_spec:
@@ -1345,7 +1347,7 @@ class WorkflowInterface(object):
         Returns:
             Dict: Statistics of the processing results
         """
-        tmp_log = LogWrapper(logger, f"process_steps workflow_id={step_specs[0].workflow_id} by={by}")
+        tmp_log = LogWrapper(logger, f"process_steps <workflow_id={step_specs[0].workflow_id} by={by}>")
         n_steps = len(step_specs)
         tmp_log.debug(f"Start, processing {n_steps} steps")
         steps_status_stats = {"n_steps": n_steps, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
@@ -1381,7 +1383,7 @@ class WorkflowInterface(object):
         Returns:
             WorkflowProcessResult: The result of processing the workflow
         """
-        tmp_log = LogWrapper(logger, f"process_workflow_registered workflow_id={workflow_spec.workflow_id}")
+        tmp_log = LogWrapper(logger, f"process_workflow_registered <workflow_id={workflow_spec.workflow_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WorkflowProcessResult()
@@ -1449,7 +1451,7 @@ class WorkflowInterface(object):
         Returns:
             WorkflowProcessResult: The result of processing the workflow
         """
-        tmp_log = LogWrapper(logger, f"process_workflow_checked workflow_id={workflow_spec.workflow_id}")
+        tmp_log = LogWrapper(logger, f"process_workflow_checked <workflow_id={workflow_spec.workflow_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WorkflowProcessResult()
@@ -1575,7 +1577,7 @@ class WorkflowInterface(object):
         Returns:
             WorkflowProcessResult: The result of processing the workflow
         """
-        tmp_log = LogWrapper(logger, f"process_workflow_starting workflow_id={workflow_spec.workflow_id}")
+        tmp_log = LogWrapper(logger, f"process_workflow_starting <workflow_id={workflow_spec.workflow_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WorkflowProcessResult()
@@ -1642,7 +1644,7 @@ class WorkflowInterface(object):
         Returns:
             WorkflowProcessResult: The result of processing the workflow
         """
-        tmp_log = LogWrapper(logger, f"process_workflow_running workflow_id={workflow_spec.workflow_id}")
+        tmp_log = LogWrapper(logger, f"process_workflow_running <workflow_id={workflow_spec.workflow_id}>")
         tmp_log.debug("Start")
         # Initialize
         process_result = WorkflowProcessResult()
@@ -1723,7 +1725,7 @@ class WorkflowInterface(object):
         Returns:
             WorkflowProcessResult: The result of processing the workflow
         """
-        tmp_log = LogWrapper(logger, f"process_workflow workflow_id={workflow_spec.workflow_id} by={by}")
+        tmp_log = LogWrapper(logger, f"process_workflow <workflow_id={workflow_spec.workflow_id} by={by}>")
         tmp_log.debug(f"Start, current status={workflow_spec.status}")
         # Initialize
         process_result = WorkflowProcessResult()
