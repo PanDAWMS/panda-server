@@ -776,9 +776,9 @@ class WorkflowInterface(object):
                 tmp_res = self.process_data_waiting(data_spec)
             else:
                 tmp_log.debug(f"Data status {data_spec.status} is not handled in this context; skipped")
-            # For changes into transient status, send message to trigger processing immediately
-            if data_spec.status != orig_status and data_spec.status in WFDataStatus.transient_statuses:
-                self.send_data_message(data_spec.data_id)
+        # For changes into transient status, send message to trigger processing immediately
+        if data_spec.status != orig_status and data_spec.status in WFDataStatus.transient_statuses:
+            self.send_data_message(data_spec.data_id)
         return tmp_res
 
     def process_datas(self, data_specs: List[WFDataSpec], by: str = "watchdog") -> Dict:
@@ -1328,9 +1328,9 @@ class WorkflowInterface(object):
                 tmp_res = dummy_process_result
             else:
                 tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
-            # For changes into transient status, send message to trigger processing immediately
-            if step_spec.status != orig_status and step_spec.status in WFStepStatus.transient_statuses:
-                self.send_step_message(step_spec.step_id)
+        # For changes into transient status, send message to trigger processing immediately
+        if step_spec.status != orig_status and step_spec.status in WFStepStatus.transient_statuses:
+            self.send_step_message(step_spec.step_id)
         return tmp_res
 
     def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "watchdog") -> Dict:
