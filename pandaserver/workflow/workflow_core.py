@@ -1,3 +1,4 @@
+import atexit
 import copy
 import functools
 import importlib
@@ -53,6 +54,7 @@ AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 # ==== Global Parameters =======================================
 
 WORKFLOW_CHECK_INTERVAL_SEC = 60
+MESSAGE_QUEUE_NAME = "jedi_workflow_manager"
 
 # ==== Plugin Map ==============================================
 
@@ -122,6 +124,8 @@ class WorkflowInterface(object):
         self.ddm_if = rucioAPI
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
         self.plugin_map = {}
+        self.mb_proxy = None
+        self.set_mb_proxy()
 
     def get_plugin(self, plugin_type: str, flavor: str):
         """
@@ -144,6 +148,89 @@ class WorkflowInterface(object):
                 self.plugin_map.setdefault(plugin_type, {})[flavor] = cls(task_buffer=self.tbif, ddm_if=self.ddm_if)
                 plugin = self.plugin_map[plugin_type][flavor]
         return plugin
+
+    def set_mb_proxy(self):
+        """
+        Set the message broker proxy for workflow manager messaging
+        """
+        try:
+            jedi_config = importlib.import_module("pandajedi.jediconfig.jedi_config")
+            if hasattr(jedi_config, "mq") and hasattr(jedi_config.mq, "configFile") and jedi_config.mq.configFile:
+                MsgProcAgent = importlib.import_module(f"pandajedi.jediorder.JediMsgProcessor.MsgProcAgent")
+            else:
+                logger.warning("Message queue config not found in jedi_config; skipped workflow manager messaging")
+                return None
+            out_q_list = [MESSAGE_QUEUE_NAME]
+            mq_agent = MsgProcAgent(config_file=jedi_config.mq.configFile)
+            mb_proxy_dict = mq_agent.start_passive_mode(in_q_list=None, out_q_list=out_q_list)
+            # stop with atexit
+            atexit.register(mq_agent.stop_passive_mode)
+            # set mb_proxy
+            self.mb_proxy = mb_proxy_dict["out"][MESSAGE_QUEUE_NAME]
+            logger.info(f"Set mb_proxy about queue {MESSAGE_QUEUE_NAME} for workflow manager messaging")
+        except Exception:
+            logger.warning(f"Failed to set mb_proxy about queue {MESSAGE_QUEUE_NAME}; skipped workflow manager messaging: {traceback.format_exc()}")
+            return None
+
+    def _send_message(self, tmp_log, msg_type: str, data_dict: Dict[str, Any] = None):
+        """
+        Send a message to the workflow manager message queue
+
+        Args:
+            tmp_log (logging.Logger): Logger for logging messages
+            msg_type (str): Type of the message (e.g., "workflow", "wfstep", "wfdata")
+            data_dict (Dict[str, Any], optional): Additional data to include in the message
+        """
+        if self.mb_proxy is None:
+            return None
+        try:
+            now_time = naive_utcnow()
+            now_ts = int(now_time.timestamp())
+            # get mbproxy
+            msg_dict = {}
+            if data_dict:
+                msg_dict.update(data_dict)
+            msg_dict.update(
+                {
+                    "msg_type": msg_type,
+                    "timestamp": now_ts,
+                }
+            )
+            msg = json.dumps(msg_dict)
+            self.mb_proxy.send(msg)
+            tmp_log.debug(f"Sent message to workflow manager queue {MESSAGE_QUEUE_NAME}: {msg}")
+        except Exception:
+            tmp_log.error(f"Failed to send message to workflow manager queue {MESSAGE_QUEUE_NAME}: {traceback.format_exc()}")
+
+    def send_workflow_message(self, workflow_id: int):
+        """
+        Send a message about the workflow to the workflow manager message queue
+
+        Args:
+            workflow_id (int): ID of the workflow
+        """
+        tmp_log = LogWrapper(logger, f"send_workflow_message workflow_id={workflow_id}")
+        self._send_message(tmp_log, "workflow", {"workflow_id": workflow_id})
+
+    def send_step_message(self, step_id: int):
+        """
+        Send a message about the workflow step to the workflow manager message queue
+
+        Args:
+            step_id (int): ID of the workflow step
+        """
+        tmp_log = LogWrapper(logger, f"send_step_message step_id={step_id}")
+        self._send_message(tmp_log, "wfstep", {"step_id": step_id})
+
+    def send_data_message(self, data_id: int):
+        """
+        Send a message about the workflow data to the workflow manager message queue
+
+        Args:
+            data_id (int): ID of the workflow data
+        """
+        tmp_log = LogWrapper(logger, f"send_data_message data_id={data_id}")
+        self._send_message(tmp_log, "wfdata", {"data_id": data_id})
 
     # --- Context managers for locking -------------------------
 
@@ -704,6 +791,9 @@ class WorkflowInterface(object):
                     data_status_stats["processed"].setdefault(data_spec.status, 0)
                     data_status_stats["processed"][data_spec.status] += 1
                     data_status_stats["n_processed"] += 1
+                    # For changes into transient status, send message to trigger processing immediately
+                    if data_spec.status != orig_status and data_spec.status in WFDataStatus.transient_statuses:
+                        self.send_data_message(data_spec.data_id)
         tmp_log.info(
             f"Done, processed {data_status_stats['n_processed']}/{n_data} data specs, unchanged: {data_status_stats['unchanged']}, changed: {data_status_stats['changed']}"
         )
@@ -1236,6 +1326,9 @@ class WorkflowInterface(object):
                     steps_status_stats["processed"].setdefault(step_spec.status, 0)
                     steps_status_stats["processed"][step_spec.status] += 1
                     steps_status_stats["n_processed"] += 1
+                    # For changes into transient status, send message to trigger processing immediately
+                    if step_spec.status != orig_status and step_spec.status in WFStepStatus.transient_statuses:
+                        self.send_step_message(step_spec.step_id)
         tmp_log.info(
             f"Done, processed {steps_status_stats['n_processed']}/{n_steps} steps, unchanged: {steps_status_stats['unchanged']}, changed: {steps_status_stats['changed']}"
         )
@@ -1653,6 +1746,9 @@ class WorkflowInterface(object):
                         workflows_status_stats["processed"].setdefault(workflow_spec.status, 0)
                         workflows_status_stats["processed"][workflow_spec.status] += 1
                         workflows_status_stats["n_processed"] += 1
+                    # For changes into transient status, send message to trigger processing immediately
+                    if workflow_spec.status != orig_status and workflow_spec.status in WorkflowStatus.transient_statuses:
+                        self.send_workflow_message(workflow_spec.workflow_id)
             workflows_status_stats["n_workflows"] = n_workflows
             tmp_log.info(
                 f"Done, processed {workflows_status_stats['n_processed']}/{n_workflows} workflows, unchanged: {workflows_status_stats['unchanged']}, changed: {workflows_status_stats['changed']}"

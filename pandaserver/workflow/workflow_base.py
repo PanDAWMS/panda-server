@@ -36,6 +36,7 @@ class WorkflowStatus(object):
 
     active_statuses = (registered, parsed, checking, checked, starting, running)
     final_statuses = (done, failed, cancelled)
+    transient_statuses = (parsed, checking, checked, starting)
 
 
 class WFStepStatus(object):
@@ -62,6 +63,7 @@ class WFStepStatus(object):
     after_starting_uninterrupted_statuses = (running, done, failed)
     after_running_statuses = (done, failed, cancelled)
     final_statuses = (done, failed, closed, cancelled)
+    transient_statuses = (checked_true, checked_false, ready)
 
 
 class WFDataStatus(object):
@@ -98,6 +100,7 @@ class WFDataStatus(object):
     after_waiting_suffice_statuses = (done_waited, cancelled)
     terminated_statuses = (done_generated, done_waited, done_skipped, cancelled, retired)
     nonreusable_statuses = (cancelled, retired)
+    transient_statuses = (checked_nonexist, checked_insuffi, checked_suffice, checked_complete)
 
 
 # ==== Types ===================================================
