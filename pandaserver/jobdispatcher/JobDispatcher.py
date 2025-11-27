@@ -597,66 +597,6 @@ class JobDispatcher:
     def getSiteMapper(self):
         return True, SiteMapper(self.taskBuffer)
 
-    def getCommands(self, harvester_id, n_commands, timeout, accept_json):
-        """
-        Get commands for a particular harvester instance
-        """
-        tmp_wrapper = _TimedMethod(self.taskBuffer.getCommands, timeout)
-        tmp_wrapper.run(harvester_id, n_commands)
-
-        # Make response
-        if tmp_wrapper.result == Protocol.TimeOutToken:
-            # timeout
-            response = Protocol.Response(Protocol.SC_TimeOut)
-        else:
-            # success
-            response = Protocol.Response(Protocol.SC_Success)
-            response.appendNode("Returns", tmp_wrapper.result[0])
-            response.appendNode("Commands", tmp_wrapper.result[1])
-
-        _logger.debug(f"getCommands : ret -> {response.encode(accept_json)}")
-        return response.encode(accept_json)
-
-    def ackCommands(self, command_ids, timeout, accept_json):
-        """
-        Acknowledge the commands from a list of IDs
-        """
-        _logger.debug(f"command_ids : {command_ids}")
-        tmp_wrapper = _TimedMethod(self.taskBuffer.ackCommands, timeout)
-        tmp_wrapper.run(command_ids)
-
-        # Make response
-        if tmp_wrapper.result == Protocol.TimeOutToken:
-            # timeout
-            response = Protocol.Response(Protocol.SC_TimeOut)
-        else:
-            # success
-            response = Protocol.Response(Protocol.SC_Success)
-            response.appendNode("Returns", tmp_wrapper.result)
-
-        _logger.debug(f"ackCommands : ret -> {response.encode(accept_json)}")
-        return response.encode(accept_json)
-
-    def getResourceTypes(self, timeout, accept_json):
-        """
-        Get resource types (SCORE, MCORE, SCORE_HIMEM, MCORE_HIMEM) and their definitions
-        """
-        tmp_wrapper = _TimedMethod(self.taskBuffer.getResourceTypes, timeout)
-        tmp_wrapper.run()
-
-        # Make response
-        if tmp_wrapper.result == Protocol.TimeOutToken:
-            # timeout
-            response = Protocol.Response(Protocol.SC_TimeOut)
-        else:
-            # success
-            response = Protocol.Response(Protocol.SC_Success)
-            response.appendNode("Returns", 0)
-            response.appendNode("ResourceTypes", tmp_wrapper.result)
-
-        _logger.debug(f"getResourceTypes : ret -> {response.encode(accept_json)}")
-        return response.encode(accept_json)
-
     # get proxy
     def get_proxy(self, real_distinguished_name: str, role: str | None, target_distinguished_name: str | None, tokenized: bool, token_key: str | None) -> dict:
         """
@@ -744,11 +684,6 @@ class JobDispatcher:
                 response = Protocol.Response(Protocol.SC_Failed)
         _logger.debug(f"updateWorkerPilotStatus : {workerID} {harvesterID} {status} ret -> {response.encode(accept_json)}")
         return response.encode(accept_json)
-
-    # get max workerID
-    def get_max_worker_id(self, harvester_id):
-        id = self.taskBuffer.get_max_worker_id(harvester_id)
-        return json.dumps(id)
 
     def get_events_status(self, ids):
         ret = self.taskBuffer.get_events_status(ids)
@@ -1219,38 +1154,6 @@ def updateJob(
     )
 
 
-# bulk update jobs
-def updateJobsInBulk(req, jobList, harvester_id=None):
-    ret_list = []
-    ret_val = False
-    prefix = f"updateJobsInBulk {harvester_id}"
-    tmp_logger = LogWrapper(_logger, prefix)
-    tmp_logger.debug("start")
-    t_start = naive_utcnow()
-
-    try:
-        job_list = json.loads(jobList)
-        for job_dict in job_list:
-            job_id = job_dict["jobId"]
-            del job_dict["jobId"]
-            state = job_dict["state"]
-            del job_dict["state"]
-            if "metaData" in job_dict:
-                job_dict["metaData"] = str(job_dict["metaData"])
-            tmp_ret = updateJob(req, job_id, state, **job_dict)
-            ret_list.append(tmp_ret)
-        ret_val = True
-    except Exception:
-        err_type, err_value = sys.exc_info()[:2]
-        tmp_msg = f"failed with {err_type.__name__} {err_value}"
-        ret_list = f"{prefix} {tmp_msg}"
-        tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
-
-    t_delta = naive_utcnow() - t_start
-    tmp_logger.debug(f"took {t_delta.seconds}.{t_delta.microseconds // 1000:03d} sec")
-    return json.dumps((ret_val, ret_list))
-
-
 # get job status
 def getStatus(req, ids, timeout=60):
     _logger.debug(f"getStatus({ids})")
@@ -1501,78 +1404,6 @@ def checkPilotPermission(req):
     return True, None
 
 
-def getCommands(req, harvester_id, n_commands, timeout=30):
-    """
-    This function checks the permissions and retrieves the commands for a specified harvester instance.
-
-    Args:
-        req: The request object containing the environment variables.
-        harvester_id (str): The ID of the harvester instance.
-        n_commands (int): The number of commands to retrieve.
-        timeout (int, optional): The timeout value. Defaults to 30.
-    Returns:
-        dict: The response from the job dispatcher.
-    """
-    tmp_str = "getCommands"
-
-    # check permissions
-    tmp_stat, tmp_out = checkPilotPermission(req)
-    if not tmp_stat:
-        _logger.error(f"{tmp_str} failed with {tmp_out}")
-
-    accept_json = req.acceptJson()
-    # retrieve the commands
-    return jobDispatcher.getCommands(harvester_id, n_commands, timeout, accept_json)
-
-
-def ackCommands(req, command_ids, timeout=30):
-    """
-    This function checks the permissions, parses the command IDs from JSON, and acknowledges the list of commands.
-
-    Args:
-        req: The request object containing the environment variables.
-        command_ids (str): A JSON string containing the list of command IDs to acknowledge.
-        timeout (int, optional): The timeout value. Defaults to 30.
-    Returns:
-        dict: The response from the job dispatcher.
-    """
-    tmp_str = "ackCommands"
-
-    # check permissions
-    tmp_stat, tmp_out = checkPilotPermission(req)
-    if not tmp_stat:
-        _logger.error(f"{tmp_str} failed with {tmp_out}")
-
-    command_ids = json.loads(command_ids)
-    accept_json = req.acceptJson()
-
-    # retrieve the commands
-    return jobDispatcher.ackCommands(command_ids, timeout, accept_json)
-
-
-def getResourceTypes(req, timeout=30):
-    """
-    This function retrieves the resource types (MCORE, SCORE, etc.) and their definitions.
-
-    Args:
-        req: The request object containing the environment variables.
-        timeout (int, optional): The timeout value. Defaults to 30.
-    Returns:
-        dict: The resource types and their definitions.
-    """
-    tmp_str = "getResourceTypes"
-
-    # check permissions
-    tmp_stat, tmp_out = checkPilotPermission(req)
-    if not tmp_stat:
-        _logger.error(f"{tmp_str} failed with {tmp_out}")
-
-    accept_json = req.acceptJson()
-
-    # retrieve the resource types
-    return jobDispatcher.getResourceTypes(timeout, accept_json)
-
-
 def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60, node_id=None):
     """
     Update the status of a worker according to the pilot.
@@ -1613,11 +1444,6 @@ def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60
     accept_json = req.acceptJson()
 
     return jobDispatcher.updateWorkerPilotStatus(workerID, harvesterID, status, timeout, accept_json, node_id)
-
-
-# get max workerID
-def get_max_worker_id(req, harvester_id):
-    return jobDispatcher.get_max_worker_id(harvester_id)
 
 
 # get events status

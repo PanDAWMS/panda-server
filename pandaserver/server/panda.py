@@ -42,25 +42,20 @@ from pandaserver.config import panda_config
 
 # pylint: disable=W0611
 from pandaserver.jobdispatcher.JobDispatcher import (
-    ackCommands,
     checkEventsAvailability,
     checkJobStatus,
     get_access_token,
     get_events_status,
-    get_max_worker_id,
     get_token_key,
-    getCommands,
     getEventRanges,
     getJob,
     getKeyPair,
     getProxy,
-    getResourceTypes,
     getStatus,
     jobDispatcher,
     updateEventRange,
     updateEventRanges,
     updateJob,
-    updateJobsInBulk,
     updateWorkerPilotStatus,
 )
 from pandaserver.srvcore import CoreUtils
@@ -93,7 +88,6 @@ from pandaserver.userinterface import Client
 
 # pylint: disable=W0611
 from pandaserver.userinterface.UserIF import (
-    addHarvesterDialogs,
     avalancheTask,
     changeTaskAttributePanda,
     changeTaskModTimePanda,
@@ -110,7 +104,6 @@ from pandaserver.userinterface.UserIF import (
     getFullJobStatus,
     getJediTaskDetails,
     getJediTasksInTimeRange,
-    getJobStatisticsPerSite,
     getJobStatus,
     getJumboJobDatasets,
     getPandaIDsWithTaskID,
@@ -118,9 +111,6 @@ from pandaserver.userinterface.UserIF import (
     getTaskParamsMap,
     getTaskStatus,
     getUserJobMetadata,
-    getWorkerStats,
-    harvesterIsAlive,
-    increaseAttemptNrPanda,
     insertSandboxFileInfo,
     insertTaskParams,
     killJobs,
@@ -140,11 +130,7 @@ from pandaserver.userinterface.UserIF import (
     send_command_to_job,
     set_user_secret,
     setDebugMode,
-    setNumSlotsForWP,
     submitJobs,
-    sweepPQ,
-    updateServiceMetrics,
-    updateWorkers,
     userIF,
 )
 

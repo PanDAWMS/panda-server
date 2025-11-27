@@ -196,11 +196,6 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-    # get job statistics per site
-    def getJobStatisticsPerSite(self):
-        ret = self.taskBuffer.getJobStatistics()
-        return WrappedPickle.dumps(ret, convert_to_safe=True)
-
     # get job statistics per site, source label, and resource type
     def get_job_statistics_per_site_label_resource(self, time_window):
         ret = self.taskBuffer.get_job_statistics_per_site_label_resource(time_window)
@@ -481,55 +476,6 @@ class UserIF:
         ret = self.taskBuffer.getTaskParamsMap(jediTaskID)
         return ret
 
-    # update workers
-    def updateWorkers(self, user, host, harvesterID, data):
-        ret = self.taskBuffer.updateWorkers(harvesterID, data)
-        if ret is None:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, ret)
-        return json.dumps(return_value)
-
-    # update workers
-    def updateServiceMetrics(self, user, host, harvesterID, data):
-        ret = self.taskBuffer.updateServiceMetrics(harvesterID, data)
-        if ret is None:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, ret)
-        return json.dumps(return_value)
-
-    # add harvester dialog messages
-    def addHarvesterDialogs(self, user, harvesterID, dialogs):
-        ret = self.taskBuffer.addHarvesterDialogs(harvesterID, dialogs)
-        if not ret:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, "")
-        return json.dumps(return_value)
-
-    # heartbeat for harvester
-    def harvesterIsAlive(self, user, host, harvesterID, data):
-        ret = self.taskBuffer.harvesterIsAlive(user, host, harvesterID, data)
-        if ret is None:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, ret)
-        return json.dumps(return_value)
-
-    # get stats of workers
-    def getWorkerStats(self):
-        return self.taskBuffer.getWorkerStats()
-
-    # report stat of workers
-    def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
-        return self.taskBuffer.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
-
-    # set num slots for workload provisioning
-    def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
-        return_value = self.taskBuffer.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)
-        return json.dumps(return_value)
-
     # enable jumbo jobs
     def enableJumboJobs(self, jediTaskID, totalJumboJobs, nJumboPerSite):
         return_value = self.taskBuffer.enableJumboJobs(jediTaskID, totalJumboJobs, nJumboPerSite)
@@ -547,19 +493,6 @@ class UserIF:
         return_value = self.taskBuffer.getJumboJobDatasets(n_days, grace_period)
         # serialize
         return json.dumps(return_value)
-
-    # sweep panda queue
-    def sweepPQ(self, panda_queue, status_list, ce_list, submission_host_list):
-        try:
-            panda_queue_des = json.loads(panda_queue)
-            status_list_des = json.loads(status_list)
-            ce_list_des = json.loads(ce_list)
-            submission_host_list_des = json.loads(submission_host_list)
-        except Exception:
-            _logger.error("Problem deserializing variables")
-
-        ret = self.taskBuffer.sweepPQ(panda_queue_des, status_list_des, ce_list_des, submission_host_list_des)
-        return WrappedPickle.dumps(ret)
 
     # send command to a job
     def send_command_to_job(self, panda_id, com):
@@ -759,11 +692,6 @@ def checkSandboxFile(req, fileSize, checkSum):
 # get job statistics per site and resource
 def get_job_statistics_per_site_label_resource(req, time_window=None):
     return userIF.get_job_statistics_per_site_label_resource(time_window)
-
-
-# get job statistics per site
-def getJobStatisticsPerSite(req):
-    return userIF.getJobStatisticsPerSite()
 
 
 # kill jobs
@@ -1426,113 +1354,6 @@ def getTaskParamsMap(req, jediTaskID):
     return WrappedPickle.dumps(ret)
 
 
-# update workers
-def updateWorkers(req, harvesterID, workers):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # get DN
-    user = _getDN(req)
-    # hostname
-    host = req.get_remote_host()
-    return_value = None
-    tStart = naive_utcnow()
-    # convert
-    try:
-        data = json.loads(workers)
-    except Exception:
-        return_value = json.dumps((False, MESSAGE_JSON))
-    # update
-    if return_value is None:
-        return_value = userIF.updateWorkers(user, host, harvesterID, data)
-    tDelta = naive_utcnow() - tStart
-    _logger.debug(f"updateWorkers {harvesterID} took {tDelta.seconds}.{tDelta.microseconds // 1000:03d} sec")
-
-    return return_value
-
-
-# update workers
-def updateServiceMetrics(req, harvesterID, metrics):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-
-    user = _getDN(req)
-
-    host = req.get_remote_host()
-    return_value = None
-    tStart = naive_utcnow()
-
-    # convert
-    try:
-        data = json.loads(metrics)
-    except Exception:
-        return_value = json.dumps((False, MESSAGE_JSON))
-
-    # update
-    if return_value is None:
-        return_value = userIF.updateServiceMetrics(user, host, harvesterID, data)
-
-    tDelta = naive_utcnow() - tStart
-    _logger.debug(f"updateServiceMetrics {harvesterID} took {tDelta.seconds}.{tDelta.microseconds // 1000:03d} sec")
-
-    return return_value
-
-
-# add harvester dialog messages
-def addHarvesterDialogs(req, harvesterID, dialogs):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # get DN
-    user = _getDN(req)
-    # convert
-    try:
-        data = json.loads(dialogs)
-    except Exception:
-        return json.dumps((False, MESSAGE_JSON))
-    # update
-    return userIF.addHarvesterDialogs(user, harvesterID, data)
-
-
-# heartbeat for harvester
-def harvesterIsAlive(req, harvesterID, data=None):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # get DN
-    user = _getDN(req)
-    # hostname
-    host = req.get_remote_host()
-    # convert
-    try:
-        if data is not None:
-            data = json.loads(data)
-        else:
-            data = dict()
-    except Exception:
-        return json.dumps((False, MESSAGE_JSON))
-    # update
-    return userIF.harvesterIsAlive(user, host, harvesterID, data)
-
-
-# get stats of workers
-def getWorkerStats(req):
-    # get
-    ret = userIF.getWorkerStats()
-    return json.dumps(ret)
-
-
-# report stat of workers
-def reportWorkerStats_jobtype(req, harvesterID, siteName, paramsList):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # update
-    ret = userIF.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
-    return json.dumps(ret)
-
-
 # set num slots for workload provisioning
 def setNumSlotsForWP(req, pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
     # check security
@@ -1591,19 +1412,6 @@ def getJumboJobDatasets(req, n_days, grace_period=0):
     except Exception:
         return WrappedPickle.dumps((False, "wrong grace_period"))
     return userIF.getJumboJobDatasets(n_days, grace_period)
-
-
-# send Harvester the command to clean up the workers for a panda queue
-def sweepPQ(req, panda_queue, status_list, ce_list, submission_host_list):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # check role
-    prod_role = _has_production_role(req)
-    if not prod_role:
-        return json.dumps((False, MESSAGE_PROD_ROLE))
-
-    return json.dumps((True, userIF.sweepPQ(panda_queue, status_list, ce_list, submission_host_list)))
 
 
 # json decoder for idds constants

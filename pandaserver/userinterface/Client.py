@@ -1475,48 +1475,6 @@ def getTaskParamsMap(jediTaskID):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
-    """
-    Set num slots for workload provisioning
-
-    args:
-        pandaQueueName: Panda Queue name
-        numSlots: the number of slots. 0 to dynamically set based on the number of starting jobs
-        gshare: global share. None to set for any global share (default)
-        resourceType: resource type. None to set for any resource type (default)
-        validPeriod: How long the rule is valid in days. None if no expiration (default)
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        tuple of return code and diagnostic message
-              0: succeeded
-              1: server error
-            100: non SSL connection
-            101: missing production role
-            102: type error for some parameters
-    """
-
-    http_client = HttpClient()
-
-    # execute
-    url = f"{baseURLSSL}/setNumSlotsForWP"
-    data = {"pandaQueueName": pandaQueueName, "numSlots": numSlots}
-    if gshare is not None:
-        data["gshare"] = gshare
-    if resourceType is not None:
-        data["resourceType"] = resourceType
-    if validPeriod is not None:
-        data["validPeriod"] = validPeriod
-    status, output = http_client.post(url, data)
-    try:
-        return status, json.loads(output)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_str = f"ERROR setNumSlotsForWP : {error_type} {error_value}"
-        return EC_Failed, f"{output}\n{error_str}"
-
-
 # enable jumbo jobs
 def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
     """
@@ -1553,49 +1511,6 @@ def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
     except Exception:
         error_type, error_value = sys.exc_info()[:2]
         error_str = f"ERROR /enableJumboJobs : {error_type} {error_value}"
-        return EC_Failed, f"{output}\n{error_str}"
-
-
-def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
-    """
-    Send a harvester command to panda server in order sweep a panda queue
-
-    args:
-        panda_queue: panda queue name
-        status_list: list with statuses to sweep, e.g. ['submitted']
-        ce_list: list of CEs belonging to the site or 'ALL'
-        submission_host_list: list of submission hosts this applies or 'ALL'
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        return: a tuple of return code and message
-              False: logical error
-              True: success
-    """
-
-    http_client = HttpClient()
-
-    panda_queue_json = json.dumps(panda_queue)
-    status_list_json = json.dumps(status_list)
-    ce_list_json = json.dumps(ce_list)
-    submission_host_list_json = json.dumps(submission_host_list)
-
-    # execute
-    url = f"{baseURLSSL}/sweepPQ"
-    data = {
-        "panda_queue": panda_queue_json,
-        "status_list": status_list_json,
-        "ce_list": ce_list_json,
-        "submission_host_list": submission_host_list_json,
-    }
-    status, output = http_client.post(url, data)
-
-    try:
-        return status, json.loads(output)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_str = f"ERROR sweepPQ : {error_type} {error_value}"
         return EC_Failed, f"{output}\n{error_str}"
 
 
