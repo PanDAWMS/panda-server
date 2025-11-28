@@ -47,7 +47,7 @@ FINAL_TASK_STATUSES = ["done", "finished", "failed", "exhausted", "aborted", "to
 AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 
 # DDM rule activity map for data carousel
-DDM_RULE_ACTIVITY_MAP = {"anal": "Data Carousel Analysis", "prod": "Data Carousel Production", "_deprecated_": "Staging"}
+DDM_RULE_ACTIVITY_MAP = {"anal": "Data Carousel Analysis", "prod": "Data Carousel Production"}
 
 # template strings
 # source replica expression prefix
@@ -1277,7 +1277,18 @@ class DataCarouselInterface(object):
                     ret_map["related_dcreq_ids"].append(existing_dcreq_id)
                 # get source type and RSEs
                 source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
-                if source_type == "datadisk":
+                if staging_rule:
+                    # reuse existing DDM rule
+                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    tmp_log.debug(f"dataset={dataset} has existing ddm_rule_id={ddm_rule_id} ; to reuse it")
+                    prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
+                    tmp_log.debug(f"got prestaging for existing rule: {prestaging_tuple}")
+                    # add to prestage
+                    ret_prestaging_list.append(prestaging_tuple)
+                    # dataset to pin
+                    if to_pin:
+                        ret_map["to_pin_ds_list"].append(dataset)
+                elif source_type == "datadisk":
                     # replicas already on datadisk; skip
                     ret_map["datadisk_ds_list"].append(dataset)
                     tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
@@ -1921,7 +1932,7 @@ class DataCarouselInterface(object):
         # initialize
         tmp_dst_expr = None
         expression = None
-        lifetime = None
+        lifetime_days = 45
         weight = None
         source_replica_expression = None
         # source replica expression
@@ -1950,7 +1961,7 @@ class DataCarouselInterface(object):
             dataset_name=dc_req_spec.dataset,
             expression=expression,
             activity=ddm_rule_activity,
-            lifetime=lifetime,
+            lifetime=lifetime_days,
             weight=weight,
             notify="P",
             source_replica_expression=source_replica_expression,
