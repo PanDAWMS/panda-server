@@ -164,7 +164,7 @@ def acquire_jobs(
     # log the acquire_jobs as it's used for site activity metrics
     for i in range(n_jobs):
         slot_suffix = f"_{i}" if n_jobs > 1 else ""
-        pilot_logger.info(f"method=acquire_jobs, site={site_name}, node={node}{slot_suffix}, type={prod_source_label}")
+        pilot_logger.info(f"method=getJob,site={site_name},node={node}{slot_suffix},type={prod_source_label}")
 
     t_start = time.time()
 
@@ -220,7 +220,7 @@ def acquire_jobs(
     if not jobs:
         message = "No jobs in PanDA"
         tmp_logger.debug(message)
-        pilot_logger.info(f"method=noJob, site={site_name}, node={node}, type={prod_source_label}")
+        pilot_logger.info(f"method=noJob,site={site_name},node={node},type={prod_source_label}")
         return generate_response(False, message=message)
 
     # add each job to the list
@@ -466,7 +466,7 @@ def update_job(
         f"==Metrics==\n{job_metrics}\n==stdout==\n{stdout})"
     )
 
-    pilot_logger.debug(f"method=update_job, site={site_name}, node={node}, type=None")
+    pilot_logger.debug(f"method=updateJob,site={site_name},node={node},type=None")
 
     # aborting message
     if job_id == "NULL":
