@@ -770,6 +770,7 @@ class WorkflowInterface(object):
                 dummy_process_result = WFDataProcessResult()
                 dummy_process_result.success = True
                 tmp_res = dummy_process_result
+                tmp_log.debug(f"Data status {data_spec.status} ; wait for step processing")
             elif data_spec.status in WFDataStatus.generating_statuses:
                 tmp_res = self.process_data_generating(data_spec)
             elif data_spec.status in WFDataStatus.waiting_statuses:
@@ -1328,6 +1329,7 @@ class WorkflowInterface(object):
                 dummy_process_result = WFStepProcessResult()
                 dummy_process_result.success = True
                 tmp_res = dummy_process_result
+                tmp_log.debug(f"Step in final status {step_spec.status} ; skipped")
             else:
                 tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
         # For changes into transient status, send message to trigger processing immediately
