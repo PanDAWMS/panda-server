@@ -919,12 +919,13 @@ class DataCarouselInterface(object):
         rules = self.ddmIF.list_did_rules(dataset, all_accounts=True)
         rse_expression_list = []
         staging_rule = None
-        for rule in rules:
-            if rule["account"] in ["panda"] and rule["activity"] in DDM_RULE_ACTIVITY_MAP.values():
-                # rule of the dataset from ProdSys or PanDA already exists; reuse it
-                staging_rule = rule
-            else:
-                rse_expression_list.append(rule["rse_expression"])
+        if rules:
+            for rule in rules:
+                if rule["account"] in ["panda"] and rule["activity"] in DDM_RULE_ACTIVITY_MAP.values():
+                    # rule of the dataset from ProdSys or PanDA already exists; reuse it
+                    staging_rule = rule
+                else:
+                    rse_expression_list.append(rule["rse_expression"])
         filtered_replicas_map = {"tape": [], "datadisk": []}
         has_datadisk_replica = len(replicas_map["datadisk"]) > 0
         has_disk_replica = len(replicas_map["disk"]) > 0
@@ -1051,7 +1052,7 @@ class DataCarouselInterface(object):
         try:
             # initialize
             source_type = None
-            rse_set = None
+            rse_set = set()
             to_pin = False
             suggested_destination_rses_set = set()
             # get active source rses
@@ -1129,15 +1130,18 @@ class DataCarouselInterface(object):
                         tmp_match = re.search(rse, source_replica_expression)
                         if tmp_match is not None:
                             source_rse = rse
+                            tmp_log.debug(f"got source_rse={source_rse} from rse_set matching ddm rule source_replica_expression={source_replica_expression}")
                             break
                     if source_rse is None:
                         # direct regex search from source_replica_expression; reluctant as source_replica_expression can be messy
                         tmp_match = re.search(rf"{SRC_REPLI_EXPR_PREFIX}\|([A-Za-z0-9-_]+)", source_replica_expression)
                         if tmp_match is not None:
                             source_rse = tmp_match.group(1)
+                            tmp_log.debug(f"directly got source_rse={source_rse} only from ddm rule source_replica_expression={source_replica_expression}")
                     if source_rse is None:
                         # still not getting source RSE from rule; unexpected
                         tmp_log.error(f"ddm_rule_id={ddm_rule_id} cannot get source_rse from source_replica_expression: {source_replica_expression}")
+                        raise RuntimeError("cannot get source_rse from staging rule's source_replica_expression")
                     else:
                         tmp_log.debug(f"already staging with ddm_rule_id={ddm_rule_id} source_rse={source_rse}")
                 else:
@@ -1157,6 +1161,9 @@ class DataCarouselInterface(object):
                 # choose source RSE
                 if len(rse_list) == 1:
                     source_rse = rse_list[0]
+                elif len(rse_list) == 0:
+                    tmp_log.error(f"no source_rse found to choose from")
+                    raise RuntimeError("no source_rse found to choose from")
                 else:
                     non_CERN_rse_list = [rse for rse in rse_list if "CERN-PROD" not in rse]
                     if non_CERN_rse_list and no_cern:
