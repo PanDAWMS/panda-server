@@ -1162,7 +1162,7 @@ class DataCarouselInterface(object):
                 if len(rse_list) == 1:
                     source_rse = rse_list[0]
                 elif len(rse_list) == 0:
-                    tmp_log.error(f"no source_rse found to choose from")
+                    tmp_log.error("no source_rse found to choose from")
                     raise RuntimeError("no source_rse found to choose from")
                 else:
                     non_CERN_rse_list = [rse for rse in rse_list if "CERN-PROD" not in rse]
