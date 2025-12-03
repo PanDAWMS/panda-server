@@ -4011,8 +4011,9 @@ class TaskStandaloneModule(BaseModule):
     # update datasets to finish a task
     def updateDatasetsToFinishTask_JEDI(self, jediTaskID: int, lockedBy: str) -> bool:
         """
-        Update datasets to finish a task by set attemptNr to maxAttempt for input files and updating nFilesFailed in input datasets.
-        The process is split across multiple transactions to avoid long execution time, resulting in retries of the entire process.
+        Updates datasets to finish a task by setting attemptNr to maxAttempt for input files and adjusting nFilesFailed in the corresponding input datasets.
+        The operation is split across multiple transactions to limit execution time,
+        to avoid the entire process being retried.
 
         Args:
             jediTaskID (int): The JEDI task ID.
