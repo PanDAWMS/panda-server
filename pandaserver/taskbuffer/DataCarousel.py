@@ -731,13 +731,11 @@ class DataCarouselInterface(object):
                 got_lock = True
                 tmp_log.debug(f"got lock")
             if got_lock:
-                # get the request spec locked
+                # yield the updated request spec locked
                 locked_spec = self.get_request_by_id(request_id)
-                # yield and run wrapped function
                 yield locked_spec
-                tmp_log.debug(f"yielded locked_spec")
             else:
-                # did not get the lock
+                # did not get lock; still need to yield None as a generator
                 yield None
         finally:
             if got_lock:
