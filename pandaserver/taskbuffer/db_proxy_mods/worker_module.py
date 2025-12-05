@@ -1868,7 +1868,8 @@ class WorkerModule(BaseModule):
                 "WHERE wn.site = :site "
                 "AND wn.host_name = :host_name "
                 "AND cb.cpu_type_normalized = wn.cpu_model_normalized "
-                "AND wn.threads_per_core = cb.smt_enabled + 1"
+                "AND wn.threads_per_core = cb.smt_enabled + 1 "
+                "AND wn.n_logical_cpus = cb.ncores "  # protects against site misreporting SMT, e.g. due to VMs
             )
 
             var_map = {"site": site, "host_name": host_name_clean}

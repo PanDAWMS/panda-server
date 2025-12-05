@@ -47,7 +47,7 @@ FINAL_TASK_STATUSES = ["done", "finished", "failed", "exhausted", "aborted", "to
 AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 
 # DDM rule activity map for data carousel
-DDM_RULE_ACTIVITY_MAP = {"anal": "Data Carousel Analysis", "prod": "Data Carousel Production", "_deprecated_": "Staging"}
+DDM_RULE_ACTIVITY_MAP = {"anal": "Data Carousel Analysis", "prod": "Data Carousel Production"}
 
 # template strings
 # source replica expression prefix
@@ -919,12 +919,13 @@ class DataCarouselInterface(object):
         rules = self.ddmIF.list_did_rules(dataset, all_accounts=True)
         rse_expression_list = []
         staging_rule = None
-        for rule in rules:
-            if rule["account"] in ["panda"] and rule["activity"] in DDM_RULE_ACTIVITY_MAP.values():
-                # rule of the dataset from ProdSys or PanDA already exists; reuse it
-                staging_rule = rule
-            else:
-                rse_expression_list.append(rule["rse_expression"])
+        if rules:
+            for rule in rules:
+                if rule["account"] in ["panda"] and rule["activity"] in DDM_RULE_ACTIVITY_MAP.values():
+                    # rule of the dataset from ProdSys or PanDA already exists; reuse it
+                    staging_rule = rule
+                else:
+                    rse_expression_list.append(rule["rse_expression"])
         filtered_replicas_map = {"tape": [], "datadisk": []}
         has_datadisk_replica = len(replicas_map["datadisk"]) > 0
         has_disk_replica = len(replicas_map["disk"]) > 0
@@ -1051,7 +1052,7 @@ class DataCarouselInterface(object):
         try:
             # initialize
             source_type = None
-            rse_set = None
+            rse_set = set()
             to_pin = False
             suggested_destination_rses_set = set()
             # get active source rses
@@ -1129,15 +1130,18 @@ class DataCarouselInterface(object):
                         tmp_match = re.search(rse, source_replica_expression)
                         if tmp_match is not None:
                             source_rse = rse
+                            tmp_log.debug(f"got source_rse={source_rse} from rse_set matching ddm rule source_replica_expression={source_replica_expression}")
                             break
                     if source_rse is None:
                         # direct regex search from source_replica_expression; reluctant as source_replica_expression can be messy
                         tmp_match = re.search(rf"{SRC_REPLI_EXPR_PREFIX}\|([A-Za-z0-9-_]+)", source_replica_expression)
                         if tmp_match is not None:
                             source_rse = tmp_match.group(1)
+                            tmp_log.debug(f"directly got source_rse={source_rse} only from ddm rule source_replica_expression={source_replica_expression}")
                     if source_rse is None:
                         # still not getting source RSE from rule; unexpected
                         tmp_log.error(f"ddm_rule_id={ddm_rule_id} cannot get source_rse from source_replica_expression: {source_replica_expression}")
+                        raise RuntimeError("cannot get source_rse from staging rule's source_replica_expression")
                     else:
                         tmp_log.debug(f"already staging with ddm_rule_id={ddm_rule_id} source_rse={source_rse}")
                 else:
@@ -1157,6 +1161,9 @@ class DataCarouselInterface(object):
                 # choose source RSE
                 if len(rse_list) == 1:
                     source_rse = rse_list[0]
+                elif len(rse_list) == 0:
+                    tmp_log.error("no source_rse found to choose from")
+                    raise RuntimeError("no source_rse found to choose from")
                 else:
                     non_CERN_rse_list = [rse for rse in rse_list if "CERN-PROD" not in rse]
                     if non_CERN_rse_list and no_cern:
@@ -1277,7 +1284,18 @@ class DataCarouselInterface(object):
                     ret_map["related_dcreq_ids"].append(existing_dcreq_id)
                 # get source type and RSEs
                 source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
-                if source_type == "datadisk":
+                if staging_rule:
+                    # reuse existing DDM rule
+                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    tmp_log.debug(f"dataset={dataset} has existing ddm_rule_id={ddm_rule_id} ; to reuse it")
+                    prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
+                    tmp_log.debug(f"got prestaging for existing rule: {prestaging_tuple}")
+                    # add to prestage
+                    ret_prestaging_list.append(prestaging_tuple)
+                    # dataset to pin
+                    if to_pin:
+                        ret_map["to_pin_ds_list"].append(dataset)
+                elif source_type == "datadisk":
                     # replicas already on datadisk; skip
                     ret_map["datadisk_ds_list"].append(dataset)
                     tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
@@ -1921,7 +1939,7 @@ class DataCarouselInterface(object):
         # initialize
         tmp_dst_expr = None
         expression = None
-        lifetime = None
+        lifetime_days = 45
         weight = None
         source_replica_expression = None
         # source replica expression
@@ -1950,7 +1968,7 @@ class DataCarouselInterface(object):
             dataset_name=dc_req_spec.dataset,
             expression=expression,
             activity=ddm_rule_activity,
-            lifetime=lifetime,
+            lifetime=lifetime_days,
             weight=weight,
             notify="P",
             source_replica_expression=source_replica_expression,

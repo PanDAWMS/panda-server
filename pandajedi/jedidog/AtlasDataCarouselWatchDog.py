@@ -3,6 +3,7 @@ import os
 import re
 import socket
 import sys
+import time
 import traceback
 
 # logger
@@ -20,6 +21,16 @@ from pandaserver.taskbuffer.DataCarousel import (
 from .WatchDogBase import WatchDogBase
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
+
+# ==============================================================
+
+# lock time limits in minutes
+StageDCRequests_LOCK_TIME_MINUTES = 5
+CheckDCRequests_LOCK_TIME_MINUTES = 5
+KeepRulesAlive_LOCK_TIME_MINUTES = 60
+CleanDCRequests_LOCK_TIME_MINUTES = 1440
+
+# ==============================================================
 
 
 class AtlasDataCarouselWatchDog(WatchDogBase):
@@ -41,8 +52,11 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
         tmpLog = MsgWrapper(logger, " #ATM #KV doStageDCRequests")
         tmpLog.debug("start")
         try:
+            # timer start
+            t0 = time.monotonic()
+            lock_time_sec = StageDCRequests_LOCK_TIME_MINUTES * 60
             # watchdog lock
-            got_lock = self.get_process_lock("AtlasDataCarousDog.doStageDCReq", timeLimit=5)
+            got_lock = self.get_process_lock("AtlasDataCarousDog.doStageDCReq", timeLimit=StageDCRequests_LOCK_TIME_MINUTES)
             if not got_lock:
                 tmpLog.debug("locked by another watchdog process. Skipped")
                 return
@@ -53,6 +67,11 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             for dc_req_spec, extra_params in to_stage_list:
                 self.data_carousel_interface.stage_request(dc_req_spec, extra_params=extra_params)
                 tmpLog.debug(f"stage request_id={dc_req_spec.request_id} dataset={dc_req_spec.dataset}")
+                # check timer
+                t1 = time.monotonic()
+                if t1 - t0 > max(lock_time_sec - 60, lock_time_sec * 0.8):
+                    tmpLog.debug("approaching lock time limit. Stop staging more requests")
+                    break
             # done
             tmpLog.debug("done")
         except Exception:
@@ -67,7 +86,7 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
         tmpLog.debug("start")
         try:
             # watchdog lock
-            got_lock = self.get_process_lock("AtlasDataCarousDog.doCheckDCRequests", timeLimit=5)
+            got_lock = self.get_process_lock("AtlasDataCarousDog.doCheckDCRequests", timeLimit=CheckDCRequests_LOCK_TIME_MINUTES)
             if not got_lock:
                 tmpLog.debug("locked by another watchdog process. Skipped")
                 return
@@ -90,7 +109,7 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
         tmpLog.debug("start")
         try:
             # watchdog lock
-            got_lock = self.get_process_lock("AtlasDataCarousDog.doKeepRulesAlive", timeLimit=60)
+            got_lock = self.get_process_lock("AtlasDataCarousDog.doKeepRulesAlive", timeLimit=KeepRulesAlive_LOCK_TIME_MINUTES)
             if not got_lock:
                 tmpLog.debug("locked by another watchdog process. Skipped")
                 return
@@ -111,7 +130,7 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
         tmpLog.debug("start")
         try:
             # watchdog lock
-            got_lock = self.get_process_lock("AtlasDataCarousDog.doCleanDCReq", timeLimit=1440)
+            got_lock = self.get_process_lock("AtlasDataCarousDog.doCleanDCReq", timeLimit=CleanDCRequests_LOCK_TIME_MINUTES)
             if not got_lock:
                 tmpLog.debug("locked by another watchdog process. Skipped")
                 return
