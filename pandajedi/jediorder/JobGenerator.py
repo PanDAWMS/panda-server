@@ -2537,6 +2537,9 @@ class JobGeneratorThread(WorkerThread):
             newPandaJob.resource_type = JobUtils.get_resource_type_job(self.resource_types, newPandaJob)
         except Exception:
             newPandaJob.resource_type = "Undefined"
+        platforms = siteCandidate.get_overridden_attribute("platforms")
+        if platforms:
+            newPandaJob.cmtConfig = platforms
         datasetList = set()
         # reset SH for jumbo
         if forJumbo:
