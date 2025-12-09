@@ -155,7 +155,7 @@ def job_stats_by_site_share_and_resource_type(req: PandaRequest, time_window: in
 
     API details:
         HTTP Method: GET
-        Path: /v1/statistics/retry
+        Path: /v1/statistics/job_stats_by_site_share_and_resource_type
 
     Args:
         req(PandaRequest): internally generated request object
