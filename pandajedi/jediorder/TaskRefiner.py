@@ -440,7 +440,7 @@ class TaskRefinerThread(WorkerThread):
                                     if tmp_ret:
                                         tmpLog.info("submitted data carousel requests")
                                         if to_staging_datasets <= no_staging_datasets:
-                                            tmpLog.info("all datasets are to pin; skip staging")
+                                            tmpLog.info("all datasets do not need to stage (to pin or reused); skip staging")
                                         elif disk_datasets:
                                             tmpLog.info("some datasets are on datadisks; skip staging")
                                         else:
