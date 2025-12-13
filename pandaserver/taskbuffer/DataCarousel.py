@@ -1230,6 +1230,7 @@ class DataCarouselInterface(object):
                 "tape_coll_did_list": [],
                 "no_tape_coll_did_list": [],
                 "to_skip_ds_list": [],
+                "to_reuse_ds_list": [],
                 "tape_ds_list": [],
                 "datadisk_ds_list": [],
                 "to_pin_ds_list": [],
@@ -1289,15 +1290,16 @@ class DataCarouselInterface(object):
                 source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
                 if staging_rule:
                     # reuse existing DDM rule
+                    ret_map["to_reuse_ds_list"].append(dataset)
                     _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
                     tmp_log.debug(f"dataset={dataset} has existing ddm_rule_id={ddm_rule_id} ; to reuse it")
                     prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
                     tmp_log.debug(f"got prestaging for existing rule: {prestaging_tuple}")
                     # add to prestage
                     ret_prestaging_list.append(prestaging_tuple)
-                    # dataset to pin
-                    if to_pin:
-                        ret_map["to_pin_ds_list"].append(dataset)
+                    # dataset to pin, not expected in this case
+                    # if to_pin:
+                    #     ret_map["to_pin_ds_list"].append(dataset)
                 elif source_type == "datadisk":
                     # replicas already on datadisk; skip
                     ret_map["datadisk_ds_list"].append(dataset)

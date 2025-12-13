@@ -387,6 +387,7 @@ class TaskRefinerThread(WorkerThread):
                                         no_staging_datasets.update(set(unfound_coll_list))
                                 if no_tape_coll_did_list := ds_list_dict["no_tape_coll_did_list"]:
                                     # update no_staging_datasets for all collections without constituent datasets on tape source
+                                    tmpLog.debug(f"collections without constituent datasets on tape source: {no_tape_coll_did_list}")
                                     no_staging_datasets.update(set(no_tape_coll_did_list))
                                 if to_skip_ds_list := ds_list_dict["to_skip_ds_list"]:
                                     # update no_staging_datasets with secondary datasets
@@ -413,6 +414,10 @@ class TaskRefinerThread(WorkerThread):
                                     self.taskBufferIF.sendCommandTaskPanda(jediTaskID, "TaskRefiner. No need to prestage. Resumed from staging", True, "resume")
                                 if prestaging_list:
                                     # something to prestage
+                                    if to_reuse_ds_list := ds_list_dict["to_reuse_ds_list"]:
+                                        # update no_staging_datasets with datasets to reuse existing DDM rules (de facto already staging, still need to submit DC requests)
+                                        tmpLog.debug(f"datasets to reuse existing DDM rules: {to_reuse_ds_list}")
+                                        to_staging_datasets.update(set(to_reuse_ds_list))
                                     if tape_coll_did_list := ds_list_dict["tape_coll_did_list"]:
                                         # update to_staging_datasets with collections with datasets only on tapes
                                         to_staging_datasets.update(set(tape_coll_did_list))
@@ -440,7 +445,7 @@ class TaskRefinerThread(WorkerThread):
                                     if tmp_ret:
                                         tmpLog.info("submitted data carousel requests")
                                         if to_staging_datasets <= no_staging_datasets:
-                                            tmpLog.info("all datasets do not need to stage (to pin or reused); skip staging")
+                                            tmpLog.info("all datasets are to pin; skip staging")
                                         elif disk_datasets:
                                             tmpLog.info("some datasets are on datadisks; skip staging")
                                         else:
