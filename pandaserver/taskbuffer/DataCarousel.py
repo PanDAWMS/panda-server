@@ -1299,9 +1299,6 @@ class DataCarouselInterface(object):
                     tmp_log.debug(f"got prestaging for existing rule: {prestaging_tuple}")
                     # add to prestage
                     ret_prestaging_list.append(prestaging_tuple)
-                    # dataset to pin, not expected in this case
-                    # if to_pin:
-                    #     ret_map["to_pin_ds_list"].append(dataset)
                 elif source_type == "datadisk":
                     # replicas already on datadisk; skip
                     ret_map["datadisk_ds_list"].append(dataset)

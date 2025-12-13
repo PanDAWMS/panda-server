@@ -415,7 +415,7 @@ class TaskRefinerThread(WorkerThread):
                                 if prestaging_list:
                                     # something to prestage
                                     if to_reuse_ds_list := ds_list_dict["to_reuse_ds_list"]:
-                                        # update no_staging_datasets with datasets to reuse existing DDM rules (de facto already staging, still need to submit DC requests)
+                                        # update to_staging_datasets with datasets to reuse existing DDM rules (de facto already staging, still need to submit DC requests)
                                         tmpLog.debug(f"datasets to reuse existing DDM rules: {to_reuse_ds_list}")
                                         to_staging_datasets.update(set(to_reuse_ds_list))
                                     if tape_coll_did_list := ds_list_dict["tape_coll_did_list"]:
