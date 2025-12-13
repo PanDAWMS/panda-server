@@ -29,6 +29,7 @@ StageDCRequests_LOCK_TIME_MINUTES = 5
 CheckDCRequests_LOCK_TIME_MINUTES = 5
 KeepRulesAlive_LOCK_TIME_MINUTES = 60
 CleanDCRequests_LOCK_TIME_MINUTES = 1440
+RescuePendingTasks_LOCK_TIME_MINUTES = 60
 
 # ==============================================================
 
@@ -143,6 +144,27 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             errtype, errvalue = sys.exc_info()[:2]
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
+    def doRescuePendingTasks(self):
+        """
+        Action to rescue pending tasks stuck due to never updated staged files about previously done DC requests
+        """
+        tmpLog = MsgWrapper(logger, " #ATM #KV doRescuePendingTasks")
+        tmpLog.debug("start")
+        try:
+            # watchdog lock
+            got_lock = self.get_process_lock("AtlasDataCarousDog.doRescuePendingTasks", timeLimit=RescuePendingTasks_LOCK_TIME_MINUTES)
+            if not got_lock:
+                tmpLog.debug("locked by another watchdog process. Skipped")
+                return
+            tmpLog.debug("got watchdog lock")
+            # rescue pending tasks
+            self.data_carousel_interface.rescue_pending_tasks_with_done_requests()
+            # done
+            tmpLog.debug(f"done")
+        except Exception:
+            errtype, errvalue = sys.exc_info()[:2]
+            tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
+
     # main
     def doAction(self):
         try:
@@ -157,6 +179,8 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             self.doCheckDCRequests()
             # stage queued requests
             self.doStageDCRequests()
+            # rescue pending tasks
+            self.doRescuePendingTasks()
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             origTmpLog.error(f"failed with {errtype} {errvalue}")

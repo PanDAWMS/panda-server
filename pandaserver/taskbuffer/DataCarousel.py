@@ -2322,13 +2322,6 @@ class DataCarouselInterface(object):
                             #     f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={dc_req_spec.ddm_rule_id} not to renew ; skipped"
                             # )
                             pass
-                    # FIXME: Resque code snippet to update staged files in DB for tasks reusing done requests
-                    # if dc_req_spec.status == DataCarouselRequestStatus.done:
-                    #     tmp_ret = self._update_staged_files(dc_req_spec)
-                    #     if tmp_ret:
-                    #         tmp_log.debug(f"request_id={dc_req_spec.request_id} done; updated staged files")
-                    #     else:
-                    #         tmp_log.warning(f"request_id={dc_req_spec.request_id} done; failed to update staged files ; skipped")
                 else:
                     # requests of non-active tasks; check if the rule is valid
                     is_valid, ddm_rule_id, _ = self._check_ddm_rule_of_request(dc_req_spec, by=by)
@@ -2711,6 +2704,34 @@ class DataCarouselInterface(object):
                 tmp_log.debug(f"deleted {ret_outdated} outdated requests older than {outdated_age_limit_days} days")
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+
+    def rescue_pending_tasks_with_done_requests(self):
+        """
+        Rescue pending tasks which have data carousel requests in done status by updating staged files in DB
+        Usually these tasks reuse data carousel requests done previously
+        """
+        tmp_log = LogWrapper(logger, "rescue_pending_tasks_with_done_requests")
+        # get requests of pending tasks
+        pending_tasked_requests_map, pending_tasked_relation_map = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(
+            status_filter_list=["pending"]
+        )
+        # create inverse relation map: request_id -> list of task_id
+        pending_tasked_inverse_relation_map = dict()
+        for task_id, request_id_list in pending_tasked_relation_map.items():
+            for request_id in request_id_list:
+                pending_tasked_inverse_relation_map.setdefault(request_id, [])
+                pending_tasked_inverse_relation_map[request_id].append(task_id)
+        # loop over requests
+        for dc_req_spec in pending_tasked_requests_map.values():
+            try:
+                if dc_req_spec.status == DataCarouselRequestStatus.done:
+                    # requests in done status of pending tasks; trigger update staged files
+                    self._update_staged_files(dc_req_spec)
+                    tmp_log.debug(
+                        f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} updated staged files for pending tasks: {pending_tasked_inverse_relation_map.get(dc_req_spec.request_id, [])}"
+                    )
+            except Exception:
+                tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
 
     def resubmit_request(
         self, orig_dc_req_spec: DataCarouselRequestSpec, submit_idds_request=True, exclude_prev_dst: bool = False, by: str = "manual", reason: str | None = None
