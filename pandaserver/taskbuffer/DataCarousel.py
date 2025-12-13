@@ -1291,6 +1291,8 @@ class DataCarouselInterface(object):
                 if staging_rule:
                     # reuse existing DDM rule
                     ret_map["to_reuse_ds_list"].append(dataset)
+                    if collection := jobparam_ds_coll_map.get(dataset):
+                        coll_on_tape_set.add(collection)
                     _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
                     tmp_log.debug(f"dataset={dataset} has existing ddm_rule_id={ddm_rule_id} ; to reuse it")
                     prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
