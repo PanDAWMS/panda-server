@@ -2330,12 +2330,13 @@ class DataCarouselInterface(object):
             except Exception:
                 tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
 
-    def _update_staged_files(self, dc_req_spec: DataCarouselRequestSpec) -> bool | None:
+    def _update_staged_files(self, dc_req_spec: DataCarouselRequestSpec, task_id_list: list[int] | None = None) -> bool | None:
         """
         Update status of files in DB Jedi_Dataset_Contents for a request done staging
 
         Args:
             dc_req_spec (DataCarouselRequestSpec): spec of the request
+            task_id_list (list[int]|None): list of jediTaskID to update; if None, will get all related tasks
 
         Returns:
             bool|None : True for success, None otherwise
@@ -2353,7 +2354,8 @@ class DataCarouselInterface(object):
             for lfn in lfn_set:
                 filenames_dict[lfn] = dummy_value_tuple
             # get all related tasks to update staged files
-            task_id_list = self._get_related_tasks(dc_req_spec.request_id)
+            if task_id_list is None:
+                task_id_list = self._get_related_tasks(dc_req_spec.request_id)
             if task_id_list:
                 # tmp_log.debug(f"related tasks: {task_id_list}")
                 n_done_tasks = 0
@@ -2726,10 +2728,10 @@ class DataCarouselInterface(object):
             try:
                 if dc_req_spec.status == DataCarouselRequestStatus.done:
                     # requests in done status of pending tasks; trigger update staged files
-                    self._update_staged_files(dc_req_spec)
-                    tmp_log.debug(
-                        f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} updated staged files for pending tasks: {pending_tasked_inverse_relation_map.get(dc_req_spec.request_id, [])}"
-                    )
+                    task_id_list = pending_tasked_inverse_relation_map.get(dc_req_spec.request_id, [])
+                    if task_id_list:
+                        self._update_staged_files(dc_req_spec, task_id_list=task_id_list)
+                        tmp_log.debug(f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} updated staged files for pending tasks: {task_id_list}")
             except Exception:
                 tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
 
