@@ -1364,7 +1364,7 @@ class DataCarouselInterface(object):
             return False
 
     def submit_data_carousel_requests(
-        self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]], options: dict | None = None
+        self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]], options: dict | None = None, submit_idds_request: bool = True
     ) -> bool | None:
         """
         Submit data carousel requests for a task
@@ -1373,6 +1373,7 @@ class DataCarouselInterface(object):
             task_id (int): JEDI task ID
             prestaging_list (list[tuple[str, str|None, str|None, bool]]): list of tuples in the form of (dataset, source_rse, ddm_rule_id)
             options (dict|None): extra options for submission
+            submit_idds_request (bool): whether to submit iDDS staging requests for the datasets already with DDM rules; default True
 
         Returns:
             bool | None : True if submission successful, or None if failed
@@ -1405,6 +1406,11 @@ class DataCarouselInterface(object):
                 dc_req_spec.status = DataCarouselRequestStatus.staging
                 dc_req_spec.start_time = now_time
                 dc_req_spec.set_parameter("reuse_rule", True)
+                # to submit iDDS staging requests about the task and existing DDM rule
+                if submit_idds_request:
+                    # get all tasks related to this request
+                    self._submit_idds_stagein_request(task_id, dc_req_spec)
+                    tmp_log.debug(f"submitted corresponding iDDS request for this task and existing ddm_rule_id={dc_req_spec.ddm_rule_id}")
             if suggested_dst_list:
                 dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
             # options
@@ -2316,6 +2322,13 @@ class DataCarouselInterface(object):
                             #     f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={dc_req_spec.ddm_rule_id} not to renew ; skipped"
                             # )
                             pass
+                    # FIXME: Resque code snippet to update staged files in DB for tasks reusing done requests
+                    # if dc_req_spec.status == DataCarouselRequestStatus.done:
+                    #     tmp_ret = self._update_staged_files(dc_req_spec)
+                    #     if tmp_ret:
+                    #         tmp_log.debug(f"request_id={dc_req_spec.request_id} done; updated staged files")
+                    #     else:
+                    #         tmp_log.warning(f"request_id={dc_req_spec.request_id} done; failed to update staged files ; skipped")
                 else:
                     # requests of non-active tasks; check if the rule is valid
                     is_valid, ddm_rule_id, _ = self._check_ddm_rule_of_request(dc_req_spec, by=by)
