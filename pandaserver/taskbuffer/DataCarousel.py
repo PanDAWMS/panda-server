@@ -1380,7 +1380,7 @@ class DataCarouselInterface(object):
 
         Args:
             task_id (int): JEDI task ID
-            prestaging_list (list[tuple[str, str|None, str|None, bool]]): list of tuples in the form of (dataset, source_rse, ddm_rule_id)
+            prestaging_list (list[tuple[str, str|None, str|None, bool, list|None]]): list of tuples in the form of (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
             options (dict|None): extra options for submission
             submit_idds_request (bool): whether to submit iDDS staging requests for the datasets already with DDM rules; default True
 
