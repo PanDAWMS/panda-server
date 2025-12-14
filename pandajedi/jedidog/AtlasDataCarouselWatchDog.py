@@ -29,7 +29,7 @@ StageDCRequests_LOCK_TIME_MINUTES = 5
 CheckDCRequests_LOCK_TIME_MINUTES = 5
 KeepRulesAlive_LOCK_TIME_MINUTES = 60
 CleanDCRequests_LOCK_TIME_MINUTES = 1440
-RescuePendingTasks_LOCK_TIME_MINUTES = 60
+RescuePendingTasks_LOCK_TIME_MINUTES = 120
 
 # ==============================================================
 
@@ -180,7 +180,7 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             # stage queued requests
             self.doStageDCRequests()
             # rescue pending tasks
-            self.doRescuePendingTasks()
+            # self.doRescuePendingTasks()
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             origTmpLog.error(f"failed with {errtype} {errvalue}")

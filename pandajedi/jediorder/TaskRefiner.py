@@ -420,7 +420,7 @@ class TaskRefinerThread(WorkerThread):
                                         to_staging_datasets.update(set(to_reuse_staging_ds_list))
                                     if to_reuse_staged_ds_list := ds_list_dict["to_reuse_staged_ds_list"]:
                                         # update no_staging_datasets with datasets already staged (de facto already on disk)
-                                        tmpLog.debug(f"datasets already staged: {to_reuse_staged_ds_list}")
+                                        tmpLog.debug(f"datasets already staged by existing DDM rules: {to_reuse_staged_ds_list}")
                                         no_staging_datasets.update(set(to_reuse_staged_ds_list))
                                     if tape_coll_did_list := ds_list_dict["tape_coll_did_list"]:
                                         # update to_staging_datasets with collections with datasets only on tapes
