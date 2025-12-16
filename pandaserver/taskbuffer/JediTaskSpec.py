@@ -1565,13 +1565,24 @@ class JediTaskSpec(object):
             step = int(tmpMatch.group(1))
         else:
             step = 0
+        tmpMatch = re.search(self.splitRuleToken["retryRamMax"] + r"=(\d+)", self.splitRule)
+        if tmpMatch:
+            max_ram = int(tmpMatch.group(1))
+        else:
+            max_ram = None
         if not current_ram:
             return current_ram
         if current_ram < offset:
-            return offset
+            if max_ram is None:
+                return offset
+            else:
+                return min(offset, max_ram)
         if not step:
             return current_ram
-        return offset + math.ceil((current_ram - offset) / step) * step
+        if max_ram is None:
+            return offset + math.ceil((current_ram - offset) / step) * step
+        else:
+            return min(offset + math.ceil((current_ram - offset) / step) * step, max_ram)
 
     # get number of events per input
     def get_num_events_per_input(self):

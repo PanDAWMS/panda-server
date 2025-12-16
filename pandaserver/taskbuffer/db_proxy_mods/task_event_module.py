@@ -2667,20 +2667,27 @@ class TaskEventModule(BaseModule):
                 # set default value
                 retryRamOffset = 0
                 retryRamStep = 1.0
+                retryRamMax = None
                 # set values from task
                 for tmpItem in items:
                     if tmpItem.startswith("RX="):
                         retryRamOffset = int(tmpItem.replace("RX=", ""))
                     if tmpItem.startswith("RY="):
                         retryRamStep = float(tmpItem.replace("RY=", ""))
+                    if tmpItem.startswith("RZ="):
+                        retryRamMax = float(tmpItem.replace("RZ=", ""))
 
                 tmp_log.debug(
-                    f"RAM limit task={taskRamCount}{taskRamUnit} cores={coreCount} baseRamCount={taskBaseRamCount} job={jobRamCount}{job.minRamUnit} jobPSS={job.maxPSS}kB retryRamOffset={retryRamOffset} retryRamStep={retryRamStep} attemptNr={attemptNr}"
+                    f"RAM limit task={taskRamCount}{taskRamUnit} cores={coreCount} baseRamCount={taskBaseRamCount} job={jobRamCount}{job.minRamUnit} jobPSS={job.maxPSS}kB retryRamOffset={retryRamOffset} retryRamStep={retryRamStep} retryRamMax={retryRamMax} attemptNr={attemptNr}"
                 )
 
                 # normalize the job ram-count by base ram count and number of cores
                 multiplier = retryRamStep * 1.0 / taskRamCount
-                minimumRam = retryRamOffset + taskRamCount * (multiplier**attemptNr)
+                # should boost memory based on the current job memory, not based on the attemptNr. Because sometimes some failures are not caused by memory limitation.
+                # minimumRam = retryRamOffset + taskRamCount * (multiplier**attemptNr)
+                minimumRam = jobRamCount * multiplier
+                if retryRamMax:
+                    minimumRam = min(minimumRam, retryRamMax)
 
                 if taskRamUnit != "MBPerCoreFixed":
                     # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead

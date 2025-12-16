@@ -385,6 +385,11 @@ def validate_method(method_name, api_module, version):
 def encode_special_cases(obj):
     if isinstance(obj, datetime.datetime):
         return {"__datetime__": obj.isoformat()}
+    if isinstance(obj, decimal.Decimal):
+        if obj == obj.to_integral_value():
+            return int(obj)
+        else:
+            return float(obj)
     raise TypeError(f"Type not serializable for {obj} ({type(obj)})")
 
 
