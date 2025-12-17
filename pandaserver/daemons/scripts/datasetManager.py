@@ -941,6 +941,7 @@ def main(tbuf=None, **kwargs):
                                     and siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)["is_tape"] == "N"
                                     and repInfo[0]["total"] == repInfo[0]["found"]
                                     and repInfo[0]["total"] is not None
+                                    and repInfo[0]["total"] > 0
                                 ):
                                     tmpFile.status = "ready"
                                     break
