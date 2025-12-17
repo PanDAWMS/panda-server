@@ -6,6 +6,7 @@ entry point
 """
 
 import datetime
+import decimal
 import gzip
 import io
 import json
