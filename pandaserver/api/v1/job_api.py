@@ -111,7 +111,7 @@ def get_description(self, job_ids: List[int]) -> Dict:
         job_ids = []
 
     tmp_logger.debug(f"Retrieving data for {job_ids}")
-    ret = global_task_buffer.peekJobs(job_ids, use_json=True)
+    ret = [job.to_dict_advanced() for job in global_task_buffer.peekJobs(job_ids)]
     _logger.debug("Done")
 
     return generate_response(True, data=ret)
@@ -152,7 +152,7 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
 
     tmp_logger.debug(f"Retrieving data for {str(job_ids)}")
 
-    ret = global_task_buffer.getFullJobStatus(job_ids, use_json=True)
+    ret = [job.to_dict_advanced() for job in global_task_buffer.getFullJobStatus(job_ids)]
     tmp_logger.debug("getFullJobStatus end")
     return generate_response(True, data=ret)
 

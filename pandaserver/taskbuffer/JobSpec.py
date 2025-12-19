@@ -774,7 +774,7 @@ class JobSpec(object):
         return self.check_special_handling("inputPrestaging")
 
     # to a dictionary
-    def to_dict(self):
+    def to_dict_advanced(self):
         ret = {}
 
         # Get the job attributes
@@ -794,7 +794,7 @@ class JobSpec(object):
 
         return ret
 
-    def to_dict_advanced(self):
+    def to_dict(self):
         ret = {}
         for a in self._attributes:
             v = getattr(self, a)
