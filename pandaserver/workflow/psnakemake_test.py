@@ -32,7 +32,6 @@ def main():
         logging.info(f"{os.path.basename(__file__)}: workflow_file = {workflow_file}")
         parser = Parser(workflow_file, level=logging.DEBUG)
         nodes, root_in = parser.parse_nodes()
-        _ = parser.parse_code()
         dot_data = parser.get_dot_data()
         logging.info(f"dot data ={os.linesep}{dot_data}")
         s_id, t_nodes, nodes = resolve_nodes(nodes, root_in, data, 0, set(), sys.argv[2], logging)

@@ -32,7 +32,7 @@ dependencies = [
     'ruamel.yaml',
     'cwl-utils>=0.13',
     'packaging',
-    'snakemake==7.30.1',
+    'snakemake>=9.14.5',
     'numpy',
     'scipy',
     'werkzeug',
