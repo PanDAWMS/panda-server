@@ -3,6 +3,8 @@ file specification
 
 """
 
+import datetime
+
 reserveChangedState = False
 
 
@@ -276,3 +278,13 @@ class FileSpec(object):
         # set None as _owner
         stat.append(None)
         return stat
+
+    # to a dictionary
+    def to_dict(self):
+        ret = {}
+        for a in self._attributes:
+            v = getattr(self, a)
+            if v == "NULL":
+                v = None
+            ret[a] = v
+        return ret
