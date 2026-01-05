@@ -65,7 +65,10 @@ class HttpClient:
     def _prepare_url(self, url):
         """Modify URL with HTTPS check and hostname replacement."""
         use_https = is_https(url)
-        modified_url = replace_hostname_in_url_randomly(url)
+        if "PANDA_BEHIND_REAL_LB" in os.environ:
+            modified_url = url
+        else:
+            modified_url = replace_hostname_in_url_randomly(url)
         return modified_url, use_https
 
     def _prepare_headers(self, accept_json=True, content_type_json=True, encoding=None):
