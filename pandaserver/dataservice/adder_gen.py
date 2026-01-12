@@ -623,10 +623,10 @@ class AdderGen:
 
             self.taskBuffer.update_worker_node(
                 site,
+                panda_queue,
                 host_name,
                 cpu_model,
                 cpu_model_normalized,
-                panda_queue,
                 n_logical_cpus,
                 n_sockets,
                 cores_per_socket,
@@ -642,18 +642,18 @@ class AdderGen:
         except Exception:
             self.logger.error(f"update_worker_node: issue with updating worker node specs: {traceback.format_exc()}")
 
-    def update_worker_node_gpus(self, json_dict):
+    def update_worker_node_gpu(self, json_dict):
         try:
-            self.logger.debug(f"update_worker_node_gpus: start")
+            self.logger.debug(f"update_worker_node_gpu: start")
             wn_gpu_specs = json_dict.get("worker_node_gpus", {})
             if not wn_gpu_specs:
-                self.logger.debug(f"update_worker_node_gpus: done. No worker node GPU specs found")
+                self.logger.debug(f"update_worker_node_gpu: done. No worker node GPU specs found")
                 return
 
             site = wn_gpu_specs.get("site")
             host_name = wn_gpu_specs.get("host_name")
             if not site or not host_name:
-                self.logger.debug(f"update_worker_node_gpus: done. Incomplete worker node GPU specs found: site={site}, host_name={host_name}")
+                self.logger.debug(f"update_worker_node_gpu: done. Incomplete worker node GPU specs found: site={site}, host_name={host_name}")
                 return
 
             vendor = wn_gpu_specs.get("vendor")
@@ -665,11 +665,11 @@ class AdderGen:
             framework_version = wn_gpu_specs.get("framework_version")
             driver_version = wn_gpu_specs.get("driver_version")
 
-            self.taskBuffer.update_worker_node_gpus(site, host_name, vendor, model, count, vram, architecture, framework, framework_version, driver_version)
-            self.logger.debug(f"update_worker_node_gpus: done for site={site}, host_name={host_name}")
+            self.taskBuffer.update_worker_node_gpu(site, host_name, vendor, model, count, vram, architecture, framework, framework_version, driver_version)
+            self.logger.debug(f"update_worker_node_gpu: done for site={site}, host_name={host_name}")
             return
         except Exception:
-            self.logger.error(f"update_worker_node_gpus: issue with updating worker node GPU specs: {traceback.format_exc()}")
+            self.logger.error(f"update_worker_node_gpu: issue with updating worker node GPU specs: {traceback.format_exc()}")
 
     # parse JSON
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
@@ -798,7 +798,7 @@ class AdderGen:
         # parse metadata to get worker node specs and GPU specs
         if isinstance(json_dict, dict):
             self.update_worker_node(json_dict)
-            self.update_worker_node_gpus(json_dict)
+            self.update_worker_node_gpu(json_dict)
 
         # use nEvents and GUIDs reported by the pilot if no job report
         if self.job.metadata == "NULL" and self.job_status == "finished" and self.job.nEvents > 0 and self.job.prodSourceLabel in ["managed"]:
