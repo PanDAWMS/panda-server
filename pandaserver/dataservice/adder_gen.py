@@ -18,6 +18,7 @@ import pandaserver.dataservice.ErrorCode
 import pandaserver.taskbuffer.ErrorCode
 from pandaserver.config import panda_config
 from pandaserver.dataservice import closer
+from pandaserver.srvcore.CoreUtils import normalize_cpu_model
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils, retryModule
 
 _logger = PandaLogger().getLogger("adder")
@@ -593,6 +594,83 @@ class AdderGen:
                         del closer_thread
                         self.logger.debug(f"end Closer for PandaID={associate_job_id}")
 
+    def update_worker_node(self, json_dict):
+        try:
+            self.logger.debug(f"update_worker_node: start")
+            wn_specs = json_dict.get("worker_node", {})
+            if not wn_specs:
+                self.logger.debug(f"update_worker_node: done. No worker node specs found")
+                return
+
+            site = wn_specs.get("site")
+            host_name = wn_specs.get("host_name")
+            cpu_model = wn_specs.get("cpu_model")
+            if not site or not host_name or not cpu_model:
+                self.logger.debug(f"update_worker_node: done. Incomplete worker node specs found: site={site}, host_name={host_name}, cpu_model={cpu_model}")
+                return
+
+            cpu_model_normalized = normalize_cpu_model(cpu_model)
+            panda_queue = wn_specs.get("panda_queue")
+            n_logical_cpus = wn_specs.get("n_logical_cpus")
+            n_sockets = wn_specs.get("n_sockets")
+            cores_per_socket = wn_specs.get("cores_per_socket")
+            threads_per_core = wn_specs.get("threads_per_core")
+            cpu_architecture = wn_specs.get("cpu_architecture")
+            cpu_architecture_level = wn_specs.get("cpu_architecture_level")
+            clock_speed = wn_specs.get("clock_speed")
+            total_memory = wn_specs.get("total_memory")
+            total_local_disk = wn_specs.get("total_local_disk")
+
+            self.taskBuffer.update_worker_node(
+                site,
+                host_name,
+                cpu_model,
+                cpu_model_normalized,
+                panda_queue,
+                n_logical_cpus,
+                n_sockets,
+                cores_per_socket,
+                threads_per_core,
+                cpu_architecture,
+                cpu_architecture_level,
+                clock_speed,
+                total_memory,
+                total_local_disk,
+            )
+            self.logger.debug(f"update_worker_node: done for site={site}, host_name={host_name}, cpu_model={cpu_model}")
+            return
+        except Exception:
+            self.logger.error(f"update_worker_node: issue with updating worker node specs: {traceback.format_exc()}")
+
+    def update_worker_node_gpus(self, json_dict):
+        try:
+            self.logger.debug(f"update_worker_node_gpus: start")
+            wn_gpu_specs = json_dict.get("worker_node_gpus", {})
+            if not wn_gpu_specs:
+                self.logger.debug(f"update_worker_node_gpus: done. No worker node GPU specs found")
+                return
+
+            site = wn_gpu_specs.get("site")
+            host_name = wn_gpu_specs.get("host_name")
+            if not site or not host_name:
+                self.logger.debug(f"update_worker_node_gpus: done. Incomplete worker node GPU specs found: site={site}, host_name={host_name}")
+                return
+
+            vendor = wn_gpu_specs.get("vendor")
+            model = wn_gpu_specs.get("model")
+            count = wn_gpu_specs.get("count")
+            vram = wn_gpu_specs.get("vram")
+            architecture = wn_gpu_specs.get("architecture")
+            framework = wn_gpu_specs.get("framework")
+            framework_version = wn_gpu_specs.get("framework_version")
+            driver_version = wn_gpu_specs.get("driver_version")
+
+            self.taskBuffer.update_worker_node_gpus(site, host_name, vendor, model, count, vram, architecture, framework, framework_version, driver_version)
+            self.logger.debug(f"update_worker_node_gpus: done for site={site}, host_name={host_name}")
+            return
+        except Exception:
+            self.logger.error(f"update_worker_node_gpus: issue with updating worker node GPU specs: {traceback.format_exc()}")
+
     # parse JSON
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
     def parse_job_output_report(self):
@@ -695,8 +773,8 @@ class AdderGen:
             return 2
 
         # parse metadata to get nEvents
-        n_events_from = None
-        # parse json
+        n_events_from = ""
+        json_dict = {}
         try:
             json_dict = json.loads(self.job.metadata)
             for json_file_item in json_dict["files"]["output"]:
@@ -716,6 +794,11 @@ class AdderGen:
         except Exception:
             self.logger.warning("Issue with parsing JSON for nEvents")
             pass
+
+        # parse metadata to get worker node specs and GPU specs
+        if isinstance(json_dict, dict):
+            self.update_worker_node(json_dict)
+            self.update_worker_node_gpus(json_dict)
 
         # use nEvents and GUIDs reported by the pilot if no job report
         if self.job.metadata == "NULL" and self.job_status == "finished" and self.job.nEvents > 0 and self.job.prodSourceLabel in ["managed"]:
