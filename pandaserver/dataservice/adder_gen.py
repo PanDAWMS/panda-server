@@ -599,14 +599,14 @@ class AdderGen:
             self.logger.debug(f"update_worker_node: start")
             wn_specs = json_dict.get("worker_node", {})
             if not wn_specs:
-                self.logger.debug(f"update_worker_node: no worker node specs found")
+                self.logger.debug(f"update_worker_node: done. No worker node specs found")
                 return
 
             site = wn_specs.get("site")
             host_name = wn_specs.get("host_name")
             cpu_model = wn_specs.get("cpu_model")
             if not site or not host_name or not cpu_model:
-                self.logger.debug(f"update_worker_node: incomplete worker node specs found: site={site}, host_name={host_name}, cpu_model={cpu_model}")
+                self.logger.debug(f"update_worker_node: done. Incomplete worker node specs found: site={site}, host_name={host_name}, cpu_model={cpu_model}")
                 return
 
             cpu_model_normalized = normalize_cpu_model(cpu_model)
@@ -647,13 +647,13 @@ class AdderGen:
             self.logger.debug(f"update_worker_node_gpus: start")
             wn_gpu_specs = json_dict.get("worker_node_gpus", {})
             if not wn_gpu_specs:
-                self.logger.debug(f"update_worker_node_gpus: no worker node GPU specs found")
+                self.logger.debug(f"update_worker_node_gpus: done. No worker node GPU specs found")
                 return
 
             site = wn_gpu_specs.get("site")
             host_name = wn_gpu_specs.get("host_name")
             if not site or not host_name:
-                self.logger.debug(f"update_worker_node_gpus: incomplete worker node GPU specs found: site={site}, host_name={host_name}")
+                self.logger.debug(f"update_worker_node_gpus: done. Incomplete worker node GPU specs found: site={site}, host_name={host_name}")
                 return
 
             vendor = wn_gpu_specs.get("vendor")
