@@ -796,8 +796,9 @@ class AdderGen:
             pass
 
         # parse metadata to get worker node specs and GPU specs
-        self.update_worker_node(json_dict)
-        self.update_worker_node_gpus(json_dict)
+        if isinstance(json_dict, dict):
+            self.update_worker_node(json_dict)
+            self.update_worker_node_gpus(json_dict)
 
         # use nEvents and GUIDs reported by the pilot if no job report
         if self.job.metadata == "NULL" and self.job_status == "finished" and self.job.nEvents > 0 and self.job.prodSourceLabel in ["managed"]:
