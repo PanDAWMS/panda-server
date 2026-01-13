@@ -683,8 +683,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 if not scanSiteList:
                     self.dump_summary(tmpLog)
                     tmpLog.error("no candidates")
-                    taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                    return retTmpError
+                    retVal = retTmpError
+                    continue
 
             ######################################
             # selection for iointensity limits
@@ -744,7 +744,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 self.dump_summary(tmpLog)
                 tmpLog.error("no candidates")
                 taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                return retTmpError
+                retVal = retTmpError
+                continue
+
             ######################################
             # selection for VP
             if taskSpec.avoid_vp() or avoidVP or not checkDataLocality:
