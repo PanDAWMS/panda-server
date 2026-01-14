@@ -1657,3 +1657,8 @@ def push_status_changes(split_rule):
 # check if message driven without class instance
 def is_msg_driven(split_rule):
     return check_split_rule_positive_int("messageDriven", split_rule)
+
+
+# check if auto pause is disabled
+def is_auto_pause_disabled(split_rule):
+    return not check_split_rule_positive_int("noAutoPause", split_rule)

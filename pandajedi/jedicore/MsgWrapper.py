@@ -1,6 +1,4 @@
-import datetime
 import re
-import time
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow

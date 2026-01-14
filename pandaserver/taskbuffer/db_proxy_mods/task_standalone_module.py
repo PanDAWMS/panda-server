@@ -1,5 +1,6 @@
 import datetime
 import math
+import random
 import re
 import socket
 import sys
@@ -1965,80 +1966,119 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get file spec of lib.tgz
-    def getBuildFileSpec_JEDI(self, jediTaskID, siteName, associatedSites):
-        comment = " /* JediDBProxy.getBuildFileSpec_JEDI */"
-        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} siteName={siteName}")
-        tmpLog.debug("start")
-        tmpLog.debug(f"associatedSites={str(associatedSites)}")
+    def get_previous_build_file_spec(
+        self, jedi_task_id: int, site_name: str, associated_sites: list
+    ) -> tuple[bool, JediFileSpec | None, JediDatasetSpec | None]:
+        """
+        Get the file and dataset specs of lib.tgz for a given task ID and site name which was generated in a previous submission cycle.
+
+        Args:
+            jedi_task_id (int): The JEDI task ID.
+            site_name (str): The site name where the lib.tgz is located.
+            associated_sites (list): A list of associated site names
+
+        Returns:
+            tuple: A tuple containing:
+                bool: Success flag
+                JediFileSpec | None: The file specification of lib.tgz if found, else None
+                JediDatasetSpec | None: The dataset specification if found, else None
+        """
+        comment = " /* JediDBProxy.get_previous_build_file_spec */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} siteName={site_name}")
+        tmp_log.debug("start")
+        tmp_log.debug(f"associatedSites={str(associated_sites)}")
         try:
             # sql to get dataset
-            sqlRD = f"SELECT {JediDatasetSpec.columnNames()} "
-            sqlRD += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlRD += "WHERE jediTaskID=:jediTaskID AND type=:type AND site=:site "
-            sqlRD += "AND (state IS NULL OR state<>:state) "
-            sqlRD += "ORDER BY creationTime DESC "
+            sql_read_dataset = f"SELECT {JediDatasetSpec.columnNames()} "
+            sql_read_dataset += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+            sql_read_dataset += "WHERE jediTaskID=:jediTaskID AND type=:type AND site=:site "
+            sql_read_dataset += "AND (state IS NULL OR state<>:state) "
+            sql_read_dataset += "ORDER BY creationTime DESC "
             # sql to read files
-            sqlFR = f"SELECT {JediFileSpec.columnNames()} "
-            sqlFR += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-            sqlFR += "jediTaskID=:jediTaskID AND datasetID=:datasetID AND type=:type "
-            sqlFR += "AND status IN (:status1) "
-            sqlFR += "ORDER BY creationDate DESC "
+            sql_read_file = f"SELECT {JediFileSpec.columnNames()} "
+            sql_read_file += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+            sql_read_file += "jediTaskID=:jediTaskID AND datasetID=:datasetID AND type=:type "
+            sql_read_file += "AND NOt status IN (:status1,:status2) "
+            sql_read_file += "ORDER BY creationDate DESC "
+            # sql to check the corresponding job status
+            sql_check_job = (
+                f"SELECT jobStatus FROM {panda_config.schemaPANDA}.jobsDefined4 WHERE PandaID=:PandaID "
+                "UNION "
+                f"SELECT jobStatus FROM {panda_config.schemaPANDA}.jobsActive4 WHERE PandaID=:PandaID "
+            )
             # start transaction
             self.conn.begin()
-            foundFlag = False
-            for tmpSiteName in [siteName] + associatedSites:
+            found_flag = False
+            file_spec = None
+            dataset_spec = None
+            for tmp_site_name in [site_name] + associated_sites:
                 # get dataset
-                varMap = {}
-                varMap[":type"] = "lib"
-                varMap[":site"] = tmpSiteName
-                varMap[":state"] = "closed"
-                varMap[":jediTaskID"] = jediTaskID
-                self.cur.execute(sqlRD + comment, varMap)
-                resList = self.cur.fetchall()
+                var_map = {":type": "lib", ":site": tmp_site_name, ":state": "closed", ":jediTaskID": jedi_task_id}
+                self.cur.execute(sql_read_dataset + comment, var_map)
+                res_list = self.cur.fetchall()
                 # loop over all datasets
-                fileSpec = None
-                datasetSpec = None
-                for resItem in resList:
-                    datasetSpec = JediDatasetSpec()
-                    datasetSpec.pack(resItem)
+                for res_item in res_list:
+                    dataset_spec = JediDatasetSpec()
+                    dataset_spec.pack(res_item)
                     # get file
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":datasetID"] = datasetSpec.datasetID
-                    varMap[":type"] = "lib"
-                    varMap[":status1"] = "finished"
-                    self.cur.execute(sqlFR + comment, varMap)
-                    resFileList = self.cur.fetchall()
-                    for resFile in resFileList:
+                    var_map = {":jediTaskID": jedi_task_id, ":datasetID": dataset_spec.datasetID, ":type": "lib", ":status1": "failed", ":status2": "cancelled"}
+                    self.cur.execute(sql_read_file + comment, var_map)
+                    res_file_list = self.cur.fetchall()
+                    for res_file_item in res_file_list:
                         # make FileSpec
-                        fileSpec = JediFileSpec()
-                        fileSpec.pack(resFile)
-                        foundFlag = True
-                        break
+                        tmp_file_spec = JediFileSpec()
+                        tmp_file_spec.pack(res_file_item)
+                        if tmp_file_spec.status == "finished":
+                            found_flag = True
+                            file_spec = tmp_file_spec
+                            break
+                        # check if the corresponding job is still active
+                        var_map = {":PandaID": tmp_file_spec.PandaID}
+                        self.cur.execute(sql_check_job + comment, var_map)
+                        res_job = self.cur.fetchone()
+                        if res_job is None:
+                            # no active job
+                            tmp_log.debug(f"no active job for {tmp_file_spec.lfn} (PandaID={tmp_file_spec.PandaID})")
+                        else:
+                            file_spec = tmp_file_spec
                     # no more dataset lookup
-                    if foundFlag:
+                    if found_flag:
                         break
                 # no more lookup with other sites
-                if foundFlag:
+                if found_flag:
                     break
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return
-            if fileSpec is not None:
-                tmpLog.debug(f"got lib.tgz={fileSpec.lfn}")
+            if file_spec is not None:
+                tmp_log.debug(f"got lib.tgz={file_spec.lfn} status={file_spec.status}")
             else:
-                tmpLog.debug("no lib.tgz")
-            return True, fileSpec, datasetSpec
+                tmp_log.debug("no lib.tgz")
+            return True, file_spec, dataset_spec
         except Exception:
             # roll back
             self._rollback()
             # error
-            self.dump_error_message(tmpLog)
-            return False, None
+            self.dump_error_message(tmp_log)
+            return False, None, None
 
     # get file spec of old lib.tgz
-    def getOldBuildFileSpec_JEDI(self, jediTaskID, datasetID, fileID):
+    def getOldBuildFileSpec_JEDI(self, jediTaskID: int, datasetID: int, fileID: int) -> tuple[bool, JediFileSpec | None, JediDatasetSpec | None]:
+        """
+        Get the file and dataset specs of an old lib.tgz using jediTaskID, datasetID, and fileID which was generated in the current submission cycle.
+
+        Args:
+            jediTaskID (int): The JEDI task ID.
+            datasetID (int): The dataset ID.
+            fileID (int): The file ID.
+
+        Returns:
+            tuple: A tuple containing:
+                bool: Success flag
+                JediFileSpec | None: The file specification of lib.tgz if found, else None
+                JediDatasetSpec | None: The dataset specification if found, else None
+        """
         comment = " /* JediDBProxy.getOldBuildFileSpec_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID} fileID={fileID}")
         tmpLog.debug("start")
@@ -2393,8 +2433,12 @@ class TaskStandaloneModule(BaseModule):
                 sqlRT += f"tabD.{tmpPar},"
             sqlRT = sqlRT[:-1]
             sqlRT += " "
-            sqlRT += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlRT += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
+            sqlRT += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA".format(panda_config.schemaJEDI)
+            if datasetCriteria:
+                sqlRT += f",{panda_config.schemaJEDI}.JEDI_Datasets tabD"
+            sqlRT += " WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+            if datasetCriteria:
+                sqlRT += "AND tabT.jediTaskID=tabD.jediTaskID "
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(taskStatusList, prefix=":status_", value_as_suffix=True)
             sqlRT += f"AND tabT.status IN ({status_var_names_str}) "
             varMap.update(status_var_map)
@@ -2961,14 +3005,14 @@ class TaskStandaloneModule(BaseModule):
         """
         comment = " /* JediDBProxy.release_task_on_hold */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
-        tmp_log.debug("start")
+        tmp_log.debug(f"start target={target_status}")
         try:
             # sql to update tasks
             sql_check = f"SELECT status,oldStatus,lockedBy FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE "
             sql_update = (
                 f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
                 "SET status=oldStatus,oldStatus=NULL,errorDialog=NULL,modificationtime=CURRENT_DATE "
-                "WHERE jediTaskID=:jediTaskID AND status=:oldStatus AND lockedBy IS NULL "
+                "WHERE jediTaskID=:jediTaskID AND status=:status AND lockedBy IS NULL "
             )
             # start transaction
             self.conn.begin()
@@ -2990,7 +3034,7 @@ class TaskStandaloneModule(BaseModule):
                     tmp_log.debug(f"cannot release since current status {status} != target_status {target_status}")
                 else:
                     # release
-                    var_map = {":jediTaskID": jedi_task_id, ":oldStatus": old_status}
+                    var_map = {":jediTaskID": jedi_task_id, ":status": status}
                     self.cur.execute(sql_update + comment, var_map)
                     n_row = self.cur.rowcount
                     tmp_log.debug(f"done with {n_row}")
@@ -3965,82 +4009,110 @@ class TaskStandaloneModule(BaseModule):
             return {}, {}
 
     # update datasets to finish a task
-    def updateDatasetsToFinishTask_JEDI(self, jediTaskID, lockedBy):
+    def updateDatasetsToFinishTask_JEDI(self, jediTaskID: int, lockedBy: str) -> bool:
+        """
+        Updates datasets to finish a task by setting attemptNr to maxAttempt for input files and adjusting nFilesFailed in the corresponding input datasets.
+        The operation is split across multiple transactions to limit execution time,
+        to avoid the entire process being retried.
+
+        Args:
+            jediTaskID (int): The JEDI task ID.
+            lockedBy (str): The identifier of the entity locking the task.
+
+        Returns:
+            bool: True if all datasets are processed, False otherwise.
+        """
         comment = " /* JediDBProxy.updateDatasetsToFinishTask_JEDI */"
-        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmpLog.debug("start")
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
+        tmp_log.debug("start")
         try:
             # sql to lock task
-            sqlLK = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=:lockedBy,lockedTime=CURRENT_DATE "
-            sqlLK += "WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL "
+            sql_lock = (
+                f"SELECT lockedBy,lockedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+                "WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL "
+                "FOR UPDATE NOWAIT "
+            )
             # sql to get datasets
-            sqlAV = f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlAV += f"WHERE jediTaskID=:jediTaskID AND type IN ({INPUT_TYPES_var_str}) "
+            sql_get_datasets = (
+                f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                f"WHERE jediTaskID=:jediTaskID AND type IN ({INPUT_TYPES_var_str}) "
+                "AND (nFiles > nFilesFinished+nFilesFailed OR nFilesTobeUsed > nFilesFinished+nFilesFailed) "
+            )
             # sql to update attemptNr for files
-            sqlFR = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlFR += "SET attemptNr=maxAttempt "
-            sqlFR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            sqlFR += "AND status=:status AND keepTrack=:keepTrack "
-            sqlFR += "AND maxAttempt IS NOT NULL AND attemptNr<maxAttempt "
-            sqlFR += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
-            # sql to update output/lib/log datasets
-            sqlUO = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlUO += "SET nFilesFailed=nFilesFailed+:nDiff "
-            sqlUO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sql_update_file = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+            sql_update_file += "SET attemptNr=maxAttempt "
+            sql_update_file += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sql_update_file += "AND status=:status AND keepTrack=:keepTrack "
+            sql_update_file += "AND maxAttempt IS NOT NULL AND attemptNr<maxAttempt "
+            sql_update_file += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
+            # sql to update nFilesFailed in input datasets
+            sql_update_dataset = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+            sql_update_dataset += "SET nFilesFailed=nFilesFailed+:nDiff "
+            sql_update_dataset += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql to release task
-            sqlRT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=NULL,lockedTime=NULL "
-            sqlRT += "WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy "
+            sql_release = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=NULL,lockedTime=NULL "
+            sql_release += "WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy "
             # lock task
-            self.conn.begin()
-            varMap = dict()
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":lockedBy"] = lockedBy
-            self.cur.execute(sqlLK + comment, varMap)
-            iRow = self.cur.rowcount
-            if iRow == 0:
+            n_loop = 100
+            n_datasets = 100
+            all_processed = False
+            for i_loop in range(n_loop):
+                tmp_log.debug(f"loop count {i_loop+1}/{n_loop}")
+                self.conn.begin()
+                var_map = dict()
+                var_map[":jediTaskID"] = jediTaskID
+                try:
+                    self.cur.execute(sql_lock + comment, var_map)
+                except Exception as e:
+                    tmp_log.debug(f"cannot lock task due to {str(e)}")
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError("Commit error")
+                    return False
+                # get datasets
+                var_map = dict()
+                var_map[":jediTaskID"] = jediTaskID
+                var_map.update(INPUT_TYPES_var_map)
+                self.cur.execute(sql_get_datasets + comment, var_map)
+                res_datasets = self.cur.fetchall()
+                random.shuffle(res_datasets)
+                tmp_log.debug(f"got {len(res_datasets)} datasets to process")
+                for (datasetID,) in res_datasets[:n_datasets]:
+                    # update files
+                    var_map = dict()
+                    var_map[":jediTaskID"] = jediTaskID
+                    var_map[":datasetID"] = datasetID
+                    var_map[":status"] = "ready"
+                    var_map[":keepTrack"] = 1
+                    self.cur.execute(sql_update_file + comment, var_map)
+                    n_diff = self.cur.rowcount
+                    # update dataset
+                    if n_diff > 0:
+                        var_map = dict()
+                        var_map[":jediTaskID"] = jediTaskID
+                        var_map[":datasetID"] = datasetID
+                        var_map[":nDiff"] = n_diff
+                        tmp_log.debug(sql_update_dataset + comment + str(var_map))
+                        self.cur.execute(sql_update_dataset + comment, var_map)
+                # release task
+                var_map = dict()
+                var_map[":jediTaskID"] = jediTaskID
+                var_map[":lockedBy"] = lockedBy
+                self.cur.execute(sql_release + comment, var_map)
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                tmpLog.debug("cannot lock")
-                return False
-            # get datasets
-            varMap = dict()
-            varMap[":jediTaskID"] = jediTaskID
-            varMap.update(INPUT_TYPES_var_map)
-            self.cur.execute(sqlAV + comment, varMap)
-            resAV = self.cur.fetchall()
-            for (datasetID,) in resAV:
-                # update files
-                varMap = dict()
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":datasetID"] = datasetID
-                varMap[":status"] = "ready"
-                varMap[":keepTrack"] = 1
-                self.cur.execute(sqlFR + comment, varMap)
-                nDiff = self.cur.rowcount
-                if nDiff > 0:
-                    varMap = dict()
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":datasetID"] = datasetID
-                    varMap[":nDiff"] = nDiff
-                    tmpLog.debug(sqlUO + comment + str(varMap))
-                    self.cur.execute(sqlUO + comment, varMap)
-            # release task
-            varMap = dict()
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":lockedBy"] = lockedBy
-            self.cur.execute(sqlRT + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
+                if len(res_datasets) <= n_datasets:
+                    all_processed = True
+                    break
             # return
-            tmpLog.debug("done")
-            return True
+            tmp_log.debug(f"done. all processed:{all_processed}")
+            return all_processed
         except Exception:
             # roll back
             self._rollback()
             # error
-            self.dump_error_message(tmpLog)
+            self.dump_error_message(tmp_log)
             return False
 
     # get number of staging files

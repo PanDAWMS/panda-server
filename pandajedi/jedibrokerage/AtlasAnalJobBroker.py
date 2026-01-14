@@ -673,6 +673,27 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 continue
 
             ######################################
+            # selection for fairshare
+            if not sitePreAssigned:
+                newScanSiteList = []
+                oldScanSiteList = copy.copy(scanSiteList)
+                for tmpSiteName in scanSiteList:
+                    tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
+                    # check at the site
+                    if AtlasBrokerUtils.hasZeroShare(tmpSiteSpec, taskSpec, inputChunk.isMerging, tmpLog):
+                        tmpLog.info(f"  skip site={tmpSiteName} due to zero share criteria=-zeroshare")
+                        continue
+                    newScanSiteList.append(tmpSiteName)
+                scanSiteList = newScanSiteList
+                tmpLog.info(f"{len(scanSiteList)} candidates passed zero share check")
+                self.add_summary_message(oldScanSiteList, scanSiteList, "zero share check")
+                if not scanSiteList:
+                    self.dump_summary(tmpLog)
+                    tmpLog.error("no candidates")
+                    retVal = retTmpError
+                    continue
+
+            ######################################
             # selection for iointensity limits
             # get default disk IO limit from GDP config
             max_diskio_per_core_default = self.taskBufferIF.getConfigValue(COMPONENT, "MAX_DISKIO_DEFAULT", APP, VO)
@@ -730,7 +751,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 self.dump_summary(tmpLog)
                 tmpLog.error("no candidates")
                 taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                return retTmpError
+                retVal = retTmpError
+                continue
+
             ######################################
             # selection for VP
             if taskSpec.avoid_vp() or avoidVP or not checkDataLocality:
@@ -2204,7 +2227,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 if not isAvailable:
                     break
             # append
-            if not isAvailable:
+            if not isAvailable and tmpSiteSpec.use_only_local_data():
                 tmpLog.info(f"  skip site={siteCandidateSpec.siteName} file unavailable criteria=-fileunavailable")
                 try:
                     del weightStr[siteCandidateSpec.siteName]

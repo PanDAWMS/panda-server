@@ -251,7 +251,10 @@ class AtlasProdJobBroker(JobBrokerBase):
             sites_in_nucleus = nucleusSpec.allPandaSites
             # get black list
             for tmp_name, tmp_nucleus_dict in self.siteMapper.nuclei.items():
-                receive_output_over_wan = tmp_nucleus_dict.get_default_endpoint_out()["detailed_status"].get("write_wan")
+                default_endpoint_out = tmp_nucleus_dict.get_default_endpoint_out()
+                if not default_endpoint_out:
+                    continue
+                receive_output_over_wan = default_endpoint_out["detailed_status"].get("write_wan")
                 if receive_output_over_wan in ["OFF", "TEST"]:
                     nucleus_with_storages_unwritable_over_wan[tmp_name] = receive_output_over_wan
 

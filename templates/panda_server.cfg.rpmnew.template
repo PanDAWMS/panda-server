@@ -339,5 +339,25 @@ config = {
     "cache_pilots": {
         "enable": true, "period": 3600},
     "hs_scrapers": {
-        "enable": true, "period": 604800, "sync": true},
+        "enable": true, "period": 604800, "sync": true}
   }
+
+
+
+
+[mcp]
+
+##########################
+#
+# MCP parameters
+#
+
+# transport method: streamable-http (http) or sse
+transport = http
+
+# the list of REST API endpoints to expose through MCP
+endpoint_list_file = /opt/panda/etc/panda/panda_mcp_endpoints.json
+
+# SSL key and cert files for MCP server
+# ssl_keyfile = /etc/pki/tls/private/panda_mcp.key
+# ssl_certfile = /etc/pki/tls/certs/panda_mcp.crt

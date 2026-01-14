@@ -1799,13 +1799,16 @@ class JobGeneratorThread(WorkerThread):
         try:
             datasetToRegister = []
             # get sites which share DDM endpoint
-            associatedSites = sorted(
-                DataServiceUtils.getSitesShareDDM(
-                    self.siteMapper, siteName, taskSpec.prodSourceLabel, JobUtils.translate_tasktype_to_jobtype(taskSpec.taskType), True
-                )
+            associated_sites = DataServiceUtils.getSitesShareDDM(
+                self.siteMapper, siteName, taskSpec.prodSourceLabel, JobUtils.translate_tasktype_to_jobtype(taskSpec.taskType), True
             )
+            # convert to sorted unified names and remove duplicates
+            associated_sites = [self.siteMapper.getSite(s).get_unified_name() for s in associated_sites]
+            associated_sites = sorted(list(set(associated_sites)))
+            if siteSpec.get_unified_name() in associated_sites:
+                associated_sites.remove(siteSpec.get_unified_name())
             # key for map of buildSpec
-            secondKey = [siteName] + associatedSites
+            secondKey = [siteSpec.get_unified_name()] + associated_sites
             secondKey.sort()
             buildSpecMapKey = (taskSpec.jediTaskID, tuple(secondKey))
             tmpStat = True
@@ -1823,7 +1826,9 @@ class JobGeneratorThread(WorkerThread):
                 if buildSpecMapKey in self.finished_lib_specs_map:
                     fileSpec, datasetSpec = self.finished_lib_specs_map[buildSpecMapKey]
                 else:
-                    tmpStat, fileSpec, datasetSpec = self.taskBufferIF.getBuildFileSpec_JEDI(taskSpec.jediTaskID, siteName, associatedSites)
+                    tmpStat, fileSpec, datasetSpec = self.taskBufferIF.get_previous_build_file_spec(
+                        taskSpec.jediTaskID, siteSpec.get_unified_name(), associated_sites
+                    )
                     if fileSpec is not None:
                         self.finished_lib_specs_map[buildSpecMapKey] = (fileSpec, datasetSpec)
             # failed
@@ -1838,6 +1843,8 @@ class JobGeneratorThread(WorkerThread):
                     pandaFileSpec.prodDBlockToken = "local"
                     if fileSpec.status == "finished":
                         pandaFileSpec.status = "ready"
+                    else:
+                        pandaFileSpec.status = None
                     # make dummy jobSpec
                     jobSpec = JobSpec()
                     jobSpec.addFile(pandaFileSpec)
@@ -2530,6 +2537,9 @@ class JobGeneratorThread(WorkerThread):
             newPandaJob.resource_type = JobUtils.get_resource_type_job(self.resource_types, newPandaJob)
         except Exception:
             newPandaJob.resource_type = "Undefined"
+        platforms = siteCandidate.get_overridden_attribute("platforms")
+        if platforms:
+            newPandaJob.cmtConfig = platforms
         datasetList = set()
         # reset SH for jumbo
         if forJumbo:

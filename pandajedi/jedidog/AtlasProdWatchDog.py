@@ -1,3 +1,4 @@
+import copy
 import os
 import socket
 import sys
@@ -10,7 +11,7 @@ from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.srvcore import CoreUtils
-from pandaserver.taskbuffer import JobUtils
+from pandaserver.taskbuffer import JediTaskSpec, JobUtils
 
 from .JumboWatchDog import JumboWatchDog
 from .TypicalWatchDogBase import TypicalWatchDogBase
@@ -32,8 +33,8 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
             tmpLog = MsgWrapper(logger)
             tmpLog.debug("start")
 
-            # action for priority boost
-            self.doActionForPriorityBoost(tmpLog)
+            # actions based on task progress
+            self.do_task_progress_based_actions(tmpLog)
 
             # action for reassign
             self.doActionForReassign(tmpLog)
@@ -68,26 +69,63 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
         tmpLog.debug("done")
         return self.SC_SUCCEEDED
 
-    # action for priority boost
-    def doActionForPriorityBoost(self, gTmpLog):
+    # actions based on task progress
+    def do_task_progress_based_actions(self, g_tmp_log: MsgWrapper) -> None:
+        """
+        Take actions based on task progress
+        1) boost priority of tasks which have finished >95% of input files and have <=100 remaining jobs to prio 900
+        2) reassign such tasks to Express global share if not already
+        3) pause tasks with high failure rate
+
+        :param g_tmp_log: logger
+        :return: None
+        """
         # get work queue mapper
         workQueueMapper = self.taskBufferIF.getWorkQueueMap()
         # get list of work queues
         workQueueList = workQueueMapper.getAlignedQueueList(self.vo, self.prodSourceLabel)
         resource_types = self.taskBufferIF.load_resource_types()
+
+        # get config values
+        failure_checker = "watchdog"
+        max_job_failure_rate_key = f"MAX_JOB_FAILURE_RATE_TO_PAUSE_{self.prodSourceLabel}"
+        max_job_failure_rate_base = self.taskBufferIF.getConfigValue(failure_checker, max_job_failure_rate_key, "jedi")
+        max_hep_score_failure_rate_key = f"MAX_HEP_SCORE_FAILURE_RATE_TO_PAUSE_{self.prodSourceLabel}"
+        max_hep_score_failure_rate_base = self.taskBufferIF.getConfigValue(failure_checker, max_hep_score_failure_rate_key, "jedi")
+        min_jobs_to_pause_key = f"MIN_JOBS_TO_PAUSE_{self.prodSourceLabel}"
+        min_jobs_to_pause = self.taskBufferIF.getConfigValue(failure_checker, min_jobs_to_pause_key, "jedi")
+        if min_jobs_to_pause is None:
+            min_jobs_to_pause = 1000
+        min_remaining_jobs_to_pause_key = f"MIN_REMAINING_JOBS_TO_PAUSE_{self.prodSourceLabel}"
+        min_remaining_jobs_to_pause = self.taskBufferIF.getConfigValue(failure_checker, min_remaining_jobs_to_pause_key, "jedi")
+        if min_remaining_jobs_to_pause is None:
+            min_remaining_jobs_to_pause = 100
+
         # loop over all work queues
+        g_tmp_log.debug("start do_task_progress_based_actions")
         for workQueue in workQueueList:
             break_loop = False  # for special workqueues we only need to iterate once
             for resource_type in resource_types:
-                gTmpLog.debug(f"start workQueue={workQueue.queue_name}")
+                g_tmp_log.debug(f"start workQueue={workQueue.queue_name} resource_type={resource_type.resource_name}")
                 # get tasks to be boosted
                 if workQueue.is_global_share:
                     task_criteria = {"gshare": workQueue.queue_name, "resource_type": resource_type.resource_name}
                 else:
                     break_loop = True
                     task_criteria = {"workQueue_ID": workQueue.queue_id}
+
+                # define max failure rate
+                max_job_failure_rate = self.taskBufferIF.getConfigValue(failure_checker, f"{max_job_failure_rate_key}_{workQueue.queue_name}", "jedi")
+                if max_job_failure_rate is None:
+                    max_job_failure_rate = max_job_failure_rate_base
+                max_hep_score_failure_rate = self.taskBufferIF.getConfigValue(
+                    failure_checker, f"{max_hep_score_failure_rate_key}_{workQueue.queue_name}", "jedi"
+                )
+                if max_hep_score_failure_rate is None:
+                    max_hep_score_failure_rate = max_hep_score_failure_rate_base
+
                 dataset_criteria = {"masterID": None, "type": ["input", "pseudo_input"]}
-                task_param_list = ["jediTaskID", "taskPriority", "currentPriority", "parent_tid", "gshare"]
+                task_param_list = ["jediTaskID", "currentPriority", "parent_tid", "gshare", "requestType", "splitRule"]
                 dataset_param_list = ["nFiles", "nFilesUsed", "nFilesTobeUsed", "nFilesFinished", "nFilesFailed"]
                 taskVarList = self.taskBufferIF.getTasksWithCriteria_JEDI(
                     self.vo,
@@ -104,17 +142,18 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                 toBoostRatio = 0.95
                 for taskParam, datasetParam in taskVarList:
                     jediTaskID = taskParam["jediTaskID"]
-                    taskPriority = taskParam["taskPriority"]
                     currentPriority = taskParam["currentPriority"]
                     parent_tid = taskParam["parent_tid"]
                     gshare = taskParam["gshare"]
+                    request_type = taskParam["requestType"]
+                    split_rule = taskParam["splitRule"]
                     # check parent
                     parentState = None
                     if parent_tid not in [None, jediTaskID]:
                         parentState = self.taskBufferIF.checkParentTask_JEDI(parent_tid, jediTaskID)
                         if parentState != "completed":
-                            gTmpLog.info(
-                                f"#ATM #KV label=managed jediTaskID={jediTaskID} skip prio boost since parent_id={parent_tid} has parent_status={parentState}"
+                            g_tmp_log.info(
+                                f"#ATM #KV label={self.prodSourceLabel} jediTaskID={jediTaskID} skip prio boost since parent_id={parent_tid} has parent_status={parentState}"
                             )
                             continue
                     nFiles = datasetParam["nFiles"]
@@ -128,30 +167,111 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                             nRemJobs = int(float(nFiles - nFilesFinished - nFilesFailed) * float(nJobs) / float(nFiles))
                         except Exception:
                             pass
+                    failure_metrics = self.taskBufferIF.get_task_failure_metrics(jediTaskID)
+
                     tmpStr = f"jediTaskID={jediTaskID} nFiles={nFiles} nFilesFinishedFailed={nFilesFinished + nFilesFailed} "
-                    tmpStr += f"nJobs={nJobs} nRemJobs={nRemJobs} parent_tid={parent_tid} parentStatus={parentState}"
-                    gTmpLog.debug(tmpStr)
+                    tmpStr += f"nJobs={nJobs} nRemJobs={nRemJobs} parent_tid={parent_tid} parentStatus={parentState} failure_metrics={failure_metrics}"
+                    g_tmp_log.debug(tmpStr)
 
                     try:
                         if nRemJobs is not None and float(nFilesFinished + nFilesFailed) / float(nFiles) >= toBoostRatio and nRemJobs <= 100:
                             # skip high enough
                             if currentPriority < boostedPrio:
-                                gTmpLog.info(f" >>> action=priority_boosting of jediTaskID={jediTaskID} to priority={boostedPrio} #ATM #KV label=managed ")
+                                g_tmp_log.info(
+                                    f" >>> action=priority_boosting of jediTaskID={jediTaskID} to priority={boostedPrio} #ATM #KV label={self.prodSourceLabel} "
+                                )
                                 self.taskBufferIF.changeTaskPriorityPanda(jediTaskID, boostedPrio)
 
                             # skip express or non global share
                             newShare = "Express"
-                            newShareType = "managed"
+                            newShareType = self.prodSourceLabel
                             if gshare != newShare and workQueue.is_global_share and workQueue.queue_type == newShareType:
-                                gTmpLog.info(
-                                    " >>> action=gshare_reassignment jediTaskID={0} from gshare_old={2} to gshare_new={1} #ATM #KV label=managed".format(
-                                        jediTaskID, newShare, gshare
-                                    )
+                                g_tmp_log.info(
+                                    f" >>> action=gshare_reassignment jediTaskID={jediTaskID} from gshare_old={gshare} to gshare_new={newShare} #ATM #KV label={self.prodSourceLabel}"
                                 )
                                 self.taskBufferIF.reassignShare([jediTaskID], newShare, True)
-                            gTmpLog.info(f">>> done jediTaskID={jediTaskID}")
+                            g_tmp_log.debug(f"reassigned jediTaskID={jediTaskID}")
                     except Exception:
                         pass
+
+                    # check failure rate
+                    failure_key = None
+                    bad_value = None
+                    if JediTaskSpec.is_auto_pause_disabled(split_rule):
+                        # auto pause disabled
+                        pass
+                    elif not failure_metrics:
+                        # failure metrics is unavailable
+                        pass
+                    elif nJobs is None or nJobs < min_jobs_to_pause:
+                        # total num jobs is small
+                        pass
+                    elif nRemJobs is None or nRemJobs < min_remaining_jobs_to_pause:
+                        # remaining num jobs is small
+                        pass
+                    elif (
+                        max_job_failure_rate is not None
+                        and failure_metrics["single_failure_rate"] is not None
+                        and failure_metrics["single_failure_rate"] >= max_job_failure_rate > 0
+                    ):
+                        # job failure rate is high
+                        failure_key = "single_failure_rate"
+                        bad_value = failure_metrics[failure_key]
+                        g_tmp_log.info(
+                            f" >>> action=pausing_high_failure_rate jediTaskID={jediTaskID} job_failure_rate={bad_value:.2f} "
+                            f"(max_allowed={max_job_failure_rate}) #ATM #KV label={self.prodSourceLabel}"
+                        )
+                        self.taskBufferIF.sendCommandTaskPanda(
+                            jediTaskID, f"{failure_checker} due to high job failure rate {bad_value:.2f} > {max_job_failure_rate}", True, "pause"
+                        )
+                    elif (
+                        max_hep_score_failure_rate is not None
+                        and failure_metrics["hep_score_failure_rate"] is not None
+                        and failure_metrics["hep_score_failure_rate"] >= max_hep_score_failure_rate > 0
+                    ):
+                        # failed HEP score rate is high
+                        failure_key = "hep_score_failure_rate"
+                        bad_value = failure_metrics[failure_key]
+                        g_tmp_log.info(
+                            f" >>> action=pausing_high_failure_rate jediTaskID={jediTaskID} hep_score_failure_rate={bad_value:.2f} "
+                            f"(max_allowed={max_hep_score_failure_rate}) #ATM #KV label={self.prodSourceLabel}"
+                        )
+                        self.taskBufferIF.sendCommandTaskPanda(
+                            jediTaskID, f"{failure_checker} due to high HEP score failure rate {bad_value:.2f} > {max_hep_score_failure_rate}", True, "pause"
+                        )
+                    if failure_key is not None:
+                        # get tasks with the same requestType to be paused
+                        if request_type:
+                            task_criteria = copy.copy(task_criteria)
+                            task_criteria["requestType"] = request_type
+                            tasks_with_same_request_type = self.taskBufferIF.getTasksWithCriteria_JEDI(
+                                self.vo,
+                                self.prodSourceLabel,
+                                ["running"],
+                                taskCriteria=task_criteria,
+                                taskParamList=["jediTaskID", "splitRule"],
+                            )
+                            for other_task_param, _ in tasks_with_same_request_type:
+                                other_jedi_task_id = other_task_param["jediTaskID"]
+                                # auto pause disabled
+                                if JediTaskSpec.is_auto_pause_disabled(other_jedi_task_id):
+                                    continue
+                                if other_jedi_task_id != jediTaskID:
+                                    g_tmp_log.info(
+                                        f" >>> action=pausing_high_failure_rate jediTaskID={other_jedi_task_id} due to requestType={request_type} shared by {jediTaskID} "
+                                        f"#ATM #KV label={self.prodSourceLabel}"
+                                    )
+                                    if failure_key == "single_failure_rate":
+                                        msg = f"{failure_checker} due to high job failure rate in another task {jediTaskID} ({bad_value:.2f} > {max_job_failure_rate})"
+                                    else:
+                                        msg = f"{failure_checker} due to high HEP score failure rate in another task {jediTaskID} ({bad_value:.2f} > {max_hep_score_failure_rate})"
+                                    self.taskBufferIF.sendCommandTaskPanda(
+                                        other_jedi_task_id,
+                                        msg,
+                                        True,
+                                        "pause",
+                                    )
+                        g_tmp_log.debug(f"paused jediTaskID={jediTaskID}")
 
                 if break_loop:
                     break

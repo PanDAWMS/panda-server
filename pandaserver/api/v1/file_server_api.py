@@ -299,7 +299,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
 
     # check if we are above the size limit
     if content_length > size_limit:
-        error_message = f"{ERROR_SIZE_LIMIT} {content_length}>{size_limit}."
+        error_message = f"{ERROR_SIZE_LIMIT} {content_length // MB} MB > {size_limit // MB} MB."
         if no_build:
             error_message += " Please submit the job without --noBuild/--libDS since those options impose a tighter size limit"
         else:
@@ -358,7 +358,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
     file_size = len(file_content)
 
     # log the full file information
-    tmp_logger.debug(f"Written dn={user_name} file={full_path} size={file_size} crc={checksum}")
+    tmp_logger.debug(f"Written dn={user_name}, file={full_path}, size={file_size // MB} MB, crc={checksum}")
 
     # record the file information to DB
     if panda_config.record_sandbox_info:

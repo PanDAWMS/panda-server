@@ -47,7 +47,7 @@ FINAL_TASK_STATUSES = ["done", "finished", "failed", "exhausted", "aborted", "to
 AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 
 # DDM rule activity map for data carousel
-DDM_RULE_ACTIVITY_MAP = {"anal": "Data Carousel Analysis", "prod": "Data Carousel Production", "_deprecated_": "Staging"}
+DDM_RULE_ACTIVITY_MAP = {"anal": "Data Carousel Analysis", "prod": "Data Carousel Production"}
 
 # template strings
 # source replica expression prefix
@@ -730,10 +730,13 @@ class DataCarouselInterface(object):
                 # got the lock
                 got_lock = True
                 tmp_log.debug(f"got lock")
-            # get the request spec locked
-            locked_spec = self.get_request_by_id(request_id)
-            # yield and run wrapped function
-            yield locked_spec
+            if got_lock:
+                # yield the updated request spec locked
+                locked_spec = self.get_request_by_id(request_id)
+                yield locked_spec
+            else:
+                # did not get lock; still need to yield None as a generator
+                yield None
         finally:
             if got_lock:
                 # release the lock
@@ -886,7 +889,7 @@ class DataCarouselInterface(object):
             dict : map in form of datasets: jobParameters
         """
         # tmp_log = LogWrapper(logger, f"_get_full_replicas_per_type dataset={dataset}")
-        ds_repli_dict = self.ddmIF.convert_list_dataset_replicas(dataset, skip_incomplete_element=True)
+        ds_repli_dict = self.ddmIF.convert_list_dataset_replicas(dataset, use_file_lookup=True, skip_incomplete_element=True)
         tape_replicas = []
         datadisk_replicas = []
         disk_replicas = []
@@ -919,12 +922,13 @@ class DataCarouselInterface(object):
         rules = self.ddmIF.list_did_rules(dataset, all_accounts=True)
         rse_expression_list = []
         staging_rule = None
-        for rule in rules:
-            if rule["account"] in ["panda"] and rule["activity"] in DDM_RULE_ACTIVITY_MAP.values():
-                # rule of the dataset from ProdSys or PanDA already exists; reuse it
-                staging_rule = rule
-            else:
-                rse_expression_list.append(rule["rse_expression"])
+        if rules:
+            for rule in rules:
+                if rule["account"] in ["panda"] and rule["activity"] in DDM_RULE_ACTIVITY_MAP.values():
+                    # rule of the dataset from ProdSys or PanDA already exists; reuse it
+                    staging_rule = rule
+                else:
+                    rse_expression_list.append(rule["rse_expression"])
         filtered_replicas_map = {"tape": [], "datadisk": []}
         has_datadisk_replica = len(replicas_map["datadisk"]) > 0
         has_disk_replica = len(replicas_map["disk"]) > 0
@@ -1051,7 +1055,7 @@ class DataCarouselInterface(object):
         try:
             # initialize
             source_type = None
-            rse_set = None
+            rse_set = set()
             to_pin = False
             suggested_destination_rses_set = set()
             # get active source rses
@@ -1129,15 +1133,18 @@ class DataCarouselInterface(object):
                         tmp_match = re.search(rse, source_replica_expression)
                         if tmp_match is not None:
                             source_rse = rse
+                            tmp_log.debug(f"got source_rse={source_rse} from rse_set matching ddm rule source_replica_expression={source_replica_expression}")
                             break
                     if source_rse is None:
                         # direct regex search from source_replica_expression; reluctant as source_replica_expression can be messy
                         tmp_match = re.search(rf"{SRC_REPLI_EXPR_PREFIX}\|([A-Za-z0-9-_]+)", source_replica_expression)
                         if tmp_match is not None:
                             source_rse = tmp_match.group(1)
+                            tmp_log.debug(f"directly got source_rse={source_rse} only from ddm rule source_replica_expression={source_replica_expression}")
                     if source_rse is None:
                         # still not getting source RSE from rule; unexpected
                         tmp_log.error(f"ddm_rule_id={ddm_rule_id} cannot get source_rse from source_replica_expression: {source_replica_expression}")
+                        raise RuntimeError("cannot get source_rse from staging rule's source_replica_expression")
                     else:
                         tmp_log.debug(f"already staging with ddm_rule_id={ddm_rule_id} source_rse={source_rse}")
                 else:
@@ -1157,6 +1164,9 @@ class DataCarouselInterface(object):
                 # choose source RSE
                 if len(rse_list) == 1:
                     source_rse = rse_list[0]
+                elif len(rse_list) == 0:
+                    tmp_log.error("no source_rse found to choose from")
+                    raise RuntimeError("no source_rse found to choose from")
                 else:
                     non_CERN_rse_list = [rse for rse in rse_list if "CERN-PROD" not in rse]
                     if non_CERN_rse_list and no_cern:
@@ -1220,10 +1230,13 @@ class DataCarouselInterface(object):
                 "tape_coll_did_list": [],
                 "no_tape_coll_did_list": [],
                 "to_skip_ds_list": [],
+                "to_reuse_staging_ds_list": [],
+                "to_reuse_staged_ds_list": [],
                 "tape_ds_list": [],
                 "datadisk_ds_list": [],
                 "to_pin_ds_list": [],
                 "unfound_ds_list": [],
+                "related_dcreq_ids": [],
             }
             # get active source rses
             active_source_rses_set = self._get_active_source_rses()
@@ -1270,9 +1283,32 @@ class DataCarouselInterface(object):
                     ret_map["to_skip_ds_list"].append(dataset)
                     tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
                     continue
+                # check if already in existing Data Carousel requests
+                existing_dcreq_id = self.taskBufferIF.get_data_carousel_request_id_by_dataset_JEDI(dataset)
+                if existing_dcreq_id is not None:
+                    ret_map["related_dcreq_ids"].append(existing_dcreq_id)
                 # get source type and RSEs
                 source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
-                if source_type == "datadisk":
+                if staging_rule:
+                    # reuse existing DDM rule
+                    if collection := jobparam_ds_coll_map.get(dataset):
+                        coll_on_tape_set.add(collection)
+                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    tmp_log.debug(f"dataset={dataset} has existing ddm_rule_id={ddm_rule_id} ; to reuse it")
+                    prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
+                    tmp_log.debug(f"got prestaging for existing rule: {prestaging_tuple}")
+                    # add to prestage
+                    ret_prestaging_list.append(prestaging_tuple)
+                    # whether already staged
+                    if staging_rule.get("state") == "OK":
+                        # already staged
+                        ret_map["to_reuse_staged_ds_list"].append(dataset)
+                        tmp_log.debug(f"dataset={dataset} ddm_rule_id={ddm_rule_id} already staged")
+                    else:
+                        # still staging
+                        ret_map["to_reuse_staging_ds_list"].append(dataset)
+                        tmp_log.debug(f"dataset={dataset} ddm_rule_id={ddm_rule_id} still staging")
+                elif source_type == "datadisk":
                     # replicas already on datadisk; skip
                     ret_map["datadisk_ds_list"].append(dataset)
                     tmp_log.debug(f"dataset={dataset} already has replica on datadisks {rse_set} ; skipped")
@@ -1305,7 +1341,7 @@ class DataCarouselInterface(object):
                 else:
                     ret_map["no_tape_coll_did_list"].append(collection_did)
             # return
-            tmp_log.debug(f"got {len(ret_prestaging_list)} input datasets to prestage")
+            tmp_log.debug(f"got {len(ret_prestaging_list)} input datasets to prestage and {len(ret_map['related_dcreq_ids'])} related existing requests")
             return ret_prestaging_list, ret_map
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
@@ -1337,25 +1373,26 @@ class DataCarouselInterface(object):
             return False
 
     def submit_data_carousel_requests(
-        self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]], options: dict | None = None
+        self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]], options: dict | None = None, submit_idds_request: bool = True
     ) -> bool | None:
         """
         Submit data carousel requests for a task
 
         Args:
             task_id (int): JEDI task ID
-            prestaging_list (list[tuple[str, str|None, str|None, bool]]): list of tuples in the form of (dataset, source_rse, ddm_rule_id)
+            prestaging_list (list[tuple[str, str|None, str|None, bool, list|None]]): list of tuples in the form of (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
             options (dict|None): extra options for submission
+            submit_idds_request (bool): whether to submit iDDS staging requests for the datasets already with DDM rules; default True
 
         Returns:
             bool | None : True if submission successful, or None if failed
         """
         tmp_log = LogWrapper(logger, f"submit_data_carousel_requests task_id={task_id}")
         n_req_to_submit = len(prestaging_list)
+        log_str = f"to submit {len(prestaging_list)} requests"
         if options:
-            tmp_log.debug(f"options={options} to submit {len(prestaging_list)} requests")
-        else:
-            tmp_log.debug(f"to submit {len(prestaging_list)} requests")
+            log_str = f"options={options} " + log_str
+        tmp_log.debug(log_str)
         # fill dc request spec for each input dataset
         dc_req_spec_list = []
         now_time = naive_utcnow()
@@ -1378,6 +1415,11 @@ class DataCarouselInterface(object):
                 dc_req_spec.status = DataCarouselRequestStatus.staging
                 dc_req_spec.start_time = now_time
                 dc_req_spec.set_parameter("reuse_rule", True)
+                # to submit iDDS staging requests about the task and existing DDM rule
+                if submit_idds_request:
+                    # get all tasks related to this request
+                    self._submit_idds_stagein_request(task_id, dc_req_spec)
+                    tmp_log.debug(f"submitted corresponding iDDS request for this task and existing ddm_rule_id={dc_req_spec.ddm_rule_id}")
             if suggested_dst_list:
                 dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
             # options
@@ -1395,6 +1437,27 @@ class DataCarouselInterface(object):
         ret = n_req_inserted is not None
         # return
         return ret
+
+    def add_data_carousel_relations(self, task_id: int, request_ids: list[int] | None) -> bool:
+        """
+        Add Data Carousel relations for a task
+
+        Args:
+            task_id (int): JEDI task ID
+            request_ids (list[int]|None): list of Data Carousel request IDs to relate; None to skip
+
+        Returns:
+            bool : True if successful, or False if failed
+        """
+        tmp_log = LogWrapper(logger, f"add_data_carousel_relations task_id={task_id}")
+        if request_ids is None:
+            tmp_log.debug(f"request_ids is None ; skipped")
+            return True
+        n_req_to_add = len(request_ids)
+        tmp_log.debug(f"to add {n_req_to_add} relations")
+        n_req_added = self.taskBufferIF.insert_data_carousel_relations_JEDI(task_id, request_ids)
+        tmp_log.info(f"added {n_req_added}/{n_req_to_add} relations")
+        return n_req_added is not None
 
     def _get_dc_requests_table_dataframe(self) -> pl.DataFrame | None:
         """
@@ -1895,7 +1958,7 @@ class DataCarouselInterface(object):
         # initialize
         tmp_dst_expr = None
         expression = None
-        lifetime = None
+        lifetime_days = 45
         weight = None
         source_replica_expression = None
         # source replica expression
@@ -1924,7 +1987,7 @@ class DataCarouselInterface(object):
             dataset_name=dc_req_spec.dataset,
             expression=expression,
             activity=ddm_rule_activity,
-            lifetime=lifetime,
+            lifetime=lifetime_days,
             weight=weight,
             notify="P",
             source_replica_expression=source_replica_expression,
@@ -2276,12 +2339,13 @@ class DataCarouselInterface(object):
             except Exception:
                 tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
 
-    def _update_staged_files(self, dc_req_spec: DataCarouselRequestSpec) -> bool | None:
+    def _update_staged_files(self, dc_req_spec: DataCarouselRequestSpec, task_id_list: list[int] | None = None) -> bool | None:
         """
         Update status of files in DB Jedi_Dataset_Contents for a request done staging
 
         Args:
             dc_req_spec (DataCarouselRequestSpec): spec of the request
+            task_id_list (list[int]|None): list of jediTaskID to update; if None, will get all related tasks
 
         Returns:
             bool|None : True for success, None otherwise
@@ -2299,7 +2363,8 @@ class DataCarouselInterface(object):
             for lfn in lfn_set:
                 filenames_dict[lfn] = dummy_value_tuple
             # get all related tasks to update staged files
-            task_id_list = self._get_related_tasks(dc_req_spec.request_id)
+            if task_id_list is None:
+                task_id_list = self._get_related_tasks(dc_req_spec.request_id)
             if task_id_list:
                 # tmp_log.debug(f"related tasks: {task_id_list}")
                 n_done_tasks = 0
@@ -2650,6 +2715,34 @@ class DataCarouselInterface(object):
                 tmp_log.debug(f"deleted {ret_outdated} outdated requests older than {outdated_age_limit_days} days")
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+
+    def rescue_pending_tasks_with_done_requests(self):
+        """
+        Rescue pending tasks which have data carousel requests in done status by updating staged files in DB
+        Usually these tasks reuse data carousel requests done previously
+        """
+        tmp_log = LogWrapper(logger, "rescue_pending_tasks_with_done_requests")
+        # get requests of pending tasks
+        pending_tasked_requests_map, pending_tasked_relation_map = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(
+            status_filter_list=["pending"]
+        )
+        # create inverse relation map: request_id -> list of task_id
+        pending_tasked_inverse_relation_map = dict()
+        for task_id, request_id_list in pending_tasked_relation_map.items():
+            for request_id in request_id_list:
+                pending_tasked_inverse_relation_map.setdefault(request_id, [])
+                pending_tasked_inverse_relation_map[request_id].append(task_id)
+        # loop over requests
+        for dc_req_spec in pending_tasked_requests_map.values():
+            try:
+                if dc_req_spec.status == DataCarouselRequestStatus.done:
+                    # requests in done status of pending tasks; trigger update staged files
+                    task_id_list = pending_tasked_inverse_relation_map.get(dc_req_spec.request_id, [])
+                    if task_id_list:
+                        self._update_staged_files(dc_req_spec, task_id_list=task_id_list)
+                        tmp_log.debug(f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} updated staged files for pending tasks: {task_id_list}")
+            except Exception:
+                tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
 
     def resubmit_request(
         self, orig_dc_req_spec: DataCarouselRequestSpec, submit_idds_request=True, exclude_prev_dst: bool = False, by: str = "manual", reason: str | None = None

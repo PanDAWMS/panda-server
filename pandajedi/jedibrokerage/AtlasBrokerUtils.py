@@ -142,7 +142,9 @@ def get_sites_with_data(
     """
     # get replicas
     try:
-        replica_map = {dataset_name: ddm_if.listDatasetReplicas(dataset_name, use_vp=True, skip_incomplete_element=True, element_list=element_list)}
+        replica_map = {
+            dataset_name: ddm_if.listDatasetReplicas(dataset_name, use_vp=True, skip_incomplete_element=True, element_list=element_list, use_deep=True)
+        }
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         return errtype, f"ddmIF.listDatasetReplicas failed with {errvalue}", None, None, None, None, None, []
@@ -415,22 +417,26 @@ def hasZeroShare(site_spec, task_spec, ignore_priority, tmp_log):
                     continue
 
             # check for matching working group
-            if tmp_working_group not in ["any", None] and task_spec.workingGroup is not None:
+            if tmp_working_group not in ["any", None]:
+                # None causes an exception in re.search, so convert to empty string
+                task_working_group = task_spec.workingGroup or ""
                 if "*" in tmp_working_group:
                     tmp_working_group = tmp_working_group.replace("*", ".*")
                 # if there is no match between the site's fair share policy and the task's working group
                 # continue looking for other policies that trigger the zero share condition
-                if re.search(f"^{tmp_working_group}$", task_spec.workingGroup) is None:
+                if re.search(f"^{tmp_working_group}$", task_working_group) is None:
                     continue
 
             # check for matching gshare. Note that this only works for "leave gshares" in the fairsharePolicy,
             # i.e. the ones that have no sub-gshares, since the task only gets "leave gshares" assigned
             if tmp_gshare not in ["any", None] and task_spec.gshare is not None:
+                # None causes an exception in re.search, so convert to empty string
+                task_gshare = task_spec.gshare or ""
                 if "*" in tmp_gshare:
                     tmp_gshare = tmp_gshare.replace("*", ".*")
                 # if there is no match between the site's fair share policy and the task's gshare
                 # continue looking for other policies that trigger the zero share condition
-                if re.search(f"^{tmp_gshare}$", task_spec.gshare) is None:
+                if re.search(f"^{tmp_gshare}$", task_gshare) is None:
                     continue
 
             # check priority

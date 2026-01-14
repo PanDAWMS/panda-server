@@ -774,6 +774,26 @@ class JobSpec(object):
         return self.check_special_handling("inputPrestaging")
 
     # to a dictionary
+    def to_dict_advanced(self):
+        ret = {}
+
+        # Get the job attributes
+        for a in self._attributes:
+            v = getattr(self, a)
+            if v == "NULL":
+                v = None
+            ret[a] = v
+
+        # Add the files explicitly, as they are not included under _attributes
+        a = "Files"
+        files = getattr(self, a)
+        file_stats = []
+        for f in files:
+            file_stats.append(f.to_dict())
+        ret[a] = file_stats
+
+        return ret
+
     def to_dict(self):
         ret = {}
         for a in self._attributes:

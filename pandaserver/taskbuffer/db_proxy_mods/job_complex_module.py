@@ -4155,6 +4155,9 @@ class JobComplexModule(BaseModule):
             # since they were already updated by merged job
             if jobSpec.jobStatus == "finished" and fileSpec.isUnMergedOutput():
                 continue
+            # skip lib.tgz when it is used as input
+            if fileSpec.type == "input" and fileSpec.lfn.endswith(".lib.tgz"):
+                continue
             # check file status
             varMap = {}
             varMap[":fileID"] = fileSpec.fileID
