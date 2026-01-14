@@ -2216,7 +2216,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 if not isAvailable:
                     break
             # append
-            if not isAvailable:
+            if not isAvailable and tmpSiteSpec.use_only_local_data():
                 tmpLog.info(f"  skip site={siteCandidateSpec.siteName} file unavailable criteria=-fileunavailable")
                 try:
                     del weightStr[siteCandidateSpec.siteName]
