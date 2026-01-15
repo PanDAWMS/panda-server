@@ -63,6 +63,12 @@ def decode_token(serialized_token, env, tmp_log):
                 tmp_log.error(f"VO '{vo}' not found in auth_policies: {list(panda_config.auth_policies.keys())}")
                 message_str = f"Unknown vo : {vo}"
             else:
+                # groups claim name based on JWT profile
+                groups_claim_name = "groups"
+                if vo_role in panda_config.auth_vo_dict:
+                    jwt_profile = panda_config.auth_vo_dict[vo_role].get("jwt_profile")
+                    if jwt_profile == "wlcg":
+                        groups_claim_name = "wlcg.groups"
                 # robot
                 if vo_role in panda_config.auth_vo_dict and "robot_ids" in panda_config.auth_vo_dict[vo_role]:
                     robot_ids = panda_config.auth_vo_dict[vo_role].get("robot_ids")
@@ -72,16 +78,16 @@ def decode_token(serialized_token, env, tmp_log):
                         robot_ids = []
                     robot_ids = [i for i in robot_ids if i]
                     if token["sub"] in robot_ids:
-                        if "groups" not in token:
+                        if groups_claim_name not in token:
                             if role:
-                                token["groups"] = [f"{vo}/{role}"]
+                                token[groups_claim_name] = [f"{vo}/{role}"]
                             else:
-                                token["groups"] = [f"{vo}"]
+                                token[groups_claim_name] = [f"{vo}"]
                         if "name" not in token:
                             token["name"] = f"robot {role}"
                 # check role
                 if role:
-                    if f"{vo}/{role}" not in token["groups"]:
+                    if f"{vo}/{role}" not in token[groups_claim_name] and f"/{vo}/{role}" not in token[groups_claim_name]:
                         message_str = f"Not a member of the {vo}/{role} group"
                     else:
                         subprocess_env["PANDA_OIDC_VO"] = vo
@@ -90,7 +96,7 @@ def decode_token(serialized_token, env, tmp_log):
                         authenticated = True
                 else:
                     for member_string, member_info in panda_config.auth_policies[vo]:
-                        if member_string in token["groups"]:
+                        if member_string in token[groups_claim_name] or f"/{member_string}" in token[groups_claim_name]:
                             subprocess_env["PANDA_OIDC_VO"] = vo
                             subprocess_env["PANDA_OIDC_GROUP"] = member_info["group"]
                             subprocess_env["PANDA_OIDC_ROLE"] = member_info["role"]
