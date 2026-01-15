@@ -5,6 +5,26 @@ site specification
 
 import re
 
+catchall_keys = {
+    k: k
+    for k in [
+        "useJumboJobs",
+        "gpu",
+        "grandly_unified",
+        "nSimEvents",
+        "minEventsForJumbo",
+        "maxDiskPerCore",
+        "use_only_local_data",
+        "disableReassign",
+        "jobChunkSize",
+        "bareNucleus",
+        "secondaryNucleus",
+        "allowed_processing",
+        "excluded_processing",
+        "per_core_attr",
+    ]
+}
+
 
 class SiteSpec(object):
     # attributes
@@ -90,6 +110,9 @@ class SiteSpec(object):
     def getValueFromCatchall(self, key):
         if self.catchall is None:
             return None
+        if key not in catchall_keys:
+            return None
+        key = catchall_keys[key]
         for tmpItem in self.catchall.split(","):
             tmpMatch = re.search(f"^{key}=(.+)", tmpItem)
             if tmpMatch is not None:
@@ -100,6 +123,9 @@ class SiteSpec(object):
     def hasValueInCatchall(self, key):
         if self.catchall is None:
             return False
+        if key not in catchall_keys:
+            return False
+        key = catchall_keys[key]
         for tmpItem in self.catchall.split(","):
             tmpMatch = re.search(f"^{key}(=|)*", tmpItem)
             if tmpMatch is not None:
@@ -271,3 +297,7 @@ class SiteSpec(object):
         if n:
             return n.split("|")
         return None
+
+    # use per-core attributes
+    def use_per_core_attr(self):
+        return self.hasValueInCatchall("per_core_attr")
