@@ -180,7 +180,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             elif task_status in ["defined", "assigned", "activated", "starting", "ready"]:
                 check_result.step_status = WFStepStatus.starting
             elif task_status in ["pending"]:
-                # Check oldstatus for repetitive statuses (e.g. pending) to distinguish between starting and running
+                # Check oldstatus for repetitive status (e.g. pending) to distinguish between starting and running
                 if task_oldstatus in ["running", "scouting", "scouted", "throttled", "prepared", "finishing", "passed"]:
                     check_result.step_status = WFStepStatus.running
                 else:
