@@ -165,19 +165,26 @@ class PandaTaskStepHandler(BaseStepHandler):
                 return check_result
             # Get task ID and status
             task_id = int(step_spec.target_id)
-            res = self.tbif.getTaskStatus(task_id)
+            res = self.tbif.getTaskStatusOldstatus(task_id)
             if not res:
                 check_result.message = f"task_id={task_id} not found"
                 tmp_log.error(f"{check_result.message}")
                 return check_result
             # Interpret status
             task_status = res[0]
+            task_oldstatus = res[1]
             check_result.success = True
             check_result.native_status = task_status
             if task_status in ["running", "scouting", "scouted", "throttled", "prepared", "finishing", "passed"]:
                 check_result.step_status = WFStepStatus.running
-            elif task_status in ["defined", "assigned", "activated", "starting", "ready", "pending"]:
+            elif task_status in ["defined", "assigned", "activated", "starting", "ready"]:
                 check_result.step_status = WFStepStatus.starting
+            elif task_status in ["pending"]:
+                # Check oldstatus for pending to distinguish between starting and running
+                if task_oldstatus in ["running", "scouting", "scouted", "throttled", "prepared", "finishing", "passed"]:
+                    check_result.step_status = WFStepStatus.running
+                else:
+                    check_result.step_status = WFStepStatus.starting
             elif task_status in ["done", "finished"]:
                 check_result.step_status = WFStepStatus.done
             elif task_status in ["failed", "exhausted", "aborted", "toabort", "aborting", "broken", "tobroken"]:
