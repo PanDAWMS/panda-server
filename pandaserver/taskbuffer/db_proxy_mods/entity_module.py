@@ -1976,6 +1976,17 @@ class EntityModule(BaseModule):
                         # num slots
                         ret.num_slots_map = num_slots_by_site.get(siteid, {})
 
+                        # scale with core count
+                        if ret.use_per_core_attr() and ret.coreCount > 0:
+                            if ret.maxrss:
+                                ret.maxrss = ret.maxrss * ret.coreCount
+                            if ret.minrss:
+                                ret.minrss = ret.minrss * ret.coreCount
+                            if ret.maxwdir:
+                                ret.maxwdir = ret.maxwdir * ret.coreCount
+                            if ret.maxinputsize:
+                                ret.maxinputsize = ret.maxinputsize
+
                         # append
                         retList[ret.nickname] = ret
                     except Exception:
