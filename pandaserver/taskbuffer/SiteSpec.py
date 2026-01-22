@@ -22,6 +22,9 @@ catchall_keys = {
         "allowed_processing",
         "excluded_processing",
         "per_core_attr",
+        "allow_no_pilot",
+        "logging",
+        "loggingfile",
     ]
 }
 
