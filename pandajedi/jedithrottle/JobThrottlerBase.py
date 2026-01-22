@@ -385,8 +385,8 @@ class JobThrottlerBase(object):
                 msg_body = "SKIP no running and enough nQueued_queuelimit={}>({}={}) & totWalltime({})>{} ".format(
                     nNotRun_queuelimit + nDefine_queuelimit, configQueueLimitKey, nQueueLimit, totWalltime, minTotalWalltime
                 )
-                tmp_log.warning(f"{msg_header} {msg_body}")
-                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="warning", escapeChar=True)
+                tmp_log.info(f"{msg_header} {msg_body}")
+                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="info", escapeChar=True)
                 return self.retMergeUnThr
 
         elif workQueue.queue_name in non_rt_wqs and nRunning_gs == 0 and (nNotRun_queuelimit + nDefine_queuelimit) > nQueueLimit:
@@ -394,8 +394,8 @@ class JobThrottlerBase(object):
             if not highPrioQueued:
                 # pilot is not running or DDM has a problem
                 msg_body = f"SKIP no running and enough nQueued_queuelimit={nNotRun_queuelimit + nDefine_queuelimit}>({configQueueLimitKey}={nQueueLimit})"
-                tmp_log.warning(f"{msg_header} {msg_body}")
-                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="warning", escapeChar=True)
+                tmp_log.info(f"{msg_header} {msg_body}")
+                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="info", escapeChar=True)
                 return self.retMergeUnThr
 
         elif (
@@ -418,8 +418,8 @@ class JobThrottlerBase(object):
                     totWalltime,
                     minTotalWalltime,
                 )
-                tmp_log.warning(f"{msg_header} {msg_body}")
-                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="warning", escapeChar=True)
+                tmp_log.info(f"{msg_header} {msg_body}")
+                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="info", escapeChar=True)
                 return self.retMergeUnThr
 
         elif (
@@ -434,8 +434,8 @@ class JobThrottlerBase(object):
                 msg_body = "SKIP nQueued_gs({})/nRunning_gs({})>{} & nQueued_queuelimit={}>({}={})".format(
                     nNotRun_gs + nDefine_gs, nRunning_gs, threshold, nNotRun_queuelimit + nDefine_queuelimit, configQueueLimitKey, nQueueLimit
                 )
-                tmp_log.warning(f"{msg_header} {msg_body}")
-                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="warning", escapeChar=True)
+                tmp_log.info(f"{msg_header} {msg_body}")
+                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="info", escapeChar=True)
                 return self.retMergeUnThr
 
         elif nDefine_queuelimit > nQueueLimit:
@@ -443,8 +443,8 @@ class JobThrottlerBase(object):
             if not highPrioQueued:
                 # brokerage is stuck
                 msg_body = f"SKIP too many nDefined_queuelimit={nDefine_queuelimit}>({configQueueLimitKey}={nQueueLimit})"
-                tmp_log.warning(f"{msg_header} {msg_body}")
-                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="warning", escapeChar=True)
+                tmp_log.info(f"{msg_header} {msg_body}")
+                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="info", escapeChar=True)
                 return self.retMergeUnThr
 
         elif nWaiting_rt > max(nRunning_rt * nWaitingLimit, nJobsInBunch * nWaitingBunchLimit):
@@ -452,15 +452,15 @@ class JobThrottlerBase(object):
             if not highPrioQueued:
                 # too many waiting
                 msg_body = f"SKIP too many nWaiting_rt({nWaiting_rt})>max(nRunning_rt({nRunning_rt})x{nWaitingLimit},{nJobsInBunch}x{nWaitingBunchLimit})"
-                tmp_log.warning(f"{msg_header} {msg_body}")
-                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="warning", escapeChar=True)
+                tmp_log.info(f"{msg_header} {msg_body}")
+                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="info", escapeChar=True)
                 return self.retMergeUnThr
 
         elif configRunningCap and nRunning_runningcap > configRunningCap:
             # cap on running
             msg_body = f"SKIP nRunning_runningcap({nRunning_runningcap})>nRunningCap({configRunningCapKey}={configRunningCap})"
-            tmp_log.warning(f"{msg_header} {msg_body}")
-            tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="warning", escapeChar=True)
+            tmp_log.info(f"{msg_header} {msg_body}")
+            tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="info", escapeChar=True)
             return self.retMergeUnThr
 
         elif configQueueCap and nNotRun_queuecap + nDefine_queuecap > configQueueCap:
@@ -468,8 +468,8 @@ class JobThrottlerBase(object):
             if not highPrioQueued:
                 # cap on queued
                 msg_body = f"SKIP nQueued_queuecap({nNotRun_queuecap + nDefine_queuecap})>nQueueCap({configQueueCapKey}={configQueueCap})"
-                tmp_log.warning(f"{msg_header} {msg_body}")
-                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="warning", escapeChar=True)
+                tmp_log.info(f"{msg_header} {msg_body}")
+                tmp_log.sendMsg(f"{msg_header} {msg_body}", self.msgType, msgLevel="info", escapeChar=True)
                 return self.retMergeUnThr
 
         # get jobs from prodDB
@@ -488,7 +488,7 @@ class JobThrottlerBase(object):
                 self.notEnoughJobsQueued()
                 self.setMaxNumJobs(max(self.maxNumJobs, nQueueLimit / 20))
 
-        msg_body = f"PASS - priority limit={limitPriorityValue} maxNumJobs={self.maxNumJobs}"
+        msg_body = f"PASS - not throttled since priority limit={limitPriorityValue} maxNumJobs={self.maxNumJobs}"
         tmp_log.info(msg_header + " " + msg_body)
         return self.retUnThrottled
 
