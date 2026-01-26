@@ -894,9 +894,7 @@ def getAnalySitesClass(tbIF, fresher_than_minutes_ago=60):
             break
         try:
             # query from PanDA DB directly
-            sql_get_task_eval = (
-                "SELECT m.computingSite, m.value_json.class " "FROM ATLAS_PANDA.Metrics m " "WHERE m.metric=:metric " "AND m.timestamp>=:min_timestamp "
-            )
+            sql_get_task_eval = "SELECT m.computingSite, m.value_json.class FROM ATLAS_PANDA.Metrics m WHERE m.metric=:metric AND m.timestamp>=:min_timestamp "
             var_map = {
                 ":metric": "analy_site_eval",
                 ":min_timestamp": now_time - datetime.timedelta(minutes=fresher_than_minutes_ago),
