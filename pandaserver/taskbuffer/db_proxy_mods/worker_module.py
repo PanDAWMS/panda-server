@@ -9,8 +9,8 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_host_name
-from pandaserver.taskbuffer import ErrorCode, JobUtils
-from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, memoize
+from pandaserver.taskbuffer import ErrorCode, JobUtils, SiteSpec
+from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.HarvesterMetricsSpec import HarvesterMetricsSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
@@ -300,13 +300,15 @@ class WorkerModule(BaseModule):
             # sql to calculate the average memory for the queue - harvester_id combination
             # "* 1" in sj.data.blah * 1 is required to notify postgres the data type is an int since json element is
             # treated as text otherwise. This is needed only for the first occurrence of each element in the query
+            per_core_attrs = SiteSpec.catchall_keys["per_core_attrs"]
             sql_running_and_submitted = (
                 "SELECT /*+ RESULT_CACHE */ /* use_json_type */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
                 "           hws.n_workers, "
-                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount * 1, 1)) * NVL(rt.maxrampercore, sj.data.maxrss * 1 / NVL(sj.data.corecount, 1)) as total_memory, "
+                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount * 1, 1)) * NVL(rt.maxrampercore, "
+                f"             CASE WHEN sj.data.catchall LIKE '%{per_core_attrs}%' THEN TO_NUMBER(sj.data.maxrss) ELSE sj.data.maxrss * 1 / NVL(sj.data.corecount, 1) END) as total_memory, "
                 "           NVL(rt.maxcore, NVL(sj.data.corecount, 1)) as corecount "
                 "    FROM ATLAS_PANDA.harvester_worker_stats hws "
                 "    JOIN ATLAS_PANDA.resource_types rt ON hws.resourcetype = rt.resource_name "
@@ -323,7 +325,8 @@ class WorkerModule(BaseModule):
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
                 "           hws.n_workers, "
-                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount * 1, 1)) * NVL(rt.maxrampercore, sj.data.maxrss * 1 / NVL(sj.data.corecount, 1)) as total_memory, "
+                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount * 1, 1)) * NVL(rt.maxrampercore, "
+                f"             CASE WHEN sj.data.catchall LIKE '%{per_core_attrs}%' THEN TO_NUMBER(sj.data.maxrss) ELSE sj.data.maxrss * 1 / NVL(sj.data.corecount, 1) END) as total_memory, "
                 "           NVL(rt.maxcore, NVL(sj.data.corecount, 1)) as corecount "
                 "    FROM ATLAS_PANDA.harvester_worker_stats hws "
                 "    JOIN ATLAS_PANDA.resource_types rt ON hws.resourcetype = rt.resource_name "
