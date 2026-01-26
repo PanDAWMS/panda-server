@@ -2633,7 +2633,7 @@ class TaskEventModule(BaseModule):
         """
         comment = " /* DBProxy.increaseRamLimitJobJEDI_xtimes */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
 
         # Files defined as input types
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
@@ -2677,17 +2677,31 @@ class TaskEventModule(BaseModule):
                     if tmpItem.startswith("RZ="):
                         retryRamMax = float(tmpItem.replace("RZ=", ""))
 
+                jobRamCount = JobUtils.decompensate_ram_count(jobRamCount)
+
                 tmp_log.debug(
                     f"RAM limit task={taskRamCount}{taskRamUnit} cores={coreCount} baseRamCount={taskBaseRamCount} job={jobRamCount}{job.minRamUnit} jobPSS={job.maxPSS}kB retryRamOffset={retryRamOffset} retryRamStep={retryRamStep} retryRamMax={retryRamMax} attemptNr={attemptNr}"
                 )
+
+                # normalize the job ram-count by base ram count and number of cores
+                try:
+                    if taskRamUnit in [
+                        "MBPerCore",
+                        "MBPerCoreFixed",
+                    ] and job.minRamUnit in ("MB", None, "NULL"):
+                        jobRamCount = jobRamCount / coreCount
+                except TypeError:
+                    pass
 
                 # normalize the job ram-count by base ram count and number of cores
                 multiplier = retryRamStep * 1.0 / taskRamCount
                 # should boost memory based on the current job memory, not based on the attemptNr. Because sometimes some failures are not caused by memory limitation.
                 # minimumRam = retryRamOffset + taskRamCount * (multiplier**attemptNr)
                 minimumRam = jobRamCount * multiplier
+                tmp_log.debug(f"minimumRam {minimumRam} = jobRamCount {jobRamCount} * multiplier {multiplier}")
                 if retryRamMax:
                     minimumRam = min(minimumRam, retryRamMax)
+                    tmp_log.debug(f"retryRamMax {retryRamMax}, new minimumRam {minimumRam}")
 
                 if taskRamUnit != "MBPerCoreFixed":
                     # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
@@ -2725,12 +2739,12 @@ class TaskEventModule(BaseModule):
 
                 # Ops could have increased task RamCount through direct DB access. In this case don't do anything
                 if taskRamCount > minimumRam:
-                    tmp_log.debug(f"task ramcount has already been increased and is higher than minimumRam. Skipping")
+                    tmp_log.debug("task ramcount has already been increased and is higher than minimumRam. Skipping")
                     return True
 
                 # skip if already at largest limit
                 if jobRamCount >= minimumRam:
-                    tmp_log.debug(f"job ramcount is larger than minimumRam. Skipping")
+                    tmp_log.debug("job ramcount is larger than minimumRam. Skipping")
                     return True
                 else:
                     nextLimit = minimumRam
@@ -2760,7 +2774,7 @@ class TaskEventModule(BaseModule):
                 if not self._commit():
                     raise RuntimeError("Commit error")
 
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
