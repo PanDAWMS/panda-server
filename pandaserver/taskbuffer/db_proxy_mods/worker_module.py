@@ -10,7 +10,7 @@ from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_host_name
 from pandaserver.taskbuffer import ErrorCode, JobUtils, SiteSpec
-from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
+from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, memoize
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.HarvesterMetricsSpec import HarvesterMetricsSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
