@@ -2700,8 +2700,12 @@ class TaskEventModule(BaseModule):
                 minimumRam = jobRamCount * multiplier
                 tmp_log.debug(f"minimumRam {minimumRam} = jobRamCount {jobRamCount} * multiplier {multiplier}")
                 if retryRamMax:
-                    minimumRam = min(minimumRam, retryRamMax)
-                    tmp_log.debug(f"retryRamMax {retryRamMax}, new minimumRam {minimumRam}")
+                    try:
+                        retryRamMaxPerCore = retryRamMax / coreCount
+                    except Exception:
+                        retryRamMaxPerCore = retryRamMax
+                    minimumRam = min(minimumRam, retryRamMaxPerCore)
+                    tmp_log.debug(f"retryRamMaxPerCore {retryRamMaxPerCore}, new minimumRam {minimumRam}")
 
                 if taskRamUnit != "MBPerCoreFixed":
                     # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
