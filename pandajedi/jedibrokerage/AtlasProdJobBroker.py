@@ -722,6 +722,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 is_regexp_cmt_config = True
         base_platform = taskSpec.get_base_platform()
         resolved_platforms = {}
+        preference_weight_map = {}
         if taskSpec.transHome is not None:
             jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map, self.architecture_level_map)
             unified_site_list = self.get_unified_sites(scanSiteList)
@@ -1738,12 +1739,14 @@ class AtlasProdJobBroker(JobBrokerBase):
                 else:
                     weight = weight * (totalSize + siteSizeMap[tmpSiteName]) / totalSize / (nFilesToMove / 100 + 1)
                     weightStr += f"fileSizeToMoveMB={mbToMove} nFilesToMove={nFilesToMove} "
+
             # T1 weight
             if tmpSiteName in sites_in_nucleus + sites_sharing_output_storages_in_nucleus:
                 weight *= t1Weight
                 weightStr += f"t1W={t1Weight} "
             if useT1Weight:
                 weightStr += f"nRunningAll={nRunningAll} "
+
             # apply network metrics to weight
             if nucleus:
                 tmpAtlasSiteName = None
@@ -1800,6 +1803,13 @@ class AtlasProdJobBroker(JobBrokerBase):
                     f"subject=network_data src={tmpAtlasSiteName} dst={nucleus} weight={weight} weightNw={weightNw} "
                     f"weightNwThroughput={weightNwThroughput} weightNwQueued={weightNwQueue} mbps={mbps} closeness={closeness} nqueued={nFilesInQueue}"
                 )
+
+            # apply architecture (x86-v2, 3, 4...) preference to weight
+            if preference_weight_map and tmpSiteName in preference_weight_map:
+                pref_weight = preference_weight_map[tmpSiteName]
+                weight *= pref_weight
+                weightStr += f"prefW={pref_weight} "
+                tmpLog.info(f"prefW={pref_weight} ")
 
             # make candidate
             siteCandidateSpec = SiteCandidate(tmpPseudoSiteName, tmpSiteName)

@@ -813,7 +813,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         tmpLog.info(f"  skip site={tmpSiteName} since architecture is required for GPU queues")
                         continue
                     siteListWithCMTCONFIG = [tmpSiteSpec.get_unified_name()]
-                    siteListWithCMTCONFIG, sitesNoJsonCheck = jsonCheck.check(siteListWithCMTCONFIG, None, None, None, taskSpec.get_sw_platform(), False, True)
+                    siteListWithCMTCONFIG, sitesNoJsonCheck, _ = jsonCheck.check(
+                        siteListWithCMTCONFIG, None, None, None, taskSpec.get_sw_platform(), False, True
+                    )
 
                     if len(siteListWithCMTCONFIG) == 0:
                         tmpLog.info(f"  skip site={tmpSiteName} since architecture={taskSpec.get_sw_platform()} is unavailable")
@@ -878,7 +880,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     and re.search("-\d+\.\d+\.\d+$", transHome) is None
                 ):
                     # cache is checked
-                    siteListWithSW, sitesNoJsonCheck, preference_weight_map = jsonCheck.check(
+                    siteListWithSW, sitesNoJsonCheck, _ = jsonCheck.check(
                         unified_site_list,
                         "atlas",
                         transHome.split("-")[0],
@@ -907,7 +909,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         transUses = None
                     if transUses is not None:
                         # release is checked
-                        tmpSiteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+                        tmpSiteListWithSW, sitesNoJsonCheck, _ = jsonCheck.check(
                             unified_site_list,
                             "atlas",
                             "AtlasOffline",
@@ -923,7 +925,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         )
                         siteListWithSW += tmpSiteListWithSW
                     if len(transHome.split("-")) == 2:
-                        tmpSiteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+                        tmpSiteListWithSW, sitesNoJsonCheck, _ = jsonCheck.check(
                             sitesNoJsonCheck,
                             "atlas",
                             transHome.split("-")[0],
@@ -944,7 +946,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     # nightlies or standalone uses only AUTO
                     if taskSpec.transHome is not None:
                         # CVMFS check for nightlies
-                        siteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+                        siteListWithSW, sitesNoJsonCheck, _ = jsonCheck.check(
                             unified_site_list,
                             "nightlies",
                             None,
@@ -962,7 +964,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
 
                     else:
                         # no CVMFS check for standalone SW
-                        siteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+                        siteListWithSW, sitesNoJsonCheck, _ = jsonCheck.check(
                             unified_site_list,
                             None,
                             None,
