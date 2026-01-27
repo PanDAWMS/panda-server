@@ -536,17 +536,17 @@ class MiscStandaloneModule(BaseModule):
             # error
             self.dump_error_message(tmp_log)
             return []
-    
-    # get task status and oldstatus
-    def getTaskStatusOldstatus(self, jediTaskID):
-        comment = " /* DBProxy.getTaskStatusOldstatus */"
+
+    # get task status and superstatus
+    def getTaskStatusSuperstatus(self, jediTaskID):
+        comment = " /* DBProxy.getTaskStatusSuperstatus */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
         try:
             # sql to update input file status
             varMap = {}
             varMap[":jediTaskID"] = jediTaskID
-            sql = f"SELECT status,oldStatus FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+            sql = f"SELECT status,superStatus FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sql += "WHERE jediTaskID=:jediTaskID "
             # start transaction
             self.conn.begin()
@@ -557,7 +557,7 @@ class MiscStandaloneModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             if res:
-                tmp_log.debug(f"task {jediTaskID} has status={res[0]} oldstatus={res[1]}")
+                tmp_log.debug(f"task {jediTaskID} has status={res[0]} superstatus={res[1]}")
             else:
                 res = []
                 tmp_log.debug(f"task {jediTaskID} not found")

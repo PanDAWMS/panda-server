@@ -2006,14 +2006,14 @@ class TaskBuffer:
             res = proxy.getTaskStatus(jediTaskID)
         return res
 
-    # get task status and oldstatus
-    def getTaskStatusOldstatus(self, jediTaskID):
+    # get task status and superstatus
+    def getTaskStatusSuperstatus(self, jediTaskID):
         # get DB proxy
         with self.proxyPool.get() as proxy:
             # exec
-            res = proxy.getTaskStatusOldstatus(jediTaskID)
+            res = proxy.getTaskStatusSuperstatus(jediTaskID)
         return res
-    
+
     # reactivate task
     def reactivateTask(self, jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
         # get DB proxy
