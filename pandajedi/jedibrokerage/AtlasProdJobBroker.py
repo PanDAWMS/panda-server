@@ -1717,7 +1717,10 @@ class AtlasProdJobBroker(JobBrokerBase):
                 tmpRTrunning = 0
             if totalSize == 0 or totalSize - siteSizeMap[tmpSiteName] <= 0:
                 weight = float(nRunning + 1) / float(nActivated + nStarting + nDefined + 10)
-                weightStr = "nRun={0} nAct={1} nStart={3} nDef={4} nPilot={7}{9} totalSizeMB={5} totalNumFiles={8} " "nRun_rt={10} nQueued_rt={11} "
+                weightStr = (
+                    f"nRun={nRunning} nAct={nActivated} nStart={nStarting} nDef={nDefined} nPilot={nPilot}{corrNumPilotStr} "
+                    f"totalSizeMB={int(totalSize / 1024 / 1024)} totalNumFiles={maxNumFiles} nRun_rt={tmpRTrunning} nQueued_rt={tmpRTqueue} "
+                )
             else:
                 weight = float(nRunning + 1) / float(nActivated + nAssigned + nStarting + nDefined + 10) / manyAssigned
                 weightStr = (
