@@ -97,6 +97,7 @@ class JediTaskSpec(object):
         "framework",
         "activatedTime",
         "queuedTime",
+        "actionTime",
     )
     # attributes which have 0 by default
     _zeroAttrs = ()

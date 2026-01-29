@@ -16,6 +16,9 @@ class AtlasTaskSetupper(TaskSetupperBase):
     # constructor
     def __init__(self, taskBufferIF, ddmIF):
         TaskSetupperBase.__init__(self, taskBufferIF, ddmIF)
+        self.user_container_lifetime = taskBufferIF.getConfigValue("user_output", "OUTPUT_CONTAINER_LIFETIME", "jedi")
+        if not self.user_container_lifetime:
+            self.user_container_lifetime = 14
 
     # main to setup task
     def doSetup(self, taskSpec, datasetToRegister, pandaJobs):
@@ -202,8 +205,42 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                                         ignore_availability=False,
                                                     )
                                                     if not tmpStat:
-                                                        tmpLog.error(f"failed to register double copylocation {locForDouble} for {targetName}")
+                                                        tmpLog.error(f"failed to register double copy location {locForDouble} for {targetName}")
                                                         return retFatal
+                                    # container-level rules for user
+                                    if userSetup and datasetSpec.type == "output" and targetName == datasetSpec.containerName:
+                                        # rule to keep the outputs where they are produced
+                                        container_location = "type=SCRATCHDISK"
+                                        tmpLog.info(f"registering container-level rule for {targetName}")
+                                        tmpStat = ddmIF.registerDatasetLocation(
+                                            targetName,
+                                            container_location,
+                                            owner=userName,
+                                            lifetime=self.user_container_lifetime,
+                                            backEnd=ddmBackEnd,
+                                            activity=activity,
+                                            grouping="DATASET",
+                                        )
+                                        if not tmpStat:
+                                            tmpLog.error(f"failed to register location {container_location} for container {targetName}")
+                                            return retFatal
+                                        # rule with 2 copies and no grouping
+                                        container_location = f"(type=SCRATCHDISK)\\notforextracopy=True"
+                                        tmpLog.info(f"registering container-level 2nd copy rule for {targetName}")
+                                        tmpStat = ddmIF.registerDatasetLocation(
+                                            targetName,
+                                            container_location,
+                                            copies=1,
+                                            owner=userName,
+                                            lifetime=self.user_container_lifetime,
+                                            activity=activity,
+                                            grouping="NONE",
+                                            weight="freespace",
+                                            ignore_availability=False,
+                                        )
+                                        if not tmpStat:
+                                            tmpLog.error(f"failed to register 2nd copy location {container_location} for container {targetName}")
+                                            return retFatal
                                 avDatasetList.append(targetName)
                             else:
                                 tmpLog.info(f"{targetName} already registered")

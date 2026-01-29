@@ -1358,6 +1358,7 @@ class AtlasDDMClient(DDMClientBase):
                     if rule["rse_expression"] == dataKey or re.search(dataKey, rule["rse_expression"]) is not None:
                         tmpLog.debug(f"set data={str(data)} on {rule['rse_expression']}")
                         client.update_replication_rule(rule["id"], data)
+                        break
         except DataIdentifierNotFound:
             pass
         except Exception as e:
