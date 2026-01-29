@@ -761,9 +761,7 @@ def getGShareUsage(tbIF, gshare, fresher_than_minutes_ago=15):
             break
         try:
             # query from PanDA DB directly
-            sql_get_gshare = (
-                "SELECT m.value_json " "FROM ATLAS_PANDA.Metrics m " "WHERE m.metric=:metric " "AND m.gshare=:gshare " "AND m.timestamp>=:min_timestamp "
-            )
+            sql_get_gshare = "SELECT m.value_json FROM ATLAS_PANDA.Metrics m WHERE m.metric=:metric AND m.gshare=:gshare AND m.timestamp>=:min_timestamp "
             var_map = {
                 ":metric": "gshare_preference",
                 ":gshare": gshare,
