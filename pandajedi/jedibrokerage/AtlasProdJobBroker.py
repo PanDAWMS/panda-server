@@ -2,7 +2,6 @@ import copy
 import datetime
 import re
 
-from dataservice.DataServiceUtils import select_scope
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
@@ -10,6 +9,7 @@ from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandaserver.dataservice import DataServiceUtils
+from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 
@@ -89,6 +89,13 @@ class AtlasProdJobBroker(JobBrokerBase):
             logger.error("Failed to load the SW tags map!!!")
             self.sw_map = {}
 
+        # load the worker node CPU architecture-level map
+        try:
+            self.architecture_level_map = taskBufferIF.get_architecture_level_map()
+        except BaseException:
+            logger.error("Failed to load the WN architecture level map!!!")
+            self.architecture_level_map = {}
+
     def convertMBpsToWeight(self, mbps):
         """
         Takes MBps value and converts to a weight between 1 and 2
@@ -127,7 +134,6 @@ class AtlasProdJobBroker(JobBrokerBase):
         timeNow = naive_utcnow()
 
         # return for failure
-        retFatal = self.SC_FATAL, inputChunk
         retTmpError = self.SC_FAILED, inputChunk
 
         # new maxwdir
@@ -203,10 +209,10 @@ class AtlasProdJobBroker(JobBrokerBase):
                 siteListPreAssigned = True
                 scanSiteList = DataServiceUtils.getSitesShareDDM(self.siteMapper, inputChunk.getPreassignedSite(), JobUtils.PROD_PS, JobUtils.PROD_PS)
                 scanSiteList.append(inputChunk.getPreassignedSite())
-                tmp_msg = "use site={0} since they share DDM endpoints with original_site={1} which is pre-assigned in masterDS ".format(
-                    str(scanSiteList), inputChunk.getPreassignedSite()
+                tmp_msg = (
+                    f"use site={scanSiteList} since they share DDM endpoints with original_site={inputChunk.getPreassignedSite()} "
+                    f"which is pre-assigned in masterDS criteria=+premerge"
                 )
-                tmp_msg += "criteria=+premerge"
                 tmpLog.info(tmp_msg)
 
         else:
@@ -538,10 +544,10 @@ class AtlasProdJobBroker(JobBrokerBase):
                 )
 
                 if tmpSiteName in inactiveSites and nToGetAll > 0:
-                    tmp_msg = "  skip site={0} since high prio/scouts/merge needs to avoid inactive sites (laststart is older than {1}h) ".format(
-                        tmpSiteName, inactiveTimeLimit
+                    tmp_msg = (
+                        f"  skip site={tmpSiteName} since high prio/scouts/merge needs to avoid inactive sites "
+                        f"(laststart is older than {inactiveTimeLimit}h) criteria=-inactive"
                     )
-                    tmp_msg += "criteria=-inactive"
                     # temporary problem
                     newSkippedTmp[tmpSiteName] = tmp_msg
                 newScanSiteList.append(tmpSiteName)
@@ -708,7 +714,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 return retTmpError
 
         ######################################
-        # selection for release
+        # selection for release and CPU/GPU architectures
         cmt_config = taskSpec.get_sw_platform()
         is_regexp_cmt_config = False
         if cmt_config:
@@ -716,11 +722,13 @@ class AtlasProdJobBroker(JobBrokerBase):
                 is_regexp_cmt_config = True
         base_platform = taskSpec.get_base_platform()
         resolved_platforms = {}
+        preference_weight_map = {}
         if taskSpec.transHome is not None:
-            jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map)
+            jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map, self.architecture_level_map)
             unified_site_list = self.get_unified_sites(scanSiteList)
 
             host_cpu_spec = taskSpec.get_host_cpu_spec()
+            host_cpu_pref = taskSpec.get_host_cpu_preference()
             host_gpu_spec = taskSpec.get_host_gpu_spec()
 
             if taskSpec.get_base_platform() is None:
@@ -746,7 +754,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 sw_version = None
                 cmt_config_only = False
 
-            siteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+            siteListWithSW, sitesNoJsonCheck, preference_weight_map = jsonCheck.check(
                 unified_site_list,
                 cvmfs_repo,
                 sw_project,
@@ -758,6 +766,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 container_name=taskSpec.container_name,
                 only_tags_fc=taskSpec.use_only_tags_fc(),
                 host_cpu_specs=host_cpu_spec,
+                host_cpu_pref=host_cpu_pref,
                 host_gpu_spec=host_gpu_spec,
                 log_stream=tmpLog,
             )
@@ -945,11 +954,11 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmpSpaceSize += tmp_default_output_endpoint["space_expired"]
                 diskThreshold = 200
 
-                if (
-                    tmpSpaceSize < diskThreshold and "skip_RSE_check" not in tmpSiteSpec.catchall
-                ):  # skip_RSE_check: exceptional bypass of RSEs without storage reporting
-                    tmp_msg = "  skip site={0} due to disk shortage at {1} {2}GB < {3}GB criteria=-disk".format(
-                        tmpSiteName, tmpSiteSpec.ddm_output[scope_output], tmpSpaceSize, diskThreshold
+                # skip_RSE_check: exceptional bypass of RSEs without storage reporting
+                if tmpSpaceSize < diskThreshold and "skip_RSE_check" not in tmpSiteSpec.catchall:
+                    tmp_msg = (
+                        f"  skip site={tmpSiteName} due to disk shortage at "
+                        f"{tmpSiteSpec.ddm_output[scope_output]} {tmpSpaceSize}GB < {diskThreshold}GB criteria=-disk"
                     )
             # check if blacklisted
             if not tmp_msg:
@@ -1372,6 +1381,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 tmpLog.error("no candidates")
                 taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
                 return retTmpError
+
         ######################################
         # selection for nPilot
         nPilotMap = {}
@@ -1521,7 +1531,6 @@ class AtlasProdJobBroker(JobBrokerBase):
             msgList = []
             msgListDT = []
             for tmpSiteName in self.get_unified_sites(scanSiteList):
-                tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 # file size to move in MB
                 mbToMove = int((totalSize - siteSizeMap[tmpSiteName]) / (1024 * 1024))
                 nFilesToMove = maxNumFiles - len(siteFilesMap[tmpSiteName])
@@ -1533,8 +1542,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                         tmp_msg += f"since size of missing input is too large ({int(mbToMove / 1024)} GB > {moveSizeCutoffGB} GB) "
                     else:
                         tmp_msg += f"since the number of missing input files is too large ({nFilesToMove} > {moveNumFilesCutoff}) "
-                    tmp_msg += f"for IO intensive task ({taskSpec.ioIntensity} > {self.io_intensity_cutoff} kBPerS) "
-                    tmp_msg += "criteria=-io"
+                    tmp_msg += f"for IO intensive task ({taskSpec.ioIntensity} > {self.io_intensity_cutoff} kBPerS) criteria=-io"
                     msgListDT.append(tmp_msg)
                     continue
                 if mbToMove > moveSizeCutoffGB * 1024 or nFilesToMove > moveNumFilesCutoff:
@@ -1543,8 +1551,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                         tmp_msg += f"since size of missing disk input is too large ({int(mbToMove / 1024)} GB > {moveSizeCutoffGB} GB) "
                     else:
                         tmp_msg += f"since the number of missing disk input files is too large ({nFilesToMove} > {moveNumFilesCutoff}) "
-                    tmp_msg += f"for IO intensive task ({taskSpec.ioIntensity} > {self.io_intensity_cutoff} kBPerS) "
-                    tmp_msg += "criteria=-io"
+                    tmp_msg += f"for IO intensive task ({taskSpec.ioIntensity} > {self.io_intensity_cutoff} kBPerS) criteria=-io"
                     msgList.append(tmp_msg)
                     newScanSiteListWT.append(tmpSiteName)
                 else:
@@ -1620,7 +1627,6 @@ class AtlasProdJobBroker(JobBrokerBase):
         weightMapSecondary = {}
         weightMapJumbo = {}
         largestNumRun = None
-        newScanSiteList = []
         for tmpPseudoSiteName in scanSiteList:
             tmpSiteSpec = self.siteMapper.getSite(tmpPseudoSiteName)
             tmpSiteName = tmpSiteSpec.get_unified_name()
@@ -1711,27 +1717,18 @@ class AtlasProdJobBroker(JobBrokerBase):
                 tmpRTrunning = 0
             if totalSize == 0 or totalSize - siteSizeMap[tmpSiteName] <= 0:
                 weight = float(nRunning + 1) / float(nActivated + nStarting + nDefined + 10)
-                weightStr = "nRun={0} nAct={1} nStart={3} nDef={4} nPilot={7}{9} totalSizeMB={5} totalNumFiles={8} " "nRun_rt={10} nQueued_rt={11} "
+                weightStr = (
+                    f"nRun={nRunning} nAct={nActivated} nStart={nStarting} nDef={nDefined} nPilot={nPilot}{corrNumPilotStr} "
+                    f"totalSizeMB={int(totalSize / 1024 / 1024)} totalNumFiles={maxNumFiles} nRun_rt={tmpRTrunning} nQueued_rt={tmpRTqueue} "
+                )
             else:
                 weight = float(nRunning + 1) / float(nActivated + nAssigned + nStarting + nDefined + 10) / manyAssigned
                 weightStr = (
-                    "nRun={0} nAct={1} nAss={2} nStart={3} nDef={4} manyAss={6} nPilot={7}{9} totalSizeMB={5} "
-                    "totalNumFiles={8} nRun_rt={10} nQueued_rt={11} "
+                    f"nRun={nRunning} nAct={nActivated} nAss={nAssigned} nStart={nStarting} nDef={nDefined} manyAss={manyAssigned} "
+                    f"nPilot={nPilot}{corrNumPilotStr} totalSizeMB={int(totalSize / 1024 / 1024)} "
+                    f"totalNumFiles={maxNumFiles} nRun_rt={tmpRTrunning} nQueued_rt={tmpRTqueue} "
                 )
-            weightStr = weightStr.format(
-                nRunning,
-                nActivated,
-                nAssigned,
-                nStarting,
-                nDefined,
-                int(totalSize / 1024 / 1024),
-                manyAssigned,
-                nPilot,
-                maxNumFiles,
-                corrNumPilotStr,
-                tmpRTrunning,
-                tmpRTqueue,
-            )
+
             # reduce weights by taking data availability into account
             skipRemoteData = False
             if totalSize > 0:
@@ -1745,12 +1742,14 @@ class AtlasProdJobBroker(JobBrokerBase):
                 else:
                     weight = weight * (totalSize + siteSizeMap[tmpSiteName]) / totalSize / (nFilesToMove / 100 + 1)
                     weightStr += f"fileSizeToMoveMB={mbToMove} nFilesToMove={nFilesToMove} "
+
             # T1 weight
             if tmpSiteName in sites_in_nucleus + sites_sharing_output_storages_in_nucleus:
                 weight *= t1Weight
                 weightStr += f"t1W={t1Weight} "
             if useT1Weight:
                 weightStr += f"nRunningAll={nRunningAll} "
+
             # apply network metrics to weight
             if nucleus:
                 tmpAtlasSiteName = None
@@ -1781,7 +1780,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                         tmpLog.debug(f"No dynamic FTS mbps information found in network matrix from {tmpAtlasSiteName}({tmpSiteName}) to {nucleus}")
 
                 # network weight: value between 1 and 2, except when nucleus == satellite
-                if nucleus == tmpAtlasSiteName:  # 25 per cent weight boost for processing in nucleus itself
+                if nucleus == tmpAtlasSiteName:  # 25 percent weight boost for processing in nucleus itself
                     weightNwQueue = 2.5
                     weightNwThroughput = 2.5
                 else:
@@ -1804,11 +1803,16 @@ class AtlasProdJobBroker(JobBrokerBase):
                     weight *= weightNw
 
                 tmpLog.info(
-                    "subject=network_data src={1} dst={2} weight={3} weightNw={4} "
-                    "weightNwThroughput={5} weightNwQueued={6} mbps={7} closeness={8} nqueued={9}".format(
-                        taskSpec.jediTaskID, tmpAtlasSiteName, nucleus, weight, weightNw, weightNwThroughput, weightNwQueue, mbps, closeness, nFilesInQueue
-                    )
+                    f"subject=network_data src={tmpAtlasSiteName} dst={nucleus} weight={weight} weightNw={weightNw} "
+                    f"weightNwThroughput={weightNwThroughput} weightNwQueued={weightNwQueue} mbps={mbps} closeness={closeness} nqueued={nFilesInQueue}"
                 )
+
+            # apply architecture (x86-v2, 3, 4...) preference to weight
+            if preference_weight_map and tmpSiteName in preference_weight_map:
+                pref_weight = preference_weight_map[tmpSiteName]
+                weight *= pref_weight
+                weightStr += f"prefW={pref_weight} "
+                tmpLog.info(f"prefW={pref_weight} ")
 
             # make candidate
             siteCandidateSpec = SiteCandidate(tmpPseudoSiteName, tmpSiteName)
@@ -1858,40 +1862,34 @@ class AtlasProdJobBroker(JobBrokerBase):
             # OK message. Use jumbo as primary by default
             if not forJumbo:
                 okMsg = f"  use site={tmpPseudoSiteName} with weight={weight} {weightStr} criteria=+use"
-                okAsPrimay = False
+                okAsPrimary = False
             else:
                 okMsg = f"  use site={tmpPseudoSiteName} for jumbo jobs with weight={weight} {weightStr} criteria=+usejumbo"
-                okAsPrimay = True
+                okAsPrimary = True
             # checks
             if lockedByBrokerage:
-                ngMsg = f"  skip site={tmpPseudoSiteName} due to locked by another brokerage "
-                ngMsg += "criteria=-lock"
+                ngMsg = f"  skip site={tmpPseudoSiteName} due to locked by another brokerage criteria=-lock"
             elif skipRemoteData:
-                ngMsg = f"  skip site={tmpPseudoSiteName} due to non-local data "
-                ngMsg += "criteria=-non_local"
+                ngMsg = f"  skip site={tmpPseudoSiteName} due to non-local data criteria=-non_local"
             elif not inputChunk.isExpress() and tmpSiteSpec.capability != "ucore" and siteCandidateSpec.nQueuedJobs > siteCandidateSpec.nRunningJobsCap:
                 if not useAssigned:
                     ngMsg = f"  skip site={tmpPseudoSiteName} weight={weight} due to nDefined+nActivated+nStarting={siteCandidateSpec.nQueuedJobs} "
                     ngMsg += "(nAssigned ignored due to data locally available) "
                 else:
                     ngMsg = f"  skip site={tmpPseudoSiteName} weight={weight} due to nDefined+nActivated+nAssigned+nStarting={siteCandidateSpec.nQueuedJobs} "
-                ngMsg += f"greater than max({cutOffValue},{cutOffFactor}*nRun) "
-                ngMsg += f"{weightStr} "
-                ngMsg += "criteria=-cap"
+                ngMsg += f"greater than max({cutOffValue},{cutOffFactor}*nRun) {weightStr} criteria=-cap"
             elif self.nwActive and inputChunk.isExpress() and weightNw < self.nw_threshold * self.nw_weight_multiplier:
-                ngMsg = f"  skip site={tmpPseudoSiteName} due to low network weight for express task weightNw={weightNw} threshold={self.nw_threshold} "
-                ngMsg += f"{weightStr} "
-                ngMsg += "criteria=-lowNetworkWeight"
+                ngMsg = (
+                    f"  skip site={tmpPseudoSiteName} due to low network weight for express task weightNw={weightNw} threshold={self.nw_threshold} "
+                    f"{weightStr} criteria=-lowNetworkWeight"
+                )
             elif useCapRT and tmpRTqueue > max(cutOffValue, tmpRTrunning * RT_Cap) and not inputChunk.isExpress():
                 ngMsg = f"  skip site={tmpSiteName} since "
                 if useAssigned:
                     ngMsg += f"nDefined_rt+nActivated_rt+nAssigned_rt+nStarting_rt={tmpRTqueue} "
                 else:
-                    ngMsg += f"nDefined_rt+nActivated_rt+nStarting_rt={tmpRTqueue} "
-                    ngMsg += "(nAssigned_rt ignored due to data locally available) "
-                ngMsg += "with gshare+resource_type is greater than "
-                ngMsg += "max({0},{1}*nRun_rt={1}*{2}) ".format(cutOffValue, RT_Cap, tmpRTrunning)
-                ngMsg += "criteria=-cap_rt"
+                    ngMsg += f"nDefined_rt+nActivated_rt+nStarting_rt={tmpRTqueue} (nAssigned_rt ignored due to data locally available) "
+                ngMsg += "with gshare+resource_type is greater than max({cutOffValue},{RT_Cap}*nRun_rt={RT_Cap}*{tmpRTrunning}) criteria=-cap_rt"
             elif (
                 nRunning + nActivated + nAssigned + nStarting + nDefined == 0
                 and taskSpec.currentPriority <= self.max_prio_for_bootstrap
@@ -1899,42 +1897,40 @@ class AtlasProdJobBroker(JobBrokerBase):
                 and not inputChunk.isExpress()
             ):
                 okMsg = f"  use site={tmpPseudoSiteName} to bootstrap (no running or queued jobs) criteria=+use"
-                ngMsg = f"  skip site={tmpPseudoSiteName} as others being bootstrapped (no running or queued jobs), "
-                ngMsg += f"weight={weight} {weightStr} "
-                ngMsg += "criteria=-others_bootstrap"
-                okAsPrimay = True
+                ngMsg = (
+                    f"  skip site={tmpPseudoSiteName} as others being bootstrapped (no running or queued jobs), "
+                    f"weight={weight} {weightStr} criteria=-others_bootstrap"
+                )
+                okAsPrimary = True
                 # set weight to 0 for subsequent processing
                 weight = 0
                 siteCandidateSpec.weight = weight
             else:
                 if min_weight > 0 and weight < min_weight:
-                    ngMsg = f"  skip site={tmpPseudoSiteName} due to weight below the minimum {min_weight_param}={min_weight}, "
-                    ngMsg += f"weight={weight} {weightStr} "
-                    ngMsg += "criteria=-below_min_weight"
+                    ngMsg = (
+                        f"  skip site={tmpPseudoSiteName} due to weight below the minimum {min_weight_param}={min_weight}, "
+                        f"weight={weight} {weightStr} criteria=-below_min_weight"
+                    )
                 elif useT1Weight:
-                    ngMsg = f"  skip site={tmpPseudoSiteName} due to low total "
-                    ngMsg += f"nRunningAll={nRunningAll} for negative T1 weight "
-                    ngMsg += "criteria=-t1_weight"
+                    ngMsg = f"  skip site={tmpPseudoSiteName} due to low total nRunningAll={nRunningAll} for negative T1 weight criteria=-t1_weight"
                     if not largestNumRun or largestNumRun[-1] < nRunningAll:
                         largestNumRun = (tmpPseudoSiteName, nRunningAll)
-                        okAsPrimay = True
+                        okAsPrimary = True
                         # copy primaries to secondary map
                         for tmpWeight, tmpCandidates in weightMapPrimary.items():
                             weightMapSecondary.setdefault(tmpWeight, [])
                             weightMapSecondary[tmpWeight] += tmpCandidates
                         weightMapPrimary = {}
                 else:
-                    ngMsg = f"  skip site={tmpPseudoSiteName} due to low weight, "
-                    ngMsg += f"weight={weight} {weightStr} "
-                    ngMsg += "criteria=-low_weight"
-                    okAsPrimay = True
+                    ngMsg = f"  skip site={tmpPseudoSiteName} due to low weight, weight={weight} {weightStr} criteria=-low_weight"
+                    okAsPrimary = True
             # add to jumbo or primary or secondary
             if forJumbo:
                 # only OK sites for jumbo
-                if not okAsPrimay:
+                if not okAsPrimary:
                     continue
                 weightMap = weightMapJumbo
-            elif okAsPrimay:
+            elif okAsPrimary:
                 weightMap = weightMapPrimary
             else:
                 weightMap = weightMapSecondary
