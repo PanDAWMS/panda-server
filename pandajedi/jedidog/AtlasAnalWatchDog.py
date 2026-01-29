@@ -23,10 +23,10 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
 
     # main
     def doAction(self):
+        # get logger
+        orig_tmp_log = MsgWrapper(logger)
         try:
-            # get logger
-            origTmpLog = MsgWrapper(logger)
-            origTmpLog.debug("start")
+            orig_tmp_log.debug("start")
             # handle waiting jobs
             self.doForWaitingJobs()
             # throttle tasks if so many prestaging requests
@@ -38,12 +38,13 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             # task share and priority boost
             self.doForTaskBoost()
             # action to set scout job data w/o scouts
-            self.doActionToSetScoutJobData(origTmpLog)
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            origTmpLog.error(f"failed with {errtype} {errvalue}")
+            self.doActionToSetScoutJobData(orig_tmp_log)
+            # periodic action
+            self.do_periodic_action()
+        except Exception as e:
+            orig_tmp_log.error(f"failed with {str(e)} {traceback.format_exc()}")
         # return
-        origTmpLog.debug("done")
+        orig_tmp_log.debug("done")
         return self.SC_SUCCEEDED
 
     # handle waiting jobs
@@ -614,3 +615,34 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
+
+    # periodic task action
+    def do_periodic_action(self):
+        tmp_log = MsgWrapper(logger, " do_periodic_action label=user")
+        tmp_log.debug("start")
+        try:
+            # get lifetime for output container
+            lifetime = self.taskBufferIF.getConfigValue("user_output", "OUTPUT_CONTAINER_LIFETIME", "jedi")
+            if not lifetime:
+                lifetime = 14
+            lifetime *= 24 * 60 * 60
+            # get DDM interface
+            ddm_if = self.ddmIF.getInterface(self.vo)
+            # get tasks
+            task_list = self.taskBufferIF.get_tasks_for_periodic_action(self.vo, self.prodSourceLabel)
+            for task_id in task_list:
+                # get datasets
+                _, tmp_datasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(task_id, ["output"])
+                done_containers = set()
+                for dataset_spec in tmp_datasets:
+                    # skip if already done for the container
+                    if not dataset_spec.containerName or dataset_spec.containerName in done_containers:
+                        continue
+                    done_containers.add(dataset_spec.containerName)
+                    tmp_log.debug(f"extend lifetime taskID={task_id} container={dataset_spec.containerName}")
+                    ddm_if.updateReplicationRules(
+                        dataset_spec.containerName,
+                        {"type=.+": {"lifetime": lifetime}, "(SCRATCH|USER)DISK": {"lifetime": lifetime}},
+                    )
+        except Exception as e:
+            tmp_log.error(f"failed with {str(e)}{traceback.format_exc()}")

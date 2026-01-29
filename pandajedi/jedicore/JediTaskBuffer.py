@@ -717,6 +717,11 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         with self.proxyPool.get() as proxy:
             return proxy.getAchievedTasks_JEDI(vo, prodSourceLabel, timeLimit, nTasks)
 
+    # get tasks to take periodic action
+    def get_tasks_for_periodic_action(self, vo, prod_source_label, time_limit=12, n_tasks=100):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_tasks_for_periodic_action(vo, prod_source_label, time_limit, n_tasks)
+
     # get inactive sites
     def getInactiveSites_JEDI(self, flag, timeLimit):
         with self.proxyPool.get() as proxy:
