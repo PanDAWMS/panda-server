@@ -80,6 +80,7 @@ split_rule_dict = {
     "randomSeed": "RS",
     "retryRamOffset": "RX",
     "retryRamStep": "RY",
+    "retryRamMax": "RZ",
     "resurrectConsumers": "SC",
     "switchEStoNormal": "SE",
     "stayOutputOnSite": "SO",
