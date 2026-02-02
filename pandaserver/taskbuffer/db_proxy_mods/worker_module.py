@@ -1,7 +1,6 @@
 import datetime
 import json
 import os
-import re
 import sys
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -11,7 +10,7 @@ from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_host_name
 from pandaserver.taskbuffer import ErrorCode, JobUtils, SiteSpec
-from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
+from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, memoize
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.HarvesterMetricsSpec import HarvesterMetricsSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
@@ -965,7 +964,7 @@ class WorkerModule(BaseModule):
                                 varMap[":diag"] = f"The worker was {workerSpec.status} while the job was {jobStatus} : {workerSpec.diagMessage}"
                                 varMap[":diag"] = JobSpec.truncateStringAttr("taskBufferErrorDiag", varMap[":diag"])
                                 self.cur.execute(sqlJAE + comment, varMap)
-                                # make an empty file to triggre registration for zip files in Adder
+                                # make an empty file to trigger registration for zip files in Adder
                                 # tmpFileName = '{0}_{1}_{2}'.format(pandaID, 'failed',
                                 #                                    uuid.uuid3(uuid.NAMESPACE_DNS,''))
                                 # tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
@@ -1345,6 +1344,36 @@ class WorkerModule(BaseModule):
             error_message = f"Worker node GPU update failed with {err_type} {err_value}"
             tmp_logger.error(error_message)
             return False, error_message
+
+    @memoize
+    def get_architecture_level_map(self):
+        comment = " /* DBProxy.get_architecture_level_map */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("Start")
+
+        try:
+            sql = "SELECT panda_queue, cpu_architecture_level, total_logical_cpus, pct_within_queue FROM ATLAS_PANDA.MV_WORKER_NODE_SUMMARY "
+            self.cur.execute(sql + comment, {})
+            results = self.cur.fetchall()
+
+            tmp_log.debug(f"Got {len(results)} entries from MV_WORKER_NODE_SUMMARY")
+
+            # Build a queue dictionary with the results
+            architecture_map = {}
+            for result in results:
+                site, panda_queue, cpu_architecture_level, total_logical_cpus, pct_within_queue = result
+                architecture_map.setdefault(panda_queue, {})
+                architecture_map[panda_queue][cpu_architecture_level] = {
+                    "total_logical_cpus": total_logical_cpus,
+                    "pct_within_queue": pct_within_queue,
+                }
+
+            tmp_log.debug(f"Done")
+            return architecture_map
+
+        except Exception:
+            self.dump_error_message(tmp_log)
+            return {}
 
     # get workers for a job
     def getWorkersForJob(self, PandaID):

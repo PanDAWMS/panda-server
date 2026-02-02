@@ -1386,6 +1386,14 @@ class JediTaskSpec(object):
         except Exception:
             return None
 
+    def get_host_cpu_preference(self):
+        try:
+            d = json.loads(self.architecture)
+            cpu_pref = d.get("cpu_pref", None)
+            return cpu_pref
+        except Exception:
+            return None
+
     # get host GPU spec
     def get_host_gpu_spec(self):
         try:
