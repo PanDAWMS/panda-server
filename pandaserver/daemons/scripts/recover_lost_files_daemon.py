@@ -1,4 +1,5 @@
 import datetime
+import fcntl
 import glob
 import json
 import os.path
@@ -76,27 +77,46 @@ def main(tbuf=None, **kwargs):
             self.pool.add(self)
 
         def run(self):
+            base_log = LogWrapper(_logger, self.fileName)
+            base_log.debug("start processing")
             self.lock.acquire()
-            with open(self.fileName) as f:
-                ops = json.load(f)
-                tag = ops.get("jediTaskID")
-                if tag:
-                    tag = f"< jediTaskID={tag} >"
-                else:
-                    tag = ops.get("dataset")
-                    tag = f"< dataset={tag} >"
-                tmpLog = LogWrapper(_logger, tag)
-                tmpLog.info(f"start {self.fileName}")
-                s, o = RecoverLostFilesCore.main(self.taskBuffer, ops, tmpLog)
-                tmpLog.info(f"status={s}. {o}")
-                if s is not None or self.to_delete:
-                    tmpLog.debug(f"delete {self.fileName}")
+            try:
+                with open(self.fileName) as f:
                     try:
-                        os.remove(self.fileName)
-                    except Exception:
-                        pass
+                        # acquire an exclusive file lock
+                        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        base_log.debug("file lock acquired")
+                        ops = json.load(f)
+                        tag = ops.get("jediTaskID")
+                        if tag:
+                            tag = f"< jediTaskID={tag} >"
+                        else:
+                            tag = ops.get("dataset")
+                            tag = f"< dataset={tag} >"
+                        tmp_log = LogWrapper(_logger, tag)
+                        tmp_log.info(f"start {self.fileName}")
+                        s, o = RecoverLostFilesCore.main(self.taskBuffer, ops, tmp_log)
+                        tmp_log.info(f"status={s}. {o}")
+                        if s is not None or self.to_delete:
+                            tmp_log.debug(f"delete {self.fileName}")
+                            try:
+                                os.remove(self.fileName)
+                            except Exception:
+                                pass
+                    finally:
+                        # release the file lock
+                        base_log.debug("release file lock")
+                        try:
+                            fcntl.flock(f, fcntl.LOCK_EX)
+                        except Exception:
+                            pass
+            except FileNotFoundError:
+                pass
+            except Exception as e:
+                base_log.error(f"process failure with {str(e)} {traceback.format_exc()}")
             self.pool.remove(self)
             self.lock.release()
+            base_log.debug("end processing")
 
     # get files
     timeNow = naive_utcnow()

@@ -34,6 +34,10 @@ class AtlasAnalPostProcessor(PostProcessorBase):
     def __init__(self, taskBufferIF, ddmIF):
         PostProcessorBase.__init__(self, taskBufferIF, ddmIF)
         self.taskParamMap = None
+        self.user_container_lifetime = taskBufferIF.getConfigValue("user_output", "OUTPUT_CONTAINER_LIFETIME", "jedi")
+        if not self.user_container_lifetime:
+            self.user_container_lifetime = 14
+        self.user_container_lifetime *= 24 * 60 * 60
 
     # main
     def doPostProcess(self, taskSpec, tmp_logger):
@@ -47,6 +51,7 @@ class AtlasAnalPostProcessor(PostProcessorBase):
             use_lib = False
             n_ok_lib = 0
             lock_update_time = naive_utcnow()
+            done_containers = set()
             for datasetSpec in taskSpec.datasetSpecList:
                 # ignore template
                 if datasetSpec.type.startswith("tmpl_"):
@@ -120,6 +125,14 @@ class AtlasAnalPostProcessor(PostProcessorBase):
                     ddmIF.updateReplicationRules(
                         datasetSpec.datasetName, {"type=.+": {"lifetime": 14 * 24 * 60 * 60}, "(SCRATCH|USER)DISK": {"lifetime": 14 * 24 * 60 * 60}}
                     )
+                    # extend container rules
+                    if datasetSpec.containerName and datasetSpec.containerName not in done_containers:
+                        tmp_logger.debug(f"extend lifetime container:Name={datasetSpec.containerName}")
+                        ddmIF.updateReplicationRules(
+                            datasetSpec.containerName,
+                            {"type=.+": {"lifetime": self.user_container_lifetime}, "(SCRATCH|USER)DISK": {"lifetime": self.user_container_lifetime}},
+                        )
+                        done_containers.add(datasetSpec.containerName)
                 # update dataset in DB
                 self.taskBufferIF.updateDatasetAttributes_JEDI(
                     datasetSpec.jediTaskID, datasetSpec.datasetID, {"state": datasetSpec.state, "stateCheckTime": datasetSpec.stateCheckTime}

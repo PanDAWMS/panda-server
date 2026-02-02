@@ -55,7 +55,9 @@ TIME_PROFILE_DEEP = 2
 # worker class to generate jobs
 class JobGenerator(JediKnight):
     # constructor
-    def __init__(self, commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels, cloudList, withThrottle=True, execJobs=True, loopCycle_cust=None):
+    def __init__(
+        self, commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels, cloudList, withThrottle=True, execJobs=True, loopCycle_cust=None, test_mode=False
+    ):
         JediKnight.__init__(self, commuChannel, taskBufferIF, ddmIF, logger)
         self.vos = self.parseInit(vos)
         self.prodSourceLabels = self.parseInit(prodSourceLabels)
@@ -65,6 +67,7 @@ class JobGenerator(JediKnight):
         self.execJobs = execJobs
         self.loopCycle_cust = loopCycle_cust
         self.paramsToGetTasks = None
+        self.test_mode = test_mode
 
     # main
     def start(self):
@@ -292,6 +295,7 @@ class JobGenerator(JediKnight):
                                                     brokerageLockIDs,
                                                     lackOfJobs,
                                                     resource_types,
+                                                    test_mode=self.test_mode,
                                                 )
                                                 globalThreadPool.add(thr)
                                                 thr.start()
@@ -491,6 +495,7 @@ class JobGeneratorThread(WorkerThread):
         brokerageLockIDs,
         lackOfJobs,
         resource_types,
+        test_mode=False,
     ):
         # initialize woker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
@@ -515,6 +520,7 @@ class JobGeneratorThread(WorkerThread):
         self.lackOfJobs = lackOfJobs
         self.resource_types = resource_types
         self.time_profile_level = TIME_PROFILE_OFF
+        self.test_mode = test_mode
 
     # main
     def runImpl(self):
@@ -588,6 +594,9 @@ class JobGeneratorThread(WorkerThread):
                             # set live counter
                             jobBrokerCore = jobBroker.getImpl(taskSpec.vo, taskSpec.prodSourceLabel)
                             jobBrokerCore.setLiveCounter(self.liveCounter)
+                            # test mode
+                            if self.test_mode:
+                                jobBrokerCore.setTestMode()
                             # set lock ID
                             jobBrokerCore.setLockID(self.pid, self.ident)
                             # set common dict
@@ -2719,6 +2728,6 @@ class JobGeneratorThread(WorkerThread):
 # launch
 
 
-def launcher(commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels, cloudList, withThrottle=True, execJobs=True, loopCycle_cust=None):
-    p = JobGenerator(commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels, cloudList, withThrottle, execJobs, loopCycle_cust)
+def launcher(commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels, cloudList, withThrottle=True, execJobs=True, loopCycle_cust=None, test_mode=False):
+    p = JobGenerator(commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels, cloudList, withThrottle, execJobs, loopCycle_cust, test_mode)
     p.start()

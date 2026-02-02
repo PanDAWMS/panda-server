@@ -39,5 +39,5 @@ except Exception:
 
 print(f"{testVO} {testTaskType} {testClouds}")
 
-gen = multiprocessing.Process(target=JobGenerator.launcher, args=(child_conn, tbIF, ddmIF, testVO, testTaskType, testClouds, False, execJob))
+gen = multiprocessing.Process(target=JobGenerator.launcher, args=(child_conn, tbIF, ddmIF, testVO, testTaskType, testClouds, False, execJob, None, True))
 gen.start()
