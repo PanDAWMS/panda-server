@@ -171,7 +171,7 @@ def schedule(jobs, siteMapper):
                 if job.prodDBlock != "NULL":
                     # get datatype
                     try:
-                        tmpDataType = job.prodDBlock.split(".")[-2]
+                        tmpDataType = job.prodDBlock.split(":")[-1].split(".")[-2]
                     except Exception:
                         # default
                         tmpDataType = "GEN"
