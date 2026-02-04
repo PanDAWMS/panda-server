@@ -63,7 +63,7 @@ def acquire_jobs(
     prod_user_id: str = None,
     get_proxy_key: str = None,
     task_id: int = None,
-    n_jobs: int = None,
+    n_jobs: int = 1,
     background: bool = None,
     resource_type: str = None,
     harvester_id: str = None,
