@@ -1089,7 +1089,9 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
     # check attribute
     if attribute_name not in task_split_rules.changeable_split_rule_tags:
         tmp_logger.error("Failed due to invalid attribute_name")
-        return generate_response(False, message=f"{attribute_name} is not a valid attribute. Valid attributes are {changeable_split_rule_tags}", data=2)
+        return generate_response(
+            False, message=f"{attribute_name} is not a valid attribute. Valid attributes are {task_split_rules.changeable_split_rule_tags}", data=2
+        )
 
     n_tasks_changed = global_task_buffer.changeTaskSplitRulePanda(task_id, attribute_name, value)
     if n_tasks_changed is None:  # method excepted

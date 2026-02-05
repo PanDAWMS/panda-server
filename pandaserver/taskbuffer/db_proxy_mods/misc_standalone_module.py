@@ -4300,6 +4300,7 @@ class MiscStandaloneModule(BaseModule):
                             datasetSpec.datasetID = datasetID
                         goDefined = True
                     # update task
+                    deft_staus = None
                     sqlUT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
                     sqlUT += "SET status=:status,lockedBy=NULL,lockedTime=NULL,modificationtime=:updateTime,stateChangeTime=CURRENT_DATE "
                     sqlUT += "WHERE jediTaskID=:jediTaskID "
@@ -4308,11 +4309,13 @@ class MiscStandaloneModule(BaseModule):
                     if goDefined:
                         # no new datasets
                         if inMasterDatasetSpecList == [] and not refreshContents:
-                            # pass to JG
+                            # pass to JobGenerator
                             varMap[":status"] = "ready"
+                            deft_staus = "ready"
                         else:
                             # pass to ContentsFeeder
                             varMap[":status"] = "defined"
+                            deft_staus = "registered"
                     else:
                         # go to finalization since no datasets are appended
                         varMap[":status"] = "prepared"
@@ -4320,6 +4323,10 @@ class MiscStandaloneModule(BaseModule):
                     varMap[":updateTime"] = naive_utcnow() - datetime.timedelta(hours=6)
                     tmpLog.debug(f"set taskStatus={varMap[':status']}")
                     self.cur.execute(sqlUT + comment, varMap)
+                    # update DEFT status
+                    if deft_staus is not None:
+                        self.setDeftStatus_JEDI(jediTaskID, deft_staus)
+                        self.setSuperStatus_JEDI(jediTaskID, deft_staus)
                     # add missing record_task_status_change and push_task_status_message updates
                     self.record_task_status_change(jediTaskID)
                     self.push_task_status_message(None, jediTaskID, varMap[":status"])

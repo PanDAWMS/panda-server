@@ -23,13 +23,13 @@ from pandaserver.taskbuffer import JobUtils, ProcessGroups, SiteSpec
 def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=False):
     # get replicas
     try:
-        replicaMap = ddmIF.listReplicasPerDataset(datasetName, deepScan)
+        replica_map = ddmIF.listReplicasPerDataset(datasetName, deepScan)
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         return errtype, f"ddmIF.listReplicasPerDataset failed with {errvalue}", None
     # check if remote source is available at any sites (not only nuclei)
     remote_source_available = False
-    for tmp_replica_data in replicaMap.values():
+    for tmp_replica_data in replica_map.values():
         for tmp_location, tmp_stat_data in tmp_replica_data.items():
             if tmp_stat_data[0]["total"] in [None, 0]:
                 continue
@@ -39,7 +39,7 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
                 remote_source_available = True
                 break
     # loop over all clouds
-    retMap = {}
+    return_map = {}
     for tmpNucleus in candidateNuclei:
         tmpNucleusSpec = siteMapper.getNucleus(tmpNucleus)
         # loop over all datasets
@@ -50,7 +50,7 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
         avaSizeDisk = 0
         avaSizeAny = 0
         can_be_remote_source = False
-        for tmpDataset, tmpRepMap in replicaMap.items():
+        for tmpDataset, tmpRepMap in replica_map.items():
             tmpTotalNum = 0
             tmpTotalSize = 0
             tmpAvaNumDisk = 0
@@ -97,7 +97,7 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
             avaSizeAny += tmpAvaSizeAny
         # append
         if tmpNucleus in candidateNuclei or avaNumAny > 0:
-            retMap[tmpNucleus] = {
+            return_map[tmpNucleus] = {
                 "tot_num": totalNum,
                 "tot_size": totalSize,
                 "ava_num_disk": avaNumDisk,
@@ -106,8 +106,8 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
                 "ava_size_any": avaSizeAny,
                 "can_be_remote_source": can_be_remote_source,
             }
-    # return
-    return Interaction.SC_SUCCEEDED, retMap, remote_source_available
+
+    return Interaction.SC_SUCCEEDED, return_map, remote_source_available
 
 
 # get sites where data is available and check if complete replica is available at online RSE
@@ -255,7 +255,7 @@ def get_sites_with_data(
                 can_be_local_source = True
             if replica_availability_info[tmp_rse]["can_be_remote_source"]:
                 can_be_remote_source = True
-    # return
+
     return (
         Interaction.SC_SUCCEEDED,
         return_map,
@@ -274,11 +274,11 @@ def getAnalSitesWithDataDisk(dataSiteMap, includeTape=False, use_vp=True, use_in
     sites_with_incomplete_replicas = []
     sites_with_non_vp_disk_replicas = set()
     sites_using_vp = set()
-    for tmpSiteName, tmpSeValMap in dataSiteMap.items():
+    for tmp_site_name, tmpSeValMap in dataSiteMap.items():
         for tmpSE, tmpValMap in tmpSeValMap.items():
             # VP
             if tmpValMap.get("vp"):
-                sites_using_vp.add(tmpSiteName)
+                sites_using_vp.add(tmp_site_name)
                 if not use_vp:
                     continue
             # on disk or tape
@@ -286,15 +286,15 @@ def getAnalSitesWithDataDisk(dataSiteMap, includeTape=False, use_vp=True, use_in
                 # complete replica available at disk, tape, or VP
                 if tmpValMap["state"] == "complete":
                     # has complete replica
-                    if tmpSiteName not in sites_with_complete_replicas:
-                        sites_with_complete_replicas.append(tmpSiteName)
+                    if tmp_site_name not in sites_with_complete_replicas:
+                        sites_with_complete_replicas.append(tmp_site_name)
                     # has non-VP disk replica
                     if not tmpValMap["tape"] and not tmpValMap.get("vp"):
-                        sites_with_non_vp_disk_replicas.add(tmpSiteName)
+                        sites_with_non_vp_disk_replicas.add(tmp_site_name)
                 else:
                     # incomplete replica at disk
-                    if tmpSiteName not in sites_with_incomplete_replicas:
-                        sites_with_incomplete_replicas.append(tmpSiteName)
+                    if tmp_site_name not in sites_with_incomplete_replicas:
+                        sites_with_incomplete_replicas.append(tmp_site_name)
     # remove VP if complete non-VP disk replica is unavailable
     if sites_with_non_vp_disk_replicas:
         for tmpSiteNameVP in sites_using_vp:
@@ -326,7 +326,7 @@ def getNumJobs(jobStatMap, computingSite, jobStatus, cloud=None, workQueue_tag=N
         for tmpJobStatus, tmpCount in tmpWorkQueueVal.items():
             if tmpJobStatus == jobStatus:
                 nJobs += tmpCount
-    # return
+
     return nJobs
 
 
@@ -483,14 +483,14 @@ def isMatched(siteName, nameList):
             # normal pattern
             if tmpName == siteName:
                 return True
-    # return
+
     return False
 
 
 # get dict to set nucleus
 def getDictToSetNucleus(nucleusSpec, tmpDatasetSpecs):
     # get destinations
-    retMap = {"datasets": [], "nucleus": nucleusSpec.name}
+    return_map = {"datasets": [], "nucleus": nucleusSpec.name}
     for datasetSpec in tmpDatasetSpecs:
         # skip distributed datasets
         if DataServiceUtils.getDistributedDestination(datasetSpec.storageToken) is not None:
@@ -506,8 +506,8 @@ def getDictToSetNucleus(nucleusSpec, tmpDatasetSpecs):
         # add original token
         if datasetSpec.storageToken not in ["", None]:
             token += f"/{datasetSpec.storageToken.split('/')[-1]}"
-        retMap["datasets"].append({"datasetID": datasetSpec.datasetID, "token": f"dst:{token}", "destination": f"nucleus:{nucleusSpec.name}"})
-    return retMap
+        return_map["datasets"].append({"datasetID": datasetSpec.datasetID, "token": f"dst:{token}", "destination": f"nucleus:{nucleusSpec.name}"})
+    return return_map
 
 
 # remove problematic sites
@@ -653,7 +653,7 @@ def getSiteToRunRateStats(tbIF, vo, time_window=21600, cutoff=300, cache_lifetim
                 except Exception as e:
                     err_str = f"AtlasBrokerUtils.getSiteToRunRateStats when deleting outdated entries got {e.__class__.__name__}: {e} \n"
                     sys.stderr.write(err_str)
-    # return
+
     return ret_val, ret_map
 
 
@@ -741,7 +741,7 @@ def getUsersJobsStats(tbIF, vo, prod_source_label, cache_lifetime=60):
                 sys.stderr.write(err_str)
                 # break trying
                 break
-    # return
+
     return ret_val, ret_map
 
 
@@ -761,21 +761,14 @@ def getGShareUsage(tbIF, gshare, fresher_than_minutes_ago=15):
             break
         try:
             # query from PanDA DB directly
-            sql_get_gshare = (
-                """SELECT m.value_json """
-                """FROM ATLAS_PANDA.Metrics m """
-                """WHERE m.metric=:metric """
-                """AND m.gshare=:gshare """
-                """AND m.timestamp>=:min_timestamp """
-            )
-            # varMap
-            varMap = {
+            sql_get_gshare = "SELECT m.value_json FROM ATLAS_PANDA.Metrics m WHERE m.metric=:metric AND m.gshare=:gshare AND m.timestamp>=:min_timestamp "
+            var_map = {
                 ":metric": "gshare_preference",
                 ":gshare": gshare,
                 ":min_timestamp": now_time - datetime.timedelta(minutes=fresher_than_minutes_ago),
             }
             # result
-            res = tbIF.querySQL(sql_get_gshare, varMap)
+            res = tbIF.querySQL(sql_get_gshare, var_map)
             if res:
                 value_json = res[0][0]
                 # json of data
@@ -790,7 +783,7 @@ def getGShareUsage(tbIF, gshare, fresher_than_minutes_ago=15):
             sys.stderr.write(err_str)
             # break trying
             break
-    # return
+
     return ret_val, ret_map
 
 
@@ -811,13 +804,12 @@ def getUserEval(tbIF, user, fresher_than_minutes_ago=20):
         try:
             # query from PanDA DB directly
             sql_get_user_eval = f'SELECT m.value_json."{user}" FROM ATLAS_PANDA.Metrics m WHERE m.metric=:metric AND m.timestamp>=:min_timestamp '
-            # varMap
-            varMap = {
+            var_map = {
                 ":metric": "analy_user_eval",
                 ":min_timestamp": now_time - datetime.timedelta(minutes=fresher_than_minutes_ago),
             }
             # result
-            res = tbIF.querySQL(sql_get_user_eval, varMap)
+            res = tbIF.querySQL(sql_get_user_eval, var_map)
             if res:
                 value_json = res[0][0]
                 # json of data
@@ -832,7 +824,7 @@ def getUserEval(tbIF, user, fresher_than_minutes_ago=20):
             sys.stderr.write(err_str)
             # break trying
             break
-    # return
+
     return ret_val, ret_map
 
 
@@ -853,20 +845,19 @@ def getUserTaskEval(tbIF, taskID, fresher_than_minutes_ago=15):
         try:
             # query from PanDA DB directly
             sql_get_task_eval = (
-                """SELECT tev.value_json """
-                """FROM ATLAS_PANDA.Task_Evaluation tev """
-                """WHERE tev.metric=:metric """
-                """AND tev.jediTaskID=:taskID """
-                """AND tev.timestamp>=:min_timestamp """
+                "SELECT tev.value_json "
+                "FROM ATLAS_PANDA.Task_Evaluation tev "
+                "WHERE tev.metric=:metric "
+                "AND tev.jediTaskID=:taskID "
+                "AND tev.timestamp>=:min_timestamp "
             )
-            # varMap
-            varMap = {
+            var_map = {
                 ":metric": "analy_task_eval",
                 ":taskID": taskID,
                 ":min_timestamp": now_time - datetime.timedelta(minutes=fresher_than_minutes_ago),
             }
-            # result
-            res = tbIF.querySQL(sql_get_task_eval, varMap)
+
+            res = tbIF.querySQL(sql_get_task_eval, var_map)
             if res:
                 value_json = res[0][0]
                 # json of data
@@ -881,7 +872,7 @@ def getUserTaskEval(tbIF, taskID, fresher_than_minutes_ago=15):
             sys.stderr.write(err_str)
             # break trying
             break
-    # return
+
     return ret_val, ret_map
 
 
@@ -901,19 +892,12 @@ def getAnalySitesClass(tbIF, fresher_than_minutes_ago=60):
             break
         try:
             # query from PanDA DB directly
-            sql_get_task_eval = (
-                """SELECT m.computingSite, m.value_json.class """
-                """FROM ATLAS_PANDA.Metrics m """
-                """WHERE m.metric=:metric """
-                """AND m.timestamp>=:min_timestamp """
-            )
-            # varMap
-            varMap = {
+            sql_get_task_eval = "SELECT m.computingSite, m.value_json.class FROM ATLAS_PANDA.Metrics m WHERE m.metric=:metric AND m.timestamp>=:min_timestamp "
+            var_map = {
                 ":metric": "analy_site_eval",
                 ":min_timestamp": now_time - datetime.timedelta(minutes=fresher_than_minutes_ago),
             }
-            # result
-            res = tbIF.querySQL(sql_get_task_eval, varMap)
+            res = tbIF.querySQL(sql_get_task_eval, var_map)
             if res:
                 for site, class_value in res:
                     ret_map[site] = int(class_value)
@@ -927,7 +911,7 @@ def getAnalySitesClass(tbIF, fresher_than_minutes_ago=60):
             sys.stderr.write(err_str)
             # break trying
             break
-    # return
+
     return ret_val, ret_map
 
 
@@ -975,9 +959,10 @@ def compare_version_string(version_string, comparison_string):
 # check SW with json
 class JsonSoftwareCheck:
     # constructor
-    def __init__(self, site_mapper, sw_map):
+    def __init__(self, site_mapper, sw_map, wn_architecture_level_map):
         self.siteMapper = site_mapper
         self.sw_map = sw_map
+        self.wn_architecture_level_map = wn_architecture_level_map
 
     # get lists
     def check(
@@ -993,22 +978,29 @@ class JsonSoftwareCheck:
         container_name=None,
         only_tags_fc=False,
         host_cpu_specs=None,
+        host_cpu_pref=None,
         host_gpu_spec=None,
         log_stream=None,
     ):
-        okSite = []
-        noAutoSite = []
-        for tmpSiteName in site_list:
-            tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
-            if tmpSiteSpec.releases == ["AUTO"] and tmpSiteName in self.sw_map:
+        ok_sites = []
+        no_auto_sites = []
+        preference_weight_map = {}
+
+        # Does the task define a preferred architecture level?
+        preferred_architecture_level = host_cpu_pref.get("preferred_architecture_level") if host_cpu_pref else None
+
+        for tmp_site_name in site_list:
+            tmp_site_spec = self.siteMapper.getSite(tmp_site_name)
+            if tmp_site_spec.releases == ["AUTO"] and tmp_site_name in self.sw_map:
                 go_ahead = False
                 try:
                     # convert to a dict
                     architecture_map = {}
-                    if "architectures" in self.sw_map[tmpSiteName]:
-                        for arch_spec in self.sw_map[tmpSiteName]["architectures"]:
+                    if "architectures" in self.sw_map[tmp_site_name]:
+                        for arch_spec in self.sw_map[tmp_site_name]["architectures"]:
                             if "type" in arch_spec:
                                 architecture_map[arch_spec["type"]] = arch_spec
+
                     # check if need CPU
                     if "cpu" in architecture_map:
                         need_cpu = False
@@ -1019,6 +1011,7 @@ class JsonSoftwareCheck:
                                     break
                         if need_cpu and host_cpu_specs is None:
                             continue
+
                     # check if need GPU
                     if "gpu" in architecture_map:
                         need_gpu = False
@@ -1029,6 +1022,13 @@ class JsonSoftwareCheck:
                                     break
                         if need_gpu and host_gpu_spec is None:
                             continue
+
+                    # calculate the preference_weight_map for the site
+                    if preferred_architecture_level:
+                        preference_weight_map[tmp_site_name] = (
+                            1 + self.wn_architecture_level_map.get(tmp_site_name, {}).get(preferred_architecture_level, {}).get("pct_within_queue", 0) / 100
+                        )
+
                     if host_cpu_specs or host_gpu_spec:
                         # skip since the PQ doesn't describe HW spec
                         if not architecture_map:
@@ -1040,6 +1040,7 @@ class JsonSoftwareCheck:
                                 # CPU not specified
                                 if "cpu" not in architecture_map:
                                     continue
+
                                 # check architecture
                                 if host_cpu_spec["arch"] == "*":
                                     if "excl" in architecture_map["cpu"]["arch"]:
@@ -1050,6 +1051,7 @@ class JsonSoftwareCheck:
                                             # check with regex
                                             if not [True for iii in architecture_map["cpu"]["arch"] if re.search("^" + host_cpu_spec["arch"] + "$", iii)]:
                                                 continue
+
                                 # check vendor
                                 if host_cpu_spec["vendor"] == "*":
                                     # task doesn't specify a vendor and PQ explicitly requests a specific vendor
@@ -1062,6 +1064,7 @@ class JsonSoftwareCheck:
                                     # task specifies a vendor and PQ doesn't accept any vendor or the specific vendor
                                     if "any" not in architecture_map["cpu"]["vendor"] and host_cpu_spec["vendor"] not in architecture_map["cpu"]["vendor"]:
                                         continue
+
                                 # check instruction set
                                 if host_cpu_spec["instr"] == "*":
                                     if "instr" in architecture_map["cpu"] and "excl" in architecture_map["cpu"]["instr"]:
@@ -1075,11 +1078,13 @@ class JsonSoftwareCheck:
                                 break
                             if not host_ok:
                                 continue
+
                         # check GPU
                         if host_gpu_spec:
                             # GPU not specified
                             if "gpu" not in architecture_map:
                                 continue
+
                             # check vendor
                             if host_gpu_spec["vendor"] == "*":
                                 # task doesn't specify CPU vendor and PQ explicitly requests a specific vendor
@@ -1092,6 +1097,7 @@ class JsonSoftwareCheck:
                                 # task specifies a vendor and PQ doesn't accept any vendor or the specific vendor
                                 if "any" not in architecture_map["gpu"]["vendor"] and host_gpu_spec["vendor"] not in architecture_map["gpu"]["vendor"]:
                                     continue
+
                             # check model
                             if host_gpu_spec["model"] == "*":
                                 if "model" in architecture_map["gpu"] and "excl" in architecture_map["gpu"]["model"]:
@@ -1101,6 +1107,7 @@ class JsonSoftwareCheck:
                                     "any" not in architecture_map["gpu"]["model"] and host_gpu_spec["model"] not in architecture_map["gpu"]["model"]
                                 ):
                                     continue
+
                             # check version
                             if "version" in host_gpu_spec:
                                 if "version" not in architecture_map["gpu"]:
@@ -1116,25 +1123,25 @@ class JsonSoftwareCheck:
                     go_ahead = True
                 except Exception as e:
                     if log_stream:
-                        log_stream.error(f"json check {str(architecture_map)} failed for {tmpSiteName} {str(e)} {traceback.format_exc()} ")
+                        log_stream.error(f"json check {str(architecture_map)} failed for {tmp_site_name} {str(e)} {traceback.format_exc()} ")
                 if not go_ahead:
                     continue
                 # only HW check
                 if not (cvmfs_tag or cmt_config or sw_project or sw_version or container_name) and (host_cpu_specs or host_gpu_spec):
-                    okSite.append(tmpSiteName)
+                    ok_sites.append(tmp_site_name)
                     continue
                 # check for fat container
                 if container_name:
                     # check for container
-                    if not only_tags_fc and ("any" in self.sw_map[tmpSiteName]["containers"] or "/cvmfs" in self.sw_map[tmpSiteName]["containers"]):
+                    if not only_tags_fc and ("any" in self.sw_map[tmp_site_name]["containers"] or "/cvmfs" in self.sw_map[tmp_site_name]["containers"]):
                         # any in containers
-                        okSite.append(tmpSiteName)
-                    elif container_name in set([t["container_name"] for t in self.sw_map[tmpSiteName]["tags"] if t["container_name"]]):
+                        ok_sites.append(tmp_site_name)
+                    elif container_name in set([t["container_name"] for t in self.sw_map[tmp_site_name]["tags"] if t["container_name"]]):
                         # logical name in tags or any in containers
-                        okSite.append(tmpSiteName)
-                    elif container_name in set([s for t in self.sw_map[tmpSiteName]["tags"] for s in t["sources"] if t["sources"]]):
+                        ok_sites.append(tmp_site_name)
+                    elif container_name in set([s for t in self.sw_map[tmp_site_name]["tags"] for s in t["sources"] if t["sources"]]):
                         # full path in sources
-                        okSite.append(tmpSiteName)
+                        ok_sites.append(tmp_site_name)
                     elif not only_tags_fc:
                         # get sources in all tag list
                         if "ALL" in self.sw_map:
@@ -1142,14 +1149,14 @@ class JsonSoftwareCheck:
                         else:
                             source_list_in_all_tag = []
                         # prefix with full path
-                        for tmp_prefix in self.sw_map[tmpSiteName]["containers"]:
+                        for tmp_prefix in self.sw_map[tmp_site_name]["containers"]:
                             if container_name.startswith(tmp_prefix):
-                                okSite.append(tmpSiteName)
+                                ok_sites.append(tmp_site_name)
                                 break
                             toBreak = False
                             for source_in_all_tag in source_list_in_all_tag:
                                 if source_in_all_tag.startswith(tmp_prefix):
-                                    okSite.append(tmpSiteName)
+                                    ok_sites.append(tmp_site_name)
                                     toBreak = True
                                     break
                             if toBreak:
@@ -1157,30 +1164,31 @@ class JsonSoftwareCheck:
                     continue
                 # only cmt config check
                 if cmt_config_only:
-                    okSite.append(tmpSiteName)
+                    ok_sites.append(tmp_site_name)
                     continue
                 # check if CVMFS is available
-                if "any" in self.sw_map[tmpSiteName]["cvmfs"] or cvmfs_tag in self.sw_map[tmpSiteName]["cvmfs"]:
+                if "any" in self.sw_map[tmp_site_name]["cvmfs"] or cvmfs_tag in self.sw_map[tmp_site_name]["cvmfs"]:
                     # check if container is available
-                    if "any" in self.sw_map[tmpSiteName]["containers"] or "/cvmfs" in self.sw_map[tmpSiteName]["containers"]:
-                        okSite.append(tmpSiteName)
+                    if "any" in self.sw_map[tmp_site_name]["containers"] or "/cvmfs" in self.sw_map[tmp_site_name]["containers"]:
+                        ok_sites.append(tmp_site_name)
                     # check cmt config
-                    elif not need_container and cmt_config in self.sw_map[tmpSiteName]["cmtconfigs"]:
-                        okSite.append(tmpSiteName)
+                    elif not need_container and cmt_config in self.sw_map[tmp_site_name]["cmtconfigs"]:
+                        ok_sites.append(tmp_site_name)
                 elif not need_cvmfs:
-                    if not need_container or "any" in self.sw_map[tmpSiteName]["containers"]:
+                    if not need_container or "any" in self.sw_map[tmp_site_name]["containers"]:
                         # check tags
-                        for tag in self.sw_map[tmpSiteName]["tags"]:
+                        for tag in self.sw_map[tmp_site_name]["tags"]:
                             if tag["cmtconfig"] == cmt_config and tag["project"] == sw_project and tag["release"] == sw_version:
-                                okSite.append(tmpSiteName)
+                                ok_sites.append(tmp_site_name)
                                 break
                 # don't pass to subsequent check if AUTO is enabled
                 continue
             # use only AUTO for container or HW
             if container_name is not None or host_cpu_specs is not None or host_gpu_spec is not None:
                 continue
-            noAutoSite.append(tmpSiteName)
-        return (okSite, noAutoSite)
+            no_auto_sites.append(tmp_site_name)
+
+        return ok_sites, no_auto_sites, preference_weight_map
 
 
 # resolve cmt_config
@@ -1229,7 +1237,7 @@ def check_endpoints_with_blacklist(
     read_input_over_lan = False
     write_output_over_lan = False
     send_output_over_wan = False
-    tmpSiteName = site_spec.sitename
+    tmp_site_name = site_spec.sitename
     if scope_input in site_spec.ddm_endpoints_input:
         for tmp_input_endpoint in site_spec.ddm_endpoints_input[scope_input].all.values():
             tmp_read_input_over_lan = tmp_input_endpoint["detailed_status"].get("read_lan")
@@ -1238,7 +1246,7 @@ def check_endpoints_with_blacklist(
             if tmp_read_input_over_lan not in ["OFF", "TEST"]:
                 read_input_over_lan = True
             # can receive input from remote to local
-            if tmpSiteName not in sites_in_nucleus:
+            if tmp_site_name not in sites_in_nucleus:
                 # satellite sites
                 if tmp_receive_input_over_wan not in ["OFF", "TEST"]:
                     receive_input_over_wan = True
@@ -1254,7 +1262,7 @@ def check_endpoints_with_blacklist(
             if tmp_write_output_over_lan not in ["OFF", "TEST"]:
                 write_output_over_lan = True
             # can send output from local to remote
-            if tmpSiteName not in sites_in_nucleus:
+            if tmp_site_name not in sites_in_nucleus:
                 # satellite sites
                 if tmp_send_output_over_wan not in ["OFF", "TEST"]:
                     send_output_over_wan = True
@@ -1264,13 +1272,13 @@ def check_endpoints_with_blacklist(
                 remote_source_available = True
     # take the status for logging
     if not read_input_over_lan:
-        tmp_msg = f"  skip site={tmpSiteName} since input endpoints cannot read over LAN, read_lan is not ON criteria=-read_lan_blacklist"
+        tmp_msg = f"  skip site={tmp_site_name} since input endpoints cannot read over LAN, read_lan is not ON criteria=-read_lan_blacklist"
     elif not write_output_over_lan:
-        tmp_msg = f"  skip site={tmpSiteName} since output endpoints cannot write over LAN, write_lan is not ON criteria=-write_lan_blacklist"
+        tmp_msg = f"  skip site={tmp_site_name} since output endpoints cannot write over LAN, write_lan is not ON criteria=-write_lan_blacklist"
     elif not receive_input_over_wan:
-        tmp_msg = f"  skip site={tmpSiteName} since input endpoints cannot receive files over WAN, write_wan is not ON criteria=-write_wan_blacklist"
+        tmp_msg = f"  skip site={tmp_site_name} since input endpoints cannot receive files over WAN, write_wan is not ON criteria=-write_wan_blacklist"
     elif not send_output_over_wan:
-        tmp_msg = f"  skip site={tmpSiteName} since output endpoints cannot send out files over WAN, read_wan is not ON criteria=-read_wan_blacklist"
+        tmp_msg = f"  skip site={tmp_site_name} since output endpoints cannot send out files over WAN, read_wan is not ON criteria=-read_wan_blacklist"
     elif not remote_source_available:
-        tmp_msg = f"  skip site={tmpSiteName} since source endpoints cannot transfer files over WAN and it is satellite criteria=-source_blacklist"
+        tmp_msg = f"  skip site={tmp_site_name} since source endpoints cannot transfer files over WAN and it is satellite criteria=-source_blacklist"
     return tmp_msg
