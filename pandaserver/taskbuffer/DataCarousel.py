@@ -2121,13 +2121,12 @@ class DataCarouselInterface(object):
             task_id_list = self._get_related_tasks(dc_req_spec.request_id)
             if task_id_list:
                 tmp_log.debug(f"related tasks: {task_id_list}")
-                try:
-                    for task_id in task_id_list:
+                for task_id in task_id_list:
+                    try:
                         self._submit_idds_stagein_request(task_id, dc_req_spec)
-                    tmp_log.debug(f"submitted corresponding iDDS requests for related tasks")
-                except Exception as e:
-                    # other unexpected errors
-                    tmp_log.warning(f"got error while submitting iDDS requests; skipped : {traceback.format_exc()}")
+                        tmp_log.debug(f"submitted corresponding iDDS request for related task {task_id}")
+                    except Exception as e:
+                        tmp_log.warning(f"got error while submitting iDDS request; skipped : {traceback.format_exc()}")
             else:
                 tmp_log.warning(f"failed to get related tasks; skipped to submit iDDS requests")
         # return
