@@ -41,7 +41,7 @@ MB = 1024 * 1024
 EVENT_PICKING_LIMIT = 10 * MB
 LOG_LIMIT = 100 * MB
 CHECKPOINT_LIMIT = 500 * MB
-SANDBOX_NO_BUILD_LIMIT = 100 * MB
+SANDBOX_NO_BUILD_LIMIT = 10 * MB
 SANDBOX_LIMIT = 768 * MB
 
 # Error messages
@@ -287,9 +287,15 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
     tmp_logger.debug(f"user_name={user_name} file_path={file.filename}")
 
     # get file size limit
-    if not file.filename.startswith("sources."):
+    # log file
+    if any(file.filename.endswith(suffix) for suffix in IGNORED_SUFFIX):
+        no_build = False
+        size_limit = LOG_LIMIT
+    # no build case
+    elif not file.filename.startswith("sources."):
         no_build = True
         size_limit = SANDBOX_NO_BUILD_LIMIT
+    # general sandbox limit
     else:
         no_build = False
         size_limit = SANDBOX_LIMIT
