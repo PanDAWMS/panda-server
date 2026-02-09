@@ -17,6 +17,8 @@ from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.ResourceSpec import BASIC_RESOURCE_TYPE
 from pandaserver.taskbuffer.WorkerSpec import WorkerSpec
 
+DEFAULT_PRODSOURCELABEL = "managed"
+
 
 # Module class to define methods related to worker and harvester
 class WorkerModule(BaseModule):
@@ -463,6 +465,7 @@ class WorkerModule(BaseModule):
             else:
                 tmp_log.debug(f"Accepting all resource types as under memory target")
 
+        # there is only job_type = "managed" in the current implementation, but we keep the structure due to backwards compatibility
         for job_type in worker_stats[harvester_id]:
             workers_queued.setdefault(job_type, {})
             for resource_type in worker_stats[harvester_id][job_type]:
@@ -552,7 +555,9 @@ class WorkerModule(BaseModule):
                 core_factor = get_entity_module(self).resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
 
                 # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
-                job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
+                # job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
+                # Harvester worker submission unified production and analysis proxies, so we don't need to separate by job_type anymore
+                job_type = DEFAULT_PRODSOURCELABEL
                 # if we reached the limit for the resource type, skip the job
                 if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
                     # tmp_log.debug('Reached resource type limit for {0}'.format(resource_type))
@@ -607,7 +612,7 @@ class WorkerModule(BaseModule):
                     workers = True
                     break
         if not workers:
-            new_workers["managed"] = {BASIC_RESOURCE_TYPE: 1}
+            new_workers[DEFAULT_PRODSOURCELABEL] = {BASIC_RESOURCE_TYPE: 1}
 
         tmp_log.debug(f"new workers: {new_workers}")
 
@@ -1846,7 +1851,9 @@ class WorkerModule(BaseModule):
 
     def ups_load_worker_stats(self):
         """
-        Load the harvester worker stats
+        Load the harvester worker stats. Historically this would separate between prodsource labels due to different proxies for analysis and production,
+        but all workers get submitted with production proxy and the pilot changes to analysis proxy if required. So we are not separating by prodsource label,
+        in the query anymore, but we are keeping the prodsource label dimension in the dictionary for compatibility reasons.
         :return: dictionary with worker statistics
         """
         comment = " /* DBProxy.ups_load_worker_stats */"
@@ -1858,9 +1865,10 @@ class WorkerModule(BaseModule):
 
         # get current pilot distribution in harvester for the queue
         sql = f"""
-              SELECT computingsite, harvester_id, jobType, resourceType, status, n_workers
+              SELECT computingsite, harvester_id, resourceType, status, sum(n_workers)
               FROM {panda_config.schemaPANDA}.harvester_worker_stats
               WHERE lastupdate > :time_limit
+              GROUP BY computingsite, harvester_id, resourceType, status
               """
         var_map = {}
         var_map[":time_limit"] = naive_utcnow() - datetime.timedelta(minutes=60)
@@ -1871,14 +1879,13 @@ class WorkerModule(BaseModule):
         for (
             computing_site,
             harvester_id,
-            job_type,
             resource_type,
             status,
             n_workers,
         ) in worker_stats_rows:
             worker_stats_dict.setdefault(computing_site, {})
             worker_stats_dict[computing_site].setdefault(harvester_id, {})
-            worker_stats_dict[computing_site][harvester_id].setdefault(job_type, {})
+            worker_stats_dict[computing_site][harvester_id].setdefault(DEFAULT_PRODSOURCELABEL, {})
             worker_stats_dict[computing_site][harvester_id][job_type].setdefault(resource_type, {})
             worker_stats_dict[computing_site][harvester_id][job_type][resource_type][status] = n_workers
 
