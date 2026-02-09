@@ -2938,8 +2938,7 @@ class TaskComplexModule(BaseModule):
 
                     # escape the duplication look since it is not requested
                     if (
-                        not task_spec.reuseSecOnDemand()
-                        or tmp_dataset_spec.isMaster()
+                        tmp_dataset_spec.isMaster()
                         or task_spec.useLoadXML()
                         or tmp_dataset_spec.isNoSplit()
                         or tmp_dataset_spec.toMerge()
@@ -2980,7 +2979,7 @@ class TaskComplexModule(BaseModule):
                         break
 
                     # duplicate files on demand
-                    tmp_str = f"jediTaskID={jedi_task_id} try to increase files for datasetID={tmp_dataset_spec.datasetID} "
+                    tmp_str = f"jediTaskID={jedi_task_id} try to increase files for datasetID={tmp_dataset_spec.datasetID} in duplication cycle {i_duplication_cycle} "
                     tmp_str += f"since only {tmp_num_already_read_files}/{num_files_to_read_for_the_chunk} files were read "
                     if tmp_dataset_spec.getEventRatio() is not None:
                         tmp_str += "or {0} events is less than {1}*{2} ".format(
