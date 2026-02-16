@@ -19,7 +19,7 @@ from pandaserver.api.v1.common import (
     has_production_role,
     request_validation,
 )
-from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.srvcore.CoreUtils import clean_user_id, make_reassign_comment
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer import task_split_rules
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
@@ -260,19 +260,7 @@ def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = Non
     is_production_role = has_production_role(req)
 
     # reassign to site, nucleus or cloud
-    # note that ProdSys sets site or nucleus to "" for a rebrokerage
-    if site is not None:
-        comment = f"site:{site}:y"  # set 'y' to go back to oldStatus immediately
-    elif nucleus is not None:
-        comment = f"nucleus:{nucleus}:n"
-    else:
-        comment = f"cloud:{cloud}:n"
-
-    # set additional modes
-    if mode == "nokill":
-        comment += ":nokill reassign"
-    elif mode == "soft":
-        comment += ":soft reassign"
+    comment = make_reassign_comment(site, cloud, nucleus, mode)
 
     ret = global_task_buffer.sendCommandTaskPanda(
         task_id,
