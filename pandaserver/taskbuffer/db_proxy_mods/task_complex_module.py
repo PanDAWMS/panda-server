@@ -4285,6 +4285,11 @@ class TaskComplexModule(BaseModule):
                                     isOK = False
                                 update_task = False
                                 sync_action_only = True
+                            elif commandStr == "reassign":
+                                if taskStatus in ["failed", "aborted", "broken"]:
+                                    # task is in a status which rejects reassign
+                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for reassign")
+                                    isOK = False
                             elif taskStatus in JediTaskSpec.statusToRejectExtChange():
                                 # task is in a status which rejects external changes
                                 tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr} (due to status={taskStatus})")
