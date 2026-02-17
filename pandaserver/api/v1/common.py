@@ -101,12 +101,11 @@ def get_email_address(user, tmp_logger):
     return email
 
 
-def validate_request_method(req, expected_method):
+def get_request_method(req):
+    # Extract the http method like GET, POST, ... from the request environment
     environ = req.subprocess_env
     request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
-    if request_method and request_method == expected_method:
-        return True
-    return False
+    return request_method
 
 
 # get DN
@@ -202,6 +201,10 @@ def request_validation(logger, secure=True, production=False, request_method=Non
             # Generate a logger with the underlying function name
             tmp_logger = LogWrapper(logger, func.__name__)
 
+            # expected and received request methods
+            expected_request_method = request_method
+            received_request_method = get_request_method(req)
+
             # check SSL if required
             if secure and not is_secure(req, tmp_logger):
                 tmp_logger.error(f"{MESSAGE_SSL}")
@@ -213,8 +216,8 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                 return generate_response(False, message=MESSAGE_PROD_ROLE)
 
             # check method if required
-            if request_method and not validate_request_method(req, request_method):
-                message = f"expecting {request_method}, received {req.subprocess_env.get('REQUEST_METHOD', None)}"
+            if expected_request_method and expected_request_method != received_request_method:
+                message = f"expecting {expected_request_method}, received {req.subprocess_env.get('REQUEST_METHOD', None)}"
                 tmp_logger.error(f"{message}")
                 return generate_response(False, message=message)
 
@@ -251,7 +254,7 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                 args = get_args(expected_type)
 
                 # GET methods are URL encoded. Parameters will lose the type and come as string. We need to cast them to the expected type
-                if request_method == "GET":
+                if received_request_method == "GET":
                     try:
                         tmp_logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
                         tmp_logger.debug(type(param_value))
