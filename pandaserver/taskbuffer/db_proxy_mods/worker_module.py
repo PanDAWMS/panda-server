@@ -9,7 +9,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_host_name
-from pandaserver.taskbuffer import ErrorCode, JobUtils, SiteSpec
+from pandaserver.taskbuffer import ErrorCode, SiteSpec
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, memoize
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.HarvesterMetricsSpec import HarvesterMetricsSpec
@@ -1886,8 +1886,8 @@ class WorkerModule(BaseModule):
             worker_stats_dict.setdefault(computing_site, {})
             worker_stats_dict[computing_site].setdefault(harvester_id, {})
             worker_stats_dict[computing_site][harvester_id].setdefault(DEFAULT_PRODSOURCELABEL, {})
-            worker_stats_dict[computing_site][harvester_id][job_type].setdefault(resource_type, {})
-            worker_stats_dict[computing_site][harvester_id][job_type][resource_type][status] = n_workers
+            worker_stats_dict[computing_site][harvester_id][DEFAULT_PRODSOURCELABEL].setdefault(resource_type, {})
+            worker_stats_dict[computing_site][harvester_id][DEFAULT_PRODSOURCELABEL][resource_type][status] = n_workers
 
         if not self._commit():
             raise RuntimeError("Commit error")
