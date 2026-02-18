@@ -396,7 +396,6 @@ class WorkerModule(BaseModule):
         # get the configuration for maximum workers of each type
         pq_data_des = get_entity_module(self).get_config_for_pq(queue)
         resource_type_limits = {}
-        queue_type = "production"
         cores_queue = 1
         average_memory_target = None
 
@@ -416,11 +415,7 @@ class WorkerModule(BaseModule):
             except KeyError:
                 tmp_log.debug("No average memory defined")
                 pass
-            try:
-                queue_type = pq_data_des["type"]
-            except KeyError:
-                tmp_log.error("No queue type")
-                pass
+
             try:
                 cores_queue = pq_data_des["corecount"]
                 if not cores_queue:
@@ -555,7 +550,6 @@ class WorkerModule(BaseModule):
                 core_factor = get_entity_module(self).resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
 
                 # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
-                # job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
                 # Harvester worker submission unified production and analysis proxies, so we don't need to separate by job_type anymore
                 job_type = DEFAULT_PRODSOURCELABEL
                 # if we reached the limit for the resource type, skip the job
