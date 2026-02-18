@@ -3851,8 +3851,10 @@ class TaskEventModule(BaseModule):
                     ]:
                         goForward = False
                 if comStr == "reassign":
-                    if taskStatus not in [
-                        "registered",
+                    tmp_instructions = CoreUtils.parse_reassign_comment(comComment)
+                    if tmp_instructions.get("back_to_old_status"):
+                        pass
+                    elif taskStatus not in [
                         "defined",
                         "ready",
                         "running",
