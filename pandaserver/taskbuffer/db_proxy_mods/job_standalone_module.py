@@ -1244,6 +1244,7 @@ class JobStandaloneModule(BaseModule):
 
         # sql template for jobs table
         sql_template = f"SELECT computingSite, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, jobStatus"
+
         # sql template for statistics table (materialized view)
         sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
         sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
@@ -1720,16 +1721,19 @@ class JobStandaloneModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get tasks
-            sqlT = "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ "
-            sqlT += "distinct jediTaskID "
-            sqlT += "FROM ATLAS_PANDA.jobsActive4 tab "
-            sqlT += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-            sqlT += "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
-            sqlT += "AND maxCpuCount>:maxTime "
+            sqlT = (
+                "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ DISTINCT jediTaskID "
+                "FROM ATLAS_PANDA.jobsActive4 tab "
+                "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
+                "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
+                "AND maxCpuCount>:maxTime "
+            )
+
             if workingGroup is not None:
                 sqlT += "AND workingGroup=:workingGroup "
             else:
                 sqlT += "AND workingGroup IS NULL "
+
             # sql to get jobs
             sqlJ = (
                 "SELECT "
@@ -1739,11 +1743,13 @@ class JobStandaloneModule(BaseModule):
                 "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
                 "AND maxCpuCount>:maxTime "
             )
+
             # sql to update job
             sqlU = (
-                "UPDATE {0}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
-                "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus AND maxCpuCount>:maxTime"
-            ).format(panda_config.schemaPANDA)
+                f"UPDATE {panda_config.schemaPANDA}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
+                f"WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus AND maxCpuCount>:maxTime"
+            )
+
             # start transaction
             self.conn.begin()
             # select
