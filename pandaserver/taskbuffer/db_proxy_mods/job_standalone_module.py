@@ -1315,7 +1315,7 @@ class JobStandaloneModule(BaseModule):
         excluded_states = ["merging"]
 
         # sql template for jobs table
-        sql_template = f"SELECT computingSite, resource_type, prodSourceLabel, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite,  resource_type, prodSourceLabel, jobStatus"
+        sql_template = f"SELECT computingSite, prodSourceLabel, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, prodSourceLabel, jobStatus"
         # sql template for statistics table (materialized view)
         sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
         sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
@@ -1346,19 +1346,18 @@ class JobStandaloneModule(BaseModule):
                         raise RuntimeError("Commit error")
 
                     # create map
-                    for computing_site, resource_type, prod_source_label, job_status, n_jobs in res:
+                    for computing_site, prod_source_label, job_status, n_jobs in res:
                         if job_status in excluded_states:  # ignore some job status since they break APF
                             continue
 
-                        ret.setdefault(computing_site, {}).setdefault(resource_type, {}).setdefault(prod_source_label, {}).setdefault(job_status, 0)
-                        ret[computing_site][resource_type][prod_source_label][job_status] += n_jobs
+                        ret.setdefault(computing_site, {}).setdefault(prod_source_label, {}).setdefault(job_status, 0)
+                        ret[computing_site][prod_source_label][job_status] += n_jobs
 
                 # fill in missing states with 0
                 for site in ret:
-                    for resource_type in ret[site]:
-                        for prod_source_label in ret[site][resource_type]:
-                            for state in included_states:
-                                ret[site][resource_type][prod_source_label].setdefault(state, 0)
+                    for prod_source_label in ret[site]:
+                        for state in included_states:
+                            ret[site][prod_source_label].setdefault(state, 0)
 
                 tmp_log.debug(f"done")
                 return ret
