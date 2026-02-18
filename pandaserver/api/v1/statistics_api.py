@@ -118,7 +118,7 @@ def active_job_stats_by_site_prodsourcelabel(req: PandaRequest) -> Dict[str, Any
     """
     Active job statistics by site and prodsourcelabel
 
-    Get the active (not in a final state) job statistics by site and prodsourcelabel. Used by Harvester. Requires a secure connection.
+    Get the active (not in a final state) job statistics by site and prodsourcelabel. Used by Harvester.
 
     API details:
         HTTP Method: GET
@@ -128,7 +128,7 @@ def active_job_stats_by_site_prodsourcelabel(req: PandaRequest) -> Dict[str, Any
         req(PandaRequest): internally generated request object
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by by site and prodsourcelabel. When unsuccessful, the message field contains the error message.
     """
     tmp_logger = LogWrapper(_logger, "active_job_stats_by_site_prodsourcelabel")
 
