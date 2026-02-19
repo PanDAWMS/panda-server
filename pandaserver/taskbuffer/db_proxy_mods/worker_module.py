@@ -1898,8 +1898,7 @@ class WorkerModule(BaseModule):
               FROM {panda_config.schemaPANDA}.harvester_worker_stats
               WHERE lastupdate > :time_limit
               """
-        var_map = {}
-        var_map[":time_limit"] = naive_utcnow() - datetime.timedelta(minutes=60)
+        var_map = {":time_limit": naive_utcnow() - datetime.timedelta(minutes=60)}
 
         self.cur.execute(sql + comment, var_map)
         worker_stats_rows = self.cur.fetchall()
