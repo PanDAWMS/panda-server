@@ -1721,7 +1721,7 @@ class JobStandaloneModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get tasks
-            sqlT = (
+            sql_get_tasks = (
                 "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ DISTINCT jediTaskID "
                 "FROM ATLAS_PANDA.jobsActive4 tab "
                 "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
@@ -1730,12 +1730,12 @@ class JobStandaloneModule(BaseModule):
             )
 
             if workingGroup is not None:
-                sqlT += "AND workingGroup=:workingGroup "
+                sql_get_tasks += "AND workingGroup=:workingGroup "
             else:
-                sqlT += "AND workingGroup IS NULL "
+                sql_get_tasks += "AND workingGroup IS NULL "
 
             # sql to get jobs
-            sqlJ = (
+            sql_get_jobs = (
                 "SELECT "
                 "PandaID, jediTaskID, cloud, computingSite, prodSourceLabel "
                 "FROM ATLAS_PANDA.jobsActive4 "
@@ -1744,8 +1744,8 @@ class JobStandaloneModule(BaseModule):
                 "AND maxCpuCount>:maxTime "
             )
 
-            # sql to update job
-            sqlU = (
+            # sql to update jobs
+            sql_update_jobs = (
                 f"UPDATE {panda_config.schemaPANDA}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
                 f"WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus AND maxCpuCount>:maxTime"
             )
@@ -1754,74 +1754,73 @@ class JobStandaloneModule(BaseModule):
             self.conn.begin()
             # select
             self.cur.arraysize = 10
-            varMap = {}
-            varMap[":prodSourceLabel"] = "user"
-            varMap[":oldRelFlag"] = 1
-            varMap[":prodUserName"] = prodUserName
-            varMap[":oldJobStatus"] = "activated"
-            varMap[":maxTime"] = 6 * 60 * 60
+            var_map = {}
+            var_map[":prodSourceLabel"] = "user"
+            var_map[":oldRelFlag"] = 1
+            var_map[":prodUserName"] = prodUserName
+            var_map[":oldJobStatus"] = "activated"
+            var_map[":maxTime"] = 6 * 60 * 60
             if workingGroup is not None:
-                varMap[":workingGroup"] = workingGroup
+                var_map[":workingGroup"] = workingGroup
             # get tasks
-            self.cur.execute(sqlT + comment, varMap)
-            resT = self.cur.fetchall()
+            self.cur.execute(sql_get_tasks + comment, var_map)
+            task_rows = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # loop over all tasks
-            tasks = [jediTaskID for jediTaskID, in resT]
-            random.shuffle(tasks)
-            nRow = 0
-            nRows = {}
-            for jediTaskID in tasks:
-                tmp_log.debug(f"reset jediTaskID={jediTaskID}")
+            task_ids = [task_id for task_id, in task_rows]
+            random.shuffle(task_ids)
+            total_updated = 0
+            updated_per_task = {}
+            for task_id in task_ids:
+                tmp_log.debug(f"reset jediTaskID={task_id}")
                 # start transaction
                 self.conn.begin()
                 # get jobs
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":oldRelFlag"] = 1
-                varMap[":oldJobStatus"] = "activated"
-                varMap[":maxTime"] = 6 * 60 * 60
-                self.cur.execute(sqlJ + comment, varMap)
-                resJ = self.cur.fetchall()
-                infoMapDict = {
-                    pandaID: {
-                        "computingSite": computingSite,
+                var_map = {}
+                var_map[":jediTaskID"] = task_id
+                var_map[":oldRelFlag"] = 1
+                var_map[":oldJobStatus"] = "activated"
+                var_map[":maxTime"] = 6 * 60 * 60
+                self.cur.execute(sql_get_jobs + comment, var_map)
+                job_rows = self.cur.fetchall()
+                job_info_map = {
+                    panda_id: {
+                        "computingSite": computing_site,
                         "cloud": cloud,
-                        "prodSourceLabel": prodSourceLabel,
+                        "prodSourceLabel": prod_source_label,
                     }
-                    for pandaID, taskID, cloud, computingSite, prodSourceLabel in resJ
+                    for panda_id, _task_id, cloud, computing_site, prod_source_label in job_rows
                 }
                 # update jobs
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":newRelFlag"] = 3
-                varMap[":newJobStatus"] = "throttled"
-                varMap[":oldJobStatus"] = "activated"
-                varMap[":maxTime"] = 6 * 60 * 60
-                self.cur.execute(sqlU + comment, varMap)
-                nTmp = self.cur.rowcount
-                tmp_log.debug(f"reset {nTmp} jobs")
-                if nTmp > 0:
-                    nRow += nTmp
-                    nRows[jediTaskID] = nTmp
-                for pandaID in infoMapDict:
-                    infoMap = infoMapDict[pandaID]
+                var_map = {}
+                var_map[":jediTaskID"] = task_id
+                var_map[":newRelFlag"] = 3
+                var_map[":newJobStatus"] = "throttled"
+                var_map[":oldJobStatus"] = "activated"
+                var_map[":maxTime"] = 6 * 60 * 60
+                self.cur.execute(sql_update_jobs + comment, var_map)
+                n_updated = self.cur.rowcount
+                tmp_log.debug(f"reset {n_updated} jobs")
+                if n_updated > 0:
+                    total_updated += n_updated
+                    updated_per_task[task_id] = n_updated
+                for panda_id, job_info in job_info_map.items():
                     self.recordStatusChange(
-                        pandaID,
-                        varMap[":newJobStatus"],
-                        infoMap=infoMap,
+                        panda_id,
+                        var_map[":newJobStatus"],
+                        infoMap=job_info,
                         useCommit=False,
                     )
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
             if get_dict:
-                tmp_log.debug(f"done with {nRows}")
-                return nRows
-            tmp_log.debug(f"done with {nRow}")
-            return nRow
+                tmp_log.debug(f"done with {updated_per_task}")
+                return updated_per_task
+            tmp_log.debug(f"done with {total_updated}")
+            return total_updated
         except Exception:
             # roll back
             self._rollback()
@@ -1836,7 +1835,7 @@ class JobStandaloneModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get tasks
-            sqlT = (
+            sql_get_tasks = (
                 "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ DISTINCT jediTaskID "
                 "FROM ATLAS_PANDA.jobsActive4 tab "
                 "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
@@ -1844,12 +1843,12 @@ class JobStandaloneModule(BaseModule):
             )
 
             if workingGroup is not None:
-                sqlT += "AND workingGroup=:workingGroup "
+                sql_get_tasks += "AND workingGroup=:workingGroup "
             else:
-                sqlT += "AND workingGroup IS NULL "
+                sql_get_tasks += "AND workingGroup IS NULL "
 
             # sql to get jobs
-            sqlJ = (
+            sql_get_jobs = (
                 "SELECT "
                 "PandaID, jediTaskID, cloud, computingSite, prodSourceLabel "
                 "FROM ATLAS_PANDA.jobsActive4 "
@@ -1857,8 +1856,8 @@ class JobStandaloneModule(BaseModule):
                 "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
             )
 
-            # sql to update job
-            sqlU = (
+            # sql to update jobs
+            sql_update_jobs = (
                 f"UPDATE {panda_config.schemaPANDA}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
                 "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
             )
@@ -1867,71 +1866,70 @@ class JobStandaloneModule(BaseModule):
             self.conn.begin()
             # select
             self.cur.arraysize = 10
-            varMap = {}
-            varMap[":prodSourceLabel"] = "user"
-            varMap[":oldRelFlag"] = 3
-            varMap[":prodUserName"] = prodUserName
-            varMap[":oldJobStatus"] = "throttled"
+            var_map = {}
+            var_map[":prodSourceLabel"] = "user"
+            var_map[":oldRelFlag"] = 3
+            var_map[":prodUserName"] = prodUserName
+            var_map[":oldJobStatus"] = "throttled"
             if workingGroup is not None:
-                varMap[":workingGroup"] = workingGroup
+                var_map[":workingGroup"] = workingGroup
             # get tasks
-            self.cur.execute(sqlT + comment, varMap)
-            resT = self.cur.fetchall()
+            self.cur.execute(sql_get_tasks + comment, var_map)
+            task_rows = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # loop over all tasks
-            tasks = [jediTaskID for jediTaskID, in resT]
-            random.shuffle(tasks)
-            nRow = 0
-            nRows = {}
-            for jediTaskID in tasks:
-                tmp_log.debug(f"reset jediTaskID={jediTaskID}")
+            task_ids = [task_id for task_id, in task_rows]
+            random.shuffle(task_ids)
+            total_updated = 0
+            updated_per_task = {}
+            for task_id in task_ids:
+                tmp_log.debug(f"reset jediTaskID={task_id}")
                 # start transaction
                 self.conn.begin()
                 # get jobs
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":oldRelFlag"] = 3
-                varMap[":oldJobStatus"] = "throttled"
-                self.cur.execute(sqlJ + comment, varMap)
-                resJ = self.cur.fetchall()
-                infoMapDict = {
-                    pandaID: {
-                        "computingSite": computingSite,
+                var_map = {}
+                var_map[":jediTaskID"] = task_id
+                var_map[":oldRelFlag"] = 3
+                var_map[":oldJobStatus"] = "throttled"
+                self.cur.execute(sql_get_jobs + comment, var_map)
+                job_rows = self.cur.fetchall()
+                job_info_map = {
+                    panda_id: {
+                        "computingSite": computing_site,
                         "cloud": cloud,
-                        "prodSourceLabel": prodSourceLabel,
+                        "prodSourceLabel": prod_source_label,
                     }
-                    for pandaID, taskID, cloud, computingSite, prodSourceLabel in resJ
+                    for panda_id, _task_id, cloud, computing_site, prod_source_label in job_rows
                 }
                 # update jobs
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":newRelFlag"] = 1
-                varMap[":newJobStatus"] = "activated"
-                varMap[":oldJobStatus"] = "throttled"
-                self.cur.execute(sqlU + comment, varMap)
-                nTmp = self.cur.rowcount
-                tmp_log.debug(f"reset {nTmp} jobs")
-                if nTmp > 0:
-                    nRow += nTmp
-                    nRows[jediTaskID] = nTmp
-                for pandaID in infoMapDict:
-                    infoMap = infoMapDict[pandaID]
+                var_map = {}
+                var_map[":jediTaskID"] = task_id
+                var_map[":newRelFlag"] = 1
+                var_map[":newJobStatus"] = "activated"
+                var_map[":oldJobStatus"] = "throttled"
+                self.cur.execute(sql_update_jobs + comment, var_map)
+                n_updated = self.cur.rowcount
+                tmp_log.debug(f"reset {n_updated} jobs")
+                if n_updated > 0:
+                    total_updated += n_updated
+                    updated_per_task[task_id] = n_updated
+                for panda_id, job_info in job_info_map.items():
                     self.recordStatusChange(
-                        pandaID,
-                        varMap[":newJobStatus"],
-                        infoMap=infoMap,
+                        panda_id,
+                        var_map[":newJobStatus"],
+                        infoMap=job_info,
                         useCommit=False,
                     )
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
             if get_dict:
-                tmp_log.debug(f"done with {nRows}")
-                return nRows
-            tmp_log.debug(f"done with {nRow}")
-            return nRow
+                tmp_log.debug(f"done with {updated_per_task}")
+                return updated_per_task
+            tmp_log.debug(f"done with {total_updated}")
+            return total_updated
         except Exception:
             # roll back
             self._rollback()
