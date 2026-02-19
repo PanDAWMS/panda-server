@@ -1836,15 +1836,18 @@ class JobStandaloneModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get tasks
-            sqlT = "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ "
-            sqlT += "distinct jediTaskID "
-            sqlT += "FROM ATLAS_PANDA.jobsActive4 tab "
-            sqlT += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-            sqlT += "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
+            sqlT = (
+                "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ DISTINCT jediTaskID "
+                "FROM ATLAS_PANDA.jobsActive4 tab "
+                "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
+                "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
+            )
+
             if workingGroup is not None:
                 sqlT += "AND workingGroup=:workingGroup "
             else:
                 sqlT += "AND workingGroup IS NULL "
+
             # sql to get jobs
             sqlJ = (
                 "SELECT "
@@ -1853,10 +1856,13 @@ class JobStandaloneModule(BaseModule):
                 "WHERE jediTaskID=:jediTaskID "
                 "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
             )
+
             # sql to update job
             sqlU = (
-                "UPDATE {0}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag " "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
-            ).format(panda_config.schemaPANDA)
+                f"UPDATE {panda_config.schemaPANDA}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
+                "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
+            )
+
             # start transaction
             self.conn.begin()
             # select
