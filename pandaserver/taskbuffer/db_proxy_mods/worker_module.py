@@ -37,11 +37,11 @@ class WorkerModule(BaseModule):
             self.conn.begin()
 
             # lock the site data rows
-            var_map = dict()
-            var_map[":harvesterID"] = harvesterID
-            var_map[":siteName"] = siteName
-            sql_lock = "SELECT harvester_ID, computingSite FROM ATLAS_PANDA.Harvester_Worker_Stats "
-            sql_lock += "WHERE harvester_ID=:harvesterID AND computingSite=:siteName FOR UPDATE NOWAIT "
+            var_map = {":harvesterID": harvesterID, ":siteName": siteName}
+            sql_lock = (
+                "SELECT harvester_ID, computingSite FROM ATLAS_PANDA.Harvester_Worker_Stats "
+                "WHERE harvester_ID=:harvesterID AND computingSite=:siteName FOR UPDATE NOWAIT "
+            )
             try:
                 self.cur.execute(sql_lock + comment, var_map)
             except Exception:
@@ -52,13 +52,14 @@ class WorkerModule(BaseModule):
                 return False, message
 
             # delete them
-            sql_delete = "DELETE FROM ATLAS_PANDA.Harvester_Worker_Stats "
-            sql_delete += "WHERE harvester_ID=:harvesterID AND computingSite=:siteName "
+            sql_delete = "DELETE FROM ATLAS_PANDA.Harvester_Worker_Stats " "WHERE harvester_ID=:harvesterID AND computingSite=:siteName "
             self.cur.execute(sql_delete + comment, var_map)
 
             # insert new site data
-            sql_insert = "INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID, computingSite, jobType, resourceType, status, n_workers, lastUpdate) "
-            sql_insert += "VALUES (:harvester_ID, :siteName, :jobType, :resourceType, :status, :n_workers, CURRENT_DATE) "
+            sql_insert = (
+                "INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID, computingSite, jobType, resourceType, status, n_workers, lastUpdate) "
+                "VALUES (:harvester_ID, :siteName, :jobType, :resourceType, :status, :n_workers, CURRENT_DATE) "
+            )
 
             var_map_list = []
             for jobType in parameter_list:
@@ -113,30 +114,31 @@ class WorkerModule(BaseModule):
             # else:
             #     nPilot = 0
             # sql to get stat of workers
-            sqlGA = (
+            sql_get_stats = (
                 "SELECT SUM(n_workers), computingSite, harvester_ID, jobType, resourceType, status "
                 "FROM ATLAS_PANDA.Harvester_Worker_Stats "
                 "WHERE lastUpdate>=:time_limit "
                 "GROUP BY computingSite,harvester_ID,jobType,resourceType,status "
             )
-            varMap = dict()
-            varMap[":time_limit"] = naive_utcnow() - datetime.timedelta(hours=4)
-            self.cur.execute(sqlGA + comment, varMap)
+            var_map = {
+                ":time_limit": naive_utcnow() - datetime.timedelta(hours=4),
+            }
+            self.cur.execute(sql_get_stats + comment, var_map)
             res_active = self.cur.fetchall()
-            retMap = {}
+            result_map = {}
             for cnt, computingSite, harvesterID, jobType, resourceType, status in res_active:
-                retMap.setdefault(computingSite, {})
-                retMap[computingSite].setdefault(harvesterID, {})
-                retMap[computingSite][harvesterID].setdefault(jobType, {})
-                if resourceType not in retMap[computingSite][harvesterID][jobType]:
-                    retMap[computingSite][harvesterID][jobType][resourceType] = dict()
-                retMap[computingSite][harvesterID][jobType][resourceType][status] = cnt
+                result_map.setdefault(computingSite, {})
+                result_map[computingSite].setdefault(harvesterID, {})
+                result_map[computingSite][harvesterID].setdefault(jobType, {})
+                if resourceType not in result_map[computingSite][harvesterID][jobType]:
+                    result_map[computingSite][harvesterID][jobType][resourceType] = dict()
+                result_map[computingSite][harvesterID][jobType][resourceType][status] = cnt
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return
-            tmp_log.debug(f"done with {str(retMap)}")
-            return retMap
+            tmp_log.debug(f"done with {str(result_map)}")
+            return result_map
         except Exception:
             # roll back
             self._rollback()
@@ -163,61 +165,66 @@ class WorkerModule(BaseModule):
             if useCommit:
                 self.conn.begin()
             # check if command exists
-            sqlC = "SELECT status,status_date FROM ATLAS_PANDA.HARVESTER_COMMANDS "
-            sqlC += "WHERE harvester_ID=:harvester_ID AND command=:command "
-            varMap = dict()
-            varMap[":harvester_ID"] = harvester_ID
-            varMap[":command"] = command
-            self.cur.execute(sqlC + comment, varMap)
-            resC = self.cur.fetchone()
+            sql_check_command = "SELECT status,status_date FROM ATLAS_PANDA.HARVESTER_COMMANDS "
+            sql_check_command += "WHERE harvester_ID=:harvester_ID AND command=:command "
+            var_map = {
+                ":harvester_ID": harvester_ID,
+                ":command": command,
+            }
+            self.cur.execute(sql_check_command + comment, var_map)
+            existing_command = self.cur.fetchone()
             # check existing command
-            toSkip = False
-            if resC is not None:
-                commandStatus, statusDate = resC
+            to_skip = False
+            if existing_command is not None:
+                command_status, status_date = existing_command
                 # not overwrite existing command
                 if (
-                    commandStatus in ["new", "lock", "retrieved"]
+                    command_status in ["new", "lock", "retrieved"]
                     and lockInterval is not None
-                    and statusDate > naive_utcnow() - datetime.timedelta(minutes=lockInterval)
+                    and status_date > naive_utcnow() - datetime.timedelta(minutes=lockInterval)
                 ):
-                    toSkip = True
+                    to_skip = True
                 elif (
-                    commandStatus in ["retrieved", "acknowledged"]
+                    command_status in ["retrieved", "acknowledged"]
                     and comInterval is not None
-                    and statusDate > naive_utcnow() - datetime.timedelta(minutes=comInterval)
+                    and status_date > naive_utcnow() - datetime.timedelta(minutes=comInterval)
                 ):
-                    toSkip = True
+                    to_skip = True
                 else:
                     # delete existing command
-                    sqlD = "DELETE FROM ATLAS_PANDA.HARVESTER_COMMANDS "
-                    sqlD += "WHERE harvester_ID=:harvester_ID AND command=:command "
-                    varMap = dict()
-                    varMap[":harvester_ID"] = harvester_ID
-                    varMap[":command"] = command
-                    self.cur.execute(sqlD + comment, varMap)
+                    sql_delete_command = "DELETE FROM ATLAS_PANDA.HARVESTER_COMMANDS " "WHERE harvester_ID=:harvester_ID AND command=:command "
+                    var_map = {
+                        ":harvester_ID": harvester_ID,
+                        ":command": command,
+                    }
+                    self.cur.execute(sql_delete_command + comment, var_map)
             # insert
-            if not toSkip:
-                varMap = dict()
-                varMap[":harvester_id"] = harvester_ID
-                varMap[":command"] = command
-                varMap[":ack_requested"] = 1 if ack_requested else 0
-                varMap[":status"] = status
-                sqlI = "INSERT INTO ATLAS_PANDA.HARVESTER_COMMANDS "
-                sqlI += "(command_id,creation_date,status_date,command,harvester_id,ack_requested,status"
+            if not to_skip:
+                var_map = {
+                    ":harvester_id": harvester_ID,
+                    ":command": command,
+                    ":ack_requested": 1 if ack_requested else 0,
+                    ":status": status,
+                }
+                sql_insert_command = (
+                    "INSERT INTO ATLAS_PANDA.HARVESTER_COMMANDS " "(command_id,creation_date,status_date,command,harvester_id,ack_requested,status"
+                )
                 if params is not None:
-                    varMap[":params"] = json.dumps(params)
-                    sqlI += ",params"
-                sqlI += ") "
-                sqlI += "VALUES (ATLAS_PANDA.HARVESTER_COMMAND_ID_SEQ.nextval,CURRENT_DATE,CURRENT_DATE,:command,:harvester_id,:ack_requested,:status"
+                    var_map[":params"] = json.dumps(params)
+                    sql_insert_command += ",params"
+                sql_insert_command += ") "
+                sql_insert_command += (
+                    "VALUES (ATLAS_PANDA.HARVESTER_COMMAND_ID_SEQ.nextval,CURRENT_DATE,CURRENT_DATE,:command,:harvester_id,:ack_requested,:status"
+                )
                 if params is not None:
-                    sqlI += ",:params"
-                sqlI += ") "
-                self.cur.execute(sqlI + comment, varMap)
+                    sql_insert_command += ",:params"
+                sql_insert_command += ") "
+                self.cur.execute(sql_insert_command + comment, var_map)
             if useCommit:
                 if not self._commit():
                     raise RuntimeError("Commit error")
             tmp_log.debug("done")
-            if toSkip:
+            if to_skip:
                 return False
             return True
         except Exception:
@@ -627,25 +634,26 @@ class WorkerModule(BaseModule):
         tmp_log.debug("start")
         try:
             # check if lock is available
-            sqlC = "SELECT 1 FROM ATLAS_PANDA.Harvester_Command_Lock "
-            sqlC += "WHERE harvester_ID=:harvester_ID AND computingSite=:siteName AND resourceType=:resourceType AND command=:command "
+            sql_check_lock = "SELECT 1 FROM ATLAS_PANDA.Harvester_Command_Lock "
+            sql_check_lock += "WHERE harvester_ID=:harvester_ID AND computingSite=:siteName AND resourceType=:resourceType AND command=:command "
             # sql to add lock
-            sqlA = "INSERT INTO ATLAS_PANDA.Harvester_Command_Lock "
-            sqlA += "(harvester_ID,computingSite,resourceType,command,lockedTime) "
-            sqlA += "VALUES (:harvester_ID,:siteName,:resourceType,:command,CURRENT_DATE-1) "
+            sql_add_lock = "INSERT INTO ATLAS_PANDA.Harvester_Command_Lock "
+            sql_add_lock += "(harvester_ID,computingSite,resourceType,command,lockedTime) "
+            sql_add_lock += "VALUES (:harvester_ID,:siteName,:resourceType,:command,CURRENT_DATE-1) "
             if useCommit:
                 self.conn.begin()
             # check
-            varMap = dict()
-            varMap[":harvester_ID"] = harvester_ID
-            varMap[":siteName"] = computingSite
-            varMap[":resourceType"] = resourceType
-            varMap[":command"] = command
-            self.cur.execute(sqlC + comment, varMap)
-            res = self.cur.fetchone()
-            if res is None:
+            var_map = {
+                ":harvester_ID": harvester_ID,
+                ":siteName": computingSite,
+                ":resourceType": resourceType,
+                ":command": command,
+            }
+            self.cur.execute(sql_check_lock + comment, var_map)
+            existing_lock = self.cur.fetchone()
+            if existing_lock is None:
                 # add lock
-                self.cur.execute(sqlA + comment, varMap)
+                self.cur.execute(sql_add_lock + comment, var_map)
             # commit
             if useCommit:
                 if not self._commit():
@@ -665,48 +673,55 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvester_ID} command={command}")
         tmp_log.debug("start")
         try:
-            timeNow = naive_utcnow()
+            time_now = naive_utcnow()
             # sql to get commands
-            sqlC = "SELECT computingSite,resourceType FROM ATLAS_PANDA.Harvester_Command_Lock "
-            sqlC += "WHERE harvester_ID=:harvester_ID AND command=:command "
-            sqlC += "AND ((lockedBy IS NULL AND lockedTime<:limitComm) OR (lockedBy IS NOT NULL AND lockedTime<:limitLock)) "
-            sqlC += "FOR UPDATE "
+            sql_get_locks = (
+                "SELECT computingSite,resourceType FROM ATLAS_PANDA.Harvester_Command_Lock "
+                "WHERE harvester_ID=:harvester_ID AND command=:command "
+                "AND ((lockedBy IS NULL AND lockedTime<:limitComm) OR (lockedBy IS NOT NULL AND lockedTime<:limitLock)) "
+                "FOR UPDATE "
+            )
+
             # sql to lock command
-            sqlL = "UPDATE ATLAS_PANDA.Harvester_Command_Lock SET lockedBy=:lockedBy,lockedTime=CURRENT_DATE "
-            sqlL += "WHERE harvester_ID=:harvester_ID AND command=:command AND computingSite=:siteName AND resourceType=:resourceType "
-            sqlL += "AND ((lockedBy IS NULL AND lockedTime<:limitComm) OR (lockedBy IS NOT NULL AND lockedTime<:limitLock)) "
+            sql_lock_command = (
+                "UPDATE ATLAS_PANDA.Harvester_Command_Lock SET lockedBy=:lockedBy,lockedTime=CURRENT_DATE "
+                "WHERE harvester_ID=:harvester_ID AND command=:command AND computingSite=:siteName AND resourceType=:resourceType "
+                "AND ((lockedBy IS NULL AND lockedTime<:limitComm) OR (lockedBy IS NOT NULL AND lockedTime<:limitLock)) "
+            )
             # get commands
             self.conn.begin()
             self.cur.arraysize = 10000
-            varMap = dict()
-            varMap[":harvester_ID"] = harvester_ID
-            varMap[":command"] = command
-            varMap[":limitComm"] = timeNow - datetime.timedelta(minutes=commandInterval)
-            varMap[":limitLock"] = timeNow - datetime.timedelta(minutes=lockInterval)
-            self.cur.execute(sqlC + comment, varMap)
-            res = self.cur.fetchall()
+            var_map = {
+                ":harvester_ID": harvester_ID,
+                ":command": command,
+                ":limitComm": time_now - datetime.timedelta(minutes=commandInterval),
+                ":limitLock": time_now - datetime.timedelta(minutes=lockInterval),
+            }
+            self.cur.execute(sql_get_locks + comment, var_map)
+            rows = self.cur.fetchall()
             # lock commands
-            retMap = dict()
-            for computingSite, resourceType in res:
-                varMap = dict()
-                varMap[":harvester_ID"] = harvester_ID
-                varMap[":command"] = command
-                varMap[":siteName"] = computingSite
-                varMap[":resourceType"] = resourceType
-                varMap[":limitComm"] = timeNow - datetime.timedelta(minutes=commandInterval)
-                varMap[":limitLock"] = timeNow - datetime.timedelta(minutes=lockInterval)
-                varMap[":lockedBy"] = lockedBy
-                self.cur.execute(sqlL + comment, varMap)
-                nRow = self.cur.rowcount
-                if nRow > 0:
-                    if computingSite not in retMap:
-                        retMap[computingSite] = []
-                    retMap[computingSite].append(resourceType)
+            result_map = dict()
+            for computingSite, resourceType in rows:
+                var_map = {
+                    ":harvester_ID": harvester_ID,
+                    ":command": command,
+                    ":siteName": computingSite,
+                    ":resourceType": resourceType,
+                    ":limitComm": time_now - datetime.timedelta(minutes=commandInterval),
+                    ":limitLock": time_now - datetime.timedelta(minutes=lockInterval),
+                    ":lockedBy": lockedBy,
+                }
+                self.cur.execute(sql_lock_command + comment, var_map)
+                n_row = self.cur.rowcount
+                if n_row > 0:
+                    if computingSite not in result_map:
+                        result_map[computingSite] = []
+                    result_map[computingSite].append(resourceType)
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done with {str(retMap)}")
-            return retMap
+            tmp_log.debug(f"done with {str(result_map)}")
+            return result_map
         except Exception:
             # roll back
             self._rollback()
@@ -722,23 +737,24 @@ class WorkerModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to release lock
-            sqlL = "UPDATE ATLAS_PANDA.Harvester_Command_Lock SET lockedBy=NULL "
-            sqlL += "WHERE harvester_ID=:harvester_ID AND command=:command "
-            sqlL += "AND computingSite=:computingSite AND resourceType=:resourceType AND lockedBy=:lockedBy "
-            varMap = dict()
-            varMap[":harvester_ID"] = harvester_ID
-            varMap[":command"] = command
-            varMap[":computingSite"] = computingSite
-            varMap[":resourceType"] = resourceType
-            varMap[":lockedBy"] = lockedBy
+            sql_release_lock = "UPDATE ATLAS_PANDA.Harvester_Command_Lock SET lockedBy=NULL "
+            sql_release_lock += "WHERE harvester_ID=:harvester_ID AND command=:command "
+            sql_release_lock += "AND computingSite=:computingSite AND resourceType=:resourceType AND lockedBy=:lockedBy "
+            var_map = {
+                ":harvester_ID": harvester_ID,
+                ":command": command,
+                ":computingSite": computingSite,
+                ":resourceType": resourceType,
+                ":lockedBy": lockedBy,
+            }
             # release lock
             self.conn.begin()
-            self.cur.execute(sqlL + comment, varMap)
-            nRow = self.cur.rowcount
+            self.cur.execute(sql_release_lock + comment, var_map)
+            n_row = self.cur.rowcount
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done with {nRow}")
+            tmp_log.debug(f"done with {n_row}")
             return True
         except Exception:
             # roll back
@@ -755,39 +771,38 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvesterID}")
         tmp_log.debug("start")
         try:
+
             # update
-            varMap = dict()
-            varMap[":harvesterID"] = harvesterID
             owner = CoreUtils.clean_user_id(user)
-            varMap[":owner"] = owner
-            varMap[":hostName"] = host
-            sqlC = "UPDATE ATLAS_PANDA.Harvester_Instances SET owner=:owner,hostName=:hostName,lastUpdate=CURRENT_DATE"
-            for tmpKey in data:
-                tmpVal = data[tmpKey]
-                if tmpKey == "commands":
+            var_map = {":harvesterID": harvesterID, ":owner": owner, ":hostName": host}
+            sql_update_instance = "UPDATE ATLAS_PANDA.Harvester_Instances SET owner=:owner,hostName=:hostName,lastUpdate=CURRENT_DATE"
+            for key in data:
+                val = data[key]
+                if key == "commands":
                     continue
-                sqlC += ",{0}=:{0}".format(tmpKey)
-                if isinstance(tmpVal, str) and tmpVal.startswith("datetime/"):
-                    tmpVal = datetime.datetime.strptime(tmpVal.split("/")[-1], "%Y-%m-%d %H:%M:%S.%f")
-                varMap[f":{tmpKey}"] = tmpVal
-            sqlC += " WHERE harvester_ID=:harvesterID "
+                sql_update_instance += ",{0}=:{0}".format(key)
+                if isinstance(val, str) and val.startswith("datetime/"):
+                    val = datetime.datetime.strptime(val.split("/")[-1], "%Y-%m-%d %H:%M:%S.%f")
+                var_map[f":{key}"] = val
+            sql_update_instance += " WHERE harvester_ID=:harvesterID "
             # exec
             self.conn.begin()
-            self.cur.execute(sqlC + comment, varMap)
-            nRow = self.cur.rowcount
-            if nRow == 0:
+            self.cur.execute(sql_update_instance + comment, var_map)
+            n_row = self.cur.rowcount
+            if n_row == 0:
                 # insert instance info
-                varMap = dict()
-                varMap[":harvesterID"] = harvesterID
-                varMap[":owner"] = owner
-                varMap[":hostName"] = host
-                varMap[":descr"] = "automatic"
-                sqlI = (
+                var_map = {
+                    ":harvesterID": harvesterID,
+                    ":owner": owner,
+                    ":hostName": host,
+                    ":descr": "automatic",
+                }
+                sql_insert_instance = (
                     "INSERT INTO ATLAS_PANDA.Harvester_Instances "
                     "(harvester_ID,owner,hostName,lastUpdate,description) "
                     "VALUES(:harvesterID,:owner,:hostName,CURRENT_DATE,:descr) "
                 )
-                self.cur.execute(sqlI + comment, varMap)
+                self.cur.execute(sql_insert_instance + comment, var_map)
             # insert command locks
             if "commands" in data:
                 for item in data["commands"]:
@@ -802,11 +817,11 @@ class WorkerModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             tmp_log.debug("done")
-            if nRow == 0:
-                retStr = "no instance record"
+            if n_row == 0:
+                ret_str = "no instance record"
             else:
-                retStr = "succeeded"
-            return retStr
+                ret_str = "succeeded"
+            return ret_str
         except Exception:
             # roll back
             self._rollback()
@@ -822,150 +837,165 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvesterID} pid={os.getpid()}")
         try:
             tmp_log.debug(f"start {len(data)} workers")
-            regStart = naive_utcnow()
-            sqlC = f"SELECT {WorkerSpec.columnNames()} FROM ATLAS_PANDA.Harvester_Workers "
-            sqlC += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
+            reg_start = naive_utcnow()
+            sql_check_worker = f"SELECT {WorkerSpec.columnNames()} FROM ATLAS_PANDA.Harvester_Workers " "WHERE harvesterID=:harvesterID AND workerID=:workerID "
             # loop over all workers
-            retList = []
-            for workerData in data:
-                timeNow = naive_utcnow()
+            ret_list = []
+            for worker_data in data:
+                time_now = naive_utcnow()
                 if useCommit:
                     self.conn.begin()
-                workerSpec = WorkerSpec()
-                workerSpec.harvesterID = harvesterID
-                workerSpec.workerID = workerData["workerID"]
-                tmp_log.debug(f"workerID={workerSpec.workerID} start")
+                worker_spec = WorkerSpec()
+                worker_spec.harvesterID = harvesterID
+                worker_spec.workerID = worker_data["workerID"]
+                tmp_log.debug(f"workerID={worker_spec.workerID} start")
                 # check if already exists
-                varMap = dict()
-                varMap[":harvesterID"] = workerSpec.harvesterID
-                varMap[":workerID"] = workerSpec.workerID
-                self.cur.execute(sqlC + comment, varMap)
-                resC = self.cur.fetchone()
-                if resC is None:
+                var_map = {
+                    ":harvesterID": worker_spec.harvesterID,
+                    ":workerID": worker_spec.workerID,
+                }
+                self.cur.execute(sql_check_worker + comment, var_map)
+                existing_worker = self.cur.fetchone()
+                if existing_worker is None:
                     # not exist
-                    toInsert = True
-                    oldLastUpdate = None
+                    to_insert = True
+                    old_last_update = None
                 else:
                     # already exists
-                    toInsert = False
-                    workerSpec.pack(resC)
-                    oldLastUpdate = workerSpec.lastUpdate
+                    to_insert = False
+                    worker_spec.pack(existing_worker)
+                    old_last_update = worker_spec.lastUpdate
                 # set new values
-                oldStatus = workerSpec.status
-                for key in workerData:
-                    val = workerData[key]
-                    if hasattr(workerSpec, key):
-                        setattr(workerSpec, key, val)
-                workerSpec.lastUpdate = timeNow
-                if oldStatus in ["finished", "failed", "cancelled", "missed"] and (
-                    oldLastUpdate is not None and oldLastUpdate > timeNow - datetime.timedelta(hours=3)
+                old_status = worker_spec.status
+                for key in worker_data:
+                    val = worker_data[key]
+                    if hasattr(worker_spec, key):
+                        setattr(worker_spec, key, val)
+                worker_spec.lastUpdate = time_now
+                if old_status in ["finished", "failed", "cancelled", "missed"] and (
+                    old_last_update is not None and old_last_update > time_now - datetime.timedelta(hours=3)
                 ):
-                    tmp_log.debug(f"workerID={workerSpec.workerID} keep old status={oldStatus} instead of new {workerSpec.status}")
-                    workerSpec.status = oldStatus
+                    tmp_log.debug(f"workerID={worker_spec.workerID} keep old status={old_status} instead of new {worker_spec.status}")
+                    worker_spec.status = old_status
                 # insert or update
-                if toInsert:
+                if to_insert:
                     # insert
-                    tmp_log.debug(f"workerID={workerSpec.workerID} insert for status={workerSpec.status}")
-                    sqlI = f"INSERT INTO ATLAS_PANDA.Harvester_Workers ({WorkerSpec.columnNames()}) "
-                    sqlI += WorkerSpec.bindValuesExpression()
-                    varMap = workerSpec.valuesMap()
-                    self.cur.execute(sqlI + comment, varMap)
+                    tmp_log.debug(f"workerID={worker_spec.workerID} insert for status={worker_spec.status}")
+                    sql_insert_worker = f"INSERT INTO ATLAS_PANDA.Harvester_Workers ({WorkerSpec.columnNames()}) "
+                    sql_insert_worker += WorkerSpec.bindValuesExpression()
+                    var_map = worker_spec.valuesMap()
+                    self.cur.execute(sql_insert_worker + comment, var_map)
                 else:
                     # update
-                    tmp_log.debug(f"workerID={workerSpec.workerID} update for status={workerSpec.status}")
-                    sqlU = f"UPDATE ATLAS_PANDA.Harvester_Workers SET {workerSpec.bindUpdateChangesExpression()} "
-                    sqlU += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
-                    varMap = workerSpec.valuesMap(onlyChanged=True)
-                    self.cur.execute(sqlU + comment, varMap)
+                    tmp_log.debug(f"workerID={worker_spec.workerID} update for status={worker_spec.status}")
+                    sql_update_worker = f"UPDATE ATLAS_PANDA.Harvester_Workers SET {worker_spec.bindUpdateChangesExpression()} "
+                    sql_update_worker += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
+                    var_map = worker_spec.valuesMap(onlyChanged=True)
+                    self.cur.execute(sql_update_worker + comment, var_map)
                 # job relation
-                if "pandaid_list" in workerData and len(workerData["pandaid_list"]) > 0:
-                    tmp_log.debug(f"workerID={workerSpec.workerID} update/insert job relation")
-                    sqlJC = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
-                    sqlJC += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
-                    sqlJI = "INSERT INTO ATLAS_PANDA.Harvester_Rel_Jobs_Workers (harvesterID,workerID,PandaID,lastUpdate) "
-                    sqlJI += "VALUES (:harvesterID,:workerID,:PandaID,:lastUpdate) "
-                    sqlJU = "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
-                    sqlJU += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                if "pandaid_list" in worker_data and len(worker_data["pandaid_list"]) > 0:
+                    tmp_log.debug(f"workerID={worker_spec.workerID} update/insert job relation")
+                    sql_get_job_rels = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers " "WHERE harvesterID=:harvesterID AND workerID=:workerID "
+                    sql_insert_job_rel = (
+                        "INSERT INTO ATLAS_PANDA.Harvester_Rel_Jobs_Workers (harvesterID,workerID,PandaID,lastUpdate) "
+                        "VALUES (:harvesterID,:workerID,:PandaID,:lastUpdate) "
+                    )
+                    sql_update_job_rel = (
+                        "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
+                        "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                    )
                     # get jobs
-                    varMap = dict()
-                    varMap[":harvesterID"] = harvesterID
-                    varMap[":workerID"] = workerData["workerID"]
-                    self.cur.execute(sqlJC + comment, varMap)
-                    resJC = self.cur.fetchall()
-                    exPandaIDs = set()
-                    for (pandaID,) in resJC:
-                        exPandaIDs.add(pandaID)
-                    for pandaID in workerData["pandaid_list"]:
+                    var_map = {
+                        ":harvesterID": harvesterID,
+                        ":workerID": worker_data["workerID"],
+                    }
+                    self.cur.execute(sql_get_job_rels + comment, var_map)
+                    existing_job_rels = self.cur.fetchall()
+                    existing_panda_ids = set()
+                    for (panda_id,) in existing_job_rels:
+                        existing_panda_ids.add(panda_id)
+                    for panda_id in worker_data["pandaid_list"]:
                         # update or insert
-                        varMap = dict()
-                        varMap[":harvesterID"] = harvesterID
-                        varMap[":workerID"] = workerData["workerID"]
-                        varMap[":PandaID"] = pandaID
-                        varMap[":lastUpdate"] = timeNow
-                        if pandaID not in exPandaIDs:
+                        var_map = {
+                            ":harvesterID": harvesterID,
+                            ":workerID": worker_data["workerID"],
+                            ":PandaID": panda_id,
+                            ":lastUpdate": time_now,
+                        }
+                        if panda_id not in existing_panda_ids:
                             # insert
-                            self.cur.execute(sqlJI + comment, varMap)
+                            self.cur.execute(sql_insert_job_rel + comment, var_map)
                         else:
                             # update
-                            self.cur.execute(sqlJU + comment, varMap)
-                            exPandaIDs.discard(pandaID)
+                            self.cur.execute(sql_update_job_rel + comment, var_map)
+                            existing_panda_ids.discard(panda_id)
                     # delete redundant list
-                    sqlJD = "DELETE FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
-                    sqlJD += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
-                    for pandaID in exPandaIDs:
-                        varMap = dict()
-                        varMap[":PandaID"] = pandaID
-                        varMap[":harvesterID"] = harvesterID
-                        varMap[":workerID"] = workerData["workerID"]
-                        self.cur.execute(sqlJD + comment, varMap)
-                    tmp_log.debug(f"workerID={workerSpec.workerID} deleted {len(exPandaIDs)} jobs")
+                    sql_delete_job_rel = (
+                        "DELETE FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers " "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                    )
+                    for panda_id in existing_panda_ids:
+                        var_map = {
+                            ":PandaID": panda_id,
+                            ":harvesterID": harvesterID,
+                            ":workerID": worker_data["workerID"],
+                        }
+                        self.cur.execute(sql_delete_job_rel + comment, var_map)
+                    tmp_log.debug(f"workerID={worker_spec.workerID} deleted {len(existing_panda_ids)} jobs")
                 # comprehensive heartbeat
-                tmp_log.debug(f"workerID={workerSpec.workerID} get jobs")
-                sqlCJ = "SELECT r.PandaID FROM "
-                sqlCJ += "ATLAS_PANDA.Harvester_Rel_Jobs_Workers r,ATLAS_PANDA.jobsActive4 j  "
-                sqlCJ += "WHERE r.harvesterID=:harvesterID AND r.workerID=:workerID "
-                sqlCJ += "AND j.PandaID=r.PandaID AND NOT j.jobStatus IN (:holding) "
-                sqlJAC = "SELECT jobStatus,prodSourceLabel,attemptNr FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID  "
-                sqlJAA = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
-                sqlJAE = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag,"
-                sqlJAE += "startTime=(CASE WHEN jobStatus=:starting THEN NULL ELSE startTime END) "
-                sqlJAE += "WHERE PandaID=:PandaID "
-                sqlJSE = "UPDATE {0} SET supErrorCode=:code,supErrorDiag=:diag,stateChangeTime=CURRENT_DATE "
-                sqlJSE += "WHERE PandaID=:PandaID AND NOT jobStatus IN (:finished) AND modificationTime>CURRENT_DATE-30"
-                varMap = dict()
-                varMap[":harvesterID"] = harvesterID
-                varMap[":workerID"] = workerData["workerID"]
-                varMap[":holding"] = "holding"
-                self.cur.execute(sqlCJ + comment, varMap)
-                resCJ = self.cur.fetchall()
-                tmp_log.debug(f"workerID={workerSpec.workerID} update {len(resCJ)} jobs")
-                for (pandaID,) in resCJ:
+                tmp_log.debug(f"workerID={worker_spec.workerID} get jobs")
+                sql_get_active_jobs = (
+                    "SELECT r.PandaID FROM "
+                    "ATLAS_PANDA.Harvester_Rel_Jobs_Workers r,ATLAS_PANDA.jobsActive4 j  "
+                    "WHERE r.harvesterID=:harvesterID AND r.workerID=:workerID "
+                    "AND j.PandaID=r.PandaID AND NOT j.jobStatus IN (:holding) "
+                )
+                sql_get_job_status = "SELECT jobStatus,prodSourceLabel,attemptNr FROM ATLAS_PANDA.jobsActive4 " "WHERE PandaID=:PandaID "
+                sql_set_job_error = (
+                    "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag,"
+                    "startTime=(CASE WHEN jobStatus=:starting THEN NULL ELSE startTime END) "
+                    "WHERE PandaID=:PandaID "
+                )
+                sql_set_sup_error = (
+                    "UPDATE {0} SET supErrorCode=:code,supErrorDiag=:diag,stateChangeTime=CURRENT_DATE "
+                    "WHERE PandaID=:PandaID AND NOT jobStatus IN (:finished) AND modificationTime>CURRENT_DATE-30"
+                )
+                var_map = {
+                    ":harvesterID": harvesterID,
+                    ":workerID": worker_data["workerID"],
+                    ":holding": "holding",
+                }
+                self.cur.execute(sql_get_active_jobs + comment, var_map)
+                active_job_rows = self.cur.fetchall()
+                tmp_log.debug(f"workerID={worker_spec.workerID} update {len(active_job_rows)} jobs")
+                for (panda_id,) in active_job_rows:
                     # check job status when worker is in a final state
-                    if workerSpec.status in [
+                    if worker_spec.status in [
                         "finished",
                         "failed",
                         "cancelled",
                         "missed",
                     ]:
-                        varMap = dict()
-                        varMap[":PandaID"] = pandaID
-                        self.cur.execute(sqlJAC + comment, varMap)
-                        resJAC = self.cur.fetchone()
-                        if resJAC is not None:
-                            jobStatus, prodSourceLabel, attemptNr = resJAC
-                            tmp_log.debug(f"workerID={workerSpec.workerID} {workerSpec.status} while PandaID={pandaID} {jobStatus}")
+                        var_map = {
+                            ":PandaID": panda_id,
+                        }
+                        self.cur.execute(sql_get_job_status + comment, var_map)
+                        job_status_row = self.cur.fetchone()
+                        if job_status_row is not None:
+                            job_status, prod_source_label, attempt_nr = job_status_row
+                            tmp_log.debug(f"workerID={worker_spec.workerID} {worker_spec.status} while PandaID={panda_id} {job_status}")
                             # set failed if out of sync
-                            if "syncLevel" in workerData and workerData["syncLevel"] == 1 and jobStatus in ["running", "starting"]:
-                                tmp_log.debug(f"workerID={workerSpec.workerID} set failed to PandaID={pandaID} due to sync error")
-                                varMap = dict()
-                                varMap[":PandaID"] = pandaID
-                                varMap[":code"] = ErrorCode.EC_WorkerDone
-                                varMap[":starting"] = "starting"
-                                varMap[":diag"] = f"The worker was {workerSpec.status} while the job was {jobStatus} : {workerSpec.diagMessage}"
-                                varMap[":diag"] = JobSpec.truncateStringAttr("taskBufferErrorDiag", varMap[":diag"])
-                                self.cur.execute(sqlJAE + comment, varMap)
+                            if "syncLevel" in worker_data and worker_data["syncLevel"] == 1 and job_status in ["running", "starting"]:
+                                tmp_log.debug(f"workerID={worker_spec.workerID} set failed to PandaID={panda_id} due to sync error")
+                                var_map = {
+                                    ":PandaID": panda_id,
+                                    ":code": ErrorCode.EC_WorkerDone,
+                                    ":starting": "starting",
+                                    ":diag": f"The worker was {worker_spec.status} while the job was {job_status} : {worker_spec.diagMessage}",
+                                }
+                                var_map[":diag"] = JobSpec.truncateStringAttr("taskBufferErrorDiag", var_map[":diag"])
+                                self.cur.execute(sql_set_job_error + comment, var_map)
                                 # make an empty file to trigger registration for zip files in Adder
-                                # tmpFileName = '{0}_{1}_{2}'.format(pandaID, 'failed',
+                                # tmpFileName = '{0}_{1}_{2}'.format(panda_id, 'failed',
                                 #                                    uuid.uuid3(uuid.NAMESPACE_DNS,''))
                                 # tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
                                 # try:
@@ -973,57 +1003,60 @@ class WorkerModule(BaseModule):
                                 # except Exception:
                                 #     pass
                                 # sql to insert empty job output report for adder
-                                sqlI = (
+                                sql_insert_job_report = (
                                     "INSERT INTO {0}.Job_Output_Report "
                                     "(PandaID, prodSourceLabel, jobStatus, attemptNr, data, timeStamp) "
                                     "VALUES(:PandaID, :prodSourceLabel, :jobStatus, :attemptNr, :data, :timeStamp) "
                                 ).format(panda_config.schemaPANDA)
                                 # insert
-                                varMap = {}
-                                varMap[":PandaID"] = pandaID
-                                varMap[":prodSourceLabel"] = prodSourceLabel
-                                varMap[":jobStatus"] = "failed"
-                                varMap[":attemptNr"] = attemptNr
-                                varMap[":data"] = None
-                                varMap[":timeStamp"] = naive_utcnow()
+                                var_map = {
+                                    ":PandaID": panda_id,
+                                    ":prodSourceLabel": prod_source_label,
+                                    ":jobStatus": "failed",
+                                    ":attemptNr": attempt_nr,
+                                    ":data": None,
+                                    ":timeStamp": naive_utcnow(),
+                                }
                                 try:
-                                    self.cur.execute(sqlI + comment, varMap)
+                                    self.cur.execute(sql_insert_job_report + comment, var_map)
                                 except Exception:
                                     pass
                                 else:
-                                    tmp_log.debug(f"successfully inserted job output report {pandaID}.{varMap[':attemptNr']}")
-                        if workerSpec.errorCode not in [None, 0]:
-                            varMap = dict()
-                            varMap[":PandaID"] = pandaID
-                            varMap[":code"] = workerSpec.errorCode
-                            varMap[":diag"] = f"Diag from worker : {workerSpec.diagMessage}"
-                            varMap[":diag"] = JobSpec.truncateStringAttr("supErrorDiag", varMap[":diag"])
-                            varMap[":finished"] = "finished"
-                            for tableName in [
+                                    tmp_log.debug(f"successfully inserted job output report {panda_id}.{var_map[':attemptNr']}")
+                        if worker_spec.errorCode not in [None, 0]:
+                            var_map = {
+                                ":PandaID": panda_id,
+                                ":code": worker_spec.errorCode,
+                                ":diag": f"Diag from worker : {worker_spec.diagMessage}",
+                                ":finished": "finished",
+                            }
+                            var_map[":diag"] = JobSpec.truncateStringAttr("supErrorDiag", var_map[":diag"])
+                            for table_name in [
                                 "ATLAS_PANDA.jobsActive4",
                                 "ATLAS_PANDA.jobsArchived4",
                                 "ATLAS_PANDAARCH.jobsArchived",
                             ]:
-                                self.cur.execute(sqlJSE.format(tableName) + comment, varMap)
+                                self.cur.execute(sql_set_sup_error.format(table_name) + comment, var_map)
                     """
-                    varMap = dict()
-                    varMap[':PandaID'] = pandaID
-                    varMap[':js1'] = 'running'
-                    varMap[':js2'] = 'starting'
-                    self.cur.execute(sqlJAA+comment, varMap)
-                    nRowJA = self.cur.rowcount
-                    if nRowJA > 0:
-                        tmp_log.debug('workerID={0} PandaID={1} updated modificationTime'.format(workerSpec.workerID, pandaID))
+                    sql_update_job_mod_time = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
+                    var_map = dict()
+                    var_map[':PandaID'] = panda_id
+                    var_map[':js1'] = 'running'
+                    var_map[':js2'] = 'starting'
+                    self.cur.execute(sql_update_job_mod_time+comment, var_map)
+                    n_row_ja = self.cur.rowcount
+                    if n_row_ja > 0:
+                        tmp_log.debug('workerID={0} PandaID={1} updated modificationTime'.format(worker_spec.workerID, panda_id))
                     """
-                tmp_log.debug(f"workerID={workerSpec.workerID} end")
+                tmp_log.debug(f"workerID={worker_spec.workerID} end")
                 # commit
                 if useCommit:
                     if not self._commit():
                         raise RuntimeError("Commit error")
-                retList.append(True)
-            regTime = naive_utcnow() - regStart
-            tmp_log.debug("done. exec_time=%s.%03d sec" % (regTime.seconds, regTime.microseconds / 1000))
-            return retList
+                ret_list.append(True)
+            reg_time = naive_utcnow() - reg_start
+            tmp_log.debug("done. exec_time=%s.%03d sec" % (reg_time.seconds, reg_time.microseconds / 1000))
+            return ret_list
         except Exception:
             # roll back
             if useCommit:
@@ -1060,10 +1093,10 @@ class WorkerModule(BaseModule):
         try:
             self.conn.begin()
             self.cur.execute(sql + comment, var_map)
-            retD = self.cur.rowcount
+            n_rows = self.cur.rowcount
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"Updated successfully with {retD}")
+            tmp_log.debug(f"Updated successfully with {n_rows}")
             return True
 
         except Exception:
@@ -1382,24 +1415,24 @@ class WorkerModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get workers
-            sqlC = f"SELECT {WorkerSpec.columnNames(prefix='w')} FROM ATLAS_PANDA.Harvester_Workers w, ATLAS_PANDA.Harvester_Rel_Jobs_Workers r "
-            sqlC += "WHERE w.harvesterID=r.harvesterID AND w.workerID=r.workerID AND r.PandaID=:PandaID "
-            varMap = {}
-            varMap[":PandaID"] = PandaID
+            sql_get_workers = f"SELECT {WorkerSpec.columnNames(prefix='w')} FROM ATLAS_PANDA.Harvester_Workers w, ATLAS_PANDA.Harvester_Rel_Jobs_Workers r "
+            sql_get_workers += "WHERE w.harvesterID=r.harvesterID AND w.workerID=r.workerID AND r.PandaID=:PandaID "
+            var_map = {}
+            var_map[":PandaID"] = PandaID
             # start transaction
             self.conn.begin()
-            self.cur.execute(sqlC + comment, varMap)
-            resCs = self.cur.fetchall()
-            retList = []
-            for resC in resCs:
-                workerSpec = WorkerSpec()
-                workerSpec.pack(resC)
-                retList.append(workerSpec)
+            self.cur.execute(sql_get_workers + comment, var_map)
+            worker_rows = self.cur.fetchall()
+            ret_list = []
+            for worker_row in worker_rows:
+                worker_spec = WorkerSpec()
+                worker_spec.pack(worker_row)
+                ret_list.append(worker_spec)
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"got {len(retList)} workers")
-            return retList
+            tmp_log.debug(f"got {len(ret_list)} workers")
+            return ret_list
         except Exception:
             # roll back
             self._rollback()
@@ -1489,15 +1522,15 @@ class WorkerModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get workers
-            sqlC = "SELECT MAX(workerID) FROM ATLAS_PANDA.Harvester_Workers "
-            sqlC += "WHERE harvesterID=:harvesterID "
-            varMap = {":harvesterID": harvester_id}
+            sql_get_max = "SELECT MAX(workerID) FROM ATLAS_PANDA.Harvester_Workers "
+            sql_get_max += "WHERE harvesterID=:harvesterID "
+            var_map = {":harvesterID": harvester_id}
             # start transaction
             self.conn.begin()
-            self.cur.execute(sqlC + comment, varMap)
-            res = self.cur.fetchone()
-            if res:
-                (max_id,) = res
+            self.cur.execute(sql_get_max + comment, var_map)
+            row = self.cur.fetchone()
+            if row:
+                (max_id,) = row
             else:
                 max_id = None
             if not self._commit():
@@ -1518,30 +1551,32 @@ class WorkerModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to delete message
-            sqlC = f"DELETE FROM {panda_config.schemaPANDA}.Harvester_Dialogs "
-            sqlC += "WHERE harvester_id=:harvester_id AND diagID=:diagID "
+            sql_delete_dialog = f"DELETE FROM {panda_config.schemaPANDA}.Harvester_Dialogs "
+            sql_delete_dialog += "WHERE harvester_id=:harvester_id AND diagID=:diagID "
             # sql to insert message
-            sqlI = f"INSERT INTO {panda_config.schemaPANDA}.Harvester_Dialogs "
-            sqlI += "(harvester_id,diagID,moduleName,identifier,creationTime,messageLevel,diagMessage) "
-            sqlI += "VALUES(:harvester_id,:diagID,:moduleName,:identifier,:creationTime,:messageLevel,:diagMessage) "
-            for diagDict in dialogs:
+            sql_insert_dialog = f"INSERT INTO {panda_config.schemaPANDA}.Harvester_Dialogs "
+            sql_insert_dialog += "(harvester_id,diagID,moduleName,identifier,creationTime,messageLevel,diagMessage) "
+            sql_insert_dialog += "VALUES(:harvester_id,:diagID,:moduleName,:identifier,:creationTime,:messageLevel,:diagMessage) "
+            for dialog_dict in dialogs:
                 # start transaction
                 self.conn.begin()
                 # delete
-                varMap = dict()
-                varMap[":diagID"] = diagDict["diagID"]
-                varMap[":harvester_id"] = harvesterID
-                self.cur.execute(sqlC + comment, varMap)
+                var_map = {
+                    ":diagID": dialog_dict["diagID"],
+                    ":harvester_id": harvesterID,
+                }
+                self.cur.execute(sql_delete_dialog + comment, var_map)
                 # insert
-                varMap = dict()
-                varMap[":diagID"] = diagDict["diagID"]
-                varMap[":identifier"] = diagDict["identifier"]
-                varMap[":moduleName"] = diagDict["moduleName"]
-                varMap[":creationTime"] = datetime.datetime.strptime(diagDict["creationTime"], "%Y-%m-%d %H:%M:%S.%f")
-                varMap[":messageLevel"] = diagDict["messageLevel"]
-                varMap[":diagMessage"] = diagDict["diagMessage"]
-                varMap[":harvester_id"] = harvesterID
-                self.cur.execute(sqlI + comment, varMap)
+                var_map = {
+                    ":diagID": dialog_dict["diagID"],
+                    ":identifier": dialog_dict["identifier"],
+                    ":moduleName": dialog_dict["moduleName"],
+                    ":creationTime": datetime.datetime.strptime(dialog_dict["creationTime"], "%Y-%m-%d %H:%M:%S.%f"),
+                    ":messageLevel": dialog_dict["messageLevel"],
+                    ":diagMessage": dialog_dict["diagMessage"],
+                    ":harvester_id": harvesterID,
+                }
+                self.cur.execute(sql_insert_dialog + comment, var_map)
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
@@ -1560,71 +1595,74 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"pq={pandaQueueName}")
         tmp_log.debug("start")
         # sql to check
-        sqlC = "SELECT 1 FROM ATLAS_PANDA.Harvester_Slots "
-        sqlC += "WHERE pandaQueueName=:pandaQueueName "
+        sql_check = "SELECT 1 FROM ATLAS_PANDA.Harvester_Slots "
+        sql_check += "WHERE pandaQueueName=:pandaQueueName "
         if gshare is None:
-            sqlC += "AND gshare IS NULL "
+            sql_check += "AND gshare IS NULL "
         else:
-            sqlC += "AND gshare=:gshare "
+            sql_check += "AND gshare=:gshare "
         if resourceType is None:
-            sqlC += "AND resourceType IS NULL "
+            sql_check += "AND resourceType IS NULL "
         else:
-            sqlC += "AND resourceType=:resourceType "
+            sql_check += "AND resourceType=:resourceType "
         # sql to insert
-        sqlI = "INSERT INTO ATLAS_PANDA.Harvester_Slots (pandaQueueName,gshare,resourceType,numSlots,modificationTime,expirationTime) "
-        sqlI += "VALUES (:pandaQueueName,:gshare,:resourceType,:numSlots,:modificationTime,:expirationTime) "
+        sql_insert = (
+            "INSERT INTO ATLAS_PANDA.Harvester_Slots (pandaQueueName, gshare, resourceType, numSlots, modificationTime, expirationTime) "
+            "VALUES (:pandaQueueName, :gshare, :resourceType, :numSlots, :modificationTime, :expirationTime) "
+        )
         # sql to update
         if numSlots == -1:
-            sqlU = "DELETE FROM ATLAS_PANDA.Harvester_Slots "
+            sql_update = "DELETE FROM ATLAS_PANDA.Harvester_Slots "
         else:
-            sqlU = "UPDATE ATLAS_PANDA.Harvester_Slots SET "
-            sqlU += "numSlots=:numSlots,modificationTime=:modificationTime,expirationTime=:expirationTime "
-        sqlU += "WHERE pandaQueueName=:pandaQueueName "
+            sql_update = "UPDATE ATLAS_PANDA.Harvester_Slots SET " "numSlots=:numSlots, modificationTime=:modificationTime, expirationTime=:expirationTime "
+        sql_update += "WHERE pandaQueueName=:pandaQueueName "
         if gshare is None:
-            sqlU += "AND gshare IS NULL "
+            sql_update += "AND gshare IS NULL "
         else:
-            sqlU += "AND gshare=:gshare "
+            sql_update += "AND gshare=:gshare "
         if resourceType is None:
-            sqlU += "AND resourceType IS NULL "
+            sql_update += "AND resourceType IS NULL "
         else:
-            sqlU += "AND resourceType=:resourceType "
+            sql_update += "AND resourceType=:resourceType "
         try:
-            timeNow = naive_utcnow()
+            time_now = naive_utcnow()
             # start transaction
             self.conn.begin()
             # check
-            varMap = dict()
-            varMap[":pandaQueueName"] = pandaQueueName
+            var_map = {
+                ":pandaQueueName": pandaQueueName,
+            }
             if gshare is not None:
-                varMap[":gshare"] = gshare
+                var_map[":gshare"] = gshare
             if resourceType is not None:
-                varMap[":resourceType"] = resourceType
-            self.cur.execute(sqlC, varMap)
-            resC = self.cur.fetchone()
+                var_map[":resourceType"] = resourceType
+            self.cur.execute(sql_check, var_map)
+            existing_slot = self.cur.fetchone()
             # insert or update
-            varMap = dict()
-            varMap[":pandaQueueName"] = pandaQueueName
-            if resC is None or gshare is not None:
-                varMap[":gshare"] = gshare
-            if resC is None or resourceType is not None:
-                varMap[":resourceType"] = resourceType
+            var_map = {
+                ":pandaQueueName": pandaQueueName,
+            }
+            if existing_slot is None or gshare is not None:
+                var_map[":gshare"] = gshare
+            if existing_slot is None or resourceType is not None:
+                var_map[":resourceType"] = resourceType
             if numSlots != -1:
-                varMap[":numSlots"] = numSlots
-                varMap[":modificationTime"] = timeNow
+                var_map[":numSlots"] = numSlots
+                var_map[":modificationTime"] = time_now
                 if validPeriod is None:
-                    varMap[":expirationTime"] = None
+                    var_map[":expirationTime"] = None
                 else:
-                    varMap[":expirationTime"] = timeNow + datetime.timedelta(days=int(validPeriod))
-                if resC is None:
+                    var_map[":expirationTime"] = time_now + datetime.timedelta(days=int(validPeriod))
+                if existing_slot is None:
                     # insert
-                    self.cur.execute(sqlI, varMap)
+                    self.cur.execute(sql_insert, var_map)
                 else:
                     # update
-                    self.cur.execute(sqlU, varMap)
+                    self.cur.execute(sql_update, var_map)
             else:
                 # delete
-                if resC is not None:
-                    self.cur.execute(sqlU, varMap)
+                if existing_slot is not None:
+                    self.cur.execute(sql_update, var_map)
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -1691,10 +1729,10 @@ class WorkerModule(BaseModule):
                 command_dict["params"] = entry[2]
                 if command_dict["params"] is not None:
                     try:
-                        theParams = command_dict["params"].read()
+                        parameters = command_dict["params"].read()
                     except AttributeError:
-                        theParams = command_dict["params"]
-                    command_dict["params"] = json.loads(theParams)
+                        parameters = command_dict["params"]
+                    command_dict["params"] = json.loads(parameters)
                 command_dict["ack_requested"] = entry[3]
                 command_dict["creation_date"] = entry[4].isoformat()
                 commands.append(command_dict)
