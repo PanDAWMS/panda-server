@@ -52,7 +52,7 @@ class WorkerModule(BaseModule):
                 return False, message
 
             # delete them
-            sql_delete = "DELETE FROM ATLAS_PANDA.Harvester_Worker_Stats " "WHERE harvester_ID=:harvesterID AND computingSite=:siteName "
+            sql_delete = "DELETE FROM ATLAS_PANDA.Harvester_Worker_Stats WHERE harvester_ID=:harvesterID AND computingSite=:siteName "
             self.cur.execute(sql_delete + comment, var_map)
 
             # insert new site data
@@ -192,7 +192,7 @@ class WorkerModule(BaseModule):
                     to_skip = True
                 else:
                     # delete existing command
-                    sql_delete_command = "DELETE FROM ATLAS_PANDA.HARVESTER_COMMANDS " "WHERE harvester_ID=:harvester_ID AND command=:command "
+                    sql_delete_command = "DELETE FROM ATLAS_PANDA.HARVESTER_COMMANDS WHERE harvester_ID=:harvester_ID AND command=:command "
                     var_map = {
                         ":harvester_ID": harvester_ID,
                         ":command": command,
@@ -207,7 +207,7 @@ class WorkerModule(BaseModule):
                     ":status": status,
                 }
                 sql_insert_command = (
-                    "INSERT INTO ATLAS_PANDA.HARVESTER_COMMANDS " "(command_id,creation_date,status_date,command,harvester_id,ack_requested,status"
+                    "INSERT INTO ATLAS_PANDA.HARVESTER_COMMANDS (command_id,creation_date,status_date,command,harvester_id,ack_requested,status"
                 )
                 if params is not None:
                     var_map[":params"] = json.dumps(params)
@@ -838,7 +838,7 @@ class WorkerModule(BaseModule):
         try:
             tmp_log.debug(f"start {len(data)} workers")
             reg_start = naive_utcnow()
-            sql_check_worker = f"SELECT {WorkerSpec.columnNames()} FROM ATLAS_PANDA.Harvester_Workers " "WHERE harvesterID=:harvesterID AND workerID=:workerID "
+            sql_check_worker = f"SELECT {WorkerSpec.columnNames()} FROM ATLAS_PANDA.Harvester_Workers WHERE harvesterID=:harvesterID AND workerID=:workerID "
             # loop over all workers
             ret_list = []
             for worker_data in data:
@@ -895,7 +895,7 @@ class WorkerModule(BaseModule):
                 # job relation
                 if "pandaid_list" in worker_data and len(worker_data["pandaid_list"]) > 0:
                     tmp_log.debug(f"workerID={worker_spec.workerID} update/insert job relation")
-                    sql_get_job_rels = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers " "WHERE harvesterID=:harvesterID AND workerID=:workerID "
+                    sql_get_job_rels = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers WHERE harvesterID=:harvesterID AND workerID=:workerID "
                     sql_insert_job_rel = (
                         "INSERT INTO ATLAS_PANDA.Harvester_Rel_Jobs_Workers (harvesterID,workerID,PandaID,lastUpdate) "
                         "VALUES (:harvesterID,:workerID,:PandaID,:lastUpdate) "
@@ -931,7 +931,7 @@ class WorkerModule(BaseModule):
                             existing_panda_ids.discard(panda_id)
                     # delete redundant list
                     sql_delete_job_rel = (
-                        "DELETE FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers " "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+                        "DELETE FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
                     )
                     for panda_id in existing_panda_ids:
                         var_map = {
@@ -949,7 +949,7 @@ class WorkerModule(BaseModule):
                     "WHERE r.harvesterID=:harvesterID AND r.workerID=:workerID "
                     "AND j.PandaID=r.PandaID AND NOT j.jobStatus IN (:holding) "
                 )
-                sql_get_job_status = "SELECT jobStatus,prodSourceLabel,attemptNr FROM ATLAS_PANDA.jobsActive4 " "WHERE PandaID=:PandaID "
+                sql_get_job_status = "SELECT jobStatus,prodSourceLabel,attemptNr FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
                 sql_set_job_error = (
                     "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag,"
                     "startTime=(CASE WHEN jobStatus=:starting THEN NULL ELSE startTime END) "
@@ -1158,7 +1158,7 @@ class WorkerModule(BaseModule):
             if res:
                 var_map = {":site": site, ":host_name": host_name, ":cpu_model": cpu_model, ":last_seen": timestamp_utc}
 
-                sql = "UPDATE ATLAS_PANDA.worker_node SET last_seen=:last_seen " "WHERE site=:site AND host_name=:host_name AND cpu_model=:cpu_model"
+                sql = "UPDATE ATLAS_PANDA.worker_node SET last_seen=:last_seen WHERE site=:site AND host_name=:host_name AND cpu_model=:cpu_model"
 
                 self.cur.execute((sql + comment), var_map)
                 tmp_logger.debug("Worker node was found in the database. Updated last_seen timestamp.")
@@ -1614,7 +1614,7 @@ class WorkerModule(BaseModule):
         if numSlots == -1:
             sql_update = "DELETE FROM ATLAS_PANDA.Harvester_Slots "
         else:
-            sql_update = "UPDATE ATLAS_PANDA.Harvester_Slots SET " "numSlots=:numSlots, modificationTime=:modificationTime, expirationTime=:expirationTime "
+            sql_update = "UPDATE ATLAS_PANDA.Harvester_Slots SET numSlots=:numSlots, modificationTime=:modificationTime, expirationTime=:expirationTime "
         sql_update += "WHERE pandaQueueName=:pandaQueueName "
         if gshare is None:
             sql_update += "AND gshare IS NULL "
