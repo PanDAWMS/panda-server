@@ -1378,46 +1378,44 @@ class JobStandaloneModule(BaseModule):
         comment = " /* DBProxy.getNumberJobsUser */"
         tmp_log = self.create_tagged_logger(comment, f"DN={dn}")
         tmp_log.debug(f"workingGroup={workingGroup})")
+
         # get compact DN
-        compactDN = CoreUtils.clean_user_id(dn)
-        if compactDN in ["", "NULL", None]:
-            compactDN = dn
+        compact_dn = CoreUtils.clean_user_id(dn)
+        if compact_dn in ["", "NULL", None]:
+            compact_dn = dn
+
         if workingGroup is not None:
-            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup=:workingGroup "
+            sql_count_jobs = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup=:workingGroup "
         else:
-            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup IS NULL "
-        sql0 += "AND NOT jobStatus IN (:failed,:merging) "
-        nTry = 1
-        nJob = 0
-        for iTry in range(nTry):
+            sql_count_jobs = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup IS NULL "
+        sql_count_jobs += "AND NOT jobStatus IN (:failed,:merging) "
+
+        n_try = 1
+        n_jobs = 0
+        for i_try in range(n_try):
             try:
                 for table in ("ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"):
                     # start transaction
                     self.conn.begin()
                     # select
-                    varMap = {}
-                    varMap[":prodUserName"] = compactDN
-                    varMap[":prodSourceLabel"] = "user"
-                    varMap[":failed"] = "failed"
-                    varMap[":merging"] = "merging"
+                    var_map = {":prodUserName": compact_dn, ":prodSourceLabel": "user", ":failed": "failed", ":merging": "merging"}
                     if workingGroup is not None:
-                        varMap[":workingGroup"] = workingGroup
+                        var_map[":workingGroup"] = workingGroup
                     self.cur.arraysize = 10
-                    self.cur.execute((sql0 + comment) % table, varMap)
-                    res = self.cur.fetchall()
+                    self.cur.execute((sql_count_jobs + comment) % table, var_map)
+                    rows = self.cur.fetchall()
                     # commit
                     if not self._commit():
                         raise RuntimeError("Commit error")
-                    # create map
-                    if len(res) != 0:
-                        nJob += res[0][0]
+                    if len(rows) != 0:
+                        n_jobs += rows[0][0]
                 # return
-                tmp_log.debug(f"{nJob}")
-                return nJob
+                tmp_log.debug(f"{n_jobs}")
+                return n_jobs
             except Exception:
                 # roll back
                 self._rollback()
-                if iTry + 1 < nTry:
+                if i_try + 1 < n_try:
                     time.sleep(2)
                     continue
                 self.dump_error_message(tmp_log)
