@@ -1862,10 +1862,8 @@ class WorkerModule(BaseModule):
             }
 
             sql = """
-                  INSERT INTO ATLAS_PANDA.PANDALOG (BINTIME, NAME, MODULE, TYPE, PID, LOGLEVEL, LEVELNAME,
-                                                    TIME, FILENAME, MESSAGE)
-                  VALUES (:now, :name, :module, :type, :panda_id, :log_level, :level_name,
-                          :now, :file_name, :message)
+                  INSERT INTO ATLAS_PANDA.PANDALOG (BINTIME, NAME, MODULE, TYPE, PID, LOGLEVEL, LEVELNAME, TIME, FILENAME, MESSAGE)
+                  VALUES (:now, :name, :module, :type, :panda_id, :log_level, :level_name, :now, :file_name, :message)
                   """
 
             # run the insert
