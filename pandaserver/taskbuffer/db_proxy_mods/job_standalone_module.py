@@ -1754,12 +1754,7 @@ class JobStandaloneModule(BaseModule):
             self.conn.begin()
             # select
             self.cur.arraysize = 10
-            var_map = {}
-            var_map[":prodSourceLabel"] = "user"
-            var_map[":oldRelFlag"] = 1
-            var_map[":prodUserName"] = prodUserName
-            var_map[":oldJobStatus"] = "activated"
-            var_map[":maxTime"] = 6 * 60 * 60
+            var_map = {":prodSourceLabel": "user", ":oldRelFlag": 1, ":prodUserName": prodUserName, ":oldJobStatus": "activated", ":maxTime": 6 * 60 * 60}
             if workingGroup is not None:
                 var_map[":workingGroup"] = workingGroup
             # get tasks
@@ -1778,11 +1773,7 @@ class JobStandaloneModule(BaseModule):
                 # start transaction
                 self.conn.begin()
                 # get jobs
-                var_map = {}
-                var_map[":jediTaskID"] = task_id
-                var_map[":oldRelFlag"] = 1
-                var_map[":oldJobStatus"] = "activated"
-                var_map[":maxTime"] = 6 * 60 * 60
+                var_map = {":jediTaskID": task_id, ":oldRelFlag": 1, ":oldJobStatus": "activated", ":maxTime": 6 * 60 * 60}
                 self.cur.execute(sql_get_jobs + comment, var_map)
                 job_rows = self.cur.fetchall()
                 job_info_map = {
@@ -1794,12 +1785,7 @@ class JobStandaloneModule(BaseModule):
                     for panda_id, _task_id, cloud, computing_site, prod_source_label in job_rows
                 }
                 # update jobs
-                var_map = {}
-                var_map[":jediTaskID"] = task_id
-                var_map[":newRelFlag"] = 3
-                var_map[":newJobStatus"] = "throttled"
-                var_map[":oldJobStatus"] = "activated"
-                var_map[":maxTime"] = 6 * 60 * 60
+                var_map = {":jediTaskID": task_id, ":newRelFlag": 3, ":newJobStatus": "throttled", ":oldJobStatus": "activated", ":maxTime": 6 * 60 * 60}
                 self.cur.execute(sql_update_jobs + comment, var_map)
                 n_updated = self.cur.rowcount
                 tmp_log.debug(f"reset {n_updated} jobs")
@@ -1866,11 +1852,7 @@ class JobStandaloneModule(BaseModule):
             self.conn.begin()
             # select
             self.cur.arraysize = 10
-            var_map = {}
-            var_map[":prodSourceLabel"] = "user"
-            var_map[":oldRelFlag"] = 3
-            var_map[":prodUserName"] = prodUserName
-            var_map[":oldJobStatus"] = "throttled"
+            var_map = {":prodSourceLabel": "user", ":oldRelFlag": 3, ":prodUserName": prodUserName, ":oldJobStatus": "throttled"}
             if workingGroup is not None:
                 var_map[":workingGroup"] = workingGroup
             # get tasks
@@ -1889,10 +1871,7 @@ class JobStandaloneModule(BaseModule):
                 # start transaction
                 self.conn.begin()
                 # get jobs
-                var_map = {}
-                var_map[":jediTaskID"] = task_id
-                var_map[":oldRelFlag"] = 3
-                var_map[":oldJobStatus"] = "throttled"
+                var_map = {":jediTaskID": task_id, ":oldRelFlag": 3, ":oldJobStatus": "throttled"}
                 self.cur.execute(sql_get_jobs + comment, var_map)
                 job_rows = self.cur.fetchall()
                 job_info_map = {
@@ -1904,11 +1883,7 @@ class JobStandaloneModule(BaseModule):
                     for panda_id, _task_id, cloud, computing_site, prod_source_label in job_rows
                 }
                 # update jobs
-                var_map = {}
-                var_map[":jediTaskID"] = task_id
-                var_map[":newRelFlag"] = 1
-                var_map[":newJobStatus"] = "activated"
-                var_map[":oldJobStatus"] = "throttled"
+                var_map = {":jediTaskID": task_id, ":newRelFlag": 1, ":newJobStatus": "activated", ":oldJobStatus": "throttled"}
                 self.cur.execute(sql_update_jobs + comment, var_map)
                 n_updated = self.cur.rowcount
                 tmp_log.debug(f"reset {n_updated} jobs")
