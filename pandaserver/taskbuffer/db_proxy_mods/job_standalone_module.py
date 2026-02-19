@@ -1609,19 +1609,22 @@ class JobStandaloneModule(BaseModule):
         comment = " /* DBProxy.peekJobLog */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"days={days}")
+
         # return None for NULL PandaID
         if pandaID in ["NULL", "", "None", None]:
             return None
-        sql1_0 = "SELECT %s FROM %s "
-        sql1_1 = "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-:days) "
+
+        sql_select = "SELECT %s FROM %s "
+        sql_where = "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-:days) "
+
         # select
-        varMap = {}
-        varMap[":PandaID"] = pandaID
+        var_map = {":PandaID": pandaID}
         if days is None:
             days = 30
-        varMap[":days"] = days
-        nTry = 1
-        for iTry in range(nTry):
+        var_map[":days"] = days
+        n_try = 1
+
+        for i_try in range(n_try):
             try:
                 # get list of archived tables
                 tables = [f"{panda_config.schemaPANDAARCH}.jobsArchived"]
@@ -1630,64 +1633,67 @@ class JobStandaloneModule(BaseModule):
                     # start transaction
                     self.conn.begin()
                     # select
-                    sql = sql1_0 % (JobSpec.columnNames(), table) + sql1_1
+                    sql = sql_select % (JobSpec.columnNames(), table) + sql_where
                     self.cur.arraysize = 10
-                    self.cur.execute(sql + comment, varMap)
-                    res = self.cur.fetchall()
+                    self.cur.execute(sql + comment, var_map)
+                    rows = self.cur.fetchall()
                     # commit
                     if not self._commit():
                         raise RuntimeError("Commit error")
-                    if len(res) != 0:
+                    if len(rows) != 0:
                         # Job
                         job = JobSpec()
-                        job.pack(res[0])
+                        job.pack(rows[0])
                         # Files
                         # start transaction
                         self.conn.begin()
                         # select
-                        fileTableName = re.sub("jobsArchived", "filesTable_ARCH", table)
-                        sqlFile = f"SELECT /*+ INDEX(tab FILES_ARCH_PANDAID_IDX)*/ {FileSpec.columnNames()} "
-                        sqlFile += f"FROM {fileTableName} tab "
-                        # put constraint on modificationTime to avoid full table scan
-                        sqlFile += "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-:days)"
+                        file_table_name = re.sub("jobsArchived", "filesTable_ARCH", table)
+                        sql_get_files = (
+                            f"SELECT /*+ INDEX(tab FILES_ARCH_PANDAID_IDX)*/ {FileSpec.columnNames()} "
+                            f"FROM {file_table_name} tab "
+                            "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-:days)"
+                        )
                         self.cur.arraysize = 10000
-                        self.cur.execute(sqlFile + comment, varMap)
-                        resFs = self.cur.fetchall()
+                        self.cur.execute(sql_get_files + comment, var_map)
+                        file_rows = self.cur.fetchall()
+
                         # metadata
-                        varMap = {}
-                        varMap[":PandaID"] = job.PandaID
+                        var_map = {}
+                        var_map[":PandaID"] = job.PandaID
                         job.metadata = None
-                        metaTableName = re.sub("jobsArchived", "metaTable_ARCH", table)
-                        sqlMeta = f"SELECT metaData FROM {metaTableName} WHERE PandaID=:PandaID"
-                        self.cur.execute(sqlMeta + comment, varMap)
-                        for (clobMeta,) in self.cur:
-                            if clobMeta is not None:
+                        meta_table_name = re.sub("jobsArchived", "metaTable_ARCH", table)
+                        sql_get_meta = f"SELECT metaData FROM {meta_table_name} WHERE PandaID=:PandaID"
+                        self.cur.execute(sql_get_meta + comment, var_map)
+                        for (clob_meta,) in self.cur:
+                            if clob_meta is not None:
                                 try:
-                                    job.metadata = clobMeta.read()
+                                    job.metadata = clob_meta.read()
                                 except AttributeError:
-                                    job.metadata = str(clobMeta)
+                                    job.metadata = str(clob_meta)
                             break
+
                         # job parameters
                         job.jobParameters = None
-                        jobParamTableName = re.sub("jobsArchived", "jobParamsTable_ARCH", table)
-                        sqlJobP = f"SELECT jobParameters FROM {jobParamTableName} WHERE PandaID=:PandaID"
-                        varMap = {}
-                        varMap[":PandaID"] = job.PandaID
-                        self.cur.execute(sqlJobP + comment, varMap)
-                        for (clobJobP,) in self.cur:
-                            if clobJobP is not None:
+                        job_param_table_name = re.sub("jobsArchived", "jobParamsTable_ARCH", table)
+                        sql_get_job_params = f"SELECT jobParameters FROM {job_param_table_name} WHERE PandaID=:PandaID"
+                        var_map = {}
+                        var_map[":PandaID"] = job.PandaID
+                        self.cur.execute(sql_get_job_params + comment, var_map)
+                        for (clob_job_params,) in self.cur:
+                            if clob_job_params is not None:
                                 try:
-                                    job.jobParameters = clobJobP.read()
+                                    job.jobParameters = clob_job_params.read()
                                 except AttributeError:
-                                    job.jobParameters = str(clobJobP)
+                                    job.jobParameters = str(clob_job_params)
                             break
                         # commit
                         if not self._commit():
                             raise RuntimeError("Commit error")
                         # set files
-                        for resF in resFs:
+                        for file_row in file_rows:
                             file = FileSpec()
-                            file.pack(resF)
+                            file.pack(file_row)
                             # remove redundant white spaces
                             try:
                                 file.md5sum = file.md5sum.strip()
@@ -1704,8 +1710,8 @@ class JobStandaloneModule(BaseModule):
             except Exception:
                 # roll back
                 self._rollback()
-                if iTry + 1 < nTry:
-                    tmp_log.error(f"retry {iTry}")
+                if i_try + 1 < n_try:
+                    tmp_log.error(f"retry {i_try}")
                     time.sleep(random.randint(10, 20))
                     continue
                 self.dump_error_message(tmp_log)
