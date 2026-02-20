@@ -9,13 +9,15 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_host_name
-from pandaserver.taskbuffer import ErrorCode, JobUtils, SiteSpec
+from pandaserver.taskbuffer import ErrorCode, SiteSpec
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, memoize
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.HarvesterMetricsSpec import HarvesterMetricsSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.ResourceSpec import BASIC_RESOURCE_TYPE
 from pandaserver.taskbuffer.WorkerSpec import WorkerSpec
+
+DEFAULT_PRODSOURCELABEL = "managed"
 
 
 # Module class to define methods related to worker and harvester
@@ -307,7 +309,7 @@ class WorkerModule(BaseModule):
             # sql to calculate the average memory for the queue - harvester_id combination
             # "* 1" in sj.data.blah * 1 is required to notify postgres the data type is an int since json element is
             # treated as text otherwise. This is needed only for the first occurrence of each element in the query
-            per_core_attrs = SiteSpec.catchall_keys["per_core_attrs"]
+            per_core_attr = SiteSpec.catchall_keys["per_core_attr"]
             sql_running_and_submitted = (
                 "SELECT /*+ RESULT_CACHE */ /* use_json_type */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
@@ -315,7 +317,7 @@ class WorkerModule(BaseModule):
                 "           hws.harvester_id, "
                 "           hws.n_workers, "
                 "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount * 1, 1)) * NVL(rt.maxrampercore, "
-                f"             CASE WHEN sj.data.catchall LIKE '%{per_core_attrs}%' THEN TO_NUMBER(sj.data.maxrss) ELSE sj.data.maxrss * 1 / NVL(sj.data.corecount, 1) END) as total_memory, "
+                f"             CASE WHEN sj.data.catchall LIKE '%{per_core_attr}%' THEN TO_NUMBER(sj.data.maxrss) ELSE sj.data.maxrss * 1 / NVL(sj.data.corecount, 1) END) as total_memory, "
                 "           NVL(rt.maxcore, NVL(sj.data.corecount, 1)) as corecount "
                 "    FROM ATLAS_PANDA.harvester_worker_stats hws "
                 "    JOIN ATLAS_PANDA.resource_types rt ON hws.resourcetype = rt.resource_name "
@@ -333,7 +335,7 @@ class WorkerModule(BaseModule):
                 "           hws.harvester_id, "
                 "           hws.n_workers, "
                 "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount * 1, 1)) * NVL(rt.maxrampercore, "
-                f"             CASE WHEN sj.data.catchall LIKE '%{per_core_attrs}%' THEN TO_NUMBER(sj.data.maxrss) ELSE sj.data.maxrss * 1 / NVL(sj.data.corecount, 1) END) as total_memory, "
+                f"             CASE WHEN sj.data.catchall LIKE '%{per_core_attr}%' THEN TO_NUMBER(sj.data.maxrss) ELSE sj.data.maxrss * 1 / NVL(sj.data.corecount, 1) END) as total_memory, "
                 "           NVL(rt.maxcore, NVL(sj.data.corecount, 1)) as corecount "
                 "    FROM ATLAS_PANDA.harvester_worker_stats hws "
                 "    JOIN ATLAS_PANDA.resource_types rt ON hws.resourcetype = rt.resource_name "
@@ -401,7 +403,6 @@ class WorkerModule(BaseModule):
         # get the configuration for maximum workers of each type
         pq_data_des = get_entity_module(self).get_config_for_pq(queue)
         resource_type_limits = {}
-        queue_type = "production"
         cores_queue = 1
         average_memory_target = None
 
@@ -421,11 +422,7 @@ class WorkerModule(BaseModule):
             except KeyError:
                 tmp_log.debug("No average memory defined")
                 pass
-            try:
-                queue_type = pq_data_des["type"]
-            except KeyError:
-                tmp_log.error("No queue type")
-                pass
+
             try:
                 cores_queue = pq_data_des["corecount"]
                 if not cores_queue:
@@ -470,6 +467,7 @@ class WorkerModule(BaseModule):
             else:
                 tmp_log.debug(f"Accepting all resource types as under memory target")
 
+        # there is only job_type = "managed" in the current implementation, but we keep the structure due to backwards compatibility
         for job_type in worker_stats[harvester_id]:
             workers_queued.setdefault(job_type, {})
             for resource_type in worker_stats[harvester_id][job_type]:
@@ -559,7 +557,8 @@ class WorkerModule(BaseModule):
                 core_factor = get_entity_module(self).resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
 
                 # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
-                job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
+                # Harvester worker submission unified production and analysis proxies, so we don't need to separate by job_type anymore
+                job_type = DEFAULT_PRODSOURCELABEL
                 # if we reached the limit for the resource type, skip the job
                 if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
                     # tmp_log.debug('Reached resource type limit for {0}'.format(resource_type))
@@ -614,7 +613,7 @@ class WorkerModule(BaseModule):
                     workers = True
                     break
         if not workers:
-            new_workers["managed"] = {BASIC_RESOURCE_TYPE: 1}
+            new_workers[DEFAULT_PRODSOURCELABEL] = {BASIC_RESOURCE_TYPE: 1}
 
         tmp_log.debug(f"new workers: {new_workers}")
 
@@ -1882,7 +1881,9 @@ class WorkerModule(BaseModule):
 
     def ups_load_worker_stats(self):
         """
-        Load the harvester worker stats
+        Load the harvester worker stats. Historically this would separate between prodsource labels due to different proxies for analysis and production,
+        but all workers get submitted with production proxy and the pilot changes to analysis proxy if required. So we are not separating by prodsource label,
+        in the query anymore, but we are keeping the prodsource label dimension in the dictionary for compatibility reasons.
         :return: dictionary with worker statistics
         """
         comment = " /* DBProxy.ups_load_worker_stats */"
@@ -1894,9 +1895,10 @@ class WorkerModule(BaseModule):
 
         # get current pilot distribution in harvester for the queue
         sql = f"""
-              SELECT computingsite, harvester_id, jobType, resourceType, status, n_workers
+              SELECT computingsite, harvester_id, resourceType, status, sum(n_workers)
               FROM {panda_config.schemaPANDA}.harvester_worker_stats
               WHERE lastupdate > :time_limit
+              GROUP BY computingsite, harvester_id, resourceType, status
               """
         var_map = {":time_limit": naive_utcnow() - datetime.timedelta(minutes=60)}
 
@@ -1906,16 +1908,15 @@ class WorkerModule(BaseModule):
         for (
             computing_site,
             harvester_id,
-            job_type,
             resource_type,
             status,
             n_workers,
         ) in worker_stats_rows:
             worker_stats_dict.setdefault(computing_site, {})
             worker_stats_dict[computing_site].setdefault(harvester_id, {})
-            worker_stats_dict[computing_site][harvester_id].setdefault(job_type, {})
-            worker_stats_dict[computing_site][harvester_id][job_type].setdefault(resource_type, {})
-            worker_stats_dict[computing_site][harvester_id][job_type][resource_type][status] = n_workers
+            worker_stats_dict[computing_site][harvester_id].setdefault(DEFAULT_PRODSOURCELABEL, {})
+            worker_stats_dict[computing_site][harvester_id][DEFAULT_PRODSOURCELABEL].setdefault(resource_type, {})
+            worker_stats_dict[computing_site][harvester_id][DEFAULT_PRODSOURCELABEL][resource_type][status] = n_workers
 
         if not self._commit():
             raise RuntimeError("Commit error")
