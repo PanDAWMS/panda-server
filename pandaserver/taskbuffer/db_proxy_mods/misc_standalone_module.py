@@ -3755,7 +3755,7 @@ class MiscStandaloneModule(BaseModule):
             now_time = naive_utcnow()
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.final_statuses, prefix=":status")
             sql_delete_req = (
-                f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status IN ({status_var_names_str}) " f"AND end_time<=:end_time_max "
+                f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status IN ({status_var_names_str}) " f"AND end_time<=:end_time_max "
             )
             var_map = {":end_time_max": now_time - datetime.timedelta(days=time_limit_days)}
             var_map.update(status_var_map)
