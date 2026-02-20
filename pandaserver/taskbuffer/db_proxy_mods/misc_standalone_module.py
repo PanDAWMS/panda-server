@@ -3711,7 +3711,7 @@ class MiscStandaloneModule(BaseModule):
             # sql to delete terminated requests
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.final_statuses, prefix=":status")
             sql_delete_req = (
-                f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id " f"AND status IN ({status_var_names_str}) "
+                f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id " f"AND status IN ({status_var_names_str}) "
             )
             var_map_base = {}
             var_map_base.update(status_var_map)
@@ -4141,7 +4141,7 @@ class MiscStandaloneModule(BaseModule):
         try:
             retVal = 0
             # sql to delete
-            sqlD = f"DELETE {panda_config.schemaJEDI}.Jedi_Dataset_Locality WHERE timestamp<=:timestamp "
+            sqlD = f"DELETE FROM {panda_config.schemaJEDI}.Jedi_Dataset_Locality WHERE timestamp<=:timestamp "
             # start transaction
             self.conn.begin()
             # check
