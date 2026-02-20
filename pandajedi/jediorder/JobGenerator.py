@@ -2180,7 +2180,8 @@ class JobGeneratorThread(WorkerThread):
                 # remove duplication for dynamic number of events while preserving the file order
                 tmpLFNs = list(dict.fromkeys(tmpLFNs))
             elif not taskSpec.order_input_by():
-                # sort by LFN unless the order is specified
+                # remove duplication and sort by LFN unless the order is specified
+                tmpLFNs = list(dict.fromkeys(tmpLFNs))
                 tmpLFNs.sort()
             # change stream name and LFNs for PFN list
             if taskSpec.useListPFN() and tmpDatasetSpec.isMaster() and tmpDatasetSpec.isPseudo():
@@ -2223,7 +2224,7 @@ class JobGeneratorThread(WorkerThread):
             streamName = streamName.split("|")[0]
             streamLFNsMap.setdefault(streamName, [])
             streamLFNsMap[streamName].append(tmpFileSpec.lfn)
-        # extract place holders with range expression, e.g., IN[0:2]
+        # extract placeholders with range expression, e.g., IN[0:2]
         for tmpMatch in re.finditer("\$\{([^\}]+)\}", parTemplate):
             tmpPatt = tmpMatch.group(1)
             # split to stream name and range expression
