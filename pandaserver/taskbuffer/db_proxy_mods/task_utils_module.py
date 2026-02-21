@@ -33,6 +33,7 @@ from pandaserver.taskbuffer.JediDatasetSpec import (
 from pandaserver.taskbuffer.JediFileSpec import JediFileSpec
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec, is_msg_driven
 from pandaserver.taskbuffer.JobSpec import JobSpec, get_task_queued_time
+from pandaserver.taskbuffer.task_split_rules import decode_split_rule
 
 
 # Module class to define task related methods that are used by TaskComplex methods
@@ -1805,6 +1806,72 @@ class TaskUtilsModule(BaseModule):
             # error
             self.dump_error_message(tmpLog)
             return failedRet
+
+    # get task details as a JSON-serializable dict
+    def get_task_details_json(self, jedi_task_id: int) -> dict | None:
+        """
+        Read-only helper that returns task info for jedi_task_id as a plain dict.
+
+        Similar to getTaskWithID_JEDI but:
+        - Does NOT lock the task record (no FOR UPDATE).
+        - Returns a plain dict instead of a JediTaskSpec object.
+        - Adds two extra keys to the dict:
+            job_execution_params    : template string to execute a job (or None)
+            task_creation_arguments : command-line arguments to create the job if applicable (or None)
+
+        Returns None when the task is not found or on error.
+        """
+        comment = " /* DBProxy.get_task_details_json */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log.debug("start")
+        try:
+            var_map = {":jediTaskID": jedi_task_id}
+
+            # --- read the main task row (no locking) ---
+            sql = f"SELECT {JediTaskSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+            self.conn.begin()
+            self.cur.arraysize = 10
+            self.cur.execute(sql + comment, var_map)
+            res = self.cur.fetchone()
+            if not self._commit():
+                raise RuntimeError("Commit error")
+
+            if res is None:
+                tmp_log.debug("task not found")
+                return None
+
+            # build flat dict from the DB row
+            task_dict = {}
+            for idx, attr in enumerate(JediTaskSpec.attributes):
+                task_dict[attr] = res[idx]
+                # decode splitRule string to human-readable string
+                if attr == "splitRule" and task_dict[attr] is not None:
+                    task_dict[attr] = decode_split_rule(task_dict[attr])
+
+            # --- read jobParamsTemplate (CLOB) ---
+            sql_read_job_params = f"SELECT jobParamsTemplate FROM {panda_config.schemaJEDI}.JEDI_JobParams_Template WHERE jediTaskID=:jediTaskID "
+            try:
+                _ok, rows = self.getClobObj(sql_read_job_params, var_map)
+                task_dict["job_execution_params"] = rows[0][0] if rows else None
+            except Exception:
+                tmp_log.warning("failed to read jobParamsTemplate")
+
+            # --- read taskParams (CLOB) ---
+            sql_read_task_params = f"SELECT taskParams FROM {panda_config.schemaJEDI}.JEDI_TaskParams WHERE jediTaskID=:jediTaskID "
+            try:
+                _ok, rows = self.getClobObj(sql_read_task_params, var_map)
+                task_params = json.loads(rows[0][0])
+                task_dict["task_creation_arguments"] = task_params.get("cliParams", None)
+            except Exception:
+                tmp_log.warning("failed to read taskParams")
+
+            tmp_log.debug("done")
+            return task_dict
+
+        except Exception:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            return None
 
     # check parent task status
     def checkParentTask_JEDI(self, parent_task_id: int, jedi_task_id: int = None, use_commit: bool = True) -> str | None:

@@ -1665,6 +1665,11 @@ class TaskBuffer:
             ret = proxy.getJediTaskDetails(jediTaskID, fullFlag, withTaskInfo)
         return ret
 
+    # get task details as a plain dict (read-only, no lock)
+    def get_task_details_json(self, jedi_task_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_task_details_json(jedi_task_id)
+
     # get a list of even ranges for a PandaID
     def getEventRanges(self, pandaID, jobsetID, jediTaskID, nRanges, acceptJson, scattered, segment_id):
         # get proxy
