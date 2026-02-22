@@ -1862,6 +1862,7 @@ class TaskUtilsModule(BaseModule):
                 _ok, rows = self.getClobObj(sql_read_task_params, var_map)
                 task_params = json.loads(rows[0][0])
                 task_dict["task_creation_arguments"] = task_params.get("cliParams", None)
+                task_dict["raw_task_params"] = task_params
             except Exception:
                 tmp_log.warning("failed to read taskParams")
 
