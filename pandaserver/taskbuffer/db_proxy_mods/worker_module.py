@@ -950,14 +950,14 @@ class WorkerModule(BaseModule):
                 sql_get_job_status = "SELECT jobStatus, prodSourceLabel, attemptNr FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
 
                 sql_set_job_error = (
-                    "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag,"
+                    "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code, taskBufferErrorDiag=:diag,"
                     "startTime=(CASE WHEN jobStatus=:starting THEN NULL ELSE startTime END) "
                     "WHERE PandaID=:PandaID "
                 )
 
                 # the table name will be inserted at execution time
                 sql_set_sup_error = (
-                    "UPDATE {0} SET supErrorCode=:code,supErrorDiag=:diag,stateChangeTime=CURRENT_DATE "
+                    "UPDATE {0} SET supErrorCode=:code, supErrorDiag=:diag, stateChangeTime=CURRENT_DATE "
                     "WHERE PandaID=:PandaID AND NOT jobStatus IN (:finished) AND modificationTime>CURRENT_DATE-30"
                 )
 
