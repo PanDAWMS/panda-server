@@ -196,14 +196,14 @@ class WorkerModule(BaseModule):
                     ":status": status,
                 }
                 sql_insert_command = (
-                    "INSERT INTO ATLAS_PANDA.HARVESTER_COMMANDS (command_id,creation_date,status_date,command,harvester_id,ack_requested,status"
+                    "INSERT INTO ATLAS_PANDA.HARVESTER_COMMANDS (command_id, creation_date, status_date, command, harvester_id, ack_requested, status"
                 )
                 if params is not None:
                     var_map[":params"] = json.dumps(params)
                     sql_insert_command += ",params"
                 sql_insert_command += ") "
                 sql_insert_command += (
-                    "VALUES (ATLAS_PANDA.HARVESTER_COMMAND_ID_SEQ.nextval,CURRENT_DATE,CURRENT_DATE,:command,:harvester_id,:ack_requested,:status"
+                    "VALUES (ATLAS_PANDA.HARVESTER_COMMAND_ID_SEQ.nextval, CURRENT_DATE, CURRENT_DATE, :command, :harvester_id, :ack_requested, :status"
                 )
                 if params is not None:
                     sql_insert_command += ",:params"
