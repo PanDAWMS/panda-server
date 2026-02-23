@@ -675,7 +675,7 @@ class WorkerModule(BaseModule):
 
             # sql to lock command
             sql_lock_command = (
-                "UPDATE ATLAS_PANDA.Harvester_Command_Lock SET lockedBy=:lockedBy,lockedTime=CURRENT_DATE "
+                "UPDATE ATLAS_PANDA.Harvester_Command_Lock SET lockedBy=:lockedBy, lockedTime=CURRENT_DATE "
                 "WHERE harvester_ID=:harvester_ID AND command=:command AND computingSite=:siteName AND resourceType=:resourceType "
                 "AND ((lockedBy IS NULL AND lockedTime<:limitComm) OR (lockedBy IS NOT NULL AND lockedTime<:limitLock)) "
             )
