@@ -946,16 +946,21 @@ class WorkerModule(BaseModule):
                     "WHERE r.harvesterID=:harvesterID AND r.workerID=:workerID "
                     "AND j.PandaID=r.PandaID AND NOT j.jobStatus IN (:holding) "
                 )
+
                 sql_get_job_status = "SELECT jobStatus,prodSourceLabel,attemptNr FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+
                 sql_set_job_error = (
                     "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag,"
                     "startTime=(CASE WHEN jobStatus=:starting THEN NULL ELSE startTime END) "
                     "WHERE PandaID=:PandaID "
                 )
+
+                # the table name will be inserted at execution time
                 sql_set_sup_error = (
                     "UPDATE {0} SET supErrorCode=:code,supErrorDiag=:diag,stateChangeTime=CURRENT_DATE "
                     "WHERE PandaID=:PandaID AND NOT jobStatus IN (:finished) AND modificationTime>CURRENT_DATE-30"
                 )
+
                 var_map = {
                     ":harvesterID": harvesterID,
                     ":workerID": worker_data["workerID"],
@@ -1001,10 +1006,11 @@ class WorkerModule(BaseModule):
                                 #     pass
                                 # sql to insert empty job output report for adder
                                 sql_insert_job_report = (
-                                    "INSERT INTO {0}.Job_Output_Report "
+                                    f"INSERT INTO {panda_config.schemaPANDA}.Job_Output_Report "
                                     "(PandaID, prodSourceLabel, jobStatus, attemptNr, data, timeStamp) "
                                     "VALUES(:PandaID, :prodSourceLabel, :jobStatus, :attemptNr, :data, :timeStamp) "
-                                ).format(panda_config.schemaPANDA)
+                                )
+
                                 # insert
                                 var_map = {
                                     ":PandaID": panda_id,
@@ -1402,10 +1408,12 @@ class WorkerModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get workers
-            sql_get_workers = f"SELECT {WorkerSpec.columnNames(prefix='w')} FROM ATLAS_PANDA.Harvester_Workers w, ATLAS_PANDA.Harvester_Rel_Jobs_Workers r "
-            sql_get_workers += "WHERE w.harvesterID=r.harvesterID AND w.workerID=r.workerID AND r.PandaID=:PandaID "
-            var_map = {}
-            var_map[":PandaID"] = PandaID
+            sql_get_workers = (
+                f"SELECT {WorkerSpec.columnNames(prefix='w')} FROM ATLAS_PANDA.Harvester_Workers w, ATLAS_PANDA.Harvester_Rel_Jobs_Workers r "
+                "WHERE w.harvesterID=r.harvesterID AND w.workerID=r.workerID AND r.PandaID=:PandaID "
+            )
+            var_map = {":PandaID": PandaID}
+
             # start transaction
             self.conn.begin()
             self.cur.execute(sql_get_workers + comment, var_map)
@@ -1440,28 +1448,24 @@ class WorkerModule(BaseModule):
             retry_period = naive_utcnow() - datetime.timedelta(minutes=30)
 
             # Select workers where the status is more advanced according to the pilot than to harvester
-            sql_select = """
-            SELECT /*+ INDEX_RS_ASC(harvester_workers HARVESTER_WORKERS_STATUS_IDX) */ harvesterID, workerID, pilotStatus
-            FROM ATLAS_PANDA.harvester_workers
-            WHERE (status in ('submitted', 'ready') AND pilotStatus='running' AND pilotStartTime < :discovery_period)
-            OR (status in ('submitted', 'ready', 'running', 'idle') AND pilotStatus='finished' AND pilotEndTime < :discovery_period)
-            AND lastupdate > sysdate - interval '7' day
-            AND submittime > sysdate - interval '14' day
-            AND (pilotStatusSyncTime > :retry_period OR pilotStatusSyncTime IS NULL)
-            FOR UPDATE
-            """
+            sql_select = (
+                "SELECT /*+ INDEX_RS_ASC(harvester_workers HARVESTER_WORKERS_STATUS_IDX) */ harvesterID, workerID, pilotStatus "
+                "FROM ATLAS_PANDA.harvester_workers "
+                "WHERE (status in ('submitted', 'ready') AND pilotStatus='running' AND pilotStartTime < :discovery_period) "
+                "OR (status in ('submitted', 'ready', 'running', 'idle') AND pilotStatus='finished' AND pilotEndTime < :discovery_period) "
+                "AND lastupdate > sysdate - interval '7' day "
+                "AND submittime > sysdate - interval '14' day "
+                "AND (pilotStatusSyncTime > :retry_period OR pilotStatusSyncTime IS NULL) "
+                "FOR UPDATE"
+            )
+
             var_map = {
                 ":discovery_period": discovery_period,
                 ":retry_period": retry_period,
             }
 
             now_ts = naive_utcnow()
-            sql_update = """
-            UPDATE ATLAS_PANDA.harvester_workers
-            SET pilotStatusSyncTime = :lastSync
-            WHERE harvesterID= :harvesterID
-            AND workerID= :workerID
-            """
+            sql_update = "UPDATE ATLAS_PANDA.harvester_workers SET pilotStatusSyncTime = :lastSync WHERE harvesterID= :harvesterID AND workerID= :workerID "
 
             # run query to select workers
             self.conn.begin()
@@ -1509,9 +1513,9 @@ class WorkerModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get workers
-            sql_get_max = "SELECT MAX(workerID) FROM ATLAS_PANDA.Harvester_Workers "
-            sql_get_max += "WHERE harvesterID=:harvesterID "
+            sql_get_max = "SELECT MAX(workerID) FROM ATLAS_PANDA.Harvester_Workers WHERE harvesterID=:harvesterID "
             var_map = {":harvesterID": harvester_id}
+
             # start transaction
             self.conn.begin()
             self.cur.execute(sql_get_max + comment, var_map)
@@ -1538,12 +1542,15 @@ class WorkerModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to delete message
-            sql_delete_dialog = f"DELETE FROM {panda_config.schemaPANDA}.Harvester_Dialogs "
-            sql_delete_dialog += "WHERE harvester_id=:harvester_id AND diagID=:diagID "
+            sql_delete_dialog = f"DELETE FROM {panda_config.schemaPANDA}.Harvester_Dialogs WHERE harvester_id=:harvester_id AND diagID=:diagID "
+
             # sql to insert message
-            sql_insert_dialog = f"INSERT INTO {panda_config.schemaPANDA}.Harvester_Dialogs "
-            sql_insert_dialog += "(harvester_id,diagID,moduleName,identifier,creationTime,messageLevel,diagMessage) "
-            sql_insert_dialog += "VALUES(:harvester_id,:diagID,:moduleName,:identifier,:creationTime,:messageLevel,:diagMessage) "
+            sql_insert_dialog = (
+                f"INSERT INTO {panda_config.schemaPANDA}.Harvester_Dialogs "
+                "(harvester_id, diagID, moduleName, identifier, creationTime, messageLevel, diagMessage) "
+                "VALUES(:harvester_id, :diagID, :moduleName, :identifier, :creationTime, :messageLevel, :diagMessage) "
+            )
+
             for dialog_dict in dialogs:
                 # start transaction
                 self.conn.begin()
@@ -1735,11 +1742,7 @@ class WorkerModule(BaseModule):
                     var_map[f":command_id{i}"] = command_id
                 command_id_bindings = ",".join(f":command_id{i}" for i in range(len(command_ids)))
 
-                sql = f"""
-                      UPDATE ATLAS_PANDA.HARVESTER_COMMANDS
-                      SET status=:retrieved,status_date=CURRENT_DATE
-                      WHERE command_id IN({command_id_bindings})
-                      """
+                sql = f"UPDATE ATLAS_PANDA.HARVESTER_COMMANDS SET status=:retrieved, status_date=CURRENT_DATE WHERE command_id IN({command_id_bindings})"
 
                 # run the update
                 self.cur.execute(sql + comment, var_map)
@@ -1770,11 +1773,7 @@ class WorkerModule(BaseModule):
                 var_map[f":command_id{i}"] = command_id
             command_id_bindings = ",".join(f":command_id{i}" for i in range(len(command_ids)))
 
-            sql = f"""
-                  UPDATE ATLAS_PANDA.HARVESTER_COMMANDS
-                  SET status=:acknowledged,status_date=CURRENT_DATE
-                  WHERE command_id IN({command_id_bindings})
-                  """
+            sql = f"UPDATE ATLAS_PANDA.HARVESTER_COMMANDS SET status=:acknowledged, status_date=CURRENT_DATE WHERE command_id IN({command_id_bindings})"
 
             # run the update
             self.conn.begin()
@@ -1882,12 +1881,11 @@ class WorkerModule(BaseModule):
         self.conn.begin()
 
         # get current pilot distribution in harvester for the queue
-        sql = f"""
-              SELECT computingsite, harvester_id, resourceType, status, sum(n_workers)
-              FROM {panda_config.schemaPANDA}.harvester_worker_stats
-              WHERE lastupdate > :time_limit
-              GROUP BY computingsite, harvester_id, resourceType, status
-              """
+        sql = (
+            "SELECT computingsite, harvester_id, resourceType, status, sum(n_workers) "
+            f"FROM {panda_config.schemaPANDA}.harvester_worker_stats WHERE lastupdate > :time_limit "
+            "GROUP BY computingsite, harvester_id, resourceType, status"
+        )
         var_map = {":time_limit": naive_utcnow() - datetime.timedelta(minutes=60)}
 
         self.cur.execute(sql + comment, var_map)
