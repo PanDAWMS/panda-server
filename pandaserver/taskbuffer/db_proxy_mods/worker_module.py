@@ -947,7 +947,7 @@ class WorkerModule(BaseModule):
                     "AND j.PandaID=r.PandaID AND NOT j.jobStatus IN (:holding) "
                 )
 
-                sql_get_job_status = "SELECT jobStatus,prodSourceLabel,attemptNr FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+                sql_get_job_status = "SELECT jobStatus, prodSourceLabel, attemptNr FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
 
                 sql_set_job_error = (
                     "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag,"
