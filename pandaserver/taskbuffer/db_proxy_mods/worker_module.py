@@ -632,12 +632,17 @@ class WorkerModule(BaseModule):
         tmp_log.debug("start")
         try:
             # check if lock is available
-            sql_check_lock = "SELECT 1 FROM ATLAS_PANDA.Harvester_Command_Lock "
-            sql_check_lock += "WHERE harvester_ID=:harvester_ID AND computingSite=:siteName AND resourceType=:resourceType AND command=:command "
+            sql_check_lock = (
+                "SELECT 1 FROM ATLAS_PANDA.Harvester_Command_Lock "
+                "WHERE harvester_ID=:harvester_ID AND computingSite=:siteName AND resourceType=:resourceType AND command=:command "
+            )
+
             # sql to add lock
-            sql_add_lock = "INSERT INTO ATLAS_PANDA.Harvester_Command_Lock "
-            sql_add_lock += "(harvester_ID,computingSite,resourceType,command,lockedTime) "
-            sql_add_lock += "VALUES (:harvester_ID,:siteName,:resourceType,:command,CURRENT_DATE-1) "
+            sql_add_lock = (
+                "INSERT INTO ATLAS_PANDA.Harvester_Command_Lock "
+                "(harvester_ID, computingSite, resourceType, command,lockedTime) "
+                "VALUES (:harvester_ID, :siteName, :resourceType, :command, CURRENT_DATE-1) "
+            )
             if useCommit:
                 self.conn.begin()
             # check
