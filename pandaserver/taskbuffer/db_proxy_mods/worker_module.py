@@ -740,9 +740,12 @@ class WorkerModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to release lock
-            sql_release_lock = "UPDATE ATLAS_PANDA.Harvester_Command_Lock SET lockedBy=NULL "
-            sql_release_lock += "WHERE harvester_ID=:harvester_ID AND command=:command "
-            sql_release_lock += "AND computingSite=:computingSite AND resourceType=:resourceType AND lockedBy=:lockedBy "
+            sql_release_lock = (
+                "UPDATE ATLAS_PANDA.Harvester_Command_Lock SET lockedBy=NULL "
+                "WHERE harvester_ID=:harvester_ID AND command=:command "
+                "AND computingSite=:computingSite AND resourceType=:resourceType AND lockedBy=:lockedBy "
+            )
+
             var_map = {
                 ":harvester_ID": harvester_ID,
                 ":command": command,
@@ -750,6 +753,7 @@ class WorkerModule(BaseModule):
                 ":resourceType": resourceType,
                 ":lockedBy": lockedBy,
             }
+
             # release lock
             self.conn.begin()
             self.cur.execute(sql_release_lock + comment, var_map)
