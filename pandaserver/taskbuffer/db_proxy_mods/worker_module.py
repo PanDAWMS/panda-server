@@ -628,7 +628,7 @@ class WorkerModule(BaseModule):
             # sql to add lock
             sql_add_lock = (
                 "INSERT INTO ATLAS_PANDA.Harvester_Command_Lock "
-                "(harvester_ID, computingSite, resourceType, command,lockedTime) "
+                "(harvester_ID, computingSite, resourceType, command, lockedTime) "
                 "VALUES (:harvester_ID, :siteName, :resourceType, :command, CURRENT_DATE-1) "
             )
             if useCommit:
