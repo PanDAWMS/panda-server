@@ -895,8 +895,10 @@ class WorkerModule(BaseModule):
                 else:
                     # update
                     tmp_log.debug(f"workerID={worker_spec.workerID} update for status={worker_spec.status}")
-                    sql_update_worker = f"UPDATE ATLAS_PANDA.Harvester_Workers SET {worker_spec.bindUpdateChangesExpression()} "
-                    sql_update_worker += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
+                    sql_update_worker = (
+                        f"UPDATE ATLAS_PANDA.Harvester_Workers SET {worker_spec.bindUpdateChangesExpression()} "
+                        f"WHERE harvesterID=:harvesterID AND workerID=:workerID "
+                    )
                     var_map = worker_spec.valuesMap(onlyChanged=True)
                     self.cur.execute(sql_update_worker + comment, var_map)
                 # job relation
