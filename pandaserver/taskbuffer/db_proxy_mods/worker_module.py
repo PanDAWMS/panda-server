@@ -895,7 +895,7 @@ class WorkerModule(BaseModule):
                     sql_get_job_rels = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers WHERE harvesterID=:harvesterID AND workerID=:workerID "
                     sql_insert_job_rel = (
                         "INSERT INTO ATLAS_PANDA.Harvester_Rel_Jobs_Workers (harvesterID,workerID,PandaID,lastUpdate) "
-                        "VALUES (:harvesterID,:workerID,:PandaID,:lastUpdate) "
+                        "VALUES (:harvesterID, :workerID, :PandaID, :lastUpdate) "
                     )
                     sql_update_job_rel = (
                         "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
