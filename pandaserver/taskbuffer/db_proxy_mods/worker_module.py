@@ -1064,7 +1064,7 @@ class WorkerModule(BaseModule):
                         raise RuntimeError("Commit error")
                 ret_list.append(True)
             reg_time = naive_utcnow() - reg_start
-            tmp_log.debug("done. exec_time=%s.%03d sec" % (reg_time.seconds, reg_time.microseconds / 1000))
+            tmp_log.debug(f"done. exec_time={reg_time.seconds}.{reg_time.microseconds // 1000:03d} sec")
             return ret_list
         except Exception:
             # roll back
@@ -1870,10 +1870,10 @@ class WorkerModule(BaseModule):
                 ":level_name": "INFO",
             }
 
-            sql = """
-                  INSERT INTO ATLAS_PANDA.PANDALOG (BINTIME, NAME, MODULE, TYPE, PID, LOGLEVEL, LEVELNAME, TIME, FILENAME, MESSAGE)
-                  VALUES (:now, :name, :module, :type, :panda_id, :log_level, :level_name, :now, :file_name, :message)
-                  """
+            sql = (
+                "INSERT INTO ATLAS_PANDA.PANDALOG (BINTIME, NAME, MODULE, TYPE, PID, LOGLEVEL, LEVELNAME, TIME, FILENAME, MESSAGE) "
+                "VALUES (:now, :name, :module, :type, :panda_id, :log_level, :level_name, :now, :file_name, :message)"
+            )
 
             # run the insert
             self.conn.begin()
