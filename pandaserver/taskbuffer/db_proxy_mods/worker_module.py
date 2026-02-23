@@ -794,7 +794,7 @@ class WorkerModule(BaseModule):
                 }
                 sql_insert_instance = (
                     "INSERT INTO ATLAS_PANDA.Harvester_Instances "
-                    "(harvester_ID,owner,hostName,lastUpdate,description) "
+                    "(harvester_ID, owner, hostName, lastUpdate, description) "
                     "VALUES(:harvesterID, :owner, :hostName, CURRENT_DATE, :descr) "
                 )
                 self.cur.execute(sql_insert_instance + comment, var_map)
