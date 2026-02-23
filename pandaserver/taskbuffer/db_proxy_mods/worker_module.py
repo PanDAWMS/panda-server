@@ -167,8 +167,7 @@ class WorkerModule(BaseModule):
             if useCommit:
                 self.conn.begin()
             # check if command exists
-            sql_check_command = "SELECT status,status_date FROM ATLAS_PANDA.HARVESTER_COMMANDS "
-            sql_check_command += "WHERE harvester_ID=:harvester_ID AND command=:command "
+            sql_check_command = "SELECT status,status_date FROM ATLAS_PANDA.HARVESTER_COMMANDS WHERE harvester_ID=:harvester_ID AND command=:command "
             var_map = {
                 ":harvester_ID": harvester_ID,
                 ":command": command,
