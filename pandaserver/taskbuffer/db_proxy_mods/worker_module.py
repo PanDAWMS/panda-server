@@ -102,19 +102,7 @@ class WorkerModule(BaseModule):
         try:
             # set autocommit on
             self.conn.begin()
-            # sql to get nPilot
-            # sqlP = ("SELECT getJob+updateJob FROM ATLAS_PANDAMETA.SiteData "
-            #         "WHERE HOURS=:hours AND FLAG IN (:flag1,:flag2) ")
-            # varMap = dict()
-            # varMap[":hours"] = 1
-            # varMap[":flag1"] = "production"
-            # varMap[":flag2"] = "analysis"
-            # self.cur.execute(sqlP + comment, varMap)
-            # res = self.cur.fetchone()
-            # if res is not None:
-            #     (nPilot,) = res
-            # else:
-            #     nPilot = 0
+
             # sql to get stat of workers
             sql_get_stats = (
                 "SELECT SUM(n_workers), computingSite, harvester_ID, jobType, resourceType, status "
@@ -1046,17 +1034,7 @@ class WorkerModule(BaseModule):
                                 "ATLAS_PANDAARCH.jobsArchived",
                             ]:
                                 self.cur.execute(sql_set_sup_error.format(table_name) + comment, var_map)
-                    """
-                    sql_update_job_mod_time = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
-                    var_map = dict()
-                    var_map[':PandaID'] = panda_id
-                    var_map[':js1'] = 'running'
-                    var_map[':js2'] = 'starting'
-                    self.cur.execute(sql_update_job_mod_time+comment, var_map)
-                    n_row_ja = self.cur.rowcount
-                    if n_row_ja > 0:
-                        tmp_log.debug('workerID={0} PandaID={1} updated modificationTime'.format(worker_spec.workerID, panda_id))
-                    """
+
                 tmp_log.debug(f"workerID={worker_spec.workerID} end")
                 # commit
                 if useCommit:
