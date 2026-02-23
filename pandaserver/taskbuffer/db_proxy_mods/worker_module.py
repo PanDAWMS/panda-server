@@ -667,7 +667,7 @@ class WorkerModule(BaseModule):
             time_now = naive_utcnow()
             # sql to get commands
             sql_get_locks = (
-                "SELECT computingSite,resourceType FROM ATLAS_PANDA.Harvester_Command_Lock "
+                "SELECT computingSite, resourceType FROM ATLAS_PANDA.Harvester_Command_Lock "
                 "WHERE harvester_ID=:harvester_ID AND command=:command "
                 "AND ((lockedBy IS NULL AND lockedTime<:limitComm) OR (lockedBy IS NOT NULL AND lockedTime<:limitLock)) "
                 "FOR UPDATE "
