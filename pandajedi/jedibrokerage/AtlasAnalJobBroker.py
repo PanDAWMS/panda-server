@@ -40,6 +40,13 @@ class AtlasAnalJobBroker(JobBrokerBase):
             logger.error("Failed to load the SW tags map!!!")
             self.sw_map = {}
 
+        # load the worker node CPU architecture-level map
+        try:
+            self.architecture_level_map = taskBufferIF.get_architecture_level_map()
+        except BaseException:
+            logger.error("Failed to load the WN architecture level map!!!")
+            self.architecture_level_map = {}
+
     # main
     def doBrokerage(self, taskSpec, cloudName, inputChunk, taskParamMap):
         # make logger
@@ -798,7 +805,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
             # selection for GPU + architecture
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
-            jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map)
+            jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map, self.architecture_level_map)
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 if tmpSiteSpec.isGPU() and not taskSpec.is_hpo_workflow():
@@ -806,7 +813,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         tmpLog.info(f"  skip site={tmpSiteName} since architecture is required for GPU queues")
                         continue
                     siteListWithCMTCONFIG = [tmpSiteSpec.get_unified_name()]
-                    siteListWithCMTCONFIG, sitesNoJsonCheck = jsonCheck.check(siteListWithCMTCONFIG, None, None, None, taskSpec.get_sw_platform(), False, True)
+                    siteListWithCMTCONFIG, sitesNoJsonCheck, _ = jsonCheck.check(
+                        siteListWithCMTCONFIG, None, None, None, taskSpec.get_sw_platform(), False, True
+                    )
 
                     if len(siteListWithCMTCONFIG) == 0:
                         tmpLog.info(f"  skip site={tmpSiteName} since architecture={taskSpec.get_sw_platform()} is unavailable")
@@ -850,8 +859,11 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     is_regexp_cmt_config = True
             base_platform = taskSpec.get_base_platform()
             resolved_platforms = {}
+
             host_cpu_spec = taskSpec.get_host_cpu_spec()
+            host_cpu_pref = taskSpec.get_host_cpu_preference()
             host_gpu_spec = taskSpec.get_host_gpu_spec()
+
             if not sitePreAssigned:
                 unified_site_list = self.get_unified_sites(scanSiteList)
                 if taskSpec.transHome is not None:
@@ -868,7 +880,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     and re.search("-\d+\.\d+\.\d+$", transHome) is None
                 ):
                     # cache is checked
-                    siteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+                    siteListWithSW, sitesNoJsonCheck, _ = jsonCheck.check(
                         unified_site_list,
                         "atlas",
                         transHome.split("-")[0],
@@ -879,6 +891,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         container_name=taskSpec.container_name,
                         only_tags_fc=taskSpec.use_only_tags_fc(),
                         host_cpu_specs=host_cpu_spec,
+                        host_cpu_pref=host_cpu_pref,
                         host_gpu_spec=host_gpu_spec,
                         log_stream=tmpLog,
                     )
@@ -896,7 +909,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         transUses = None
                     if transUses is not None:
                         # release is checked
-                        tmpSiteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+                        tmpSiteListWithSW, sitesNoJsonCheck, _ = jsonCheck.check(
                             unified_site_list,
                             "atlas",
                             "AtlasOffline",
@@ -912,7 +925,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         )
                         siteListWithSW += tmpSiteListWithSW
                     if len(transHome.split("-")) == 2:
-                        tmpSiteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+                        tmpSiteListWithSW, sitesNoJsonCheck, _ = jsonCheck.check(
                             sitesNoJsonCheck,
                             "atlas",
                             transHome.split("-")[0],
@@ -933,7 +946,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     # nightlies or standalone uses only AUTO
                     if taskSpec.transHome is not None:
                         # CVMFS check for nightlies
-                        siteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+                        siteListWithSW, sitesNoJsonCheck, _ = jsonCheck.check(
                             unified_site_list,
                             "nightlies",
                             None,
@@ -951,7 +964,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
 
                     else:
                         # no CVMFS check for standalone SW
-                        siteListWithSW, sitesNoJsonCheck = jsonCheck.check(
+                        siteListWithSW, sitesNoJsonCheck, _ = jsonCheck.check(
                             unified_site_list,
                             None,
                             None,

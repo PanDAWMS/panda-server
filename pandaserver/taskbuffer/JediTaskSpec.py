@@ -97,6 +97,7 @@ class JediTaskSpec(object):
         "framework",
         "activatedTime",
         "queuedTime",
+        "actionTime",
     )
     # attributes which have 0 by default
     _zeroAttrs = ()
@@ -1382,6 +1383,14 @@ class JediTaskSpec(object):
                 spec = {"arch": items[0], "vendor": items[1], "instr": items[2]}
                 specs.append(spec)
             return specs
+        except Exception:
+            return None
+
+    def get_host_cpu_preference(self):
+        try:
+            d = json.loads(self.architecture)
+            cpu_pref = d.get("cpu_pref", None)
+            return cpu_pref
         except Exception:
             return None
 

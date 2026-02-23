@@ -19,7 +19,7 @@ from pandaserver.api.v1.common import (
     has_production_role,
     request_validation,
 )
-from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.srvcore.CoreUtils import clean_user_id, make_reassign_comment
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer import task_split_rules
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
@@ -260,19 +260,7 @@ def reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = Non
     is_production_role = has_production_role(req)
 
     # reassign to site, nucleus or cloud
-    # note that ProdSys sets site or nucleus to "" for a rebrokerage
-    if site is not None:
-        comment = f"site:{site}:y"  # set 'y' to go back to oldStatus immediately
-    elif nucleus is not None:
-        comment = f"nucleus:{nucleus}:n"
-    else:
-        comment = f"cloud:{cloud}:n"
-
-    # set additional modes
-    if mode == "nokill":
-        comment += ":nokill reassign"
-    elif mode == "soft":
-        comment += ":soft reassign"
+    comment = make_reassign_comment(site, cloud, nucleus, mode)
 
     ret = global_task_buffer.sendCommandTaskPanda(
         task_id,
@@ -1089,7 +1077,9 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
     # check attribute
     if attribute_name not in task_split_rules.changeable_split_rule_tags:
         tmp_logger.error("Failed due to invalid attribute_name")
-        return generate_response(False, message=f"{attribute_name} is not a valid attribute. Valid attributes are {changeable_split_rule_tags}", data=2)
+        return generate_response(
+            False, message=f"{attribute_name} is not a valid attribute. Valid attributes are {task_split_rules.changeable_split_rule_tags}", data=2
+        )
 
     n_tasks_changed = global_task_buffer.changeTaskSplitRulePanda(task_id, attribute_name, value)
     if n_tasks_changed is None:  # method excepted

@@ -3263,6 +3263,78 @@ class TaskStandaloneModule(BaseModule):
             self.dump_error_message(tmpLog)
             return failedRet
 
+    # get tasks to take periodic action
+    def get_tasks_for_periodic_action(self, vo: str | None, prod_source_label: str | None, time_limit: int, n_tasks: int) -> list[int] | None:
+        """
+        Get JEDI tasks to take periodic action.
+        Args:
+            vo: VO name to filter tasks.
+            prod_source_label: Production source label to filter tasks.
+            time_limit: Time limit in minutes to consider tasks for checkup.
+            n_tasks: Maximum number of tasks to retrieve.
+        Returns:
+            List of JEDI task IDs to be checked, or None in case of failure.
+        """
+        comment = " /* JediDBProxy.get_tasks_for_periodic_action */"
+        tmp_log = self.create_tagged_logger(comment, f"vo={vo} label={prod_source_label}")
+        tmp_log.debug("start")
+        # return value for failure
+        failed_ret = None
+        try:
+            # SQL to get tasks
+            var_map = {":status1": "running", ":status2": "pending"}
+            sql_get_tasks = (
+                "SELECT tabT.jediTaskID, tabT.status "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT,{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.status IN (:status1,:status2) "
+            )
+            if vo not in [None, "any"]:
+                var_map[":vo"] = vo
+                sql_get_tasks += "AND tabT.vo=:vo "
+            if prod_source_label not in [None, "any"]:
+                var_map[":prodSourceLabel"] = prod_source_label
+                sql_get_tasks += "AND tabT.prodSourceLabel=:prodSourceLabel "
+            sql_get_tasks += "AND (actionTime IS NULL OR actionTime<:timeLimit) " f"AND rownum<{n_tasks} "
+            # SQL to lock task
+            sql_lock_task = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET actionTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND (actionTime IS NULL OR actionTime<:timeLimit) AND status=:status "
+            )
+            # begin transaction
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            # get tasks
+            time_to_check = naive_utcnow() - datetime.timedelta(hours=time_limit)
+            var_map[":timeLimit"] = time_to_check
+            self.cur.execute(sql_get_tasks + comment, var_map)
+            task_stat_list = self.cur.fetchall()
+            ret_tasks = []
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # lock tasks
+            for jedi_task_id, task_status in task_stat_list:
+                # begin transaction
+                self.conn.begin()
+                # lock task
+                var_map = {":jediTaskID": jedi_task_id, ":timeLimit": time_to_check, ":status": task_status}
+                self.cur.execute(sql_lock_task + comment, var_map)
+                n_row = self.cur.rowcount
+                # commit
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                if n_row == 1:
+                    ret_tasks.append(jedi_task_id)
+            tmp_log.debug(f"got {len(ret_tasks)} tasks")
+            return ret_tasks
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return failed_ret
+
     # get inactive sites
     def getInactiveSites_JEDI(self, flag, timeLimit):
         comment = " /* JediDBProxy.getInactiveSites_JEDI */"

@@ -515,3 +515,58 @@ class StopWatch:
         self.checkpoint = now
         self.step_name = new_step_name
         return return_str
+
+
+# construct execution comment to reassign a task
+def make_reassign_comment(site: str = None, cloud: str = None, nucleus: str = None, mode: str = None) -> str:
+    """
+    Construct execution comment to reassign a task to a site, cloud or nucleus with different modes.
+
+    :param site: target site for reassignment
+    :param cloud: target cloud for reassignment
+    :param nucleus: target nucleus for reassignment
+    :param mode: can be "nokill" to avoid killing running jobs and "soft" to trigger rebrokerage without killing running jobs
+
+    :return: execution comment for task reassignment
+    """
+    # reassign to site, nucleus or cloud. Note that Prodsys use blah="" to trigger rebrokerage
+    if site is not None:
+        comment = f"site:{site}:y"  # set 'y' to go back to oldStatus bypassing rebrokerage
+    else:
+        if nucleus is not None:
+            comment = f"nucleus:{nucleus}"
+        else:
+            comment = f"cloud:{cloud}"
+        # set 'y' to trigger rebrokerage
+        comment += ":n"
+
+    # set additional modes
+    if mode == "nokill":
+        comment += ":nokill reassign"
+    elif mode == "soft":
+        comment += ":soft reassign"
+
+    return comment
+
+
+# parse execution comment to get task reassignment instructions
+def parse_reassign_comment(comment: str) -> dict:
+    """
+    Parse execution comment to get task reassignment instructions, including target site/cloud/nucleus, whether to go back to old status and additional modes.
+
+    :param comment: execution comment for task reassignment
+
+    :return: a dictionary with keys "target", "value", "back_to_old_status" and "mode" (if any)
+    """
+    info = {"target": "site", "value": None, "back_to_old_status": False, "mode": None}
+    try:
+        items = comment.split(":")
+        if len(items) >= 3:
+            info["target"] = items[0]
+            info["value"] = items[1]
+            info["back_to_old_status"] = items[2] == "y"
+            if len(items) > 3:
+                info["mode"] = items[3]
+    except Exception:
+        pass
+    return info

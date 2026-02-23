@@ -1244,6 +1244,7 @@ class JobStandaloneModule(BaseModule):
 
         # sql template for jobs table
         sql_template = f"SELECT computingSite, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, jobStatus"
+
         # sql template for statistics table (materialized view)
         sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
         sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
@@ -1377,46 +1378,44 @@ class JobStandaloneModule(BaseModule):
         comment = " /* DBProxy.getNumberJobsUser */"
         tmp_log = self.create_tagged_logger(comment, f"DN={dn}")
         tmp_log.debug(f"workingGroup={workingGroup})")
+
         # get compact DN
-        compactDN = CoreUtils.clean_user_id(dn)
-        if compactDN in ["", "NULL", None]:
-            compactDN = dn
+        compact_dn = CoreUtils.clean_user_id(dn)
+        if compact_dn in ["", "NULL", None]:
+            compact_dn = dn
+
         if workingGroup is not None:
-            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup=:workingGroup "
+            sql_count_jobs = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup=:workingGroup "
         else:
-            sql0 = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup IS NULL "
-        sql0 += "AND NOT jobStatus IN (:failed,:merging) "
-        nTry = 1
-        nJob = 0
-        for iTry in range(nTry):
+            sql_count_jobs = "SELECT COUNT(*) FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel AND workingGroup IS NULL "
+        sql_count_jobs += "AND NOT jobStatus IN (:failed,:merging) "
+
+        n_try = 1
+        n_jobs = 0
+        for i_try in range(n_try):
             try:
                 for table in ("ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"):
                     # start transaction
                     self.conn.begin()
                     # select
-                    varMap = {}
-                    varMap[":prodUserName"] = compactDN
-                    varMap[":prodSourceLabel"] = "user"
-                    varMap[":failed"] = "failed"
-                    varMap[":merging"] = "merging"
+                    var_map = {":prodUserName": compact_dn, ":prodSourceLabel": "user", ":failed": "failed", ":merging": "merging"}
                     if workingGroup is not None:
-                        varMap[":workingGroup"] = workingGroup
+                        var_map[":workingGroup"] = workingGroup
                     self.cur.arraysize = 10
-                    self.cur.execute((sql0 + comment) % table, varMap)
-                    res = self.cur.fetchall()
+                    self.cur.execute((sql_count_jobs + comment) % table, var_map)
+                    rows = self.cur.fetchall()
                     # commit
                     if not self._commit():
                         raise RuntimeError("Commit error")
-                    # create map
-                    if len(res) != 0:
-                        nJob += res[0][0]
+                    if len(rows) != 0:
+                        n_jobs += rows[0][0]
                 # return
-                tmp_log.debug(f"{nJob}")
-                return nJob
+                tmp_log.debug(f"{n_jobs}")
+                return n_jobs
             except Exception:
                 # roll back
                 self._rollback()
-                if iTry + 1 < nTry:
+                if i_try + 1 < n_try:
                     time.sleep(2)
                     continue
                 self.dump_error_message(tmp_log)
@@ -1610,19 +1609,22 @@ class JobStandaloneModule(BaseModule):
         comment = " /* DBProxy.peekJobLog */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"days={days}")
+
         # return None for NULL PandaID
         if pandaID in ["NULL", "", "None", None]:
             return None
-        sql1_0 = "SELECT %s FROM %s "
-        sql1_1 = "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-:days) "
+
+        sql_select = "SELECT %s FROM %s "
+        sql_where = "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-:days) "
+
         # select
-        varMap = {}
-        varMap[":PandaID"] = pandaID
+        var_map = {":PandaID": pandaID}
         if days is None:
             days = 30
-        varMap[":days"] = days
-        nTry = 1
-        for iTry in range(nTry):
+        var_map[":days"] = days
+        n_try = 1
+
+        for i_try in range(n_try):
             try:
                 # get list of archived tables
                 tables = [f"{panda_config.schemaPANDAARCH}.jobsArchived"]
@@ -1631,64 +1633,67 @@ class JobStandaloneModule(BaseModule):
                     # start transaction
                     self.conn.begin()
                     # select
-                    sql = sql1_0 % (JobSpec.columnNames(), table) + sql1_1
+                    sql = sql_select % (JobSpec.columnNames(), table) + sql_where
                     self.cur.arraysize = 10
-                    self.cur.execute(sql + comment, varMap)
-                    res = self.cur.fetchall()
+                    self.cur.execute(sql + comment, var_map)
+                    rows = self.cur.fetchall()
                     # commit
                     if not self._commit():
                         raise RuntimeError("Commit error")
-                    if len(res) != 0:
+                    if len(rows) != 0:
                         # Job
                         job = JobSpec()
-                        job.pack(res[0])
+                        job.pack(rows[0])
                         # Files
                         # start transaction
                         self.conn.begin()
                         # select
-                        fileTableName = re.sub("jobsArchived", "filesTable_ARCH", table)
-                        sqlFile = f"SELECT /*+ INDEX(tab FILES_ARCH_PANDAID_IDX)*/ {FileSpec.columnNames()} "
-                        sqlFile += f"FROM {fileTableName} tab "
-                        # put constraint on modificationTime to avoid full table scan
-                        sqlFile += "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-:days)"
+                        file_table_name = re.sub("jobsArchived", "filesTable_ARCH", table)
+                        sql_get_files = (
+                            f"SELECT /*+ INDEX(tab FILES_ARCH_PANDAID_IDX)*/ {FileSpec.columnNames()} "
+                            f"FROM {file_table_name} tab "
+                            "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-:days)"
+                        )
                         self.cur.arraysize = 10000
-                        self.cur.execute(sqlFile + comment, varMap)
-                        resFs = self.cur.fetchall()
+                        self.cur.execute(sql_get_files + comment, var_map)
+                        file_rows = self.cur.fetchall()
+
                         # metadata
-                        varMap = {}
-                        varMap[":PandaID"] = job.PandaID
+                        var_map = {}
+                        var_map[":PandaID"] = job.PandaID
                         job.metadata = None
-                        metaTableName = re.sub("jobsArchived", "metaTable_ARCH", table)
-                        sqlMeta = f"SELECT metaData FROM {metaTableName} WHERE PandaID=:PandaID"
-                        self.cur.execute(sqlMeta + comment, varMap)
-                        for (clobMeta,) in self.cur:
-                            if clobMeta is not None:
+                        meta_table_name = re.sub("jobsArchived", "metaTable_ARCH", table)
+                        sql_get_meta = f"SELECT metaData FROM {meta_table_name} WHERE PandaID=:PandaID"
+                        self.cur.execute(sql_get_meta + comment, var_map)
+                        for (clob_meta,) in self.cur:
+                            if clob_meta is not None:
                                 try:
-                                    job.metadata = clobMeta.read()
+                                    job.metadata = clob_meta.read()
                                 except AttributeError:
-                                    job.metadata = str(clobMeta)
+                                    job.metadata = str(clob_meta)
                             break
+
                         # job parameters
                         job.jobParameters = None
-                        jobParamTableName = re.sub("jobsArchived", "jobParamsTable_ARCH", table)
-                        sqlJobP = f"SELECT jobParameters FROM {jobParamTableName} WHERE PandaID=:PandaID"
-                        varMap = {}
-                        varMap[":PandaID"] = job.PandaID
-                        self.cur.execute(sqlJobP + comment, varMap)
-                        for (clobJobP,) in self.cur:
-                            if clobJobP is not None:
+                        job_param_table_name = re.sub("jobsArchived", "jobParamsTable_ARCH", table)
+                        sql_get_job_params = f"SELECT jobParameters FROM {job_param_table_name} WHERE PandaID=:PandaID"
+                        var_map = {}
+                        var_map[":PandaID"] = job.PandaID
+                        self.cur.execute(sql_get_job_params + comment, var_map)
+                        for (clob_job_params,) in self.cur:
+                            if clob_job_params is not None:
                                 try:
-                                    job.jobParameters = clobJobP.read()
+                                    job.jobParameters = clob_job_params.read()
                                 except AttributeError:
-                                    job.jobParameters = str(clobJobP)
+                                    job.jobParameters = str(clob_job_params)
                             break
                         # commit
                         if not self._commit():
                             raise RuntimeError("Commit error")
                         # set files
-                        for resF in resFs:
+                        for file_row in file_rows:
                             file = FileSpec()
-                            file.pack(resF)
+                            file.pack(file_row)
                             # remove redundant white spaces
                             try:
                                 file.md5sum = file.md5sum.strip()
@@ -1705,8 +1710,8 @@ class JobStandaloneModule(BaseModule):
             except Exception:
                 # roll back
                 self._rollback()
-                if iTry + 1 < nTry:
-                    tmp_log.error(f"retry {iTry}")
+                if i_try + 1 < n_try:
+                    tmp_log.error(f"retry {i_try}")
                     time.sleep(random.randint(10, 20))
                     continue
                 self.dump_error_message(tmp_log)
@@ -1720,18 +1725,21 @@ class JobStandaloneModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get tasks
-            sqlT = "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ "
-            sqlT += "distinct jediTaskID "
-            sqlT += "FROM ATLAS_PANDA.jobsActive4 tab "
-            sqlT += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-            sqlT += "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
-            sqlT += "AND maxCpuCount>:maxTime "
+            sql_get_tasks = (
+                "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ DISTINCT jediTaskID "
+                "FROM ATLAS_PANDA.jobsActive4 tab "
+                "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
+                "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
+                "AND maxCpuCount>:maxTime "
+            )
+
             if workingGroup is not None:
-                sqlT += "AND workingGroup=:workingGroup "
+                sql_get_tasks += "AND workingGroup=:workingGroup "
             else:
-                sqlT += "AND workingGroup IS NULL "
+                sql_get_tasks += "AND workingGroup IS NULL "
+
             # sql to get jobs
-            sqlJ = (
+            sql_get_jobs = (
                 "SELECT "
                 "PandaID, jediTaskID, cloud, computingSite, prodSourceLabel "
                 "FROM ATLAS_PANDA.jobsActive4 "
@@ -1739,83 +1747,70 @@ class JobStandaloneModule(BaseModule):
                 "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
                 "AND maxCpuCount>:maxTime "
             )
-            # sql to update job
-            sqlU = (
-                "UPDATE {0}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
-                "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus AND maxCpuCount>:maxTime"
-            ).format(panda_config.schemaPANDA)
+
+            # sql to update jobs
+            sql_update_jobs = (
+                f"UPDATE {panda_config.schemaPANDA}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
+                f"WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus AND maxCpuCount>:maxTime"
+            )
+
             # start transaction
             self.conn.begin()
             # select
             self.cur.arraysize = 10
-            varMap = {}
-            varMap[":prodSourceLabel"] = "user"
-            varMap[":oldRelFlag"] = 1
-            varMap[":prodUserName"] = prodUserName
-            varMap[":oldJobStatus"] = "activated"
-            varMap[":maxTime"] = 6 * 60 * 60
+            var_map = {":prodSourceLabel": "user", ":oldRelFlag": 1, ":prodUserName": prodUserName, ":oldJobStatus": "activated", ":maxTime": 6 * 60 * 60}
             if workingGroup is not None:
-                varMap[":workingGroup"] = workingGroup
+                var_map[":workingGroup"] = workingGroup
             # get tasks
-            self.cur.execute(sqlT + comment, varMap)
-            resT = self.cur.fetchall()
+            self.cur.execute(sql_get_tasks + comment, var_map)
+            task_rows = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # loop over all tasks
-            tasks = [jediTaskID for jediTaskID, in resT]
-            random.shuffle(tasks)
-            nRow = 0
-            nRows = {}
-            for jediTaskID in tasks:
-                tmp_log.debug(f"reset jediTaskID={jediTaskID}")
+            task_ids = [task_id for task_id, in task_rows]
+            random.shuffle(task_ids)
+            total_updated = 0
+            updated_per_task = {}
+            for task_id in task_ids:
+                tmp_log.debug(f"reset jediTaskID={task_id}")
                 # start transaction
                 self.conn.begin()
                 # get jobs
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":oldRelFlag"] = 1
-                varMap[":oldJobStatus"] = "activated"
-                varMap[":maxTime"] = 6 * 60 * 60
-                self.cur.execute(sqlJ + comment, varMap)
-                resJ = self.cur.fetchall()
-                infoMapDict = {
-                    pandaID: {
-                        "computingSite": computingSite,
+                var_map = {":jediTaskID": task_id, ":oldRelFlag": 1, ":oldJobStatus": "activated", ":maxTime": 6 * 60 * 60}
+                self.cur.execute(sql_get_jobs + comment, var_map)
+                job_rows = self.cur.fetchall()
+                job_info_map = {
+                    panda_id: {
+                        "computingSite": computing_site,
                         "cloud": cloud,
-                        "prodSourceLabel": prodSourceLabel,
+                        "prodSourceLabel": prod_source_label,
                     }
-                    for pandaID, taskID, cloud, computingSite, prodSourceLabel in resJ
+                    for panda_id, _task_id, cloud, computing_site, prod_source_label in job_rows
                 }
                 # update jobs
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":newRelFlag"] = 3
-                varMap[":newJobStatus"] = "throttled"
-                varMap[":oldJobStatus"] = "activated"
-                varMap[":maxTime"] = 6 * 60 * 60
-                self.cur.execute(sqlU + comment, varMap)
-                nTmp = self.cur.rowcount
-                tmp_log.debug(f"reset {nTmp} jobs")
-                if nTmp > 0:
-                    nRow += nTmp
-                    nRows[jediTaskID] = nTmp
-                for pandaID in infoMapDict:
-                    infoMap = infoMapDict[pandaID]
+                var_map = {":jediTaskID": task_id, ":newRelFlag": 3, ":newJobStatus": "throttled", ":oldJobStatus": "activated", ":maxTime": 6 * 60 * 60}
+                self.cur.execute(sql_update_jobs + comment, var_map)
+                n_updated = self.cur.rowcount
+                tmp_log.debug(f"reset {n_updated} jobs")
+                if n_updated > 0:
+                    total_updated += n_updated
+                    updated_per_task[task_id] = n_updated
+                for panda_id, job_info in job_info_map.items():
                     self.recordStatusChange(
-                        pandaID,
-                        varMap[":newJobStatus"],
-                        infoMap=infoMap,
+                        panda_id,
+                        var_map[":newJobStatus"],
+                        infoMap=job_info,
                         useCommit=False,
                     )
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
             if get_dict:
-                tmp_log.debug(f"done with {nRows}")
-                return nRows
-            tmp_log.debug(f"done with {nRow}")
-            return nRow
+                tmp_log.debug(f"done with {updated_per_task}")
+                return updated_per_task
+            tmp_log.debug(f"done with {total_updated}")
+            return total_updated
         except Exception:
             # roll back
             self._rollback()
@@ -1830,96 +1825,90 @@ class JobStandaloneModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get tasks
-            sqlT = "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ "
-            sqlT += "distinct jediTaskID "
-            sqlT += "FROM ATLAS_PANDA.jobsActive4 tab "
-            sqlT += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-            sqlT += "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
+            sql_get_tasks = (
+                "SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ DISTINCT jediTaskID "
+                "FROM ATLAS_PANDA.jobsActive4 tab "
+                "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
+                "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
+            )
+
             if workingGroup is not None:
-                sqlT += "AND workingGroup=:workingGroup "
+                sql_get_tasks += "AND workingGroup=:workingGroup "
             else:
-                sqlT += "AND workingGroup IS NULL "
+                sql_get_tasks += "AND workingGroup IS NULL "
+
             # sql to get jobs
-            sqlJ = (
+            sql_get_jobs = (
                 "SELECT "
                 "PandaID, jediTaskID, cloud, computingSite, prodSourceLabel "
                 "FROM ATLAS_PANDA.jobsActive4 "
                 "WHERE jediTaskID=:jediTaskID "
                 "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
             )
-            # sql to update job
-            sqlU = (
-                "UPDATE {0}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag " "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
-            ).format(panda_config.schemaPANDA)
+
+            # sql to update jobs
+            sql_update_jobs = (
+                f"UPDATE {panda_config.schemaPANDA}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
+                "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
+            )
+
             # start transaction
             self.conn.begin()
             # select
             self.cur.arraysize = 10
-            varMap = {}
-            varMap[":prodSourceLabel"] = "user"
-            varMap[":oldRelFlag"] = 3
-            varMap[":prodUserName"] = prodUserName
-            varMap[":oldJobStatus"] = "throttled"
+            var_map = {":prodSourceLabel": "user", ":oldRelFlag": 3, ":prodUserName": prodUserName, ":oldJobStatus": "throttled"}
             if workingGroup is not None:
-                varMap[":workingGroup"] = workingGroup
+                var_map[":workingGroup"] = workingGroup
             # get tasks
-            self.cur.execute(sqlT + comment, varMap)
-            resT = self.cur.fetchall()
+            self.cur.execute(sql_get_tasks + comment, var_map)
+            task_rows = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # loop over all tasks
-            tasks = [jediTaskID for jediTaskID, in resT]
-            random.shuffle(tasks)
-            nRow = 0
-            nRows = {}
-            for jediTaskID in tasks:
-                tmp_log.debug(f"reset jediTaskID={jediTaskID}")
+            task_ids = [task_id for task_id, in task_rows]
+            random.shuffle(task_ids)
+            total_updated = 0
+            updated_per_task = {}
+            for task_id in task_ids:
+                tmp_log.debug(f"reset jediTaskID={task_id}")
                 # start transaction
                 self.conn.begin()
                 # get jobs
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":oldRelFlag"] = 3
-                varMap[":oldJobStatus"] = "throttled"
-                self.cur.execute(sqlJ + comment, varMap)
-                resJ = self.cur.fetchall()
-                infoMapDict = {
-                    pandaID: {
-                        "computingSite": computingSite,
+                var_map = {":jediTaskID": task_id, ":oldRelFlag": 3, ":oldJobStatus": "throttled"}
+                self.cur.execute(sql_get_jobs + comment, var_map)
+                job_rows = self.cur.fetchall()
+                job_info_map = {
+                    panda_id: {
+                        "computingSite": computing_site,
                         "cloud": cloud,
-                        "prodSourceLabel": prodSourceLabel,
+                        "prodSourceLabel": prod_source_label,
                     }
-                    for pandaID, taskID, cloud, computingSite, prodSourceLabel in resJ
+                    for panda_id, _task_id, cloud, computing_site, prod_source_label in job_rows
                 }
                 # update jobs
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":newRelFlag"] = 1
-                varMap[":newJobStatus"] = "activated"
-                varMap[":oldJobStatus"] = "throttled"
-                self.cur.execute(sqlU + comment, varMap)
-                nTmp = self.cur.rowcount
-                tmp_log.debug(f"reset {nTmp} jobs")
-                if nTmp > 0:
-                    nRow += nTmp
-                    nRows[jediTaskID] = nTmp
-                for pandaID in infoMapDict:
-                    infoMap = infoMapDict[pandaID]
+                var_map = {":jediTaskID": task_id, ":newRelFlag": 1, ":newJobStatus": "activated", ":oldJobStatus": "throttled"}
+                self.cur.execute(sql_update_jobs + comment, var_map)
+                n_updated = self.cur.rowcount
+                tmp_log.debug(f"reset {n_updated} jobs")
+                if n_updated > 0:
+                    total_updated += n_updated
+                    updated_per_task[task_id] = n_updated
+                for panda_id, job_info in job_info_map.items():
                     self.recordStatusChange(
-                        pandaID,
-                        varMap[":newJobStatus"],
-                        infoMap=infoMap,
+                        panda_id,
+                        var_map[":newJobStatus"],
+                        infoMap=job_info,
                         useCommit=False,
                     )
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
             if get_dict:
-                tmp_log.debug(f"done with {nRows}")
-                return nRows
-            tmp_log.debug(f"done with {nRow}")
-            return nRow
+                tmp_log.debug(f"done with {updated_per_task}")
+                return updated_per_task
+            tmp_log.debug(f"done with {total_updated}")
+            return total_updated
         except Exception:
             # roll back
             self._rollback()

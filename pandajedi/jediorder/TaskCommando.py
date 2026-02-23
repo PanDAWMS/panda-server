@@ -12,6 +12,7 @@ from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
 from pandajedi.jedirefine import RefinerUtils
+from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from .JediKnight import JediKnight
@@ -140,18 +141,24 @@ class TaskCommandoThread(WorkerThread):
                                     else:
                                         # extract cloud or site
                                         if commentStr is not None:
+                                            tmp_instructions = CoreUtils.parse_reassign_comment(commentStr)
+                                            reassign_target = tmp_instructions.get("target")
+                                            reassign_value = tmp_instructions.get("value")
+                                            back_to_old_status = tmp_instructions.get("back_to_old_status")
                                             tmpItems = commentStr.split(":")
-                                            if tmpItems[0] == "cloud":
-                                                tmpTaskSpec.cloud = tmpItems[1]
-                                            elif tmpItems[0] == "nucleus":
-                                                tmpTaskSpec.nucleus = tmpItems[1]
+                                            if reassign_target == "cloud":
+                                                tmpTaskSpec.cloud = reassign_value
+                                            elif reassign_target == "nucleus":
+                                                tmpTaskSpec.nucleus = reassign_value
                                             else:
-                                                tmpTaskSpec.site = tmpItems[1]
-                                            tmpMsg = f"set {tmpItems[0]}={tmpItems[1]}"
+                                                tmpTaskSpec.site = reassign_value
+                                            tmpMsg = f"set {reassign_target}={reassign_value}"
+                                            if back_to_old_status:
+                                                tmpMsg += f", while keeping status={oldStatus}"
                                             tmpLog.sendMsg(tmpMsg, self.msgType)
                                             tmpLog.info(tmpMsg)
                                             # back to oldStatus if necessary
-                                            if tmpItems[2] == "y":
+                                            if back_to_old_status:
                                                 tmpTaskSpec.status = oldStatus
                                                 tmpTaskSpec.forceUpdate("oldStatus")
                                                 updateTaskStatus = False
