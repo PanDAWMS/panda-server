@@ -704,12 +704,12 @@ class WorkerModule(BaseModule):
             rows = self.cur.fetchall()
             # lock commands
             result_map = dict()
-            for computingSite, resourceType in rows:
+            for computing_site, resource_type in rows:
                 var_map = {
                     ":harvester_ID": harvester_ID,
                     ":command": command,
-                    ":siteName": computingSite,
-                    ":resourceType": resourceType,
+                    ":siteName": computing_site,
+                    ":resourceType": resource_type,
                     ":limitComm": time_now - datetime.timedelta(minutes=commandInterval),
                     ":limitLock": time_now - datetime.timedelta(minutes=lockInterval),
                     ":lockedBy": lockedBy,
@@ -717,9 +717,9 @@ class WorkerModule(BaseModule):
                 self.cur.execute(sql_lock_command + comment, var_map)
                 n_row = self.cur.rowcount
                 if n_row > 0:
-                    if computingSite not in result_map:
-                        result_map[computingSite] = []
-                    result_map[computingSite].append(resourceType)
+                    if computing_site not in result_map:
+                        result_map[computing_site] = []
+                    result_map[computing_site].append(resource_type)
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
