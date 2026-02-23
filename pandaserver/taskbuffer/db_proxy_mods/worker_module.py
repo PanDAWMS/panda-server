@@ -942,7 +942,7 @@ class WorkerModule(BaseModule):
                 tmp_log.debug(f"workerID={worker_spec.workerID} get jobs")
                 sql_get_active_jobs = (
                     "SELECT r.PandaID FROM "
-                    "ATLAS_PANDA.Harvester_Rel_Jobs_Workers r,ATLAS_PANDA.jobsActive4 j  "
+                    "ATLAS_PANDA.Harvester_Rel_Jobs_Workers r, ATLAS_PANDA.jobsActive4 j  "
                     "WHERE r.harvesterID=:harvesterID AND r.workerID=:workerID "
                     "AND j.PandaID=r.PandaID AND NOT j.jobStatus IN (:holding) "
                 )
