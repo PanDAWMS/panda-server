@@ -1378,7 +1378,7 @@ class WorkerModule(BaseModule):
         tmp_log.debug("Start")
 
         try:
-            sql = "SELECT panda_queue, cpu_architecture_level, total_logical_cpus, pct_within_queue FROM ATLAS_PANDA.MV_WORKER_NODE_SUMMARY "
+            sql = "SELECT panda_queue, cpu_architecture_level, total_logical_cpus, pct_within_pq FROM ATLAS_PANDA.MV_WORKER_NODE_SUMMARY "
             self.cur.execute(sql + comment, {})
             results = self.cur.fetchall()
 
