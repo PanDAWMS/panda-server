@@ -1818,9 +1818,9 @@ class DataCarouselInterface(object):
                     to_stage_count += 1
             if tmp_to_print_df is not None and not (to_pin_df.is_empty() and to_stage_df.is_empty()):
                 tmp_to_print_df = tmp_to_print_df.with_columns(
-                    result=pl.when(pl.col("request_id").is_in(to_pin_df.select(["request_id"])))
+                    result=pl.when(pl.col("request_id").is_in(to_pin_df["request_id"]))
                     .then(pl.lit("pin"))
-                    .when(pl.col("request_id").is_in(to_stage_df.select(["request_id"])))
+                    .when(pl.col("request_id").is_in(to_stage_df["request_id"]))
                     .then(pl.lit("stage"))
                     .otherwise(pl.lit(" "))
                 )
