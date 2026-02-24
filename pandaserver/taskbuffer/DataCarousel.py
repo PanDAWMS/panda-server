@@ -2652,6 +2652,9 @@ class DataCarouselInterface(object):
                 ):
                     # requests done, and old enough or DDM rule not found or to remove when done; to clean up
                     done_requests_set.add(request_id)
+                elif dc_req_spec.status == DataCarouselRequestStatus.queued:
+                    # requests queued while related tasks all terminated; to cancel (to clean up in next cycle)
+                    self.cancel_request(dc_req_spec, by=by, reason="queued_while_all_tasks_ended")
                 elif dc_req_spec.status == DataCarouselRequestStatus.staging:
                     # requests staging while related tasks all terminated; to cancel (to clean up in next cycle)
                     self.cancel_request(dc_req_spec, by=by, reason="staging_while_all_tasks_ended")

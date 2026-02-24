@@ -1300,6 +1300,80 @@ class JobStandaloneModule(BaseModule):
                     self.dump_error_message(tmp_log)
                     return {}
 
+    # get detailed job statistics with resource_type and prodsourcelabel
+    def getDetailedJobStatistics(self):
+        comment = " /* DBProxy.getDetailedJobStatistics */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("start")
+
+        # tables to query
+        jobs_active_4_table = f"{panda_config.schemaPANDA}.jobsActive4"
+        jobs_defined_4_table = f"{panda_config.schemaPANDA}.jobsDefined4"
+        tables = [jobs_active_4_table, jobs_defined_4_table]
+
+        # states that are necessary and irrelevant states
+        included_states = ["assigned", "activated", "running"]
+        excluded_states = ["merging"]
+
+        # sql template for jobs table
+        sql_template = f"SELECT computingSite, resource_type, prodSourceLabel, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, resource_type, prodSourceLabel, jobStatus"
+        # sql template for statistics table (materialized view)
+        sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
+        sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
+        ret = {}
+        max_retries = 3
+
+        for retry in range(max_retries):
+            try:
+                for table in tables:
+                    # start transaction
+                    self.conn.begin()
+                    var_map = {}
+                    self.cur.arraysize = 10000
+
+                    # for active jobs we will query the summarized materialized view
+                    if table == jobs_active_4_table:
+                        table_name = f"{panda_config.schemaPANDA}.MV_JOBSACTIVE4_STATS"
+                        sql = (sql_mv_template + comment).format(table_name=table_name)
+                    # for defined jobs we will query the actual table
+                    else:
+                        table_name = table
+                        sql = (sql_template + comment).format(table_name=table_name)
+                    tmp_log.debug(f"Will execute: {sql} {str(var_map)}")
+
+                    self.cur.execute(sql, var_map)
+                    res = self.cur.fetchall()
+                    if not self._commit():
+                        raise RuntimeError("Commit error")
+
+                    # create map
+                    for computing_site, resource_type, prod_source_label, job_status, n_jobs in res:
+                        if job_status in excluded_states:  # ignore some job status since they break APF
+                            continue
+
+                        ret.setdefault(computing_site, {}).setdefault(resource_type, {}).setdefault(prod_source_label, {}).setdefault(job_status, 0)
+                        ret[computing_site][resource_type][prod_source_label][job_status] += n_jobs
+
+                # fill in missing states with 0
+                for site in ret:
+                    for resource_type in ret[site]:
+                        for prod_source_label in ret[site][resource_type]:
+                            for state in included_states:
+                                ret[site][resource_type][prod_source_label].setdefault(state, 0)
+
+                tmp_log.debug(f"done")
+                return ret
+
+            except Exception:
+                self._rollback()
+
+                if retry + 1 < max_retries:  # wait 2 seconds before the next retry
+                    tmp_log.debug(f"retry: {retry}")
+                    time.sleep(2)
+                else:  # reached max retries - leave
+                    self.dump_error_message(tmp_log)
+                    return {}
+
     # get job statistics per site and resource type (SCORE, MCORE, ...)
     def getJobStatisticsPerSiteResource(self, time_window):
         comment = " /* DBProxy.getJobStatisticsPerSiteResource */"
