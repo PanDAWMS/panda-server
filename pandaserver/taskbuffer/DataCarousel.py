@@ -1967,7 +1967,7 @@ class DataCarouselInterface(object):
         else:
             # no source_rse; unexpected
             tmp_log.warning(f"source_rse is None ; skipped")
-            return None
+            return None, None
         # get destination expression RSE
         if destination_rse is None:
             destination_rse = self._choose_destination_rse_for_request(dc_req_spec)
@@ -1977,7 +1977,7 @@ class DataCarouselInterface(object):
         else:
             # no match of destination RSE; return None and stay queued
             tmp_log.error(f"failed to get destination RSE; skipped")
-            return None
+            return None, None
         # get task type for DDM rule activity
         ddm_rule_activity = DDM_RULE_ACTIVITY_MAP["prod"]
         if task_type := dc_req_spec.get_parameter("task_type"):
@@ -2072,7 +2072,7 @@ class DataCarouselInterface(object):
                 tmp_log.warning(err_msg)
                 return is_ok, err_msg, dc_req_spec
             # check if still with active related tasks; if not, skip
-            related_tasks = self.get_related_tasks_of_data_carousel_request_JEDI(dc_req_spec.request_id)
+            related_tasks = self.taskBufferIF.get_related_tasks_of_data_carousel_request_JEDI(dc_req_spec.request_id)
             active_related_tasks = [t for t in related_tasks.values() if t.get("status") is not None and t.get("status") not in FINAL_TASK_STATUSES]
             if not active_related_tasks:
                 try:
