@@ -2071,6 +2071,19 @@ class DataCarouselInterface(object):
                 err_msg = f"status={dc_req_spec.status} not queued; skipped"
                 tmp_log.warning(err_msg)
                 return is_ok, err_msg, dc_req_spec
+            # check if still with active related tasks; if not, skip
+            related_tasks = self.get_related_tasks_of_data_carousel_request_JEDI(dc_req_spec.request_id)
+            active_related_tasks = [t for t in related_tasks.values() if t.get("status") is not None and t.get("status") not in FINAL_TASK_STATUSES]
+            if not active_related_tasks:
+                try:
+                    # cancel the request
+                    self.cancel_request(dc_req_spec, reason="queued_while_no_active_tasks")
+                    tmp_log.debug(f"cancelled since no active related tasks")
+                except Exception:
+                    tmp_log.warning(f"failed to cancel ; {traceback.format_exc()}")
+                err_msg = f"no active related tasks; skipped"
+                tmp_log.warning(err_msg)
+                return is_ok, err_msg, dc_req_spec
             # retry to get DDM dataset metadata and skip if total_files is still None
             if dc_req_spec.total_files is None:
                 _got = self._fill_total_files_and_size(dc_req_spec)

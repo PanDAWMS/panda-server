@@ -3652,6 +3652,44 @@ class MiscStandaloneModule(BaseModule):
             self.dump_error_message(tmp_log)
             return None
 
+    # get related tasks and their info of a data carousel request
+    def get_related_tasks_of_data_carousel_request_JEDI(self, request_id):
+        comment = " /* JediDBProxy.get_related_tasks_of_data_carousel_request_JEDI */"
+        tmp_log = self.create_tagged_logger(comment, f"request_id={request_id}")
+        tmp_log.debug("start")
+        try:
+            # initialize
+            ret_tasks_dict = {}
+            # start transaction
+            self.conn.begin()
+            # sql to query related tasks
+            sql_query = (
+                f"SELECT rel.task_id, t.status "
+                f"FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.JEDI_Tasks t "
+                f"WHERE rel.task_id=t.jediTaskID "
+                f"AND rel.request_id=:request_id "
+            )
+            var_map = {":request_id": request_id}
+            self.cur.execute(sql_query + comment, var_map)
+            res_list = self.cur.fetchall()
+            if res_list:
+                for task_id, status in res_list:
+                    ret_tasks_dict[task_id] = {"task_id": task_id, "status": status}
+            else:
+                tmp_log.debug("no related task")
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(f"got {len(ret_tasks_dict)} related tasks")
+            return ret_tasks_dict
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
     # get data carousel staging requests
     def get_data_carousel_staging_requests_JEDI(self, time_limit_minutes=5):
         comment = " /* JediDBProxy.get_data_carousel_staging_requests_JEDI */"
