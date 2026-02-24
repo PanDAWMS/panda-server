@@ -1451,9 +1451,7 @@ class TaskBuffer:
 
     # get detailed job statistics with resource_type and prodsourcelabel
     def getDetailedJobStatistics(self):
-        # get DBproxy
         with self.proxyPool.get() as proxy:
-            # get serial number
             ret = proxy.getDetailedJobStatistics()
         return ret
 
