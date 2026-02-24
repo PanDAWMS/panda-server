@@ -128,7 +128,7 @@ def active_job_detailed_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
         req(PandaRequest): internally generated request object
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by by site, resource_type and prodsourcelabel. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by site, resource_type and prodsourcelabel. When unsuccessful, the message field contains the error message.
     """
     tmp_logger = LogWrapper(_logger, "active_job_detailed_stats_by_site")
 
