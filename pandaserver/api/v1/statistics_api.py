@@ -114,28 +114,28 @@ def active_job_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def active_job_stats_by_site_prodsourcelabel(req: PandaRequest) -> Dict[str, Any]:
+def active_job_detailed_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
     """
-    Active job statistics by site and prodsourcelabel
+    Active job detailed statistics by site, resource_type and prodsourcelabel
 
-    Get the active (not in a final state) job statistics by site and prodsourcelabel. Used by Harvester.
+    Get the active (not in a final state) job statistics by site, resource_type and prodsourcelabel. Used by Harvester.
 
     API details:
         HTTP Method: GET
-        Path: /v1/statistics/active_job_stats_by_site_prodsourcelabel
+        Path: /v1/statistics/active_job_detailed_stats_by_site
 
     Args:
         req(PandaRequest): internally generated request object
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by by site and prodsourcelabel. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by by site, resource_type and prodsourcelabel. When unsuccessful, the message field contains the error message.
     """
-    tmp_logger = LogWrapper(_logger, "active_job_stats_by_site_prodsourcelabel")
+    tmp_logger = LogWrapper(_logger, "active_job_detailed_stats_by_site")
 
     tmp_logger.debug("Start")
-    data = global_task_buffer.getJobStatisticsWithProdsourcelabel()
+    data = global_task_buffer.getDetailedJobStatistics()
     success = data != {}
-    message = "" if success else "Database failure getting the job statistics with prodsourcelabel"
+    message = "" if success else "Database failure getting the job statistics with resource_type and prodsourcelabel"
     tmp_logger.debug(f"Done. {message}")
 
     return generate_response(success, message, data)

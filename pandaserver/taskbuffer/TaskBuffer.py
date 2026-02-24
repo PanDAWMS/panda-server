@@ -1449,12 +1449,12 @@ class TaskBuffer:
             ret = proxy.getJobStatistics()
         return ret
 
-    # get job statistics with prodsourcelabel
-    def getJobStatisticsWithProdsourcelabel(self):
+    # get detailed job statistics with resource_type and prodsourcelabel
+    def getDetailedJobStatistics(self):
         # get DBproxy
         with self.proxyPool.get() as proxy:
             # get serial number
-            ret = proxy.getJobStatisticsWithProdsourcelabel()
+            ret = proxy.getDetailedJobStatistics()
         return ret
 
     # get job statistics for ExtIF. Source type is analysis or production
