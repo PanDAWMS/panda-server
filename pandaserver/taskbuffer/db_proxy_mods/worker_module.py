@@ -1387,7 +1387,7 @@ class WorkerModule(BaseModule):
             # Build a queue dictionary with the results
             architecture_map = {}
             for result in results:
-                site, panda_queue, cpu_architecture_level, total_logical_cpus, pct_within_queue = result
+                panda_queue, cpu_architecture_level, total_logical_cpus, pct_within_queue = result
                 architecture_map.setdefault(panda_queue, {})
                 architecture_map[panda_queue][cpu_architecture_level] = {
                     "total_logical_cpus": total_logical_cpus,
