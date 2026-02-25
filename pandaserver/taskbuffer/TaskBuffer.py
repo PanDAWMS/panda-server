@@ -2721,9 +2721,11 @@ class TaskBuffer:
             return proxy.get_data_carousel_requests_by_task_status_JEDI(status_filter_list=status_filter_list, status_exclusion_list=status_exclusion_list)
 
     # get related tasks and their info of a data carousel request
-    def get_related_tasks_of_data_carousel_request_JEDI(self, request_id):
+    def get_related_tasks_of_data_carousel_request_JEDI(self, request_id, status_filter_list=None, status_exclusion_list=None):
         with self.proxyPool.get() as proxy:
-            return proxy.get_related_tasks_of_data_carousel_request_JEDI(request_id)
+            return proxy.get_related_tasks_of_data_carousel_request_JEDI(
+                request_id, status_filter_list=status_filter_list, status_exclusion_list=status_exclusion_list
+            )
 
     # get data carousel staging requests
     def get_data_carousel_staging_requests_JEDI(self):

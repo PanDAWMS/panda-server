@@ -2072,8 +2072,9 @@ class DataCarouselInterface(object):
                 tmp_log.warning(err_msg)
                 return is_ok, err_msg, dc_req_spec
             # check if still with active related tasks; if not, skip
-            related_tasks = self.taskBufferIF.get_related_tasks_of_data_carousel_request_JEDI(dc_req_spec.request_id)
-            active_related_tasks = [t for t in related_tasks.values() if t.get("status") is not None and t.get("status") not in FINAL_TASK_STATUSES]
+            active_related_tasks = self.taskBufferIF.get_related_tasks_of_data_carousel_request_JEDI(
+                dc_req_spec.request_id, status_exclusion_list=FINAL_TASK_STATUSES
+            )
             if not active_related_tasks:
                 try:
                     # cancel the request

@@ -3653,7 +3653,7 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # get related tasks and their info of a data carousel request
-    def get_related_tasks_of_data_carousel_request_JEDI(self, request_id):
+    def get_related_tasks_of_data_carousel_request_JEDI(self, request_id, status_filter_list=None, status_exclusion_list=None):
         comment = " /* JediDBProxy.get_related_tasks_of_data_carousel_request_JEDI */"
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id}")
         tmp_log.debug("start")
@@ -3670,6 +3670,14 @@ class MiscStandaloneModule(BaseModule):
                 f"AND rel.request_id=:request_id "
             )
             var_map = {":request_id": request_id}
+            if status_filter_list:
+                status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
+                sql_query += f"AND t.status IN ({status_var_names_str}) "
+                var_map.update(status_var_map)
+            if status_exclusion_list:
+                antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
+                sql_query += f"AND t.status NOT IN ({antistatus_var_names_str}) "
+                var_map.update(antistatus_var_map)
             self.cur.execute(sql_query + comment, var_map)
             res_list = self.cur.fetchall()
             if res_list:
