@@ -3606,10 +3606,12 @@ class MiscStandaloneModule(BaseModule):
                 status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
                 sql_query_id += f"AND t.status IN ({status_var_names_str}) "
                 var_map.update(status_var_map)
+                tmp_log.debug(f"status filter: {status_filter_list}")
             if status_exclusion_list:
                 antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
                 sql_query_id += f"AND t.status NOT IN ({antistatus_var_names_str}) "
                 var_map.update(antistatus_var_map)
+                tmp_log.debug(f"status exclusion filter: {status_exclusion_list}")
             self.cur.execute(sql_query_id + comment, var_map)
             res_list = self.cur.fetchall()
             if res_list:
@@ -3674,10 +3676,12 @@ class MiscStandaloneModule(BaseModule):
                 status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
                 sql_query += f"AND t.status IN ({status_var_names_str}) "
                 var_map.update(status_var_map)
+                tmp_log.debug(f"status filter: {status_filter_list}")
             if status_exclusion_list:
                 antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
                 sql_query += f"AND t.status NOT IN ({antistatus_var_names_str}) "
                 var_map.update(antistatus_var_map)
+                tmp_log.debug(f"status exclusion filter: {status_exclusion_list}")
             self.cur.execute(sql_query + comment, var_map)
             res_list = self.cur.fetchall()
             if res_list:
