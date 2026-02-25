@@ -1818,9 +1818,9 @@ class DataCarouselInterface(object):
                     to_stage_count += 1
             if tmp_to_print_df is not None and not (to_pin_df.is_empty() and to_stage_df.is_empty()):
                 tmp_to_print_df = tmp_to_print_df.with_columns(
-                    result=pl.when(pl.col("request_id").is_in(to_pin_df.select(["request_id"])))
+                    result=pl.when(pl.col("request_id").is_in(to_pin_df["request_id"]))
                     .then(pl.lit("pin"))
-                    .when(pl.col("request_id").is_in(to_stage_df.select(["request_id"])))
+                    .when(pl.col("request_id").is_in(to_stage_df["request_id"]))
                     .then(pl.lit("stage"))
                     .otherwise(pl.lit(" "))
                 )
@@ -1967,7 +1967,7 @@ class DataCarouselInterface(object):
         else:
             # no source_rse; unexpected
             tmp_log.warning(f"source_rse is None ; skipped")
-            return None
+            return None, None
         # get destination expression RSE
         if destination_rse is None:
             destination_rse = self._choose_destination_rse_for_request(dc_req_spec)
@@ -1977,7 +1977,7 @@ class DataCarouselInterface(object):
         else:
             # no match of destination RSE; return None and stay queued
             tmp_log.error(f"failed to get destination RSE; skipped")
-            return None
+            return None, None
         # get task type for DDM rule activity
         ddm_rule_activity = DDM_RULE_ACTIVITY_MAP["prod"]
         if task_type := dc_req_spec.get_parameter("task_type"):
@@ -2069,6 +2069,20 @@ class DataCarouselInterface(object):
             # skip if not queued
             if dc_req_spec.status != DataCarouselRequestStatus.queued:
                 err_msg = f"status={dc_req_spec.status} not queued; skipped"
+                tmp_log.warning(err_msg)
+                return is_ok, err_msg, dc_req_spec
+            # check if still with active related tasks; if not, skip
+            active_related_tasks = self.taskBufferIF.get_related_tasks_of_data_carousel_request_JEDI(
+                dc_req_spec.request_id, status_exclusion_list=FINAL_TASK_STATUSES
+            )
+            if not active_related_tasks:
+                try:
+                    # cancel the request
+                    self.cancel_request(dc_req_spec, reason="queued_while_no_active_tasks")
+                    tmp_log.debug(f"cancelled since no active related tasks")
+                except Exception:
+                    tmp_log.warning(f"failed to cancel ; {traceback.format_exc()}")
+                err_msg = f"no active related tasks; skipped"
                 tmp_log.warning(err_msg)
                 return is_ok, err_msg, dc_req_spec
             # retry to get DDM dataset metadata and skip if total_files is still None
