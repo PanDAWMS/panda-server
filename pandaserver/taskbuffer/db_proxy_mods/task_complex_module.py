@@ -4190,9 +4190,6 @@ class TaskComplexModule(BaseModule):
             comm_var_names_str, comm_var_map = get_sql_IN_bind_variables(commandStatusMap.keys(), prefix=":comm_cmd_", value_as_suffix=True)
             sqlC += f"WHERE comm_owner=:comm_owner AND comm_cmd IN ({comm_var_names_str}) "
             varMap.update(comm_var_map)
-            if vo not in [None, "any"]:
-                varMap[":comm_vo"] = vo
-                sqlC += "AND comm_vo=:comm_vo "
             if prodSourceLabel not in [None, "any"]:
                 varMap[":comm_prodSourceLabel"] = prodSourceLabel
                 sqlC += "AND comm_prodSourceLabel=:comm_prodSourceLabel "
