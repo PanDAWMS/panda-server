@@ -4184,16 +4184,14 @@ class TaskComplexModule(BaseModule):
         commandStatusMap = JediTaskSpec.commandStatusMap()
         try:
             # sql to get jediTaskIDs to exec a command from the command table
-            varMap = {}
-            varMap[":comm_owner"] = "DEFT"
-            sqlC = f"SELECT comm_task,comm_cmd,comm_comment FROM {panda_config.schemaDEFT}.PRODSYS_COMM "
             comm_var_names_str, comm_var_map = get_sql_IN_bind_variables(commandStatusMap.keys(), prefix=":comm_cmd_", value_as_suffix=True)
-            sqlC += f"WHERE comm_owner=:comm_owner AND comm_cmd IN ({comm_var_names_str}) "
-            varMap.update(comm_var_map)
-            if prodSourceLabel not in [None, "any"]:
-                varMap[":comm_prodSourceLabel"] = prodSourceLabel
-                sqlC += "AND comm_prodSourceLabel=:comm_prodSourceLabel "
-            sqlC += "ORDER BY comm_ts "
+            sqlC = (
+                f"SELECT comm_task,comm_cmd,comm_comment FROM {panda_config.schemaDEFT}.PRODSYS_COMM "
+                f"WHERE comm_owner=:comm_owner AND comm_cmd IN ({comm_var_names_str}) "
+                "ORDER BY comm_ts "
+            )
+            varMap = {":comm_owner": "DEFT", **comm_var_map}
+
             # start transaction
             self.conn.begin()
             self.cur.arraysize = 10000
@@ -4209,10 +4207,8 @@ class TaskComplexModule(BaseModule):
                 # start transaction
                 self.conn.begin()
                 # lock
-                varMap = {}
-                varMap[":comm_task"] = jediTaskID
-                sqlLock = f"SELECT comm_cmd FROM {panda_config.schemaDEFT}.PRODSYS_COMM WHERE comm_task=:comm_task "
-                sqlLock += "FOR UPDATE "
+                varMap = {":comm_task": jediTaskID}
+                sqlLock = f"SELECT comm_cmd FROM {panda_config.schemaDEFT}.PRODSYS_COMM WHERE comm_task=:comm_task FOR UPDATE "
                 toSkip = False
                 sync_action_only = False
                 resetFrozenTime = False
