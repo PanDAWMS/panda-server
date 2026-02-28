@@ -11,6 +11,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.db_proxy_mods import (
+    data_carousel_module,
     entity_module,
     job_complex_module,
     job_standalone_module,
@@ -64,6 +65,7 @@ class DBProxy(
     entity_module.EntityModule,
     metrics_module.MetricsModule,
     worker_module.WorkerModule,
+    data_carousel_module.DataCarouselModule,
     task_event_module.TaskEventModule,
     job_complex_module.JobComplexModule,
     job_standalone_module.JobStandaloneModule,
