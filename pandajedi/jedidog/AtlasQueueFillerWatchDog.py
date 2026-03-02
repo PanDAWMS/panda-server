@@ -8,7 +8,7 @@ import time
 import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandautils.PandaUtils import naive_utcnow
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandajedi.jedibrokerage import AtlasBrokerUtils
 from pandajedi.jediconfig import jedi_config
@@ -162,6 +162,66 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         else:
             return None
 
+    def is_arm_only_site(self, site) -> bool:
+        """
+        Check if a site is ARM-only.
+
+        Args:
+            site (str): The name of the site to check.
+
+        Returns:
+            bool: True if the site is ARM-only, False otherwise.
+        """
+        ret = False
+        architecture_map = {}
+        if site in self.sw_map:
+            if architectures_list := self.sw_map[site].get("architectures"):
+                for architecture_dict in architectures_list:
+                    if "type" in architecture_dict:
+                        architecture_map[architecture_dict["type"]] = architecture_dict
+        # only tasks which can run with ARM if site architecture is ARM only
+        if cpu_architecture_dict := architecture_map.get("cpu"):
+            if arch_list := cpu_architecture_dict.get("arch"):
+                if "aarch64" in arch_list and ("excl" in arch_list or "x86_64" not in arch_list):
+                    ret = True
+        return ret
+
+    def is_fat_container_site(self, site) -> bool:
+        """
+        Check if a site is a fat container site.
+
+        Args:
+            site (str): The name of the site to check.
+
+        Returns:
+            bool: True if the site is a fat container site, False otherwise.
+        """
+        ret = False
+        if site in self.sw_map:
+            containers_list = self.sw_map[site].get("containers", [])
+            if not ("any" in containers_list or "/cvmfs" in containers_list):
+                ret = True
+        return ret
+
+    def get_list_of_fat_container_names(self, site) -> list | None:
+        """
+        Get the list of fat container names for a site if it is a fat container site.
+
+        Args:
+            site (str): The name of the site to check.
+
+        Returns:
+            list | None: The list of fat container names if the site is a fat container site, None otherwise.
+        """
+        container_names_list = None
+        if self.is_fat_container_site(site):
+            container_names_list = []
+            if site in self.sw_map:
+                for tag_dict in self.sw_map[site].get("tags", []):
+                    if "container_name" in tag_dict:
+                        container_names_list.append(tag_dict["container_name"])
+        return container_names_list
+
     # get available sites sorted list
     def get_available_sites_list(self):
         tmp_log = MsgWrapper(logger, "get_available_sites_list")
@@ -209,9 +269,14 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             # tmp_num_slots as  num_slots in harvester_slots
             tmp_num_slots = tmpSiteSpec.getNumStandby(None, None)
             tmp_num_slots = 0 if tmp_num_slots is None else tmp_num_slots
-            # skip if site has no harvester_slots setup and has not enough activity in the past 24 hours
+            # skip if site (except ARM and fat container sites) has no harvester_slots setup and has not enough activity in the past 24 hours
             site_trr = site_trr_map.get(tmpSiteName)
-            if tmp_num_slots == 0 and (site_trr is None or site_trr < 0.6):
+            if (
+                not self.is_arm_only_site(tmpSiteName)
+                and not self.is_fat_container_site(tmpSiteName)
+                and tmp_num_slots == 0
+                and (site_trr is None or site_trr < 0.6)
+            ):
                 excluded_sites_dict["low_trr"].add(tmpSiteName)
                 continue
             # get nQueue and nRunning
@@ -376,19 +441,19 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                         continue
                     else:
                         processing_type_constraint = "AND t.processingType='simul' "
-                # Software map
-                architecture_map = {}
-                if site in self.sw_map:
-                    if architectures_list := self.sw_map[site].get("architectures"):
-                        for architecture_dict in architectures_list:
-                            if "type" in architecture_dict:
-                                architecture_map[architecture_dict["type"]] = architecture_dict
                 # only tasks which can run with ARM if site architecture is ARM only
                 architecture_constraint = ""
-                if cpu_architecture_dict := architecture_map.get("cpu"):
-                    if arch_list := cpu_architecture_dict.get("arch"):
-                        if "aarch64" in arch_list and ("excl" in arch_list or "x86_64" not in arch_list):
-                            architecture_constraint += "AND t.architecture LIKE '%aarch64%' "
+                if self.is_arm_only_site(site):
+                    tmp_log.debug(f"{site} is ARM-only site")
+                    architecture_constraint += "AND t.architecture LIKE '%aarch64%' "
+                # only tasks with fat container if site is fat container only
+                container_name_constraint = ""
+                container_name_var_map = {}
+                if container_names_list := self.get_list_of_fat_container_names(site):
+                    tmp_log.debug(f"{site} is fat container site")
+                    container_name_var_names_str, container_name_var_map = get_sql_IN_bind_variables(container_names_list, prefix=":container_name")
+                    container_name_constraint += "AND t.container_name IS NOT NULL "
+                    container_name_constraint += f"AND t.container_name IN ({container_name_var_names_str}) "
                 # site attributes
                 site_maxrss = tmpSiteSpec.maxrss if tmpSiteSpec.maxrss not in (0, None) else 999999
                 site_corecount = tmpSiteSpec.coreCount
@@ -419,6 +484,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                     ") "
                     "{processing_type_constraint} "
                     "{architecture_constraint} "
+                    "{container_name_constraint} "
                     "AND EXISTS ( "
                     "SELECT d.datasetID FROM {jedi_schema}.JEDI_Datasets d "
                     "WHERE t.jediTaskID=d.jediTaskID AND d.type='input' "
@@ -431,6 +497,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                     rse_params_str=rse_params_str,
                     processing_type_constraint=processing_type_constraint,
                     architecture_constraint=architecture_constraint,
+                    container_name_constraint=container_name_constraint,
                 )
                 # loop over resource type
                 for resource_type in resource_type_list:
@@ -454,6 +521,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                         ":min_files_remaining": min_files_remaining,
                     }
                     params_map.update(rse_params_map)
+                    params_map.update(container_name_var_map)
                     # get preassigned_tasks_map from cache
                     preassigned_tasks_map = self._get_from_pt_cache()
                     preassigned_tasks_cached = preassigned_tasks_map.get(key_name, [])
