@@ -39,9 +39,11 @@ class DataCarouselModule(BaseModule):
             res = self.cur.fetchone()
             if res is None:
                 tmp_log.debug("no such request")
+                self._commit()
                 return None
             request_id = res[0]
             tmp_log.debug(f"found request_id={request_id}")
+            self._commit()
             return request_id
         except Exception:
             # roll back
@@ -320,7 +322,7 @@ class DataCarouselModule(BaseModule):
                         # fill requests map
                         ret_requests_map[request_id] = dc_req_spec
             else:
-                tmp_log.debug("no queued request")
+                tmp_log.debug("no request")
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -416,12 +418,12 @@ class DataCarouselModule(BaseModule):
                     # add
                     ret_list.append(dc_req_spec)
             else:
-                tmp_log.debug("no queued request")
+                tmp_log.debug("no staging request")
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return
-            tmp_log.debug(f"got {len(ret_list)} queued requests")
+            tmp_log.debug(f"got {len(ret_list)} staging requests")
             return ret_list
         except Exception:
             # roll back
@@ -596,7 +598,6 @@ class DataCarouselModule(BaseModule):
     # resubmit a data carousel request
     def resubmit_data_carousel_request_JEDI(self, request_id, exclude_prev_dst=False):
         comment = " /* JediDBProxy.resubmit_data_carousel_request_JEDI */"
-        to_resubmit = False
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id} exclude_prev_dst={exclude_prev_dst}")
         tmp_log.debug("start")
         try:
@@ -672,7 +673,7 @@ class DataCarouselModule(BaseModule):
                 else:
                     tmp_log.debug(f"retired request")
             else:
-                (f"already {dc_req_spec.status} ; skipped")
+                tmp_log.debug(f"already {dc_req_spec.status} ; skipped")
             # resubmit new request
             # sql to insert request
             sql_insert_request = (
