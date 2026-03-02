@@ -226,6 +226,72 @@ def remove_rule(split_rules: str, rule_token: str, is_sub_rule: bool = False):
     return tmp_str
 
 
+# decode split rule string: replace two-letter tags with human-readable names
+def decode_split_rule(split_rules: str) -> str:
+    """
+    Convert a compact split-rule string into a human-readable one by replacing
+    two-letter tags with their full names from split_rule_dict.
+
+    The input is a comma-separated string of ``TAG=value`` pairs, e.g.::
+
+        "AE=1,AN=1,2,3,AI=2"
+
+    Special case: ``AN`` (addNthFieldToLFN) may carry a comma-separated list
+    as its value (e.g. ``AN=1,2,3``).  All other tags treat ``=`` as the sole
+    separator and never embed commas in their values.
+
+    :param split_rules: compact comma-separated split-rule string, or None/empty
+    :return: human-readable comma-separated string, e.g.
+             ``"allowEmptyInput=1,addNthFieldToLFN=1,2,3,allowIncompleteInDS=2"``
+             Unknown tags are kept as-is.
+    """
+    if not split_rules:
+        return split_rules or ""
+
+    # build reverse map: two-letter tag -> full name
+    tag_to_name = {tag: name for name, tag in split_rule_dict.items()}
+
+    # The AN tag is the only one whose value may contain commas.
+    an_tag = split_rule_dict["addNthFieldToLFN"]  # "AN"
+
+    # Split on commas, then re-group tokens into (tag, value) pairs.
+    # A token starts a new rule when it matches "XX=..." where XX is a known
+    # two-letter tag.  Otherwise, it is appended to the current rule's value.
+    tokens = split_rules.split(",")
+    rules = []  # list of [tag, value_parts...]
+    for token in tokens:
+        # Check whether this token begins a new TAG=value entry
+        eq_pos = token.find("=")
+        if eq_pos == 2:
+            candidate_tag = token[:2]
+            if candidate_tag in tag_to_name or candidate_tag == an_tag:
+                # Start a new rule
+                rules.append([candidate_tag, token[3:]])  # token[3:] = value after "XX="
+                continue
+        # Not a recognized new rule:
+        # - if there are existing rules and the last one is AN, treat as value continuation
+        # - otherwise keep the token verbatim as its own entry
+        if rules and rules[-1][0] == an_tag:
+            rules[-1].append(token)
+        else:
+            # unknown / non-standard token — keep as-is using a sentinel
+            rules.append([None, token])
+
+    # Reconstruct using full names; rejoin multipart AN values with commas
+    result_parts = []
+    for parts in rules:
+        tag = parts[0]
+        if tag is None:
+            # unknown / non-standard token kept verbatim
+            result_parts.append(parts[1])
+        else:
+            value = ",".join(parts[1:])
+            name = tag_to_name.get(tag, tag)  # fall back to raw tag if unknown
+            result_parts.append(f"{name}={value}")
+
+    return ",".join(result_parts)
+
+
 # remove a rule with name
 def remove_rule_with_name(split_rules: str, rule_name: str, is_sub_rule: bool = False) -> str:
     """

@@ -370,6 +370,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
         can_be_local_source = {}
         can_be_remote_source = {}
         list_of_complete_replica_locations = {}
+        is_distributed_map = {}
         if inputChunk.getDatasets():
             for datasetSpec in inputChunk.getDatasets():
                 datasetName = datasetSpec.datasetName
@@ -436,6 +437,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                                     useVP = False
                                     avoidVP = True
                 tmp_rse_list = ",".join(list_of_complete_replica_locations[datasetName])
+                is_distributed_map[datasetName] = isDistributed
                 tmpLog.debug(
                     f"replica_availability disk:{complete_disk_ok[datasetName]} tape:{complete_tape_ok[datasetName]}, is_distributed:{isDistributed}, remote_readable:{can_be_remote_source[datasetName]}, rses={tmp_rse_list}"
                 )
@@ -462,7 +464,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
         remote_source_available = True
         remote_source_msg = ""
         for tmp_dataset_name, tmp_ok in can_be_remote_source.items():
-            if not tmp_ok:
+            is_distributed = is_distributed_map.get(tmp_dataset_name, None)
+            if not tmp_ok and is_distributed is not True:
                 remote_source_msg = f"data locality cannot be ignored since {tmp_dataset_name} is unreadable over WAN"
                 remote_source_available = False
                 break

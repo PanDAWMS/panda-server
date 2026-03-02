@@ -114,7 +114,7 @@ class Response:
             siteMapperCache.release_object()
         for file in job.Files:
             if file.type == "input":
-                if EventServiceUtils.isJumboJob(job) and file.lfn in inLFNset:
+                if file.lfn in inLFNset:
                     pass
                 else:
                     inLFNset.add(file.lfn)

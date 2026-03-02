@@ -475,6 +475,33 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
+    def test_get_detailed_info(self):
+        # def get_detailed_info(req: PandaRequest, task_id: int) -> Dict[str, Any]:
+        url = f"{api_url_ssl}/task/get_detailed_info"
+        print(f"Testing URL: {url}")
+        data = {"task_id": JEDI_TASK_ID}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        output["status"] = status
+
+        if JEDI_TASK_ID == -1:
+            # Fake task should not be found
+            del output["data"]
+            del output["message"]
+            expected_response = {"status": 0, "success": False}
+        else:
+            # Real task - verify the returned dict contains expected keys
+            task_info = output.get("data", {})
+            self.assertIn("jediTaskID", task_info)
+            self.assertIn("status", task_info)
+            self.assertIn("jobParamsTemplate", task_info)
+            self.assertIn("taskParams", task_info)
+            self.assertEqual(task_info["jediTaskID"], JEDI_TASK_ID)
+            del output["data"]
+            del output["message"]
+            expected_response = {"status": 0, "success": True}
+        self.assertEqual(output, expected_response)
+
 
 # Run tests
 if __name__ == "__main__":
