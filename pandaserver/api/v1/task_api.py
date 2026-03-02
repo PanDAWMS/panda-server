@@ -1319,3 +1319,43 @@ def get_task_parameters(req: PandaRequest, task_id: int) -> Dict[str, Any]:
     tmp_logger.debug("Done")
 
     return generate_response(True, data=task_parameters)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_detailed_info(req: PandaRequest, task_id: int) -> Dict[str, Any]:
+    """
+    Get detailed task info
+
+    Get all task fields together with jobParamsTemplate and taskParams for a given task.
+    The record is read without locking. Requires a secure connection.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/task/get_detailed_info
+
+    Args:
+        req(PandaRequest): internally generated request object
+        task_id(int): JEDI task ID
+
+    Returns:
+        dict: The system response ``{"success": success, "message": message, "data": data}``.
+              On success the ``data`` field contains a dictionary with all JediTaskSpec
+              attributes plus additional information.
+              On failure ``success`` is False and ``message`` contains the error description.
+    """
+    tmp_logger = LogWrapper(_logger, f"get_detailed_info < task_id={task_id} >")
+    tmp_logger.debug("Start")
+
+    try:
+        task_id = int(task_id)
+    except Exception:
+        tmp_logger.error("Failed due to invalid task_id")
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    task_info = global_task_buffer.get_task_details_json(task_id)
+    if task_info is None:
+        tmp_logger.error("Task not found or error retrieving task info")
+        return generate_response(False, message="Task not found or error retrieving task info")
+
+    tmp_logger.debug("Done")
+    return generate_response(True, data=task_info)
