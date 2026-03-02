@@ -13,7 +13,7 @@ from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMB
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 
-# Module class to define Data Carousel standalone methods
+# Module class to define Data Carousel related methods
 class DataCarouselModule(BaseModule):
     # constructor
     def __init__(self, log_stream: LogWrapper):
@@ -454,7 +454,7 @@ class DataCarouselModule(BaseModule):
             ret_req = self.cur.rowcount
             # sql to delete relations
             sql_delete_rel = (
-                f"DELETE {panda_config.schemaJEDI}.data_carousel_relations rel "
+                f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_relations rel "
                 f"WHERE rel.request_id NOT IN "
                 f"(SELECT req.request_id FROM {panda_config.schemaJEDI}.data_carousel_requests req) "
             )
@@ -485,7 +485,7 @@ class DataCarouselModule(BaseModule):
             now_time = naive_utcnow()
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.final_statuses, prefix=":status")
             sql_delete_req = (
-                f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status IN ({status_var_names_str}) " f"AND end_time<=:end_time_max "
+                f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status IN ({status_var_names_str}) " f"AND end_time<=:end_time_max "
             )
             var_map = {":end_time_max": now_time - datetime.timedelta(days=time_limit_days)}
             var_map.update(status_var_map)
@@ -493,7 +493,7 @@ class DataCarouselModule(BaseModule):
             ret_req = self.cur.rowcount
             # sql to delete relations
             sql_delete_rel = (
-                f"DELETE {panda_config.schemaJEDI}.data_carousel_relations rel "
+                f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_relations rel "
                 f"WHERE rel.request_id NOT IN "
                 f"(SELECT req.request_id FROM {panda_config.schemaJEDI}.data_carousel_requests req) "
             )
