@@ -218,8 +218,8 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             container_names_list = []
             if site in self.sw_map:
                 for tag_dict in self.sw_map[site].get("tags", []):
-                    if "container_name" in tag_dict:
-                        container_names_list.append(tag_dict["container_name"])
+                    if container_name := tag_dict.get("container_name"):
+                        container_names_list.append(container_name)
         return container_names_list
 
     # get available sites sorted list
@@ -582,7 +582,10 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         # total preassigned tasks
         preassigned_tasks_map = self._get_from_pt_cache()
         n_pt_tot = sum([len(pt_list) for pt_list in preassigned_tasks_map.values()])
-        tmp_log.debug(f"now {n_pt_tot} tasks preassigned in total")
+        if DRY_RUN:
+            tmp_log.debug(f"[dry run] would have {n_pt_tot} tasks preassigned in total")
+        else:
+            tmp_log.debug(f"now {n_pt_tot} tasks preassigned in total")
         # return
         return ret_map
 
