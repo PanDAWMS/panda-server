@@ -4,6 +4,7 @@ import os
 import re
 import shlex
 import sys
+import tarfile
 import tempfile
 import traceback
 
@@ -16,7 +17,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from ruamel.yaml import YAML
 
-from pandaserver.srvcore.CoreUtils import clean_user_id, commands_get_status_output
+# from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.workflow import pcwl_utils, workflow_utils
 from pandaserver.workflow.snakeparser import Parser
 
@@ -71,6 +72,34 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
     # request_id = None
     workflow_definition_dict = dict()
     cur_dir = os.getcwd()
+
+    def _is_within_directory(base_dir: str, target_path: str) -> bool:
+        abs_base_dir = os.path.abspath(base_dir)
+        abs_target_path = os.path.abspath(target_path)
+        return os.path.commonpath([abs_base_dir, abs_target_path]) == abs_base_dir
+
+    def _safe_extract_tar_gz(tar_path: str, extract_dir: str):
+        with tarfile.open(tar_path, mode="r:gz") as tar:
+            members = tar.getmembers()
+            for member in members:
+                member_name = member.name
+                normalized_name = os.path.normpath(member_name)
+                # security checks for tar member name
+                if os.path.isabs(member_name):
+                    raise ValueError(f"absolute path in tar member is not allowed: {member_name}")
+                if normalized_name in ("", ".", "..") or normalized_name.startswith(".." + os.path.sep):
+                    raise ValueError(f"path traversal in tar member is not allowed: {member_name}")
+                if member.issym() or member.islnk():
+                    raise ValueError(f"links in tar archive are not allowed: {member_name}")
+                if member.ischr() or member.isblk() or member.isfifo():
+                    raise ValueError(f"special file in tar archive is not allowed: {member_name}")
+                # check that the extraction target is within the extract_dir
+                extraction_target = os.path.join(extract_dir, normalized_name)
+                if not _is_within_directory(extract_dir, extraction_target):
+                    raise ValueError(f"tar member extracts outside target directory: {member_name}")
+            # all checks passed, safe to extract
+            tar.extractall(path=extract_dir, members=members)
+
     try:
         # go to temp dir
         with tempfile.TemporaryDirectory() as tmp_dirname:
@@ -110,10 +139,10 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                             if chunk:
                                 fs.write(chunk)
                         fs.close()
-                        tmp_stat, tmp_out = commands_get_status_output(f"tar xvfz {sandbox_name}")
-                        if tmp_stat != 0:
-                            tmp_log.error(tmp_out)
-                            dump_str = f"failed to extract {sandbox_name}"
+                        try:
+                            _safe_extract_tar_gz(sandbox_name, tmp_dirname)
+                        except Exception as e:
+                            dump_str = f"failed to extract {sandbox_name}: {traceback.format_exc()}"
                             tmp_log.error(dump_str)
                             is_fatal = True
                             is_ok = False
