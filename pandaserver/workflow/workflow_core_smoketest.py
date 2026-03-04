@@ -1,3 +1,4 @@
+import argparse
 import json
 import sys
 
@@ -17,7 +18,12 @@ prodsourcelabel = "user"
 username = "testuser"
 workflow_name = "test_workflow_bg_comb_00"
 
-WFID = sys.argv[1]  # workflow ID to be used in this test
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Workflow core smoke test helper")
+    parser.add_argument("workflow_id", nargs="?", default=None, help="Workflow ID to use in commented smoke test calls")
+    return parser.parse_args()
+
 
 # workflow definition json
 # wfd_json = json.dumps(
@@ -330,40 +336,46 @@ WFID = sys.argv[1]  # workflow ID to be used in this test
 # )
 
 
-# interface for workflow operations
-requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
-taskBuffer.init(
-    panda_config.dbhost,
-    panda_config.dbpasswd,
-    nDBConnection=panda_config.nDBConnection,
-    useTimeout=True,
-    requester=requester_id,
-)
+def main():
+    args = parse_args()
+    WFID = args.workflow_id
 
-wfif = WorkflowInterface(taskBuffer)
+    # interface for workflow operations
+    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    taskBuffer.init(
+        panda_config.dbhost,
+        panda_config.dbpasswd,
+        nDBConnection=panda_config.nDBConnection,
+        useTimeout=True,
+        requester=requester_id,
+    )
+
+    wfif = WorkflowInterface(taskBuffer)
+
+    # Test cases for workflow core
+
+    # Register the workflow
+    # print("Registering workflow...")
+    # wf_spec = wfif.register_workflow(
+    #     prodsourcelabel=prodsourcelabel,
+    #     username=username,
+    #     workflow_name=workflow_name,
+    #     workflow_definition_json=wfd_json,
+    # )
+
+    # Process the registered workflow
+    # wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
+    # print("Processing registered workflow...")
+    # wfif.process_workflow_registered(wf_spec)
+
+    # wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
+    # print("Processing checked workflow...")
+    # wfif.process_workflow_checked(wf_spec)
+
+    # wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
+    # print("Processing starting workflow...")
+    # wfif.process_workflow_starting(wf_spec)
 
 
-# Test cases for workflow core
-
-# Register the workflow
-# print("Registering workflow...")
-# wf_spec = wfif.register_workflow(
-#     prodsourcelabel=prodsourcelabel,
-#     username=username,
-#     workflow_name=workflow_name,
-#     workflow_definition_json=wfd_json,
-# )
-
-
-# Process the registered workflow
-# wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
-# print("Processing registered workflow...")
-# wfif.process_workflow_registered(wf_spec)
-
-# wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
-# print("Processing checked workflow...")
-# wfif.process_workflow_checked(wf_spec)
-
-# wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
-# print("Processing starting workflow...")
-# wfif.process_workflow_starting(wf_spec)
+if __name__ == "__main__":
+    main()
