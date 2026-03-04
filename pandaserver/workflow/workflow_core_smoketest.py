@@ -1,17 +1,10 @@
 import argparse
-import json
 import sys
 
 from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-from pandaserver.workflow.workflow_core import (
-    WFDataSpec,
-    WFStepSpec,
-    WorkflowInterface,
-    WorkflowSpec,
-)
 
 # parameters for the workflow
 prodsourcelabel = "user"

@@ -1,5 +1,3 @@
-import dataclasses
-
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
     WFDataStatus,
