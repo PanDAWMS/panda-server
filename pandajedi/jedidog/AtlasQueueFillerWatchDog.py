@@ -8,7 +8,7 @@ import time
 import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandautils.PandaUtils import naive_utcnow
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandajedi.jedibrokerage import AtlasBrokerUtils
 from pandajedi.jediconfig import jedi_config
@@ -65,6 +65,15 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             # if tmpSiteSpec.type == 'analysis' or tmpSiteSpec.is_grandly_unified():
             allSiteList.append(siteName)
         self.allSiteList = allSiteList
+        # software map
+        try:
+            self.sw_map = self.taskBufferIF.load_sw_map()
+            if self.sw_map is None:
+                logger.warning("failed to load software map: got None from taskBufferIF.load_sw_map; using empty map")
+                self.sw_map = {}
+        except Exception:
+            logger.error("exception while loading software map in refresh:\n%s", traceback.format_exc())
+            self.sw_map = {}
 
     # update preassigned task map to cache
     def _update_to_pt_cache(self, ptmap):
@@ -160,6 +169,66 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         else:
             return None
 
+    def is_arm_only_site(self, site) -> bool:
+        """
+        Check if a site is ARM-only.
+
+        Args:
+            site (str): The name of the site to check.
+
+        Returns:
+            bool: True if the site is ARM-only, False otherwise.
+        """
+        ret = False
+        architecture_map = {}
+        if site in self.sw_map:
+            if architectures_list := self.sw_map[site].get("architectures"):
+                for architecture_dict in architectures_list:
+                    if "type" in architecture_dict:
+                        architecture_map[architecture_dict["type"]] = architecture_dict
+        # only tasks which can run with ARM if site architecture is ARM only
+        if cpu_architecture_dict := architecture_map.get("cpu"):
+            if arch_list := cpu_architecture_dict.get("arch"):
+                if "aarch64" in arch_list and ("excl" in arch_list or "x86_64" not in arch_list):
+                    ret = True
+        return ret
+
+    def is_fat_container_site(self, site) -> bool:
+        """
+        Check if a site is a fat container site.
+
+        Args:
+            site (str): The name of the site to check.
+
+        Returns:
+            bool: True if the site is a fat container site, False otherwise.
+        """
+        ret = False
+        if site in self.sw_map:
+            containers_list = self.sw_map[site].get("containers", [])
+            if not ("any" in containers_list or "/cvmfs" in containers_list):
+                ret = True
+        return ret
+
+    def get_list_of_fat_container_names(self, site) -> list | None:
+        """
+        Get the list of fat container names for a site if it is a fat container site.
+
+        Args:
+            site (str): The name of the site to check.
+
+        Returns:
+            list | None: The list of fat container names if the site is a fat container site, None otherwise.
+        """
+        container_names_list = None
+        if self.is_fat_container_site(site):
+            container_names_list = []
+            if site in self.sw_map:
+                for tag_dict in self.sw_map[site].get("tags", []):
+                    if container_name := tag_dict.get("container_name"):
+                        container_names_list.append(container_name)
+        return container_names_list
+
     # get available sites sorted list
     def get_available_sites_list(self):
         tmp_log = MsgWrapper(logger, "get_available_sites_list")
@@ -207,9 +276,14 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             # tmp_num_slots as  num_slots in harvester_slots
             tmp_num_slots = tmpSiteSpec.getNumStandby(None, None)
             tmp_num_slots = 0 if tmp_num_slots is None else tmp_num_slots
-            # skip if site has no harvester_slots setup and has not enough activity in the past 24 hours
+            # skip if site (except ARM and fat container sites) has no harvester_slots setup and has not enough activity in the past 24 hours
             site_trr = site_trr_map.get(tmpSiteName)
-            if tmp_num_slots == 0 and (site_trr is None or site_trr < 0.6):
+            if (
+                not self.is_arm_only_site(tmpSiteName)
+                and not self.is_fat_container_site(tmpSiteName)
+                and tmp_num_slots == 0
+                and (site_trr is None or site_trr < 0.6)
+            ):
                 excluded_sites_dict["low_trr"].add(tmpSiteName)
                 continue
             # get nQueue and nRunning
@@ -374,6 +448,23 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                         continue
                     else:
                         processing_type_constraint = "AND t.processingType='simul' "
+                # only tasks which can run with ARM if site architecture is ARM only
+                architecture_constraint = ""
+                if self.is_arm_only_site(site):
+                    tmp_log.debug(f"{site} is ARM-only site")
+                    architecture_constraint += "AND t.architecture LIKE '%aarch64%' "
+                # only tasks with fat container if site is fat container only
+                container_name_constraint = ""
+                container_name_var_map = {}
+                if container_names_list := self.get_list_of_fat_container_names(site):
+                    tmp_log.debug(f"{site} is fat container site")
+                    container_name_var_names_str, container_name_var_map = get_sql_IN_bind_variables(container_names_list, prefix=":container_name")
+                    container_name_constraint += "AND t.container_name IS NOT NULL "
+                    container_name_constraint += f"AND t.container_name IN ({container_name_var_names_str}) "
+                elif container_names_list == []:
+                    # fat-container-only site with no specific container names configured; skipped the site
+                    tmp_log.debug(f"skipped {site} since it is fat-container-only site but no specific container names configured")
+                    continue
                 # site attributes
                 site_maxrss = tmpSiteSpec.maxrss if tmpSiteSpec.maxrss not in (0, None) else 999999
                 site_corecount = tmpSiteSpec.coreCount
@@ -388,7 +479,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                     rse_params_map[rse_param] = rse
                 rse_params_str = ",".join(rse_params_list)
                 # sql
-                sql_query = (
+                base_sql_query = (
                     "SELECT t.jediTaskID, t.workQueue_ID "
                     "FROM {jedi_schema}.JEDI_Tasks t "
                     "WHERE t.status IN ('ready','running') AND t.lockedBy IS NULL "
@@ -403,6 +494,8 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                     "AND dl.rse IN ({rse_params_str}) "
                     ") "
                     "{processing_type_constraint} "
+                    "{architecture_constraint} "
+                    "{container_name_constraint} "
                     "AND EXISTS ( "
                     "SELECT d.datasetID FROM {jedi_schema}.JEDI_Datasets d "
                     "WHERE t.jediTaskID=d.jediTaskID AND d.type='input' "
@@ -410,8 +503,13 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                     "AND d.nFiles-d.nFilesUsed>=:min_files_remaining "
                     ") "
                     "ORDER BY t.currentPriority DESC "
-                    "FOR UPDATE "
-                ).format(jedi_schema=jedi_config.db.schemaJEDI, rse_params_str=rse_params_str, processing_type_constraint=processing_type_constraint)
+                ).format(
+                    jedi_schema=jedi_config.db.schemaJEDI,
+                    rse_params_str=rse_params_str,
+                    processing_type_constraint=processing_type_constraint,
+                    architecture_constraint=architecture_constraint,
+                    container_name_constraint=container_name_constraint,
+                )
                 # loop over resource type
                 for resource_type in resource_type_list:
                     # key name for preassigned_tasks_map = site + resource_type
@@ -434,6 +532,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                         ":min_files_remaining": min_files_remaining,
                     }
                     params_map.update(rse_params_map)
+                    params_map.update(container_name_var_map)
                     # get preassigned_tasks_map from cache
                     preassigned_tasks_map = self._get_from_pt_cache()
                     preassigned_tasks_cached = preassigned_tasks_map.get(key_name, [])
@@ -447,29 +546,8 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                     if n_tasks_to_preassign <= 0:
                         tmp_log.debug(f"{key_name:<64} already has enough preassigned tasks ({n_preassigned_tasks:>3}) ; skipped ")
                     elif DRY_RUN:
-                        dry_sql_query = (
-                            "SELECT t.jediTaskID, t.workQueue_ID "
-                            "FROM {jedi_schema}.JEDI_Tasks t "
-                            "WHERE t.status IN ('ready','running') AND t.lockedBy IS NULL "
-                            "AND t.prodSourceLabel=:prodSourceLabel "
-                            "AND t.resource_type=:resource_type "
-                            "AND site IS NULL "
-                            "AND (COALESCE(t.baseRamCount, 0) + (CASE WHEN t.ramUnit IN ('MBPerCore','MBPerCoreFixed') THEN t.ramCount*:site_corecount ELSE t.ramCount END))*0.95 < :site_maxrss "
-                            "AND t.eventService=0 "
-                            "AND EXISTS ( "
-                            "SELECT * FROM {jedi_schema}.JEDI_Dataset_Locality dl "
-                            "WHERE dl.jediTaskID=t.jediTaskID "
-                            "AND dl.rse IN ({rse_params_str}) "
-                            ") "
-                            "{processing_type_constraint} "
-                            "AND EXISTS ( "
-                            "SELECT d.datasetID FROM {jedi_schema}.JEDI_Datasets d "
-                            "WHERE t.jediTaskID=d.jediTaskID AND d.type='input' "
-                            "AND d.nFilesToBeUsed-d.nFilesUsed>=:min_files_ready "
-                            "AND d.nFiles-d.nFilesUsed>=:min_files_remaining "
-                            ") "
-                            "ORDER BY t.currentPriority DESC "
-                        ).format(jedi_schema=jedi_config.db.schemaJEDI, rse_params_str=rse_params_str, processing_type_constraint=processing_type_constraint)
+                        # for dry run, just query and update cache without updating db
+                        dry_sql_query = base_sql_query
                         # tmp_log.debug('[dry run] {} {}'.format(dry_sql_query, params_map))
                         res = self.taskBufferIF.querySQL(dry_sql_query, params_map)
                         n_tasks = 0 if res is None else len(res)
@@ -482,6 +560,8 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                             tmp_log.debug(f"{str(updated_tasks)} ; {str(preassigned_tasks_map[key_name])}")
                             self._update_to_pt_cache(preassigned_tasks_map)
                     else:
+                        # for real run, query with FOR UPDATE and update db to preassign tasks
+                        sql_query = base_sql_query + "FOR UPDATE "
                         updated_tasks_orig_attr = self.taskBufferIF.queryTasksToPreassign_JEDI(
                             sql_query, params_map, site, blacklist=blacklisted_tasks_set, limit=n_tasks_to_preassign
                         )
@@ -513,7 +593,10 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         # total preassigned tasks
         preassigned_tasks_map = self._get_from_pt_cache()
         n_pt_tot = sum([len(pt_list) for pt_list in preassigned_tasks_map.values()])
-        tmp_log.debug(f"now {n_pt_tot} tasks preassigned in total")
+        if DRY_RUN:
+            tmp_log.debug(f"[dry run] would have {n_pt_tot} tasks preassigned in total")
+        else:
+            tmp_log.debug(f"now {n_pt_tot} tasks preassigned in total")
         # return
         return ret_map
 
@@ -685,7 +768,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             # get logger
             origTmpLog = MsgWrapper(logger)
             origTmpLog.debug("start")
-            # lock
+            # lock (also in DRY_RUN to avoid races on shared caches)
             got_lock = self._get_lock()
             if not got_lock:
                 origTmpLog.debug("locked by another process. Skipped")
@@ -695,14 +778,16 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             self.undo_preassign()
             # preassign tasks to sites
             ret_map = self.do_preassign()
-            # to-reassign map
-            to_reassign_map = ret_map["to_reassign"]
-            if to_reassign_map:
-                # wait some minutes so that preassigned tasks can be brokered, before reassigning jobs
-                origTmpLog.debug(f"wait {reassign_jobs_wait_time}s before reassigning jobs")
-                time.sleep(reassign_jobs_wait_time)
-                # reassign jobs of preassigned tasks
-                self.reassign_jobs(to_reassign_map)
+            # in non-dry-run mode, optionally wait and reassign jobs
+            if not DRY_RUN:
+                # to-reassign map
+                to_reassign_map = ret_map["to_reassign"]
+                if to_reassign_map:
+                    # wait some minutes so that preassigned tasks can be brokered, before reassigning jobs
+                    origTmpLog.debug(f"wait {reassign_jobs_wait_time}s before reassigning jobs")
+                    time.sleep(reassign_jobs_wait_time)
+                    # reassign jobs of preassigned tasks
+                    self.reassign_jobs(to_reassign_map)
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             err_str = traceback.format_exc()
