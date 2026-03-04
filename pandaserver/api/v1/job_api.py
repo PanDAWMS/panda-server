@@ -77,7 +77,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
     return generate_response(True, data=data)
 
 
-@request_validation(_logger, secure=True, request_method="GET")
+@request_validation(_logger, secure=True)
 def get_description(self, job_ids: List[int]) -> Dict:
     """
     Get description of a job.
@@ -111,13 +111,13 @@ def get_description(self, job_ids: List[int]) -> Dict:
         job_ids = []
 
     tmp_logger.debug(f"Retrieving data for {job_ids}")
-    ret = [job.to_dict_advanced() for job in global_task_buffer.peekJobs(job_ids)]
+    ret = [job.to_dict_advanced() if job is not None else None for job in global_task_buffer.peekJobs(job_ids)]
     _logger.debug("Done")
 
     return generate_response(True, data=ret)
 
 
-@request_validation(_logger, secure=True, request_method="GET")
+@request_validation(_logger, secure=True)
 def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
     """
     Get description of a job.
@@ -152,7 +152,8 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
 
     tmp_logger.debug(f"Retrieving data for {str(job_ids)}")
 
-    ret = [job.to_dict_advanced() for job in global_task_buffer.getFullJobStatus(job_ids)]
+    ret = [job.to_dict_advanced() if job is not None else None for job in global_task_buffer.getFullJobStatus(job_ids)]
+
     tmp_logger.debug("getFullJobStatus end")
     return generate_response(True, data=ret)
 

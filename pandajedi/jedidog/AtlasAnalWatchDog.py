@@ -580,7 +580,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
         try:
             # get active tasks in S-class
             sql_get_tasks = (
-                """SELECT tev.value_json.task_id, tev.value_json."user" """
+                """SELECT /* use_json_type */ tev.value_json.task_id, tev.value_json."user" """
                 """FROM ATLAS_PANDA.Task_Evaluation tev, ATLAS_PANDA.JEDI_Tasks t """
                 """WHERE tev.value_json.task_id=t.jediTaskID """
                 """AND tev.metric='analy_task_eval' """

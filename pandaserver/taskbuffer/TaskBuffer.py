@@ -1449,6 +1449,13 @@ class TaskBuffer:
             ret = proxy.getJobStatistics()
         return ret
 
+    # get detailed job statistics with resource_type and prodsourcelabel
+    def getDetailedJobStatistics(self):
+        with self.proxyPool.get() as proxy:
+            ret = proxy.getDetailedJobStatistics()
+        return ret
+
+    # get job statistics for ExtIF. Source type is analysis or production
     def getJobStatisticsForExtIF(self, sourcetype=None):
         # get DBproxy
         with self.proxyPool.get() as proxy:
@@ -1664,6 +1671,11 @@ class TaskBuffer:
             # exec
             ret = proxy.getJediTaskDetails(jediTaskID, fullFlag, withTaskInfo)
         return ret
+
+    # get task details as a plain dict (read-only, no lock)
+    def get_task_details_json(self, jedi_task_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_task_details_json(jedi_task_id)
 
     # get a list of even ranges for a PandaID
     def getEventRanges(self, pandaID, jobsetID, jediTaskID, nRanges, acceptJson, scattered, segment_id):
@@ -2729,6 +2741,13 @@ class TaskBuffer:
     def get_data_carousel_requests_by_task_status_JEDI(self, status_filter_list=None, status_exclusion_list=None):
         with self.proxyPool.get() as proxy:
             return proxy.get_data_carousel_requests_by_task_status_JEDI(status_filter_list=status_filter_list, status_exclusion_list=status_exclusion_list)
+
+    # get related tasks and their info of a data carousel request
+    def get_related_tasks_of_data_carousel_request_JEDI(self, request_id, status_filter_list=None, status_exclusion_list=None):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_related_tasks_of_data_carousel_request_JEDI(
+                request_id, status_filter_list=status_filter_list, status_exclusion_list=status_exclusion_list
+            )
 
     # get data carousel staging requests
     def get_data_carousel_staging_requests_JEDI(self):

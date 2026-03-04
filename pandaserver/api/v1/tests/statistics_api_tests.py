@@ -53,6 +53,21 @@ class TestTaskAPI(unittest.TestCase):
 
         self.assertEqual(output, expected_response)
 
+    def test_active_job_detailed_stats_by_site(self):
+        url = f"{api_url_ssl}/statistics/active_job_detailed_stats_by_site"
+        print(f"Testing URL: {url}")
+        data = {}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        output["status"] = status
+
+        # Remove the data field from the response for comparison
+        del output["data"]
+
+        expected_response = {"success": True, "message": "", "status": 0}
+
+        self.assertEqual(output, expected_response)
+
     def test_job_stats_by_site_and_resource_type(self):
         url = f"{api_url_ssl}/statistics/job_stats_by_site_and_resource_type"
         print(f"Testing URL: {url}")
