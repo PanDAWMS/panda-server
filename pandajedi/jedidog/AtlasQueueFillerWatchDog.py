@@ -461,6 +461,10 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                     container_name_var_names_str, container_name_var_map = get_sql_IN_bind_variables(container_names_list, prefix=":container_name")
                     container_name_constraint += "AND t.container_name IS NOT NULL "
                     container_name_constraint += f"AND t.container_name IN ({container_name_var_names_str}) "
+                elif container_names_list == []:
+                    # fat-container-only site with no specific container names configured; skipped the site
+                    tmp_log.debug(f"skipped {site} since it is fat-container-only site but no specific container names configured")
+                    continue
                 # site attributes
                 site_maxrss = tmpSiteSpec.maxrss if tmpSiteSpec.maxrss not in (0, None) else 999999
                 site_corecount = tmpSiteSpec.coreCount
