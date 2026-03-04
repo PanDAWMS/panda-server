@@ -2,7 +2,6 @@ import json
 
 from pandacommon.pandalogger import logger_utils
 
-from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
 from pandaserver.workflow.workflow_core import WorkflowInterface
 
@@ -20,7 +19,6 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
         Initialize the plugin
         """
         BaseMsgProcPlugin.initialize(self)
-        the_pid = self.get_pid()
         self.workflow_interface = WorkflowInterface(self.tbIF)
 
     def process(self, msg_obj):
@@ -62,16 +60,25 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
             if msg_type == "workflow":
                 workflow_id = msg_dict["workflow_id"]
                 workflow_spec = self.tbIF.get_workflow(workflow_id)
+                if workflow_spec is None:
+                    tmp_log.warning(f"workflow_id={workflow_id} not found; skipped")
+                    return
                 stats = self.workflow_interface.process_workflow(workflow_spec, by="msg")
                 tmp_log.info(f"processed workflow_id={workflow_id}")
             elif msg_type == "wfstep":
                 step_id = msg_dict["step_id"]
                 step_spec = self.tbIF.get_workflow_step(step_id)
+                if step_spec is None:
+                    tmp_log.warning(f"step_id={step_id} not found; skipped")
+                    return
                 stats = self.workflow_interface.process_step(step_spec, by="msg")
                 tmp_log.info(f"processed step_id={step_id}")
             elif msg_type == "wfdata":
                 data_id = msg_dict["data_id"]
                 data_spec = self.tbIF.get_workflow_data(data_id)
+                if data_spec is None:
+                    tmp_log.warning(f"data_id={data_id} not found; skipped")
+                    return
                 stats = self.workflow_interface.process_data(data_spec, by="msg")
                 tmp_log.info(f"processed data_id={data_id}")
         except Exception as e:

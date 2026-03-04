@@ -1700,7 +1700,7 @@ class WorkflowInterface(object):
                 # mark workflow as failed
                 tmp_log.warning(f"workflow failed due to some steps failed or cancelled")
                 workflow_spec.status = WorkflowStatus.failed
-                workflow_spec.start_time = naive_utcnow()
+                workflow_spec.end_time = naive_utcnow()
                 self.tbif.update_workflow(workflow_spec)
                 process_result.success = True
                 process_result.new_status = workflow_spec.status
