@@ -63,7 +63,7 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
                 if workflow_spec is None:
                     tmp_log.warning(f"workflow_id={workflow_id} not found; skipped")
                     return
-                stats = self.workflow_interface.process_workflow(workflow_spec, by="msg")
+                stats, workflow_spec = self.workflow_interface.process_workflow(workflow_spec, by="msg")
                 tmp_log.info(f"processed workflow_id={workflow_id}")
             elif msg_type == "wfstep":
                 step_id = msg_dict["step_id"]
@@ -71,7 +71,7 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
                 if step_spec is None:
                     tmp_log.warning(f"step_id={step_id} not found; skipped")
                     return
-                stats = self.workflow_interface.process_step(step_spec, by="msg")
+                stats, step_spec = self.workflow_interface.process_step(step_spec, by="msg")
                 tmp_log.info(f"processed step_id={step_id}")
             elif msg_type == "wfdata":
                 data_id = msg_dict["data_id"]
@@ -79,7 +79,7 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
                 if data_spec is None:
                     tmp_log.warning(f"data_id={data_id} not found; skipped")
                     return
-                stats = self.workflow_interface.process_data(data_spec, by="msg")
+                stats, data_spec = self.workflow_interface.process_data(data_spec, by="msg")
                 tmp_log.info(f"processed data_id={data_id}")
         except Exception as e:
             err_str = f"failed to run, skipped. {e.__class__.__name__} : {e}"

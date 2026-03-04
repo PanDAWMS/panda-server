@@ -738,7 +738,7 @@ class WorkflowInterface(object):
             tmp_log.error(f"{traceback.format_exc()}")
         return process_result
 
-    def process_data(self, data_spec: WFDataSpec, by: str = "dog") -> WFDataProcessResult | None:
+    def process_data(self, data_spec: WFDataSpec, by: str = "dog") -> tuple[WFDataProcessResult | None, WFDataSpec]:
         """
         Process a single workflow data specification
 
@@ -748,6 +748,7 @@ class WorkflowInterface(object):
 
         Returns:
             WFDataProcessResult | None: The result of processing the data specification, or None if skipped
+            WFDataSpec: The updated workflow data specification
         """
         tmp_log = LogWrapper(logger, f"process_data <workflow_id={data_spec.workflow_id} data_id={data_spec.data_id} by={by}>")
         tmp_log.debug("Start")
@@ -755,7 +756,7 @@ class WorkflowInterface(object):
         with self.workflow_data_lock(data_spec.data_id) as locked_data_spec:
             if locked_data_spec is None:
                 tmp_log.warning(f"Failed to acquire lock for data_id={data_spec.data_id}; skipped")
-                return None
+                return None, data_spec
             data_spec = locked_data_spec
             orig_status = data_spec.status
             # Process the data
@@ -780,7 +781,7 @@ class WorkflowInterface(object):
         # For changes into transient status, send message to trigger processing immediately
         if data_spec.status != orig_status and data_spec.status in WFDataStatus.transient_statuses:
             self.send_data_message(data_spec.data_id)
-        return tmp_res
+        return tmp_res, data_spec
 
     def process_datas(self, data_specs: List[WFDataSpec], by: str = "dog") -> Dict:
         """
@@ -799,7 +800,7 @@ class WorkflowInterface(object):
         data_status_stats = {"n_data": n_data, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         for data_spec in data_specs:
             orig_status = data_spec.status
-            tmp_res = self.process_data(data_spec, by=by)
+            tmp_res, data_spec = self.process_data(data_spec, by=by)
             if tmp_res and tmp_res.success:
                 # update stats
                 if tmp_res.new_status and data_spec.status != orig_status:
@@ -1288,7 +1289,9 @@ class WorkflowInterface(object):
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return process_result
 
-    def process_step(self, step_spec: WFStepSpec, data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> WFStepProcessResult | None:
+    def process_step(
+        self, step_spec: WFStepSpec, data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog"
+    ) -> tuple[WFStepProcessResult | None, WFStepSpec]:
         """
         Process a single workflow step
 
@@ -1299,6 +1302,7 @@ class WorkflowInterface(object):
 
         Returns:
             WFStepProcessResult | None: The result of processing the step, or None if the step was skipped
+            WFStepSpec: The updated workflow step specification
         """
         tmp_log = LogWrapper(logger, f"process_step <workflow_id={step_spec.workflow_id} step_id={step_spec.step_id} member_id={step_spec.member_id} by={by}>")
         tmp_log.debug("Start")
@@ -1306,7 +1310,7 @@ class WorkflowInterface(object):
         with self.workflow_step_lock(step_spec.step_id) as locked_step_spec:
             if locked_step_spec is None:
                 tmp_log.warning(f"Failed to acquire lock for step_id={step_spec.step_id}; skipped")
-                return None
+                return None, step_spec
             step_spec = locked_step_spec
             orig_status = step_spec.status
             # Process the step
@@ -1335,7 +1339,7 @@ class WorkflowInterface(object):
         # For changes into transient status, send message to trigger processing immediately
         if step_spec.status != orig_status and step_spec.status in WFStepStatus.transient_statuses:
             self.send_step_message(step_spec.step_id)
-        return tmp_res
+        return tmp_res, step_spec
 
     def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> Dict:
         """
@@ -1355,7 +1359,7 @@ class WorkflowInterface(object):
         steps_status_stats = {"n_steps": n_steps, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         for step_spec in step_specs:
             orig_status = step_spec.status
-            tmp_res = self.process_step(step_spec, data_spec_map=data_spec_map, by=by)
+            tmp_res, step_spec = self.process_step(step_spec, data_spec_map=data_spec_map, by=by)
             if tmp_res and tmp_res.success:
                 # update stats
                 if tmp_res.new_status and step_spec.status != orig_status:
@@ -1716,7 +1720,7 @@ class WorkflowInterface(object):
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return process_result
 
-    def process_workflow(self, workflow_spec: WorkflowSpec, by: str = "dog") -> WorkflowProcessResult:
+    def process_workflow(self, workflow_spec: WorkflowSpec, by: str = "dog") -> tuple[WorkflowProcessResult, WorkflowSpec]:
         """
         Process a workflow based on its current status
 
@@ -1726,6 +1730,7 @@ class WorkflowInterface(object):
 
         Returns:
             WorkflowProcessResult: The result of processing the workflow
+            WorkflowSpec: The updated workflow specification
         """
         tmp_log = LogWrapper(logger, f"process_workflow <workflow_id={workflow_spec.workflow_id} by={by}>")
         tmp_log.debug(f"Start, current status={workflow_spec.status}")
@@ -1748,7 +1753,7 @@ class WorkflowInterface(object):
         # For changes into transient status, send message to trigger processing immediately
         if workflow_spec.status != orig_status and workflow_spec.status in WorkflowStatus.transient_statuses:
             self.send_workflow_message(workflow_spec.workflow_id)
-        return process_result
+        return process_result, workflow_spec
 
     # ---- Process all workflows -------------------------------------
 
@@ -1780,7 +1785,7 @@ class WorkflowInterface(object):
                     workflow_spec = locked_workflow_spec
                     orig_status = workflow_spec.status
                     # Process the workflow
-                    tmp_res = self.process_workflow(workflow_spec)
+                    tmp_res, workflow_spec = self.process_workflow(workflow_spec)
                     if tmp_res and tmp_res.success:
                         # update stats
                         if tmp_res.new_status and workflow_spec.status != orig_status:
