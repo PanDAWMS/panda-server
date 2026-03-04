@@ -643,10 +643,22 @@ def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map
                     isOK = True
                     if isinstance(tmp_data["parent_id"], list):
                         if idx is not None:
-                            setattr(condition_item, item, id_map[tmp_data["parent_id"][idx]])
+                            if idx < 0 or idx >= len(tmp_data["parent_id"]):
+                                raise IndexError(f"index {idx} is out of bounds for parameter {param} with {len(tmp_data['parent_id'])} parents")
+                            parent_id = tmp_data["parent_id"][idx]
+                            if parent_id not in id_map:
+                                raise ReferenceError(f"unresolved parent_id {parent_id} for parameter {param}[{idx}]")
+                            setattr(condition_item, item, id_map[parent_id])
                         else:
-                            setattr(condition_item, item, id_map[tmp_data["parent_id"]])
+                            resolved_parent_ids = set()
+                            for parent_id in tmp_data["parent_id"]:
+                                if parent_id not in id_map:
+                                    raise ReferenceError(f"unresolved parent_id {parent_id} for parameter {param}")
+                                resolved_parent_ids |= id_map[parent_id]
+                            setattr(condition_item, item, list(resolved_parent_ids))
                     else:
+                        if tmp_data["parent_id"] not in id_map:
+                            raise ReferenceError(f"unresolved parent_id {tmp_data['parent_id']} for parameter {param}")
                         setattr(condition_item, item, id_map[tmp_data["parent_id"]])
                     break
             if not isOK:
@@ -778,10 +790,9 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
     tail_nodes = []
     for node in all_nodes:
         if node.is_tail:
-            if node.is_tail:
-                tail_nodes.append(node)
-            else:
-                tail_nodes += resolved_map[node.id]
+            tail_nodes.append(node)
+        else:
+            tail_nodes += resolved_map[node.id]
     return serial_id, tail_nodes, all_nodes
 
 
