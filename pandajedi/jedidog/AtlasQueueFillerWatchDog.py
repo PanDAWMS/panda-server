@@ -66,7 +66,14 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             allSiteList.append(siteName)
         self.allSiteList = allSiteList
         # software map
-        self.sw_map = self.taskBufferIF.load_sw_map()
+        try:
+            self.sw_map = self.taskBufferIF.load_sw_map()
+            if self.sw_map is None:
+                logger.warning("failed to load software map: got None from taskBufferIF.load_sw_map; using empty map")
+                self.sw_map = {}
+        except Exception:
+            logger.error("exception while loading software map in refresh:\n%s", traceback.format_exc())
+            self.sw_map = {}
 
     # update preassigned task map to cache
     def _update_to_pt_cache(self, ptmap):
