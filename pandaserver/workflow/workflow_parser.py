@@ -131,7 +131,7 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                                 is_fatal = True
                                 is_ok = False
                     else:
-                        dump_str = "{} is not supported to describe the workflow"
+                        dump_str = f"{wf_lang} is not supported to describe the workflow"
                         tmp_log.error(dump_str)
                         is_fatal = True
                         is_ok = False
