@@ -768,21 +768,18 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             # get logger
             origTmpLog = MsgWrapper(logger)
             origTmpLog.debug("start")
-            if DRY_RUN:
-                # test without locking
-                self.undo_preassign()
-                self.do_preassign()
-            else:
-                # lock
-                got_lock = self._get_lock()
-                if not got_lock:
-                    origTmpLog.debug("locked by another process. Skipped")
-                    return self.SC_SUCCEEDED
-                origTmpLog.debug("got lock")
-                # undo preassigned tasks
-                self.undo_preassign()
-                # preassign tasks to sites
-                ret_map = self.do_preassign()
+            # lock (also in DRY_RUN to avoid races on shared caches)
+            got_lock = self._get_lock()
+            if not got_lock:
+                origTmpLog.debug("locked by another process. Skipped")
+                return self.SC_SUCCEEDED
+            origTmpLog.debug("got lock")
+            # undo preassigned tasks
+            self.undo_preassign()
+            # preassign tasks to sites
+            ret_map = self.do_preassign()
+            # in non-dry-run mode, optionally wait and reassign jobs
+            if not DRY_RUN:
                 # to-reassign map
                 to_reassign_map = ret_map["to_reassign"]
                 if to_reassign_map:
