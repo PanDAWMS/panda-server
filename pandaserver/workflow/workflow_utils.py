@@ -675,6 +675,8 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             root_inputs[k] = data[kk]
     tmp_to_real_id_map = {}
     resolved_map = {}
+    # map of object identity to original temporary node ID used in resolved_map keys
+    node_key_map = {}
     all_nodes = []
     for node in node_list:
         # resolve input
@@ -746,10 +748,12 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             sc_nodes = [node]
         # loop over scattered nodes
         for sc_node in sc_nodes:
+            original_node_id = sc_node.id
             all_nodes.append(sc_node)
+            node_key_map[id(sc_node)] = original_node_id
             # set real node ID
-            resolved_map.setdefault(sc_node.id, [])
-            tmp_to_real_id_map.setdefault(sc_node.id, set())
+            resolved_map.setdefault(original_node_id, [])
+            tmp_to_real_id_map.setdefault(original_node_id, set())
             # resolve parents
             real_parens = set()
             for i in sc_node.parents:
@@ -758,8 +762,8 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             if sc_node.is_head:
                 sc_node.parents |= parent_ids
             if sc_node.is_leaf:
-                resolved_map[sc_node.id].append(sc_node)
-                tmp_to_real_id_map[sc_node.id].add(serial_id)
+                resolved_map[original_node_id].append(sc_node)
+                tmp_to_real_id_map[original_node_id].add(serial_id)
                 sc_node.id = serial_id
                 serial_id += 1
             else:
@@ -772,8 +776,8 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                     out_ds_name,
                     log_stream,
                 )
-                resolved_map[sc_node.id] += sub_tail_nodes
-                tmp_to_real_id_map[sc_node.id] |= set([n.id for n in sub_tail_nodes])
+                resolved_map[original_node_id] += sub_tail_nodes
+                tmp_to_real_id_map[original_node_id] |= set([n.id for n in sub_tail_nodes])
                 sc_node.id = serial_id
                 serial_id += 1
             # convert parameters to parent IDs in conditions
@@ -789,10 +793,11 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
     # return tails
     tail_nodes = []
     for node in all_nodes:
+        original_node_id = node_key_map.get(id(node), node.id)
         if node.is_tail:
             tail_nodes.append(node)
         else:
-            tail_nodes += resolved_map[node.id]
+            tail_nodes += resolved_map[original_node_id]
     return serial_id, tail_nodes, all_nodes
 
 
