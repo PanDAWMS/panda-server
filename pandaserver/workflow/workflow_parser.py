@@ -77,7 +77,7 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
             os.chdir(tmp_dirname)
             # download sandbox
             tmp_log.info(f"downloading sandbox from {sandbox_url}")
-            with requests.get(sandbox_url, allow_redirects=True, verify=False, stream=True) as r:
+            with requests.get(sandbox_url, allow_redirects=True, stream=True) as r:
                 if r.status_code == 400:
                     tmp_log.error("not found")
                     is_fatal = True
