@@ -1624,14 +1624,18 @@ class WorkflowInterface(object):
             # Process steps
             steps_status_stats = self.process_steps(step_specs, data_spec_map=data_spec_map)
             # Update workflow status to running if any of step is starting
+            now_time = naive_utcnow()
             if steps_status_stats["processed"].get(WFStepStatus.starting):
                 workflow_spec.status = WorkflowStatus.running
-                workflow_spec.start_time = naive_utcnow()
+                workflow_spec.start_time = now_time
+                workflow_spec.check_time = now_time
                 self.tbif.update_workflow(workflow_spec)
                 process_result.success = True
                 process_result.new_status = workflow_spec.status
                 tmp_log.info(f"Done, advanced to status={workflow_spec.status}")
             else:
+                workflow_spec.check_time = now_time
+                self.tbif.update_workflow(workflow_spec)
                 process_result.success = True
                 tmp_log.info(f"Done, status remains {workflow_spec.status}")
         except Exception as e:
@@ -1696,6 +1700,7 @@ class WorkflowInterface(object):
             # Process each step
             steps_status_stats = self.process_steps(step_specs, data_spec_map=data_spec_map)
             # Update workflow status by steps
+            now_time = naive_utcnow()
             if (processed_steps_stats := steps_status_stats["processed"]) and (
                 processed_steps_stats.get(WFStepStatus.failed) or processed_steps_stats.get(WFStepStatus.cancelled)
             ):
@@ -1704,12 +1709,15 @@ class WorkflowInterface(object):
                 # mark workflow as failed
                 tmp_log.warning(f"workflow failed due to some steps failed or cancelled")
                 workflow_spec.status = WorkflowStatus.failed
-                workflow_spec.end_time = naive_utcnow()
+                workflow_spec.end_time = now_time
+                workflow_spec.check_time = now_time
                 self.tbif.update_workflow(workflow_spec)
                 process_result.success = True
                 process_result.new_status = workflow_spec.status
                 tmp_log.info(f"Done, advanced to status={workflow_spec.status}")
             else:
+                workflow_spec.check_time = now_time
+                self.tbif.update_workflow(workflow_spec)
                 process_result.success = True
                 tmp_log.info(f"Done, status remains {workflow_spec.status}")
                 if processed_steps_stats.get(WFStepStatus.done) == len(step_specs):
