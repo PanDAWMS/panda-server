@@ -737,11 +737,11 @@ class WorkflowModule(BaseModule):
             "data": action_of_data,
         }
         # log
-        tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_spec.workflow_id}")
+        tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_id}")
         tmp_log.debug(f"start, actions={actions_dict}")
         # skip if no action specified
         if not any(actions_dict.values()):
-            self.log.warning("no action specified; skipped")
+            tmp_log.warning("no action specified; skipped")
             return None
         try:
             n_steps_upserted = 0
