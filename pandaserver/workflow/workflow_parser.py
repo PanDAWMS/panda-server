@@ -85,17 +85,35 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                 elif r.status_code != 200:
                     tmp_log.error(f"bad HTTP response {r.status_code}")
                     is_ok = False
+                # validate sandbox filename
+                sandbox_name = raw_request_dict.get("sandbox")
+                if is_ok:
+                    if not isinstance(sandbox_name, str):
+                        tmp_log.error("sandbox filename is missing or not a string")
+                        is_fatal = True
+                        is_ok = False
+                    else:
+                        # sandbox filename must not contain any path separators
+                        seps = [os.path.sep]
+                        if os.path.altsep:
+                            seps.append(os.path.altsep)
+                        if any(sep in sandbox_name for sep in seps):
+                            tmp_log.error("sandbox filename must not contain path separators")
+                            is_fatal = True
+                            is_ok = False
+                        else:
+                            sandbox_name = os.path.basename(sandbox_name)
                 # extract sandbox
                 if is_ok:
-                    with open(raw_request_dict["sandbox"], "wb") as fs:
+                    with open(sandbox_name, "wb") as fs:
                         for chunk in r.raw.stream(1024, decode_content=False):
                             if chunk:
                                 fs.write(chunk)
                         fs.close()
-                        tmp_stat, tmp_out = commands_get_status_output(f"tar xvfz {raw_request_dict['sandbox']}")
+                        tmp_stat, tmp_out = commands_get_status_output(f"tar xvfz {sandbox_name}")
                         if tmp_stat != 0:
                             tmp_log.error(tmp_out)
-                            dump_str = f"failed to extract {raw_request_dict['sandbox']}"
+                            dump_str = f"failed to extract {sandbox_name}"
                             tmp_log.error(dump_str)
                             is_fatal = True
                             is_ok = False
