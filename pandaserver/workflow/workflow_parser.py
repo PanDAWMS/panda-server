@@ -70,9 +70,9 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
     is_fatal = False
     # request_id = None
     workflow_definition_dict = dict()
+    cur_dir = os.getcwd()
     try:
         # go to temp dir
-        cur_dir = os.getcwd()
         with tempfile.TemporaryDirectory() as tmp_dirname:
             os.chdir(tmp_dirname)
             # download sandbox
@@ -179,11 +179,15 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                         "root_outputs": root_outputs_dict,
                         "nodes": nodes_list,
                     }
-        os.chdir(cur_dir)
     except Exception as e:
         is_ok = False
         is_fatal = True
         tmp_log.error(f"failed to run with {str(e)} {traceback.format_exc()}")
+    finally:
+        try:
+            os.chdir(cur_dir)
+        except Exception as e:
+            tmp_log.error(f"failed to restore working directory to {cur_dir}: {traceback.format_exc()}")
 
     # with tempfile.NamedTemporaryFile(delete=False, mode="w") as tmp_json:
     #     json.dump([is_ok, is_fatal, request_id, tmp_log.dumpToString()], tmp_json)
