@@ -1,16 +1,10 @@
-import datetime
-import os
-import re
-import socket
 import sys
 import traceback
 
 # logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
-from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
 from pandaserver.workflow.workflow_core import WorkflowInterface
 
 from .WatchDogBase import WatchDogBase
