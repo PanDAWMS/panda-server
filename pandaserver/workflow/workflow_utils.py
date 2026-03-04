@@ -672,7 +672,8 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             if isinstance(tmp_data["source"], list):
                 tmp_sources = tmp_data["source"]
                 if "parent_id" in tmp_data:
-                    tmp_parent_ids = tmp_data["parent_id"]
+                    # Make a copy to avoid mutating the original list stored in node.inputs
+                    tmp_parent_ids = list(tmp_data["parent_id"])
                     tmp_parent_ids += [None] * (len(tmp_sources) - len(tmp_parent_ids))
                 else:
                     tmp_parent_ids = [None] * len(tmp_sources)
