@@ -75,9 +75,9 @@ class TaskBuffer:
     # transaction as a context manager
     # CANNOT be used with ConBridge or TaskBufferInterface which uses multiprocess.pipe
     @contextmanager
-    def transaction(self, name: str):
+    def transaction(self, name=None, tmp_log=None):
         with self.proxyPool.get() as proxy:
-            with proxy.transaction(name) as txn:
+            with proxy.transaction(name, tmp_log) as txn:
                 if txn is None:
                     raise RuntimeError(f"Failed to start transaction {name}")
                 # yield the transaction
@@ -2024,6 +2024,14 @@ class TaskBuffer:
             res = proxy.getTaskStatus(jediTaskID)
         return res
 
+    # get task status and superstatus
+    def getTaskStatusSuperstatus(self, jediTaskID):
+        # get DB proxy
+        with self.proxyPool.get() as proxy:
+            # exec
+            res = proxy.getTaskStatusSuperstatus(jediTaskID)
+        return res
+
     # reactivate task
     def reactivateTask(self, jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
         # get DB proxy
@@ -2685,6 +2693,13 @@ class TaskBuffer:
             ret = proxy.disable_job_cloning(jedi_task_id)
         return ret
 
+    # gets statistics on the number of jobs with a specific status for each nucleus at each site
+    def get_num_jobs_with_status_by_nucleus(self, vo, job_status):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_num_jobs_with_status_by_nucleus(vo, job_status)
+
+    # ==== JEDI taskbuffer functions ===========================
+
     # get JEDI task with jediTaskID
     def getTaskWithID_JEDI(self, jediTaskID, fullFlag=False, lockTask=False, pid=None, lockInterval=None, clearError=False):
         with self.proxyPool.get() as proxy:
@@ -2694,6 +2709,8 @@ class TaskBuffer:
     def updateInputFilesStaged_JEDI(self, jeditaskid, scope, filenames_dict, chunk_size=500, by=None, check_scope=True):
         with self.proxyPool.get() as proxy:
             return proxy.updateInputFilesStaged_JEDI(jeditaskid, scope, filenames_dict, chunk_size, by, check_scope)
+
+    # ==== Data Carousel functions =============================
 
     # query data carousel request ID by dataset
     def get_data_carousel_request_id_by_dataset_JEDI(self, dataset):
@@ -2762,10 +2779,89 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.resubmit_data_carousel_request_JEDI(request_id, exclude_prev_dst)
 
-    # gets statistics on the number of jobs with a specific status for each nucleus at each site
-    def get_num_jobs_with_status_by_nucleus(self, vo, job_status):
+    # ==== Workflow fucntions ==================================
+
+    def get_workflow(self, workflow_id):
         with self.proxyPool.get() as proxy:
-            return proxy.get_num_jobs_with_status_by_nucleus(vo, job_status)
+            return proxy.get_workflow(workflow_id)
+
+    def get_workflow_step(self, step_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_workflow_step(step_id)
+
+    def get_workflow_data(self, data_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_workflow_data(data_id)
+
+    def get_workflow_data_by_name(self, name, workflow_id=None):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_workflow_data_by_name(name, workflow_id)
+
+    def get_steps_of_workflow(self, workflow_id, status_filter_list=None, status_exclusion_list=None):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_steps_of_workflow(workflow_id, status_filter_list, status_exclusion_list)
+
+    def get_data_of_workflow(self, workflow_id, status_filter_list=None, status_exclusion_list=None, type_filter_list=None):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_data_of_workflow(workflow_id, status_filter_list, status_exclusion_list, type_filter_list)
+
+    def query_workflows(self, status_filter_list=None, status_exclusion_list=None, check_interval_sec=300):
+        with self.proxyPool.get() as proxy:
+            return proxy.query_workflows(status_filter_list, status_exclusion_list, check_interval_sec)
+
+    def lock_workflow(self, workflow_id, locked_by, lock_expiration_sec=120):
+        with self.proxyPool.get() as proxy:
+            return proxy.lock_workflow(workflow_id, locked_by, lock_expiration_sec)
+
+    def unlock_workflow(self, workflow_id, locked_by):
+        with self.proxyPool.get() as proxy:
+            return proxy.unlock_workflow(workflow_id, locked_by)
+
+    def lock_workflow_step(self, step_id, locked_by, lock_expiration_sec=120):
+        with self.proxyPool.get() as proxy:
+            return proxy.lock_workflow_step(step_id, locked_by, lock_expiration_sec)
+
+    def unlock_workflow_step(self, step_id, locked_by):
+        with self.proxyPool.get() as proxy:
+            return proxy.unlock_workflow_step(step_id, locked_by)
+
+    def lock_workflow_data(self, data_id, locked_by, lock_expiration_sec=120):
+        with self.proxyPool.get() as proxy:
+            return proxy.lock_workflow_data(data_id, locked_by, lock_expiration_sec)
+
+    def unlock_workflow_data(self, data_id, locked_by):
+        with self.proxyPool.get() as proxy:
+            return proxy.unlock_workflow_data(data_id, locked_by)
+
+    def insert_workflow(self, workflow_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.insert_workflow(workflow_spec)
+
+    def insert_workflow_step(self, wf_step_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.insert_workflow_step(wf_step_spec)
+
+    def insert_workflow_data(self, wf_data_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.insert_workflow_data(wf_data_spec)
+
+    def update_workflow(self, workflow_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.update_workflow(workflow_spec)
+
+    def update_workflow_step(self, wf_step_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.update_workflow_step(wf_step_spec)
+
+    def update_workflow_data(self, wf_data_spec):
+        with self.proxyPool.get() as proxy:
+            return proxy.update_workflow_data(wf_data_spec)
+
+    def upsert_workflow_entities(self, workflow_id, actions_dict=None, workflow_spec=None, step_specs=None, data_specs=None):
+        with self.proxyPool.get() as proxy:
+            return proxy.upsert_workflow_entities(workflow_id, actions_dict, workflow_spec, step_specs, data_specs)
+
+    # ==========================================================
 
 
 # Singleton

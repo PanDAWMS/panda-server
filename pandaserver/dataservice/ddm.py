@@ -791,21 +791,28 @@ class RucioAPI:
         Tuple[bool, Union[int, str]]: A tuple containing a boolean indicating the success of the operation and the number of files or an error message.
         If an exception occurs, the boolean is False and the string contains the error message.
         """
+        # make logger
+        method_name = "get_number_of_files"
+        method_name = f"{method_name} dataset_name={dataset_name}"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
         # extract scope from dataset
         scope, dataset_name = self.extract_scope(dataset_name)
         if preset_scope is not None:
             scope = preset_scope
-        client = RucioClient()
-        n_files = 0
         try:
+            client = RucioClient()
+            n_files = 0
             for _ in client.list_files(scope, dataset_name):
                 n_files += 1
             return True, n_files
         except DataIdentifierNotFound:
+            tmp_log.debug("dataset not found")
             return None, "dataset not found"
         except Exception:
             err_type, err_value = sys.exc_info()[:2]
             err_msg = f"{err_type.__name__} {err_value}"
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
             return False, err_msg
 
     # list datasets with GUIDs
@@ -1093,7 +1100,7 @@ class RucioAPI:
             return None
 
     # get files in dataset
-    def get_files_in_dataset(self, dataset_name, ski_duplicate=True, ignore_unknown=False, long_format=False, lfn_only=False):
+    def get_files_in_dataset(self, dataset_name, skip_duplicate=True, ignore_unknown=False, long_format=False, lfn_only=False):
         method_name = "get_files_in_dataset"
         method_name += f" <dataset_name={dataset_name}>"
         tmp_log = LogWrapper(_logger, method_name)
@@ -1131,7 +1138,7 @@ class RucioAPI:
                 guid = str(f"{x['guid'][0:8]}-{x['guid'][8:12]}-{x['guid'][12:16]}-{x['guid'][16:20]}-{x['guid'][20:32]}")
                 attrs["guid"] = guid
                 # skip duplicated files
-                if ski_duplicate:
+                if skip_duplicate:
                     # extract base LFN and attempt number
                     baseLFN = re.sub("(\.(\d+))$", "", lfn)
                     attNr = re.sub(baseLFN + "\.*", "", lfn)
