@@ -200,6 +200,7 @@ def request_validation(logger, secure=True, production=False, request_method=Non
         def wrapper(req, *args, **kwargs):
             # Generate a logger with the underlying function name
             tmp_logger = LogWrapper(logger, func.__name__)
+            tmp_logger_context = LogWrapper(logger, f"{func.__name__} args:{args} kwargs:{kwargs}")
 
             # expected and received request methods
             expected_request_method = request_method
@@ -293,24 +294,24 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                         bound_args.arguments[param_name] = param_value  # Ensure the cast value is used
                     except (ValueError, TypeError):
                         message = f"Type error: '{param_name}' with value '{param_value}' could not be casted to type {expected_type.__name__} from {type(param_value).__name__}."
-                        tmp_logger.error(message)
+                        tmp_logger_context.error(message)
                         return generate_response(False, message=message)
 
                 # Check type
                 if origin and (origin is not Union and origin is not UnionType):  # Handle generics (e.g., List[int])
                     if not isinstance(param_value, origin):
                         message = f"Type error: '{param_name}' must be of type {origin.__name__}, got {type(param_value).__name__}."
-                        tmp_logger.error(message)
+                        tmp_logger_context.error(message)
                         return generate_response(False, message=message)
 
                     if args:  # Check inner types for lists, dicts, etc.
                         if origin is list and not all(isinstance(i, args[0]) for i in param_value):
                             message = f"Type error: All elements in '{param_name}' must be {args[0].__name__}."
-                            tmp_logger.error(message)
+                            tmp_logger_context.error(message)
                             return generate_response(False, message=message)
                 elif not isinstance(param_value, expected_type) and not (param_value is None and param_value == default_value):
                     message = f"Type error: '{param_name}' must be of type {expected_type.__name__}, got {type(param_value).__name__}."
-                    tmp_logger.error(message)
+                    tmp_logger_context.error(message)
                     return generate_response(False, message=message)
 
             return func(*bound_args.args, **bound_args.kwargs)
