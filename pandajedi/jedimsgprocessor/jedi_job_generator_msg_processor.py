@@ -37,7 +37,7 @@ class JediJobGeneratorMsgProcPlugin(BaseMsgProcPlugin):
         self._resource_types_ts = 0
         self._nfiles_cache = {}
         # memory limit to trigger early cleanup to avoid OOM killer. This is not a hard limit, just a threshold to trigger early cleanup.
-        self._mem_usage_threshold_mb = 2000
+        self._mem_usage_threshold_mb = 1500
         # get SiteMapper
         # siteMapper = self.tbIF.get_site_mapper()
         # get work queue mapper
@@ -130,7 +130,11 @@ class JediJobGeneratorMsgProcPlugin(BaseMsgProcPlugin):
                 if not resource_types:
                     raise RuntimeError("failed to get resource types")
                 # nFiles from config with a short TTL cache
-                nFiles = self._get_nfiles(vo, workQueue.queue_name)
+                nFiles = 100
+                if workQueue is None:
+                    tmp_log.warning(f"workQueue_ID={taskSpec.workQueue_ID} gshare={taskSpec.gshare} not found in work queue mapper")
+                else:
+                    nFiles = self._get_nfiles(vo, workQueue.queue_name)
                 # get inputs
                 tmp_list = self.tbIF.getTasksToBeProcessed_JEDI(self.pid, None, workQueue, None, None, nFiles=nFiles, target_tasks=[task_id])
                 if tmp_list:
@@ -186,7 +190,9 @@ class JediJobGeneratorMsgProcPlugin(BaseMsgProcPlugin):
             taskSetupper = None
             # If memory usage is above the threshold, trigger early cleanup to avoid OOM killer.
             mem_usage = CoreUtils.getMemoryUsage()
-            if mem_usage > self._mem_usage_threshold_mb:
+            if mem_usage is None:
+                tmp_log.warning("failed to get memory usage, skipped memory cleanup")
+            elif mem_usage > self._mem_usage_threshold_mb:
                 gc.collect()
                 try_malloc_trim(tmp_log)
                 new_mem_usage = CoreUtils.getMemoryUsage()
