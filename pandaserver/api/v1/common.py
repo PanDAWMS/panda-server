@@ -229,7 +229,7 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                 bound_args = sig.bind(*args_tmp, **kwargs)
             except TypeError as e:
                 message = f"Argument error: {str(e)}"
-                tmp_logger.error(message)
+                tmp_logger_context.error(message)
                 return generate_response(False, message=message)
             bound_args.apply_defaults()
 
