@@ -607,7 +607,13 @@ class TaskUtilsModule(BaseModule):
                     totalJobs = int(totFiles * len(pandaIDList) // totFinished)
                     nNewJobs = int((totFiles - totUsed) * len(pandaIDList) // totFinished)
                     # take into account the size limits coming from scouts, dataset boundaries, etc
-                    if task_spec and not task_spec.getNumFilesPerJob() and not task_spec.getNumEventsPerJob() and not task_spec.getMaxSizePerJob():
+                    if (
+                        task_spec
+                        and not task_spec.getNumFilesPerJob()
+                        and not task_spec.getNumEventsPerJob()
+                        and not task_spec.getMaxSizePerJob()
+                        and not task_spec.getMaxNumFilesPerJob()
+                    ):
                         # average input size
                         avg_actual_input_size = total_actual_input_size / 1024 / 1024 / len(pandaIDList)
                         # scale with actual size / allowed size
@@ -630,6 +636,7 @@ class TaskUtilsModule(BaseModule):
                                 and not task_spec.getNumFilesPerJob()
                                 and not task_spec.getNumEventsPerJob()
                                 and not task_spec.getMaxSizePerJob()
+                                and not task_spec.getMaxNumFilesPerJob()
                             ):
                                 total_jobs_with_event = int(total_jobs_with_event * InputChunk.maxInputSizeScouts / InputChunk.maxInputSizeAvalanche)
         extraInfo["expectedNumJobs"] = totalJobs
