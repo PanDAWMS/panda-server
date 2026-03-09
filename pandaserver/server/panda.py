@@ -40,30 +40,6 @@ from pandaserver.api.v1 import system_api as system_api_v1
 from pandaserver.api.v1 import task_api as task_api_v1
 from pandaserver.api.v1.common import extract_allowed_methods
 from pandaserver.config import panda_config
-
-# pylint: disable=W0611
-from pandaserver.jobdispatcher.JobDispatcher import (
-    ackCommands,
-    checkEventsAvailability,
-    checkJobStatus,
-    get_access_token,
-    get_events_status,
-    get_max_worker_id,
-    get_token_key,
-    getCommands,
-    getEventRanges,
-    getJob,
-    getKeyPair,
-    getProxy,
-    getResourceTypes,
-    getStatus,
-    jobDispatcher,
-    updateEventRange,
-    updateEventRanges,
-    updateJob,
-    updateJobsInBulk,
-    updateWorkerPilotStatus,
-)
 from pandaserver.srvcore import CoreUtils
 
 # IMPORTANT: Add any new methods here to allow them to be called from the web I/F
@@ -75,77 +51,16 @@ from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 # pylint: disable=W0611
 from pandaserver.taskbuffer.Utils import (
     delete_checkpoint,
-    deleteFile,
-    fetchLog,
-    getAttr,
-    getServer,
-    getVomsAttr,
-    isAlive,
     put_checkpoint,
-    put_file_recovery_request,
     put_workflow_request,
     putEventPickingRequest,
-    putFile,
-    touchFile,
-    updateLog,
-    uploadLog,
 )
 from pandaserver.userinterface import Client
 
 # pylint: disable=W0611
 from pandaserver.userinterface.UserIF import (
-    addHarvesterDialogs,
-    avalancheTask,
-    changeTaskAttributePanda,
-    changeTaskModTimePanda,
-    changeTaskPriority,
-    changeTaskSplitRulePanda,
-    checkSandboxFile,
-    enableJumboJobs,
     execute_idds_workflow_command,
-    finishTask,
-    get_ban_users,
-    get_files_in_datasets,
-    get_job_statistics_per_site_label_resource,
-    get_user_secrets,
-    getFullJobStatus,
-    getJediTaskDetails,
-    getJediTasksInTimeRange,
-    getJobStatisticsPerSite,
-    getJobStatus,
-    getJumboJobDatasets,
-    getPandaIDsWithTaskID,
-    getScriptOfflineRunning,
-    getTaskParamsMap,
-    getTaskStatus,
-    getUserJobMetadata,
-    getWorkerStats,
-    harvesterIsAlive,
-    increaseAttemptNrPanda,
-    insertSandboxFileInfo,
-    insertTaskParams,
-    killJobs,
-    killTask,
-    killUnfinishedJobs,
-    pauseTask,
-    reactivateTask,
-    reassignJobs,
-    reassignShare,
-    reassignTask,
     relay_idds_command,
-    release_task,
-    reloadInput,
-    reportWorkerStats_jobtype,
-    resumeTask,
-    retryTask,
-    send_command_to_job,
-    set_user_secret,
-    setDebugMode,
-    setNumSlotsForWP,
-    submitJobs,
-    sweepPQ,
-    updateServiceMetrics,
-    updateWorkers,
     userIF,
 )
 
