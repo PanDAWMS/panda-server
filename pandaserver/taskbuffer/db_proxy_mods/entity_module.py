@@ -633,7 +633,7 @@ class EntityModule(BaseModule):
             if use_commit:
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                tmp_log.debug("commited...")
+                tmp_log.debug("committed...")
         except Exception:
             # roll back
             if use_commit:

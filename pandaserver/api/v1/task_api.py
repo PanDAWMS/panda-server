@@ -882,7 +882,7 @@ def get_details(req: PandaRequest, task_id: int, include_parameters: bool = Fals
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When succesful, there data field contains the task details.
+              When successful, the data field contains the task details.
               When there was an error, the message field contains the description.
     """
     tmp_logger = LogWrapper(_logger, f"get_details  < task_id={task_id} include_parameters={include_parameters} include_status={include_status} >")

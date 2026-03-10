@@ -119,7 +119,7 @@ class Watcher(threading.Thread):
                     # event service
                     if EventServiceUtils.isEventServiceJob(job) and not EventServiceUtils.isJobCloningJob(job):
                         eventStat = self.taskBuffer.getEventStat(job.jediTaskID, job.PandaID)
-                        # set sub status when no sucessful events
+                        # set sub status when no successful events
                         if EventServiceUtils.ST_finished not in eventStat:
                             job.jobSubStatus = "es_heartbeat"
                     # update job
