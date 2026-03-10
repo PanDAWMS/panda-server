@@ -228,7 +228,7 @@ class JediDatasetSpec(object):
 
     getMergeProcessTypes = classmethod(getMergeProcessTypes)
 
-    # get type of unkown input
+    # get type of unknown input
     def getUnknownInputType(cls):
         return "trn_unknown"
 
