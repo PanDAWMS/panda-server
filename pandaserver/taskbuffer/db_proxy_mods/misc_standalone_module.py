@@ -1048,7 +1048,7 @@ class MiscStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            # retrun
+            # return
             return retList
         except Exception:
             # roll back

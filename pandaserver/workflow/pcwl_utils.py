@@ -364,7 +364,7 @@ def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map
                         setattr(condition_item, item, id_map[tmp_data["parent_id"]])
                     break
             if not isOK:
-                raise ReferenceError(f"unresolved paramter {param} in the condition string")
+                raise ReferenceError(f"unresolved parameter {param} in the condition string")
         elif isinstance(param, ConditionItem):
             convert_params_in_condition_to_parent_ids(param, input_data, id_map)
 
