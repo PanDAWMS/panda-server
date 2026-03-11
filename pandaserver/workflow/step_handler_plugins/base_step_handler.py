@@ -4,6 +4,7 @@ from pandaserver.workflow.workflow_base import (
     WFDataType,
     WFStepSpec,
     WFStepStatus,
+    WFStepTargetCancelResult,
     WFStepTargetCheckResult,
     WFStepTargetSubmitResult,
     WFStepType,
@@ -66,5 +67,19 @@ class BaseStepHandler:
         Args:
             step_spec (WFStepSpec): Specifications of the workflow step whose inputs are done.
             **kwargs: Additional keyword arguments.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def cancel_target(self, step_spec: WFStepSpec, **kwargs) -> WFStepTargetCancelResult:
+        """
+        Cancel the submitted target.
+        This method can be overridden by subclasses to handle target cancellation.
+
+        Args:
+            step_spec (WFStepSpec): Specifications of the workflow step whose target is to be cancelled.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            WFStepTargetCancelResult: An object containing the result of the cancellation, including success status and message.
         """
         raise NotImplementedError("Subclasses must implement this method.")

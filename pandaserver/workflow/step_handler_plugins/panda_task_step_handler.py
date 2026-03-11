@@ -7,6 +7,7 @@ from pandaserver.workflow.step_handler_plugins.base_step_handler import BaseStep
 from pandaserver.workflow.workflow_base import (
     WFStepSpec,
     WFStepStatus,
+    WFStepTargetCancelResult,
     WFStepTargetCheckResult,
     WFStepTargetSubmitResult,
     WFStepType,
@@ -234,3 +235,44 @@ class PandaTaskStepHandler(BaseStepHandler):
             tmp_log.debug(f"Done")
         except Exception as e:
             tmp_log.error(f"Failed with: {traceback.format_exc()}")
+
+    def cancel_target(self, step_spec, **kwargs) -> WFStepTargetCancelResult:
+        """
+        Cancel the target task for the given step.
+        This method should be implemented to handle the specifics of task cancellation.
+
+        Args:
+            step_spec (WFStepSpec): The workflow step specification containing details about the step to be processed.
+            **kwargs: Additional keyword arguments that may be required for cancellation.
+
+        Returns:
+            WFStepTargetCancelResult: An object containing the result of the cancellation, including success status and message.
+        """
+        tmp_log = LogWrapper(logger, f"cancel_target workflow_id={step_spec.workflow_id} step_id={step_spec.step_id}")
+        cancel_result = WFStepTargetCancelResult()
+        try:
+            # Check step flavor
+            if step_spec.flavor != self.plugin_flavor:
+                cancel_result.message = f"flavor not {self.plugin_flavor}; skipped"
+                tmp_log.warning(f"flavor={step_spec.flavor} not {self.plugin_flavor}; skipped")
+                return cancel_result
+            if step_spec.target_id is None:
+                cancel_result.message = f"target_id is None; skipped"
+                tmp_log.warning(f"target_id is None; skipped")
+                return cancel_result
+            # Get task ID
+            task_id = int(step_spec.target_id)
+            # Cancel task
+            ret_val, ret_str = self.taskBufferIF.sendCommandTaskPanda(task_id, "PanDA Task Step Handler cancel_target", True, "kill", properErrorCode=True)
+            # check if ok
+            if ret_val == 0:
+                cancel_result.success = True
+                tmp_log.info(f"target_id={step_spec.target_id} cancelled")
+            else:
+                cancel_result.success = False
+                cancel_result.message = f"failed to cancel the task: error_code={ret_val} {ret_str}"
+                tmp_log.warning(f"{cancel_result.message}")
+        except Exception as e:
+            cancel_result.message = f"exception {str(e)}"
+            tmp_log.error(f"Failed to cancel task: {traceback.format_exc()}")
+        return cancel_result

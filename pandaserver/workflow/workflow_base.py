@@ -4,13 +4,13 @@ from dataclasses import MISSING, InitVar, asdict, dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-from pandacommon.pandalogger.PandaLogger import PandaLogger
+# from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.base import SpecBase
 
 from pandaserver.config import panda_config
 
 # main logger
-logger = PandaLogger().getLogger(__name__.split(".")[-1])
+# logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 # named tuple for attribute with type
 AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
@@ -477,6 +477,22 @@ class WFStepTargetCheckResult:
     success: bool | None = None
     step_status: WFStepStatus | None = None
     native_status: str | None = None
+    message: str = ""
+
+
+@dataclass(slots=True)
+class WFStepTargetCancelResult:
+    """
+    Result of cancelling a target of a step.
+
+    Fields:
+        success (bool | None): Indicates if the cancellation was successful.
+        target_id (str | None): The ID of the cancelled target (e.g., task ID).
+        message (str): A message providing additional information about the cancellation result.
+    """
+
+    success: bool | None = None
+    target_id: str | None = None
     message: str = ""
 
 

@@ -365,11 +365,135 @@ class WorkflowInterface(object):
         tmp_log.info(f"Registered workflow <workflow_id={ret_workflow_id}>")
         return ret_workflow_id
 
-    def cancel_workflow(self, workflow_id: int) -> bool: ...
+    def cancel_workflow(self, workflow_id: int, force: bool = False) -> bool:
+        """
+        Cancel the workflow
+
+        Args:
+            workflow_id (int): ID of the workflow to cancel
+            force (bool): Whether to force into cancelled status
+
+        Returns:
+            bool: True if the workflow was successfully cancelled, otherwise False
+        """
+        tmp_log = LogWrapper(logger, f"cancel_workflow <workflow_id={workflow_id}>")
+        tmp_log.debug("Start")
+        try:
+            with self.workflow_lock(workflow_id) as workflow_spec:
+                if workflow_spec is None:
+                    tmp_log.warning(f"Failed to acquire lock for workflow_id={workflow_id}; skipped")
+                    return False
+                if workflow_spec.status in WorkflowStatus.final_statuses:
+                    tmp_log.debug(f"Workflow already in final status {workflow_spec.status}; skipped")
+                    return True
+                # Cancel all steps and data of the workflow
+                all_cancelled = True
+                for step_id in workflow_spec.step_ids:
+                    if not self.cancel_step(step_id, force):
+                        all_cancelled = False
+                for data_id in workflow_spec.data_ids:
+                    if not self.cancel_data(data_id, force):
+                        all_cancelled = False
+                # Update workflow status to cancelled if all steps and data are cancelled
+                if not all_cancelled and not force:
+                    tmp_log.warning(f"Not all steps and data could be cancelled; skipped updating workflow status")
+                    return False
+                else:
+                    workflow_spec.status = WorkflowStatus.cancelled
+                    workflow_spec.end_time = naive_utcnow()
+                    self.tbif.update_workflow(workflow_spec)
+                    if force and not all_cancelled:
+                        tmp_log.warning(f"Force cancelled workflow without cancelling all steps and data")
+                    else:
+                        tmp_log.info(f"Cancelled workflow, updated status to {workflow_spec.status}")
+                    return True
+        except Exception as e:
+            tmp_log.error(f"Got error {str(e)}")
+            return False
 
     # --- Step operation ---------------------------------------
 
-    def cancel_step(self, step_id: int) -> bool: ...
+    def cancel_step(self, step_id: int, force: bool = False) -> bool:
+        """
+        Cancel the workflow step
+
+        Args:
+            step_id (int): ID of the workflow step to cancel
+            force (bool): Whether to force into cancelled status; if False, the step will only be cancelled if the target cancellation is successful, while if True, the step will be marked as cancelled regardless of the target cancellation result
+
+        Returns:
+            bool: True if the step was successfully cancelled, otherwise False
+        """
+        tmp_log = LogWrapper(logger, f"cancel_step <step_id={step_id}>")
+        tmp_log.debug("Start")
+        try:
+            with self.workflow_step_lock(step_id) as step_spec:
+                if step_spec is None:
+                    tmp_log.warning(f"Failed to acquire lock for step_id={step_id}; skipped")
+                    return False
+                if step_spec.status in WFStepStatus.final_statuses:
+                    tmp_log.debug(f"Step already in final status {step_spec.status}; skipped")
+                    return True
+                # Call plugin to cancel the target of the step
+                target_is_cancelled = False
+                step_handler = self.get_plugin("step_handler", step_spec.flavor)
+                if step_handler is None:
+                    tmp_log.warning(f"Step handler plugin not found for flavor {step_spec.flavor}; skipped target cancellation")
+                else:
+                    cancel_result = step_handler.cancel_target(step_spec)
+                    if not cancel_result.success:
+                        tmp_log.warning(f"Failed to cancel target with plugin {step_spec.flavor}; got message: {cancel_result.message}")
+                    else:
+                        tmp_log.debug(f"Cancelled target with flavor {step_spec.flavor}")
+                        target_is_cancelled = True
+                # Update step status to cancelled
+                if not target_is_cancelled and not force:
+                    tmp_log.warning(f"Target not cancelled; skipped updating step status")
+                    return False
+                else:
+                    step_spec.status = WFStepStatus.cancelled
+                    step_spec.end_time = naive_utcnow()
+                    self.tbif.update_workflow_step(step_spec)
+                    if force and not target_is_cancelled:
+                        tmp_log.warning(f"Force cancelled step without cancelling target")
+                    else:
+                        tmp_log.info(f"Cancelled step, updated status to {step_spec.status}")
+                    return True
+        except Exception as e:
+            tmp_log.error(f"Got error {str(e)}")
+            return False
+
+    # --- Data operation ---------------------------------------
+
+    def cancel_data(self, data_id: int, force: bool = False) -> bool:
+        """
+        Cancel the workflow data
+
+        Args:
+            data_id (int): ID of the workflow data to cancel
+            force (bool): Whether to force into cancelled status; currently has no effect since data cancellation is not implemented in plugins, but reserved for future use
+
+        Returns:
+            bool: True if the data was successfully cancelled, otherwise False
+        """
+        tmp_log = LogWrapper(logger, f"cancel_data <data_id={data_id}>")
+        tmp_log.debug("Start")
+        try:
+            with self.workflow_data_lock(data_id) as data_spec:
+                if data_spec is None:
+                    tmp_log.warning(f"Failed to acquire lock for data_id={data_id}; skipped")
+                    return False
+                if data_spec.status in WFDataStatus.terminated_statuses:
+                    tmp_log.debug(f"Data already terminated with status {data_spec.status}; skipped")
+                    return True
+                data_spec.status = WFDataStatus.cancelled
+                data_spec.end_time = naive_utcnow()
+                self.tbif.update_workflow_data(data_spec)
+                tmp_log.info(f"Cancelled data, updated status to {data_spec.status}")
+                return True
+        except Exception as e:
+            tmp_log.error(f"Got error {str(e)}")
+            return False
 
     # ---- Data status transitions -----------------------------
 

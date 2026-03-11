@@ -6,17 +6,19 @@ from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
-# parameters for the workflow
-prodsourcelabel = "user"
-username = "testuser"
-workflow_name = "test_workflow_bg_comb_00"
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Workflow core smoke test helper")
-    parser.add_argument("workflow_id", nargs="?", default=None, help="Workflow ID to use in commented smoke test calls")
+    parser.add_argument("action", choices=["cancel_workflow"], help="Action to perform in the smoke test")
+    parser.add_argument("--force", action="store_true", help="Force into cancelled status")
+    parser.add_argument("workflow_id", help="Workflow ID to use in commented smoke test calls")
     return parser.parse_args()
 
+
+# parameters for the workflow
+# prodsourcelabel = "user"
+# username = "testuser"
+# workflow_name = "test_workflow_bg_comb_00"
 
 # workflow definition json
 # wfd_json = json.dumps(
@@ -332,6 +334,10 @@ def parse_args():
 def main():
     args = parse_args()
     WFID = args.workflow_id
+    action = args.action
+    force = args.force
+
+    from pandaserver.workflow.workflow_core import WorkflowInterface
 
     # interface for workflow operations
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
@@ -368,6 +374,14 @@ def main():
     # wf_spec = taskBuffer.get_workflow(workflow_id=WFID)
     # print("Processing starting workflow...")
     # wfif.process_workflow_starting(wf_spec)
+
+    if args.action == "cancel_workflow":
+        print(f"Cancelling workflow_id={WFID} ...")
+        res = wfif.cancel_workflow(workflow_id=WFID, force=args.force)
+        if res:
+            print(f"Cancelled workflow_id={WFID} successfully.")
+        else:
+            print(f"Failed to cancel workflow_id={WFID}.")
 
 
 if __name__ == "__main__":
