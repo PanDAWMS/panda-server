@@ -166,7 +166,10 @@ class WorkflowInterface(object):
             # stop with atexit
             atexit.register(mq_agent.stop_passive_mode)
             # set mb_proxy
-            self.mb_proxy = mb_proxy_dict["out"][MESSAGE_QUEUE_NAME]
+            self.mb_proxy = mb_proxy_dict["out"].get(MESSAGE_QUEUE_NAME)
+            if self.mb_proxy is None:
+                logger.warning(f"Message queue {MESSAGE_QUEUE_NAME} not found in mb_proxy_dict; skipped workflow manager messaging")
+                return None
             # logger.debug(f"Set mb_proxy about queue {MESSAGE_QUEUE_NAME} for workflow manager messaging")
         except Exception:
             logger.warning(f"Failed to set mb_proxy about queue {MESSAGE_QUEUE_NAME}; skipped workflow manager messaging: {traceback.format_exc()}")
