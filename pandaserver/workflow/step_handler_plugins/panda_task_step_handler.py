@@ -257,13 +257,15 @@ class PandaTaskStepHandler(BaseStepHandler):
                 tmp_log.warning(f"flavor={step_spec.flavor} not {self.plugin_flavor}; skipped")
                 return cancel_result
             if step_spec.target_id is None:
-                cancel_result.message = f"target_id is None; skipped"
-                tmp_log.warning(f"target_id is None; skipped")
+                # If target_id is None, consider it as already cancelled since there is no task to cancel
+                cancel_result.success = True
+                cancel_result.message = f"target_id is None so considered already cancelled; skipped"
+                tmp_log.debug(f"{cancel_result.message}")
                 return cancel_result
             # Get task ID
             task_id = int(step_spec.target_id)
             # Cancel task
-            ret_val, ret_str = self.taskBufferIF.sendCommandTaskPanda(task_id, "PanDA Task Step Handler cancel_target", True, "kill", properErrorCode=True)
+            ret_val, ret_str = self.tbif.sendCommandTaskPanda(task_id, "PanDA Task Step Handler cancel_target", True, "kill", properErrorCode=True)
             # check if ok
             if ret_val == 0:
                 cancel_result.success = True

@@ -154,7 +154,11 @@ class WorkflowInterface(object):
         Set the message broker proxy for workflow manager messaging
         """
         try:
-            jedi_config = importlib.import_module("pandajedi.jediconfig").jedi_config
+            jedi_config = None
+            try:
+                jedi_config = importlib.import_module("pandajedi.jediconfig.jedi_config")
+            except Exception:
+                jedi_config = importlib.import_module("pandajedi.jediconfig").jedi_config
             if hasattr(jedi_config, "mq") and hasattr(jedi_config.mq, "configFile") and jedi_config.mq.configFile:
                 MsgProcAgent = importlib.import_module(f"pandajedi.jediorder.JediMsgProcessor").MsgProcAgent
             else:
@@ -388,12 +392,22 @@ class WorkflowInterface(object):
                     return True
                 # Cancel all steps and data of the workflow
                 all_cancelled = True
-                for step_id in workflow_spec.step_ids:
-                    if not self.cancel_step(step_id, force):
-                        all_cancelled = False
-                for data_id in workflow_spec.data_ids:
-                    if not self.cancel_data(data_id, force):
-                        all_cancelled = False
+                step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id)
+                if step_specs is None:
+                    tmp_log.warning(f"Failed to get steps of workflow_id={workflow_id}; skipped cancelling steps")
+                    all_cancelled = False
+                else:
+                    for step_spec in step_specs:
+                        if not self.cancel_step(step_spec.step_id, force):
+                            all_cancelled = False
+                data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id)
+                if data_specs is None:
+                    tmp_log.warning(f"Failed to get data of workflow_id={workflow_id}; skipped cancelling data")
+                    all_cancelled = False
+                else:
+                    for data_spec in data_specs:
+                        if not self.cancel_data(data_spec.data_id, force):
+                            all_cancelled = False
                 # Update workflow status to cancelled if all steps and data are cancelled
                 if not all_cancelled and not force:
                     tmp_log.warning(f"Not all steps and data could be cancelled; skipped updating workflow status")
