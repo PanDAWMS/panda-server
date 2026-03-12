@@ -5,7 +5,6 @@ import uuid
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.workflow.data_handler_plugins.base_data_handler import BaseDataHandler
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
@@ -55,7 +54,6 @@ class DDMCollectionDataHandler(BaseDataHandler):
         """
         # Initialize base class or any required modules here
         super().__init__(*args, **kwargs)
-        self.ddmIF = rucioAPI
         self.plugin_flavor = "ddm_collection"
 
     def check_target(self, data_spec: WFDataSpec, **kwargs) -> WFDataTargetCheckResult:
@@ -80,7 +78,7 @@ class DDMCollectionDataHandler(BaseDataHandler):
             return check_result
         # Check DDM collection status
         collection = data_spec.target_id
-        collection_meta = self.ddmIF.get_dataset_metadata(collection, ignore_missing=True)
+        collection_meta = self.ddm_if.get_dataset_metadata(collection, ignore_missing=True)
         if collection_meta is None:
             check_result.success = False
             check_result.message = f"Failed to get metadata for collection {collection}"

@@ -5,7 +5,6 @@ import uuid
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.workflow.data_handler_plugins.base_data_handler import BaseDataHandler
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
@@ -57,7 +56,6 @@ class PandaTaskDataHandler(BaseDataHandler):
         """
         # Initialize base class or any required modules here
         super().__init__(*args, **kwargs)
-        self.ddmIF = rucioAPI
         self.plugin_flavor = "panda_task"
 
     def check_target(self, data_spec: WFDataSpec, **kwargs) -> WFDataTargetCheckResult:
@@ -112,7 +110,7 @@ class PandaTaskDataHandler(BaseDataHandler):
             output_types = []
         for output_type in output_types:
             collection = f"{data_spec.target_id}_{output_type}"
-            tmp_stat, tmp_res = self.ddmIF.get_number_of_files(collection)
+            tmp_stat, tmp_res = self.ddm_if.get_number_of_files(collection)
             if tmp_stat is None:
                 tmp_log.debug(f"Collection {collection} does not exist")
             elif not tmp_stat:

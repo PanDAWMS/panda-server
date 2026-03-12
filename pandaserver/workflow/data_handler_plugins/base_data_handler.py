@@ -19,16 +19,18 @@ class BaseDataHandler:
     This class provides a common interface and some utility methods for data handlers.
     """
 
-    def __init__(self, task_buffer, *args, **kwargs):
+    def __init__(self, task_buffer, ddm_if, *args, **kwargs):
         """
         Initialize the step handler with necessary parameters.
 
         Args:
             task_buffer: The task buffer interface to interact with the task database.
+            ddm_if: The DDM interface to interact with the DDM system.
             *args: Additional positional arguments.
             **kwargs: Additional keyword arguments.
         """
         self.tbif = task_buffer
+        self.ddm_if = ddm_if
 
     def check_target(self, data_spec: WFDataSpec, **kwargs) -> WFDataTargetCheckResult:
         """
