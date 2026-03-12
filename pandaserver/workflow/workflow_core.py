@@ -71,19 +71,24 @@ PLUGIN_RAW_MAP = {
     # Add more plugin types here
 }
 
-# map of flavor to plugin classes
-flavor_plugin_class_map = {}
-for plugin_type, plugins in PLUGIN_RAW_MAP.items():
-    flavor_plugin_class_map[plugin_type] = {}
-    for flavor, (module_name, class_name) in plugins.items():
-        try:
-            full_module_name = f"pandaserver.workflow.{plugin_type}_plugins.{module_name}"
-            module = importlib.import_module(full_module_name)
-            cls = getattr(module, class_name)
-            flavor_plugin_class_map[plugin_type][flavor] = cls
-            logger.debug(f"Imported {plugin_type} plugin {flavor} from {module_name}.{class_name}")
-        except Exception as e:
-            logger.error(f"Failed to import {plugin_type} plugin {flavor} from {module_name}.{class_name}: {e}")
+
+@functools.lru_cache(maxsize=1)
+def _get_flavor_plugin_class_map() -> Dict[str, Dict[str, Any]]:
+    """Lazily import plugin classes once per process and cache the map."""
+    logger.debug("Initializing workflow plugin class map (lazy, one-time per process)")
+    flavor_plugin_class_map = {}
+    for plugin_type, plugins in PLUGIN_RAW_MAP.items():
+        flavor_plugin_class_map[plugin_type] = {}
+        for flavor, (module_name, class_name) in plugins.items():
+            try:
+                full_module_name = f"pandaserver.workflow.{plugin_type}_plugins.{module_name}"
+                module = importlib.import_module(full_module_name)
+                cls = getattr(module, class_name)
+                flavor_plugin_class_map[plugin_type][flavor] = cls
+                logger.debug(f"Imported {plugin_type} plugin {flavor} from {module_name}.{class_name}")
+            except Exception as e:
+                logger.error(f"Failed to import {plugin_type} plugin {flavor} from {module_name}.{class_name}: {e}")
+    return flavor_plugin_class_map
 
 
 # ==== Functions ===============================================
@@ -100,6 +105,7 @@ def get_plugin_class(plugin_type: str, flavor: str):
     Returns:
         class: The plugin class if found, otherwise None
     """
+    flavor_plugin_class_map = _get_flavor_plugin_class_map()
     return flavor_plugin_class_map.get(plugin_type, {}).get(flavor)
 
 
@@ -166,7 +172,7 @@ class WorkflowInterface(object):
                 return None
             out_q_list = [MESSAGE_QUEUE_NAME]
             mq_agent = MsgProcAgent(config_file=jedi_config.mq.configFile)
-            mb_proxy_dict = mq_agent.start_passive_mode(in_q_list=None, out_q_list=out_q_list)
+            mb_proxy_dict = mq_agent.start_passive_mode(in_q_list=[], out_q_list=out_q_list)
             # stop with atexit
             atexit.register(mq_agent.stop_passive_mode)
             # set mb_proxy
