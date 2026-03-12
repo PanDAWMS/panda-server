@@ -1,4 +1,5 @@
 import datetime
+import fnmatch
 import json
 import os
 import re
@@ -1104,7 +1105,7 @@ class JsonSoftwareCheck:
                                     continue
                             elif host_gpu_spec["model"].startswith("!="):
                                 excluded_model = host_gpu_spec["model"][2:].strip()
-                                if "model" in architecture_map["gpu"] and excluded_model in architecture_map["gpu"]["model"]:
+                                if "model" in architecture_map["gpu"] and any(fnmatch.fnmatch(m, excluded_model) for m in architecture_map["gpu"]["model"]):
                                     continue
                             else:
                                 if "model" not in architecture_map["gpu"] or (
