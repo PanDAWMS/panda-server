@@ -29,8 +29,16 @@ class MsgWrapper:
         self.msgBuffer = []
         self.bareMsg = []
         self.lineLimit = lineLimit
+        self.message_slot = None
 
     def keepMsg(self, msg):
+        # check if message slot is defined and available
+        if self.message_slot is not None:
+            if self.message_slot < 0:
+                return
+            if self.message_slot == 0:
+                msg = "   ..."
+            self.message_slot -= 1
         # keep max message depth
         if len(self.msgBuffer) > self.lineLimit:
             self.msgBuffer.pop(0)
@@ -38,6 +46,12 @@ class MsgWrapper:
         timeNow = naive_utcnow()
         self.msgBuffer.append(f"{timeNow.isoformat(' ')} : {msg}")
         self.bareMsg.append(msg)
+
+    def set_message_slot(self, slot: int = 5):
+        self.message_slot = slot
+
+    def unset_message_slot(self):
+        self.message_slot = None
 
     def info(self, msg):
         msg = str(msg)
