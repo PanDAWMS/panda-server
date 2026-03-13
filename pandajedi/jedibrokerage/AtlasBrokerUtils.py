@@ -1105,7 +1105,8 @@ class JsonSoftwareCheck:
                             else:
                                 if "model" not in architecture_map["gpu"] or (
                                     "any" not in architecture_map["gpu"]["model"]
-                                    and not any(re.match(host_gpu_spec["model"], m) for m in architecture_map["gpu"]["model"])
+                                    and any(re.match(host_gpu_spec["model"], m) for m in architecture_map["gpu"]["model"])
+                                    == host_gpu_spec.get("excl", False)
                                 ):
                                     continue
 
