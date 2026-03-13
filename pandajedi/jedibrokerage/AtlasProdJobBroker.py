@@ -995,7 +995,6 @@ class AtlasProdJobBroker(JobBrokerBase):
         minWalltime_dyn = None
         minWalltime = None
         strMaxWalltime = None
-        strMinWalltime = None
         strMaxWalltime_dyn = None
         strMinWalltime_dyn = None
         if not taskSpec.useHS06():
