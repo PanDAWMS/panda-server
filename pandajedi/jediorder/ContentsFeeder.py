@@ -185,6 +185,7 @@ class ContentsFeederThread(WorkerThread):
                                 parentOutDatasets.add(tmpParentOutDataset.containerName + "/")
             # loop over all datasets
             nFilesMaster = 0
+            nFilesMasterReady = 0
             checkedMaster = False
             setFrozenTime = True
             master_offset = None
@@ -239,6 +240,9 @@ class ContentsFeederThread(WorkerThread):
                             or inputPreStaging
                         ):
                             # dummy metadata when parent is running
+                            tmpMetadata = {"state": "mutable"}
+                        # set mutable when workflow holdup is set
+                        if taskSpec.is_workflow_holdup():
                             tmpMetadata = {"state": "mutable"}
                     except Exception:
                         errtype, errvalue = sys.exc_info()[:2]
@@ -529,7 +533,7 @@ class ContentsFeederThread(WorkerThread):
                                 orderBy = None
                             # feed files to the contents table
                             tmpLog.debug("update contents")
-                            retDB, missingFileList, nFilesUnique, diagMap = self.taskBufferIF.insertFilesForDataset_JEDI(
+                            res_dict = self.taskBufferIF.insertFilesForDataset_JEDI(
                                 datasetSpec,
                                 tmpRet,
                                 tmpMetadata["state"],
@@ -565,6 +569,10 @@ class ContentsFeederThread(WorkerThread):
                                 maxFileRecords,
                                 skip_short_output,
                             )
+                            retDB = res_dict["ret_val"]
+                            missingFileList = res_dict["missingFileList"]
+                            nFilesUnique = res_dict["numUniqueLfn"]
+                            diagMap = res_dict["diagMap"]
                             if retDB is False:
                                 taskSpec.setErrDiag(f"failed to insert files for {datasetSpec.datasetName}. {diagMap['errMsg']}")
                                 allUpdated = False
@@ -595,6 +603,7 @@ class ContentsFeederThread(WorkerThread):
                                 if datasetSpec.isMaster():
                                     checkedMaster = True
                                     nFilesMaster += nFilesUnique
+                                    nFilesMasterReady += res_dict.get("nReady", 0)
                                     master_offset = datasetSpec.getOffset()
                             # running task
                             if diagMap["isRunningTask"]:
@@ -618,6 +627,11 @@ class ContentsFeederThread(WorkerThread):
                                 setFrozenTime = False
                                 skip_secondaries = True
                     tmpLog.debug("end loop")
+            # task holdup by workflow if no master inputs are ready
+            if not taskOnHold and not taskBroken and allUpdated and nFilesMasterReady == 0 and checkedMaster and taskSpec.is_workflow_holdup():
+                # hold up by the workflow
+                taskOnHold = True
+                tmpLog.debug("task to hold up by workflow")
             # no master input
             if not taskOnHold and not taskBroken and allUpdated and nFilesMaster == 0 and checkedMaster:
                 tmpErrStr = "no master input files. input dataset is empty"

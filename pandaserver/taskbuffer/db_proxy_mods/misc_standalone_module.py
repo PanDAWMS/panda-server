@@ -532,6 +532,38 @@ class MiscStandaloneModule(BaseModule):
             self.dump_error_message(tmp_log)
             return []
 
+    # get task status and superstatus
+    def getTaskStatusSuperstatus(self, jediTaskID):
+        comment = " /* DBProxy.getTaskStatusSuperstatus */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
+        tmp_log.debug("start")
+        try:
+            # sql to update input file status
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            sql = f"SELECT status,superStatus FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+            sql += "WHERE jediTaskID=:jediTaskID "
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 1000
+            self.cur.execute(sql + comment, varMap)
+            res = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            if res:
+                tmp_log.debug(f"task {jediTaskID} has status={res[0]} superstatus={res[1]}")
+            else:
+                res = []
+                tmp_log.debug(f"task {jediTaskID} not found")
+            return res
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return []
+
     # reactivate task
     def reactivateTask(self, jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
         comment = " /* DBProxy.reactivateTask */"

@@ -10,9 +10,11 @@ if [[ -n "${VIRTUAL_ENV}" ]]; then
   PATH=${VIRTUAL_ENV}/bin:${VIRTUAL_ENV}/usr/local/bin:${VIRTUAL_ENV}/usr/bin:${VIRTUAL_ENV}:${PATH}
 fi
 
-# for DQ2
+# for Rucio
 export X509_CERT_DIR=/etc/grid-security/certificates
 export X509_USER_PROXY=/data/atlpan/x509up_u25606
+export RUCIO_ACCOUNT=panda
+export RUCIO_APPID=pandasrv
 
 # panda home
 if [[ -n "${VIRTUAL_ENV}" ]]; then

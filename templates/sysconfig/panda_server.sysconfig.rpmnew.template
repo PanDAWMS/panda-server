@@ -18,7 +18,7 @@ if [[ -n "${VIRTUAL_ENV}" ]]; then
 fi
 unset LD_LIBRARY_PATH
 
-# for DQ2
+# for Rucio
 export X509_CERT_DIR=/etc/grid-security/certificates
 if [[ -z "${PANDA_RUCIO_ACCOUNT}" ]]; then
   export RUCIO_ACCOUNT=panda
