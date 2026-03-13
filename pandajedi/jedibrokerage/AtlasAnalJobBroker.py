@@ -1244,6 +1244,31 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         tmpMsg += "criteria=-longwalltime"
                         tmpLog.info(tmpMsg)
                         continue
+
+                    # selection for zero walltime: scouts and walltime-undefined jobs
+                    # must only go to sites with at least 24hr * 10HS06s of available walltime
+                    if (
+                        (not sitePreAssigned and inputChunk.useScout())
+                        or (not taskSpec.walltime and not taskSpec.walltimeUnit and not taskSpec.cpuTimeUnit)
+                        or (not taskSpec.getCpuTime() and taskSpec.cpuTimeUnit)
+                    ):
+                        minTimeForZeroWalltime = 24 * 60 * 60 * 10
+                        str_minTimeForZeroWalltime = "24hr*10HS06s"
+                        if tmpSiteSpec.coreCount not in [None, 0]:
+                            minTimeForZeroWalltime *= tmpSiteSpec.coreCount
+                            str_minTimeForZeroWalltime += f"*{tmpSiteSpec.coreCount}cores"
+
+                        if siteMaxTime != 0 and siteMaxTime < minTimeForZeroWalltime:
+                            tmpMsg = f"  skip site={tmpSiteName} due to site walltime {tmpSiteStr} (site upper limit) insufficient "
+                            if inputChunk.useScout():
+                                tmpMsg += f"for scouts ({str_minTimeForZeroWalltime} at least) "
+                                tmpMsg += "criteria=-scoutwalltime"
+                            else:
+                                tmpMsg += f"for zero walltime ({str_minTimeForZeroWalltime} at least) "
+                                tmpMsg += "criteria=-zerowalltime"
+                            tmpLog.info(tmpMsg)
+                            continue
+
                     newScanSiteList.append(tmpSiteName)
                 scanSiteList = newScanSiteList
                 if not taskSpec.useHS06():
@@ -1260,6 +1285,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     tmpLog.error("no candidates")
                     retVal = retTmpError
                     continue
+
             ######################################
             # selection for nPilot
             nWNmap = self.taskBufferIF.getCurrentSiteData()
