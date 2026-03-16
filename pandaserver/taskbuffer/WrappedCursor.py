@@ -262,7 +262,9 @@ class WrappedCursor(object):
             if "FOR UPDATE SKIP LOCKED" in sql:
                 cur.execute(f"SELECT COUNT(*) FROM ({sql}) t", varList)
                 if cur.fetchone()[0] == 0:
-                    raise Exception("could not obtain lock on row")
+                    from psycopg2.errors import LockNotAvailable
+
+                    raise LockNotAvailable("could not obtain lock on row")
             ret = cur.execute(sql, varList)
         elif self.backend == "mysql":
             print(f"DEBUG execute : original SQL     {sql} ")
