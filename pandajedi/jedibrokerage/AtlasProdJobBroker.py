@@ -370,6 +370,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         if not sitePreAssigned and not siteListPreAssigned:
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
 
@@ -393,6 +394,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     else:
                         siteSkippedTmp[tmpSiteName] = tmpStr
 
+            tmpLog.set_message_slot()
             scanSiteList = newScanSiteList
             tmpLog.info(f"{len(scanSiteList)} candidates passed site status check")
             self.add_summary_message(oldScanSiteList, scanSiteList, "status check")
@@ -431,6 +433,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
             newSkippedTmp = dict()
+            tmpLog.set_message_slot()
             for tmpPandaSiteName in self.get_unified_sites(scanSiteList):
                 try:
                     tmpAtlasSiteName = storageMapping[tmpPandaSiteName]["default"]
@@ -485,6 +488,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     # Don't skip missing links for the moment. In later stages missing links
                     # default to the worst connectivity and will be penalized.
                     newScanSiteList.append(tmpPandaSiteName)
+            tmpLog.unset_message_slot()
             siteSkippedTmp = self.add_pseudo_sites_to_skip(newSkippedTmp, scanSiteList, siteSkippedTmp)
             scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
             tmpLog.info(f"{len(scanSiteList)} candidates passed link check")
@@ -503,6 +507,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     t1WeightForHighPrio = 100
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
 
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
@@ -513,6 +518,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmp_msg += "criteria=-opportunistic"
                     tmpLog.info(tmp_msg)
 
+            tmpLog.unset_message_slot()
             scanSiteList = newScanSiteList
             tmpLog.info(f"{len(scanSiteList)} candidates passed for opportunistic check")
             self.add_summary_message(oldScanSiteList, scanSiteList, "opportunistic check")
@@ -536,6 +542,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
             newSkippedTmp = dict()
+            tmpLog.set_message_slot()
 
             for tmpSiteName in self.get_unified_sites(scanSiteList):
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
@@ -551,6 +558,8 @@ class AtlasProdJobBroker(JobBrokerBase):
                     # temporary problem
                     newSkippedTmp[tmpSiteName] = tmp_msg
                 newScanSiteList.append(tmpSiteName)
+
+            tmpLog.unset_message_slot()
             siteSkippedTmp = self.add_pseudo_sites_to_skip(newSkippedTmp, scanSiteList, siteSkippedTmp)
             scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
             tmpLog.info(f"{len(scanSiteList)} candidates passed for slowness/inactive check")
@@ -566,6 +575,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         if sitePreAssigned and taskSpec.prodSourceLabel not in [JobUtils.PROD_PS] or workQueue.queue_name not in ["test", "validation"]:
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 # check at the site
@@ -573,6 +583,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmpLog.info(f"  skip site={tmpSiteName} due to zero share criteria=-zeroshare")
                     continue
                 newScanSiteList.append(tmpSiteName)
+            tmpLog.unset_message_slot()
             scanSiteList = newScanSiteList
             tmpLog.info(f"{len(scanSiteList)} candidates passed zero share check")
             self.add_summary_message(oldScanSiteList, scanSiteList, "zero share check")
@@ -587,12 +598,14 @@ class AtlasProdJobBroker(JobBrokerBase):
         if not sitePreAssigned and taskSpec.getNumJumboJobs() is None:
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 if tmpSiteSpec.useJumboJobs():
                     tmpLog.info(f"  skip site={tmpSiteName} since it is only for jumbo jobs criteria=-jumbo")
                     continue
                 newScanSiteList.append(tmpSiteName)
+            tmpLog.unset_message_slot()
             scanSiteList = newScanSiteList
             tmpLog.info(f"{len(scanSiteList)} candidates passed jumbo job check")
             self.add_summary_message(oldScanSiteList, scanSiteList, "jumbo job check")
@@ -606,6 +619,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             if nReadyEvents is not None:
                 newScanSiteList = []
                 oldScanSiteList = copy.copy(scanSiteList)
+                tmpLog.set_message_slot()
                 for tmpSiteName in scanSiteList:
                     tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                     if tmpSiteSpec.useJumboJobs():
@@ -614,6 +628,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                             tmpLog.info(f"  skip site={tmpSiteName} since not enough events ({minEvents}<{nReadyEvents}) for jumbo criteria=-fewevents")
                             continue
                     newScanSiteList.append(tmpSiteName)
+                tmpLog.unset_message_slot()
                 scanSiteList = newScanSiteList
                 tmpLog.info(f"{len(scanSiteList)} candidates passed jumbo events check nReadyEvents={nReadyEvents}")
                 self.add_summary_message(oldScanSiteList, scanSiteList, "jumbo events check")
@@ -636,6 +651,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         unified_site_list = self.get_unified_sites(scanSiteList)
         newScanSiteList = []
         oldScanSiteList = copy.copy(scanSiteList)
+        tmpLog.set_message_slot()
         newSkippedTmp = dict()
         for tmpSiteName in unified_site_list:
             tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
@@ -675,6 +691,7 @@ class AtlasProdJobBroker(JobBrokerBase):
 
             newScanSiteList.append(tmpSiteName)
 
+        tmpLog.unset_message_slot()
         siteSkippedTmp = self.add_pseudo_sites_to_skip(newSkippedTmp, scanSiteList, siteSkippedTmp)
         scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
 
@@ -691,6 +708,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         if not sitePreAssigned:
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
             max_core_count = taskSpec.get_max_core_count()
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
@@ -704,6 +722,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                         newScanSiteList.append(tmpSiteName)
                 else:
                     tmpLog.info(f"  skip site={tmpSiteName} due to core mismatch site:{tmpSiteSpec.coreCount} <> task:{taskCoreCount} criteria=-cpucore")
+            tmpLog.unset_message_slot()
             scanSiteList = newScanSiteList
             tmpLog.info(f"{len(scanSiteList)} candidates passed for core count check with policy={useMP}")
             self.add_summary_message(oldScanSiteList, scanSiteList, "core count check")
@@ -775,6 +794,7 @@ class AtlasProdJobBroker(JobBrokerBase):
 
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
 
             for tmpSiteName in unified_site_list:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
@@ -809,6 +829,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                         f"or irrelevant HW cpu={str(host_cpu_spec)} gpu={str(host_gpu_spec)} criteria=-cache"
                     )
 
+            tmpLog.unset_message_slot()
             sitesAuto = self.get_pseudo_sites(sitesAuto, scanSiteList)
             sitesAny = self.get_pseudo_sites(sitesAny, scanSiteList)
             scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
@@ -835,6 +856,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 strMinRamCount += f"+{taskSpec.baseRamCount}"
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 # job memory requirement
@@ -865,6 +887,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmpLog.info(tmp_msg)
                     continue
                 newScanSiteList.append(tmpSiteName)
+            tmpLog.unset_message_slot()
             scanSiteList = newScanSiteList
             tmpLog.info(f"{len(scanSiteList)} candidates passed memory check {strMinRamCount}")
             self.add_summary_message(oldScanSiteList, scanSiteList, "memory check")
@@ -888,6 +911,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         minDiskCountD = minDiskCountD // 1024 // 1024
         newScanSiteList = []
         oldScanSiteList = copy.copy(scanSiteList)
+        tmpLog.set_message_slot()
         for tmpSiteName in self.get_unified_sites(scanSiteList):
             tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
             # check direct access
@@ -925,6 +949,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     continue
                 newMaxwdir[tmpSiteName] = maxwdir_scaled
             newScanSiteList.append(tmpSiteName)
+        tmpLog.unset_message_slot()
         scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
         tmpLog.info(f"{len(scanSiteList)} candidates passed scratch disk check minDiskCount>{minDiskCount} MB")
         self.add_summary_message(oldScanSiteList, scanSiteList, "disk check")
@@ -938,6 +963,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         # selection for available space in SE
         newScanSiteList = []
         oldScanSiteList = copy.copy(scanSiteList)
+        tmpLog.set_message_slot()
         newSkippedTmp = dict()
         for tmpSiteName in self.get_unified_sites(scanSiteList):
             tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
@@ -966,6 +992,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             if tmp_msg is not None:
                 newSkippedTmp[tmpSiteName] = tmp_msg
             newScanSiteList.append(tmpSiteName)
+        tmpLog.unset_message_slot()
         siteSkippedTmp = self.add_pseudo_sites_to_skip(newSkippedTmp, scanSiteList, siteSkippedTmp)
         scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
         tmpLog.info(f"{len(scanSiteList)} candidates passed Storage check")
@@ -995,7 +1022,6 @@ class AtlasProdJobBroker(JobBrokerBase):
         minWalltime_dyn = None
         minWalltime = None
         strMaxWalltime = None
-        strMinWalltime = None
         strMaxWalltime_dyn = None
         strMinWalltime_dyn = None
         if not taskSpec.useHS06():
@@ -1035,6 +1061,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             minWalltime /= nEsConsumers * maxAttemptEsJob
         newScanSiteList = []
         oldScanSiteList = copy.copy(scanSiteList)
+        tmpLog.set_message_slot()
         for tmpSiteName in scanSiteList:
             tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
             siteMaxTime = tmpSiteSpec.maxtime
@@ -1131,6 +1158,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmpLog.info(tmp_msg)
                     continue
             newScanSiteList.append(tmpSiteName)
+        tmpLog.unset_message_slot()
         scanSiteList = newScanSiteList
         if not taskSpec.useHS06():
             tmpLog.info(f"{len(scanSiteList)} candidates passed walltime check {minWalltime}({taskSpec.walltimeUnit})")
@@ -1159,6 +1187,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             if ipConnectivity or ipStack:
                 newScanSiteList = []
                 oldScanSiteList = copy.copy(scanSiteList)
+                tmpLog.set_message_slot()
                 for tmpSiteName in scanSiteList:
                     tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                     # check connectivity
@@ -1183,6 +1212,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                             continue
 
                     newScanSiteList.append(tmpSiteName)
+                tmpLog.unset_message_slot()
                 scanSiteList = newScanSiteList
                 tmpLog.info(f"{len(scanSiteList)} candidates passed network check ({ipConnectivity})")
                 self.add_summary_message(oldScanSiteList, scanSiteList, "network check")
@@ -1197,6 +1227,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         if not sitePreAssigned:
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 # event service
@@ -1229,6 +1260,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmpLog.info(tmp_msg)
                     continue
                 newScanSiteList.append(tmpSiteName)
+            tmpLog.unset_message_slot()
             scanSiteList = newScanSiteList
             tmpLog.info(f"{len(scanSiteList)} candidates passed EventService check")
             self.add_summary_message(oldScanSiteList, scanSiteList, "EventService check")
@@ -1242,6 +1274,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         # selection for transferring
         newScanSiteList = []
         oldScanSiteList = copy.copy(scanSiteList)
+        tmpLog.set_message_slot()
         newSkippedTmp = dict()
         for tmpSiteName in self.get_unified_sites(scanSiteList):
             try:
@@ -1275,6 +1308,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             except KeyError:
                 pass
             newScanSiteList.append(tmpSiteName)
+        tmpLog.unset_message_slot()
         siteSkippedTmp = self.add_pseudo_sites_to_skip(newSkippedTmp, scanSiteList, siteSkippedTmp)
         scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
         tmpLog.info(f"{len(scanSiteList)} candidates passed transferring check")
@@ -1290,6 +1324,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         if not sitePreAssigned and work_shortage:
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
             for tmpSiteName in self.get_unified_sites(scanSiteList):
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 if tmpSiteSpec.is_opportunistic():
@@ -1311,6 +1346,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                         tmpLog.info(tmp_msg)
                         continue
                 newScanSiteList.append(tmpSiteName)
+            tmpLog.unset_message_slot()
             scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
             tmpLog.info(f"{len(scanSiteList)} candidates passed pledge check")
             self.add_summary_message(oldScanSiteList, scanSiteList, "pledge check")
@@ -1337,11 +1373,13 @@ class AtlasProdJobBroker(JobBrokerBase):
         oldScanSiteList = copy.copy(scanSiteList)
         if t1Weight < 0 and not inputChunk.isMerging:
             newScanSiteList = []
+            tmpLog.set_message_slot()
             for tmpSiteName in scanSiteList:
                 if tmpSiteName not in sites_in_nucleus + sites_sharing_output_storages_in_nucleus:
                     tmpLog.info(f"  skip site={tmpSiteName} due to negative T1 weight criteria=-t1weight")
                     continue
                 newScanSiteList.append(tmpSiteName)
+            tmpLog.unset_message_slot()
             scanSiteList = newScanSiteList
             t1Weight = 1
         t1Weight = max(t1Weight, t1WeightForHighPrio)
@@ -1359,6 +1397,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         if nucleusSpec:
             full_chain = taskSpec.check_full_chain_with_nucleus(nucleusSpec)
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
             newScanSiteList = []
             for tmpSiteName in scanSiteList:
                 if full_chain:
@@ -1373,6 +1412,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                         tmpLog.info(f"  skip site={tmpSiteName} only for full chain criteria=-not_full_chain")
                         continue
                 newScanSiteList.append(tmpSiteName)
+            tmpLog.unset_message_slot()
             scanSiteList = newScanSiteList
             tmpLog.info(f"{len(scanSiteList)} candidates passed full chain ({full_chain}) check")
             self.add_summary_message(oldScanSiteList, scanSiteList, "full chain check")
@@ -1389,6 +1429,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             nWNmap = self.taskBufferIF.getCurrentSiteData()
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
             newSkippedTmp = dict()
             for tmpSiteName in self.get_unified_sites(scanSiteList):
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
@@ -1407,6 +1448,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     newSkippedTmp[tmpSiteName] = tmpStr
                 newScanSiteList.append(tmpSiteName)
                 nPilotMap[tmpSiteName] = nPilot
+            tmpLog.unset_message_slot()
             siteSkippedTmp = self.add_pseudo_sites_to_skip(newSkippedTmp, scanSiteList, siteSkippedTmp)
             scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
             tmpLog.info(f"{len(scanSiteList)} candidates passed pilot activity check")
@@ -1423,11 +1465,13 @@ class AtlasProdJobBroker(JobBrokerBase):
             # temporary problems
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
+            tmpLog.set_message_slot()
             for tmpSiteName in scanSiteList:
                 if tmpSiteName in siteSkippedTmp:
                     tmpLog.info(siteSkippedTmp[tmpSiteName])
                 else:
                     newScanSiteList.append(tmpSiteName)
+            tmpLog.unset_message_slot()
             scanSiteList = newScanSiteList
             tmpLog.info(f"{len(scanSiteList)} candidates passed temporary problem check")
             self.add_summary_message(oldScanSiteList, scanSiteList, "temp problem check")
@@ -1560,6 +1604,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 # disable if no candidate
                 tmpLog.info("disabled IO check since no candidate passed")
             else:
+                tmpLog.set_message_slot()
                 for tmp_msg in msgListDT:
                     tmpLog.info(tmp_msg)
                 if len(newScanSiteList) == 0:
@@ -1568,6 +1613,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 else:
                     for tmp_msg in msgList:
                         tmpLog.info(tmp_msg)
+                tmpLog.unset_message_slot()
                 oldScanSiteList = copy.copy(scanSiteList)
                 scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
                 tmpLog.info(f"{len(scanSiteList)} candidates passed IO check")
@@ -1582,11 +1628,13 @@ class AtlasProdJobBroker(JobBrokerBase):
         # temporary problems
         newScanSiteList = []
         oldScanSiteList = copy.copy(scanSiteList)
+        tmpLog.set_message_slot()
         for tmpSiteName in scanSiteList:
             if tmpSiteName in siteSkippedTmp:
                 tmpLog.info(siteSkippedTmp[tmpSiteName])
             else:
                 newScanSiteList.append(tmpSiteName)
+        tmpLog.unset_message_slot()
         scanSiteList = newScanSiteList
         tmpLog.info(f"{len(scanSiteList)} candidates passed temporary problem check")
         self.add_summary_message(oldScanSiteList, scanSiteList, "temporary problem check")
