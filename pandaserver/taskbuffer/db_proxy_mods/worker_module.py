@@ -1926,7 +1926,7 @@ class WorkerModule(BaseModule):
                 "AND wn.n_logical_cpus = cb.ncores "  # protects against site misreporting SMT, e.g. due to VMs
             )
 
-            var_map = {"site": site, "host_name": host_name_clean}
+            var_map = {":site": site, ":host_name": host_name_clean}
 
             self.cur.execute(sql + comment, var_map)
             results = self.cur.fetchall()
