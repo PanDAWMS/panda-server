@@ -59,6 +59,8 @@ def getDatasetType(dataset):
         str: The dataset type if it can be extracted, otherwise None.
     """
     try:
+        if dataset.startswith("user") or dataset.startswith("group"):
+            return None
         dataset_type = dataset.split(".")[4]
     except Exception:
         dataset_type = None
