@@ -174,6 +174,14 @@ class AtlasAnalTaskRefiner(TaskRefinerBase):
             if max_core_count is None:
                 max_core_count = 16
             taskParamMap["maxCoreCount"] = max_core_count
+        # set forceStaged when input dataset is RAW
+        if "forceStaged" not in taskParamMap:
+            for item in taskParamMap.get("jobParameters", []):
+                if item["type"] == "template" and "dataset" in item and item["param_type"] == "input":
+                    dataset_name = item["dataset"]
+                    if DataServiceUtils.getDatasetType(dataset_name) == "RAW":
+                        taskParamMap["forceStaged"] = True
+                        break
         # update task parameters
         self.updatedTaskParams = taskParamMap
         # call base method
