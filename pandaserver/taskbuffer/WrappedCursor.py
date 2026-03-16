@@ -75,6 +75,8 @@ def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
         )
         # dual
         sql = re.sub(r"FROM dual", "", sql, flags=re.IGNORECASE)
+        # NOWAIT
+        sql = re.sub(r"FOR UPDATE NOWAIT", "FOR UPDATE SKIP LOCKED", sql, flags=re.IGNORECASE)
         # json
         if "/* use_json_type */" in sql:
             # remove \n to make regexp easier
@@ -256,6 +258,11 @@ class WrappedCursor(object):
             varList = vars_list[0]
             if self.dump:
                 _logger.debug(f"NEW: {sql} {str(varList)}")
+            # counting the number of unlocked rows and raise when nothing available, to mimic NOWAIT behavior in Oracle
+            if "FOR UPDATE SKIP LOCKED" in sql:
+                cur.execute(f"SELECT COUNT(*) FROM ({sql}) t", varList)
+                if cur.fetchone()[0] == 0:
+                    raise Exception("could not obtain lock on row")
             ret = cur.execute(sql, varList)
         elif self.backend == "mysql":
             print(f"DEBUG execute : original SQL     {sql} ")
