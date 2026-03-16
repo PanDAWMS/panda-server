@@ -1103,8 +1103,16 @@ class JsonSoftwareCheck:
                                 if "model" in architecture_map["gpu"] and "excl" in architecture_map["gpu"]["model"]:
                                     continue
                             else:
+                                if isinstance(host_gpu_spec["model"], dict):
+                                    model_pattern = host_gpu_spec["model"]["pattern"]
+                                    model_excl = host_gpu_spec["model"].get("excl", False)
+                                else:
+                                    model_pattern = host_gpu_spec["model"]
+                                    model_excl = False
                                 if "model" not in architecture_map["gpu"] or (
-                                    "any" not in architecture_map["gpu"]["model"] and host_gpu_spec["model"] not in architecture_map["gpu"]["model"]
+                                    "any" not in architecture_map["gpu"]["model"]
+                                    and any(re.match(model_pattern, m) for m in architecture_map["gpu"]["model"])
+                                    == model_excl
                                 ):
                                     continue
 
