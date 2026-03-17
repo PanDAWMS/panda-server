@@ -2770,7 +2770,7 @@ class EntityModule(BaseModule):
             var_map = {
                 ":region": "GRID",
                 ":timestamp": utc_now,
-                "value": average_emissions,
+                ":value": average_emissions,
             }
 
             sql_insert = "INSERT INTO ATLAS_PANDA.carbon_region_emissions (region, timestamp, value) " "VALUES (:region, :timestamp, :value)"
@@ -3605,7 +3605,7 @@ class EntityModule(BaseModule):
 
         latest_validity = naive_utcnow() - datetime.timedelta(minutes=60)
 
-        varMap = {"dst": dst, "latest_validity": latest_validity}
+        varMap = {":dst": dst, ":latest_validity": latest_validity}
 
         key_var_names_str, key_var_map = get_sql_IN_bind_variables(keyList, prefix=":key")
 
