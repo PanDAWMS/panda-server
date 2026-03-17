@@ -1166,7 +1166,7 @@ class WorkerModule(BaseModule):
                     ":cpu_model": cpu_model,
                     ":cpu_model_normalized": cpu_model_normalized,
                     ":n_logical_cpus": n_logical_cpus,
-                    "n_sockets": n_sockets,
+                    ":n_sockets": n_sockets,
                     ":cores_per_socket": cores_per_socket,
                     ":threads_per_core": threads_per_core,
                     ":cpu_architecture": cpu_architecture,

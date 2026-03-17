@@ -205,7 +205,7 @@ class MiscStandaloneModule(BaseModule):
             f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1) "
             f"WHERE ROWNUM = 1"
         )
-        var_map = {"jedi_task_id": task_id}
+        var_map = {":jedi_task_id": task_id}
         self.cur.execute(sql + comment, var_map)
         exists = False
         if self.cur.fetchone():
@@ -223,7 +223,7 @@ class MiscStandaloneModule(BaseModule):
             "WHERE sc.panda_queue= :site_id "
         )
 
-        var_map = {"site_id": site_id}
+        var_map = {":site_id": site_id}
         self.cur.execute(sql + comment, var_map)
         site_parameters = self.cur.fetchone()
 
@@ -248,7 +248,7 @@ class MiscStandaloneModule(BaseModule):
         FROM ATLAS_PANDA.jedi_tasks jt
         WHERE jt.jeditaskid=:jeditaskid
         """
-        var_map = {"jeditaskid": task_id}
+        var_map = {":jeditaskid": task_id}
         self.cur.execute(sql + comment, var_map)
         task_parameters = self.cur.fetchone()
 
@@ -326,7 +326,7 @@ class MiscStandaloneModule(BaseModule):
             return None, None
 
         # Get the corecount from the job spec
-        var_map = {"task_id": task_id, "job_id": job_id}
+        var_map = {":task_id": task_id, ":job_id": job_id}
         sql_select = f"""
         SELECT jact4.corecount 
         FROM ATLAS_PANDA.jobsactive4 jact4
@@ -417,7 +417,7 @@ class MiscStandaloneModule(BaseModule):
                SET walltimeUnit=NULL, modificationTime=:timeNow
                WHERE jediTaskId=:taskID AND modificationTime < :timeLimit
                """
-        varMap = {"taskID": taskID, "timeNow": timeNow, "timeLimit": timeLimit}
+        varMap = {":taskID": taskID, ":timeNow": timeNow, ":timeLimit": timeLimit}
         self.conn.begin()
         self.cur.execute(sql, varMap)
 
