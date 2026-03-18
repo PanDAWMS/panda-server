@@ -2,6 +2,7 @@ import copy
 import json
 import re
 import shlex
+import tempfile
 
 from idds.atlas.workflowv2.atlaslocalpandawork import ATLASLocalPandaWork
 from idds.atlas.workflowv2.atlaspandawork import ATLASPandaWork
@@ -360,6 +361,8 @@ class Node(object):
                 # add dummy container to keep build step consistent
                 parse_com = copy.copy(com[1:])
                 parse_com += ["--containerImage", None]
+            # force a writable temp base for dry parsing regardless of process cwd
+            parse_com += ["--tmpDir", tempfile.gettempdir()]
             athena_tag = False
             if use_athena:
                 com += ["--useAthenaPackages"]

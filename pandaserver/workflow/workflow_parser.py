@@ -71,7 +71,6 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
     is_fatal = False
     # request_id = None
     workflow_definition_dict = dict()
-    cur_dir = os.getcwd()
 
     def _is_within_directory(base_dir: str, target_path: str) -> bool:
         abs_base_dir = os.path.abspath(base_dir)
@@ -101,9 +100,8 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
             tar.extractall(path=extract_dir, members=members)
 
     try:
-        # go to temp dir
+        # use an isolated temp dir without changing process cwd
         with tempfile.TemporaryDirectory() as tmp_dirname:
-            os.chdir(tmp_dirname)
             # download sandbox
             tmp_log.info(f"downloading sandbox from {sandbox_url}")
             with requests.get(sandbox_url, allow_redirects=True, stream=True) as r:
@@ -134,13 +132,14 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                             sandbox_name = os.path.basename(sandbox_name)
                 # extract sandbox
                 if is_ok:
-                    with open(sandbox_name, "wb") as fs:
+                    sandbox_path = os.path.join(tmp_dirname, sandbox_name)
+                    with open(sandbox_path, "wb") as fs:
                         for chunk in r.raw.stream(1024, decode_content=False):
                             if chunk:
                                 fs.write(chunk)
                         fs.close()
                         try:
-                            _safe_extract_tar_gz(sandbox_name, tmp_dirname)
+                            _safe_extract_tar_gz(sandbox_path, tmp_dirname)
                         except Exception as e:
                             dump_str = f"failed to extract {sandbox_name}: {traceback.format_exc()}"
                             tmp_log.error(dump_str)
@@ -153,12 +152,15 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                     if (wf_lang := raw_request_dict["language"]) in SUPPORTED_WORKFLOW_LANGUAGES:
                         if wf_lang == "cwl":
                             workflow_name = raw_request_dict.get("workflow_name")
-                            nodes, root_in = pcwl_utils.parse_workflow_file(raw_request_dict["workflowSpecFile"], tmp_log)
-                            with open(raw_request_dict["workflowInputFile"]) as workflow_input:
+                            workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
+                            workflow_input_file = os.path.join(tmp_dirname, raw_request_dict["workflowInputFile"])
+                            nodes, root_in = pcwl_utils.parse_workflow_file(workflow_spec_file, tmp_log)
+                            with open(workflow_input_file) as workflow_input:
                                 yaml = YAML(typ="safe", pure=True)
                                 data = yaml.load(workflow_input)
                         elif wf_lang == "snakemake":
-                            parser = Parser(raw_request_dict["workflowSpecFile"], logger=tmp_log)
+                            workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
+                            parser = Parser(workflow_spec_file, logger=tmp_log)
                             nodes, root_in = parser.parse_nodes()
                             data = dict()
                         # resolve nodes
@@ -212,11 +214,6 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
         is_ok = False
         is_fatal = True
         tmp_log.error(f"failed to run with {str(e)} {traceback.format_exc()}")
-    finally:
-        try:
-            os.chdir(cur_dir)
-        except Exception as e:
-            tmp_log.error(f"failed to restore working directory to {cur_dir}: {traceback.format_exc()}")
 
     # with tempfile.NamedTemporaryFile(delete=False, mode="w") as tmp_json:
     #     json.dump([is_ok, is_fatal, request_id, tmp_log.dumpToString()], tmp_json)
