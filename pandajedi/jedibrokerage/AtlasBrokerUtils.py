@@ -1111,7 +1111,7 @@ class JsonSoftwareCheck:
                                     model_excl = False
                                 if "model" not in architecture_map["gpu"] or (
                                     "any" not in architecture_map["gpu"]["model"]
-                                    and any(re.match(model_pattern, m) for m in architecture_map["gpu"]["model"])
+                                    and any(re.match(model_pattern, m, re.IGNORECASE) for m in architecture_map["gpu"]["model"])
                                     == model_excl
                                 ):
                                     continue
