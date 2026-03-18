@@ -8,6 +8,8 @@ import hashlib
 import json
 import re
 import sys
+import threading
+import time
 import traceback
 from typing import Dict, List
 
@@ -16,6 +18,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 from rucio.client import Client as RucioClient
 from rucio.common.exception import (
+    CannotAuthenticate,
     DataIdentifierAlreadyExists,
     DataIdentifierNotFound,
     Duplicate,
@@ -48,6 +51,51 @@ class RucioAPI:
         """
         # how frequently update DN/token map
         self.update_interval = datetime.timedelta(seconds=60 * 10)
+        # thread-safe client initialization
+        self._client_lock = threading.Lock()
+        self._rucio_client = None
+
+    # get thread-safe RucioClient with retry logic
+    def _get_rucio_client(self, max_retries: int = 3):
+        """
+        Get or create a Rucio client with thread-safe initialization and retry logic.
+        Handles transient auth failures by clearing cache and retrying with a fresh client.
+
+        Parameters:
+        max_retries (int): Maximum number of retry attempts on auth failure. Defaults to 3.
+
+        Returns:
+        RucioClient: A valid Rucio client instance
+
+        Raises:
+        CannotAuthenticate: If all retries are exhausted
+        """
+        for attempt in range(max_retries):
+            try:
+                with self._client_lock:
+                    # try to reuse cached client on first attempt
+                    if attempt == 0 and self._rucio_client is not None:
+                        return self._rucio_client
+                    # create fresh client (previous one may have stale token cache)
+                    client = RucioClient()
+                    self._rucio_client = client
+                    return client
+            except CannotAuthenticate as e:
+                # clear cache on auth failure
+                with self._client_lock:
+                    self._rucio_client = None
+                if attempt < max_retries - 1:
+                    # exponential backoff: 0.1s, 0.2s, 0.4s
+                    sleep_time = 0.1 * (2**attempt)
+                    time.sleep(sleep_time)
+                    continue
+                # re-raise on final attempt
+                raise
+            except Exception:
+                # for non-auth errors, clear cache and re-raise
+                with self._client_lock:
+                    self._rucio_client = None
+                raise
 
     # extract scope
     def extract_scope(self, dataset_name: str, strip_slash: bool = False) -> tuple:
@@ -121,7 +169,7 @@ class RucioAPI:
                 file["adler32"] = checksum[3:]
             files.append(file)
         # register dataset
-        client = RucioClient()
+        client = self._get_rucio_client()
         try:
             scope, dataset_name = self.extract_scope(dataset_name)
             if preset_scope is not None:
@@ -196,7 +244,7 @@ class RucioAPI:
         rses.sort()
         location = "|".join(rses)
         # check if a replication rule already exists
-        client = RucioClient()
+        client = self._get_rucio_client()
         # owner
         owner = client.account if owner is None else owner
         for rule in client.list_did_rules(scope=scope, name=dataset_name):
@@ -269,7 +317,7 @@ class RucioAPI:
         rses.sort()
         location = "|".join(rses)
         # check if a replication rule already exists
-        client = RucioClient()
+        client = self._get_rucio_client()
         # owner
         if owner is None:
             if distinguished_name is not None:
@@ -385,7 +433,7 @@ class RucioAPI:
                         attachment_list.append(attachment)
                         i_files += n_files
         # add files
-        client = RucioClient()
+        client = self._get_rucio_client()
         client.add_files_to_datasets(attachment_list, ignore_duplicate=True)
         return True
 
@@ -408,7 +456,7 @@ class RucioAPI:
         # no zip files
         if len(zip_map) == 0:
             return
-        client = RucioClient()
+        client = self._get_rucio_client()
         # loop over all zip files
         for zip_file_name in zip_map:
             zip_file_attr = zip_map[zip_file_name]
@@ -468,7 +516,7 @@ class RucioAPI:
         filters = {"name": given_dataset_name}
         try:
             # get dids
-            client = RucioClient()
+            client = self._get_rucio_client()
             for name in client.list_dids(scope, filters, collection):
                 vuid = hashlib.md5((scope + ":" + name).encode()).hexdigest()
                 # Format is a 36-character string divided into five groups separated by hyphens. The groups have 8, 4, 4, 4, and 12 characters.
@@ -511,7 +559,7 @@ class RucioAPI:
             container_name = container_name[:-1]
         try:
             # get dids
-            client = RucioClient()
+            client = self._get_rucio_client()
             for content in client.list_content(scope, container_name):
                 if content["type"] == "DATASET":
                     result.append(str(f"{content['scope']}:{content['name']}"))
@@ -541,7 +589,7 @@ class RucioAPI:
         scope, dataset_name = self.extract_scope(dataset_name)
         try:
             # get replicas
-            client = RucioClient()
+            client = self._get_rucio_client()
             replica_iterator = client.list_dataset_replicas(scope, dataset_name)
             for item in replica_iterator:
                 rse = item["rse"]
@@ -574,7 +622,7 @@ class RucioAPI:
         If an exception occurs, the boolean is False and the string contains the error message.
         """
         # register dataset
-        client = RucioClient()
+        client = self._get_rucio_client()
         try:
             scope, dataset_name = self.extract_scope(dataset_name)
             return True, client.get_metadata(scope, dataset_name)
@@ -603,7 +651,7 @@ class RucioAPI:
         """
         preset_scope = scope
         # register dataset
-        client = RucioClient()
+        client = self._get_rucio_client()
         try:
             scope, dataset_name = self.extract_scope(dataset_name)
             if preset_scope is not None:
@@ -634,7 +682,7 @@ class RucioAPI:
         bool: True if the operation is successful, False otherwise.
         """
         # register dataset
-        client = RucioClient()
+        client = self._get_rucio_client()
         try:
             scope, dataset_name = self.extract_scope(dataset_name)
             client.set_status(scope, dataset_name, open=False)
@@ -661,7 +709,7 @@ class RucioAPI:
         If an exception occurs, the boolean is False and the string contains the error message.
         """
         try:
-            client = RucioClient()
+            client = self._get_rucio_client()
             dids = []
             i_guid = 0
             batch_size = 1000
@@ -702,7 +750,7 @@ class RucioAPI:
         If an exception occurs, the boolean is False and the string contains the error message.
         """
         try:
-            client = RucioClient()
+            client = self._get_rucio_client()
             data = []
             i_guid = 0
             batch_size = 1000
@@ -752,7 +800,7 @@ class RucioAPI:
         scope, dataset_name = self.extract_scope(dataset_name)
         if dataset_name.endswith("/"):
             dataset_name = dataset_name[:-1]
-        client = RucioClient()
+        client = self._get_rucio_client()
         return_dict = {}
         for file_info in client.list_files(scope, dataset_name, long=long):
             tmp_lfn = str(file_info["name"])
@@ -791,21 +839,28 @@ class RucioAPI:
         Tuple[bool, Union[int, str]]: A tuple containing a boolean indicating the success of the operation and the number of files or an error message.
         If an exception occurs, the boolean is False and the string contains the error message.
         """
+        # make logger
+        method_name = "get_number_of_files"
+        method_name = f"{method_name} dataset_name={dataset_name}"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
         # extract scope from dataset
         scope, dataset_name = self.extract_scope(dataset_name)
         if preset_scope is not None:
             scope = preset_scope
-        client = RucioClient()
-        n_files = 0
         try:
+            client = self._get_rucio_client()
+            n_files = 0
             for _ in client.list_files(scope, dataset_name):
                 n_files += 1
             return True, n_files
         except DataIdentifierNotFound:
+            tmp_log.debug("dataset not found")
             return None, "dataset not found"
         except Exception:
             err_type, err_value = sys.exc_info()[:2]
             err_msg = f"{err_type.__name__} {err_value}"
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
             return False, err_msg
 
     # list datasets with GUIDs
@@ -822,7 +877,7 @@ class RucioAPI:
         Returns:
         Dict[str, List[str]]: A dictionary mapping each GUID to a list of its associated datasets.
         """
-        client = RucioClient()
+        client = self._get_rucio_client()
         result = {}
         for guid in guids:
             datasets = [str(f"{i['scope']}:{i['name']}") for i in client.get_dataset_by_guid(guid)]
@@ -849,7 +904,7 @@ class RucioAPI:
         if container_name.endswith("/"):
             container_name = container_name[:-1]
         # register container
-        client = RucioClient()
+        client = self._get_rucio_client()
         try:
             scope, dataset_name = self.extract_scope(container_name)
             if preset_scope is not None:
@@ -899,7 +954,7 @@ class RucioAPI:
         try:
             return_value = False
             # get rucio API
-            client = RucioClient()
+            client = self._get_rucio_client()
             user_info = None
             return_value = False
             x509_user_name = CoreUtils.get_bare_dn(distinguished_name)
@@ -961,7 +1016,7 @@ class RucioAPI:
     def convert_list_dataset_replicas(self, dataset_name, use_file_lookup=False, use_vp=False, skip_incomplete_element=False):
         retMap = {}
         # get rucio API
-        client = RucioClient()
+        client = self._get_rucio_client()
         # get scope and name
         scope, dsn = self.extract_scope(dataset_name, strip_slash=True)
         # get replicas
@@ -1021,7 +1076,7 @@ class RucioAPI:
         ret_list = []
         try:
             # get rucio API
-            client = RucioClient()
+            client = self._get_rucio_client()
             # get RSEs
             result = client.list_rses(filter)
             if result:
@@ -1046,7 +1101,7 @@ class RucioAPI:
         ret_list = []
         try:
             # get rucio API
-            client = RucioClient()
+            client = self._get_rucio_client()
             # get scope and name
             scope, dsn = self.extract_scope(dataset_name, strip_slash=True)
             # get rules
@@ -1068,7 +1123,7 @@ class RucioAPI:
         tmp_log.debug("start")
         try:
             # get rucio API
-            client = RucioClient()
+            client = self._get_rucio_client()
             # get scope and name
             scope, dsn = self.extract_scope(dataset_name, strip_slash=True)
             # get metadata
@@ -1093,14 +1148,14 @@ class RucioAPI:
             return None
 
     # get files in dataset
-    def get_files_in_dataset(self, dataset_name, ski_duplicate=True, ignore_unknown=False, long_format=False, lfn_only=False):
+    def get_files_in_dataset(self, dataset_name, skip_duplicate=True, ignore_unknown=False, long_format=False, lfn_only=False):
         method_name = "get_files_in_dataset"
         method_name += f" <dataset_name={dataset_name}>"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
         try:
             # get Rucio API
-            client = RucioClient()
+            client = self._get_rucio_client()
             # extract scope from dataset
             scope, dsn = self.extract_scope(dataset_name)
             if dsn.endswith("/"):
@@ -1131,7 +1186,7 @@ class RucioAPI:
                 guid = str(f"{x['guid'][0:8]}-{x['guid'][8:12]}-{x['guid'][12:16]}-{x['guid'][16:20]}-{x['guid'][20:32]}")
                 attrs["guid"] = guid
                 # skip duplicated files
-                if ski_duplicate:
+                if skip_duplicate:
                     # extract base LFN and attempt number
                     baseLFN = re.sub("(\.(\d+))$", "", lfn)
                     attNr = re.sub(baseLFN + "\.*", "", lfn)
@@ -1181,7 +1236,7 @@ class RucioAPI:
         tmp_log.debug("start")
         try:
             # get rucio
-            client = RucioClient()
+            client = self._get_rucio_client()
             # get scope and name
             scope, dsn = self.extract_scope(container_name, strip_slash=True)
             # get contents
@@ -1203,7 +1258,7 @@ class RucioAPI:
             if lifetime is not None:
                 lifetime = lifetime * 24 * 60 * 60
             # get rucio API
-            client = RucioClient()
+            client = self._get_rucio_client()
             # get scope and name
             scope, dsn = self.extract_scope(dataset_name, strip_slash=True)
             # check if a replication rule already exists
@@ -1247,7 +1302,7 @@ class RucioAPI:
         tmp_log.debug("start")
         try:
             # get rucio API
-            client = RucioClient()
+            client = self._get_rucio_client()
             # update rule
             client.update_replication_rule(rule_id, set_map)
         except Exception as e:
@@ -1264,7 +1319,7 @@ class RucioAPI:
         tmp_log.debug("start")
         try:
             # get rucio API
-            client = RucioClient()
+            client = self._get_rucio_client()
             # get rules
             rule = client.get_replication_rule(rule_id)
         except RuleNotFound as e:
@@ -1288,7 +1343,7 @@ class RucioAPI:
         tmp_log.debug("start")
         try:
             # get rucio API
-            client = RucioClient()
+            client = self._get_rucio_client()
             # get generator of replica locks
             res = client.list_replica_locks(rule_id)
             # turn into list
@@ -1307,7 +1362,7 @@ class RucioAPI:
         tmp_log.debug("start")
         try:
             # get rucio API
-            client = RucioClient()
+            client = self._get_rucio_client()
             # get rules
             ret = client.delete_replication_rule(rule_id)
         except RuleNotFound as e:

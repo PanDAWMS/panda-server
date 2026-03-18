@@ -48,13 +48,15 @@ def top_sort(list_data, visited):
 def parse_workflow_file(workflow_file, log_stream, in_loop=False):
     # read the file from yaml
     cwl_file = Path(os.path.abspath(workflow_file))
+    cwl_dir = cwl_file.parent
 
     from cwl_utils.parser import load_document_by_uri
 
     # make fake executables to skip validation check in CWL
     for tmp_exec in WORKFLOW_NAMES:
-        if not os.path.exists(tmp_exec):
-            Path(tmp_exec).touch()
+        tmp_exec_path = cwl_dir / tmp_exec
+        if not tmp_exec_path.exists():
+            tmp_exec_path.touch()
 
     # Import CWL Object
     root_obj = load_document_by_uri(cwl_file)
