@@ -19,6 +19,9 @@ from pandaserver.workflow.workflow_base import (
     WorkflowStatus,
 )
 
+# Whether to consider partial data (e.g. some files in DDM collection) as sufficient for step input
+PARTIAL_DATA_SUFFICE = False
+
 # main logger
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -127,11 +130,11 @@ class PandaTaskDataHandler(BaseDataHandler):
         # Check number of files
         if none_exist:
             check_result.check_status = WFDataTargetCheckStatus.nonexist
-        elif total_n_files == 0:
-            check_result.check_status = WFDataTargetCheckStatus.insuffi
-        else:
-            # At least 1 file is sufficient for step input
+        elif PARTIAL_DATA_SUFFICE and total_n_files > 0:
+            # At least 1 file for step input
             check_result.check_status = WFDataTargetCheckStatus.suffice
+        else:
+            check_result.check_status = WFDataTargetCheckStatus.insuffi
         check_result.success = True
         tmp_log.info(f"Got total_n_files={total_n_files}; check_status={check_result.check_status}")
         return check_result
