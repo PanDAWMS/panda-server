@@ -8,7 +8,7 @@ from pandacommon.pandautils.PandaUtils import try_malloc_trim
 from pandajedi.jedicore.ThreadUtils import ListWithLock
 from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
-from pandajedi.jediorder.JobGenerator import JobGeneratorThread
+from pandajedi.jediorder.JobGenerator import JobGeneratorThread, get_params_to_get_tasks
 from pandajedi.jediorder.TaskSetupper import TaskSetupper
 from pandaserver.srvcore import CoreUtils
 
@@ -35,7 +35,7 @@ class JediJobGeneratorMsgProcPlugin(BaseMsgProcPlugin):
         self._work_queue_mapper_ts = 0
         self._resource_types = None
         self._resource_types_ts = 0
-        self._nfiles_cache = {}
+        self._params_to_get_tasks = {}
         # memory limit to trigger early cleanup to avoid OOM killer. This is not a hard limit, just a threshold to trigger early cleanup.
         self._mem_usage_threshold_mb = 1500
         # get SiteMapper
@@ -67,21 +67,6 @@ class JediJobGeneratorMsgProcPlugin(BaseMsgProcPlugin):
             self._resource_types = self.tbIF.load_resource_types()
             self._resource_types_ts = time.time()
         return self._resource_types
-
-    def _get_nfiles(self, vo, queue_name):
-        cache_key = (vo, queue_name)
-        cache_item = self._nfiles_cache.get(cache_key)
-        if cache_item is not None:
-            nfiles, ts = cache_item
-            if self._is_cache_valid(ts):
-                return nfiles
-        nfiles = self.tbIF.getConfigValue("jobgen", f"NFILES_{queue_name}", "jedi", vo)
-        if nfiles is None:
-            nfiles = 100
-        else:
-            nfiles = int(nfiles)
-        self._nfiles_cache[cache_key] = (nfiles, time.time())
-        return nfiles
 
     def process(self, msg_obj):
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
@@ -129,12 +114,11 @@ class JediJobGeneratorMsgProcPlugin(BaseMsgProcPlugin):
                 resource_types = self._get_resource_types()
                 if not resource_types:
                     raise RuntimeError("failed to get resource types")
-                # nFiles from config with a short TTL cache
-                nFiles = 100
-                if workQueue is None:
-                    tmp_log.warning(f"workQueue_ID={taskSpec.workQueue_ID} gshare={taskSpec.gshare} not found in work queue mapper")
-                else:
-                    nFiles = self._get_nfiles(vo, workQueue.queue_name)
+                # nFiles from shared JobGenerator config resolver
+                tmp_params = get_params_to_get_tasks(
+                    self.tbIF, self._params_to_get_tasks, vo, prodSourceLabel, workQueue.queue_name if workQueue else "", taskSpec.cloud
+                )
+                nFiles = tmp_params["nFiles"]
                 # get inputs
                 tmp_list = self.tbIF.getTasksToBeProcessed_JEDI(self.pid, None, workQueue, None, None, nFiles=nFiles, target_tasks=[task_id])
                 if tmp_list:
