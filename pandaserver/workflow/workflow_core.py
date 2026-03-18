@@ -72,10 +72,16 @@ PLUGIN_RAW_MAP = {
 }
 
 
-@functools.lru_cache(maxsize=1)
+# Global variable to cache the flavor to plugin class map, initialized lazily in _get_flavor_plugin_class_map
+_flavor_plugin_class_map_cache = None
+
+
 def _get_flavor_plugin_class_map() -> Dict[str, Dict[str, Any]]:
-    """Lazily import plugin classes once per process and cache the map."""
-    logger.debug("Initializing workflow plugin class map (lazy, one-time per process)")
+    """Get the map of plugin type and flavor to plugin class, with lazy initialization and caching"""
+    global _flavor_plugin_class_map_cache
+    if _flavor_plugin_class_map_cache is not None:
+        return _flavor_plugin_class_map_cache
+    logger.debug("Initializing workflow plugin class map")
     flavor_plugin_class_map = {}
     for plugin_type, plugins in PLUGIN_RAW_MAP.items():
         flavor_plugin_class_map[plugin_type] = {}
@@ -88,7 +94,8 @@ def _get_flavor_plugin_class_map() -> Dict[str, Dict[str, Any]]:
                 logger.debug(f"Imported {plugin_type} plugin {flavor} from {module_name}.{class_name}")
             except Exception as e:
                 logger.error(f"Failed to import {plugin_type} plugin {flavor} from {module_name}.{class_name}: {e}")
-    return flavor_plugin_class_map
+    _flavor_plugin_class_map_cache = flavor_plugin_class_map
+    return _flavor_plugin_class_map_cache
 
 
 # ==== Functions ===============================================
