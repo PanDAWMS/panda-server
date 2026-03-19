@@ -1,4 +1,5 @@
 import math
+from typing import Any
 
 from pandajedi.jedicore import Interaction
 
@@ -112,8 +113,18 @@ class JobBrokerBase(object):
         tmp_log.info(f"the number of final candidates: {len(final_candidates)}")
         tmp_log.info("")
 
-    # make summary
-    def add_summary_message(self, old_list, new_list, message):
+    # add summary entry and show intermediate message
+    def add_summary_message(self, old_list: list, new_list: list, message: str, tmp_log: Any, msg_map: dict):
+        # consolidate lists to emit messages only for unified sites
+        old_list = self.get_unified_sites(old_list)
+        new_list = self.get_unified_sites(new_list)
+        # get skipped sites
+        skipped = [i for i in old_list if i not in new_list]
+        for skipped_site in skipped:
+            if skipped_site in msg_map:
+                tmp_log.info(msg_map[skipped_site])
+        tmp_log.info(f"{len(new_list)} candidates passed {message}")
+        # add a summary entry
         if old_list and len(old_list) != len(new_list):
             red = int(math.ceil(((len(old_list) - len(new_list)) * 100) / len(old_list)))
             self.summaryList.append(f"{len(old_list):>5} -> {len(new_list):>3} candidates, {red:>3}% cut : {message}")
