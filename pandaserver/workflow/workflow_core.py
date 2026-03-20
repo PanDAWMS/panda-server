@@ -1186,11 +1186,13 @@ class WorkflowInterface(object):
         try:
             # Input data list of the step
             step_spec_definition = step_spec.definition_json_map
-            input_data_list = step_spec_definition.get("input_data_list")
-            if input_data_list is None:
-                process_result.message = f"Step definition does not have input_data_list; skipped"
+            input_data_dict = step_spec_definition.get("input_data_dict")
+            if input_data_dict is None:
+                process_result.message = f"Step definition does not have input_data_dict; skipped"
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
+            input_data_list = list(input_data_dict.keys())
+            complete_input_data_list = [k for k, v in input_data_dict.items() if v.get("require_complete", False)]
             # Get data spec map of the workflow
             if data_spec_map is None:
                 data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
@@ -1200,6 +1202,12 @@ class WorkflowInterface(object):
             # If not all inputs are sufficient as input, just return and wait for next round
             if not all_inputs_stats["all_inputs_sufficient"]:
                 tmp_log.debug(f"Some input data are not sufficient as input; skipped")
+                process_result.success = True
+                return process_result
+            # Check if input data requiring complete are all complete, if not, just return and wait for next round
+            complete_inputs_stats = self._check_all_inputs_of_step(tmp_log, complete_input_data_list, data_spec_map)
+            if not complete_inputs_stats["all_inputs_complete"]:
+                tmp_log.debug(f"Some input data requiring complete are not done yet; skipped")
                 process_result.success = True
                 return process_result
             # All inputs are good, register outputs of the step and update step status to ready
@@ -1329,11 +1337,12 @@ class WorkflowInterface(object):
         try:
             # Input data list of the step
             step_spec_definition = step_spec.definition_json_map
-            input_data_list = step_spec_definition.get("input_data_list")
-            if input_data_list is None:
-                process_result.message = f"Step definition does not have input_data_list; skipped"
+            input_data_dict = step_spec_definition.get("input_data_dict")
+            if input_data_dict is None:
+                process_result.message = f"Step definition does not have input_data_dict; skipped"
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
+            input_data_list = list(input_data_dict.keys())
             # Get data spec map of the workflow
             data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
@@ -1401,11 +1410,12 @@ class WorkflowInterface(object):
         try:
             # Input data list of the step
             step_spec_definition = step_spec.definition_json_map
-            input_data_list = step_spec_definition.get("input_data_list")
-            if input_data_list is None:
-                process_result.message = f"Step definition does not have input_data_list; skipped"
+            input_data_dict = step_spec_definition.get("input_data_dict")
+            if input_data_dict is None:
+                process_result.message = f"Step definition does not have input_data_dict; skipped"
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
+            input_data_list = list(input_data_dict.keys())
             # Get data spec map of the workflow
             data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
@@ -1682,7 +1692,7 @@ class WorkflowInterface(object):
                     step_definition["user_name"] = workflow_spec.username
                     step_definition["user_dn"] = workflow_definition.get("user_dn")
                     # resolve inputs and outputs
-                    input_data_set = set()
+                    input_data_dict = dict()
                     output_data_dict = dict()
                     for input_target in step_definition.get("inputs", {}).values():
                         if not input_target.get("source"):
@@ -1692,10 +1702,13 @@ class WorkflowInterface(object):
                             sources = copy.deepcopy(input_target["source"])
                         else:
                             sources = [input_target["source"]]
-                        input_data_set.update(sources)
+                        for source in sources:
+                            input_data_dict[source] = {}
+                            if input_target.get("requirements", {}).get("requires_complete_as_input"):
+                                input_data_dict[source]["requires_complete_as_input"] = True
                     for output_name, output_value in step_definition.get("outputs", {}).items():
                         output_data_dict[output_name] = output_value.get("value")
-                    step_definition["input_data_list"] = list(input_data_set)
+                    step_definition["input_data_dict"] = input_data_dict
                     step_definition["output_data_list"] = list(output_data_dict.keys())
                     step_spec.definition_json_map = step_definition
                     step_spec.creation_time = now_time

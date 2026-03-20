@@ -20,7 +20,7 @@ from pandaserver.workflow.workflow_base import (
 )
 
 # Whether to consider partial data (e.g. some files in DDM collection) as sufficient for step input
-PARTIAL_DATA_SUFFICE = False
+PARTIAL_DATA_SUFFICE = True
 
 # main logger
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
