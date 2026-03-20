@@ -1192,7 +1192,7 @@ class WorkflowInterface(object):
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
             input_data_list = list(input_data_dict.keys())
-            complete_input_data_list = [k for k, v in input_data_dict.items() if v.get("require_complete", False)]
+            complete_input_data_list = [k for k, v in input_data_dict.items() if v.get("requires_complete", False)]
             # Get data spec map of the workflow
             if data_spec_map is None:
                 data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
@@ -1704,8 +1704,8 @@ class WorkflowInterface(object):
                             sources = [input_target["source"]]
                         for source in sources:
                             input_data_dict[source] = {}
-                            if input_target.get("requirements", {}).get("requires_complete_as_input"):
-                                input_data_dict[source]["requires_complete_as_input"] = True
+                            if input_target.get("requirements", {}).get("requires_complete"):
+                                input_data_dict[source]["requires_complete"] = True
                     for output_name, output_value in step_definition.get("outputs", {}).items():
                         output_data_dict[output_name] = output_value.get("value")
                     step_definition["input_data_dict"] = input_data_dict

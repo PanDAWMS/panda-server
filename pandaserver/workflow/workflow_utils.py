@@ -263,7 +263,7 @@ class Node(object):
                         v["value"] = dict_inputs["opt_args"]
                     # Set requirement for secondary datasets
                     if k.endswith("opt_secondaryDSs"):
-                        v.setdefault("requirements", {})["requirements"]["requires_complete_as_input"] = True
+                        v.setdefault("requirements", {})["requires_complete"] = True
         if self.is_leaf and task_template:
             self.task_params = self.make_task_params(task_template, id_map, workflow)
         [n.resolve_params(task_template, id_map, self) for n in self.sub_nodes]
