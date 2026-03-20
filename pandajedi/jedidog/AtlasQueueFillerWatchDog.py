@@ -273,7 +273,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             if tmpSiteSpec.getJobSeed() in ["es"]:
                 excluded_sites_dict["es_jobseed"].add(tmpPseudoSiteName)
                 continue
-            # tmp_num_slots as  num_slots in harvester_slots
+            # tmp_num_slots as num_slots in harvester_slots
             tmp_num_slots = tmpSiteSpec.getNumStandby(None, None)
             tmp_num_slots = 0 if tmp_num_slots is None else tmp_num_slots
             # skip if site (except ARM and fat container sites) has no harvester_slots setup and has not enough activity in the past 24 hours
@@ -378,6 +378,9 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             min_files_ready = self.taskBufferIF.getConfigValue("queue_filler", f"MIN_FILES_READY_{prod_source_label}", "jedi", self.vo)
             if min_files_ready is None:
                 min_files_ready = 50
+            min_files_ready_fc = self.taskBufferIF.getConfigValue("queue_filler", f"MIN_FILES_READY_{prod_source_label}_FC", "jedi", self.vo)
+            if min_files_ready_fc is None:
+                min_files_ready_fc = 10
             min_files_remaining = self.taskBufferIF.getConfigValue("queue_filler", f"MIN_FILES_REMAINING_{prod_source_label}", "jedi", self.vo)
             if min_files_remaining is None:
                 min_files_remaining = 100
@@ -528,7 +531,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                         ":resource_type": resource_type,
                         ":site_maxrss": site_maxrss,
                         ":site_corecount": site_corecount,
-                        ":min_files_ready": min_files_ready,
+                        ":min_files_ready": min_files_ready_fc if self.is_fat_container_site(site) else min_files_ready,
                         ":min_files_remaining": min_files_remaining,
                     }
                     params_map.update(rse_params_map)
