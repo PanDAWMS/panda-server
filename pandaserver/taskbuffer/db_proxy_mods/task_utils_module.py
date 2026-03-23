@@ -1343,7 +1343,17 @@ class TaskUtilsModule(BaseModule):
                     maxIneffJobs = self.getConfigValue("dbproxy", f"SCOUT_NUM_CPU_INEFFICIENT_{taskSpec.prodSourceLabel}", "jedi")
                     ineffJobCutoff = self.getConfigValue("dbproxy", f"SCOUT_THR_CPU_INEFFICIENT_{taskSpec.prodSourceLabel}", "jedi")
                     tmp_skip = False
-                    errMsg = "#ATM #KV action=set_exhausted since reason=low_efficiency "
+                    # check if low CPU efficiency is due to high IO intensity, and if so, allow more inefficient jobs
+                    max_io_intensity_for_exhausted = self.getConfigValue("dbproxy", f"SCOUT_MAX_IO_INTENSITY_FOR_EXHAUSTED_{taskSpec.prodSourceLabel}", "jedi")
+                    io_intensity = scoutData.get("ioIntensity", 0)
+                    if max_io_intensity_for_exhausted is not None and max_io_intensity_for_exhausted < io_intensity:
+                        high_io_intensity = True
+                        errMsg = (
+                            f"not to set exhausted since high IO intensity ({io_intensity} kBPerS) is greater than {max_io_intensity_for_exhausted}, although "
+                        )
+                    else:
+                        high_io_intensity = False
+                        errMsg = "#ATM #KV action=set_exhausted since reason=low_efficiency "
                     if taskSpec.getMinCpuEfficiency() and extraInfo["minCpuEfficiency"] < taskSpec.getMinCpuEfficiency():
                         tmp_skip = True
                         errMsg += f"lowest CPU efficiency {extraInfo['minCpuEfficiency']} is less than getMinCpuEfficiency={taskSpec.getMinCpuEfficiency()}"
@@ -1369,8 +1379,10 @@ class TaskUtilsModule(BaseModule):
                         )
                     if tmp_skip:
                         tmpLog.info(errMsg)
-                        taskSpec.setErrDiag(errMsg)
-                        taskSpec.status = "exhausted"
+                        # set exhausted if not due to high IO intensity, continue otherwise
+                        if not high_io_intensity:
+                            taskSpec.setErrDiag(errMsg)
+                            taskSpec.status = "exhausted"
 
             # cpu abuse
             if taskSpec.status != "exhausted":
