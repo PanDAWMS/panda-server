@@ -47,7 +47,7 @@ class MsgWrapper:
         self.msgBuffer.append(f"{timeNow.isoformat(' ')} : {msg}")
         self.bareMsg.append(msg)
 
-    def set_message_slot(self, slot: int = 5):
+    def set_message_slot(self, slot: int = 10):
         self.message_slot = slot
 
     def unset_message_slot(self):
@@ -61,7 +61,6 @@ class MsgWrapper:
     def debug(self, msg):
         msg = str(msg)
         self.logger.debug(self.token + " " + msg)
-        self.keepMsg(msg)
 
     def error(self, msg):
         msg = str(msg)
