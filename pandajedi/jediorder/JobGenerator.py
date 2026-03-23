@@ -1603,7 +1603,7 @@ class JobGeneratorThread(WorkerThread):
                             if taskSpec.baseWalltime is not None:
                                 jobSpec.maxWalltime += taskSpec.baseWalltime
 
-                        if jobSpec.minRamCount in [None, "NULL"]:
+                        if jobSpec.minRamCount in [0, None, "NULL"]:
                             # set 2GB RAM for merge jobs by default
                             jobSpec.minRamCount = 2000
 
