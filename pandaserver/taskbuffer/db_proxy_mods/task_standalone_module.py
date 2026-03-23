@@ -4660,7 +4660,7 @@ class TaskStandaloneModule(BaseModule):
     # query tasks and preassign them to dedicate workqueue, sql_query should query jeditaskid
     def queryTasksToPreassign_JEDI(self, sql_query, params_map, site, blacklist, limit):
         comment = " /* JediDBProxy.queryTasksToPreassign_JEDI */"
-        tmpLog = self.create_tagged_logger(comment)
+        tmpLog = self.create_tagged_logger(comment, f"site={site}")
         magic_workqueue_id = 400
         try:
             self.conn.begin()
@@ -4686,9 +4686,11 @@ class TaskStandaloneModule(BaseModule):
             for jedi_taskid, orig_workqueue_id in taskIDs:
                 if n_updated >= limit:
                     # respect the limit
+                    tmpLog.debug(f"reached the limit of {limit} ; stop preassigning more tasks")
                     break
                 if jedi_taskid in blacklist:
                     # skip blacklisted tasks
+                    tmpLog.debug(f"skipped blacklisted jediTaskID={jedi_taskid}")
                     continue
                 varMap = {}
                 varMap[":jediTaskID"] = jedi_taskid
@@ -4703,12 +4705,12 @@ class TaskStandaloneModule(BaseModule):
                         "workQueue_ID": orig_workqueue_id,
                     }
                     updated_tasks_attr.append((jedi_taskid, orig_attr))
-                    tmpLog.debug(f"preassigned jediTaskID={jedi_taskid} to site={site} , orig_attr={orig_attr}")
+                    tmpLog.debug(f"preassigned jediTaskID={jedi_taskid} to {site} , orig_attr={orig_attr}")
                 elif nRow > 1:
                     tmpLog.error(f"updated {nRow} rows with same jediTaskID={jedi_taskid}")
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmpLog.debug(f"done with {n_updated} rows to site={site}")
+            tmpLog.debug(f"done with {n_updated} rows")
             # return
             return updated_tasks_attr
         except Exception:
