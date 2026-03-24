@@ -390,6 +390,8 @@ class Node(object):
                     "site",
                     "excludedSite",
                     "includedSite",
+                    "nMaxFilesPerJob",
+                    "nGBPerJob",
                 ]:
                     task_params[p_key] = p_value
                 elif p_key == "architecture":
