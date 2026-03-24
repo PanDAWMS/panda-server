@@ -1015,24 +1015,24 @@ class TaskUtilsModule(BaseModule):
             addTag(jobTagMap, cpuEffDict, minCpuEfficiency, "cpuEfficiency")
             extraInfo["minCpuEfficiency"] = minCpuEfficiency
 
-        nShortJobs = 0
-        nShortJobsWithCtoS = 0
-        nTotalForShort = 0
+        n_all_short_jobs = 0
+        n_short_jobs_with_copy_to_scratch = 0
+        total_jobs_including_short_jobs = 0
         longestShortExecTime = 0
         for tmpPandaID, tmpExecTime in execTimeMap.items():
+            is_copy_scratch = False
             if tmpExecTime <= datetime.timedelta(minutes=shortExecTime):
                 longestShortExecTime = max(longestShortExecTime, tmpExecTime.total_seconds())
                 if site_mapper and task_spec:
                     # ignore if the site enforces to use copy-to-scratch
                     tmpSiteSpec = site_mapper.getSite(siteMap[tmpPandaID])
                     if not task_spec.useLocalIO() and not CoreUtils.use_direct_io_for_job(task_spec, tmpSiteSpec, None):
-                        nShortJobsWithCtoS += 1
-                        continue
-                nShortJobs += 1
-            nTotalForShort += 1
-        extraInfo["nShortJobs"] = nShortJobs
-        extraInfo["nShortJobsWithCtoS"] = nShortJobsWithCtoS
-        extraInfo["nTotalForShort"] = nTotalForShort
+                        n_short_jobs_with_copy_to_scratch += 1
+                n_all_short_jobs += 1
+            total_jobs_including_short_jobs += 1
+        extraInfo["n_all_short_jobs"] = n_all_short_jobs
+        extraInfo["n_short_jobs_with_copy_to_scratch"] = n_short_jobs_with_copy_to_scratch
+        extraInfo["total_jobs_including_short_jobs"] = total_jobs_including_short_jobs
         extraInfo["longestShortExecTime"] = longestShortExecTime
         nInefficientJobs = 0
         for tmpPandaID, tmpCpuEff in cpuEffMap.items():
@@ -1251,8 +1251,11 @@ class TaskUtilsModule(BaseModule):
                 shortJobCutoff = self.getConfigValue("dbproxy", f"SCOUT_THR_SHORT_{taskSpec.prodSourceLabel}", "jedi")
                 if maxShortJobs and shortJobCutoff:
                     # many short jobs w/o copy-to-scratch
-                    manyShortJobs = extraInfo["nTotalForShort"] > 0 and extraInfo["nShortJobs"] / extraInfo["nTotalForShort"] >= maxShortJobs / 10
-                    if manyShortJobs:
+                    had_many_short_jobs = (
+                        extraInfo["total_jobs_including_short_jobs"] > 0
+                        and extraInfo["n_all_short_jobs"] / extraInfo["total_jobs_including_short_jobs"] >= maxShortJobs / 10
+                    )
+                    if had_many_short_jobs:
                         toExhausted = True
                         # check expected number of jobs
                         if shortJobCutoff and min(extraInfo["expectedNumJobs"], extraInfo["expectedNumJobsWithEvent"]) < shortJobCutoff:
@@ -1311,6 +1314,20 @@ class TaskUtilsModule(BaseModule):
                                     scMsg = " and scaled execution time ({} = walltime * {}/{}) less than {} min".format(
                                         scaled_max_walltime, InputChunk.maxInputSizeAvalanche, InputChunk.maxInputSizeScouts, extraInfo["shortExecTime"]
                                     )
+                        # check if copy-to-scratch was imposed
+                        if toExhausted:
+                            if (
+                                extraInfo["total_jobs_including_short_jobs"] > 0
+                                and (extraInfo["n_all_short_jobs"] - extraInfo["n_short_jobs_with_copy_to_scratch"])
+                                / extraInfo["total_jobs_including_short_jobs"]
+                                < maxShortJobs / 10
+                            ):
+                                tmpLog.debug(
+                                    "not to set exhausted since {}/{} scout jobs were enforced to run with copy-to-scratch".format(
+                                        extraInfo["n_short_jobs_with_copy_to_scratch"], extraInfo["total_jobs_including_short_jobs"]
+                                    )
+                                )
+                            toExhausted = False
                         # go to exhausted
                         if toExhausted:
                             errMsg = "#ATM #KV action=set_exhausted since reason=many_shorter_jobs "
@@ -1318,10 +1335,10 @@ class TaskUtilsModule(BaseModule):
                                 "{}/{} jobs (greater than {}0%, excluding {} jobs forced "
                                 "to run with copy-to-scratch) ran faster than {} min, "
                                 "and the expected num of jobs min({} file-based, {} event-based) exceeds {} {}".format(
-                                    extraInfo["nShortJobs"],
-                                    extraInfo["nTotalForShort"],
+                                    (extraInfo["n_all_short_jobs"] - extraInfo["n_short_jobs_with_copy_to_scratch"]),
+                                    extraInfo["total_jobs_including_short_jobs"],
                                     maxShortJobs,
-                                    extraInfo["nShortJobsWithCtoS"],
+                                    extraInfo["n_short_jobs_with_copy_to_scratch"],
                                     extraInfo["shortExecTime"],
                                     extraInfo["expectedNumJobs"],
                                     extraInfo["expectedNumJobsWithEvent"],
