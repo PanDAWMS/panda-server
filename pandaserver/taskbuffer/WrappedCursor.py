@@ -62,6 +62,8 @@ def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
         )
         # NVL
         sql = re.sub(r"NVL\(", r"COALESCE(", sql, flags=re.IGNORECASE)
+        # INSTR
+        sql = re.sub(r"INSTR\(", r"STRPOS(", sql, flags=re.IGNORECASE)
         # random
         sql = re.sub(r"DBMS_RANDOM.value", r"RANDOM()", sql, flags=re.IGNORECASE)
         # MINUS

@@ -1359,3 +1359,59 @@ def get_detailed_info(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
     tmp_logger.debug("Done")
     return generate_response(True, data=task_info)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_parent_detailed_info(req: PandaRequest, task_id: int) -> Dict[str, Any]:
+    """
+    Get detailed parent task info
+
+    Resolve the parent task from a given child task and return only the parent
+    detailed information. Requires a secure connection.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/task/get_parent_detailed_info
+
+    Args:
+        req(PandaRequest): internally generated request object
+        task_id(int): child JEDI task ID
+
+    Returns:
+        dict: The system response ``{"success": success, "message": message, "data": data}``.
+              On success the ``data`` field contains the parent task details.
+              On failure ``success`` is False with a message distinguishing:
+              child-not-found, no-parent, parent-not-found, or retrieval error.
+    """
+    tmp_logger = LogWrapper(_logger, f"get_parent_detailed_info < child_task_id={task_id} >")
+    tmp_logger.debug("Start")
+
+    try:
+        task_id = int(task_id)
+    except Exception:
+        tmp_logger.error("Failed due to invalid task_id")
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    # Resolve parent and retrieve details in one DB-helper call.
+    resolve_status, parent_task_id, task_info = global_task_buffer.get_task_details_json(
+        task_id,
+        resolve_parent=True,
+        include_resolve_status=True,
+    )
+    tmp_logger.debug(f"resolve_parent status={resolve_status} child={task_id} parent={parent_task_id}")
+
+    if resolve_status == "child_not_found":
+        tmp_logger.error(f"Child task not found child={task_id} parent={parent_task_id}")
+        return generate_response(False, message="Child task not found")
+    if resolve_status == "no_parent":
+        tmp_logger.error(f"No valid parent task child={task_id} parent={parent_task_id}")
+        return generate_response(False, message="No parent task found")
+    if resolve_status == "parent_not_found":
+        tmp_logger.error(f"Parent task not found child={task_id} parent={parent_task_id}")
+        return generate_response(False, message="Parent task not found")
+    if resolve_status in ["target_not_found", "error"] or task_info is None:
+        tmp_logger.error(f"Parent task retrieval failed status={resolve_status} child={task_id} parent={parent_task_id}")
+        return generate_response(False, message="Parent task details not found or retrieval error")
+
+    tmp_logger.debug(f"Done child={task_id} parent={parent_task_id}")
+    return generate_response(True, data=task_info)
