@@ -38,6 +38,12 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
     except Exception:
         gracePeriod = 1
 
+    # number of threads
+    try:
+        nThr = int(argv[2])
+    except Exception:
+        nThr = 10
+
     # lock interval in minutes
     lock_interval = 10
 
@@ -175,7 +181,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
         tmpLog.debug(f"start iLoop={iLoop}/{nLoop}")
         start_time = naive_utcnow()
         adderThrList = []
-        nThr = 10
+        # nThr = 10
 
         n_jors_per_batch = 200
 
