@@ -178,7 +178,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
     nLoop = 50
     recover_dataset_update = False
     for iLoop in range(nLoop):
-        tmpLog.debug(f"start iLoop={iLoop}/{nLoop}")
+        tmpLog.debug(f"start iLoop={iLoop}/{nLoop} with {nThr} threads")
         start_time = naive_utcnow()
         adderThrList = []
         # nThr = 10
