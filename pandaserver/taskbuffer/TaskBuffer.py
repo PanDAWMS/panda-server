@@ -995,12 +995,13 @@ class TaskBuffer:
         return retJobs
 
     # get PandaIDs with TaskID
-    def getPandaIDsWithTaskID(self, jediTaskID: int, scout_only: bool = False) -> list[int]:
+    def getPandaIDsWithTaskID(self, jediTaskID: int, scout_only: bool = False, unsuccessful_only: bool = False) -> list[int]:
         """Get PanDA job IDs associated with a JEDI task.
 
         Args:
             jediTaskID: JEDI task ID.
             scout_only: When True, return only scout job IDs.
+            unsuccessful_only: When True, return only job IDs with status failed, cancelled, or closed.
 
         Returns:
             list[int]: PanDA job IDs for the task.
@@ -1008,7 +1009,7 @@ class TaskBuffer:
         # get DBproxy
         with self.proxyPool.get() as proxy:
             # exec
-            retJobs = proxy.getPandaIDsWithTaskID(jediTaskID, scout_only=scout_only)
+            retJobs = proxy.getPandaIDsWithTaskID(jediTaskID, scout_only=scout_only, unsuccessful_only=unsuccessful_only)
         return retJobs
 
     # get full job status

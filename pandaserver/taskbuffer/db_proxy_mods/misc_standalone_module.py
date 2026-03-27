@@ -38,36 +38,45 @@ class MiscStandaloneModule(BaseModule):
         super().__init__(log_stream)
 
     # get PandaIDs with TaskID
-    def getPandaIDsWithTaskID(self, jediTaskID: int, scout_only: bool = False) -> List[int]:
+    def getPandaIDsWithTaskID(self, jediTaskID: int, scout_only: bool = False, unsuccessful_only: bool = False) -> List[int]:
         """Get PanDA job IDs for a task.
 
         Args:
             jediTaskID: JEDI task ID.
             scout_only: When True, return only jobs with the ``sj`` token in the
                 comma-separated ``specialHandling`` field.
+            unsuccessful_only: When True, return only jobs with status in
+                ``failed``, ``cancelled``, or ``closed``.
 
         Returns:
             List[int]: PanDA job IDs found in defined, active, and archived tables.
         """
         comment = " /* DBProxy.getPandaIDsWithTaskID */"
-        tmp_log = self.create_tagged_logger(comment, f"<jediTaskID={jediTaskID} scout_only={scout_only}>")
+        tmp_log = self.create_tagged_logger(comment, f"<jediTaskID={jediTaskID} scout_only={scout_only} unsuccessful_only={unsuccessful_only}>")
         tmp_log.debug("start")
         # SQL
         scout_filter = "AND INSTR(','||NVL(specialHandling, '')||',',',sj,')>0 "
+        unsuccessful_filter = "AND jobStatus IN ('failed','cancelled','closed') "
         sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
         sql += "WHERE jediTaskID=:jediTaskID "
         if scout_only:
             sql += scout_filter
+        if unsuccessful_only:
+            sql += unsuccessful_filter
         sql += "UNION "
         sql += "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
         sql += "WHERE jediTaskID=:jediTaskID "
         if scout_only:
             sql += scout_filter
+        if unsuccessful_only:
+            sql += unsuccessful_filter
         sql += "UNION "
         sql += "SELECT PandaID FROM ATLAS_PANDA.jobsArchived4 "
         sql += "WHERE jediTaskID=:jediTaskID "
         if scout_only:
             sql += scout_filter
+        if unsuccessful_only:
+            sql += unsuccessful_filter
         varMap = {}
         varMap[":jediTaskID"] = jediTaskID
         try:
@@ -86,6 +95,8 @@ class MiscStandaloneModule(BaseModule):
 
             if scout_only:
                 tmp_log.debug(f"found {len(retList)} scout IDs")
+            elif unsuccessful_only:
+                tmp_log.debug(f"found {len(retList)} unsuccessful IDs")
             else:
                 tmp_log.debug(f"found {len(retList)} IDs")
             return retList
