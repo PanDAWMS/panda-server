@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "panda-server-source"
+dynamic = ["version"]
+description = "Unified PanDA Server and JEDI Package - Source Only"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [
+    { name = "PanDA Team", email = "panda-support@cern.ch" },
+]
+dependencies = []
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.urls]
+Homepage = "https://panda-wms.readthedocs.io/en/latest/"
+
+[tool.hatch.version]
+path = "PandaPkgInfo.py"
+pattern = "release_version = \"(?P<version>[^\"]+)\""
+
+[tool.hatch.build]
+directory = "dist-source"
+
+[tool.hatch.build.targets.wheel]
+exclude = ["*.template", "PandaPkgInfo.py", "hatch_build.py"]
+packages = ["pandaserver", "pandajedi"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    ".github",
+    ".idea",
+]
