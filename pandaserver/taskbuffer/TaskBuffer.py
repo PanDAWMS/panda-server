@@ -995,11 +995,21 @@ class TaskBuffer:
         return retJobs
 
     # get PandaIDs with TaskID
-    def getPandaIDsWithTaskID(self, jediTaskID):
+    def getPandaIDsWithTaskID(self, jediTaskID: int, scout_only: bool = False, unsuccessful_only: bool = False) -> list[int]:
+        """Get PanDA job IDs associated with a JEDI task.
+
+        Args:
+            jediTaskID: JEDI task ID.
+            scout_only: When True, return only scout job IDs.
+            unsuccessful_only: When True, return only job IDs with status failed, cancelled, or closed.
+
+        Returns:
+            list[int]: PanDA job IDs for the task.
+        """
         # get DBproxy
         with self.proxyPool.get() as proxy:
             # exec
-            retJobs = proxy.getPandaIDsWithTaskID(jediTaskID)
+            retJobs = proxy.getPandaIDsWithTaskID(jediTaskID, scout_only=scout_only, unsuccessful_only=unsuccessful_only)
         return retJobs
 
     # get full job status
@@ -1673,9 +1683,13 @@ class TaskBuffer:
         return ret
 
     # get task details as a plain dict (read-only, no lock)
-    def get_task_details_json(self, jedi_task_id):
+    def get_task_details_json(self, jedi_task_id, resolve_parent=False, include_resolve_status=False):
         with self.proxyPool.get() as proxy:
-            return proxy.get_task_details_json(jedi_task_id)
+            return proxy.get_task_details_json(
+                jedi_task_id,
+                resolve_parent=resolve_parent,
+                include_resolve_status=include_resolve_status,
+            )
 
     # get a list of even ranges for a PandaID
     def getEventRanges(self, pandaID, jobsetID, jediTaskID, nRanges, acceptJson, scattered, segment_id):

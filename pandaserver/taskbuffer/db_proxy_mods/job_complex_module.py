@@ -183,12 +183,9 @@ class JobComplexModule(BaseModule):
                     elif oldJobStatus == "merging":
                         # don't update merging
                         tmp_log.debug("skip to change from merging")
-                    elif oldJobStatus in ["holding", "transferring"] and jobStatus == "starting":
-                        # don't update holding
+                    elif oldJobStatus in ["holding", "transferring"] and jobStatus in ["running", "starting"]:
+                        # don't update post-processing state
                         tmp_log.debug(f"skip to change {oldJobStatus} to {jobStatus} to avoid inconsistency")
-                    elif oldJobStatus == "holding" and jobStatus == "running":
-                        # don't update holding
-                        tmp_log.debug(f"skip to change {oldJobStatus} to {jobStatus} not to return to active")
                     elif (
                         batchID not in ["", None]
                         and "batchID" in param

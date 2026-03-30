@@ -287,7 +287,7 @@ def decode_split_rule(split_rules: str) -> str:
             # unknown / non-standard token kept verbatim
             result_parts.append(parts[1])
         else:
-            value = ",".join(parts[1:])
+            value = "_".join(parts[1:])
             name = tag_to_name.get(tag, tag)  # fall back to raw tag if unknown
             result_parts.append(f"{name}={value}")
 

@@ -1843,25 +1843,102 @@ class TaskUtilsModule(BaseModule):
             self.dump_error_message(tmpLog)
             return failedRet
 
+    # resolve parent task id for a child task
+    def _resolve_parent_task_id(self, jedi_task_id: int) -> tuple[str, int | None]:
+        """
+        Resolve parent task ID for a given child task.
+
+        Returns a tuple ``(status, parent_task_id)`` where status is one of:
+            "ok"               : parent task id exists and parent row exists
+            "child_not_found"  : child task does not exist
+            "no_parent"        : parent_tid is NULL or self-referential
+            "parent_not_found" : parent_tid exists but parent row is missing
+            "error"            : database/system error while resolving
+        """
+        comment = " /* DBProxy._resolve_parent_task_id */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log.debug("start")
+        try:
+            sql_child = f"SELECT parent_tid FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+            sql_parent = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:parentTaskID "
+
+            self.conn.begin()
+            self.cur.execute(sql_child + comment, {":jediTaskID": jedi_task_id})
+            res_child = self.cur.fetchone()
+
+            if res_child is None:
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                tmp_log.debug("done with child_not_found")
+                return "child_not_found", None
+
+            (parent_task_id,) = res_child
+            if parent_task_id in [None, jedi_task_id]:
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                tmp_log.debug(f"done with no_parent parent={parent_task_id}")
+                return "no_parent", parent_task_id
+
+            self.cur.execute(sql_parent + comment, {":parentTaskID": parent_task_id})
+            res_parent = self.cur.fetchone()
+            if not self._commit():
+                raise RuntimeError("Commit error")
+
+            if res_parent is None:
+                tmp_log.debug(f"done with parent_not_found parent={parent_task_id}")
+                return "parent_not_found", parent_task_id
+
+            tmp_log.debug(f"done with ok parent={parent_task_id}")
+            return "ok", parent_task_id
+        except Exception:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            return "error", None
+
     # get task details as a JSON-serializable dict
-    def get_task_details_json(self, jedi_task_id: int) -> dict | None:
+    def get_task_details_json(self, jedi_task_id: int, resolve_parent: bool = False, include_resolve_status: bool = False):
         """
         Read-only helper that returns task info for jedi_task_id as a plain dict.
 
         Similar to getTaskWithID_JEDI but:
         - Does NOT lock the task record (no FOR UPDATE).
         - Returns a plain dict instead of a JediTaskSpec object.
+        - Can resolve parent task details when ``resolve_parent=True``.
         - Adds two extra keys to the dict:
             job_execution_params    : template string to execute a job (or None)
             task_creation_arguments : command-line arguments to create the job if applicable (or None)
 
-        Returns None when the task is not found or on error.
+        Args:
+            jedi_task_id: child task ID by default. When ``resolve_parent=True``, this is
+                treated as child task ID used to resolve and fetch the parent task details.
+            resolve_parent: when True, resolve parent_tid and return only parent task details.
+                Returns None if child doesn't exist, no valid parent exists, parent row is
+                missing, or any error occurs.
+            include_resolve_status: when True, return a tuple
+                ``(status, parent_task_id, task_dict_or_none)`` where ``status`` is one of
+                ``ok``, ``child_not_found``, ``no_parent``, ``parent_not_found``,
+                ``target_not_found``, or ``error``.
+
+        Returns None when the target task is not found or on error.
         """
         comment = " /* DBProxy.get_task_details_json */"
-        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} resolve_parent={resolve_parent}")
         tmp_log.debug("start")
         try:
-            var_map = {":jediTaskID": jedi_task_id}
+            target_task_id = jedi_task_id
+            resolve_status = "ok"
+            parent_task_id = None
+            if resolve_parent:
+                resolve_status, parent_task_id = self._resolve_parent_task_id(jedi_task_id)
+                if resolve_status != "ok":
+                    tmp_log.debug(f"resolve_parent failed status={resolve_status} child={jedi_task_id} parent={parent_task_id}")
+                    if include_resolve_status:
+                        return resolve_status, parent_task_id, None
+                    return None
+                target_task_id = parent_task_id
+                tmp_log.debug(f"resolved parent child={jedi_task_id} parent={target_task_id}")
+
+            var_map = {":jediTaskID": target_task_id}
 
             # --- read the main task row (no locking) ---
             sql = f"SELECT {JediTaskSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
@@ -1873,7 +1950,13 @@ class TaskUtilsModule(BaseModule):
                 raise RuntimeError("Commit error")
 
             if res is None:
-                tmp_log.debug("task not found")
+                if resolve_parent:
+                    tmp_log.debug(f"parent task not found child={jedi_task_id} parent={target_task_id}")
+                else:
+                    tmp_log.debug("task not found")
+                if include_resolve_status:
+                    status = "target_not_found" if resolve_parent else "task_not_found"
+                    return status, target_task_id, None
                 return None
 
             # build flat dict from the DB row
@@ -1903,11 +1986,15 @@ class TaskUtilsModule(BaseModule):
                 tmp_log.warning("failed to read taskParams")
 
             tmp_log.debug("done")
+            if include_resolve_status:
+                return "ok", target_task_id, task_dict
             return task_dict
 
         except Exception:
             self._rollback()
             self.dump_error_message(tmp_log)
+            if include_resolve_status:
+                return "error", None, None
             return None
 
     # check parent task status
