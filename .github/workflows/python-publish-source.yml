@@ -1,6 +1,7 @@
 name: PyPI - Upload PanDA Server Source Package
 
 on:
+  workflow_dispatch:
   release:
     types: [created]
 
