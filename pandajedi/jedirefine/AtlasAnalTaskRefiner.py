@@ -241,11 +241,11 @@ class AtlasAnalTaskRefiner(TaskRefinerBase):
             self.taskSpec.reqID = tmpJobID
             # site limitation
             if "excludedSite" in taskParamMap and "includedSite" in taskParamMap:
-                self.taskSpec.setLimitedSites("incexc")
+                self.taskSpec.setLimitedSites("with_allow_and_denylist")
             elif "excludedSite" in taskParamMap:
-                self.taskSpec.setLimitedSites("exc")
+                self.taskSpec.setLimitedSites("with_denylist")
             elif "includedSite" in taskParamMap:
-                self.taskSpec.setLimitedSites("inc")
+                self.taskSpec.setLimitedSites("with_allowlist")
             # input prestaging
             if self.taskSpec.inputPreStaging():
                 # set first contents feed flag
