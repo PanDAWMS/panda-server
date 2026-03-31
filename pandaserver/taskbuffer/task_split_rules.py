@@ -111,6 +111,39 @@ split_rule_dict = {
     "nMaxFilesPerMergeJob": "ZM",
 }
 
+# value→label mappings for split rule tokens with enumerated values
+# dict-form enums (single source of truth; referenced back by JediTaskSpec)
+enum_limitedSites = {"1": "with_allowlist", "2": "with_denylist", "3": "with_allow_and_denylist"}
+enum_ipConnectivity = {"1": "full", "2": "http"}
+enum_ipStack = {"4": "IPv4", "6": "IPv6"}
+enum_altStageOut = {"1": "on", "2": "off", "3": "force"}
+enum_inputLAN = {"1": "use", "2": "only"}
+
+# decode dicts for tokens whose JediTaskSpec counterparts are scalar constants or class-based enums
+enum_useScout = {"1": "no_use", "2": "will_update_requirements", "3": "updated_requirements"}
+enum_usePrePro = {"1": "toPreProcess", "2": "preProcessed", "3": "postPProcess"}
+enum_registerDatasets = {"1": "registering", "2": "registered"}
+enum_inputPreStaging = {"0": "notUse", "1": "use"}  # inverted vs JediTaskSpec's label→value dict
+enum_firstContentsFeed = {"0": "False", "1": "True"}
+enum_fullChain = {"1": "only", "2": "require", "3": "capable"}
+enum_orderInputBy = {"1": "eventsAlignment"}
+
+# maps 2-letter split rule tags to their value→label dicts (used by decode_split_rule)
+split_rule_value_dict = {
+    "US": enum_useScout,
+    "LS": enum_limitedSites,
+    "IP": enum_ipConnectivity,
+    "IK": enum_ipStack,
+    "AT": enum_altStageOut,
+    "IL": enum_inputLAN,
+    "UP": enum_usePrePro,
+    "RD": enum_registerDatasets,
+    "IS": enum_inputPreStaging,
+    "FC": enum_firstContentsFeed,
+    "FU": enum_fullChain,
+    "OI": enum_orderInputBy,
+}
+
 # changeable split rules
 changeable_split_rule_names = [
     "allowIncompleteInDS",
@@ -289,7 +322,8 @@ def decode_split_rule(split_rules: str) -> str:
         else:
             value = "_".join(parts[1:])
             name = tag_to_name.get(tag, tag)  # fall back to raw tag if unknown
-            result_parts.append(f"{name}={value}")
+            label = split_rule_value_dict.get(tag, {}).get(value, value)
+            result_parts.append(f"{name}={label}")
 
     return ",".join(result_parts)
 
