@@ -113,27 +113,30 @@ class JediTaskSpec(object):
     # tokens for split rule
     splitRuleToken = task_split_rules.split_rule_dict
 
-    # enum for preprocessing
-    enum_toPreProcess = "1"
-    enum_preProcessed = "2"
-    enum_postPProcess = "3"
-    # enum for limited sites
-    enum_limitedSites = {"1": "inc", "2": "exc", "3": "incexc"}
-    # enum for scout
-    enum_noScout = "1"
-    enum_useScout = "2"
-    enum_postScout = "3"
-    # enum for dataset registration
-    enum_toRegisterDS = "1"
-    enum_registeredDS = "2"
-    # enum for IP connectivity
-    enum_ipConnectivity = {"1": "full", "2": "http"}
-    # enum for IP stack
-    enum_ipStack = {"4": "IPv4", "6": "IPv6"}
-    # enum for alternative stage-out
-    enum_altStageOut = {"1": "on", "2": "off", "3": "force"}
-    # enum for local direct access
-    enum_inputLAN = {"1": "use", "2": "only"}
+    # enum for preprocessing (derived from task_split_rules.enum_usePrePro)
+    _inv = {v: k for k, v in task_split_rules.enum_usePrePro.items()}
+    enum_toPreProcess = _inv["toPreProcess"]
+    enum_preProcessed = _inv["preProcessed"]
+    enum_postPProcess = _inv["postPProcess"]
+    # enum for limited sites (single source of truth in task_split_rules)
+    enum_limitedSites = task_split_rules.enum_limitedSites
+    # enum for scout (derived from task_split_rules.enum_useScout)
+    _inv = {v: k for k, v in task_split_rules.enum_useScout.items()}
+    enum_noScout = _inv["no_use"]
+    enum_useScout = _inv["will_update_requirements"]
+    enum_postScout = _inv["updated_requirements"]
+    # enum for dataset registration (derived from task_split_rules.enum_registerDatasets)
+    _inv = {v: k for k, v in task_split_rules.enum_registerDatasets.items()}
+    enum_toRegisterDS = _inv["registering"]
+    enum_registeredDS = _inv["registered"]
+    # enum for IP connectivity (single source of truth in task_split_rules)
+    enum_ipConnectivity = task_split_rules.enum_ipConnectivity
+    # enum for IP stack (single source of truth in task_split_rules)
+    enum_ipStack = task_split_rules.enum_ipStack
+    # enum for alternative stage-out (single source of truth in task_split_rules)
+    enum_altStageOut = task_split_rules.enum_altStageOut
+    # enum for local direct access (single source of truth in task_split_rules)
+    enum_inputLAN = task_split_rules.enum_inputLAN
     # world cloud name
     worldCloudName = "WORLD"
 
@@ -145,8 +148,8 @@ class JediTaskSpec(object):
     # enum for useJumbo
     enum_useJumbo = {"waiting": "W", "running": "R", "pending": "P", "lack": "L", "disabled": "D"}
 
-    # enum for input prestaging
-    enum_inputPreStaging = {"use": "1", "notUse": "0"}
+    # enum for input prestaging (inverted from task_split_rules.enum_inputPreStaging)
+    enum_inputPreStaging = {v: k for k, v in task_split_rules.enum_inputPreStaging.items()}
 
     # enum for full chain
     class FullChain(str, enum.Enum):
