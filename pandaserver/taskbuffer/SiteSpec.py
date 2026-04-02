@@ -4,6 +4,7 @@ site specification
 """
 
 import re
+from typing import Any
 
 catchall_keys = {
     k: k
@@ -79,6 +80,7 @@ class SiteSpec(object):
         "num_slots_map",
         "workflow",
         "maxDiskio",
+        "extra_queue_params",
     )
 
     # constructor
@@ -109,11 +111,17 @@ class SiteSpec(object):
 
     # get value from catchall
     def getValueFromCatchall(self, key):
-        if self.catchall is None:
-            return None
+        # check if the key is valid
         if key not in catchall_keys:
             return None
         key = catchall_keys[key]
+        # first get the value if the key is defined as an extra queue parameter
+        has_value, value = self.get_extra_queue_param(key)
+        if has_value:
+            return value
+        # next get the value if the key is defined in the catchall field
+        if self.catchall is None:
+            return None
         for tmpItem in self.catchall.split(","):
             tmpMatch = re.search(f"^{key}=(.+)", tmpItem)
             if tmpMatch is not None:
@@ -122,16 +130,35 @@ class SiteSpec(object):
 
     # has value in catchall
     def hasValueInCatchall(self, key):
-        if self.catchall is None:
-            return False
+        # check if the key is valid
         if key not in catchall_keys:
             return False
         key = catchall_keys[key]
+        # first check if the key is defined as an extra queue parameter
+        has_value, _ = self.get_extra_queue_param(key)
+        if has_value:
+            return True
+        # next check if the key is defined in the catchall field
+        if self.catchall is None:
+            return False
         for tmpItem in self.catchall.split(","):
             tmpMatch = re.search(f"^{key}(=|)*", tmpItem)
             if tmpMatch is not None:
                 return True
         return False
+
+    # get extra queue paramaeter
+    def get_extra_queue_param(self, name: str) -> tuple[bool, None | Any]:
+        """
+        Get an extra queue parameter by name.
+        Arguments:
+            name: The name of the extra queue parameter to retrieve.
+        Returns:
+            A tuple containing a boolean indicating whether the parameter exists and its value (or None if it does not exist).
+        """
+        if not self.extra_queue_params or name not in self.extra_queue_params:
+            return False, None
+        return True, self.extra_queue_params[name]
 
     # allow WAN input access
     def allowWanInputAccess(self):
