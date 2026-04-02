@@ -1774,19 +1774,20 @@ class AtlasProdJobBroker(JobBrokerBase):
             tmpRTrunning = 0
             resource_type_str = taskSpec.resource_type
             if tmpSiteName in tmpStatMapRT:
-                useCapRT = True
                 # loop over all resource types for the site since task and job may have different resource types
                 tmp_resource_types = site_resource_type_map.get(tmpSiteName, [taskSpec.resource_type])
                 resource_type_str = ",".join(tmp_resource_types)
                 for tmp_resource_type in tmp_resource_types:
                     if tmp_resource_type in tmpStatMapRT[tmpSiteName]:
-                        tmp_running = tmpStatMapRT[tmpSiteName][tmp_resource_type].get("running", 0)
-                        tmpRTrunning += max(tmp_running, nRunning)
+                        useCapRT = True
+                        tmpRTrunning += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("running", 0)                        
                         tmpRTqueue += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("defined", 0)
                         if useAssigned:
                             tmpRTqueue += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("assigned", 0)
                         tmpRTqueue += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("activated", 0)
                         tmpRTqueue += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("starting", 0)
+                if useCapRT:
+                    tmpRTrunning = max(tmpRTrunning, nRunning)
             if totalSize == 0 or totalSize - siteSizeMap[tmpSiteName] <= 0:
                 weight = float(nRunning + 1) / float(nActivated + nStarting + nDefined + 10)
                 weightStr = (
