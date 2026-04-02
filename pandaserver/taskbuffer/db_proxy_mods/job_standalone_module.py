@@ -2638,3 +2638,51 @@ class JobStandaloneModule(BaseModule):
             # error
             self.dump_error_message(tmp_log)
             return False, "database error"
+
+    def get_distinct_resource_types_per_site(self, jedi_task_id: int, threshold: float = 20.0) -> dict[str, set[str]]:
+        """Get distinct resource types per computingSite from jobsActive4 and jobsDefined4 for a given task,
+        ignoring resource types whose share of total jobs at that site is below the threshold percentage.
+
+        :param jedi_task_id: the jediTaskID to filter jobs by
+        :param threshold: minimum percentage (0.0~100.0) of site jobs required to include a resource type (0.0 = no filtering)
+        :return: dict mapping computingSite to a set of resource_type strings, or empty dict on error
+        """
+        comment = " /* DBProxy.get_distinct_resource_types_per_site */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("start")
+        try:
+            # start transaction
+            self.conn.begin()
+            var_map = {":jediTaskID": jedi_task_id}
+            sql = (
+                "SELECT computingSite, resource_type, COUNT(*) "
+                "FROM ATLAS_PANDA.jobsActive4 "
+                "WHERE jediTaskID=:jediTaskID AND resource_type IS NOT NULL "
+                "GROUP BY computingSite, resource_type "
+                "UNION ALL "
+                "SELECT computingSite, resource_type, COUNT(*) "
+                "FROM ATLAS_PANDA.jobsDefined4 "
+                "WHERE jediTaskID=:jediTaskID AND resource_type IS NOT NULL "
+                "GROUP BY computingSite, resource_type"
+            )
+            self.cur.execute(sql + comment, var_map)
+            res = self.cur.fetchall()
+            # aggregate counts per (site, resource_type) across both tables
+            count_map: dict[tuple[str, str], int] = {}
+            site_totals: dict[str, int] = {}
+            for computing_site, resource_type, cnt in res:
+                count_map[(computing_site, resource_type)] = count_map.get((computing_site, resource_type), 0) + cnt
+                site_totals[computing_site] = site_totals.get(computing_site, 0) + cnt
+            # apply percentage threshold
+            ret: dict[str, set[str]] = {}
+            for (computing_site, resource_type), cnt in count_map.items():
+                if cnt * 100.0 / site_totals[computing_site] >= threshold:
+                    ret.setdefault(computing_site, set()).add(resource_type)
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug(f"done, {len(ret)} sites found")
+            return ret
+        except Exception:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            return {}
