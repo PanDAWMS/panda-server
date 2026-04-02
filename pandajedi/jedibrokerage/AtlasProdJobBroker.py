@@ -1679,6 +1679,8 @@ class AtlasProdJobBroker(JobBrokerBase):
             tmpLog.error("failed to get job statistics with priority")
             taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
             return retTmpError
+        # get resource types per site
+        site_resource_type_map = self.taskBufferIF.get_distinct_resource_types_per_site(taskSpec.jediTaskID)
         workerStat = self.taskBufferIF.ups_load_worker_stats()
         upsQueues = set(self.taskBufferIF.ups_get_queues())
         tmpLog.info(f"calculate weight and check cap for {len(scanSiteList)} candidates")
@@ -1767,31 +1769,37 @@ class AtlasProdJobBroker(JobBrokerBase):
                 useAssigned = True
             # stat with resource type
             RT_Cap = 2
-            if tmpSiteName in tmpStatMapRT and taskSpec.resource_type in tmpStatMapRT[tmpSiteName]:
-                useCapRT = True
-                tmpRTrunning = tmpStatMapRT[tmpSiteName][taskSpec.resource_type].get("running", 0)
-                tmpRTrunning = max(tmpRTrunning, nRunning)
-                tmpRTqueue = tmpStatMapRT[tmpSiteName][taskSpec.resource_type].get("defined", 0)
-                if useAssigned:
-                    tmpRTqueue += tmpStatMapRT[tmpSiteName][taskSpec.resource_type].get("assigned", 0)
-                tmpRTqueue += tmpStatMapRT[tmpSiteName][taskSpec.resource_type].get("activated", 0)
-                tmpRTqueue += tmpStatMapRT[tmpSiteName][taskSpec.resource_type].get("starting", 0)
-            else:
-                useCapRT = False
-                tmpRTqueue = 0
-                tmpRTrunning = 0
+            useCapRT = False
+            tmpRTqueue = 0
+            tmpRTrunning = 0
+            resource_type_str = taskSpec.resource_type
+            if tmpSiteName in tmpStatMapRT:
+                # loop over all resource types for the site since task and job may have different resource types
+                tmp_resource_types = site_resource_type_map.get(tmpSiteName, [taskSpec.resource_type])
+                resource_type_str = ",".join(tmp_resource_types)
+                for tmp_resource_type in tmp_resource_types:
+                    if tmp_resource_type in tmpStatMapRT[tmpSiteName]:
+                        useCapRT = True
+                        tmpRTrunning += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("running", 0)                        
+                        tmpRTqueue += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("defined", 0)
+                        if useAssigned:
+                            tmpRTqueue += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("assigned", 0)
+                        tmpRTqueue += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("activated", 0)
+                        tmpRTqueue += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("starting", 0)
+                if useCapRT:
+                    tmpRTrunning = max(tmpRTrunning, nRunning)
             if totalSize == 0 or totalSize - siteSizeMap[tmpSiteName] <= 0:
                 weight = float(nRunning + 1) / float(nActivated + nStarting + nDefined + 10)
                 weightStr = (
                     f"nRun={nRunning} nAct={nActivated} nStart={nStarting} nDef={nDefined} nPilot={nPilot}{corrNumPilotStr} "
-                    f"totalSizeMB={int(totalSize / 1024 / 1024)} totalNumFiles={maxNumFiles} nRun_rt={tmpRTrunning} nQueued_rt={tmpRTqueue} "
+                    f"totalSizeMB={int(totalSize / 1024 / 1024)} totalNumFiles={maxNumFiles} nRun_rt={tmpRTrunning} nQueued_rt={tmpRTqueue} resource_type={resource_type_str} "
                 )
             else:
                 weight = float(nRunning + 1) / float(nActivated + nAssigned + nStarting + nDefined + 10) / manyAssigned
                 weightStr = (
                     f"nRun={nRunning} nAct={nActivated} nAss={nAssigned} nStart={nStarting} nDef={nDefined} manyAss={manyAssigned} "
                     f"nPilot={nPilot}{corrNumPilotStr} totalSizeMB={int(totalSize / 1024 / 1024)} "
-                    f"totalNumFiles={maxNumFiles} nRun_rt={tmpRTrunning} nQueued_rt={tmpRTqueue} "
+                    f"totalNumFiles={maxNumFiles} nRun_rt={tmpRTrunning} nQueued_rt={tmpRTqueue} resource_type={resource_type_str} "
                 )
 
             # reduce weights by taking data availability into account
@@ -1954,7 +1962,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     ngMsg += f"nDefined_rt+nActivated_rt+nAssigned_rt+nStarting_rt={tmpRTqueue} "
                 else:
                     ngMsg += f"nDefined_rt+nActivated_rt+nStarting_rt={tmpRTqueue} (nAssigned_rt ignored due to data locally available) "
-                ngMsg += "with gshare+resource_type is greater than max({cutOffValue},{RT_Cap}*nRun_rt={RT_Cap}*{tmpRTrunning}) criteria=-cap_rt"
+                ngMsg += f"with gshare+resource_type is greater than max({cutOffValue},{RT_Cap}*nRun_rt={RT_Cap}*{tmpRTrunning}) criteria=-cap_rt"
             elif (
                 nRunning + nActivated + nAssigned + nStarting + nDefined == 0
                 and taskSpec.currentPriority <= self.max_prio_for_bootstrap
