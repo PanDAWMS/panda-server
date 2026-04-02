@@ -1987,6 +1987,9 @@ class EntityModule(BaseModule):
                             if ret.maxinputsize:
                                 ret.maxinputsize = ret.maxinputsize
 
+                        # extra parameters for the queue
+                        ret.extra_queue_params = queue_data.get("params", {})
+
                         # append
                         retList[ret.nickname] = ret
                     except Exception:
