@@ -1962,7 +1962,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     ngMsg += f"nDefined_rt+nActivated_rt+nAssigned_rt+nStarting_rt={tmpRTqueue} "
                 else:
                     ngMsg += f"nDefined_rt+nActivated_rt+nStarting_rt={tmpRTqueue} (nAssigned_rt ignored due to data locally available) "
-                ngMsg += "with gshare+resource_type is greater than max({cutOffValue},{RT_Cap}*nRun_rt={RT_Cap}*{tmpRTrunning}) criteria=-cap_rt"
+                ngMsg += f"with gshare+resource_type is greater than max({cutOffValue},{RT_Cap}*nRun_rt={RT_Cap}*{tmpRTrunning}) criteria=-cap_rt"
             elif (
                 nRunning + nActivated + nAssigned + nStarting + nDefined == 0
                 and taskSpec.currentPriority <= self.max_prio_for_bootstrap
