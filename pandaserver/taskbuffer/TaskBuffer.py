@@ -2875,6 +2875,11 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.upsert_workflow_entities(workflow_id, actions_dict, workflow_spec, step_specs, data_specs)
 
+    def get_distinct_resource_types_per_site(self, jedi_task_id, threshold=20.0):
+        with self.proxyPool.get() as proxy:
+            ret = proxy.get_distinct_resource_types_per_site(jedi_task_id, threshold)
+        return ret
+
     # ==========================================================
 
 
