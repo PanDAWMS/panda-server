@@ -285,12 +285,8 @@ class SiteMapper:
         if cloud == WORLD_CLOUD:
             return self.worldCloudSpec
 
-        # return some default sites
-        default_cloud = {
-            "source": "default",
-            "sites": self.cloudSpec["US"]["sites"],
-        }
-        return default_cloud
+        # return all sites (WORLD) as fallback for unknown clouds
+        return self.worldCloudSpec
 
     # accessor for cloud
     def checkCloud(self, cloud):
