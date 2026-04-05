@@ -1503,6 +1503,8 @@ class JobGeneratorThread(WorkerThread):
                     # on-site merging
                     if taskSpec.on_site_merging():
                         jobSpec.set_on_site_merging()
+                    if inputChunk.isMerging:
+                        jobSpec.set_pmerge_job_flag()
                     # set task queued time
                     jobSpec.set_task_queued_time(task_queued_time)
                     # extract middle name
@@ -1985,6 +1987,7 @@ class JobGeneratorThread(WorkerThread):
             specialHandling = specialHandling[:-1]
             if specialHandling != "":
                 jobSpec.specialHandling = specialHandling
+            jobSpec.set_build_job_flag()
             jobSpec.set_task_queued_time(taskSpec.get_queued_time())
             libDsFileNameBase = libDsName + ".$JEDIFILEID"
             # make lib.tgz
