@@ -125,6 +125,7 @@ try:
         with open(name) as f:
             data = json.load(f)
             data_dict[data["client_id"]] = data
+            data_dict[data["audience"]] = data
             if "secondary_ids" in data:
                 for tmp_id in data["secondary_ids"]:
                     data_dict[tmp_id] = data

@@ -46,6 +46,31 @@ for mod, func_list in endpoints_to_expose.items():
 # get HTTP app
 http_app = main_mcp.http_app(transport=mcp_config.transport)
 
+LOG_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s %(levelname)s %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+        "access": {
+            "format": "%(asctime)s %(levelname)s %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    },
+    "handlers": {
+        "default": {"class": "logging.StreamHandler", "stream": "ext://sys.stdout", "formatter": "default"},
+        "access": {"class": "logging.StreamHandler", "stream": "ext://sys.stdout", "formatter": "access"},
+        "error": {"class": "logging.StreamHandler", "stream": "ext://sys.stderr", "formatter": "default"},
+    },
+    "loggers": {
+        "uvicorn": {"handlers": ["default"], "level": "INFO", "propagate": False},
+        "uvicorn.error": {"handlers": ["error"], "level": "INFO", "propagate": False},
+        "uvicorn.access": {"handlers": ["access"], "level": "INFO", "propagate": False},
+    },
+}
+
 if __name__ == "__main__":
     uvicorn.run(
         http_app,
@@ -53,4 +78,5 @@ if __name__ == "__main__":
         port=int(os.getenv("PANDA_SERVER_CONF_PORT_MCP", 25888)),
         ssl_keyfile=mcp_config.ssl_keyfile,
         ssl_certfile=mcp_config.ssl_certfile,
+        log_config=LOG_CONFIG,
     )

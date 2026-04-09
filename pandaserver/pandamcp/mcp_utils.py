@@ -4,9 +4,12 @@ from collections.abc import Callable
 
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.tools.tool import Tool
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.api.v1.http_client import HttpClient, api_url, api_url_ssl
+from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 from pandaserver.srvcore.panda_request import PandaRequest
+
+logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 def create_tool(func: Callable) -> Tool:
@@ -33,10 +36,7 @@ def create_tool(func: Callable) -> Tool:
     if http_method is None:
         raise ValueError("HTTP Method not specified in the function docstring")
 
-    if http_method == "get":
-        url = f"{api_url}/{mod_name}/{func.__name__}"
-    else:
-        url = f"{api_url_ssl}/{mod_name}/{func.__name__}"
+    url = f"{api_url_ssl}/{mod_name}/{func.__name__}"
 
     # remove PandaRequest from the signature and annotations
     sig = inspect.signature(func)
@@ -55,9 +55,9 @@ def create_tool(func: Callable) -> Tool:
         nonlocal url, http_method
         # extract the id_token and auth_vo from the headers
         original_headers = get_http_headers()
-        id_token = original_headers.get("authorization")
+        id_token = original_headers.get("x-auth-token") or original_headers.get("authorization")
         if id_token and id_token.startswith("Bearer "):
-            id_token = original_headers["authorization"].split(" ")[1]
+            id_token = id_token.split(" ")[1]
         auth_vo = original_headers.get("origin")
         oidc = id_token is not None
 
@@ -65,6 +65,11 @@ def create_tool(func: Callable) -> Tool:
         http_client = HttpClient()
         http_client.override_oidc(oidc, id_token, auth_vo)
         status, output = getattr(http_client, http_method)(url, kwarg)
+
+        # Check for issues processing the request
+        if status != 0:
+            raise RuntimeError(output)
+
         return output
 
     # set the signature and annotations to the wrapped function to align with the original API call
