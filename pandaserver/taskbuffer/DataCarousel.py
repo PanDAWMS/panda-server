@@ -2119,6 +2119,10 @@ class DataCarouselInterface(object):
             if ret:
                 tmp_log.info(f"updated DB about staging; status={dc_req_spec.status}")
                 is_ok = True
+            else:
+                err_msg = f"failed to update DB about staging; skipped"
+                tmp_log.error(err_msg)
+                return is_ok, err_msg, dc_req_spec
             # log for monitoring
             tmp_log.info(
                 f"started staging "
@@ -2129,8 +2133,15 @@ class DataCarouselInterface(object):
                 f"task_user={dc_req_spec.get_parameter('task_user')} task_group={dc_req_spec.get_parameter('task_group')} "
                 f"to_pin={dc_req_spec.get_parameter('to_pin')}"
             )
-        # to iDDS staging requests
-        if is_ok and submit_idds_request:
+        # update staged files in DB for to_pin requests (since required files are already on datadisk even if the dataset is still staging)
+        if is_ok and dc_req_spec.get_parameter("to_pin"):
+            tmp_ret = self._update_staged_files(dc_req_spec)
+            if tmp_ret:
+                tmp_log.debug(f"request_id={dc_req_spec.request_id} has to_pin; updated staged files")
+            else:
+                tmp_log.warning(f"request_id={dc_req_spec.request_id} has to_pin; failed to update staged files ; skipped")
+        # to iDDS staging requests (no need to submit iDDS request for to_pin requests since required files are already on datadisk)
+        if is_ok and submit_idds_request and not dc_req_spec.get_parameter("to_pin"):
             # get all tasks related to this request
             task_id_list = self._get_related_tasks(dc_req_spec.request_id)
             if task_id_list:
