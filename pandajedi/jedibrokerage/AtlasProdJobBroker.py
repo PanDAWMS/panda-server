@@ -1427,8 +1427,8 @@ class AtlasProdJobBroker(JobBrokerBase):
             if not scanSiteList:
                 self.dump_summary(tmpLog)
                 tmpLog.error("no candidates")
-                retVal = retTmpError
-                continue
+                taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
+                return retTmpError
 
         ######################################
         # selection for full chain
