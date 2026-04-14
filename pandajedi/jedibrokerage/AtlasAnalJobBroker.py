@@ -765,7 +765,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 for tmpSiteName in scanSiteList:
                     tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                     max_io_intensity = tmpSiteSpec.get_max_io_intensity()
-                    if max_io_intensity and taskSpec.ioIntensity <= max_io_intensity:
+                    if max_io_intensity is None or taskSpec.ioIntensity <= max_io_intensity:
                         newScanSiteList.append(tmpSiteName)
                     else:
                         msg_map[tmpSiteSpec.get_unified_name()] = (
