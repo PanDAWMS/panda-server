@@ -354,7 +354,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                                 write_wan_status = tmpEP["detailed_status"].get("write_wan")
                                 if write_wan_status in ["OFF", "TEST"]:
                                     tmpLog.info(
-                                        f"  skip nucleus={tmpNucleus} since {tmp_ddm_endpoint_name} has write_wan={read_wan_status} criteria=-destination_blacklist"
+                                        f"  skip nucleus={tmpNucleus} since {tmp_ddm_endpoint_name} has write_wan={write_wan_status} criteria=-destination_blacklist"
                                     )
                                     to_skip = True
                                     break
