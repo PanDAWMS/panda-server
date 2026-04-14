@@ -1407,6 +1407,30 @@ class AtlasProdJobBroker(JobBrokerBase):
             return retTmpError
 
         ######################################
+        # selection with IO intensity
+        if taskSpec.ioIntensity and not inputChunk.isMerging:
+            newScanSiteList = []
+            oldScanSiteList = copy.copy(scanSiteList)
+            msg_map = {}
+            for tmpSiteName in scanSiteList:
+                tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
+                max_io_intensity = tmpSiteSpec.get_max_io_intensity()
+                if max_io_intensity and taskSpec.ioIntensity <= max_io_intensity:
+                    newScanSiteList.append(tmpSiteName)
+                else:
+                    msg_map[tmpSiteSpec.get_unified_name()] = (
+                        f"  skip site={tmpSiteSpec.get_unified_name()} since ioIntensity={taskSpec.ioIntensity} "
+                        f"is larger than site max_io_intensity={max_io_intensity} criteria=-io_intensity"
+                    )
+            scanSiteList = newScanSiteList
+            self.add_summary_message(oldScanSiteList, scanSiteList, "max IO intensity check", tmpLog, msg_map)
+            if not scanSiteList:
+                self.dump_summary(tmpLog)
+                tmpLog.error("no candidates")
+                retVal = retTmpError
+                continue
+
+        ######################################
         # selection for full chain
         if nucleusSpec:
             full_chain = taskSpec.check_full_chain_with_nucleus(nucleusSpec)
@@ -1780,7 +1804,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 for tmp_resource_type in tmp_resource_types:
                     if tmp_resource_type in tmpStatMapRT[tmpSiteName]:
                         useCapRT = True
-                        tmpRTrunning += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("running", 0)                        
+                        tmpRTrunning += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("running", 0)
                         tmpRTqueue += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("defined", 0)
                         if useAssigned:
                             tmpRTqueue += tmpStatMapRT[tmpSiteName][tmp_resource_type].get("assigned", 0)

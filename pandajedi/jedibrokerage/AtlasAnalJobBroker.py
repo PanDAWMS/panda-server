@@ -757,6 +757,30 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 continue
 
             ######################################
+            # selection with IO intensity
+            if taskSpec.ioIntensity and not inputChunk.isMerging:
+                newScanSiteList = []
+                oldScanSiteList = copy.copy(scanSiteList)
+                msg_map = {}
+                for tmpSiteName in scanSiteList:
+                    tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
+                    max_io_intensity = tmpSiteSpec.get_max_io_intensity()
+                    if max_io_intensity and taskSpec.ioIntensity <= max_io_intensity:
+                        newScanSiteList.append(tmpSiteName)
+                    else:
+                        msg_map[tmpSiteSpec.get_unified_name()] = (
+                            f"  skip site={tmpSiteSpec.get_unified_name()} since ioIntensity={taskSpec.ioIntensity} "
+                            f"is larger than site max_io_intensity={max_io_intensity} criteria=-io_intensity"
+                        )
+                scanSiteList = newScanSiteList
+                self.add_summary_message(oldScanSiteList, scanSiteList, "max IO intensity check", tmpLog, msg_map)
+                if not scanSiteList:
+                    self.dump_summary(tmpLog)
+                    tmpLog.error("no candidates")
+                    retVal = retTmpError
+                    continue
+
+            ######################################
             # selection for VP
             if taskSpec.avoid_vp() or avoidVP or not checkDataLocality:
                 newScanSiteList = []
