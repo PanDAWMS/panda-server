@@ -329,3 +329,10 @@ class SiteSpec(object):
     # use per-core attributes
     def use_per_core_attr(self):
         return self.hasValueInCatchall("per_core_attr")
+
+    # max IO intensity
+    def get_max_io_intensity(self):
+        s, v = self.get_extra_queue_param("max_io_intensity")
+        if s:
+            return v
+        return None
