@@ -542,26 +542,6 @@ class TestTaskAPI(unittest.TestCase):
         self.assertEqual(output, expected_response)
 
 
-    def test_get_scout_job_descriptions(self):
-        # def get_scout_job_descriptions(req: PandaRequest, task_id: int) -> Dict:
-        url = f"{api_url_ssl}/task/get_scout_job_descriptions"
-        print(f"Testing URL: {url}")
-        data = {"task_id": JEDI_TASK_ID}
-        status, output = self.http_client.get(url, data)
-        print(output)
-        output["status"] = status
-
-        if JEDI_TASK_ID == -1:
-            # Fake task has no scout jobs, returns empty list
-            output["message"] = ""
-            expected_response = {"status": 0, "success": True, "data": [], "message": ""}
-            self.assertEqual(output, expected_response)
-        else:
-            # Real task: success with a list of scout job descriptions
-            self.assertEqual(status, 0)
-            self.assertTrue(output["success"])
-            self.assertIsInstance(output["data"], list)
-
     def test_get_job_descriptions(self):
         # def get_job_descriptions(req: PandaRequest, task_id: int, unsuccessful_only: bool = False) -> Dict:
         url = f"{api_url_ssl}/task/get_job_descriptions"

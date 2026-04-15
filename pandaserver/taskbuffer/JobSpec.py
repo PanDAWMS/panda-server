@@ -195,6 +195,7 @@ class JobSpec(object):
         "altStgOut": "ao",
         "acceptPartial": "ap",
         "allOkEvents": "at",
+        "buildJob": "bj",
         "notDiscardEvents": "de",
         "decAttOnFailedES": "df",
         "debugMode": "dm",
@@ -212,6 +213,7 @@ class JobSpec(object):
         "onSiteMerging": "om",
         "pushStatusChanges": "pc",
         "pushJob": "pj",
+        "pmergeJob": "pm",
         "putLogToOS": "po",
         "registerEsFiles": "re",
         "retryRam": "rr",
@@ -727,6 +729,22 @@ class JobSpec(object):
     # check if scout job
     def isScoutJob(self):
         return self.check_special_handling("scoutJob")
+    
+    # set build job flag
+    def set_build_job_flag(self):
+        self.set_special_handling("buildJob")
+
+    # check if build job
+    def is_build_job(self):
+        return self.check_special_handling("buildJob")
+    
+    # set pmerge job flag
+    def set_pmerge_job_flag(self):
+        self.set_special_handling("pmergeJob")
+
+    # check if pmerge job
+    def is_pmerge_job(self):
+        return self.check_special_handling("pmergeJob")
 
     # decrement attemptNr of events only when failed
     def decAttOnFailedES(self):
@@ -774,7 +792,13 @@ class JobSpec(object):
         return self.check_special_handling("inputPrestaging")
 
     # to a dictionary
-    def to_dict_advanced(self):
+    def to_dict_advanced(self, add_extra_info=False):
+        """
+        Convert the JobSpec to a dictionary, including file information and optionally extra info.
+        
+        :param add_extra_info: If True, include extra info such as job duration and extended prodSourceLabel. Default is False.
+        :return: A dictionary representation of the JobSpec
+        """
         ret = {}
 
         # Get the job attributes
@@ -791,6 +815,26 @@ class JobSpec(object):
         for f in files:
             file_stats.append(f.to_dict())
         ret[a] = file_stats
+
+        # Add extra info if requested
+        if add_extra_info:
+            # Calculate job duration if startTime and endTime are available
+            if self.startTime and self.endTime:
+                ret["jobDuration"] = (self.endTime - self.startTime).total_seconds()
+            else:
+                ret["jobDuration"] = None
+            
+            # Add extended prodSourceLabel info
+            label = self.prodSourceLabel
+            if self.is_build_job():
+                label = f"{label}_build"
+            elif self.is_pmerge_job():
+                label = f"{label}_pmerge"
+            elif self.isScoutJob():
+                label = f"{label}_scout"
+            else:
+                label = f"{label}_normal"
+            ret["extendedProdSourceLabel"] = label
 
         return ret
 

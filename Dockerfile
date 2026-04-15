@@ -11,6 +11,8 @@ RUN /opt/panda/bin/pip install --no-cache-dir .[postgres,oracle,mcp]
 RUN /opt/panda/bin/pip install --no-cache-dir rucio-clients
 RUN /opt/panda/bin/pip install --no-cache-dir "git+https://github.com/PanDAWMS/panda-cacheschedconfig.git"
 RUN ln -s /opt/panda/lib/python*/site-packages/mod_wsgi/server/mod_wsgi*.so /etc/httpd/modules/mod_wsgi.so
+# Remove the default OS ssl.conf which references a non-existent localhost.crt and conflicts with panda's SSL config
+RUN rm -f /etc/httpd/conf.d/ssl.conf
 
 WORKDIR /
 RUN rm -rf /tmp/src
