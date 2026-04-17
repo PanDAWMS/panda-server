@@ -1372,6 +1372,41 @@ class DataCarouselInterface(object):
             tmp_log.error(f"failed to fill total files and size; {e}")
             return False
 
+    def _update_total_files_and_size(self, dc_req_spec: DataCarouselRequestSpec) -> bool | None:
+        """
+        Update total files and dataset size of the Data Carousel request spec from DDM
+        Sometimes the total files and dataset size in the request spec can be dynamic
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): Data Carousel request spec
+
+        Returns:
+            bool|None : True if updated, None if not updated with reasons (e.g. got None from DDM, or total files not increased), False if error occurs
+        """
+        try:
+            tmp_log = LogWrapper(logger, f"_update_total_files_and_size request_id={dc_req_spec.request_id}")
+            # get dataset metadata
+            dataset_meta = self.ddmIF.get_dataset_metadata(dc_req_spec.dataset)
+            if dataset_meta["length"] is None or dataset_meta["bytes"] is None:
+                tmp_log.warning(f"got None for length or bytes from DDM for dataset {dc_req_spec.dataset} ; skipped")
+                return None
+            elif dataset_meta["length"] > dc_req_spec.total_files:
+                # update only when the total files increased
+                old_total_files = dc_req_spec.total_files
+                old_dataset_size = dc_req_spec.dataset_size
+                dc_req_spec.total_files = dataset_meta["length"]
+                dc_req_spec.dataset_size = dataset_meta["bytes"]
+                tmp_log.debug(
+                    f"updated total_files from {old_total_files} to {dc_req_spec.total_files} and dataset_size from {old_dataset_size} to {dc_req_spec.dataset_size}"
+                )
+                return True
+            else:
+                # tmp_log.debug(f"total_files not increased ; skipped")
+                return None
+        except Exception as e:
+            tmp_log.error(f"failed to update total files and size; {e}")
+            return False
+
     def submit_data_carousel_requests(
         self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]], options: dict | None = None, submit_idds_request: bool = True
     ) -> bool | None:
@@ -2411,12 +2446,15 @@ class DataCarouselInterface(object):
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
 
-    def check_staging_requests(self):
+    def check_staging_requests(self, time_limit_minutes: int = 5) -> None:
         """
         Check staging requests
+
+        Args:
+            time_limit_minutes (int): time limit in minutes for checking staging requests; default is 5 minutes
         """
         tmp_log = LogWrapper(logger, "check_staging_requests")
-        dc_req_specs = self.taskBufferIF.get_data_carousel_staging_requests_JEDI()
+        dc_req_specs = self.taskBufferIF.get_data_carousel_staging_requests_JEDI(time_limit_minutes=time_limit_minutes)
         if dc_req_specs is None:
             tmp_log.warning(f"failed to query requests to check ; skipped")
         elif not dc_req_specs:
@@ -2482,8 +2520,11 @@ class DataCarouselInterface(object):
                             dc_req_spec.destination_rse = destination_rse
                             tmp_log.debug(f"request_id={dc_req_spec.request_id} filled destination_rse={destination_rse} of ddm_rule_id={ddm_rule_id}")
                             to_update = True
-                    # current staged files
+                    # update current total and staged files
                     now_time = naive_utcnow()
+                    total_files_got_updated = self._update_total_files_and_size(dc_req_spec)
+                    if total_files_got_updated:
+                        to_update = True
                     current_staged_files = int(the_rule["locks_ok_cnt"])
                     new_staged_files = current_staged_files - dc_req_spec.staged_files
                     if new_staged_files > 0:
