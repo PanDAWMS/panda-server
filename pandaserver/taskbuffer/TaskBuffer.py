@@ -2764,9 +2764,9 @@ class TaskBuffer:
             )
 
     # get data carousel staging requests
-    def get_data_carousel_staging_requests_JEDI(self):
+    def get_data_carousel_staging_requests_JEDI(self, time_limit_minutes=5):
         with self.proxyPool.get() as proxy:
-            return proxy.get_data_carousel_staging_requests_JEDI()
+            return proxy.get_data_carousel_staging_requests_JEDI(time_limit_minutes=time_limit_minutes)
 
     # delete data carousel requests
     def delete_data_carousel_requests_JEDI(self, request_id_list):
