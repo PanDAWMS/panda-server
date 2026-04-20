@@ -161,7 +161,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 totalJobStat = self.taskBufferIF.countJobsPerTarget_JEDI(taskSpec.origUserName, True)
             self.set_task_common("totalJobStat", totalJobStat)
         # check total to cap
-        if totalJobStat:
+        if totalJobStat and not inputChunk.isMerging:
             if taskSpec.workingGroup:
                 gdp_token_jobs = "CAP_RUNNING_GROUP_JOBS"
                 gdp_token_cores = "CAP_RUNNING_GROUP_CORES"

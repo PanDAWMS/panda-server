@@ -729,7 +729,7 @@ class JobSpec(object):
     # check if scout job
     def isScoutJob(self):
         return self.check_special_handling("scoutJob")
-    
+
     # set build job flag
     def set_build_job_flag(self):
         self.set_special_handling("buildJob")
@@ -737,7 +737,7 @@ class JobSpec(object):
     # check if build job
     def is_build_job(self):
         return self.check_special_handling("buildJob")
-    
+
     # set pmerge job flag
     def set_pmerge_job_flag(self):
         self.set_special_handling("pmergeJob")
@@ -795,7 +795,7 @@ class JobSpec(object):
     def to_dict_advanced(self, add_extra_info=False):
         """
         Convert the JobSpec to a dictionary, including file information and optionally extra info.
-        
+
         :param add_extra_info: If True, include extra info such as job duration and extended prodSourceLabel. Default is False.
         :return: A dictionary representation of the JobSpec
         """
@@ -819,11 +819,11 @@ class JobSpec(object):
         # Add extra info if requested
         if add_extra_info:
             # Calculate job duration if startTime and endTime are available
-            if self.startTime and self.endTime:
-                ret["jobDuration"] = (self.endTime - self.startTime).total_seconds()
+            if ret["startTime"] and ret["endTime"]:
+                ret["jobDuration"] = (ret["endTime"] - ret["startTime"]).total_seconds()
             else:
                 ret["jobDuration"] = None
-            
+
             # Add extended prodSourceLabel info
             label = self.prodSourceLabel
             if self.is_build_job():
