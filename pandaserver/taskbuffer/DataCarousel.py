@@ -3152,4 +3152,6 @@ class DataCarouselInterface(object):
             ret = False
             return ret, dc_req_spec, err_msg
         tmp_log.debug(f"retired successfully")
+        # get updated spec from DB
+        dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
         return ret, dc_req_spec, err_msg
