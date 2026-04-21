@@ -2251,10 +2251,12 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, f"retire_request request_id={dc_req_spec.request_id} by={by}" + (f" reason={reason}" if reason else " "))
         # retire
-        ret = self.taskBufferIF.retire_data_carousel_request_JEDI(dc_req_spec.request_id)
-        if ret:
+        ret = None
+        _res = self.taskBufferIF.retire_data_carousel_request_JEDI(dc_req_spec.request_id)
+        if _res:
             tmp_log.debug(f"retired")
-        elif ret == 0:
+            ret = True
+        elif _res == 0:
             tmp_log.debug(f"cannot retire; skipped")
         else:
             tmp_log.error(f"failed to retire")
