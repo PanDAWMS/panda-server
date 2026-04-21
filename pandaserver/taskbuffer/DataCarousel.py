@@ -2258,6 +2258,10 @@ class DataCarouselInterface(object):
             tmp_log.debug(f"cannot retire; skipped")
         else:
             tmp_log.error(f"failed to retire")
+        # expire DDM rule
+        if dc_req_spec.ddm_rule_id:
+            short_time = 5
+            self._refresh_ddm_rule(dc_req_spec.ddm_rule_id, short_time)
         # return
         return ret
 
