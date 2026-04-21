@@ -3107,3 +3107,45 @@ class DataCarouselInterface(object):
                 if not cancel_fts_success:
                     err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} failed to cancel FTS requests ; skipped"
         return ret, dc_req_spec, err_msg
+
+    def retired_unused_request(self, dc_req_spec: DataCarouselRequestSpec) -> tuple[bool | None, DataCarouselRequestSpec, str | None]:
+        """
+        Check if a request can be retired as unused and retire it if so
+        A request is considered unused if its status is done and it has no related tasks
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): spec of the request to check and potentially retire
+
+        Returns:
+            bool|None : True for success, False for failure, None if skipped
+            DataCarouselRequestSpec|None: spec of the request after retiring if retired, original spec if not retired, None if skipped
+            str|None: error message if any, None otherwise
+        """
+        tmp_log = LogWrapper(logger, f"retired_unused_request request_id={dc_req_spec.request_id}")
+        ret = None
+        err_msg = None
+        # Check if status is done
+        if dc_req_spec.status != DataCarouselRequestStatus.done:
+            err_msg = f"status is {dc_req_spec.status}, not done ; skipped"
+            tmp_log.debug(err_msg)
+            return ret, dc_req_spec, err_msg
+        # Check if there are related tasks
+        related_tasks = self._get_related_tasks(dc_req_spec.request_id)
+        if related_tasks is None:
+            err_msg = f"failed to check related tasks"
+            tmp_log.error(err_msg)
+            ret = False
+            return ret, dc_req_spec, err_msg
+        if related_tasks:
+            err_msg = f"still has {len(related_tasks)} related tasks ; skipped"
+            tmp_log.debug(err_msg)
+            return ret, dc_req_spec, err_msg
+        # Both conditions met: retire the request
+        ret = self.retire_request(dc_req_spec, by="manual", reason="manually_retired_unused")
+        if ret is None:
+            err_msg = "failed to retire request"
+            tmp_log.error(err_msg)
+            ret = False
+            return ret, dc_req_spec, err_msg
+        tmp_log.debug(f"retired successfully")
+        return ret, dc_req_spec, err_msg
