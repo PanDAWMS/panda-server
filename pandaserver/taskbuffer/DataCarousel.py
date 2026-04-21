@@ -3129,15 +3129,17 @@ class DataCarouselInterface(object):
             err_msg = f"status is {dc_req_spec.status}, not done ; skipped"
             tmp_log.debug(err_msg)
             return ret, dc_req_spec, err_msg
-        # Check if there are related tasks
-        related_tasks = self._get_related_tasks(dc_req_spec.request_id)
-        if related_tasks is None:
+        # Check if there are active related tasks
+        active_related_tasks = self.taskBufferIF.get_related_tasks_of_data_carousel_request_JEDI(
+            dc_req_spec.request_id, status_exclusion_list=FINAL_TASK_STATUSES
+        )
+        if active_related_tasks is None:
             err_msg = f"failed to check related tasks"
             tmp_log.error(err_msg)
             ret = False
             return ret, dc_req_spec, err_msg
-        if related_tasks:
-            err_msg = f"still has {len(related_tasks)} related tasks ; skipped"
+        if active_related_tasks:
+            err_msg = f"still has {len(active_related_tasks)} active related tasks ; skipped"
             tmp_log.debug(err_msg)
             return ret, dc_req_spec, err_msg
         # Both conditions met: retire the request
