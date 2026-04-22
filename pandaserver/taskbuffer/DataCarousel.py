@@ -1728,10 +1728,15 @@ class DataCarouselInterface(object):
         df = queued_requests_tasks_df.sort(["to_pin", "gshare_rank", "task_priority", "request_id"], descending=[True, False, True, False], nulls_last=True)
         # get unique requests with the sorted order
         df = df.unique(subset=["request_id"], keep="first", maintain_order=True)
+        # get active source tapes
+        active_source_tapes = self._get_active_source_tapes()
         # evaluate per tape
         queued_requests_df = df
         for source_tape_stats_dict in source_tape_stats_dict_list:
             source_tape = source_tape_stats_dict["source_tape"]
+            if source_tape not in active_source_tapes:
+                tmp_log.debug(f"source_tape={source_tape} not active ; skipped")
+                continue
             quota_size = source_tape_stats_dict["quota_size"]
             # dataframe of the physical tape
             tmp_df = queued_requests_df.filter(pl.col("source_tape") == source_tape)
