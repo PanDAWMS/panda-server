@@ -3097,8 +3097,8 @@ class TaskStandaloneModule(BaseModule):
                 userTaskMap.setdefault(uid, {})
                 if errorDialog is None or "type=prestaging" in errorDialog:
                     throttle_type = "prestaging"
-                elif "type=queue" in errorDialog:
-                    throttle_type = "queue"
+                elif "type=jobs" in errorDialog:
+                    throttle_type = "jobs"
                 else:
                     throttle_type = "transfer"
                 userTaskMap[uid].setdefault(throttle_type, {})
