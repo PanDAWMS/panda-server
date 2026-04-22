@@ -2233,6 +2233,7 @@ class DataCarouselInterface(object):
         if dc_req_spec.ddm_rule_id:
             short_time = 5
             self._refresh_ddm_rule(dc_req_spec.ddm_rule_id, short_time)
+            tmp_log.debug(f"expired ddm_rule_id={dc_req_spec.ddm_rule_id} with short lifetime {short_time} sec")
         # return
         return ret
 
@@ -2251,13 +2252,20 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, f"retire_request request_id={dc_req_spec.request_id} by={by}" + (f" reason={reason}" if reason else " "))
         # retire
-        ret = self.taskBufferIF.retire_data_carousel_request_JEDI(dc_req_spec.request_id)
-        if ret:
+        ret = None
+        _res = self.taskBufferIF.retire_data_carousel_request_JEDI(dc_req_spec.request_id)
+        if _res:
             tmp_log.debug(f"retired")
-        elif ret == 0:
+            ret = True
+        elif _res == 0:
             tmp_log.debug(f"cannot retire; skipped")
         else:
             tmp_log.error(f"failed to retire")
+        # expire DDM rule
+        if dc_req_spec.ddm_rule_id:
+            short_time = 5
+            self._refresh_ddm_rule(dc_req_spec.ddm_rule_id, short_time)
+            tmp_log.debug(f"expired ddm_rule_id={dc_req_spec.ddm_rule_id} with short lifetime {short_time} sec")
         # return
         return ret
 
@@ -3102,4 +3110,56 @@ class DataCarouselInterface(object):
                     cancel_fts_success = False
                 if not cancel_fts_success:
                     err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} failed to cancel FTS requests ; skipped"
+        return ret, dc_req_spec, err_msg
+
+    def retire_unused_request(self, dc_req_spec: DataCarouselRequestSpec) -> tuple[bool | None, DataCarouselRequestSpec, str | None]:
+        """
+        Check if a request can be retired as unused and retire it if so
+        A request is considered unused if its status is done and it has no related tasks
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): spec of the request to check and potentially retire
+
+            DataCarouselRequestSpec: updated spec of the request after retiring if retired, original spec if not retired or if reloading the updated spec fails
+            bool|None : True for success, False for failure, None if skipped
+            DataCarouselRequestSpec: spec of the request after retiring if retired, original spec if not retired
+            str|None: error message if any, None otherwise
+        """
+        tmp_log = LogWrapper(logger, f"retire_unused_request request_id={dc_req_spec.request_id}")
+        ret = None
+        err_msg = None
+        # Check if status is done
+        if dc_req_spec.status != DataCarouselRequestStatus.done:
+            err_msg = f"status is {dc_req_spec.status}, not done ; skipped"
+            tmp_log.debug(err_msg)
+            return ret, dc_req_spec, err_msg
+        # Check if there are active related tasks
+        active_related_tasks = self.taskBufferIF.get_related_tasks_of_data_carousel_request_JEDI(
+            dc_req_spec.request_id, status_exclusion_list=FINAL_TASK_STATUSES
+        )
+        if active_related_tasks is None:
+            err_msg = f"failed to check related tasks"
+            tmp_log.error(err_msg)
+            ret = False
+            return ret, dc_req_spec, err_msg
+        if active_related_tasks:
+            err_msg = f"still has {len(active_related_tasks)} active related tasks ; skipped"
+            tmp_log.debug(err_msg)
+            return ret, dc_req_spec, err_msg
+        # Both conditions met: retire the request
+        ret = self.retire_request(dc_req_spec, by="manual", reason="manually_retired_unused")
+        if ret is None:
+            err_msg = "failed to retire request"
+            tmp_log.error(err_msg)
+            ret = False
+            return ret, dc_req_spec, err_msg
+        # update spec after retiring
+        updated_dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
+        if updated_dc_req_spec is None:
+            err_msg = "retired request but failed to reload updated request"
+            tmp_log.error(err_msg)
+            ret = False
+            return ret, dc_req_spec, err_msg
+        else:
+            dc_req_spec = updated_dc_req_spec
         return ret, dc_req_spec, err_msg

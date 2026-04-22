@@ -50,7 +50,7 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
     Change destination of staging
 
     The current active staging request will be cancelled, and a new request will be created with the newly selected destination RSE, excluding the original destination.
-    The reqeusts can be specified by request_id or dataset (if both exist, request_id is taken).
+    The requests can be specified by request_id or dataset (if both exist, request_id is taken).
     Requires a secure connection production role.
 
     API details:
@@ -210,7 +210,7 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
 
     The request will skip the queue and go to staging immediately (will submit DDM rules).
     Only effective on queued requests.
-    The reqeusts can be specified by request_id or dataset (if both exist, request_id is taken).
+    The requests can be specified by request_id or dataset (if both exist, request_id is taken).
     Requires a secure connection production role.
 
     API details:
@@ -247,6 +247,66 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
         else:
             success = True
             message = f"status has become {dc_req_spec.status}"
+            data = {
+                "request_id": dc_req_spec.request_id,
+                "dataset": dc_req_spec.dataset,
+                "status": dc_req_spec.status,
+                "ddm_rule_id": dc_req_spec.ddm_rule_id,
+            }
+    else:
+        err_msg = f"failed to get corresponding request"
+        tmp_logger.error(err_msg)
+        success, message = False, err_msg
+
+    time_delta = naive_utcnow() - time_start
+    tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
+
+    return generate_response(success, message, data)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+    """
+    Retire unused staging request
+
+    If the request is done and has no related tasks, it can be retired to clean up the DDM rules and replicas.
+    The requests can be specified by request_id or dataset (if both exist, request_id is taken).
+    Requires a secure connection production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/data_carousel/retire_unused
+
+    Args:
+        req(PandaRequest): internally generated request object
+        request_id (int|None): request_id of the staging request, e.g. `123`
+        dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
+
+    Returns:
+        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+    """
+    tmp_logger = LogWrapper(_logger, f"retire_unused request_id={request_id} dataset={dataset}")
+    tmp_logger.debug("Start")
+    success, message, data = False, "", None
+    time_start = naive_utcnow()
+
+    dc_req_spec = None
+    if request_id is not None:
+        # specified by request_id
+        dc_req_spec = global_dcif.get_request_by_id(request_id)
+    elif request_id is None and dataset is not None:
+        # specified by dataset
+        dc_req_spec = global_dcif.get_request_by_dataset(dataset)
+
+    if dc_req_spec is not None:
+        is_ok, dc_req_spec, err_msg = global_dcif.retire_unused_request(dc_req_spec)
+        if not is_ok:
+            err_msg = f"failed to retire request_id={dc_req_spec.request_id} : {err_msg}"
+            tmp_logger.error(err_msg)
+            success, message = False, err_msg
+        else:
+            success = True
+            message = f"retired successfully"
             data = {
                 "request_id": dc_req_spec.request_id,
                 "dataset": dc_req_spec.dataset,
