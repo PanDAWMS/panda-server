@@ -3122,7 +3122,7 @@ class DataCarouselInterface(object):
 
             DataCarouselRequestSpec: updated spec of the request after retiring if retired, original spec if not retired or if reloading the updated spec fails
             bool|None : True for success, False for failure, None if skipped
-            DataCarouselRequestSpec|None: spec of the request after retiring if retired, original spec if not retired, None if skipped
+            DataCarouselRequestSpec: spec of the request after retiring if retired, original spec if not retired
             str|None: error message if any, None otherwise
         """
         tmp_log = LogWrapper(logger, f"retire_unused_request request_id={dc_req_spec.request_id}")
@@ -3153,12 +3153,13 @@ class DataCarouselInterface(object):
             tmp_log.error(err_msg)
             ret = False
             return ret, dc_req_spec, err_msg
+        # update spec after retiring
         updated_dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
         if updated_dc_req_spec is None:
             err_msg = "retired request but failed to reload updated request"
             tmp_log.error(err_msg)
             ret = False
             return ret, dc_req_spec, err_msg
-        return ret, updated_dc_req_spec, err_msg
-        dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
+        else:
+            dc_req_spec = updated_dc_req_spec
         return ret, dc_req_spec, err_msg
