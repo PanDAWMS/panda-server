@@ -299,7 +299,7 @@ def retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str
         dc_req_spec = global_dcif.get_request_by_dataset(dataset)
 
     if dc_req_spec is not None:
-        is_ok, dc_req_spec, err_msg = global_dcif.retired_unused_request(dc_req_spec)
+        is_ok, dc_req_spec, err_msg = global_dcif.retire_unused_request(dc_req_spec)
         if not is_ok:
             err_msg = f"failed to retire request_id={dc_req_spec.request_id} : {err_msg}"
             tmp_logger.error(err_msg)

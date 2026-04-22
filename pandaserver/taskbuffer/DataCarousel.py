@@ -3112,7 +3112,7 @@ class DataCarouselInterface(object):
                     err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} failed to cancel FTS requests ; skipped"
         return ret, dc_req_spec, err_msg
 
-    def retired_unused_request(self, dc_req_spec: DataCarouselRequestSpec) -> tuple[bool | None, DataCarouselRequestSpec, str | None]:
+    def retire_unused_request(self, dc_req_spec: DataCarouselRequestSpec) -> tuple[bool | None, DataCarouselRequestSpec, str | None]:
         """
         Check if a request can be retired as unused and retire it if so
         A request is considered unused if its status is done and it has no related tasks
@@ -3125,7 +3125,7 @@ class DataCarouselInterface(object):
             DataCarouselRequestSpec|None: spec of the request after retiring if retired, original spec if not retired, None if skipped
             str|None: error message if any, None otherwise
         """
-        tmp_log = LogWrapper(logger, f"retired_unused_request request_id={dc_req_spec.request_id}")
+        tmp_log = LogWrapper(logger, f"retire_unused_request request_id={dc_req_spec.request_id}")
         ret = None
         err_msg = None
         # Check if status is done
