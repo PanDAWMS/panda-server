@@ -2893,7 +2893,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # throttle one task
-    def throttleTask_JEDI(self, jediTaskID, waitTime, errorDialog):
+    def throttleTask_JEDI(self, jediTaskID, waitTime, errorDialog, curret_status="running", old_status=None):
         comment = " /* JediDBProxy.throttleTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug(f"start waitTime={waitTime}min")
@@ -2901,23 +2901,27 @@ class TaskStandaloneModule(BaseModule):
             # sql to throttle tasks
             sqlTH = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlTH += "SET throttledTime=:releaseTime,modificationTime=CURRENT_DATE,"
-            sqlTH += "oldStatus=status,status=:newStatus,errorDialog=:errorDialog "
-            sqlTH += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+            sqlTH += "oldStatus=:oldStatus,status=:newStatus,errorDialog=:errorDialog "
+            sqlTH += "WHERE jediTaskID=:jediTaskID AND status=:currentStatus "
             sqlTH += "AND lockedBy IS NULL "
             # begin transaction
             self.conn.begin()
             varMap = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":newStatus"] = "throttled"
-            varMap[":oldStatus"] = "running"
+            varMap[":currentStatus"] = curret_status
+            varMap[":oldStatus"] = old_status if old_status is not None else curret_status
             varMap[":releaseTime"] = naive_utcnow() + datetime.timedelta(minutes=waitTime)
             varMap[":errorDialog"] = errorDialog
             self.cur.execute(sqlTH + comment, varMap)
             nRow = self.cur.rowcount
             tmpLog.debug(f"done with {nRow}")
             if nRow > 0:
+                tmpLog.debug(f"""updated previous status={varMap[":oldStatus"]} oldStatus={varMap[":oldStatus"]} -> new status={varMap[":newStatus"]}""")
                 self.record_task_status_change(jediTaskID)
                 self.push_task_status_message(None, jediTaskID, varMap[":newStatus"])
+            else:
+                tmpLog.debug(f"skipped")
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -3054,8 +3058,17 @@ class TaskStandaloneModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    # get throttled users
-    def getThrottledUsersTasks_JEDI(self, vo, prodSourceLabel):
+    # get throttled users and their tasks
+    def getThrottledUsersTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None) -> dict:
+        """
+        Get throttled users and their tasks.
+
+        Args:
+            vo: VO name to filter tasks. If None or "any", no filtering is applied based on VO.
+            prodSourceLabel: Production source label to filter tasks. If None or "any", no filtering is applied based on production source label.
+        Returns:
+            A dict of {userName: {throttle_type: {jediTaskID: currentPriority}}}} for users with throttled tasks. throttle_type is one of "prestaging", "queue", or "transfer" depending on the errorDialog content.)}}
+        """
         comment = " /* JediDBProxy.getThrottledUsersTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
@@ -3063,7 +3076,7 @@ class TaskStandaloneModule(BaseModule):
             # sql to get tasks
             varMap = {}
             varMap[":status"] = "throttled"
-            sqlTL = "SELECT jediTaskID,userName,errorDialog "
+            sqlTL = "SELECT jediTaskID,userName,workingGroup,errorDialog,currentPriority "
             sqlTL += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
             sqlTL += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
             sqlTL += "AND tabT.status=:status AND tabT.lockedBy IS NULL "
@@ -3079,14 +3092,17 @@ class TaskStandaloneModule(BaseModule):
             resTL = self.cur.fetchall()
             # loop over all tasks
             userTaskMap = {}
-            for jediTaskID, userName, errorDialog in resTL:
-                userTaskMap.setdefault(userName, {})
+            for jediTaskID, userName, workingGroup, errorDialog, currentPriority in resTL:
+                uid = workingGroup if workingGroup is not None else userName
+                userTaskMap.setdefault(uid, {})
                 if errorDialog is None or "type=prestaging" in errorDialog:
-                    trasnferType = "prestaging"
+                    throttle_type = "prestaging"
+                elif "type=queue" in errorDialog:
+                    throttle_type = "queue"
                 else:
-                    trasnferType = "transfer"
-                userTaskMap[userName].setdefault(trasnferType, set())
-                userTaskMap[userName][trasnferType].add(jediTaskID)
+                    throttle_type = "transfer"
+                userTaskMap[uid].setdefault(throttle_type, {})
+                userTaskMap[uid][throttle_type][jediTaskID] = currentPriority
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -3099,6 +3115,85 @@ class TaskStandaloneModule(BaseModule):
             # error
             self.dump_error_message(tmpLog)
             return {}
+
+    # throttle tasks of a user or working group and get the list of throttled tasks
+    def throttle_tasks_with_uid(self, vo: str, prod_source_label: str, wait_time: int, dialog: str, uid: str, is_user: bool = True) -> list[int]:
+        """
+        Throttle tasks of a user or working group and get the list of throttled tasks
+
+        Args:
+            vo: VO name
+            prod_source_label: Production source label
+            wait_time: Waiting time in minutes for throttling
+            dialog: Error dialog to be set for throttled tasks
+            uid: User ID or working group ID
+            is_user: True if uid refers to a user, False if it refers to a working group
+        Returns:
+            A list of throttled task IDs
+        """
+        comment = " /* JediDBProxy.throttle_tasks_with_uid */"
+        tmp_log = self.create_tagged_logger(comment, f"uid={uid} is_user={is_user}")
+        tmp_log.debug("start")
+        try:
+            # sql to get tasks
+            var_map = {}
+            var_map[":vo"] = vo
+            var_map[":prodSourceLabel"] = prod_source_label
+            var_map[":uid"] = uid
+            var_map[":st_ready"] = "ready"
+            var_map[":st_running"] = "running"
+            var_map[":st_pending"] = "pending"
+            # SQL to get tasks to throttle
+            sql_get_tasks = (
+                "SELECT jediTaskID,status,oldStatus "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT,{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.vo=:vo AND tabT.prodSourceLabel=:prodSourceLabel "
+                "AND (tabT.status IN (:st_ready,:st_running) OR (tabT.status=:st_pending AND tabT.oldStatus IN (:st_ready,:st_running))) "
+                "AND tabT.lockedBy IS NULL)) "
+            )
+            if is_user:
+                sql_get_tasks += "AND tabT.userName=:uid "
+            else:
+                sql_get_tasks += "AND tabT.workingGroup=:uid "
+            # SQL to check if the task has merging jobs
+            sql_check_merging = f"SELECT 1 FROM dual WHERE EXISTS (SELECT 1 FROM {panda_config.schemaPANDA}.jobsActive4 WHERE jediTaskID=:jediTaskID AND jobStatus=:st_merging) "
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sql_get_tasks + comment, var_map)
+            res_tasks = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # loop over all tasks
+            throttled_task_ids = []
+            for task_id, status, old_status in res_tasks:
+                # start transaction
+                self.conn.begin()
+                # check if the task has merging jobs
+                var_map = {":jediTaskID": task_id, ":st_merging": "merging"}
+                self.cur.execute(sql_check_merging + comment, var_map)
+                has_merging = self.cur.fetchone() is not None
+                # commit
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                if has_merging:
+                    # skip throttling this task since it has merging jobs
+                    tmp_log.debug(f"skip throttling jediTaskID={task_id} since it has merging jobs")
+                else:
+                    # throttle the task
+                    ret_throttle = self.throttleTask_JEDI(task_id, wait_time, dialog, current_status=status, old_status=old_status)
+                    if ret_throttle:
+                        throttled_task_ids.append(task_id)
+            # return
+            tmp_log.debug(f"throttled {len(throttled_task_ids)} tasks")
+            return throttled_task_ids
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return []
 
     # get JEDI tasks to be assessed
     def getAchievedTasks_JEDI(self, vo, prodSourceLabel, timeLimit, nTasks):
@@ -3616,6 +3711,56 @@ class TaskStandaloneModule(BaseModule):
                 elif jobStatus in ["running"]:
                     retMap["nRunJobs"] += nJobs
                     retMap["nRunCores"] += nCores
+            tmpLog.debug(str(retMap))
+            return retMap
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return {}
+
+    # count the number of jobs and cores per user or working group in VO and production source label
+    def count_jobs_per_uid_JEDI(self, vo: str, prod_source_label: str) -> dict[str, dict]:
+        """Count the number of jobs and cores per user or working group in VO and production source label.
+        Args:
+            vo: VO name to filter jobs.
+            prod_source_label: Production source label to filter jobs.
+        Returns:
+            A dict of {uid: {"nQueuedJobs": int, "nQueuedCores": int, "nRunJobs": int, "nRunCores": int}} where uid is user name or working group.
+        """
+        comment = " /* JediDBProxy.count_jobs_per_uid_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"vo={vo}, prodSourceLabel={prod_source_label}")
+        tmpLog.debug("start")
+        try:
+            # sql
+            sql = "SELECT COUNT(*),SUM(coreCount),jobStatus,uid,is_user FROM ("
+            sql += f"SELECT PandaID,jobStatus,coreCount,CASE WHEN workingGroup IS NULL THEN prodUserName ELSE workingGroup END AS uid, workingGroup IS NULL as is_user FROM {panda_config.schemaPANDA}.jobsDefined4 "
+            sql += "WHERE vo=:vo AND prodSourceLabel=:prod_source_label "
+            sql += "UNION "
+            sql += f"SELECT PandaID,jobStatus,coreCount,CASE WHEN workingGroup IS NULL THEN prodUserName ELSE workingGroup END AS uid FROM {panda_config.schemaPANDA}.jobsActive4 "
+            sql += "WHERE vo=:vo AND prodSourceLabel=:prod_source_label "
+            sql += ") GROUP BY jobStatus,uid,is_user "
+            varMap = {}
+            varMap[":vo"] = vo
+            varMap[":prod_source_label"] = prod_source_label
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sql + comment, varMap)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # make dict
+            retMap = {}
+            for nJobs, nCores, jobStatus, uid, is_user in resList:
+                retMap.setdefault(uid, {"nQueuedJobs": 0, "nQueuedCores": 0, "nRunJobs": 0, "nRunCores": 0, "is_user": is_user})
+                if jobStatus in ["defined", "assigned", "activated", "starting", "throttled"]:
+                    retMap[uid]["nQueuedJobs"] += nJobs
+                    retMap[uid]["nQueuedCores"] += nCores
+                elif jobStatus in ["running"]:
+                    retMap[uid]["nRunJobs"] += nJobs
+                    retMap[uid]["nRunCores"] += nCores
             tmpLog.debug(str(retMap))
             return retMap
         except Exception:
