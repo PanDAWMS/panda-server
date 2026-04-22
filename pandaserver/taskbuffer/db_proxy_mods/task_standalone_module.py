@@ -3734,13 +3734,13 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql
-            sql = "SELECT COUNT(*),SUM(coreCount),jobStatus,uid,is_user FROM ("
-            sql += f"SELECT PandaID,jobStatus,coreCount,CASE WHEN workingGroup IS NULL THEN prodUserName ELSE workingGroup END AS uid, workingGroup IS NULL as is_user FROM {panda_config.schemaPANDA}.jobsDefined4 "
+            sql = "SELECT COUNT(*),SUM(coreCount),jobStatus,user_id,is_user FROM ("
+            sql += f"SELECT PandaID,jobStatus,coreCount,CASE WHEN workingGroup IS NULL THEN prodUserName ELSE workingGroup END AS user_id, CASE WHEN workingGroup IS NULL THEN 1 ELSE 0 END AS is_user FROM {panda_config.schemaPANDA}.jobsDefined4 "
             sql += "WHERE vo=:vo AND prodSourceLabel=:prod_source_label "
             sql += "UNION "
-            sql += f"SELECT PandaID,jobStatus,coreCount,CASE WHEN workingGroup IS NULL THEN prodUserName ELSE workingGroup END AS uid FROM {panda_config.schemaPANDA}.jobsActive4 "
+            sql += f"SELECT PandaID,jobStatus,coreCount,CASE WHEN workingGroup IS NULL THEN prodUserName ELSE workingGroup END AS user_id, CASE WHEN workingGroup IS NULL THEN 1 ELSE 0 END AS is_user FROM {panda_config.schemaPANDA}.jobsActive4 "
             sql += "WHERE vo=:vo AND prodSourceLabel=:prod_source_label "
-            sql += ") GROUP BY jobStatus,uid,is_user "
+            sql += ") GROUP BY jobStatus,user_id,is_user "
             varMap = {}
             varMap[":vo"] = vo
             varMap[":prod_source_label"] = prod_source_label
