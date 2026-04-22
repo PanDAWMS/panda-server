@@ -1730,11 +1730,13 @@ class DataCarouselInterface(object):
         df = df.unique(subset=["request_id"], keep="first", maintain_order=True)
         # get active source tapes
         active_source_tapes = self._get_active_source_tapes()
+        if active_source_tapes is None:
+            tmp_log.warning(f"active_source_tapes is None ; skipped checking active source tapes")
         # evaluate per tape
         queued_requests_df = df
         for source_tape_stats_dict in source_tape_stats_dict_list:
             source_tape = source_tape_stats_dict["source_tape"]
-            if source_tape not in active_source_tapes:
+            if active_source_tapes is not None and source_tape not in active_source_tapes:
                 tmp_log.debug(f"source_tape={source_tape} not active ; skipped")
                 continue
             quota_size = source_tape_stats_dict["quota_size"]
