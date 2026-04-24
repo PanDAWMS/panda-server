@@ -2915,7 +2915,6 @@ class TaskStandaloneModule(BaseModule):
             varMap[":errorDialog"] = errorDialog
             self.cur.execute(sqlTH + comment, varMap)
             nRow = self.cur.rowcount
-            tmpLog.debug(f"done with {nRow}")
             if nRow > 0:
                 tmpLog.debug(f"""updated previous status={varMap[":oldStatus"]} oldStatus={varMap[":oldStatus"]} -> new status={varMap[":newStatus"]}""")
                 self.record_task_status_change(jediTaskID)
