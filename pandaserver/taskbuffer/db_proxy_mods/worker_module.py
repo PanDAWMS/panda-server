@@ -1918,7 +1918,7 @@ class WorkerModule(BaseModule):
 
         try:
             sql = (
-                "SELECT cb.site, score_per_core FROM atlas_panda.worker_node wn, atlas_panda.cpu_benchmarks cb "
+                "SELECT cb.site, score_per_core FROM ATLAS_PANDA.worker_node wn, ATLAS_PANDA.cpu_benchmarks cb "
                 "WHERE wn.site = :site "
                 "AND wn.host_name = :host_name "
                 "AND cb.cpu_type_normalized = wn.cpu_model_normalized "
