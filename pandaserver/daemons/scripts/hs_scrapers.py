@@ -49,7 +49,7 @@ class BaseHS06Scraper:
 
     def _insert_cpu_perf_rows(self, rows: list[dict], source_url: str) -> None:
         sql = (
-            "INSERT INTO atlas_panda.cpu_benchmarks "
+            "INSERT INTO ATLAS_PANDA.cpu_benchmarks "
             "(cpu_type, cpu_type_normalized, smt_enabled, ncores, site, score_per_core, source) "
             "VALUES (:cpu_type, :cpu_type_normalized, :smt_enabled, :ncores, :site, :score_per_core, :source)"
         )
@@ -201,7 +201,7 @@ class HS23Ingestor:
         return out
 
     def _select_max_timestamp(self, df: pl.DataFrame) -> None:
-        sql = "SELECT max(timestamp) FROM atlas_panda.cpu_benchmarks"
+        sql = "SELECT max(timestamp) FROM ATLAS_PANDA.cpu_benchmarks"
         status, res = self.task_buffer.querySQLS(sql, {})
         max_timestamp = res[0][0]
         if not max_timestamp:
@@ -210,7 +210,7 @@ class HS23Ingestor:
 
     def _insert(self, df: pl.DataFrame) -> None:
         sql = (
-            "INSERT INTO atlas_panda.cpu_benchmarks "
+            "INSERT INTO ATLAS_PANDA.cpu_benchmarks "
             "(cpu_type, cpu_type_normalized, smt_enabled, sockets, cores_per_socket, ncores, site, "
             "score_per_core, timestamp, source) "
             "VALUES (:cpu_type, :cpu_type_normalized, :smt_enabled, :sockets, :cores_per_socket, :ncores, "
