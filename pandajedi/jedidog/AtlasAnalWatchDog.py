@@ -184,6 +184,8 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
 
             # throttle users with too many running/queued jobs
             queue_factor = 2
+            throttle_threshold = 0.95
+            release_threshold = 0.85
             gdp_token_group_jobs = "CAP_RUNNING_GROUP_JOBS"
             gdp_token_group_cores = "CAP_RUNNING_GROUP_CORES"
             max_num_run_group_jobs = self.taskBufferIF.getConfigValue("prio_mgr", gdp_token_group_jobs)
@@ -197,41 +199,71 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             users_to_keep_throttled = set()
             for uid, count_dict in job_count_per_uid.items():
                 to_throttle = True
+                to_release = True
                 msg = None
                 if count_dict["is_user"]:
                     # user
                     if max_num_run_user_jobs:
-                        if count_dict["nRunJobs"] > max_num_run_user_jobs:
-                            msg = (
-                                f"""throttle due to too many running jobs {count_dict["nRunJobs"]} > {gdp_token_user_jobs}={max_num_run_user_jobs} type=jobs"""
-                            )
-                        elif count_dict["nQueuedJobs"] > max_num_run_user_jobs * queue_factor:
-                            msg = f"""throttle due to too many queued jobs {count_dict["nQueuedJobs"]} > {gdp_token_user_jobs}={max_num_run_user_jobs}x{queue_factor} type=jobs"""
+                        if count_dict["nRunJobs"] > max_num_run_user_jobs * throttle_threshold:
+                            msg = f"""throttle due to too many running jobs {count_dict["nRunJobs"]} > {gdp_token_user_jobs}x{throttle_threshold} type=jobs"""
+                        elif count_dict["nQueuedJobs"] > max_num_run_user_jobs * queue_factor * throttle_threshold:
+                            msg = f"""throttle due to too many queued jobs {count_dict["nQueuedJobs"]} > {gdp_token_user_jobs}x{throttle_threshold}x{queue_factor} type=jobs"""
                     if msg is None and max_num_run_user_cores:
                         if count_dict["nRunCores"] > max_num_run_user_cores:
-                            msg = f"""throttle due to too many running cores {count_dict["nRunCores"]} > {gdp_token_user_cores}={max_num_run_user_cores} type=jobs"""
-                        elif count_dict["nQueuedCores"] > max_num_run_user_cores * queue_factor:
-                            msg = f"""throttle due to too many queued cores {count_dict["nQueuedCores"]} > {gdp_token_user_cores}={max_num_run_user_cores}x{queue_factor} type=jobs"""
+                            msg = (
+                                f"""throttle due to too many running cores {count_dict["nRunCores"]} > {gdp_token_user_cores}x{throttle_threshold} type=jobs"""
+                            )
+                        elif count_dict["nQueuedCores"] > max_num_run_user_cores * queue_factor * throttle_threshold:
+                            msg = f"""throttle due to too many queued cores {count_dict["nQueuedCores"]} > {gdp_token_user_cores}x{throttle_threshold}x{queue_factor} type=jobs"""
                     if msg is None:
                         to_throttle = False
+                    # check if can be released
+                    if max_num_run_user_jobs:
+                        if (
+                            count_dict["nRunJobs"] > max_num_run_user_jobs * release_threshold
+                            or count_dict["nQueuedJobs"] > max_num_run_user_jobs * queue_factor * release_threshold
+                        ):
+                            to_release = False
+                    if max_num_run_user_cores:
+                        if (
+                            count_dict["nRunCores"] > max_num_run_user_cores * release_threshold
+                            or count_dict["nQueuedCores"] > max_num_run_user_cores * queue_factor * release_threshold
+                        ):
+                            to_release = False
                 else:
                     # group
                     if max_num_run_group_jobs:
                         if count_dict["nRunJobs"] > max_num_run_group_jobs:
-                            msg = f"""throttle due to too many running jobs {count_dict["nRunJobs"]} > {gdp_token_group_jobs}={max_num_run_group_jobs} type=jobs"""
-                        elif count_dict["nQueuedJobs"] > max_num_run_group_jobs * queue_factor:
-                            msg = f"""throttle due to too many queued jobs {count_dict["nQueuedJobs"]} > {gdp_token_group_jobs}={max_num_run_group_jobs}x{queue_factor} type=jobs"""
+                            msg = f"""throttle due to too many running jobs {count_dict["nRunJobs"]} > {gdp_token_group_jobs}x{throttle_threshold} type=jobs"""
+                        elif count_dict["nQueuedJobs"] > max_num_run_group_jobs * queue_factor * throttle_threshold:
+                            msg = f"""throttle due to too many queued jobs {count_dict["nQueuedJobs"]} > {gdp_token_group_jobs}x{throttle_threshold}x{queue_factor} type=jobs"""
                     if msg is None and max_num_run_group_cores:
                         if count_dict["nRunCores"] > max_num_run_group_cores:
-                            msg = f"""throttle due to too many running cores {count_dict["nRunCores"]} > {gdp_token_group_cores}={max_num_run_group_cores} type=jobs"""
-                        elif count_dict["nQueuedCores"] > max_num_run_group_cores * queue_factor:
-                            msg = f"""throttle due to too many queued cores {count_dict["nQueuedCores"]} > {gdp_token_group_cores}={max_num_run_group_cores}x{queue_factor} type=jobs"""
+                            msg = (
+                                f"""throttle due to too many running cores {count_dict["nRunCores"]} > {gdp_token_group_cores}x{throttle_threshold} type=jobs"""
+                            )
+                        elif count_dict["nQueuedCores"] > max_num_run_group_cores * queue_factor * throttle_threshold:
+                            msg = f"""throttle due to too many queued cores {count_dict["nQueuedCores"]} > {gdp_token_group_cores}x{throttle_threshold}x{queue_factor} type=jobs"""
                     if msg is None:
                         to_throttle = False
+                    # check if can be released
+                    if max_num_run_group_jobs:
+                        if (
+                            count_dict["nRunJobs"] > max_num_run_group_jobs * release_threshold
+                            or count_dict["nQueuedJobs"] > max_num_run_group_jobs * queue_factor * release_threshold
+                        ):
+                            to_release = False
+                    if max_num_run_group_cores:
+                        if (
+                            count_dict["nRunCores"] > max_num_run_group_cores * release_threshold
+                            or count_dict["nQueuedCores"] > max_num_run_group_cores * queue_factor * release_threshold
+                        ):
+                            to_release = False
                 if to_throttle:
                     tmpLog.debug(f"uid={uid} {msg}")
                     # throttled_tasks = self.taskBufferIF.throttle_tasks_with_uid(self.vo, self.prodSourceLabel, thrInterval, msg, uid, count_dict["is_user"])
                     # tmpLog.debug(f"throttled tasks: {throttled_tasks}")
+                if to_throttle or not to_release:
                     users_to_keep_throttled.add(uid)
             # unthrottle users which are currently throttled but no more exceed the limit
             for userName, taskData in thrUserTasks.items():
