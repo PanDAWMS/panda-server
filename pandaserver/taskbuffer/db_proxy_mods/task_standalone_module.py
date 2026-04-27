@@ -3138,13 +3138,13 @@ class TaskStandaloneModule(BaseModule):
             var_map = {}
             var_map[":vo"] = vo
             var_map[":prodSourceLabel"] = prod_source_label
-            var_map[":uid"] = uid
+            var_map[":user_id"] = uid
             var_map[":st_ready"] = "ready"
             var_map[":st_running"] = "running"
             var_map[":st_pending"] = "pending"
             # SQL to get tasks to throttle
             sql_get_tasks = (
-                "SELECT jediTaskID,status,oldStatus "
+                "SELECT tabT.jediTaskID,tabT.status,tabT.oldStatus "
                 f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT,{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
                 "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
                 "AND tabT.vo=:vo AND tabT.prodSourceLabel=:prodSourceLabel "
@@ -3152,9 +3152,9 @@ class TaskStandaloneModule(BaseModule):
                 "AND tabT.lockedBy IS NULL "
             )
             if is_user:
-                sql_get_tasks += "AND tabT.userName=:uid "
+                sql_get_tasks += "AND tabT.userName=:user_id "
             else:
-                sql_get_tasks += "AND tabT.workingGroup=:uid "
+                sql_get_tasks += "AND tabT.workingGroup=:user_id "
             # SQL to check if the task has merging jobs
             sql_check_merging = f"SELECT 1 FROM dual WHERE EXISTS (SELECT 1 FROM {panda_config.schemaPANDA}.jobsActive4 WHERE jediTaskID=:jediTaskID AND jobStatus=:st_merging) "
             # start transaction
