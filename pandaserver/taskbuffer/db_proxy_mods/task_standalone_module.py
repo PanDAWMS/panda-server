@@ -2917,7 +2917,7 @@ class TaskStandaloneModule(BaseModule):
             nRow = self.cur.rowcount
             if nRow > 0:
                 tmpLog.debug(
-                    f"""updated previous status={varMap[":oldStatus"]} oldStatus={old_status} -> new status={varMap[":newStatus"]} oldStatus={varMap[":oldStatus"]}"""
+                    f"""updated previous status={current_status} oldStatus={old_status} -> new status={varMap[":newStatus"]} oldStatus={varMap[":oldStatus"]}"""
                 )
                 self.record_task_status_change(jediTaskID)
                 self.push_task_status_message(None, jediTaskID, varMap[":newStatus"])
