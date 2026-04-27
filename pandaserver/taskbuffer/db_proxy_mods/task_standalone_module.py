@@ -2916,7 +2916,9 @@ class TaskStandaloneModule(BaseModule):
             self.cur.execute(sqlTH + comment, varMap)
             nRow = self.cur.rowcount
             if nRow > 0:
-                tmpLog.debug(f"""updated previous status={varMap[":oldStatus"]} -> oldStatus={varMap[":oldStatus"]} newStatus={varMap[":newStatus"]}""")
+                tmpLog.debug(
+                    f"""updated previous status={varMap[":oldStatus"]} oldStatus={old_status} -> new status={varMap[":newStatus"]} oldStatus={varMap[":oldStatus"]}"""
+                )
                 self.record_task_status_change(jediTaskID)
                 self.push_task_status_message(None, jediTaskID, varMap[":newStatus"])
             else:
@@ -3142,13 +3144,14 @@ class TaskStandaloneModule(BaseModule):
             var_map[":st_ready"] = "ready"
             var_map[":st_running"] = "running"
             var_map[":st_pending"] = "pending"
+            var_map[":st_throttled"] = "throttled"
             # SQL to get tasks to throttle
             sql_get_tasks = (
                 "SELECT tabT.jediTaskID,tabT.status,tabT.oldStatus "
                 f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT,{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
                 "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
                 "AND tabT.vo=:vo AND tabT.prodSourceLabel=:prodSourceLabel "
-                "AND (tabT.status IN (:st_ready,:st_running) OR (tabT.status=:st_pending AND tabT.oldStatus IN (:st_ready,:st_running))) "
+                "AND (tabT.status IN (:st_ready,:st_running) OR (tabT.status IN (:st_pending,:st_throttled) AND tabT.oldStatus IN (:st_ready,:st_running))) "
                 "AND tabT.lockedBy IS NULL "
             )
             if is_user:
