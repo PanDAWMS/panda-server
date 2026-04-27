@@ -677,6 +677,11 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         with self.proxyPool.get() as proxy:
             return proxy.throttleTask_JEDI(jediTaskID, waitTime, errorDialog)
 
+    # throttle tasks of a user or working group and get the list of throttled tasks
+    def throttle_tasks_with_uid(self, vo: str, prod_source_label: str, wait_time: int, dialog: str, uid: str, is_user: bool = True):
+        with self.proxyPool.get() as proxy:
+            return proxy.throttle_tasks_with_uid(vo, prod_source_label, wait_time, dialog, uid, is_user)
+
     # release throttled tasks
     def releaseThrottledTasks_JEDI(self, vo, prodSourceLabel):
         with self.proxyPool.get() as proxy:
@@ -757,11 +762,15 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         with self.proxyPool.get() as proxy:
             return proxy.getFailureCountsForTask_JEDI(jediTaskID, timeWindow)
 
-        # count the number of queued jobs per user or working group
-
+    # count the number of queued jobs per user or working group
     def countJobsPerTarget_JEDI(self, target, is_user):
         with self.proxyPool.get() as proxy:
             return proxy.countJobsPerTarget_JEDI(target, is_user)
+
+    # count the number of jobs and cores per user or working group in VO and production source label
+    def count_jobs_per_uid_JEDI(self, vo, prod_source_label):
+        with self.proxyPool.get() as proxy:
+            return proxy.count_jobs_per_uid_JEDI(vo, prod_source_label)
 
     # get old merge job PandaIDs
     def getOldMergeJobPandaIDs_JEDI(self, jediTaskID, pandaID):

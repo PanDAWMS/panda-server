@@ -2707,7 +2707,7 @@ class MiscStandaloneModule(BaseModule):
                 varMap[":vo"] = vo
                 varMap[":label"] = prodSourceLabel
                 varMap[":dType"] = "dispatch"
-                sqlJ = "SELECT distinct prodUserName,dispatchDBlock,jediTaskID,currentFiles "
+                sqlJ = "SELECT distinct prodUserName,workingGroup,dispatchDBlock,jediTaskID,currentFiles "
                 sqlJ += "FROM {0}.{1} j, {0}.Datasets d ".format(panda_config.schemaPANDA, tableName)
                 sqlJ += "WHERE vo=:vo AND prodSourceLabel=:label "
                 if statusList is not None:
@@ -2725,19 +2725,20 @@ class MiscStandaloneModule(BaseModule):
                 if not self._commit():
                     raise RuntimeError("Commit error")
                 # make map
-                for prodUserName, dispatchDBlock, jediTaskID, dsSize in resJ:
+                for prodUserName, workingGroup, dispatchDBlock, jediTaskID, dsSize in resJ:
+                    uid = workingGroup if workingGroup is not None else prodUserName
                     transferType = "transfer"
                     try:
                         if dispatchDBlock.split(".")[4] == "prestaging":
                             transferType = "prestaging"
                     except Exception:
                         pass
-                    userDispMap.setdefault(prodUserName, {})
-                    userDispMap[prodUserName].setdefault(transferType, {"datasets": set(), "size": 0, "tasks": set()})
-                    if dispatchDBlock not in userDispMap[prodUserName][transferType]["datasets"]:
-                        userDispMap[prodUserName][transferType]["datasets"].add(dispatchDBlock)
-                        userDispMap[prodUserName][transferType]["tasks"].add(jediTaskID)
-                        userDispMap[prodUserName][transferType]["size"] += dsSize
+                    userDispMap.setdefault(uid, {})
+                    userDispMap[uid].setdefault(transferType, {"datasets": set(), "size": 0, "tasks": set()})
+                    if dispatchDBlock not in userDispMap[uid][transferType]["datasets"]:
+                        userDispMap[uid][transferType]["datasets"].add(dispatchDBlock)
+                        userDispMap[uid][transferType]["tasks"].add(jediTaskID)
+                        userDispMap[uid][transferType]["size"] += dsSize
             tmp_log.debug("done")
             return userDispMap
         except Exception:

@@ -149,7 +149,8 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                 maxTransfer = 1024
             # throttle interval
             thrInterval = 120
-            # loop over all users
+            # loop over all user tasks with data motion
+            user_motion_to_keep_throttled = {}
             for userName, userDict in dispUserTasks.items():
                 # loop over all transfer types
                 for transferType, maxSize in [("prestaging", maxPrestaging), ("transfer", maxTransfer)]:
@@ -166,13 +167,112 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                                 tmpLog.debug(f"action=throttle_{transferType} jediTaskID={taskID} for user={userName}")
                                 errDiag = f"throttled since transferring large data volume in total={userTotal}GB > limit={maxSize}GB type={transferType}"
                                 self.taskBufferIF.throttleTask_JEDI(taskID, thrInterval, errDiag)
-                        # remove the user from the list
-                        if userName in thrUserTasks and transferType in thrUserTasks[userName]:
-                            del thrUserTasks[userName][transferType]
-            # release users
+                        # keep throttled
+                        user_motion_to_keep_throttled.setdefault(userName, set()).add(transferType)
+            # release tasks related to data motion
             for userName, taskData in thrUserTasks.items():
                 for transferType, taskIDs in taskData.items():
+                    if transferType not in ["prestaging", "transfer"]:
+                        continue
+                    if userName in user_motion_to_keep_throttled and transferType in user_motion_to_keep_throttled[userName]:
+                        continue
                     tmpLog.debug(f"user={userName} release throttled tasks with {transferType}")
+                    # unthrottle tasks
+                    for taskID in taskIDs:
+                        tmpLog.debug(f"action=release_{transferType} jediTaskID={taskID} for user={userName}")
+                        self.taskBufferIF.release_task_on_hold(taskID, "throttled")
+
+            # throttle users with too many running/queued jobs
+            queue_factor = 2
+            throttle_threshold = 0.95
+            release_threshold = 0.85
+            gdp_token_group_jobs = "CAP_RUNNING_GROUP_JOBS"
+            gdp_token_group_cores = "CAP_RUNNING_GROUP_CORES"
+            max_num_run_group_jobs = self.taskBufferIF.getConfigValue("prio_mgr", gdp_token_group_jobs)
+            max_num_run_group_cores = self.taskBufferIF.getConfigValue("prio_mgr", gdp_token_group_cores)
+            gdp_token_user_jobs = "CAP_RUNNING_USER_JOBS"
+            gdp_token_user_cores = "CAP_RUNNING_USER_CORES"
+            max_num_run_user_jobs = self.taskBufferIF.getConfigValue("prio_mgr", gdp_token_user_jobs)
+            max_num_run_user_cores = self.taskBufferIF.getConfigValue("prio_mgr", gdp_token_user_cores)
+            # get job count per uid
+            job_count_per_uid = self.taskBufferIF.count_jobs_per_uid_JEDI(self.vo, self.prodSourceLabel)
+            users_to_keep_throttled = set()
+            for uid, count_dict in job_count_per_uid.items():
+                to_throttle = True
+                to_release = True
+                msg = None
+                if count_dict["is_user"]:
+                    # user
+                    if max_num_run_user_jobs:
+                        if count_dict["nRunJobs"] > max_num_run_user_jobs * throttle_threshold:
+                            msg = f"""throttle due to too many running jobs {count_dict["nRunJobs"]} > {gdp_token_user_jobs}x{throttle_threshold} type=jobs"""
+                        elif count_dict["nQueuedJobs"] > max_num_run_user_jobs * queue_factor * throttle_threshold:
+                            msg = f"""throttle due to too many queued jobs {count_dict["nQueuedJobs"]} > {gdp_token_user_jobs}x{throttle_threshold}x{queue_factor} type=jobs"""
+                    if msg is None and max_num_run_user_cores:
+                        if count_dict["nRunCores"] > max_num_run_user_cores:
+                            msg = (
+                                f"""throttle due to too many running cores {count_dict["nRunCores"]} > {gdp_token_user_cores}x{throttle_threshold} type=jobs"""
+                            )
+                        elif count_dict["nQueuedCores"] > max_num_run_user_cores * queue_factor * throttle_threshold:
+                            msg = f"""throttle due to too many queued cores {count_dict["nQueuedCores"]} > {gdp_token_user_cores}x{throttle_threshold}x{queue_factor} type=jobs"""
+                    if msg is None:
+                        to_throttle = False
+                    # check if can be released
+                    if max_num_run_user_jobs:
+                        if (
+                            count_dict["nRunJobs"] > max_num_run_user_jobs * release_threshold
+                            or count_dict["nQueuedJobs"] > max_num_run_user_jobs * queue_factor * release_threshold
+                        ):
+                            to_release = False
+                    if max_num_run_user_cores:
+                        if (
+                            count_dict["nRunCores"] > max_num_run_user_cores * release_threshold
+                            or count_dict["nQueuedCores"] > max_num_run_user_cores * queue_factor * release_threshold
+                        ):
+                            to_release = False
+                else:
+                    # group
+                    if max_num_run_group_jobs:
+                        if count_dict["nRunJobs"] > max_num_run_group_jobs:
+                            msg = f"""throttle due to too many running jobs {count_dict["nRunJobs"]} > {gdp_token_group_jobs}x{throttle_threshold} type=jobs"""
+                        elif count_dict["nQueuedJobs"] > max_num_run_group_jobs * queue_factor * throttle_threshold:
+                            msg = f"""throttle due to too many queued jobs {count_dict["nQueuedJobs"]} > {gdp_token_group_jobs}x{throttle_threshold}x{queue_factor} type=jobs"""
+                    if msg is None and max_num_run_group_cores:
+                        if count_dict["nRunCores"] > max_num_run_group_cores:
+                            msg = (
+                                f"""throttle due to too many running cores {count_dict["nRunCores"]} > {gdp_token_group_cores}x{throttle_threshold} type=jobs"""
+                            )
+                        elif count_dict["nQueuedCores"] > max_num_run_group_cores * queue_factor * throttle_threshold:
+                            msg = f"""throttle due to too many queued cores {count_dict["nQueuedCores"]} > {gdp_token_group_cores}x{throttle_threshold}x{queue_factor} type=jobs"""
+                    if msg is None:
+                        to_throttle = False
+                    # check if can be released
+                    if max_num_run_group_jobs:
+                        if (
+                            count_dict["nRunJobs"] > max_num_run_group_jobs * release_threshold
+                            or count_dict["nQueuedJobs"] > max_num_run_group_jobs * queue_factor * release_threshold
+                        ):
+                            to_release = False
+                    if max_num_run_group_cores:
+                        if (
+                            count_dict["nRunCores"] > max_num_run_group_cores * release_threshold
+                            or count_dict["nQueuedCores"] > max_num_run_group_cores * queue_factor * release_threshold
+                        ):
+                            to_release = False
+                if to_throttle:
+                    tmpLog.debug(f"uid={uid} {msg}")
+                    throttled_tasks = self.taskBufferIF.throttle_tasks_with_uid(self.vo, self.prodSourceLabel, thrInterval, msg, uid, count_dict["is_user"])
+                    tmpLog.debug(f"throttled tasks: {throttled_tasks}")
+                if to_throttle or not to_release:
+                    users_to_keep_throttled.add(uid)
+            # unthrottle users which are currently throttled but no more exceed the limit
+            for userName, taskData in thrUserTasks.items():
+                for transferType, taskIDs in taskData.items():
+                    if transferType not in ["jobs"]:
+                        continue
+                    if userName in users_to_keep_throttled:
+                        continue
+                    tmpLog.debug(f"user={userName} release throttled tasks since no more excess of queued and running job counts")
                     # unthrottle tasks
                     for taskID in taskIDs:
                         tmpLog.debug(f"action=release_{transferType} jediTaskID={taskID} for user={userName}")
