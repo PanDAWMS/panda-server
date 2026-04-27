@@ -2893,7 +2893,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # throttle one task
-    def throttleTask_JEDI(self, jediTaskID, waitTime, errorDialog, curret_status="running", old_status=None):
+    def throttleTask_JEDI(self, jediTaskID, waitTime, errorDialog, current_status="running", old_status=None):
         comment = " /* JediDBProxy.throttleTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug(f"start waitTime={waitTime}min")
@@ -2909,8 +2909,8 @@ class TaskStandaloneModule(BaseModule):
             varMap = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":newStatus"] = "throttled"
-            varMap[":currentStatus"] = curret_status
-            varMap[":oldStatus"] = old_status if old_status is not None else curret_status
+            varMap[":currentStatus"] = current_status
+            varMap[":oldStatus"] = old_status if old_status is not None else current_status
             varMap[":releaseTime"] = naive_utcnow() + datetime.timedelta(minutes=waitTime)
             varMap[":errorDialog"] = errorDialog
             self.cur.execute(sqlTH + comment, varMap)
