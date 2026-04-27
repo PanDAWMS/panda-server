@@ -261,8 +261,8 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                             to_release = False
                 if to_throttle:
                     tmpLog.debug(f"uid={uid} {msg}")
-                    # throttled_tasks = self.taskBufferIF.throttle_tasks_with_uid(self.vo, self.prodSourceLabel, thrInterval, msg, uid, count_dict["is_user"])
-                    # tmpLog.debug(f"throttled tasks: {throttled_tasks}")
+                    throttled_tasks = self.taskBufferIF.throttle_tasks_with_uid(self.vo, self.prodSourceLabel, thrInterval, msg, uid, count_dict["is_user"])
+                    tmpLog.debug(f"throttled tasks: {throttled_tasks}")
                 if to_throttle or not to_release:
                     users_to_keep_throttled.add(uid)
             # unthrottle users which are currently throttled but no more exceed the limit

@@ -2916,7 +2916,7 @@ class TaskStandaloneModule(BaseModule):
             self.cur.execute(sqlTH + comment, varMap)
             nRow = self.cur.rowcount
             if nRow > 0:
-                tmpLog.debug(f"""updated previous status={varMap[":oldStatus"]} oldStatus={varMap[":oldStatus"]} -> new status={varMap[":newStatus"]}""")
+                tmpLog.debug(f"""updated previous status={varMap[":oldStatus"]} -> oldStatus={varMap[":oldStatus"]} newStatus={varMap[":newStatus"]}""")
                 self.record_task_status_change(jediTaskID)
                 self.push_task_status_message(None, jediTaskID, varMap[":newStatus"])
             else:
@@ -3149,7 +3149,7 @@ class TaskStandaloneModule(BaseModule):
                 "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
                 "AND tabT.vo=:vo AND tabT.prodSourceLabel=:prodSourceLabel "
                 "AND (tabT.status IN (:st_ready,:st_running) OR (tabT.status=:st_pending AND tabT.oldStatus IN (:st_ready,:st_running))) "
-                "AND tabT.lockedBy IS NULL)) "
+                "AND tabT.lockedBy IS NULL "
             )
             if is_user:
                 sql_get_tasks += "AND tabT.userName=:uid "
