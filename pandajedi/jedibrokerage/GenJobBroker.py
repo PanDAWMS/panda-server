@@ -7,6 +7,7 @@ from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandajedi.jedirefine import RefinerUtils
+from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 
 from . import AtlasBrokerUtils
@@ -277,6 +278,7 @@ class GenJobBroker(JobBrokerBase):
         ######################################
         # get list of available files
         availableFileMap = {}
+        total_num_files = 0
         for datasetSpec in inputChunk.getDatasets():
             try:
                 # get list of site to be scanned
@@ -312,6 +314,7 @@ class GenJobBroker(JobBrokerBase):
                 if tmpAvFileMap is None:
                     raise Interaction.JEDITemporaryError("ddmIF.getAvailableFiles failed")
                 availableFileMap[datasetSpec.datasetName] = tmpAvFileMap
+                total_num_files += len(datasetSpec.Files)
             except Exception as e:
                 tmpLog.error(f"failed to get available files with {e}")
                 taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
@@ -369,6 +372,11 @@ class GenJobBroker(JobBrokerBase):
         for siteCandidateSpec in candidateSpecList:
             # append
             inputChunk.addSiteCandidate(siteCandidateSpec)
+            if panda_config.disable_file_dispatch and len(siteCandidateSpec.localDiskFiles) < total_num_files:
+                tmpLog.debug(
+                    f"  skip {siteCandidateSpec.siteName} due to input file dispatch is disabled and not all files are available at the site ({len(siteCandidateSpec.localDiskFiles)} < {total_num_files})"
+                )
+                continue
             newScanSiteList.append(siteCandidateSpec.siteName)
             tmpLog.debug(f"  use {siteCandidateSpec.siteName} with weight={siteCandidateSpec.weight} nFiles={len(siteCandidateSpec.localDiskFiles)}")
         scanSiteList = newScanSiteList
