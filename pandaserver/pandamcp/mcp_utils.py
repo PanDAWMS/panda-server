@@ -42,17 +42,18 @@ def create_tool(func: Callable) -> Tool:
     sig = inspect.signature(func)
     params = []
     for p in sig.parameters.values():
-        if p.annotation != PandaRequest:
+        if p.annotation != PandaRequest and p.name != "req":
             params.append(p)
 
     annotations = {}
     for k, v in func.__annotations__.items():
-        if v != PandaRequest:
+        if v != PandaRequest and k != "req":
             annotations[k] = v
 
     # create a new function that wraps the API call
     def wrapped_func(**kwarg):
         nonlocal url, http_method
+        kwarg.pop("req", None)
         # extract the id_token and auth_vo from the headers
         original_headers = get_http_headers()
         id_token = original_headers.get("x-auth-token") or original_headers.get("authorization")
