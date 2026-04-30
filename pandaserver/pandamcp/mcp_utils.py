@@ -12,7 +12,7 @@ from pandaserver.srvcore.panda_request import PandaRequest
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
-def create_tool(func: Callable) -> Tool:
+def create_tool(func: Callable, name: str | None = None) -> Tool:
     """
     Create an MCP tool that wraps the API call.
 
@@ -77,4 +77,4 @@ def create_tool(func: Callable) -> Tool:
     wrapped_func.__signature__ = sig.replace(parameters=params)
     wrapped_func.__annotations__ = annotations
 
-    return Tool.from_function(wrapped_func, name=func.__name__, description=func.__doc__)
+    return Tool.from_function(wrapped_func, name=name or func.__name__, description=func.__doc__)

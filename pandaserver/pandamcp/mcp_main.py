@@ -40,7 +40,7 @@ for mod, func_list in endpoints_to_expose.items():
     api_module = import_module(f"pandaserver.{api_module_path}.{mod}_api")
     for func_name in func_list:
         func = getattr(api_module, func_name)
-        tool = create_tool(func)
+        tool = create_tool(func, name=f"{mod}_{func_name}")
         main_mcp.add_tool(tool)
 
 # get HTTP app
