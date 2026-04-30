@@ -1117,7 +1117,14 @@ class AtlasAnalJobBroker(JobBrokerBase):
             msg_map = {}
             for tmpSiteName in self.get_unified_sites(scanSiteList):
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
-                # check at the site
+                # check direct access
+                if taskSpec.allowInputLAN() == "only" and not tmpSiteSpec.isDirectIO() and not tmpSiteSpec.always_use_direct_io() and not inputChunk.isMerging:
+                    tmp_msg = f"  skip site={tmpSiteName} since direct IO is disabled "
+                    tmp_msg += "criteria=-remoteio"
+                    msg_map[tmpSiteName] = tmp_msg
+                    continue
+
+                # check disk space
                 if tmpSiteSpec.maxwdir:
                     if CoreUtils.use_direct_io_for_job(taskSpec, tmpSiteSpec, inputChunk):
                         minDiskCount = minDiskCountR
