@@ -78,7 +78,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
 
 
 @request_validation(_logger, secure=True)
-def get_description(self, job_ids: List[int]) -> Dict:
+def get_description(req: PandaRequest, job_ids: List[int]) -> Dict:
     """
     Get description of a job.
 

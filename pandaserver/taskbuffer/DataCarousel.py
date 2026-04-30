@@ -1372,6 +1372,41 @@ class DataCarouselInterface(object):
             tmp_log.error(f"failed to fill total files and size; {e}")
             return False
 
+    def _update_total_files_and_size(self, dc_req_spec: DataCarouselRequestSpec) -> bool | None:
+        """
+        Update total files and dataset size of the Data Carousel request spec from DDM
+        Sometimes the total files and dataset size in the request spec can be dynamic
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): Data Carousel request spec
+
+        Returns:
+            bool|None : True if updated, None if not updated with reasons (e.g. got None from DDM, or total files not increased), False if error occurs
+        """
+        try:
+            tmp_log = LogWrapper(logger, f"_update_total_files_and_size request_id={dc_req_spec.request_id}")
+            # get dataset metadata
+            dataset_meta = self.ddmIF.get_dataset_metadata(dc_req_spec.dataset)
+            if dataset_meta["length"] is None or dataset_meta["bytes"] is None:
+                tmp_log.warning(f"got None for length or bytes from DDM for dataset {dc_req_spec.dataset} ; skipped")
+                return None
+            elif dataset_meta["length"] > dc_req_spec.total_files:
+                # update only when the total files increased
+                old_total_files = dc_req_spec.total_files
+                old_dataset_size = dc_req_spec.dataset_size
+                dc_req_spec.total_files = dataset_meta["length"]
+                dc_req_spec.dataset_size = dataset_meta["bytes"]
+                tmp_log.debug(
+                    f"updated total_files from {old_total_files} to {dc_req_spec.total_files} and dataset_size from {old_dataset_size} to {dc_req_spec.dataset_size}"
+                )
+                return True
+            else:
+                # tmp_log.debug(f"total_files not increased ; skipped")
+                return None
+        except Exception as e:
+            tmp_log.error(f"failed to update total files and size; {e}")
+            return False
+
     def submit_data_carousel_requests(
         self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]], options: dict | None = None, submit_idds_request: bool = True
     ) -> bool | None:
@@ -1693,10 +1728,17 @@ class DataCarouselInterface(object):
         df = queued_requests_tasks_df.sort(["to_pin", "gshare_rank", "task_priority", "request_id"], descending=[True, False, True, False], nulls_last=True)
         # get unique requests with the sorted order
         df = df.unique(subset=["request_id"], keep="first", maintain_order=True)
+        # get active source tapes
+        active_source_tapes = self._get_active_source_tapes()
+        if active_source_tapes is None:
+            tmp_log.warning(f"active_source_tapes is None ; skipped checking active source tapes")
         # evaluate per tape
         queued_requests_df = df
         for source_tape_stats_dict in source_tape_stats_dict_list:
             source_tape = source_tape_stats_dict["source_tape"]
+            if active_source_tapes is not None and source_tape not in active_source_tapes:
+                tmp_log.debug(f"source_tape={source_tape} not active ; skipped")
+                continue
             quota_size = source_tape_stats_dict["quota_size"]
             # dataframe of the physical tape
             tmp_df = queued_requests_df.filter(pl.col("source_tape") == source_tape)
@@ -2198,6 +2240,7 @@ class DataCarouselInterface(object):
         if dc_req_spec.ddm_rule_id:
             short_time = 5
             self._refresh_ddm_rule(dc_req_spec.ddm_rule_id, short_time)
+            tmp_log.debug(f"expired ddm_rule_id={dc_req_spec.ddm_rule_id} with short lifetime {short_time} sec")
         # return
         return ret
 
@@ -2216,13 +2259,20 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, f"retire_request request_id={dc_req_spec.request_id} by={by}" + (f" reason={reason}" if reason else " "))
         # retire
-        ret = self.taskBufferIF.retire_data_carousel_request_JEDI(dc_req_spec.request_id)
-        if ret:
+        ret = None
+        _res = self.taskBufferIF.retire_data_carousel_request_JEDI(dc_req_spec.request_id)
+        if _res:
             tmp_log.debug(f"retired")
-        elif ret == 0:
+            ret = True
+        elif _res == 0:
             tmp_log.debug(f"cannot retire; skipped")
         else:
             tmp_log.error(f"failed to retire")
+        # expire DDM rule
+        if dc_req_spec.ddm_rule_id:
+            short_time = 5
+            self._refresh_ddm_rule(dc_req_spec.ddm_rule_id, short_time)
+            tmp_log.debug(f"expired ddm_rule_id={dc_req_spec.ddm_rule_id} with short lifetime {short_time} sec")
         # return
         return ret
 
@@ -2411,12 +2461,15 @@ class DataCarouselInterface(object):
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
 
-    def check_staging_requests(self):
+    def check_staging_requests(self, time_limit_minutes: int = 5) -> None:
         """
         Check staging requests
+
+        Args:
+            time_limit_minutes (int): time limit in minutes for checking staging requests; default is 5 minutes
         """
         tmp_log = LogWrapper(logger, "check_staging_requests")
-        dc_req_specs = self.taskBufferIF.get_data_carousel_staging_requests_JEDI()
+        dc_req_specs = self.taskBufferIF.get_data_carousel_staging_requests_JEDI(time_limit_minutes=time_limit_minutes)
         if dc_req_specs is None:
             tmp_log.warning(f"failed to query requests to check ; skipped")
         elif not dc_req_specs:
@@ -2482,8 +2535,11 @@ class DataCarouselInterface(object):
                             dc_req_spec.destination_rse = destination_rse
                             tmp_log.debug(f"request_id={dc_req_spec.request_id} filled destination_rse={destination_rse} of ddm_rule_id={ddm_rule_id}")
                             to_update = True
-                    # current staged files
+                    # update current total and staged files
                     now_time = naive_utcnow()
+                    total_files_got_updated = self._update_total_files_and_size(dc_req_spec)
+                    if total_files_got_updated:
+                        to_update = True
                     current_staged_files = int(the_rule["locks_ok_cnt"])
                     new_staged_files = current_staged_files - dc_req_spec.staged_files
                     if new_staged_files > 0:
@@ -3061,4 +3117,56 @@ class DataCarouselInterface(object):
                     cancel_fts_success = False
                 if not cancel_fts_success:
                     err_msg = f"ddm_rule_id={dc_req_spec.ddm_rule_id} failed to cancel FTS requests ; skipped"
+        return ret, dc_req_spec, err_msg
+
+    def retire_unused_request(self, dc_req_spec: DataCarouselRequestSpec) -> tuple[bool | None, DataCarouselRequestSpec, str | None]:
+        """
+        Check if a request can be retired as unused and retire it if so
+        A request is considered unused if its status is done and it has no related tasks
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): spec of the request to check and potentially retire
+
+            DataCarouselRequestSpec: updated spec of the request after retiring if retired, original spec if not retired or if reloading the updated spec fails
+            bool|None : True for success, False for failure, None if skipped
+            DataCarouselRequestSpec: spec of the request after retiring if retired, original spec if not retired
+            str|None: error message if any, None otherwise
+        """
+        tmp_log = LogWrapper(logger, f"retire_unused_request request_id={dc_req_spec.request_id}")
+        ret = None
+        err_msg = None
+        # Check if status is done
+        if dc_req_spec.status != DataCarouselRequestStatus.done:
+            err_msg = f"status is {dc_req_spec.status}, not done ; skipped"
+            tmp_log.debug(err_msg)
+            return ret, dc_req_spec, err_msg
+        # Check if there are active related tasks
+        active_related_tasks = self.taskBufferIF.get_related_tasks_of_data_carousel_request_JEDI(
+            dc_req_spec.request_id, status_exclusion_list=FINAL_TASK_STATUSES
+        )
+        if active_related_tasks is None:
+            err_msg = f"failed to check related tasks"
+            tmp_log.error(err_msg)
+            ret = False
+            return ret, dc_req_spec, err_msg
+        if active_related_tasks:
+            err_msg = f"still has {len(active_related_tasks)} active related tasks ; skipped"
+            tmp_log.debug(err_msg)
+            return ret, dc_req_spec, err_msg
+        # Both conditions met: retire the request
+        ret = self.retire_request(dc_req_spec, by="manual", reason="manually_retired_unused")
+        if ret is None:
+            err_msg = "failed to retire request"
+            tmp_log.error(err_msg)
+            ret = False
+            return ret, dc_req_spec, err_msg
+        # update spec after retiring
+        updated_dc_req_spec = self.get_request_by_id(dc_req_spec.request_id)
+        if updated_dc_req_spec is None:
+            err_msg = "retired request but failed to reload updated request"
+            tmp_log.error(err_msg)
+            ret = False
+            return ret, dc_req_spec, err_msg
+        else:
+            dc_req_spec = updated_dc_req_spec
         return ret, dc_req_spec, err_msg

@@ -12,7 +12,11 @@ PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
 # for Rucio
 X509_CERT_DIR=/etc/grid-security/certificates
 X509_USER_PROXY=/data/atlpan/x509up_u25606
-RUCIO_ACCOUNT=panda
+if [[ -z "${PANDA_RUCIO_ACCOUNT}" ]]; then
+	RUCIO_ACCOUNT=panda
+else
+	RUCIO_ACCOUNT=${PANDA_RUCIO_ACCOUNT}
+fi
 RUCIO_APPID=pandasrv
 
 # panda home

@@ -40,11 +40,36 @@ for mod, func_list in endpoints_to_expose.items():
     api_module = import_module(f"pandaserver.{api_module_path}.{mod}_api")
     for func_name in func_list:
         func = getattr(api_module, func_name)
-        tool = create_tool(func)
+        tool = create_tool(func, name=f"{mod}_{func_name}")
         main_mcp.add_tool(tool)
 
 # get HTTP app
 http_app = main_mcp.http_app(transport=mcp_config.transport)
+
+LOG_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s %(levelname)s %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+        "access": {
+            "format": "%(asctime)s %(levelname)s %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    },
+    "handlers": {
+        "default": {"class": "logging.StreamHandler", "stream": "ext://sys.stdout", "formatter": "default"},
+        "access": {"class": "logging.StreamHandler", "stream": "ext://sys.stdout", "formatter": "access"},
+        "error": {"class": "logging.StreamHandler", "stream": "ext://sys.stderr", "formatter": "default"},
+    },
+    "loggers": {
+        "uvicorn": {"handlers": ["default"], "level": "INFO", "propagate": False},
+        "uvicorn.error": {"handlers": ["error"], "level": "INFO", "propagate": False},
+        "uvicorn.access": {"handlers": ["access"], "level": "INFO", "propagate": False},
+    },
+}
 
 if __name__ == "__main__":
     uvicorn.run(
@@ -53,4 +78,5 @@ if __name__ == "__main__":
         port=int(os.getenv("PANDA_SERVER_CONF_PORT_MCP", 25888)),
         ssl_keyfile=mcp_config.ssl_keyfile,
         ssl_certfile=mcp_config.ssl_certfile,
+        log_config=LOG_CONFIG,
     )

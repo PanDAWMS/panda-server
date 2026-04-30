@@ -167,9 +167,14 @@ if "configurator_use_cert" not in tmpSelf.__dict__:
 if "add_serialized" not in tmpSelf.__dict__:
     tmpSelf.__dict__["add_serialized"] = False
 
-# disable file aggregation
+# disable output file aggregation
 if "disable_file_aggregation" not in tmpSelf.__dict__:
     tmpSelf.__dict__["disable_file_aggregation"] = False
+
+# disable input file dispatch
+if "disable_file_dispatch" not in tmpSelf.__dict__:
+    tmpSelf.__dict__["disable_file_dispatch"] = False
+
 
 # dict for plugins
 g_pluginMap = {}

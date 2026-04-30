@@ -2745,10 +2745,10 @@ class EntityModule(BaseModule):
             sql_last = (
                 "WITH top_ts(timestamp, region) AS "
                 "(SELECT max(timestamp), region "
-                "FROM atlas_panda.carbon_region_emissions "
+                "FROM ATLAS_PANDA.carbon_region_emissions "
                 "GROUP BY region) "
                 "SELECT cre.region, cre.value, cre.timestamp "
-                "FROM atlas_panda.carbon_region_emissions cre, top_ts "
+                "FROM ATLAS_PANDA.carbon_region_emissions cre, top_ts "
                 "WHERE cre.timestamp = top_ts.timestamp AND cre.region = top_ts.region"
             )
 
@@ -3687,7 +3687,7 @@ class EntityModule(BaseModule):
 
         sql = """
         SELECT pdr.panda_site_name, de.site_name, nvl(pdr.scope, 'default')
-        FROM atlas_panda.panda_ddm_relation pdr, atlas_panda.ddm_endpoint de
+        FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
         WHERE pdr.default_write = 'Y'
         AND pdr.ddm_endpoint_name = de.ddm_endpoint_name
         """
