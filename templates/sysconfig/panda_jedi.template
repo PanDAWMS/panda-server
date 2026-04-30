@@ -13,7 +13,11 @@ fi
 # for Rucio
 export X509_CERT_DIR=/etc/grid-security/certificates
 export X509_USER_PROXY=/data/atlpan/x509up_u25606
-export RUCIO_ACCOUNT=panda
+if [[ -z "${PANDA_RUCIO_ACCOUNT}" ]]; then
+  export RUCIO_ACCOUNT=panda
+else
+  export RUCIO_ACCOUNT=${PANDA_RUCIO_ACCOUNT}
+fi
 export RUCIO_APPID=pandasrv
 
 # panda home
