@@ -14,7 +14,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from ruamel.yaml import YAML
 
 # from pandaserver.srvcore.CoreUtils import clean_user_id
-from pandaserver.workflow import pcwl_utils, workflow_utils
+from pandaserver.workflow import pcwl_utils, workflow_native_utils
 from pandaserver.workflow.snakeparser import Parser
 
 # supported workflow description languages
@@ -42,7 +42,7 @@ def json_serialize_default(obj):
     # convert set to list
     if isinstance(obj, set):
         return list(obj)
-    elif isinstance(obj, workflow_utils.Node):
+    elif isinstance(obj, workflow_native_utils.Node):
         return obj.id
     return obj
 
@@ -160,11 +160,11 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                             nodes, root_in = parser.parse_nodes()
                             data = dict()
                         # resolve nodes
-                        s_id, t_nodes, nodes = workflow_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log)
-                        workflow_utils.set_workflow_outputs(nodes)
-                        id_node_map = workflow_utils.get_node_id_map(nodes)
+                        s_id, t_nodes, nodes = workflow_native_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log)
+                        workflow_native_utils.set_workflow_outputs(nodes)
+                        id_node_map = workflow_native_utils.get_node_id_map(nodes)
                         [node.resolve_params(raw_request_dict["taskParams"], id_node_map) for node in nodes]
-                        dump_str = "the description was internally converted as follows\n" + workflow_utils.dump_nodes(nodes)
+                        dump_str = "the description was internally converted as follows\n" + workflow_native_utils.dump_nodes(nodes)
                         tmp_log.info(dump_str)
                         for node in nodes:
                             s_check, o_check = node.verify()
