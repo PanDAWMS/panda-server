@@ -715,7 +715,7 @@ def update_worker_status(req: PandaRequest, worker_id, harvester_id, status, tim
     """
     tmp_logger = LogWrapper(
         _logger,
-        f"updateWorkerPilotStatus worker_id={worker_id} harvester_id={harvester_id} status={status} node_id={node_id} PID={os.getpid()}",
+        f"update_worker_status worker_id={worker_id} harvester_id={harvester_id} status={status} node_id={node_id} PID={os.getpid()}",
     )
     tmp_logger.debug("Start")
 
