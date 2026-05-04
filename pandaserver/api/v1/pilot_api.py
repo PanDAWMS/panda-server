@@ -153,6 +153,10 @@ def acquire_jobs(
     except (ValueError, TypeError):
         remaining_time = 0
 
+    # harvester ID was not set, but we haver the scheduler ID, which should be the same
+    if not harvester_id and scheduler_id:
+        harvester_id = scheduler_id
+
     tmp_logger.debug(
         f"{site_name}, n_jobs={n_jobs}, memory={memory}, disk={disk_space}, source_label={prod_source_label}, "
         f"node={node}, ce={computing_element}, user={prod_user_id}, proxy={get_proxy_key}, "
