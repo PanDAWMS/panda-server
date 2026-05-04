@@ -116,8 +116,6 @@ from pandaserver.userinterface.UserIF import (
     getTaskParamsMap,
     getTaskStatus,
     getUserJobMetadata,
-    getWorkerStats,
-    harvesterIsAlive,
     increaseAttemptNrPanda,
     insertSandboxFileInfo,
     insertTaskParams,
@@ -132,7 +130,6 @@ from pandaserver.userinterface.UserIF import (
     relay_idds_command,
     release_task,
     reloadInput,
-    reportWorkerStats_jobtype,
     resumeTask,
     retryTask,
     send_command_to_job,
@@ -140,9 +137,6 @@ from pandaserver.userinterface.UserIF import (
     setDebugMode,
     setNumSlotsForWP,
     submitJobs,
-    sweepPQ,
-    updateServiceMetrics,
-    updateWorkers,
     userIF,
 )
 

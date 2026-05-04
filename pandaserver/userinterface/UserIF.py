@@ -481,41 +481,6 @@ class UserIF:
         ret = self.taskBuffer.getTaskParamsMap(jediTaskID)
         return ret
 
-    # update workers
-    def updateWorkers(self, user, host, harvesterID, data):
-        ret = self.taskBuffer.updateWorkers(harvesterID, data)
-        if ret is None:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, ret)
-        return json.dumps(return_value)
-
-    # update workers
-    def updateServiceMetrics(self, user, host, harvesterID, data):
-        ret = self.taskBuffer.updateServiceMetrics(harvesterID, data)
-        if ret is None:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, ret)
-        return json.dumps(return_value)
-
-    # heartbeat for harvester
-    def harvesterIsAlive(self, user, host, harvesterID, data):
-        ret = self.taskBuffer.harvesterIsAlive(user, host, harvesterID, data)
-        if ret is None:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, ret)
-        return json.dumps(return_value)
-
-    # get stats of workers
-    def getWorkerStats(self):
-        return self.taskBuffer.getWorkerStats()
-
-    # report stat of workers
-    def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
-        return self.taskBuffer.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
-
     # set num slots for workload provisioning
     def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
         return_value = self.taskBuffer.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)
@@ -538,19 +503,6 @@ class UserIF:
         return_value = self.taskBuffer.getJumboJobDatasets(n_days, grace_period)
         # serialize
         return json.dumps(return_value)
-
-    # sweep panda queue
-    def sweepPQ(self, panda_queue, status_list, ce_list, submission_host_list):
-        try:
-            panda_queue_des = json.loads(panda_queue)
-            status_list_des = json.loads(status_list)
-            ce_list_des = json.loads(ce_list)
-            submission_host_list_des = json.loads(submission_host_list)
-        except Exception:
-            _logger.error("Problem deserializing variables")
-
-        ret = self.taskBuffer.sweepPQ(panda_queue_des, status_list_des, ce_list_des, submission_host_list_des)
-        return WrappedPickle.dumps(ret)
 
     # send command to a job
     def send_command_to_job(self, panda_id, com):
@@ -1415,97 +1367,6 @@ def getTaskParamsMap(req, jediTaskID):
         return WrappedPickle.dumps((False, MESSAGE_TASK_ID))
     ret = userIF.getTaskParamsMap(jediTaskID)
     return WrappedPickle.dumps(ret)
-
-
-# update workers
-def updateWorkers(req, harvesterID, workers):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # get DN
-    user = _getDN(req)
-    # hostname
-    host = req.get_remote_host()
-    return_value = None
-    tStart = naive_utcnow()
-    # convert
-    try:
-        data = json.loads(workers)
-    except Exception:
-        return_value = json.dumps((False, MESSAGE_JSON))
-    # update
-    if return_value is None:
-        return_value = userIF.updateWorkers(user, host, harvesterID, data)
-    tDelta = naive_utcnow() - tStart
-    _logger.debug(f"updateWorkers {harvesterID} took {tDelta.seconds}.{tDelta.microseconds // 1000:03d} sec")
-
-    return return_value
-
-
-# update workers
-def updateServiceMetrics(req, harvesterID, metrics):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-
-    user = _getDN(req)
-
-    host = req.get_remote_host()
-    return_value = None
-    tStart = naive_utcnow()
-
-    # convert
-    try:
-        data = json.loads(metrics)
-    except Exception:
-        return_value = json.dumps((False, MESSAGE_JSON))
-
-    # update
-    if return_value is None:
-        return_value = userIF.updateServiceMetrics(user, host, harvesterID, data)
-
-    tDelta = naive_utcnow() - tStart
-    _logger.debug(f"updateServiceMetrics {harvesterID} took {tDelta.seconds}.{tDelta.microseconds // 1000:03d} sec")
-
-    return return_value
-
-
-# heartbeat for harvester
-def harvesterIsAlive(req, harvesterID, data=None):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # get DN
-    user = _getDN(req)
-    # hostname
-    host = req.get_remote_host()
-    # convert
-    try:
-        if data is not None:
-            data = json.loads(data)
-        else:
-            data = dict()
-    except Exception:
-        return json.dumps((False, MESSAGE_JSON))
-    # update
-    return userIF.harvesterIsAlive(user, host, harvesterID, data)
-
-
-# get stats of workers
-def getWorkerStats(req):
-    # get
-    ret = userIF.getWorkerStats()
-    return json.dumps(ret)
-
-
-# report stat of workers
-def reportWorkerStats_jobtype(req, harvesterID, siteName, paramsList):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # update
-    ret = userIF.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
-    return json.dumps(ret)
 
 
 # set num slots for workload provisioning

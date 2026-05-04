@@ -1556,49 +1556,6 @@ def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
-    """
-    Send a harvester command to panda server in order sweep a panda queue
-
-    args:
-        panda_queue: panda queue name
-        status_list: list with statuses to sweep, e.g. ['submitted']
-        ce_list: list of CEs belonging to the site or 'ALL'
-        submission_host_list: list of submission hosts this applies or 'ALL'
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        return: a tuple of return code and message
-              False: logical error
-              True: success
-    """
-
-    http_client = HttpClient()
-
-    panda_queue_json = json.dumps(panda_queue)
-    status_list_json = json.dumps(status_list)
-    ce_list_json = json.dumps(ce_list)
-    submission_host_list_json = json.dumps(submission_host_list)
-
-    # execute
-    url = f"{baseURLSSL}/sweepPQ"
-    data = {
-        "panda_queue": panda_queue_json,
-        "status_list": status_list_json,
-        "ce_list": ce_list_json,
-        "submission_host_list": submission_host_list_json,
-    }
-    status, output = http_client.post(url, data)
-
-    try:
-        return status, json.loads(output)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_str = f"ERROR sweepPQ : {error_type} {error_value}"
-        return EC_Failed, f"{output}\n{error_str}"
-
-
 def send_command_to_job(panda_id, command):
     """
     Send a command to a job
