@@ -44,14 +44,11 @@ from pandaserver.config import panda_config
 
 # pylint: disable=W0611
 from pandaserver.jobdispatcher.JobDispatcher import (
-    ackCommands,
     checkEventsAvailability,
     checkJobStatus,
     get_access_token,
     get_events_status,
-    get_max_worker_id,
     get_token_key,
-    getCommands,
     getEventRanges,
     getJob,
     getKeyPair,
@@ -95,7 +92,6 @@ from pandaserver.userinterface import Client
 
 # pylint: disable=W0611
 from pandaserver.userinterface.UserIF import (
-    addHarvesterDialogs,
     avalancheTask,
     changeTaskAttributePanda,
     changeTaskModTimePanda,

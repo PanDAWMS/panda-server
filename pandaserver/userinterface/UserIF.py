@@ -499,15 +499,6 @@ class UserIF:
             return_value = (True, ret)
         return json.dumps(return_value)
 
-    # add harvester dialog messages
-    def addHarvesterDialogs(self, user, harvesterID, dialogs):
-        ret = self.taskBuffer.addHarvesterDialogs(harvesterID, dialogs)
-        if not ret:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, "")
-        return json.dumps(return_value)
-
     # heartbeat for harvester
     def harvesterIsAlive(self, user, host, harvesterID, data):
         ret = self.taskBuffer.harvesterIsAlive(user, host, harvesterID, data)
@@ -1477,22 +1468,6 @@ def updateServiceMetrics(req, harvesterID, metrics):
     _logger.debug(f"updateServiceMetrics {harvesterID} took {tDelta.seconds}.{tDelta.microseconds // 1000:03d} sec")
 
     return return_value
-
-
-# add harvester dialog messages
-def addHarvesterDialogs(req, harvesterID, dialogs):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # get DN
-    user = _getDN(req)
-    # convert
-    try:
-        data = json.loads(dialogs)
-    except Exception:
-        return json.dumps((False, MESSAGE_JSON))
-    # update
-    return userIF.addHarvesterDialogs(user, harvesterID, data)
 
 
 # heartbeat for harvester

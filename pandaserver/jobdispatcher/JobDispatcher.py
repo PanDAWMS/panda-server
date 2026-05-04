@@ -597,46 +597,6 @@ class JobDispatcher:
     def getSiteMapper(self):
         return True, SiteMapper(self.taskBuffer)
 
-    def getCommands(self, harvester_id, n_commands, timeout, accept_json):
-        """
-        Get commands for a particular harvester instance
-        """
-        tmp_wrapper = _TimedMethod(self.taskBuffer.getCommands, timeout)
-        tmp_wrapper.run(harvester_id, n_commands)
-
-        # Make response
-        if tmp_wrapper.result == Protocol.TimeOutToken:
-            # timeout
-            response = Protocol.Response(Protocol.SC_TimeOut)
-        else:
-            # success
-            response = Protocol.Response(Protocol.SC_Success)
-            response.appendNode("Returns", tmp_wrapper.result[0])
-            response.appendNode("Commands", tmp_wrapper.result[1])
-
-        _logger.debug(f"getCommands : ret -> {response.encode(accept_json)}")
-        return response.encode(accept_json)
-
-    def ackCommands(self, command_ids, timeout, accept_json):
-        """
-        Acknowledge the commands from a list of IDs
-        """
-        _logger.debug(f"command_ids : {command_ids}")
-        tmp_wrapper = _TimedMethod(self.taskBuffer.ackCommands, timeout)
-        tmp_wrapper.run(command_ids)
-
-        # Make response
-        if tmp_wrapper.result == Protocol.TimeOutToken:
-            # timeout
-            response = Protocol.Response(Protocol.SC_TimeOut)
-        else:
-            # success
-            response = Protocol.Response(Protocol.SC_Success)
-            response.appendNode("Returns", tmp_wrapper.result)
-
-        _logger.debug(f"ackCommands : ret -> {response.encode(accept_json)}")
-        return response.encode(accept_json)
-
     def getResourceTypes(self, timeout, accept_json):
         """
         Get resource types (SCORE, MCORE, SCORE_HIMEM, MCORE_HIMEM) and their definitions
@@ -744,11 +704,6 @@ class JobDispatcher:
                 response = Protocol.Response(Protocol.SC_Failed)
         _logger.debug(f"updateWorkerPilotStatus : {workerID} {harvesterID} {status} ret -> {response.encode(accept_json)}")
         return response.encode(accept_json)
-
-    # get max workerID
-    def get_max_worker_id(self, harvester_id):
-        id = self.taskBuffer.get_max_worker_id(harvester_id)
-        return json.dumps(id)
 
     def get_events_status(self, ids):
         ret = self.taskBuffer.get_events_status(ids)
@@ -1501,55 +1456,6 @@ def checkPilotPermission(req):
     return True, None
 
 
-def getCommands(req, harvester_id, n_commands, timeout=30):
-    """
-    This function checks the permissions and retrieves the commands for a specified harvester instance.
-
-    Args:
-        req: The request object containing the environment variables.
-        harvester_id (str): The ID of the harvester instance.
-        n_commands (int): The number of commands to retrieve.
-        timeout (int, optional): The timeout value. Defaults to 30.
-    Returns:
-        dict: The response from the job dispatcher.
-    """
-    tmp_str = "getCommands"
-
-    # check permissions
-    tmp_stat, tmp_out = checkPilotPermission(req)
-    if not tmp_stat:
-        _logger.error(f"{tmp_str} failed with {tmp_out}")
-
-    accept_json = req.acceptJson()
-    # retrieve the commands
-    return jobDispatcher.getCommands(harvester_id, n_commands, timeout, accept_json)
-
-
-def ackCommands(req, command_ids, timeout=30):
-    """
-    This function checks the permissions, parses the command IDs from JSON, and acknowledges the list of commands.
-
-    Args:
-        req: The request object containing the environment variables.
-        command_ids (str): A JSON string containing the list of command IDs to acknowledge.
-        timeout (int, optional): The timeout value. Defaults to 30.
-    Returns:
-        dict: The response from the job dispatcher.
-    """
-    tmp_str = "ackCommands"
-
-    # check permissions
-    tmp_stat, tmp_out = checkPilotPermission(req)
-    if not tmp_stat:
-        _logger.error(f"{tmp_str} failed with {tmp_out}")
-
-    command_ids = json.loads(command_ids)
-    accept_json = req.acceptJson()
-
-    # retrieve the commands
-    return jobDispatcher.ackCommands(command_ids, timeout, accept_json)
-
-
 def getResourceTypes(req, timeout=30):
     """
     This function retrieves the resource types (MCORE, SCORE, etc.) and their definitions.
@@ -1613,11 +1519,6 @@ def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60
     accept_json = req.acceptJson()
 
     return jobDispatcher.updateWorkerPilotStatus(workerID, harvesterID, status, timeout, accept_json, node_id)
-
-
-# get max workerID
-def get_max_worker_id(req, harvester_id):
-    return jobDispatcher.get_max_worker_id(harvester_id)
 
 
 # get events status

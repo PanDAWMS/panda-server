@@ -32,14 +32,11 @@ allowed_methods += [
     "getProxy",
     "get_access_token",
     "get_token_key",
-    "getCommands",
-    "ackCommands",
     "checkJobStatus",
     "checkEventsAvailability",
     "updateJobsInBulk",
     "getResourceTypes",
     "updateWorkerPilotStatus",
-    "get_max_worker_id",
     "get_events_status",
 ]
 
@@ -80,7 +77,6 @@ allowed_methods += [
     "harvesterIsAlive",
     "reportWorkerStats_jobtype",
     "getWorkerStats",
-    "addHarvesterDialogs",
     "setNumSlotsForWP",
     "reloadInput",
     "enableJumboJobs",
