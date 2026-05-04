@@ -9,10 +9,6 @@ import tempfile
 import traceback
 
 import requests
-from idds.atlas.workflowv2.atlaslocalpandawork import ATLASLocalPandaWork
-from idds.atlas.workflowv2.atlaspandawork import ATLASPandaWork
-from idds.workflowv2.workflow import AndCondition, Condition, OrCondition, Workflow
-from pandaclient import PhpoScript, PrunScript
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from ruamel.yaml import YAML
