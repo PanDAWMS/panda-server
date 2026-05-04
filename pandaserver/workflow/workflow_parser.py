@@ -15,10 +15,10 @@ from ruamel.yaml import YAML
 
 # from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.workflow import pcwl_utils, workflow_native_utils
-from pandaserver.workflow.snakeparser import Parser
+from pandaserver.workflow.snakeparser import Parser as SnakeParser
 
 # supported workflow description languages
-SUPPORTED_WORKFLOW_LANGUAGES = ["cwl", "snakemake"]
+SUPPORTED_WORKFLOW_LANGUAGES = ["yaml", "cwl", "snakemake"]
 
 # main logger
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
@@ -146,7 +146,14 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                     tmp_log.info("parse workflow")
                     workflow_name = None
                     if (wf_lang := raw_request_dict["language"]) in SUPPORTED_WORKFLOW_LANGUAGES:
-                        if wf_lang == "cwl":
+                        if wf_lang == "yaml":
+                            workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
+                            with open(workflow_spec_file) as workflow_spec:
+                                yaml = YAML(typ="safe", pure=True)
+                                data = yaml.load(workflow_spec)
+                            workflow_name = data.get("name")
+                            nodes, root_in = workflow_native_utils.parse_workflow_data(data, tmp_log)
+                        elif wf_lang == "cwl":
                             workflow_name = raw_request_dict.get("workflow_name")
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
                             workflow_input_file = os.path.join(tmp_dirname, raw_request_dict["workflowInputFile"])
@@ -156,7 +163,7 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                                 data = yaml.load(workflow_input)
                         elif wf_lang == "snakemake":
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
-                            parser = Parser(workflow_spec_file, logger=tmp_log)
+                            parser = SnakeParser(workflow_spec_file, logger=tmp_log)
                             nodes, root_in = parser.parse_nodes()
                             data = dict()
                         # resolve nodes

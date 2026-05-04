@@ -2,6 +2,7 @@ import copy
 import json
 import re
 import shlex
+import tempfile
 
 from pandaclient import PhpoScript, PrunScript
 
@@ -431,6 +432,7 @@ class Node(object):
             dict_inputs = self.convert_dict_inputs(skip_suppressed=True)
             # extract source and base URL
             source_url = task_template["container"]["sourceURL"]
+            source_name = None
             for tmp_item in task_template["container"]["jobParameters"]:
                 if tmp_item["type"] == "constant" and tmp_item["value"].startswith("-a "):
                     source_name = tmp_item["value"].split()[-1]
@@ -619,45 +621,44 @@ def set_workflow_outputs(node_list, all_parents=None):
             set_workflow_outputs(node.sub_nodes, all_parents)
 
 
-# convert parameter names to parent IDs
-def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map):
-    for item in ["left", "right"]:
-        param = getattr(condition_item, item)
-        if isinstance(param, str):
-            m = re.search(r"^[^\[]+\[(\d+)\]", param)
-            if m:
-                param = param.split("[")[0]
-                idx = int(m.group(1))
-            else:
-                idx = None
-            isOK = False
-            for tmp_name, tmp_data in input_data.items():
-                if param == tmp_name.split("/")[-1]:
-                    isOK = True
-                    if isinstance(tmp_data["parent_id"], list):
-                        if idx is not None:
-                            if idx < 0 or idx >= len(tmp_data["parent_id"]):
-                                raise IndexError(f"index {idx} is out of bounds for parameter {param} with {len(tmp_data['parent_id'])} parents")
-                            parent_id = tmp_data["parent_id"][idx]
-                            if parent_id not in id_map:
-                                raise ReferenceError(f"unresolved parent_id {parent_id} for parameter {param}[{idx}]")
-                            setattr(condition_item, item, id_map[parent_id])
-                        else:
-                            resolved_parent_ids = set()
-                            for parent_id in tmp_data["parent_id"]:
-                                if parent_id not in id_map:
-                                    raise ReferenceError(f"unresolved parent_id {parent_id} for parameter {param}")
-                                resolved_parent_ids |= id_map[parent_id]
-                            setattr(condition_item, item, list(resolved_parent_ids))
-                    else:
-                        if tmp_data["parent_id"] not in id_map:
-                            raise ReferenceError(f"unresolved parent_id {tmp_data['parent_id']} for parameter {param}")
-                        setattr(condition_item, item, id_map[tmp_data["parent_id"]])
-                    break
-            if not isOK:
-                raise ReferenceError(f"unresolved parameter {param} in the condition string")
-        elif isinstance(param, ConditionItem):
-            convert_params_in_condition_to_parent_ids(param, input_data, id_map)
+# NOTE: condition features are not yet implemented
+# TODO: implement condition support
+# def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map):
+#     for item in ["left", "right"]:
+#         param = getattr(condition_item, item)
+#         if isinstance(param, str):
+#             m = re.search(r"^[^\[]+\[(\d+)\]", param)
+#             if m:
+#                 param = param.split("[")[0]
+#                 idx = int(m.group(1))
+#             else:
+#                 idx = None
+#             isOK = False
+#             for tmp_name, tmp_data in input_data.items():
+#                 if param == tmp_name.split("/")[-1]:
+#                     isOK = True
+#                     if isinstance(tmp_data["parent_id"], list):
+#                         if idx is not None:
+#                             if idx < 0 or idx >= len(tmp_data["parent_id"]):
+#                                 raise IndexError(f"index {idx} is out of bounds for parameter {param} with {len(tmp_data['parent_id'])} parents")
+#                             parent_id = tmp_data["parent_id"][idx]
+#                             if parent_id not in id_map:
+#                                 raise ReferenceError(f"unresolved parent_id {parent_id} for parameter {param}[{idx}]")
+#                             setattr(condition_item, item, id_map[parent_id])
+#                         else:
+#                             resolved_parent_ids = set()
+#                             for parent_id in tmp_data["parent_id"]:
+#                                 if parent_id not in id_map:
+#                                     raise ReferenceError(f"unresolved parent_id {parent_id} for parameter {param}")
+#                                 resolved_parent_ids |= id_map[parent_id]
+#                             setattr(condition_item, item, list(resolved_parent_ids))
+#                     else:
+#                         if tmp_data["parent_id"] not in id_map:
+#                             raise ReferenceError(f"unresolved parent_id {tmp_data['parent_id']} for parameter {param}")
+#                         setattr(condition_item, item, id_map[tmp_data["parent_id"]])
+#                     break
+#             if not isOK:
+#                 raise ReferenceError(f"unresolved parameter {param} in the condition string")
 
 
 # resolve nodes
@@ -774,8 +775,10 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                 sc_node.id = serial_id
                 serial_id += 1
             # convert parameters to parent IDs in conditions
+            # TODO: condition features not yet implemented
             if sc_node.condition:
-                convert_params_in_condition_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
+                pass
+                # convert_params_in_condition_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
             # resolve outputs
             if sc_node.is_leaf:
                 for tmp_name, tmp_data in sc_node.outputs.items():
@@ -792,3 +795,99 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
         else:
             tail_nodes += resolved_map[original_node_id]
     return serial_id, tail_nodes, all_nodes
+
+
+# parse workflow data for native YAML workflow
+def parse_workflow_data(data, log_stream):
+    # Handle both nested (workflow:{...}) and flat ({...}) structures
+    workflow_data = data.get("workflow", data)
+
+    # extract root inputs and outputs
+    root_inputs = workflow_data.get("inputs", {})
+    root_outputs = workflow_data.get("outputs", {})
+    tail_node_names = {output_spec["from"].split("/")[0] for output_spec in root_outputs.values() if isinstance(output_spec, dict) and "from" in output_spec}
+
+    # parse steps
+    steps = workflow_data.get("steps", {})
+    node_list = []
+    node_name_map = {}
+    serial_id = 0
+
+    # first pass: create all nodes
+    for step_name, step_spec in steps.items():
+        serial_id += 1
+        step_type = step_spec.get("type", "prun")
+        is_leaf = step_type in ["prun", "phpo", "junction", "reana", "gitlab"]
+        node = Node(serial_id, step_type, None, is_leaf, step_name)
+        node_name_map[step_name] = node
+
+        # parse inputs
+        inputs = {}
+        for key, yaml_key in [
+            ("inDS", "opt_inDS"),
+            ("args", "opt_args"),
+            ("exec", "opt_exec"),
+            ("containerImage", "opt_containerImage"),
+            ("useAthenaPackages", "opt_useAthenaPackages"),
+            ("secondaryDSs", "opt_secondaryDSs"),
+            ("secondaryDsTypes", "opt_secondaryDsTypes"),
+        ]:
+            if key in step_spec:
+                inputs[f"{step_name}/{yaml_key}"] = {
+                    "default": step_spec.get(key) if key not in ["inDS", "secondaryDSs"] else None,
+                    "source": step_spec.get(key) if key in ["inDS", "secondaryDSs"] else None,
+                }
+
+        node.inputs = inputs
+        node.outputs = {f"{step_name}/outDS": {}}
+        node.is_tail = step_name in tail_node_names
+        node_list.append(node)
+
+    # second pass: resolve parent relationships; note that the parent_id is not used in core workflow execution but only for parameter resolution
+    for node in node_list:
+        for input_name, input_data in node.inputs.items():
+            source = input_data.get("source")
+            if not source:
+                continue
+
+            # resolve single source
+            if isinstance(source, str):
+                if source.startswith("{") and source.endswith("}"):
+                    input_data["source"] = source[1:-1]
+                elif "/" in source:
+                    source_node_name = source.split("/")[0]
+                    if source_node_name in node_name_map:
+                        parent = node_name_map[source_node_name]
+                        node.add_parent(parent.id)
+                        input_data["parent_id"] = parent.id
+            # resolve list of sources
+            elif isinstance(source, list):
+                parent_ids = []
+                for src in source:
+                    if isinstance(src, str) and "/" in src:
+                        source_node_name = src.split("/")[0]
+                        if source_node_name in node_name_map:
+                            parent = node_name_map[source_node_name]
+                            node.add_parent(parent.id)
+                            parent_ids.append(parent.id)
+                if parent_ids:
+                    input_data["parent_id"] = parent_ids
+
+    # topological sort
+    visited = set()
+    sorted_nodes = []
+
+    def visit(n):
+        if n.id in visited:
+            return
+        for parent_id in n.parents:
+            for other in node_list:
+                if other.id == parent_id:
+                    visit(other)
+        visited.add(n.id)
+        sorted_nodes.append(n)
+
+    for node in node_list:
+        visit(node)
+
+    return sorted_nodes, root_inputs
