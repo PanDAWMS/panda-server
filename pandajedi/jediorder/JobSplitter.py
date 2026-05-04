@@ -210,6 +210,8 @@ class JobSplitter:
                     maxWalltime = taskSpec.getMaxWalltime()
                 if maxWalltime is None:
                     maxWalltime = siteSpec.maxtime
+                elif maxWalltime > siteSpec.maxtime:
+                    maxWalltime = siteSpec.maxtime
                 # core count
                 if siteSpec.coreCount:
                     coreCount = siteSpec.coreCount
