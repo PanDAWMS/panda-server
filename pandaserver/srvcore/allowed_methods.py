@@ -19,20 +19,12 @@ allowed_methods += [
     "getProxy",
     "get_access_token",
     "get_token_key",
-    "checkJobStatus",
     "checkEventsAvailability",
     "get_events_status",
 ]
 
 # methods from pandaserver.userinterface.UserIF
 allowed_methods += [
-    "submitJobs",
-    "getJobStatus",
-    "killJobs",
-    "reassignJobs",
-    "getFullJobStatus",
-    "getScriptOfflineRunning",
-    "setDebugMode",
     "insertTaskParams",
     "killTask",
     "finishTask",
@@ -57,10 +49,8 @@ allowed_methods += [
     "setNumSlotsForWP",
     "reloadInput",
     "enableJumboJobs",
-    "getUserJobMetadata",
     "getJumboJobDatasets",
     "relay_idds_command",
-    "send_command_to_job",
     "execute_idds_workflow_command",
     "set_user_secret",
     "get_user_secrets",

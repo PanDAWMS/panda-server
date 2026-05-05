@@ -64,178 +64,12 @@ class UserIF:
     def init(self, taskBuffer):
         self.taskBuffer = taskBuffer
 
-    # submit jobs
-    def submitJobs(self, jobsStr, user, host, userFQANs, prodRole=False, toPending=False):
-        try:
-            # deserialize jobspecs
-            try:
-                jobs = WrappedPickle.loads(jobsStr)
-            except Exception:
-                jobs = JobUtils.load_jobs_json(jobsStr)
-            _logger.debug(f"submitJobs {user} len:{len(jobs)} prodRole={prodRole} FQAN:{str(userFQANs)}")
-            maxJobs = 5000
-            if len(jobs) > maxJobs:
-                _logger.error(f"submitJobs: too many jobs more than {maxJobs}")
-                jobs = jobs[:maxJobs]
-        except Exception as ex:
-            _logger.error(f"submitJobs : {str(ex)} {traceback.format_exc()}")
-            jobs = []
-        # check prodSourceLabel
-        try:
-            good_labels = True
-            for tmpJob in jobs:
-                # check production role
-                if tmpJob.prodSourceLabel in ["managed"] and not prodRole:
-                    good_labels = False
-                    good_labels_message = f"submitJobs {user} missing prod-role for prodSourceLabel={tmpJob.prodSourceLabel}"
-                    break
-
-                # check the job_label is valid
-                if tmpJob.job_label not in [None, "", "NULL"] and tmpJob.job_label not in JobUtils.job_labels:
-                    good_labels = False
-                    good_labels_message = f"submitJobs {user} wrong job_label={tmpJob.job_label}"
-                    break
-        except Exception:
-            err_type, err_value = sys.exc_info()[:2]
-            _logger.error(f"submitJobs : checking good_labels {err_type} {err_value}")
-            good_labels = False
-
-        # reject injection for error with the labels
-        if not good_labels:
-            _logger.error(good_labels_message)
-            return f"ERROR: {good_labels_message}"
-
-        job0 = None
-
-        # get user VO
-        userVO = "atlas"
-        try:
-            job0 = jobs[0]
-            if job0.VO not in [None, "", "NULL"]:
-                userVO = job0.VO
-        except (IndexError, AttributeError) as e:
-            _logger.error(f"submitJobs : checking userVO. userVO not found, defaulting to {userVO}. (Exception {e})")
-
-        # atlas jobs require FQANs
-        if userVO == "atlas" and userFQANs == []:
-            _logger.error(f"submitJobs : VOMS FQANs are missing in your proxy. They are required for {userVO}")
-            # return "ERROR: VOMS FQANs are missing. They are required for {0}".format(userVO)
-
-        # get LSST pipeline username
-        if userVO.lower() == "lsst":
-            try:
-                if job0.prodUserName and job0.prodUserName.lower() != "none":
-                    user = job0.prodUserName
-            except AttributeError:
-                _logger.error(f"submitJobs : checking username for userVO {userVO}: username not found, defaulting to {user}.")
-
-        # store jobs
-        ret = self.taskBuffer.storeJobs(
-            jobs,
-            user,
-            fqans=userFQANs,
-            hostname=host,
-            toPending=toPending,
-            userVO=userVO,
-        )
-        _logger.debug(f"submitJobs {user} ->:{len(ret)}")
-
-        # serialize
-        return WrappedPickle.dumps(ret)
-
-    # set debug mode
-    def setDebugMode(self, dn, pandaID, prodManager, modeOn, workingGroup):
-        ret = self.taskBuffer.setDebugMode(dn, pandaID, prodManager, modeOn, workingGroup)
-        # return
-        return ret
-
-    # get job status
-    def getJobStatus(self, idsStr, use_json, no_pickle=False):
-        try:
-            # deserialize IDs
-            if use_json or no_pickle:
-                ids = json.loads(idsStr)
-            else:
-                ids = WrappedPickle.loads(idsStr)
-            _logger.debug(f"getJobStatus len   : {len(ids)}")
-            maxIDs = 5500
-            if len(ids) > maxIDs:
-                _logger.error(f"too long ID list more than {maxIDs}")
-                ids = ids[:maxIDs]
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getJobStatus : {type} {value}")
-            ids = []
-        _logger.debug(f"getJobStatus start : {str(ids)} json={use_json}")
-        # peek jobs
-        ret = self.taskBuffer.peekJobs(ids, use_json=use_json)
-        _logger.debug("getJobStatus end")
-        # serialize
-        if use_json:
-            return json.dumps(ret)
-        if no_pickle:
-            return JobUtils.dump_jobs_json(ret)
-        return WrappedPickle.dumps(ret)
-
     # get PandaIDs with TaskID
     def getPandaIDsWithTaskID(self, jediTaskID):
         # get PandaIDs
         ret = self.taskBuffer.getPandaIDsWithTaskID(jediTaskID)
         # serialize
         return WrappedPickle.dumps(ret)
-
-    # kill jobs
-    def killJobs(self, idsStr, user, host, code, prodManager, useMailAsID, fqans, killOpts=[]):
-        # deserialize IDs
-        ids = WrappedPickle.loads(idsStr)
-        if not isinstance(ids, list):
-            ids = [ids]
-        _logger.info(f"killJob : {user} {code} {prodManager} {fqans} {ids}")
-        try:
-            if useMailAsID:
-                _logger.debug(f"killJob : getting mail address for {user}")
-                nTry = 3
-                for iDDMTry in range(nTry):
-                    status, userInfo = rucioAPI.finger(user)
-                    if status:
-                        _logger.debug(f"killJob : {user} is converted to {userInfo['email']}")
-                        user = userInfo["email"]
-                        break
-                    time.sleep(1)
-        except Exception:
-            err_type, err_value = sys.exc_info()[:2]
-            _logger.error(f"killJob : failed to convert email address {user} : {err_type} {err_value}")
-        # get working groups with prod role
-        wgProdRole = []
-        for fqan in fqans:
-            tmpMatch = re.search("/atlas/([^/]+)/Role=production", fqan)
-            if tmpMatch is not None:
-                # ignore usatlas since it is used as atlas prod role
-                tmpWG = tmpMatch.group(1)
-                if tmpWG not in ["", "usatlas"] + wgProdRole:
-                    wgProdRole.append(tmpWG)
-                    # group production
-                    wgProdRole.append(f"gr_{tmpWG}")
-        # kill jobs
-        ret = self.taskBuffer.killJobs(ids, user, code, prodManager, wgProdRole, killOpts)
-        return WrappedPickle.dumps(ret)
-
-    # reassign jobs
-    def reassignJobs(self, idsStr, user, host, forPending, firstSubmission):
-        # deserialize IDs
-        ids = WrappedPickle.loads(idsStr)
-        # reassign jobs
-        ret = self.taskBuffer.reassignJobs(
-            ids,
-            forPending=forPending,
-            firstSubmission=firstSubmission,
-        )
-        return WrappedPickle.dumps(ret)
-
-    # get script for offline running
-    def getScriptOfflineRunning(self, pandaID, days=None):
-        ret = self.taskBuffer.getScriptOfflineRunning(pandaID, days)
-        return ret
 
     # get active JediTasks in a time range
     def getJediTasksInTimeRange(self, dn, timeRange, fullFlag, minTaskID, task_type):
@@ -245,26 +79,6 @@ class UserIF:
     # get details of JediTask
     def getJediTaskDetails(self, jediTaskID, fullFlag, withTaskInfo):
         ret = self.taskBuffer.getJediTaskDetails(jediTaskID, fullFlag, withTaskInfo)
-        return WrappedPickle.dumps(ret)
-
-    # get full job status
-    def getFullJobStatus(self, idsStr, dn):
-        try:
-            # deserialize jobspecs
-            ids = WrappedPickle.loads(idsStr)
-            # truncate
-            maxIDs = 5500
-            if len(ids) > maxIDs:
-                _logger.error(f"getFullJobStatus: too long ID list more than {maxIDs}")
-                ids = ids[:maxIDs]
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getFullJobStatus : {type} {value}")
-            ids = []
-        _logger.debug(f"getFullJobStatus start : {dn} {str(ids)}")
-        # peek jobs
-        ret = self.taskBuffer.getFullJobStatus(ids)
-        _logger.debug("getFullJobStatus end")
         return WrappedPickle.dumps(ret)
 
     # insert task params
@@ -466,21 +280,11 @@ class UserIF:
             self.avalancheTask(jediTaskID, "panda", True)
         return json.dumps(return_value)
 
-    # get user job metadata
-    def getUserJobMetadata(self, jediTaskID):
-        return_value = self.taskBuffer.getUserJobMetadata(jediTaskID)
-        return json.dumps(return_value)
-
     # get jumbo job datasets
     def getJumboJobDatasets(self, n_days, grace_period):
         return_value = self.taskBuffer.getJumboJobDatasets(n_days, grace_period)
         # serialize
         return json.dumps(return_value)
-
-    # send command to a job
-    def send_command_to_job(self, panda_id, com):
-        ret = self.taskBuffer.send_command_to_job(panda_id, com)
-        return ret
 
     # set user secret
     def set_user_secret(self, owner, key, value):
@@ -590,110 +394,6 @@ web service interface
 """
 
 
-# submit jobs
-def submitJobs(req, jobs, toPending=None):
-    # check security
-    if not isSecure(req):
-        return False
-    # get DN
-    user = None
-    if "SSL_CLIENT_S_DN" in req.subprocess_env:
-        user = _getDN(req)
-    # get FQAN
-    fqans = _getFQAN(req)
-    # hostname
-    host = req.get_remote_host()
-    # production Role
-    is_production_role = _has_production_role(req)
-    # to pending
-    toPending = resolve_true(toPending)
-
-    return userIF.submitJobs(jobs, user, host, fqans, is_production_role, toPending)
-
-
-# get job status
-def getJobStatus(req, ids, no_pickle=None):
-    return userIF.getJobStatus(ids, req.acceptJson(), no_pickle)
-
-
-# set debug mode
-def setDebugMode(req, pandaID, modeOn):
-    tmp_log = LogWrapper(_logger, f"setDebugMode {pandaID} {modeOn}")
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        error_str = MESSAGE_SSL
-        tmp_log.error(error_str)
-        return f"ERROR: {error_str}"
-    user = _getDN(req)
-    # check role
-    is_production_manager = _has_production_role(req)
-    fqans = _getFQAN(req)
-    # mode
-    modeOn = resolve_true(modeOn)
-
-    # get the primary working group with prod role
-    working_group = _getWGwithPR(req)
-    tmp_log.debug(f"user={user} mgr={is_production_manager} wg={working_group} fqans={str(fqans)}")
-    # exec
-    return userIF.setDebugMode(user, pandaID, is_production_manager, modeOn, working_group)
-
-
-# kill jobs
-def killJobs(req, ids, code=None, useMailAsID=None, killOpts=None):
-    # check security
-    if not isSecure(req):
-        return False
-    # get DN
-    user = None
-    if "SSL_CLIENT_S_DN" in req.subprocess_env:
-        user = _getDN(req)
-    # check role
-    is_production_manager = _has_production_role(req)
-    # get FQANs
-    fqans = _getFQAN(req)
-    # use email address as ID
-    useMailAsID = resolve_true(useMailAsID)
-
-    # hostname
-    host = req.get_remote_host()
-    # options
-    if killOpts is None:
-        killOpts = []
-    else:
-        killOpts = killOpts.split(",")
-    return userIF.killJobs(ids, user, host, code, is_production_manager, useMailAsID, fqans, killOpts)
-
-
-# reassign jobs
-def reassignJobs(req, ids, forPending=None, firstSubmission=None):
-    # check security
-    if not isSecure(req):
-        return False
-    # get DN
-    user = None
-    if "SSL_CLIENT_S_DN" in req.subprocess_env:
-        user = _getDN(req)
-    # hostname
-    host = req.get_remote_host()
-    # for pending
-    forPending = resolve_true(forPending)
-
-    # first submission
-    firstSubmission = resolve_false(firstSubmission)
-
-    return userIF.reassignJobs(ids, user, host, forPending, firstSubmission)
-
-
-# get script for offline running
-def getScriptOfflineRunning(req, pandaID, days=None):
-    try:
-        if days is not None:
-            days = int(days)
-    except Exception:
-        days = None
-    return userIF.getScriptOfflineRunning(pandaID, days)
-
-
 # get active JediTasks in a time range
 def getJediTasksInTimeRange(req, timeRange, dn=None, fullFlag=None, minTaskID=None, task_type="user"):
     # check security
@@ -730,18 +430,6 @@ def getJediTaskDetails(req, jediTaskID, fullFlag, withTaskInfo):
     _logger.debug(f"getJediTaskDetails {jediTaskID} {fullFlag} {withTaskInfo}")
     # execute
     return userIF.getJediTaskDetails(jediTaskID, fullFlag, withTaskInfo)
-
-
-# get full job status
-def getFullJobStatus(req, ids):
-    # check security
-    if not isSecure(req):
-        return False
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return False
-    dn = _getDN(req)
-    return userIF.getFullJobStatus(ids, dn)
 
 
 # insert task params
@@ -1331,15 +1019,6 @@ def enableJumboJobs(req, jediTaskID, nJumboJobs, nJumboPerSite=None):
     return userIF.enableJumboJobs(jediTaskID, nJumboJobs, nJumboPerSite)
 
 
-# get user job metadata
-def getUserJobMetadata(req, jediTaskID):
-    try:
-        jediTaskID = int(jediTaskID)
-    except Exception:
-        return WrappedPickle.dumps((False, MESSAGE_TASK_ID))
-    return userIF.getUserJobMetadata(jediTaskID)
-
-
 # get jumbo job datasets
 def getJumboJobDatasets(req, n_days, grace_period=0):
     try:
@@ -1509,18 +1188,6 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
     except Exception as e:
         tmp_log.error(f"failed with {str(e)} {traceback.format_exc()}")
         return json.dumps((False, f"server failed with {str(e)}"))
-
-
-# send command to a job
-def send_command_to_job(req, panda_id, com):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # check role
-    prod_role = _has_production_role(req)
-    if not prod_role:
-        return json.dumps((False, MESSAGE_PROD_ROLE))
-    return json.dumps(userIF.send_command_to_job(panda_id, com))
 
 
 # set user secret

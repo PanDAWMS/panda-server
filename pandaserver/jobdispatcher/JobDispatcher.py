@@ -137,25 +137,6 @@ class JobDispatcher:
             response.appendNode("errorDialog", tmp_msg)
             return False, tmp_msg
 
-    # check job status
-    def checkJobStatus(self, pandaIDs, timeout):
-        tmpWrapper = _TimedMethod(self.taskBuffer.checkJobStatus, timeout)
-        tmpWrapper.run(pandaIDs)
-        # make response
-        if tmpWrapper.result == Protocol.TimeOutToken:
-            # timeout
-            response = Protocol.Response(Protocol.SC_TimeOut)
-        else:
-            if isinstance(tmpWrapper.result, list):
-                # succeed
-                response = Protocol.Response(Protocol.SC_Success)
-                response.appendNode("data", tmpWrapper.result)
-            else:
-                # failed
-                response = Protocol.Response(Protocol.SC_Failed)
-        _logger.debug(f"checkJobStatus : {pandaIDs} ret -> {response.encode(True)}")
-        return response.encode(True)
-
     # get a list of event ranges for a PandaID
     def getEventRanges(
         self,
@@ -497,11 +478,6 @@ def _getDN(req):
 web service interface
 
 """
-
-
-# check job status
-def checkJobStatus(req, ids, timeout=60):
-    return jobDispatcher.checkJobStatus(ids, int(timeout))
 
 
 # get a list of even ranges for a PandaID
