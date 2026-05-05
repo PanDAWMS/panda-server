@@ -2350,14 +2350,6 @@ class TaskBuffer:
             ret = proxy.getLFNsForJumbo(jediTaskID)
         return ret
 
-    # get active job attribute
-    def getActiveJobAttributes(self, pandaID, attrs):
-        # get DBproxy
-        with self.proxyPool.get() as proxy:
-            # exec
-            ret = proxy.getActiveJobAttributes(pandaID, attrs)
-        return ret
-
     # get original consumers
     def getOriginalConsumers(self, jediTaskID, jobsetID, pandaID):
         # get DBproxy
