@@ -1,13 +1,7 @@
-import gc
-import gzip
 import json
 import os
-import re
-import struct
-import sys
 import traceback
 import uuid
-import zlib
 from typing import Generator
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -17,9 +11,7 @@ from werkzeug.datastructures import FileStorage
 
 from pandaserver.config import panda_config
 from pandaserver.jobdispatcher import Protocol
-from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.panda_request import PandaRequest
-from pandaserver.userinterface import Client
 
 _logger = PandaLogger().getLogger("Utils")
 
