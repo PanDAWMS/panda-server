@@ -43,7 +43,6 @@ from pandaserver.api.v1.common import extract_allowed_methods
 from pandaserver.config import panda_config
 
 # pylint: disable=W0611
-from pandaserver.jobdispatcher.JobDispatcher import jobDispatcher
 from pandaserver.srvcore import CoreUtils
 
 # IMPORTANT: Add any new methods here to allow them to be called from the web I/F
@@ -118,9 +117,6 @@ if panda_config.nDBConnection != 0:
     # System API does not need to be initialized. system_api_v1.init_task_buffer(taskBuffer)
     task_api_v1.init_task_buffer(taskBuffer)
     workflow_api_v1.init_task_buffer(taskBuffer)
-
-    # initialize JobDispatcher
-    jobDispatcher.init(taskBuffer)
 
     # initialize UserIF
     userIF.init(taskBuffer)
