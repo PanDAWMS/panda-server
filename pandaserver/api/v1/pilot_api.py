@@ -153,6 +153,10 @@ def acquire_jobs(
     except (ValueError, TypeError):
         remaining_time = 0
 
+    # harvester ID was not set, but we haver the scheduler ID, which should be the same
+    if not harvester_id and scheduler_id:
+        harvester_id = scheduler_id
+
     tmp_logger.debug(
         f"{site_name}, n_jobs={n_jobs}, memory={memory}, disk={disk_space}, source_label={prod_source_label}, "
         f"node={node}, ce={computing_element}, user={prod_user_id}, proxy={get_proxy_key}, "
@@ -715,7 +719,7 @@ def update_worker_status(req: PandaRequest, worker_id, harvester_id, status, tim
     """
     tmp_logger = LogWrapper(
         _logger,
-        f"updateWorkerPilotStatus worker_id={worker_id} harvester_id={harvester_id} status={status} node_id={node_id} PID={os.getpid()}",
+        f"update_worker_status worker_id={worker_id} harvester_id={harvester_id} status={status} node_id={node_id} PID={os.getpid()}",
     )
     tmp_logger.debug("Start")
 
