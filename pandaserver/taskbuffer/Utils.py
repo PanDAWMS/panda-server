@@ -41,19 +41,6 @@ ERROR_WRITE = "ERROR: cannot write file"
 ERROR_SIZE_LIMIT = "ERROR: upload failure. Exceeded size limit"
 
 
-def isAlive(panda_request: PandaRequest) -> str:
-    """
-    Check if the server is alive. Basic function for the health check and used in SLS monitoring.
-
-    Args:
-        panda_request (PandaRequest): PanDA request object.
-
-    Returns:
-        str: "alive=yes"
-    """
-    return "alive=yes"
-
-
 def get_content_length(panda_request: PandaRequest, tmp_log: LogWrapper) -> int:
     """
     Get the content length of the request.
@@ -493,19 +480,6 @@ def touchFile(panda_request: PandaRequest, filename: str) -> str:
         return "False"
 
 
-# get server name:port for SSL
-def getServer(panda_request: PandaRequest) -> str:
-    """
-    Get the server name and port for HTTPS.
-    Args:
-        panda_request (PandaRequest): PanDA request object.
-
-    Returns:
-        string: String with server:port
-    """
-    return f"{panda_config.pserverhost}:{panda_config.pserverport}"
-
-
 # get server name:port for HTTP
 def getServerHTTP(panda_request: PandaRequest) -> str:
     """
@@ -583,58 +557,6 @@ def fetchLog(panda_request: PandaRequest, logName: str, offset: int = 0) -> str:
         tmp_log.error(f"{error_type} {error_value}")
 
     tmp_log.debug(f"end read={len(return_string)}")
-    return return_string
-
-
-def getVomsAttr(panda_request: PandaRequest) -> str:
-    """
-    Get the VOMS attributes in sorted order.
-    Args:
-        panda_request (PandaRequest): PanDA request object.
-
-    Returns:
-        string: String with the VOMS attributes
-    """
-    attributes = []
-
-    # Iterate over all the environment variables, keep only the ones related to GRST credentials (GRST: Grid Security Technology)
-    for tmp_key in panda_request.subprocess_env:
-        tmp_val = panda_request.subprocess_env[tmp_key]
-
-        # compact credentials
-        if tmp_key.startswith("GRST_CRED_"):
-            attributes.append(f"{tmp_key} : {tmp_val}\n")
-
-    return "".join(sorted(attributes))
-
-
-def getAttr(panda_request: PandaRequest, **kv: dict) -> str:
-    """
-    Get all parameters and environment variables from the environment.
-    Args:
-        panda_request (PandaRequest): PanDA request object.
-        kv (dict): dictionary with key-value pairs
-
-    Returns:
-        string: String with the attributes
-    """
-    # add the parameters
-    return_string = "===== param =====\n"
-    for tmp_key in sorted(kv.keys()):
-        tmp_val = kv[tmp_key]
-        return_string += f"{tmp_key} = {tmp_val}\n"
-
-    # add the environment variables
-    attributes = []
-    for tmp_key in panda_request.subprocess_env:
-        tmp_val = panda_request.subprocess_env[tmp_key]
-        attributes.append(f"{tmp_key} : {tmp_val}\n")
-
-    return_string += "\n====== env ======\n"
-    attributes.sort()
-    for attribute in sorted(attributes):
-        return_string += attribute
-
     return return_string
 
 

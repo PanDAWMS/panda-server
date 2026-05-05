@@ -4,16 +4,12 @@ allowed_methods = []
 
 # methods from pandaserver.taskbuffer.Utils
 allowed_methods += [
-    "isAlive",
     "putFile",
     "deleteFile",
-    "getServer",
     "updateLog",
     "fetchLog",
     "touchFile",
-    "getVomsAttr",
     "putEventPickingRequest",
-    "getAttr",
     "uploadLog",
     "put_checkpoint",
     "delete_checkpoint",
