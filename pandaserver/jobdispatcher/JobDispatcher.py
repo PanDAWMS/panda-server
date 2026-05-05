@@ -597,26 +597,6 @@ class JobDispatcher:
     def getSiteMapper(self):
         return True, SiteMapper(self.taskBuffer)
 
-    def getResourceTypes(self, timeout, accept_json):
-        """
-        Get resource types (SCORE, MCORE, SCORE_HIMEM, MCORE_HIMEM) and their definitions
-        """
-        tmp_wrapper = _TimedMethod(self.taskBuffer.getResourceTypes, timeout)
-        tmp_wrapper.run()
-
-        # Make response
-        if tmp_wrapper.result == Protocol.TimeOutToken:
-            # timeout
-            response = Protocol.Response(Protocol.SC_TimeOut)
-        else:
-            # success
-            response = Protocol.Response(Protocol.SC_Success)
-            response.appendNode("Returns", 0)
-            response.appendNode("ResourceTypes", tmp_wrapper.result)
-
-        _logger.debug(f"getResourceTypes : ret -> {response.encode(accept_json)}")
-        return response.encode(accept_json)
-
     # get proxy
     def get_proxy(self, real_distinguished_name: str, role: str | None, target_distinguished_name: str | None, tokenized: bool, token_key: str | None) -> dict:
         """
@@ -1454,29 +1434,6 @@ def checkPilotPermission(req):
         return False, "production or pilot role is required"
 
     return True, None
-
-
-def getResourceTypes(req, timeout=30):
-    """
-    This function retrieves the resource types (MCORE, SCORE, etc.) and their definitions.
-
-    Args:
-        req: The request object containing the environment variables.
-        timeout (int, optional): The timeout value. Defaults to 30.
-    Returns:
-        dict: The resource types and their definitions.
-    """
-    tmp_str = "getResourceTypes"
-
-    # check permissions
-    tmp_stat, tmp_out = checkPilotPermission(req)
-    if not tmp_stat:
-        _logger.error(f"{tmp_str} failed with {tmp_out}")
-
-    accept_json = req.acceptJson()
-
-    # retrieve the resource types
-    return jobDispatcher.getResourceTypes(timeout, accept_json)
 
 
 def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60, node_id=None):

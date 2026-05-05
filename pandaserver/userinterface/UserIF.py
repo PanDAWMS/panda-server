@@ -196,16 +196,6 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-    # get job statistics per site
-    def getJobStatisticsPerSite(self):
-        ret = self.taskBuffer.getJobStatistics()
-        return WrappedPickle.dumps(ret, convert_to_safe=True)
-
-    # get job statistics per site, source label, and resource type
-    def get_job_statistics_per_site_label_resource(self, time_window):
-        ret = self.taskBuffer.get_job_statistics_per_site_label_resource(time_window)
-        return json.dumps(ret)
-
     # kill jobs
     def killJobs(self, idsStr, user, host, code, prodManager, useMailAsID, fqans, killOpts=[]):
         # deserialize IDs
@@ -258,11 +248,6 @@ class UserIF:
     def getScriptOfflineRunning(self, pandaID, days=None):
         ret = self.taskBuffer.getScriptOfflineRunning(pandaID, days)
         return ret
-
-    # get ban users
-    def get_ban_users(self):
-        ret = self.taskBuffer.get_ban_users()
-        return json.dumps(ret)
 
     # get active JediTasks in a time range
     def getJediTasksInTimeRange(self, dn, timeRange, fullFlag, minTaskID, task_type):
@@ -699,16 +684,6 @@ def checkSandboxFile(req, fileSize, checkSum):
     return userIF.checkSandboxFile(user, fileSize, checkSum)
 
 
-# get job statistics per site and resource
-def get_job_statistics_per_site_label_resource(req, time_window=None):
-    return userIF.get_job_statistics_per_site_label_resource(time_window)
-
-
-# get job statistics per site
-def getJobStatisticsPerSite(req):
-    return userIF.getJobStatisticsPerSite()
-
-
 # kill jobs
 def killJobs(req, ids, code=None, useMailAsID=None, killOpts=None):
     # check security
@@ -753,11 +728,6 @@ def reassignJobs(req, ids, forPending=None, firstSubmission=None):
     firstSubmission = resolve_false(firstSubmission)
 
     return userIF.reassignJobs(ids, user, host, forPending, firstSubmission)
-
-
-# get ban users
-def get_ban_users(req):
-    return userIF.get_ban_users()
 
 
 # get script for offline running
