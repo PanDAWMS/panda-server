@@ -67,16 +67,10 @@ from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 # pylint: disable=W0611
 from pandaserver.taskbuffer.Utils import (
     delete_checkpoint,
-    deleteFile,
-    fetchLog,
     put_checkpoint,
     put_file_recovery_request,
     put_workflow_request,
     putEventPickingRequest,
-    putFile,
-    touchFile,
-    updateLog,
-    uploadLog,
 )
 from pandaserver.userinterface import Client
 
@@ -87,7 +81,6 @@ from pandaserver.userinterface.UserIF import (
     changeTaskModTimePanda,
     changeTaskPriority,
     changeTaskSplitRulePanda,
-    checkSandboxFile,
     enableJumboJobs,
     execute_idds_workflow_command,
     finishTask,
@@ -104,7 +97,6 @@ from pandaserver.userinterface.UserIF import (
     getTaskStatus,
     getUserJobMetadata,
     increaseAttemptNrPanda,
-    insertSandboxFileInfo,
     insertTaskParams,
     killJobs,
     killTask,

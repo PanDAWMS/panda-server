@@ -149,18 +149,6 @@ class UserIF:
         # return
         return ret
 
-    # insert sandbox file info
-    def insertSandboxFileInfo(self, userName, hostName, fileName, fileSize, checkSum):
-        ret = self.taskBuffer.insertSandboxFileInfo(userName, hostName, fileName, fileSize, checkSum)
-        # return
-        return ret
-
-    # check duplicated sandbox file
-    def checkSandboxFile(self, userName, fileSize, checkSum):
-        ret = self.taskBuffer.checkSandboxFile(userName, fileSize, checkSum)
-        # return
-        return ret
-
     # get job status
     def getJobStatus(self, idsStr, use_json, no_pickle=False):
         try:
@@ -648,40 +636,6 @@ def setDebugMode(req, pandaID, modeOn):
     tmp_log.debug(f"user={user} mgr={is_production_manager} wg={working_group} fqans={str(fqans)}")
     # exec
     return userIF.setDebugMode(user, pandaID, is_production_manager, modeOn, working_group)
-
-
-# insert sandbox file info
-def insertSandboxFileInfo(req, userName, fileName, fileSize, checkSum):
-    tmp_log = LogWrapper(_logger, f"insertSandboxFileInfo {userName} {fileName}")
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        error_str = MESSAGE_SSL
-        tmp_log.error(error_str)
-        return f"ERROR: {error_str}"
-
-    # check role
-    is_production_manager = _has_production_role(req)
-    if not is_production_manager:
-        tmp_log.error(MESSAGE_PROD_ROLE)
-        return f"ERROR: {MESSAGE_PROD_ROLE}"
-
-    # hostname
-    if hasattr(panda_config, "sandboxHostname") and panda_config.sandboxHostname:
-        hostName = panda_config.sandboxHostname
-    else:
-        hostName = req.get_remote_host()
-    # exec
-    return userIF.insertSandboxFileInfo(userName, hostName, fileName, fileSize, checkSum)
-
-
-# check duplicated sandbox file
-def checkSandboxFile(req, fileSize, checkSum):
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return f"ERROR: {MESSAGE_SSL}"
-    user = _getDN(req)
-    # exec
-    return userIF.checkSandboxFile(user, fileSize, checkSum)
 
 
 # kill jobs

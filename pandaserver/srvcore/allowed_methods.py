@@ -4,13 +4,7 @@ allowed_methods = []
 
 # methods from pandaserver.taskbuffer.Utils
 allowed_methods += [
-    "putFile",
-    "deleteFile",
-    "updateLog",
-    "fetchLog",
-    "touchFile",
     "putEventPickingRequest",
-    "uploadLog",
     "put_checkpoint",
     "delete_checkpoint",
     "put_file_recovery_request",
@@ -39,8 +33,6 @@ allowed_methods += [
     "getFullJobStatus",
     "getScriptOfflineRunning",
     "setDebugMode",
-    "insertSandboxFileInfo",
-    "checkSandboxFile",
     "insertTaskParams",
     "killTask",
     "finishTask",
