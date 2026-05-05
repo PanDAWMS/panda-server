@@ -4,7 +4,6 @@ client methods
 
 import gzip
 import os
-import pickle
 import socket
 import sys
 import tempfile
@@ -25,18 +24,6 @@ EC_Failed = 255
 def is_https(url):
     # check if https is used
     return url.startswith("https://")
-
-
-def pickle_dumps(obj):
-    # wrapper for pickle with python 3
-    return pickle.dumps(obj, protocol=0)
-
-
-def pickle_loads(obj_string):
-    try:
-        return pickle.loads(obj_string.encode())
-    except Exception:
-        return pickle.loads(obj_string)
 
 
 class HttpClient:
