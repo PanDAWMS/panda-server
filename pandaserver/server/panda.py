@@ -50,16 +50,11 @@ from pandaserver.jobdispatcher.JobDispatcher import (
     get_events_status,
     get_token_key,
     getEventRanges,
-    getJob,
     getKeyPair,
     getProxy,
-    getStatus,
     jobDispatcher,
     updateEventRange,
     updateEventRanges,
-    updateJob,
-    updateJobsInBulk,
-    updateWorkerPilotStatus,
 )
 from pandaserver.srvcore import CoreUtils
 

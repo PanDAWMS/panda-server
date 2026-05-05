@@ -22,9 +22,6 @@ allowed_methods += [
 ]
 # methods from pandaserver.jobdispatcher.JobDispatcher
 allowed_methods += [
-    "getJob",
-    "updateJob",
-    "getStatus",
     "getEventRanges",
     "updateEventRange",
     "getKeyPair",
@@ -34,8 +31,6 @@ allowed_methods += [
     "get_token_key",
     "checkJobStatus",
     "checkEventsAvailability",
-    "updateJobsInBulk",
-    "updateWorkerPilotStatus",
     "get_events_status",
 ]
 
