@@ -43,14 +43,7 @@ from pandaserver.api.v1.common import extract_allowed_methods
 from pandaserver.config import panda_config
 
 # pylint: disable=W0611
-from pandaserver.jobdispatcher.JobDispatcher import (
-    checkEventsAvailability,
-    get_events_status,
-    getEventRanges,
-    jobDispatcher,
-    updateEventRange,
-    updateEventRanges,
-)
+from pandaserver.jobdispatcher.JobDispatcher import jobDispatcher
 from pandaserver.srvcore import CoreUtils
 
 # IMPORTANT: Add any new methods here to allow them to be called from the web I/F

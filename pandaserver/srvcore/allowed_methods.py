@@ -10,14 +10,6 @@ allowed_methods += [
     "put_file_recovery_request",
     "put_workflow_request",
 ]
-# methods from pandaserver.jobdispatcher.JobDispatcher
-allowed_methods += [
-    "getEventRanges",
-    "updateEventRange",
-    "updateEventRanges",
-    "checkEventsAvailability",
-    "get_events_status",
-]
 
 # methods from pandaserver.userinterface.UserIF
 allowed_methods += [
