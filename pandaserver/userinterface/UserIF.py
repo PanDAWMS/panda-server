@@ -3,11 +3,8 @@ provide web interface to users
 
 """
 
-import datetime
 import json
 import re
-import sys
-import time
 import traceback
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -15,14 +12,9 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 import pandaserver.jobdispatcher.Protocol as Protocol
-from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
-from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id, resolve_bool
-from pandaserver.taskbuffer import JobUtils, PrioUtil
-from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
-from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
 
 try:
     import idds.common.constants
@@ -63,11 +55,6 @@ class UserIF:
     # initialize
     def init(self, taskBuffer):
         self.taskBuffer = taskBuffer
-
-    # send command to task
-    def send_command_to_task(self, jedi_task_id, user, prod_role, command_string):
-        ret = self.taskBuffer.sendCommandTaskPanda(jedi_task_id, user, prod_role, command_string, properErrorCode=True)
-        return ret
 
     # set num slots for workload provisioning
     def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
@@ -133,22 +120,6 @@ def _has_production_role(req):
     return False
 
 
-# get primary working group with prod role
-def _getWGwithPR(req):
-    try:
-        fqans = _getFQAN(req)
-        for fqan in fqans:
-            tmpMatch = re.search("/[^/]+/([^/]+)/Role=production", fqan)
-            if tmpMatch is not None:
-                # ignore usatlas since it is used as atlas prod role
-                tmpWG = tmpMatch.group(1)
-                if tmpWG not in ["", "usatlas"]:
-                    return tmpWG.split("-")[-1].lower()
-    except Exception:
-        pass
-    return None
-
-
 # security check
 def isSecure(req):
     # check security
@@ -182,19 +153,6 @@ def setNumSlotsForWP(req, pandaQueueName, numSlots, gshare=None, resourceType=No
         return json.dumps((CODE_OTHER_PARAMS, "numSlots must be int"))
     # execute
     return userIF.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)
-
-
-# send Harvester the command to clean up the workers for a panda queue
-def sweepPQ(req, panda_queue, status_list, ce_list, submission_host_list):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # check role
-    prod_role = _has_production_role(req)
-    if not prod_role:
-        return json.dumps((False, MESSAGE_PROD_ROLE))
-
-    return json.dumps((True, userIF.sweepPQ(panda_queue, status_list, ce_list, submission_host_list)))
 
 
 # json decoder for idds constants
