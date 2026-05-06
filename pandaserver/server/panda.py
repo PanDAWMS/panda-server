@@ -378,7 +378,11 @@ def application(environ, start_response):
         body = read_body(environ, cont_length)
 
         # parse the parameters
-        params = parse_parameters(api_module, json_app, json_body, content_encoding, environ, body, request_method)
+        try:
+            params = parse_parameters(api_module, json_app, json_body, content_encoding, environ, body, request_method)
+        except json.JSONDecodeError as e:
+            tmp_log.error(f"invalid JSON : {str(e)}" + (f" with {body}" if panda_config.entryVerbose else ""))
+            start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
 
         if panda_config.entryVerbose:
             tmp_log.debug(f"with {str(list(params))}")
