@@ -1302,9 +1302,9 @@ class TaskComplexModule(BaseModule):
             # sql to update task
             sqlU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlU += "SET status=:status,modificationTime=:updateTime,stateChangeTime=CURRENT_DATE,"
-            sqlU += "lockedBy=NULL,lockedTime=NULL,frozenTime=:frozenTime"
+            sqlU += "lockedBy=NULL,lockedTime=NULL,frozenTime=:frozenTime,errorDialog=:errorDialog"
             if taskSpec is not None:
-                sqlU += ",oldStatus=:oldStatus,errorDialog=:errorDialog,splitRule=:splitRule"
+                sqlU += ",oldStatus=:oldStatus,splitRule=:splitRule"
             sqlU += " WHERE jediTaskID=:jediTaskID "
             # sql to unlock task
             sqlL = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
@@ -1352,6 +1352,7 @@ class TaskComplexModule(BaseModule):
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
                     varMap[":updateTime"] = timeNow
+                    varMap[":errorDialog"] = None
                     if taskSpec is not None:
                         # new task status is specified
                         varMap[":status"] = taskSpec.status
