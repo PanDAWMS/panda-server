@@ -197,7 +197,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                                         targetName,
                                                         locForDouble,
                                                         copies=1,
-                                                        owner=userName,
+                                                        owner=None,
                                                         lifetime=lifetime,
                                                         activity=activity,
                                                         grouping="NONE",
