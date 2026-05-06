@@ -125,7 +125,7 @@ class ContentsFeederThread(WorkerThread):
             datasetsIdxConsistency = []
 
             # get task
-            tmpStat, taskSpec = self.taskBufferIF.getTaskWithID_JEDI(jediTaskID, False, real_run, self.pid, 10, clearError=True)
+            tmpStat, taskSpec = self.taskBufferIF.getTaskWithID_JEDI(jediTaskID, False, real_run, self.pid, 10)
             if not tmpStat or taskSpec is None:
                 self.logger.debug(f"failed to get taskSpec for jediTaskID={jediTaskID}")
                 continue
@@ -634,7 +634,7 @@ class ContentsFeederThread(WorkerThread):
                 tmpLog.debug("task to hold up by workflow")
             # no master input
             if not taskOnHold and not taskBroken and allUpdated and nFilesMaster == 0 and checkedMaster:
-                tmpErrStr = "no master input files. input dataset is empty"
+                tmpErrStr = "primary input dataset is empty or all files are excluded "
                 if master_offset:
                     tmpErrStr += f" with offset={master_offset}"
                 tmpLog.error(tmpErrStr)
@@ -688,6 +688,8 @@ class ContentsFeederThread(WorkerThread):
                     allRet = self.taskBufferIF.updateTaskStatusByContFeeder_JEDI(jediTaskID, taskSpec, pid=self.pid, setFrozenTime=setFrozenTime)
                 elif allUpdated:
                     # all OK
+                    if taskSpec.status in ["ready", "assigning"]:
+                        taskSpec.errorDialog = None
                     allRet, newTaskStatus = self.taskBufferIF.updateTaskStatusByContFeeder_JEDI(
                         jediTaskID, getTaskStatus=True, pid=self.pid, useWorldCloud=taskSpec.useWorldCloud()
                     )
