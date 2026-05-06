@@ -688,9 +688,7 @@ class ContentsFeederThread(WorkerThread):
                     allRet = self.taskBufferIF.updateTaskStatusByContFeeder_JEDI(jediTaskID, taskSpec, pid=self.pid, setFrozenTime=setFrozenTime)
                 elif allUpdated:
                     # all OK
-                    if taskSpec.status in ["ready", "assigning"]:
-                        taskSpec.errorDialog = None
-                    allRet, newTaskStatus = self.taskBufferIF.updateTaskStatusByContFeeder_JEDI(
+                    _, newTaskStatus = self.taskBufferIF.updateTaskStatusByContFeeder_JEDI(
                         jediTaskID, getTaskStatus=True, pid=self.pid, useWorldCloud=taskSpec.useWorldCloud()
                     )
                     tmpMsg = f"set task_status={newTaskStatus}"
