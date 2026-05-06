@@ -150,9 +150,10 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
                             with open(workflow_spec_file) as workflow_spec:
                                 yaml = YAML(typ="safe", pure=True)
-                                data = yaml.load(workflow_spec)
-                            workflow_name = data.get("name")
-                            nodes, root_in = workflow_native_utils.parse_workflow_data(data, tmp_log)
+                                wfd = yaml.load(workflow_spec)
+                            workflow_name = wfd.get("name")
+                            nodes, root_in = workflow_native_utils.parse_workflow_data(wfd, tmp_log)
+                            data = wfd.get("inputs", dict())
                         elif wf_lang == "cwl":
                             workflow_name = raw_request_dict.get("workflow_name")
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
