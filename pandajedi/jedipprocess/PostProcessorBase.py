@@ -8,6 +8,7 @@ from pandacommon.pandautils.PandaUtils import naive_utcnow
 from pandajedi.jedicore import Interaction
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 # port for SMTP server
 smtpPortList = [25, 587]
@@ -60,7 +61,7 @@ class PostProcessorBase(object):
     def doBasicPostProcess(self, taskSpec, tmpLog):
         # update task status
         taskSpec.lockedBy = None
-        taskSpec.status = self.getFinalTaskStatus(taskSpec)
+        taskSpec.status = self.getFinalTaskStatus(taskSpec, update_error_dialog=True)
         if taskSpec.status == "failed":
             # set dialog for preprocess
             if taskSpec.usePrePro() and not taskSpec.checkPreProcessed():
@@ -177,7 +178,17 @@ class PostProcessorBase(object):
         return nFiles, nFilesFinished, totalInputEvents, totalOkEvents, taskCompleteness
 
     # get final task status
-    def getFinalTaskStatus(self, taskSpec, checkParent=True, checkGoal=False):
+    def getFinalTaskStatus(self, taskSpec: JediTaskSpec, checkParent: bool = True, checkGoal: bool = False, update_error_dialog: bool = False):
+        """
+        Get final task status based on the number of files and events, and the status of parent task if needed.
+
+        Args:
+        - taskSpec: the task specification object
+        - checkParent: if True, check the status of parent task and set failed if the parent task is failed, broken, or aborted. If False, ignore the parent status.
+        - checkGoal: if True, return True if the goal is reached and False otherwise. If False, return the final task status.
+        - update_error_dialog: if True, update error dialog for failed tasks
+
+        """
         # count nFiles and nEvents
         nFiles, nFilesFinished, totalInputEvents, totalOkEvents, taskCompleteness = self.getTaskCompleteness(taskSpec)
         # set new task status
@@ -189,12 +200,16 @@ class PostProcessorBase(object):
             status = "paused"
         elif self.failOnZeroOkFile and nFiles == nFilesFinished == 0:
             status = "failed"
+            if update_error_dialog:
+                taskSpec.setErrDiag("failed due to no input", True)
         elif nFiles == nFilesFinished:
             # check parent status
             if checkParent and taskSpec.parent_tid not in [None, taskSpec.jediTaskID]:
                 parent_status = self.taskBufferIF.getTaskStatus_JEDI(taskSpec.parent_tid)
                 if parent_status in ["failed", "broken", "aborted"]:
                     status = "failed"
+                    if update_error_dialog:
+                        taskSpec.setErrDiag(f"failed since the parent task is {parent_status} although all files were processed", True)
                 elif parent_status != "done":
                     status = "finished"
                 else:
@@ -212,6 +227,8 @@ class PostProcessorBase(object):
                 status = "done"
         elif nFilesFinished == 0:
             status = "failed"
+            if update_error_dialog:
+                taskSpec.setErrDiag("failed since no file was successfully processed", True)
         else:
             status = "finished"
         # task goal
@@ -227,6 +244,8 @@ class PostProcessorBase(object):
         ):
             if taskCompleteness < taskGoal:
                 status = "failed"
+                if update_error_dialog:
+                    taskSpec.setErrDiag(f"failed since the task completeness {taskCompleteness:.1f} is less than the goal {taskGoal:.1f}", True)
         # HPO tasks always go to finished
         if taskSpec.is_hpo_workflow():
             event_stat = self.taskBufferIF.get_event_statistics(taskSpec.jediTaskID)
@@ -242,7 +261,7 @@ class PostProcessorBase(object):
         return status
 
     # pre-check
-    def doPreCheck(self, taskSpec, tmpLog):
+    def doPreCheck(self, taskSpec: JediTaskSpec, tmpLog):
         # send task to exhausted
         if (
             taskSpec.useExhausted()
