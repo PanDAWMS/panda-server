@@ -219,14 +219,26 @@ class TaskStandaloneModule(BaseModule):
             return failedRet
 
     # get JEDI tasks with selection criteria
-    def getTaskIDsWithCriteria_JEDI(self, criteria, nTasks=50):
+    def getTaskIDsWithCriteria_JEDI(self, criteria: dict, since: str | None = None, nTasks: int = 50) -> list[int] | None:
+        """Get JEDI task IDs matching equality criteria and an optional time window.
+
+        Args:
+            criteria: dict of {JediTaskSpec_attribute: value} equality conditions.
+                Values of "NULL" / "NOT NULL" produce IS NULL / IS NOT NULL clauses.
+            since: lower bound on modificationTime, format ``%Y-%m-%d %H:%M:%S``.
+                Capped to at most 30 days in the past. Ignored when None.
+            nTasks: maximum number of task IDs returned (Oracle rownum limit).
+
+        Returns:
+            Sorted list of jediTaskIDs, or None on validation error or DB failure.
+        """
         comment = " /* JediDBProxy.getTaskIDsWithCriteria_JEDI */"
         tmpLog = self.create_tagged_logger(comment)
         tmpLog.debug("start")
         # return value for failure
         failedRet = None
         # no criteria
-        if criteria == {}:
+        if criteria == {} and since is None:
             tmpLog.error("no selection criteria")
             return failedRet
         # check criteria
@@ -234,26 +246,35 @@ class TaskStandaloneModule(BaseModule):
             if tmpKey not in JediTaskSpec.attributes:
                 tmpLog.error(f"unknown attribute {tmpKey} is used in criteria")
                 return failedRet
+        # parse and cap since
+        timeRange = None
+        if since is not None:
+            try:
+                timeRange = datetime.datetime.strptime(since, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                tmpLog.error(f"invalid since format: {since}")
+                return failedRet
+            maxRange = naive_utcnow() - datetime.timedelta(days=30)
+            if timeRange < maxRange:
+                timeRange = maxRange
         varMap = {}
         try:
             # sql
             sql = "SELECT jediTaskID "
             sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
             sql += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            isFirst = True
             for tmpKey, tmpVal in criteria.items():
-                if not isFirst:
-                    sql += "AND "
-                else:
-                    isFirst = False
                 if tmpVal in ["NULL", "NOT NULL"]:
-                    sql += f"{tmpKey} IS {tmpVal} "
+                    sql += f"AND {tmpKey} IS {tmpVal} "
                 elif tmpVal is None:
-                    sql += f"{tmpKey} IS NULL "
+                    sql += f"AND {tmpKey} IS NULL "
                 else:
                     crKey = f":cr_{tmpKey}"
-                    sql += f"{tmpKey}={crKey} "
+                    sql += f"AND {tmpKey}={crKey} "
                     varMap[crKey] = tmpVal
+            if timeRange is not None:
+                sql += "AND modificationTime>=:since "
+                varMap[":since"] = timeRange
             sql += f"AND rownum<={nTasks}"
             # begin transaction
             self.conn.begin()

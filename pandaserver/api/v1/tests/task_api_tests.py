@@ -541,6 +541,53 @@ class TestTaskAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": output["success"]}
         self.assertEqual(output, expected_response)
 
+    def test_get_tasks_detailed_info_since(self):
+        url = f"{api_url_ssl}/task/get_tasks_detailed_info_since"
+        print(f"Testing URL: {url}")
+
+        one_week_ago = datetime.now() - timedelta(weeks=1)
+        since_str = one_week_ago.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Basic call without filters: always succeeds; data is a list
+        data = {"since": since_str}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertIsInstance(output["data"], list)
+
+        # Plain-value filter pushed to SQL
+        import json
+
+        data = {"since": since_str, "filters": json.dumps({"prodSourceLabel": "user"})}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertIsInstance(output["data"], list)
+
+        # Regex filter applied in Python
+        data = {"since": since_str, "filters": json.dumps({"status": "finished|done"})}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertIsInstance(output["data"], list)
+
+        # Invalid JSON filters → success=False
+        data = {"since": since_str, "filters": "not_valid_json"}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertFalse(output["success"])
+
+        if JEDI_TASK_ID != -1:
+            # Real task: verify each returned dict has expected keys
+            data = {"since": since_str}
+            status, output = self.http_client.get(url, data)
+            for task_info in output.get("data", []):
+                self.assertIn("jediTaskID", task_info)
+                self.assertIn("status", task_info)
 
     def test_get_job_descriptions(self):
         # def get_job_descriptions(req: PandaRequest, task_id: int, unsuccessful_only: bool = False) -> Dict:
