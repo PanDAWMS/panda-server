@@ -232,7 +232,7 @@ class MiscStandaloneModule(BaseModule):
             f"(SELECT 1 FROM ATLAS_PANDA.jobsarchived4 "
             f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1 "
             f"UNION ALL "
-            f"SELECT 1 FROM atlas_pandaarch.jobsarchived "
+            f"SELECT 1 FROM ATLAS_PANDAARCH.jobsarchived "
             f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1) "
             f"WHERE ROWNUM = 1"
         )
