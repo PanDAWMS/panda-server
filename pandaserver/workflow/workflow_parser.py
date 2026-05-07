@@ -145,6 +145,7 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                 if is_ok:
                     tmp_log.info("parse workflow")
                     workflow_name = None
+                    workflow_options = None
                     if (wf_lang := raw_request_dict["language"]) in SUPPORTED_WORKFLOW_LANGUAGES:
                         if wf_lang == "yaml":
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
@@ -154,6 +155,7 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                             workflow_name = wfd.get("name")
                             nodes, root_in = workflow_native_utils.parse_workflow_data(wfd, tmp_log)
                             data = wfd.get("inputs", dict())
+                            workflow_options = wfd.get("options", None)
                         elif wf_lang == "cwl":
                             workflow_name = raw_request_dict.get("workflow_name")
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
@@ -214,6 +216,8 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                         "root_outputs": root_outputs_dict,
                         "nodes": nodes_list,
                     }
+                    if workflow_options is not None:
+                        workflow_definition_dict["options"] = workflow_options
     except Exception as e:
         is_ok = False
         is_fatal = True
