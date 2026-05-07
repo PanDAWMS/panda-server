@@ -56,11 +56,6 @@ class UserIF:
     def init(self, taskBuffer):
         self.taskBuffer = taskBuffer
 
-    # set num slots for workload provisioning
-    def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
-        return_value = self.taskBuffer.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)
-        return json.dumps(return_value)
-
 
 # Singleton
 userIF = UserIF()
@@ -136,23 +131,6 @@ def isSecure(req):
 web service interface
 
 """
-
-
-# set num slots for workload provisioning
-def setNumSlotsForWP(req, pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
-    # check security
-    if not isSecure(req):
-        return json.dumps((CODE_SSL, MESSAGE_SSL))
-    # check role
-    if not _has_production_role(req):
-        return json.dumps((CODE_LOGIC, "production role is required in the certificate"))
-    # convert
-    try:
-        numSlots = int(numSlots)
-    except Exception:
-        return json.dumps((CODE_OTHER_PARAMS, "numSlots must be int"))
-    # execute
-    return userIF.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)
 
 
 # json decoder for idds constants

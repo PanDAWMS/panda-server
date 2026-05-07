@@ -14,7 +14,6 @@ allowed_methods += [
 # methods from pandaserver.userinterface.UserIF
 allowed_methods += [
     "insertTaskParams",
-    "setNumSlotsForWP",
     "relay_idds_command",
     "execute_idds_workflow_command",
 ]

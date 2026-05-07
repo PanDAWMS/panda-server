@@ -65,7 +65,6 @@ from pandaserver.userinterface import Client
 from pandaserver.userinterface.UserIF import (
     execute_idds_workflow_command,
     relay_idds_command,
-    setNumSlotsForWP,
     userIF,
 )
 
