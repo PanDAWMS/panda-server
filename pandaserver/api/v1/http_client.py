@@ -34,10 +34,6 @@ class HttpClient:
         # request a compressed response
         self.compress = True
 
-        # SSL cert/key
-        self.ssl_certificate = self._x509()
-        self.ssl_key = self._x509()
-
         # OIDC
         self.oidc = os.getenv("PANDA_AUTH") == "oidc"
         self.auth_vo = os.getenv("PANDA_AUTH_VO") if self.oidc else None
@@ -45,6 +41,10 @@ class HttpClient:
         if self.id_token and self.id_token.startswith("file:"):
             with open(self.id_token[5:], "r") as f:
                 self.id_token = f.read().strip()
+
+        # SSL cert/key
+        self.ssl_certificate = self._x509() if not self.oidc else None
+        self.ssl_key = self._x509() if not self.oidc else None
 
     def _x509(self):
         # retrieve the X509_USER_PROXY from the environment variables

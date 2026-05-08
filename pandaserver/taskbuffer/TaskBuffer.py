@@ -1674,6 +1674,10 @@ class TaskBuffer:
             ret = proxy.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID, task_type)
         return ret
 
+    def getTaskIDsWithCriteria_JEDI(self, criteria, since=None, nTasks=50):
+        with self.proxyPool.get() as proxy:
+            return proxy.getTaskIDsWithCriteria_JEDI(criteria, since=since, nTasks=nTasks)
+
     # get details of JediTask
     def getJediTaskDetails(self, jediTaskID, fullFlag, withTaskInfo):
         # get proxy
