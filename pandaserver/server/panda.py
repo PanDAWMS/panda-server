@@ -50,20 +50,17 @@ from pandaserver.srvcore.allowed_methods import allowed_methods
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.Initializer import initializer
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.userinterface import Client
 
 # pylint: disable=W0611
-from pandaserver.taskbuffer.Utils import (
+# Leftovers from old API
+from pandaserver.userinterface.UserIF import (
     delete_checkpoint,
+    execute_idds_workflow_command,
     put_checkpoint,
     put_file_recovery_request,
     put_workflow_request,
     putEventPickingRequest,
-)
-from pandaserver.userinterface import Client
-
-# pylint: disable=W0611
-from pandaserver.userinterface.UserIF import (
-    execute_idds_workflow_command,
     relay_idds_command,
 )
 

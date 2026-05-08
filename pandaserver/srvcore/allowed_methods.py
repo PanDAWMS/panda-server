@@ -2,18 +2,13 @@
 
 allowed_methods = []
 
-# methods from pandaserver.taskbuffer.Utils
+# methods from pandaserver.userinterface.UserIF
 allowed_methods += [
+    "relay_idds_command",
+    "execute_idds_workflow_command",
     "putEventPickingRequest",
     "put_checkpoint",
     "delete_checkpoint",
     "put_file_recovery_request",
     "put_workflow_request",
-]
-
-# methods from pandaserver.userinterface.UserIF
-allowed_methods += [
-    "insertTaskParams",
-    "relay_idds_command",
-    "execute_idds_workflow_command",
 ]
