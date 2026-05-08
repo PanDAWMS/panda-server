@@ -9,20 +9,16 @@ import tempfile
 import traceback
 
 import requests
-from idds.atlas.workflowv2.atlaslocalpandawork import ATLASLocalPandaWork
-from idds.atlas.workflowv2.atlaspandawork import ATLASPandaWork
-from idds.workflowv2.workflow import AndCondition, Condition, OrCondition, Workflow
-from pandaclient import PhpoScript, PrunScript
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from ruamel.yaml import YAML
 
 # from pandaserver.srvcore.CoreUtils import clean_user_id
-from pandaserver.workflow import pcwl_utils, workflow_utils
-from pandaserver.workflow.snakeparser import Parser
+from pandaserver.workflow import pcwl_utils, workflow_native_utils
+from pandaserver.workflow.snakeparser import Parser as SnakeParser
 
 # supported workflow description languages
-SUPPORTED_WORKFLOW_LANGUAGES = ["cwl", "snakemake"]
+SUPPORTED_WORKFLOW_LANGUAGES = ["yaml", "cwl", "snakemake"]
 
 # main logger
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
@@ -46,7 +42,7 @@ def json_serialize_default(obj):
     # convert set to list
     if isinstance(obj, set):
         return list(obj)
-    elif isinstance(obj, workflow_utils.Node):
+    elif isinstance(obj, workflow_native_utils.Node):
         return obj.id
     return obj
 
@@ -149,8 +145,18 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                 if is_ok:
                     tmp_log.info("parse workflow")
                     workflow_name = None
+                    workflow_options = None
                     if (wf_lang := raw_request_dict["language"]) in SUPPORTED_WORKFLOW_LANGUAGES:
-                        if wf_lang == "cwl":
+                        if wf_lang == "yaml":
+                            workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
+                            with open(workflow_spec_file) as workflow_spec:
+                                yaml = YAML(typ="safe", pure=True)
+                                wfd = yaml.load(workflow_spec)
+                            workflow_name = wfd.get("name")
+                            nodes, root_in = workflow_native_utils.parse_workflow_data(wfd, tmp_log)
+                            data = wfd.get("inputs", dict())
+                            workflow_options = wfd.get("options", None)
+                        elif wf_lang == "cwl":
                             workflow_name = raw_request_dict.get("workflow_name")
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
                             workflow_input_file = os.path.join(tmp_dirname, raw_request_dict["workflowInputFile"])
@@ -160,15 +166,15 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                                 data = yaml.load(workflow_input)
                         elif wf_lang == "snakemake":
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
-                            parser = Parser(workflow_spec_file, logger=tmp_log)
+                            parser = SnakeParser(workflow_spec_file, logger=tmp_log)
                             nodes, root_in = parser.parse_nodes()
                             data = dict()
                         # resolve nodes
-                        s_id, t_nodes, nodes = workflow_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log)
-                        workflow_utils.set_workflow_outputs(nodes)
-                        id_node_map = workflow_utils.get_node_id_map(nodes)
+                        s_id, t_nodes, nodes = workflow_native_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log)
+                        workflow_native_utils.set_workflow_outputs(nodes)
+                        id_node_map = workflow_native_utils.get_node_id_map(nodes)
                         [node.resolve_params(raw_request_dict["taskParams"], id_node_map) for node in nodes]
-                        dump_str = "the description was internally converted as follows\n" + workflow_utils.dump_nodes(nodes)
+                        dump_str = "the description was internally converted as follows\n" + workflow_native_utils.dump_nodes(nodes)
                         tmp_log.info(dump_str)
                         for node in nodes:
                             s_check, o_check = node.verify()
@@ -210,6 +216,8 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                         "root_outputs": root_outputs_dict,
                         "nodes": nodes_list,
                     }
+                    if workflow_options is not None:
+                        workflow_definition_dict["options"] = workflow_options
     except Exception as e:
         is_ok = False
         is_fatal = True

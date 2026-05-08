@@ -19,8 +19,10 @@ from pandaserver.workflow.workflow_base import (
     WorkflowStatus,
 )
 
-# Whether to consider partial data (e.g. some files in DDM collection) as sufficient for step input
-PARTIAL_DATA_SUFFICE = False
+# Default workflow options for partial data handling
+# These defaults are used if not specified in the workflow definition
+DEFAULT_ALLOW_PARTIAL_INPUTS = False
+DEFAULT_MIN_INPUT_FILES = 10
 
 # main logger
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
@@ -76,6 +78,15 @@ class PandaTaskDataHandler(BaseDataHandler):
         tmp_log = LogWrapper(logger, f"check_target workflow_id={data_spec.workflow_id} data_id={data_spec.data_id}")
         # Initialize
         check_result = WFDataTargetCheckResult()
+        # Get workflow options for partial data handling
+        allow_partial_inputs = DEFAULT_ALLOW_PARTIAL_INPUTS
+        min_input_files = DEFAULT_MIN_INPUT_FILES
+        workflow_spec = self.tbif.get_workflow(data_spec.workflow_id)
+        if workflow_spec is not None:
+            workflow_options = workflow_spec.definition_json_map.get("options", {})
+            if workflow_options:
+                allow_partial_inputs = workflow_options.get("allow_partial_inputs", DEFAULT_ALLOW_PARTIAL_INPUTS)
+                min_input_files = workflow_options.get("min_input_files", DEFAULT_MIN_INPUT_FILES)
         # Check data flavor
         if data_spec.flavor != self.plugin_flavor:
             tmp_log.warning(f"flavor={data_spec.flavor} not {self.plugin_flavor}; skipped")
@@ -130,8 +141,8 @@ class PandaTaskDataHandler(BaseDataHandler):
         # Check number of files
         if none_exist:
             check_result.check_status = WFDataTargetCheckStatus.nonexist
-        elif PARTIAL_DATA_SUFFICE and total_n_files > 0:
-            # At least 1 file for step input
+        elif allow_partial_inputs and total_n_files >= min_input_files:
+            # At least min_input_files files for step input
             check_result.check_status = WFDataTargetCheckStatus.suffice
         else:
             check_result.check_status = WFDataTargetCheckStatus.insuffi

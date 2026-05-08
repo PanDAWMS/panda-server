@@ -63,7 +63,13 @@ class WFStepStatus(object):
     after_starting_uninterrupted_statuses = (running, done, failed)
     after_running_statuses = (done, failed, cancelled)
     final_statuses = (done, failed, closed, cancelled)
-    transient_statuses = (checked_true, checked_false, ready)
+    # transient_statuses = (checked_true, checked_false, ready)
+    transient_statuses = (
+        checked_true,
+        checked_false,
+        ready,
+        checking,
+    )  # temporarily consider checking as transient as well since it is usually followed by checked_true/false without interruption
 
 
 class WFDataStatus(object):

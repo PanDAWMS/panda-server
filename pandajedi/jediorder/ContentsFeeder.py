@@ -627,8 +627,9 @@ class ContentsFeederThread(WorkerThread):
                                 setFrozenTime = False
                                 skip_secondaries = True
                     tmpLog.debug("end loop")
-            # task holdup by workflow if no master inputs are ready
-            if not taskOnHold and not taskBroken and allUpdated and nFilesMasterReady == 0 and checkedMaster and taskSpec.is_workflow_holdup():
+            # task holdup by workflow if not enough master inputs are ready and parent steps are not all done
+            insufficient_ready_files = nFilesMasterReady == 0 or (nFilesPerJob and nFilesMasterReady < nFilesPerJob)
+            if not taskOnHold and not taskBroken and allUpdated and insufficient_ready_files and checkedMaster and taskSpec.is_workflow_holdup():
                 # hold up by the workflow
                 taskOnHold = True
                 tmpLog.debug("task to hold up by workflow")
