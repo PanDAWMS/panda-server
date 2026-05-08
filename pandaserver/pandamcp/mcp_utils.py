@@ -22,7 +22,7 @@ def create_tool(func: Callable, name: str | None = None) -> Tool:
 
     # construct the URL based on the module and function name
     mod_path = inspect.getfile(inspect.getmodule(func))
-    mod_name = os.path.basename(mod_path).split("_")[0]
+    mod_name = "_".join(os.path.basename(mod_path).split("_")[:-1])
 
     # determine http method based on the docstring
     http_method = None
