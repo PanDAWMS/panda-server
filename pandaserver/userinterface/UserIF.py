@@ -1,6 +1,5 @@
 """
-provide web interface to users
-
+Used to provide web interface to users. Nowadays some IDDS leftover calls
 """
 
 import json
