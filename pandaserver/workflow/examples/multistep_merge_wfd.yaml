@@ -41,5 +41,5 @@ steps:
 
 options:
   # specify any workflow-level options here
-  allow_partial_inputs: true  # allow steps to run even if inputs are not complete yet
-  min_input_files: 50  # for partial inputs, require at least 50 files before starting steps
+  # allow_partial_inputs: true  # allow steps to run even if inputs are not complete yet
+  # min_input_files: 50  # for partial inputs, require at least 50 files before starting steps
