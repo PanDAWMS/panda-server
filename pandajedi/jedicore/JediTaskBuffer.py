@@ -198,11 +198,6 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         with self.proxyPool.get() as proxy:
             return proxy.getTaskDatasetsWithID_JEDI(jediTaskID, pid, lockTask)
 
-    # get JEDI tasks with selection criteria
-    def getTaskIDsWithCriteria_JEDI(self, criteria, nTasks=50):
-        with self.proxyPool.get() as proxy:
-            return proxy.getTaskIDsWithCriteria_JEDI(criteria, nTasks)
-
     # get JEDI tasks to be finished
     def getTasksToBeFinished_JEDI(self, vo, prodSourceLabel, pid, nTasks=50, target_tasks=None):
         with self.proxyPool.get() as proxy:

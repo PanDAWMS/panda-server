@@ -370,13 +370,13 @@ class GenJobBroker(JobBrokerBase):
         # append candidates
         newScanSiteList = []
         for siteCandidateSpec in candidateSpecList:
-            # append
-            inputChunk.addSiteCandidate(siteCandidateSpec)
+            # append only if all files are available at the site when file dispatch is disabled
             if panda_config.disable_file_dispatch and len(siteCandidateSpec.localDiskFiles) < total_num_files:
                 tmpLog.debug(
                     f"  skip {siteCandidateSpec.siteName} due to input file dispatch is disabled and not all files are available at the site ({len(siteCandidateSpec.localDiskFiles)} < {total_num_files})"
                 )
                 continue
+            inputChunk.addSiteCandidate(siteCandidateSpec)
             newScanSiteList.append(siteCandidateSpec.siteName)
             tmpLog.debug(f"  use {siteCandidateSpec.siteName} with weight={siteCandidateSpec.weight} nFiles={len(siteCandidateSpec.localDiskFiles)}")
         scanSiteList = newScanSiteList

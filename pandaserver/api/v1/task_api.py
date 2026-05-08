@@ -1133,6 +1133,92 @@ def get_tasks_modified_since(req, since: str, dn: str = None, full: bool = False
 
 
 @request_validation(_logger, secure=True, request_method="GET")
+def get_tasks_detailed_info_since(req, since: str, filters: str = None, n_tasks: int = 500) -> Dict[str, Any]:
+    """
+    Get detailed task info for tasks modified since a given time.
+
+    Fetches task IDs for tasks modified since ``since`` (max 30-day window), applies optional
+    field filters, and returns full detail (all JediTaskSpec fields + jobParamsTemplate +
+    taskParams) for each matching task. The request is always scoped to the authenticated user
+    (DN from the request certificate) unless userName is explicity specified in the filters.
+
+    Filters are split server-side: plain-value patterns (no regex metacharacters) become SQL
+    equality conditions pushed to the DB; patterns with metacharacters are applied in Python via
+    ``re.search`` on the full task dict returned by ``get_task_details_json``.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/task/get_tasks_detailed_info_since
+
+    Args:
+        req(PandaRequest): internally generated request object
+        since(str): time in the format ``%Y-%m-%d %H:%M:%S``
+        filters(str, optional): JSON-encoded dict of {field: pattern} pairs.
+            Plain values (no regex metacharacters) become SQL equality conditions.
+            Regex patterns (containing ``|``, ``.``, ``*``, etc.) are matched with
+            ``re.search`` after fetching full task details. Unrecognised field names are
+            silently ignored. Example: ``{"status": "finished|done", "prodSourceLabel": "user"}``
+        n_tasks(int, optional): maximum number of task IDs to retrieve (default 500)
+
+    Returns:
+        dict: The system response ``{"success": success, "message": message, "data": data}``.
+              On success ``data`` is a list of task detail dicts.
+    """
+    tmp_logger = LogWrapper(_logger, "get_tasks_detailed_info_since")
+    tmp_logger.debug("Start")
+
+    compact_dn = clean_user_id(get_dn(req)) or get_dn(req)
+
+    # userName is always the authenticated user; other filters come from the caller
+    sql_criteria = {"userName": compact_dn}
+    regex_filters = {}
+    if filters:
+        try:
+            parsed_filters = json.loads(filters)
+            if not isinstance(parsed_filters, dict):
+                return generate_response(False, message="filters must be a JSON object")
+            for field, pattern in parsed_filters.items():
+                if re.escape(pattern) == pattern:
+                    sql_criteria[field] = pattern
+                else:
+                    regex_filters[field] = pattern
+        except (json.JSONDecodeError, ValueError):
+            return generate_response(False, message="filters is not valid JSON")
+
+    tmp_logger.debug(f"parameters dn:{compact_dn} since:{since} sql_criteria:{sql_criteria} regex_filters:{regex_filters} n_tasks:{n_tasks}")
+
+    # Step 1: get task IDs via SQL (time range + equality criteria)
+    task_ids = global_task_buffer.getTaskIDsWithCriteria_JEDI(sql_criteria, since=since, nTasks=n_tasks)
+    if task_ids is None:
+        return generate_response(False, message="Failed to retrieve task IDs")
+
+    # Step 2: fetch full details and apply Python regex filters
+    result = []
+    for task_id in task_ids:
+        details = global_task_buffer.get_task_details_json(task_id)
+        if details is None:
+            continue
+        if regex_filters:
+            skip = False
+            for field, pattern in regex_filters.items():
+                if field not in details:
+                    continue  # silently ignore unrecognised fields
+                try:
+                    if re.search(pattern, str(details[field])) is None:
+                        skip = True
+                        break
+                except re.error:
+                    skip = True
+                    break
+            if skip:
+                continue
+        result.append(details)
+
+    tmp_logger.debug(f"Done, returning {len(result)} tasks")
+    return generate_response(True, data=result)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
 def get_datasets_and_files(req, task_id, dataset_types: List[str] = ("input", "pseudo_input")) -> Dict[str, Any]:
     """
     Get datasets and files

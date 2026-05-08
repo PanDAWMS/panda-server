@@ -4,21 +4,7 @@ import re
 import shlex
 import tempfile
 
-from idds.atlas.workflowv2.atlaslocalpandawork import ATLASLocalPandaWork
-from idds.atlas.workflowv2.atlaspandawork import ATLASPandaWork
-from idds.workflowv2.workflow import AndCondition, Condition, OrCondition, Workflow
 from pandaclient import PhpoScript, PrunScript
-
-
-# extract argument value from execution string
-def get_arg_value(arg, exec_str):
-    args = shlex.split(exec_str)
-    if arg in args:
-        return args[args.index(arg) + 1]
-    for item in args:
-        if item.startswith(arg):
-            return item.split("=")[-1]
-    return None
 
 
 # merge job parameters
@@ -446,6 +432,7 @@ class Node(object):
             dict_inputs = self.convert_dict_inputs(skip_suppressed=True)
             # extract source and base URL
             source_url = task_template["container"]["sourceURL"]
+            source_name = None
             for tmp_item in task_template["container"]["jobParameters"]:
                 if tmp_item["type"] == "constant" and tmp_item["value"].startswith("-a "):
                     source_name = tmp_item["value"].split()[-1]
@@ -634,45 +621,44 @@ def set_workflow_outputs(node_list, all_parents=None):
             set_workflow_outputs(node.sub_nodes, all_parents)
 
 
-# convert parameter names to parent IDs
-def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map):
-    for item in ["left", "right"]:
-        param = getattr(condition_item, item)
-        if isinstance(param, str):
-            m = re.search(r"^[^\[]+\[(\d+)\]", param)
-            if m:
-                param = param.split("[")[0]
-                idx = int(m.group(1))
-            else:
-                idx = None
-            isOK = False
-            for tmp_name, tmp_data in input_data.items():
-                if param == tmp_name.split("/")[-1]:
-                    isOK = True
-                    if isinstance(tmp_data["parent_id"], list):
-                        if idx is not None:
-                            if idx < 0 or idx >= len(tmp_data["parent_id"]):
-                                raise IndexError(f"index {idx} is out of bounds for parameter {param} with {len(tmp_data['parent_id'])} parents")
-                            parent_id = tmp_data["parent_id"][idx]
-                            if parent_id not in id_map:
-                                raise ReferenceError(f"unresolved parent_id {parent_id} for parameter {param}[{idx}]")
-                            setattr(condition_item, item, id_map[parent_id])
-                        else:
-                            resolved_parent_ids = set()
-                            for parent_id in tmp_data["parent_id"]:
-                                if parent_id not in id_map:
-                                    raise ReferenceError(f"unresolved parent_id {parent_id} for parameter {param}")
-                                resolved_parent_ids |= id_map[parent_id]
-                            setattr(condition_item, item, list(resolved_parent_ids))
-                    else:
-                        if tmp_data["parent_id"] not in id_map:
-                            raise ReferenceError(f"unresolved parent_id {tmp_data['parent_id']} for parameter {param}")
-                        setattr(condition_item, item, id_map[tmp_data["parent_id"]])
-                    break
-            if not isOK:
-                raise ReferenceError(f"unresolved parameter {param} in the condition string")
-        elif isinstance(param, ConditionItem):
-            convert_params_in_condition_to_parent_ids(param, input_data, id_map)
+# NOTE: condition features are not yet implemented
+# TODO: implement condition support
+# def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map):
+#     for item in ["left", "right"]:
+#         param = getattr(condition_item, item)
+#         if isinstance(param, str):
+#             m = re.search(r"^[^\[]+\[(\d+)\]", param)
+#             if m:
+#                 param = param.split("[")[0]
+#                 idx = int(m.group(1))
+#             else:
+#                 idx = None
+#             isOK = False
+#             for tmp_name, tmp_data in input_data.items():
+#                 if param == tmp_name.split("/")[-1]:
+#                     isOK = True
+#                     if isinstance(tmp_data["parent_id"], list):
+#                         if idx is not None:
+#                             if idx < 0 or idx >= len(tmp_data["parent_id"]):
+#                                 raise IndexError(f"index {idx} is out of bounds for parameter {param} with {len(tmp_data['parent_id'])} parents")
+#                             parent_id = tmp_data["parent_id"][idx]
+#                             if parent_id not in id_map:
+#                                 raise ReferenceError(f"unresolved parent_id {parent_id} for parameter {param}[{idx}]")
+#                             setattr(condition_item, item, id_map[parent_id])
+#                         else:
+#                             resolved_parent_ids = set()
+#                             for parent_id in tmp_data["parent_id"]:
+#                                 if parent_id not in id_map:
+#                                     raise ReferenceError(f"unresolved parent_id {parent_id} for parameter {param}")
+#                                 resolved_parent_ids |= id_map[parent_id]
+#                             setattr(condition_item, item, list(resolved_parent_ids))
+#                     else:
+#                         if tmp_data["parent_id"] not in id_map:
+#                             raise ReferenceError(f"unresolved parent_id {tmp_data['parent_id']} for parameter {param}")
+#                         setattr(condition_item, item, id_map[tmp_data["parent_id"]])
+#                     break
+#             if not isOK:
+#                 raise ReferenceError(f"unresolved parameter {param} in the condition string")
 
 
 # resolve nodes
@@ -789,8 +775,10 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                 sc_node.id = serial_id
                 serial_id += 1
             # convert parameters to parent IDs in conditions
+            # TODO: condition features not yet implemented
             if sc_node.condition:
-                convert_params_in_condition_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
+                pass
+                # convert_params_in_condition_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
             # resolve outputs
             if sc_node.is_leaf:
                 for tmp_name, tmp_data in sc_node.outputs.items():
@@ -809,244 +797,97 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
     return serial_id, tail_nodes, all_nodes
 
 
-# condition item
-class ConditionItem(object):
-    def __init__(self, left, right=None, operator=None):
-        if operator not in ["and", "or", "not", None]:
-            raise TypeError(f"unknown operator '{operator}'")
-        if operator in ["not", None] and right:
-            raise TypeError(f"right param is given for operator '{operator}'")
-        self.left = left
-        self.right = right
-        self.operator = operator
+# parse workflow data for native YAML workflow
+def parse_workflow_data(data, log_stream):
+    # Handle both nested (workflow:{...}) and flat ({...}) structures
+    workflow_data = data.get("workflow", data)
 
-    def get_dict_form(self, serial_id=None, dict_form=None):
-        if dict_form is None:
-            dict_form = {}
-            is_entry = True
-        else:
-            is_entry = False
-        if serial_id is None:
-            serial_id = 0
-        if isinstance(self.left, ConditionItem):
-            serial_id, dict_form = self.left.get_dict_form(serial_id, dict_form)
-            left_id = serial_id
-            serial_id += 1
-        else:
-            left_id = self.left
-        if isinstance(self.right, ConditionItem):
-            serial_id, dict_form = self.right.get_dict_form(serial_id, dict_form)
-            right_id = serial_id
-            serial_id += 1
-        else:
-            right_id = self.right
-        dict_form[serial_id] = {
-            "left": left_id,
-            "right": right_id,
-            "operator": self.operator,
-        }
-        if is_entry:
-            # sort
-            keys = sorted(dict_form.keys())
-            return [(k, dict_form[k]) for k in keys]
-        else:
-            return serial_id, dict_form
+    # extract root inputs and outputs
+    root_inputs = workflow_data.get("inputs", {})
+    root_outputs = workflow_data.get("outputs", {})
+    tail_node_names = {output_spec["from"].split("/")[0] for output_spec in root_outputs.values() if isinstance(output_spec, dict) and "from" in output_spec}
 
+    # parse steps
+    steps = workflow_data.get("steps", {})
+    node_list = []
+    node_name_map = {}
+    serial_id = 0
 
-# convert nodes to workflow
-def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow_name=None):
-    if workflow is None:
-        is_top = True
-        workflow = Workflow()
-        workflow.name = workflow_name
-    else:
-        is_top = False
-    id_work_map = {}
-    all_sub_id_work_map = {}
-    sub_to_id_map = {}
-    cond_dump_str = "  Conditions\n"
-    class_dump_str = f"===== Workflow ID:{workflow_node.id if workflow_node else workflow_name} ====\n"
-    class_dump_str += "  Works\n"
-    dump_str_list = []
-    # create works or workflows
-    for node in nodes:
-        if node.is_leaf:
-            # work
-            if node.type == "junction":
-                work = ATLASLocalPandaWork(task_parameters=node.task_params)
-                work.add_custom_condition("to_exit", True)
-            else:
-                work = ATLASPandaWork(task_parameters=node.task_params)
-            workflow.add_work(work)
-            id_work_map[node.id] = work
-            class_dump_str += f"    {node.short_desc()} Class:{work.__class__.__name__}\n"
-        else:
-            # sub workflow
-            sub_workflow = Workflow()
-            id_work_map[node.id] = sub_workflow
-            class_dump_str += f"    {node.short_desc()} Class:{sub_workflow.__class__.__name__}\n"
-            sub_id_work_map, tmp_dump_str_list = convert_nodes_to_workflow(node.sub_nodes, node, sub_workflow)
-            dump_str_list += tmp_dump_str_list
-            for sub_id in node.get_all_sub_node_ids():
-                all_sub_id_work_map[sub_id] = sub_workflow
-                sub_to_id_map[sub_id] = node.id
-            # add loop condition
-            if node.loop:
-                for sub_node in node.sub_nodes:
-                    if sub_node.type == "junction":
-                        # use to_continue for loop termination
-                        j_work = sub_id_work_map[sub_node.id]
-                        j_work.add_custom_condition(key="to_continue", value=True)
-                        cond = Condition(cond=j_work.get_custom_condition_status)
-                        sub_workflow.add_loop_condition(cond)
-                        cond_dump_str += f"    Loop in ID:{node.id} with terminator ID:{sub_node.id}\n"
-                        break
-            workflow.add_work(sub_workflow)
-    # add conditions
-    for node in nodes:
-        if node.parents:
-            c_work = id_work_map[node.id]
-            if not node.condition:
-                # default conditions if unspecified
-                cond_func_list = []
-                for p_id in node.parents:
-                    if p_id in id_work_map:
-                        p_work = id_work_map[p_id]
-                        str_p_id = p_id
-                    elif p_id in all_sub_id_work_map:
-                        p_work = all_sub_id_work_map[p_id]
-                        str_p_id = sub_to_id_map[p_id]
-                    else:
-                        # head node
-                        continue
-                    if len(node.parents) > 1 or isinstance(p_work, Workflow) or node.type in ["junction", "reana", "gitlab"]:
-                        cond_function = p_work.is_processed
-                    else:
-                        cond_function = p_work.is_started
-                    if cond_function not in cond_func_list:
-                        cond_func_list.append(cond_function)
-                        cond_dump_str += f"    Default Link ID:{str_p_id} {cond_function.__name__} -> ID:{node.id}\n"
-                cond = AndCondition(true_works=[c_work], conditions=cond_func_list)
-                workflow.add_condition(cond)
-            else:
-                # convert conditions
-                cond_list = node.condition.get_dict_form()
-                base_cond_map = {}
-                str_cond_map = {}
-                root_condition = None
-                for tmp_idx, base_cond in cond_list:
-                    # leaf condition
-                    if base_cond["right"] is None:
-                        # condition based on works
-                        cond_func_list = []
-                        str_func_list = []
-                        for p_id in base_cond["left"]:
-                            if p_id in id_work_map:
-                                p_work = id_work_map[p_id]
-                                str_p_id = p_id
-                            else:
-                                p_work = all_sub_id_work_map[p_id]
-                                str_p_id = sub_to_id_map[p_id]
-                            # finished or failed
-                            if base_cond["operator"] is None:
-                                cond_function = p_work.is_processed
-                            else:
-                                cond_function = p_work.is_failed
-                            cond_func_list.append(cond_function)
-                            str_func_list.append(f"ID:{str_p_id} {cond_function.__name__}")
-                        cond = AndCondition(conditions=cond_func_list)
-                        base_cond_map[tmp_idx] = cond
-                        str_func = "AND ".join(str_func_list)
-                        str_cond_map[tmp_idx] = str_func
-                        cond_dump_str += f"    Unary Ops {cond.__class__.__name__}({str_func}) -> ID:{node.id}\n"
-                        root_condition = cond
-                    else:
-                        # composite condition
-                        l_str_func_list = []
-                        r_str_func_list = []
-                        if isinstance(base_cond["left"], set):
-                            cond_func_list = []
-                            for p_id in base_cond["left"]:
-                                if p_id in id_work_map:
-                                    p_work = id_work_map[p_id]
-                                    str_p_id = p_id
-                                else:
-                                    p_work = all_sub_id_work_map[p_id]
-                                    str_p_id = sub_to_id_map[p_id]
-                                cond_function = p_work.is_processed
-                                cond_func_list.append(cond_function)
-                                l_str_func_list.append(f"ID:{str_p_id} {cond_function.__name__}")
-                            l_cond = AndCondition(conditions=cond_func_list)
-                            l_str_func = "AND ".join(l_str_func_list)
-                            str_cond_map[base_cond["left"]] = l_str_func
-                        else:
-                            l_cond = base_cond_map[base_cond["left"]]
-                            l_str_func = str_cond_map[base_cond["left"]]
-                        if isinstance(base_cond["right"], set):
-                            cond_func_list = []
-                            for p_id in base_cond["right"]:
-                                if p_id in id_work_map:
-                                    p_work = id_work_map[p_id]
-                                    str_p_id = p_id
-                                else:
-                                    p_work = all_sub_id_work_map[p_id]
-                                    str_p_id = sub_to_id_map[p_id]
-                                cond_function = p_work.is_processed
-                                cond_func_list.append(cond_function)
-                                r_str_func_list.append(f"ID:{str_p_id} {cond_function.__name__}")
-                            r_cond = AndCondition(conditions=cond_func_list)
-                            r_str_func = "AND ".join(r_str_func_list)
-                            str_cond_map[base_cond["right"]] = r_str_func
-                        else:
-                            r_cond = base_cond_map[base_cond["right"]]
-                            r_str_func = str_cond_map[base_cond["right"]]
-                        if base_cond["operator"] == "and":
-                            cond = AndCondition(
-                                conditions=[
-                                    l_cond.is_condition_true,
-                                    r_cond.is_condition_true,
-                                ]
-                            )
-                        else:
-                            cond = OrCondition(
-                                conditions=[
-                                    l_cond.is_condition_true,
-                                    r_cond.is_condition_true,
-                                ]
-                            )
-                        base_cond_map[tmp_idx] = cond
-                        cond_dump_str += f"    Binary Ops {cond.__class__.__name__}({l_str_func}, {r_str_func}) for ID:{node.id}\n"
-                        root_condition = cond
-                # set root condition
-                if root_condition:
-                    root_condition.true_works = [c_work]
-                    workflow.add_condition(root_condition)
-    # global parameters
-    if workflow_node:
-        tmp_global, tmp_workflow_global = workflow_node.get_global_parameters()
-        if tmp_global:
-            loop_locals = {}
-            loop_slices = []
-            for k, v in tmp_global.items():
-                if not isinstance(v, dict):
-                    # normal looping locals
-                    loop_locals["user_" + k] = tmp_global[k]
-                else:
-                    # sliced locals
-                    v["src"] = "user_" + v["src"]
-                    loop_slices.append([k, v])
-            if loop_locals:
-                workflow.set_global_parameters(loop_locals)
-            for k, v in loop_slices:
-                workflow.set_sliced_global_parameters(source=v["src"], index=v["idx"], name="user_" + k)
-            cond_dump_str += "\n  Looping local variables\n"
-            cond_dump_str += f"    {tmp_global}\n"
-        if tmp_workflow_global:
-            cond_dump_str += "\n  Workflow local variable\n"
-            cond_dump_str += f"    {tmp_workflow_global}\n"
-    # dump strings
-    dump_str_list.insert(0, class_dump_str + "\n" + cond_dump_str + "\n\n")
-    # return
-    if not is_top:
-        return id_work_map, dump_str_list
-    return workflow, dump_str_list
+    # first pass: create all nodes
+    for step_name, step_spec in steps.items():
+        serial_id += 1
+        step_type = step_spec.get("type", "prun")
+        is_leaf = step_type in ["prun", "phpo", "junction", "reana", "gitlab"]
+        node = Node(serial_id, step_type, None, is_leaf, step_name)
+        node_name_map[step_name] = node
+
+        # parse inputs
+        inputs = {}
+        for key, yaml_key in [
+            ("inDS", "opt_inDS"),
+            ("args", "opt_args"),
+            ("exec", "opt_exec"),
+            ("containerImage", "opt_containerImage"),
+            ("useAthenaPackages", "opt_useAthenaPackages"),
+            ("secondaryDSs", "opt_secondaryDSs"),
+            ("secondaryDsTypes", "opt_secondaryDsTypes"),
+        ]:
+            if key in step_spec:
+                inputs[f"{step_name}/{yaml_key}"] = {
+                    "default": step_spec.get(key) if key not in ["inDS", "secondaryDSs"] else None,
+                    "source": step_spec.get(key) if key in ["inDS", "secondaryDSs"] else None,
+                }
+
+        node.inputs = inputs
+        node.outputs = {f"{step_name}/outDS": {}}
+        node.is_tail = step_name in tail_node_names
+        node_list.append(node)
+
+    # second pass: resolve parent relationships; note that the parent_id is not used in core workflow execution but only for parameter resolution
+    for node in node_list:
+        for input_name, input_data in node.inputs.items():
+            source = input_data.get("source")
+            if not source:
+                continue
+
+            # resolve single source
+            if isinstance(source, str):
+                if source.startswith("{") and source.endswith("}"):
+                    input_data["source"] = source[1:-1]
+                elif "/" in source:
+                    source_node_name = source.split("/")[0]
+                    if source_node_name in node_name_map:
+                        parent = node_name_map[source_node_name]
+                        node.add_parent(parent.id)
+                        input_data["parent_id"] = parent.id
+            # resolve list of sources
+            elif isinstance(source, list):
+                parent_ids = []
+                for src in source:
+                    if isinstance(src, str) and "/" in src:
+                        source_node_name = src.split("/")[0]
+                        if source_node_name in node_name_map:
+                            parent = node_name_map[source_node_name]
+                            node.add_parent(parent.id)
+                            parent_ids.append(parent.id)
+                if parent_ids:
+                    input_data["parent_id"] = parent_ids
+
+    # topological sort
+    visited = set()
+    sorted_nodes = []
+
+    def visit(n):
+        if n.id in visited:
+            return
+        for parent_id in n.parents:
+            for other in node_list:
+                if other.id == parent_id:
+                    visit(other)
+        visited.add(n.id)
+        sorted_nodes.append(n)
+
+    for node in node_list:
+        visit(node)
+
+    return sorted_nodes, root_inputs

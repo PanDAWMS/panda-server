@@ -220,7 +220,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             if task_spec is None:
                 tmp_log.error(f"task_id={task_id} not found; skipped")
                 return
-            # Unset workflowHoldup and release the task
+            # Unset workflowHoldup, release the task if in pending, and trigger jedi_contents_feeder
             if task_spec.is_workflow_holdup():
                 task_spec.set_workflow_holdup(False)
                 self.tbif.updateTask_JEDI(task_spec, {"jediTaskID": task_spec.jediTaskID})
@@ -231,6 +231,8 @@ class PandaTaskStepHandler(BaseStepHandler):
                         tmp_log.error(f"task_id={task_id} failed to release from pending")
                     else:
                         tmp_log.info(f"task_id={task_id} released from pending")
+                self.tbif.push_task_trigger_message("jedi_contents_feeder", task_id)
+                tmp_log.info(f"task_id={task_id} triggered jedi_contents_feeder")
             # Done
             tmp_log.debug(f"Done")
         except Exception as e:
