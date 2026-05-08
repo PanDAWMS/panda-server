@@ -38,14 +38,6 @@ CODE_OTHER_PARAMS = 102
 _logger = PandaLogger().getLogger("UserIF")
 
 
-def resolve_true(variable):
-    return variable == "True"
-
-
-def resolve_false(variable):
-    return variable != "False"
-
-
 # main class
 class UserIF:
     # constructor
