@@ -1122,8 +1122,8 @@ class JsonSoftwareCheck:
                                     continue
 
                             # check GPU microarchitecture generation (e.g. Ampere, Hopper, Ada Lovelace)
-                            if "architecture" in host_gpu_spec:
-                                req_arch = host_gpu_spec["architecture"]
+                            if "microarchitecture" in host_gpu_spec:
+                                req_arch = host_gpu_spec["microarchitecture"]
                                 if isinstance(req_arch, str):
                                     req_arch = [req_arch]
                                 if not wn_gpus or not any(g.get("architecture") in req_arch for g in wn_gpus):
