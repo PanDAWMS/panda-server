@@ -1,0 +1,77 @@
+{
+      "system": [
+          "get_voms_attributes",
+          "get_user_attributes",
+          "is_alive"
+      ],
+      "job": [
+          "get_status",
+          "get_description_incl_archive",
+          "generate_offline_execution_script",
+          "get_metadata_for_analysis_jobs",
+          "kill",
+          "reassign",
+          "set_command",
+          "set_debug_mode",
+          "submit"
+      ],
+      "task": [
+          "retry",
+          "resume",
+          "release",
+          "reassign",
+          "pause",
+          "kill",
+          "kill_unfinished_jobs",
+          "finish",
+          "reactivate",
+          "avalanche",
+          "reload_input",
+          "reassign_global_share",
+          "enable_jumbo_jobs",
+          "get_jumbo_job_datasets",
+          "enable_job_cloning",
+          "disable_job_cloning",
+          "increase_attempts",
+          "get_status",
+          "get_details",
+          "change_attribute",
+          "change_priority",
+          "change_split_rule",
+          "get_tasks_modified_since",
+          "get_datasets_and_files",
+          "get_job_ids",
+          "submit",
+          "get_task_parameters",
+          "get_detailed_info",
+          "get_parent_detailed_info",
+          "get_job_descriptions"
+      ],
+      "metaconfig": [
+          "get_banned_users",
+          "get_site_specs",
+          "get_resource_types"
+      ],
+      "data_carousel": [
+          "change_staging_destination",
+          "change_staging_source",
+          "force_to_staging",
+          "retire_unused"
+      ],
+      "statistics": [
+          "job_stats_by_cloud",
+          "production_job_stats_by_cloud_and_processing_type",
+          "active_job_stats_by_site",
+          "active_job_detailed_stats_by_site",
+          "job_stats_by_site_and_resource_type",
+          "job_stats_by_site_share_and_resource_type"
+      ],
+      "harvester": [
+          "get_worker_statistics",
+          "add_sweep_command",
+          "add_target_slots"
+      ],
+       "file_server": [
+          "upload_file_recovery_request"
+      ]
+  }
