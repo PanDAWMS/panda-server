@@ -427,19 +427,6 @@ def put_workflow_request(panda_request: PandaRequest, data: str, check: bool = F
     return json.dumps((True, "request was accepted and will be processed in a few minutes"))
 
 
-# get server name:port for HTTP
-def getServerHTTP(panda_request: PandaRequest) -> str:
-    """
-    Get the HTTP server name and port for HTTP.
-    Args:
-        panda_request (PandaRequest): PanDA request object.
-
-    Returns:
-        string: String with server:port
-    """
-    return f"{panda_config.pserverhosthttp}:{panda_config.pserverporthttp}"
-
-
 def get_checkpoint_filename(task_id: str, sub_id: str) -> str:
     """
     Get the checkpoint file name.
