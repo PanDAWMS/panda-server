@@ -959,10 +959,11 @@ def compare_version_string(version_string, comparison_string):
 # check SW with json
 class JsonSoftwareCheck:
     # constructor
-    def __init__(self, site_mapper, sw_map, wn_architecture_level_map):
+    def __init__(self, site_mapper, sw_map, wn_architecture_level_map, wn_gpu_map=None):
         self.siteMapper = site_mapper
         self.sw_map = sw_map
         self.wn_architecture_level_map = wn_architecture_level_map
+        self.wn_gpu_map = wn_gpu_map or {}
 
     # get lists
     def check(
@@ -1081,53 +1082,60 @@ class JsonSoftwareCheck:
 
                         # check GPU
                         if host_gpu_spec:
-                            # GPU not specified
+                            # CRIC is the GPU capability gate: skip queue if not GPU-capable per CRIC
                             if "gpu" not in architecture_map:
                                 continue
 
+                            # All attribute checks use WN GPU monitoring (MV_WORKER_NODE_GPU_SUMMARY)
+                            # which has richer per-host data (vram, architecture, driver version)
+                            wn_gpus = self.wn_gpu_map.get(tmp_site_name, [])
+
                             # check vendor
-                            if host_gpu_spec["vendor"] == "*":
-                                # task doesn't specify CPU vendor and PQ explicitly requests a specific vendor
-                                if "vendor" in architecture_map["gpu"] and "excl" in architecture_map["gpu"]["vendor"]:
-                                    continue
-                            else:
-                                # task specifies a vendor and PQ doesn't request any specific vendor
-                                if "vendor" not in architecture_map["gpu"]:
-                                    continue
-                                # task specifies a vendor and PQ doesn't accept any vendor or the specific vendor
-                                if "any" not in architecture_map["gpu"]["vendor"] and host_gpu_spec["vendor"] not in architecture_map["gpu"]["vendor"]:
+                            if host_gpu_spec["vendor"] != "*":
+                                if not wn_gpus or not any(
+                                    g.get("vendor") and re.match(host_gpu_spec["vendor"], g["vendor"], re.IGNORECASE)
+                                    for g in wn_gpus
+                                ):
                                     continue
 
-                            # check model
-                            if host_gpu_spec["model"] == "*":
-                                if "model" in architecture_map["gpu"] and "excl" in architecture_map["gpu"]["model"]:
-                                    continue
-                            else:
+                            # check model (include or exclude pattern)
+                            if host_gpu_spec["model"] != "*":
                                 if isinstance(host_gpu_spec["model"], dict):
                                     model_pattern = host_gpu_spec["model"]["pattern"]
                                     model_excl = host_gpu_spec["model"].get("excl", False)
                                 else:
                                     model_pattern = host_gpu_spec["model"]
                                     model_excl = False
-                                if "model" not in architecture_map["gpu"] or (
-                                    "any" not in architecture_map["gpu"]["model"]
-                                    and any(re.match(model_pattern, m, re.IGNORECASE) for m in architecture_map["gpu"]["model"])
-                                    == model_excl
-                                ):
+                                if not wn_gpus:
+                                    continue
+                                matches = any(
+                                    g.get("model") and re.match(model_pattern, g["model"], re.IGNORECASE)
+                                    for g in wn_gpus
+                                )
+                                if matches == model_excl:
                                     continue
 
-                            # check version
-                            if "version" in host_gpu_spec:
-                                if "version" not in architecture_map["gpu"]:
-                                    # PQ doesn't specify version
+                            # check minimum VRAM (in MB)
+                            if "vram" in host_gpu_spec:
+                                min_vram = host_gpu_spec["vram"]
+                                if not wn_gpus or not any(g.get("vram") and g["vram"] >= min_vram for g in wn_gpus):
                                     continue
-                                elif "any" == architecture_map["gpu"]["version"]:
-                                    # PQ accepts any version
-                                    pass
-                                else:
-                                    # check version at PQ
-                                    if not compare_version_string(architecture_map["gpu"]["version"], host_gpu_spec["version"]):
-                                        continue
+
+                            # check GPU microarchitecture generation (e.g. Ampere, Hopper, Ada Lovelace)
+                            if "architecture" in host_gpu_spec:
+                                req_arch = host_gpu_spec["architecture"]
+                                if isinstance(req_arch, str):
+                                    req_arch = [req_arch]
+                                if not wn_gpus or not any(g.get("architecture") in req_arch for g in wn_gpus):
+                                    continue
+
+                            # check minimum CUDA version
+                            if "version" in host_gpu_spec:
+                                if not wn_gpus or not any(
+                                    g.get("framework_version") and compare_version_string(g["framework_version"], host_gpu_spec["version"])
+                                    for g in wn_gpus
+                                ):
+                                    continue
                     go_ahead = True
                 except Exception as e:
                     if log_stream:

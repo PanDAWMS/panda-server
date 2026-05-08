@@ -47,6 +47,13 @@ class AtlasAnalJobBroker(JobBrokerBase):
             logger.error("Failed to load the WN architecture level map!!!")
             self.architecture_level_map = {}
 
+        # load the worker node GPU map
+        try:
+            self.wn_gpu_map = taskBufferIF.get_worker_node_gpu_map()
+        except BaseException:
+            logger.error("Failed to load the WN GPU map!!!")
+            self.wn_gpu_map = {}
+
     # main
     def doBrokerage(self, taskSpec, cloudName, inputChunk, taskParamMap):
         # make logger
@@ -810,7 +817,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
             msg_map = {}
-            jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map, self.architecture_level_map)
+            jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map, self.architecture_level_map, self.wn_gpu_map)
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 if tmpSiteSpec.isGPU() and not taskSpec.is_hpo_workflow():
