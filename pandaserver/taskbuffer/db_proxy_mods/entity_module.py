@@ -12,6 +12,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore.CoreUtils import create_shards
 from pandaserver.taskbuffer import (
     EventServiceUtils,
     GlobalShares,
@@ -31,7 +32,6 @@ from pandaserver.taskbuffer.JediDatasetSpec import (
 )
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.ResourceSpec import ResourceSpec, ResourceSpecMapper
-from pandaserver.taskbuffer.Utils import create_shards
 from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 
 
