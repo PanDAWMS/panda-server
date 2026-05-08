@@ -1136,6 +1136,14 @@ class JsonSoftwareCheck:
                                     for g in wn_gpus
                                 ):
                                     continue
+
+                            # check minimum GPU driver version (kernel driver, e.g. 575.57.08)
+                            if "driver_version" in host_gpu_spec:
+                                if not wn_gpus or not any(
+                                    g.get("driver_version") and compare_version_string(g["driver_version"], host_gpu_spec["driver_version"])
+                                    for g in wn_gpus
+                                ):
+                                    continue
                     go_ahead = True
                 except Exception as e:
                     if log_stream:
