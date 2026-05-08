@@ -38,22 +38,6 @@ CODE_OTHER_PARAMS = 102
 _logger = PandaLogger().getLogger("UserIF")
 
 
-# main class
-class UserIF:
-    # constructor
-    def __init__(self):
-        self.taskBuffer = None
-
-    # initialize
-    def init(self, taskBuffer):
-        self.taskBuffer = taskBuffer
-
-
-# Singleton
-userIF = UserIF()
-del UserIF
-
-
 # get FQANs
 def _getFQAN(req):
     fqans = []

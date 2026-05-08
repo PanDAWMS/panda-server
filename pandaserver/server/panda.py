@@ -65,7 +65,6 @@ from pandaserver.userinterface import Client
 from pandaserver.userinterface.UserIF import (
     execute_idds_workflow_command,
     relay_idds_command,
-    userIF,
 )
 
 _logger = PandaLogger().getLogger("Entry")
@@ -117,8 +116,6 @@ if panda_config.nDBConnection != 0:
     task_api_v1.init_task_buffer(taskBuffer)
     workflow_api_v1.init_task_buffer(taskBuffer)
 
-    # initialize UserIF
-    userIF.init(taskBuffer)
 
 # ban list
 if panda_config.nDBConnection != 0:
