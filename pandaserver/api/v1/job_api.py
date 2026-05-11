@@ -300,7 +300,6 @@ def reassign(req: PandaRequest, job_ids: List[int]):
     Returns:
         dict: The system response `{"success": True}`.
     """
-    # TODO: think about the default values for for_pending and first_submission. The resolve_true and resolve_false functions are confusing me.
 
     tmp_logger = LogWrapper(_logger, f"reassign job_ids={job_ids}")
     tmp_logger.debug("Start")

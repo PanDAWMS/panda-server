@@ -687,7 +687,7 @@ def upload_file_recovery_request(
     user_name = req.subprocess_env["SSL_CLIENT_S_DN"]
     creation_time = naive_utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-    tmp_logger = LogWrapper(_logger, f"put_file_recovery_request < task_id={task_id} >")
+    tmp_logger = LogWrapper(_logger, f"upload_file_recovery_request < task_id={task_id} >")
     tmp_logger.debug(f"Start user={user_name}")
 
     try:

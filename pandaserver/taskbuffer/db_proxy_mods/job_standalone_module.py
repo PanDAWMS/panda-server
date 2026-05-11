@@ -2151,38 +2151,6 @@ class JobStandaloneModule(BaseModule):
             self.dump_error_message(tmp_log)
             return retVal
 
-    # get active job attribute
-    def getActiveJobAttributes(self, pandaID, attrs):
-        comment = " /* DBProxy.getActiveJobAttributes */"
-        tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
-        tmp_log.debug("start")
-        try:
-            sqlS = f"SELECT {','.join(attrs)} FROM ATLAS_PANDA.jobsActive4 "
-            sqlS += "WHERE PandaID=:PandaID "
-            # start transaction
-            self.conn.begin()
-            varMap = {}
-            varMap[":PandaID"] = pandaID
-            self.cur.execute(sqlS + comment, varMap)
-            res = self.cur.fetchone()
-            if res is not None:
-                retMap = dict()
-                for idx, attr in enumerate(attrs):
-                    retMap[attr] = res[idx]
-            else:
-                retMap = None
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmp_log.debug(f"got {str(retMap)}")
-            return retMap
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dump_error_message(tmp_log)
-            return None
-
     # get user job metadata
     def getUserJobMetadata(self, jediTaskID):
         comment = " /* DBProxy.getUserJobMetadata */"

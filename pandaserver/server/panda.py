@@ -43,28 +43,6 @@ from pandaserver.api.v1.common import extract_allowed_methods
 from pandaserver.config import panda_config
 
 # pylint: disable=W0611
-from pandaserver.jobdispatcher.JobDispatcher import (
-    ackCommands,
-    checkEventsAvailability,
-    checkJobStatus,
-    get_access_token,
-    get_events_status,
-    get_max_worker_id,
-    get_token_key,
-    getCommands,
-    getEventRanges,
-    getJob,
-    getKeyPair,
-    getProxy,
-    getResourceTypes,
-    getStatus,
-    jobDispatcher,
-    updateEventRange,
-    updateEventRanges,
-    updateJob,
-    updateJobsInBulk,
-    updateWorkerPilotStatus,
-)
 from pandaserver.srvcore import CoreUtils
 
 # IMPORTANT: Add any new methods here to allow them to be called from the web I/F
@@ -72,82 +50,18 @@ from pandaserver.srvcore.allowed_methods import allowed_methods
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.Initializer import initializer
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.userinterface import Client
 
 # pylint: disable=W0611
-from pandaserver.taskbuffer.Utils import (
+# Leftovers from old API
+from pandaserver.userinterface.UserIF import (
     delete_checkpoint,
-    deleteFile,
-    fetchLog,
-    getAttr,
-    getServer,
-    getVomsAttr,
-    isAlive,
+    execute_idds_workflow_command,
     put_checkpoint,
     put_file_recovery_request,
     put_workflow_request,
     putEventPickingRequest,
-    putFile,
-    touchFile,
-    updateLog,
-    uploadLog,
-)
-from pandaserver.userinterface import Client
-
-# pylint: disable=W0611
-from pandaserver.userinterface.UserIF import (
-    addHarvesterDialogs,
-    avalancheTask,
-    changeTaskAttributePanda,
-    changeTaskModTimePanda,
-    changeTaskPriority,
-    changeTaskSplitRulePanda,
-    checkSandboxFile,
-    enableJumboJobs,
-    execute_idds_workflow_command,
-    finishTask,
-    get_ban_users,
-    get_files_in_datasets,
-    get_job_statistics_per_site_label_resource,
-    get_user_secrets,
-    getFullJobStatus,
-    getJediTaskDetails,
-    getJediTasksInTimeRange,
-    getJobStatisticsPerSite,
-    getJobStatus,
-    getJumboJobDatasets,
-    getPandaIDsWithTaskID,
-    getScriptOfflineRunning,
-    getTaskParamsMap,
-    getTaskStatus,
-    getUserJobMetadata,
-    getWorkerStats,
-    harvesterIsAlive,
-    increaseAttemptNrPanda,
-    insertSandboxFileInfo,
-    insertTaskParams,
-    killJobs,
-    killTask,
-    killUnfinishedJobs,
-    pauseTask,
-    reactivateTask,
-    reassignJobs,
-    reassignShare,
-    reassignTask,
     relay_idds_command,
-    release_task,
-    reloadInput,
-    reportWorkerStats_jobtype,
-    resumeTask,
-    retryTask,
-    send_command_to_job,
-    set_user_secret,
-    setDebugMode,
-    setNumSlotsForWP,
-    submitJobs,
-    sweepPQ,
-    updateServiceMetrics,
-    updateWorkers,
-    userIF,
 )
 
 _logger = PandaLogger().getLogger("Entry")
@@ -199,11 +113,6 @@ if panda_config.nDBConnection != 0:
     task_api_v1.init_task_buffer(taskBuffer)
     workflow_api_v1.init_task_buffer(taskBuffer)
 
-    # initialize JobDispatcher
-    jobDispatcher.init(taskBuffer)
-
-    # initialize UserIF
-    userIF.init(taskBuffer)
 
 # ban list
 if panda_config.nDBConnection != 0:
@@ -462,7 +371,13 @@ def application(environ, start_response):
         body = read_body(environ, cont_length)
 
         # parse the parameters
-        params = parse_parameters(api_module, json_app, json_body, content_encoding, environ, body, request_method)
+        try:
+            params = parse_parameters(api_module, json_app, json_body, content_encoding, environ, body, request_method)
+        except json.JSONDecodeError as e:
+            error_message = f"received invalid JSON : {str(e)}"
+            tmp_log.error(error_message + (f" with {body}" if panda_config.entryVerbose else ""))
+            start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
+            return [f"ERROR : {error_message}".encode()]
 
         if panda_config.entryVerbose:
             tmp_log.debug(f"with {str(list(params))}")
