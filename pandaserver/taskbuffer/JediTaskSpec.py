@@ -1414,9 +1414,27 @@ class JediTaskSpec(object):
             spec_str = m.group(1)
             if not spec_str:
                 return None
-            spec_str += "-*" * (1 - spec_str.count("-"))
-            items = spec_str.split("-")
+            # split into legacy vendor<-model> part and optional colon-separated key=value attributes
+            parts = spec_str.split(":")
+            legacy = parts[0]
+            legacy += "-*" * (1 - legacy.count("-"))
+            items = legacy.split("-")
             spec = {"vendor": items[0], "model": items[1]}
+            # parse extended attributes: cuda>=12.0, vram=40960, uarch=Ampere, driver>=575.0, model=.*A100.*
+            shorthand_map = {"cuda": "version", "uarch": "microarchitecture", "driver": "driver_version", "model": "model", "vram": "vram"}
+            for part in parts[1:]:
+                attr_m = re.match(r"(\w+)(>=|<=|!=|>|<|=)(.*)", part)
+                if not attr_m:
+                    continue
+                key, op, val = attr_m.group(1), attr_m.group(2), attr_m.group(3)
+                mapped = shorthand_map.get(key)
+                if not mapped:
+                    continue
+                if mapped == "model":
+                    spec["model"] = val
+                else:
+                    spec[mapped] = ("==" if op == "=" else op) + val
+
             return spec
         except Exception:
             return None

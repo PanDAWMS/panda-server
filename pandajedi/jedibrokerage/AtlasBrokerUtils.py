@@ -1115,10 +1115,12 @@ class JsonSoftwareCheck:
                                 if matches == model_excl:
                                     continue
 
-                            # check minimum VRAM (in MB)
+                            # check VRAM (in MB); supports operators: ==, >=, <=, >, <, != (e.g. ">=40960")
                             if "vram" in host_gpu_spec:
-                                min_vram = host_gpu_spec["vram"]
-                                if not wn_gpus or not any(g.get("vram") and g["vram"] >= min_vram for g in wn_gpus):
+                                if not wn_gpus or not any(
+                                    g.get("vram") and compare_version_string(str(g["vram"]), host_gpu_spec["vram"])
+                                    for g in wn_gpus
+                                ):
                                     continue
 
                             # check GPU microarchitecture generation (e.g. Ampere, Hopper, Ada Lovelace)
