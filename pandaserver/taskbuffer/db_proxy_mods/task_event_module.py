@@ -2849,8 +2849,10 @@ class TaskEventModule(BaseModule):
             # initial max number of files or gigabytes per job for retry module
             rules_for_retry_module = rule_values["retryModuleRules"]
             rule_values_for_retry_module = task_split_rules.extract_rule_values(rules_for_retry_module, ["nGBPerJob", "nMaxFilesPerJob"], is_sub_rule=True)
-            init_gigabytes_per_job = rule_values_for_retry_module["nGBPerJob"]
-            init_max_files_per_job = rule_values_for_retry_module["nMaxFilesPerJob"]
+            init_gigabytes_per_job = int(rule_values_for_retry_module["nGBPerJob"]) if rule_values_for_retry_module["nGBPerJob"] is not None else None
+            init_max_files_per_job = (
+                int(rule_values_for_retry_module["nMaxFilesPerJob"]) if rule_values_for_retry_module["nMaxFilesPerJob"] is not None else None
+            )
 
             # set initial values for the first action
             set_init_rules = False
