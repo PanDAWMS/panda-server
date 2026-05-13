@@ -27,6 +27,8 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
         orig_tmp_log = MsgWrapper(logger)
         try:
             orig_tmp_log.debug("start")
+            # site mapper
+            self.site_mapper = self.taskBufferIF.get_site_mapper()
             # handle waiting jobs
             self.doForWaitingJobs()
             # throttle tasks if so many prestaging requests
@@ -718,6 +720,11 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
 
     # periodic task action
     def do_periodic_action(self):
+        """
+        Perform periodic action on tasks
+          * extend lifetime of output containers for analysis tasks
+          * reset frozen time of pending tasks if input dataset is available only at RSEs in downtime, to avoid unnecessary exhaustion
+        """
         tmp_log = MsgWrapper(logger, " do_periodic_action label=user")
         tmp_log.debug("start")
         try:
@@ -731,7 +738,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             # get tasks
             task_list = self.taskBufferIF.get_tasks_for_periodic_action(self.vo, self.prodSourceLabel)
             for task_id in task_list:
-                # get datasets
+                # get output datasets
                 _, tmp_datasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(task_id, ["output"])
                 done_containers = set()
                 for dataset_spec in tmp_datasets:
@@ -744,5 +751,23 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                         dataset_spec.containerName,
                         {"type=.+": {"lifetime": lifetime}, "(SCRATCH|USER)DISK": {"lifetime": lifetime}},
                     )
+                # get input datasets
+                _, tmp_datasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(task_id, ["input"])
+                for dataset_spec in tmp_datasets:
+                    # get locations
+                    rses = self.taskBufferIF.get_dataset_locality(task_id, dataset_spec.datasetID)
+                    # check if all locations are in downtime
+                    if rses:
+                        all_in_downtime = True
+                        for rse in rses:
+                            if self.site_mapper.is_readable_locally(rse):
+                                all_in_downtime = False
+                                break
+                        if all_in_downtime:
+                            tmp_log.debug(
+                                f"reset frozen time for taskID={task_id} since all locations {rses} of input dataset {dataset_spec.datasetName} are in downtime"
+                            )
+                            self.taskBufferIF.reset_frozen_time_for_task(task_id)
+
         except Exception as e:
             tmp_log.error(f"failed with {str(e)}{traceback.format_exc()}")

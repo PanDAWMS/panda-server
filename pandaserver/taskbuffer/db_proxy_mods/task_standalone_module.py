@@ -5165,3 +5165,38 @@ class TaskStandaloneModule(BaseModule):
             # error
             self.dump_error_message(tmpLog)
             return False
+
+    # reset frozen time of a task to avoid being exausted
+    def reset_frozen_time_for_task(self, task_id: int) -> bool:
+        """
+        Reset the frozen time of a task to avoid being exhausted
+
+        :Args:
+            - task_id: int, the ID of the task to reset frozen time for
+
+        :Returns:
+            - bool: True if the frozen time was successfully reset, False otherwise
+        """
+        comment = " /* JediDBProxy.reset_frozen_time_for_task */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
+        tmp_log.debug("start")
+        try:
+            # sql to reset frozen time
+            sql_update = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET frozenTime=NULL WHERE jediTaskID=:jediTaskID "
+            # begin transaction
+            self.conn.begin()
+            # update task
+            var_map = {}
+            var_map[":jediTaskID"] = task_id
+            self.cur.execute(sql_update + comment, var_map)
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug(f"done reset frozen time for jediTaskID={task_id}")
+            return True
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return False

@@ -3437,6 +3437,45 @@ class MiscStandaloneModule(BaseModule):
             self.dump_error_message(tmpLog)
             return retVal
 
+    # get dataset locality for a task and dataset
+    def get_dataset_locality(self, jedi_taskid: int, datasetid: int) -> list | None:
+        """
+        Get the list of RSEs where the dataset is available for the given task and dataset ID.
+        Args:
+            jedi_taskid (int): The JEDI task ID.
+            datasetid (int): The dataset ID.
+        Returns:
+            list: A list of RSEs where the dataset is available, or None if an error occurs.
+        """
+        comment = " /* JediDBProxy.get_dataset_locality */"
+        tmp_log = self.create_tagged_logger(comment, f"taskID={jedi_taskid} datasetID={datasetid}")
+        tmp_log.debug("start")
+        try:
+            ret_val = None
+            # sql to get all jediTaskID and datasetID of input
+            sql = f"SELECT rse FROM {panda_config.schemaJEDI}.JEDI_Dataset_Locality WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            # start transaction
+            self.conn.begin()
+            # get
+            varMap = {}
+            varMap[":jediTaskID"] = jedi_taskid
+            varMap[":datasetID"] = datasetid
+            self.cur.execute(sql + comment, varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            ret_val = [r[0] for r in res]
+            tmp_log.debug(f"done with {ret_val}")
+            return ret_val
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return ret_val
+
     # update dataset locality
     def updateDatasetLocality_JEDI(self, jedi_taskid, datasetid, rse):
         comment = " /* JediDBProxy.updateDatasetLocality_JEDI */"
