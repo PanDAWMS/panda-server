@@ -96,6 +96,13 @@ class AtlasProdJobBroker(JobBrokerBase):
             logger.error("Failed to load the WN architecture level map!!!")
             self.architecture_level_map = {}
 
+        # load the worker node GPU map
+        try:
+            self.wn_gpu_map = taskBufferIF.get_worker_node_gpu_map()
+        except BaseException:
+            logger.error("Failed to load the WN GPU map!!!")
+            self.wn_gpu_map = {}
+
     def convertMBpsToWeight(self, mbps):
         """
         Takes MBps value and converts to a weight between 1 and 2
@@ -754,7 +761,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         resolved_platforms = {}
         preference_weight_map = {}
         if taskSpec.transHome is not None:
-            jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map, self.architecture_level_map)
+            jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map, self.architecture_level_map, self.wn_gpu_map)
             unified_site_list = self.get_unified_sites(scanSiteList)
 
             host_cpu_spec = taskSpec.get_host_cpu_spec()
