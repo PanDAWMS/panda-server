@@ -1013,7 +1013,7 @@ class TaskBuffer:
         return retJobs
 
     # get full job status
-    def getFullJobStatus(self, jobIDs, fromDefined=True, fromActive=True, fromArchived=True, fromWaiting=True, forAnal=True, days=30, use_json=False):
+    def getFullJobStatus(self, jobIDs, fromDefined=True, fromActive=True, fromArchived=True, fromWaiting=True, forAnal=True, days=90, use_json=False):
         retJobMap = {}
 
         # peek at job

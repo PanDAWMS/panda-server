@@ -38,7 +38,7 @@ class MiscStandaloneModule(BaseModule):
         super().__init__(log_stream)
 
     # get PandaIDs with TaskID
-    def getPandaIDsWithTaskID(self, jediTaskID: int, scout_only: bool = False, unsuccessful_only: bool = False) -> List[int]:
+    def getPandaIDsWithTaskID(self, jediTaskID: int, scout_only: bool = False, unsuccessful_only: bool = False, days=90) -> List[int]:
         """Get PanDA job IDs for a task.
 
         Args:
@@ -47,6 +47,7 @@ class MiscStandaloneModule(BaseModule):
                 comma-separated ``specialHandling`` field.
             unsuccessful_only: When True, return only jobs with status in
                 ``failed``, ``cancelled``, or ``closed``.
+            days: Look for jobs in the ATLAS_PANDAARCH.jobsArchived table modified in the last N days.
 
         Returns:
             List[int]: PanDA job IDs found in defined, active, and archived tables.
@@ -73,6 +74,13 @@ class MiscStandaloneModule(BaseModule):
         sql += "UNION "
         sql += "SELECT PandaID FROM ATLAS_PANDA.jobsArchived4 "
         sql += "WHERE jediTaskID=:jediTaskID "
+        if scout_only:
+            sql += scout_filter
+        if unsuccessful_only:
+            sql += unsuccessful_filter
+        sql += "UNION "
+        sql += "SELECT PandaID FROM ATLAS_PANDAARCH.jobsArchived "
+        sql += f"WHERE jediTaskID=:jediTaskID AND modificationTime>(CURRENT_DATE-{days}) "
         if scout_only:
             sql += scout_filter
         if unsuccessful_only:
