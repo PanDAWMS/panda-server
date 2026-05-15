@@ -1167,6 +1167,13 @@ def get_tasks_detailed_info_since(req, since: str, filters: str = None, n_tasks:
     tmp_logger = LogWrapper(_logger, "get_tasks_detailed_info_since")
     tmp_logger.debug("Start")
 
+    REGEX_META = r"^$*+?\|()"
+
+    def looks_like_regex(s):
+        # A simple heuristic to determine if a filter value looks like a regex pattern
+        # (contains regex metacharacters except for . and {} that are used json fields).
+        return any(c in s for c in REGEX_META)
+
     compact_dn = clean_user_id(get_dn(req)) or get_dn(req)
 
     # userName is always the authenticated user; other filters come from the caller
@@ -1178,7 +1185,7 @@ def get_tasks_detailed_info_since(req, since: str, filters: str = None, n_tasks:
             if not isinstance(parsed_filters, dict):
                 return generate_response(False, message="filters must be a JSON object")
             for field, pattern in parsed_filters.items():
-                if re.escape(pattern) == pattern:
+                if not looks_like_regex(pattern):
                     sql_criteria[field] = pattern
                 else:
                     regex_filters[field] = pattern
