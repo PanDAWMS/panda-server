@@ -3260,7 +3260,7 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # get LFNs in datasets
-    def get_files_in_datasets(self, task_id, dataset_types):
+    def get_files_in_datasets(self, task_id, dataset_types, dataset_only=False):
         comment = " /* DBProxy.get_lfns_in_datasets */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
         tmp_log.debug("start")
@@ -3286,20 +3286,21 @@ class MiscStandaloneModule(BaseModule):
                 datasetDict["name"] = datasetName
                 datasetDict["id"] = datasetID
                 # read files
-                varMap = {}
-                varMap[":jediTaskID"] = task_id
-                varMap[":datasetID"] = datasetID
-                self.cur.execute(sqlS + comment, varMap)
-                resF = self.cur.fetchall()
-                fileList = []
-                for lfn, fileScope, fileID, status in resF:
-                    fileDict = {
-                        "lfn": lfn,
-                        "scope": fileScope,
-                        "id": fileID,
-                        "status": status,
-                    }
-                    fileList.append(fileDict)
+                if not dataset_only:
+                    varMap = {}
+                    varMap[":jediTaskID"] = task_id
+                    varMap[":datasetID"] = datasetID
+                    self.cur.execute(sqlS + comment, varMap)
+                    resF = self.cur.fetchall()
+                    fileList = []
+                    for lfn, fileScope, fileID, status in resF:
+                        fileDict = {
+                            "lfn": lfn,
+                            "scope": fileScope,
+                            "id": fileID,
+                            "status": status,
+                        }
+                        fileList.append(fileDict)
                 retVal.append({"dataset": datasetDict, "files": fileList})
             # commit
             if not self._commit():

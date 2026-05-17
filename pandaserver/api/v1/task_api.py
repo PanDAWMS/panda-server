@@ -1226,7 +1226,7 @@ def get_tasks_detailed_info_since(req, since: str, filters: str = None, n_tasks:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_datasets_and_files(req, task_id, dataset_types: List[str] = ("input", "pseudo_input")) -> Dict[str, Any]:
+def get_datasets_and_files(req, task_id, dataset_types: List[str] = ("input", "pseudo_input"), dataset_only: bool = False) -> Dict[str, Any]:
     """
     Get datasets and files
 
@@ -1261,11 +1261,12 @@ def get_datasets_and_files(req, task_id, dataset_types: List[str] = ("input", "p
         req(PandaRequest): internally generated request object
         task_id(int): JEDI task ID
         dataset_types(List, optional): list of dataset types, defaults to `["input", "pseudo_input"]`
+        dataset_only(bool, optional): if True, only return dataset information without files, defaults to False
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
-    tmp_logger = LogWrapper(_logger, f"get_datasets_and_files < task_id={task_id} dataset_types={dataset_types} >")
+    tmp_logger = LogWrapper(_logger, f"get_datasets_and_files < task_id={task_id} dataset_types={dataset_types} dataset_only={dataset_only} >")
     tmp_logger.debug("Start")
 
     data = global_task_buffer.get_files_in_datasets(task_id, dataset_types)

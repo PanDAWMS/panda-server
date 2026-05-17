@@ -2658,9 +2658,9 @@ class TaskBuffer:
             ret = proxy.carbon_aggregate_emissions()
         return ret
 
-    def get_files_in_datasets(self, task_id, dataset_types):
+    def get_files_in_datasets(self, task_id, dataset_types, dataset_only=False):
         with self.proxyPool.get() as proxy:
-            ret = proxy.get_files_in_datasets(task_id, dataset_types)
+            ret = proxy.get_files_in_datasets(task_id, dataset_types, dataset_only)
         return ret
 
     def get_max_worker_id(self, harvester_id):
