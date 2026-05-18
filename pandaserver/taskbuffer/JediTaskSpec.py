@@ -1423,7 +1423,7 @@ class JediTaskSpec(object):
             # parse extended attributes: cuda>=12.0, vram=40960, uarch=Ampere, driver>=575.0, model=.*A100.*
             shorthand_map = {"cuda": "version", "uarch": "microarchitecture", "driver": "driver_version", "model": "model", "vram": "vram"}
             for part in parts[1:]:
-                attr_m = re.match(r"(\w+)(>=|<=|!=|>|<|=)(.*)", part)
+                attr_m = re.match(r"(\w+)(>=|<=|!=|==|>|<|=)(.*)", part)
                 if not attr_m:
                     continue
                 key, op, val = attr_m.group(1), attr_m.group(2), attr_m.group(3)
