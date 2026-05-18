@@ -1401,6 +1401,42 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return {}
 
+    def get_worker_node_gpu_map(self):
+        comment = " /* DBProxy.get_worker_node_gpu_map */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("Start")
+
+        try:
+            sql = (
+                "SELECT panda_queue, vendor, model, vram, architecture, framework_version, driver_version, gpus_per_host "
+                "FROM ATLAS_PANDA.MV_WORKER_NODE_GPU_SUMMARY "
+            )
+            self.cur.execute(sql + comment, {})
+            results = self.cur.fetchall()
+
+            tmp_log.debug(f"Got {len(results)} entries from MV_WORKER_NODE_GPU_SUMMARY")
+
+            gpu_map = {}
+            for panda_queue, vendor, model, vram, architecture, framework_version, driver_version, gpus_per_host in results:
+                gpu_map.setdefault(panda_queue, []).append(
+                    {
+                        "vendor": vendor,
+                        "model": model,
+                        "vram": vram,
+                        "architecture": architecture,
+                        "framework_version": framework_version,
+                        "driver_version": driver_version,
+                        "gpus_per_host": gpus_per_host,
+                    }
+                )
+
+            tmp_log.debug("Done")
+            return gpu_map
+
+        except Exception:
+            self.dump_error_message(tmp_log)
+            return {}
+
     # get workers for a job
     def getWorkersForJob(self, PandaID):
         comment = " /* DBProxy.getWorkersForJob */"
