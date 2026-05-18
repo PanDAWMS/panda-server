@@ -1213,7 +1213,7 @@ class TaskUtilsModule(BaseModule):
                     and scoutData["cpuTime"] > wrong_cputime_thr * extraInfo["oldCpuTime"]
                     and extraInfo["execTime"] > datetime.timedelta(hours=minExecTime)
                 ):
-                    errMsg = f"""#KV #ATM action=set_exhausted reason=scout_cpuTime ({scoutData["cpuTime"]}) is larger than {wrong_cputime_thr}*task_cpuTime ({extraInfo["oldCpuTime"]}) and execTime ({extraInfo["execTime"]}) > {minExecTime} hours"""
+                    errMsg = f"""#KV #ATM action=set_exhausted reason=scout_cpuTime scout cpuTime ({scoutData["cpuTime"]}) is larger than {wrong_cputime_thr}*task_cpuTime ({extraInfo["oldCpuTime"]}) and execTime ({extraInfo["execTime"]}) > {minExecTime} hours"""
                     tmpLog.info(errMsg)
                     taskSpec.setErrDiag(errMsg)
                     taskSpec.status = "exhausted"
@@ -1226,7 +1226,7 @@ class TaskUtilsModule(BaseModule):
                     and extraInfo["oldRamCount"] is not None
                     and extraInfo["oldRamCount"] < ramThr < scoutData["ramCount"]
                 ):
-                    errMsg = f"#KV #ATM action=set_exhausted reason=scout_ramCount {scoutData['ramCount']} MB is larger than {ramThr} MB "
+                    errMsg = f"#KV #ATM action=set_exhausted reason=scout_ramCount scout ramCount {scoutData['ramCount']} MB is larger than {ramThr} MB "
                     errMsg += f"while requested task_ramCount {extraInfo['oldRamCount']} MB is less than {ramThr} MB"
                     tmpLog.info(errMsg)
                     taskSpec.setErrDiag(errMsg)
@@ -1238,7 +1238,7 @@ class TaskUtilsModule(BaseModule):
                 memory_leak_core = scoutData.get("memory_leak_core")
                 memory_leak_x2 = scoutData.get("memory_leak_x2")  # TODO: decide what to do with it
                 if memory_leak_core and memory_leak_core_max and memory_leak_core > memory_leak_core_max:
-                    errMsg = f"#ATM #KV action=set_exhausted since reason=scout_memory_leak {memory_leak_core} is larger than {memory_leak_core_max}"
+                    errMsg = f"#ATM #KV action=set_exhausted reason=scout_memory_leak scout memory leak per core {memory_leak_core} is larger than {memory_leak_core_max}"
                     tmpLog.info(errMsg)
                     taskSpec.setErrDiag(errMsg)
                     # taskSpec.status = 'exhausted'
@@ -1370,7 +1370,7 @@ class TaskUtilsModule(BaseModule):
                         )
                     else:
                         high_io_intensity = False
-                        errMsg = "#ATM #KV action=set_exhausted since reason=low_efficiency "
+                        errMsg = "#ATM #KV action=set_exhausted reason=low_efficiency "
                     if taskSpec.getMinCpuEfficiency() and extraInfo["minCpuEfficiency"] < taskSpec.getMinCpuEfficiency():
                         tmp_skip = True
                         errMsg += f"lowest CPU efficiency {extraInfo['minCpuEfficiency']} is less than getMinCpuEfficiency={taskSpec.getMinCpuEfficiency()}"
@@ -1406,7 +1406,7 @@ class TaskUtilsModule(BaseModule):
                 try:
                     abuseOffset = 2
                     if extraInfo["maxCpuConsumptionTime"] > extraInfo["maxExecTime"].total_seconds() * extraInfo["defCoreCount"] * abuseOffset:
-                        errMsg = f"#ATM #KV action=set_exhausted since reason=over_cpu_consumption {extraInfo['maxCpuConsumptionTime']} sec "
+                        errMsg = f"#ATM #KV action=set_exhausted reason=over_cpu_consumption CPU consumption time {extraInfo['maxCpuConsumptionTime']} sec "
                         errMsg += "is larger than jobDuration*coreCount*safety ({0}*{1}*{2}). ".format(
                             extraInfo["maxExecTime"].total_seconds(), extraInfo["defCoreCount"], abuseOffset
                         )
@@ -1421,9 +1421,7 @@ class TaskUtilsModule(BaseModule):
             # low success rate
             if taskSpec.status != "exhausted" and minNumOkScoutsForExhausted:
                 if taskSpec.getScoutSuccessRate() and "successRate" in extraInfo and extraInfo["successRate"] < taskSpec.getScoutSuccessRate() / 10:
-                    errMsg = "#ATM #KV action=set_exhausted since reason=low_success_rate between {} and {} ".format(
-                        minNumOkScoutsForExhausted, taskSpec.getScoutSuccessRate() / 10
-                    )
+                    errMsg = f"#ATM #KV action=set_exhausted reason=low_success_rate job success rate {taskSpec.getScoutSuccessRate() / 10} is lower than {minNumOkScoutsForExhausted} "
                     tmpLog.info(errMsg)
                     taskSpec.setErrDiag(errMsg)
                     taskSpec.status = "exhausted"

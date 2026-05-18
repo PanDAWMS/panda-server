@@ -1289,7 +1289,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     continue
 
             ######################################
-            # selection for zero walltime: scouts, merges, and walltime-undefined jobs
+            # selection to skip short walltime: scouts, merges, and walltime-undefined jobs
             # must only go to sites with at least 24hr*10HS06s of available walltime
             if (
                 (not sitePreAssigned and inputChunk.useScout())
@@ -1325,16 +1325,16 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     if siteMaxTime != 0 and siteMaxTime < minTimeForZeroWalltime:
                         tmpMsg = f"  skip site={tmpSiteName} due to site walltime {tmpSiteStr} (site upper limit) insufficient "
                         if inputChunk.useScout():
-                            tmpMsg += f"for scouts ({str_minTimeForZeroWalltime} at least) "
-                            tmpMsg += "criteria=-scoutwalltime"
+                            tmpMsg += f"for scout jobs (requireing {str_minTimeForZeroWalltime} at least) "
+                            tmpMsg += "criteria=-scout_walltime"
                         else:
-                            tmpMsg += f"for zero walltime ({str_minTimeForZeroWalltime} at least) "
-                            tmpMsg += "criteria=-zerowalltime"
+                            tmpMsg += f"for merge or walltime-undefined jobs (requiring {str_minTimeForZeroWalltime} at least) "
+                            tmpMsg += "criteria=-min_walltime"
                         msg_map[tmpSiteSpec.get_unified_name()] = tmpMsg
                         continue
                     newScanSiteList.append(tmpSiteName)
                 scanSiteList = newScanSiteList
-                self.add_summary_message(oldScanSiteList, scanSiteList, "zero walltime check", tmpLog, msg_map)
+                self.add_summary_message(oldScanSiteList, scanSiteList, "minimum walltime capacity check", tmpLog, msg_map)
                 if not scanSiteList:
                     self.dump_summary(tmpLog)
                     tmpLog.error("no candidates")

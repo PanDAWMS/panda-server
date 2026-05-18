@@ -38,7 +38,7 @@ class MiscStandaloneModule(BaseModule):
         super().__init__(log_stream)
 
     # get PandaIDs with TaskID
-    def getPandaIDsWithTaskID(self, jediTaskID: int, scout_only: bool = False, unsuccessful_only: bool = False) -> List[int]:
+    def getPandaIDsWithTaskID(self, jediTaskID: int, scout_only: bool = False, unsuccessful_only: bool = False, days=90) -> List[int]:
         """Get PanDA job IDs for a task.
 
         Args:
@@ -47,6 +47,7 @@ class MiscStandaloneModule(BaseModule):
                 comma-separated ``specialHandling`` field.
             unsuccessful_only: When True, return only jobs with status in
                 ``failed``, ``cancelled``, or ``closed``.
+            days: Look for jobs in the ATLAS_PANDAARCH.jobsArchived table modified in the last N days.
 
         Returns:
             List[int]: PanDA job IDs found in defined, active, and archived tables.
@@ -73,6 +74,13 @@ class MiscStandaloneModule(BaseModule):
         sql += "UNION "
         sql += "SELECT PandaID FROM ATLAS_PANDA.jobsArchived4 "
         sql += "WHERE jediTaskID=:jediTaskID "
+        if scout_only:
+            sql += scout_filter
+        if unsuccessful_only:
+            sql += unsuccessful_filter
+        sql += "UNION "
+        sql += "SELECT PandaID FROM ATLAS_PANDAARCH.jobsArchived "
+        sql += f"WHERE jediTaskID=:jediTaskID AND modificationTime>(CURRENT_DATE-{days}) "
         if scout_only:
             sql += scout_filter
         if unsuccessful_only:
@@ -3252,7 +3260,7 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # get LFNs in datasets
-    def get_files_in_datasets(self, task_id, dataset_types):
+    def get_files_in_datasets(self, task_id, dataset_types, dataset_only=False):
         comment = " /* DBProxy.get_lfns_in_datasets */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
         tmp_log.debug("start")
@@ -3278,20 +3286,21 @@ class MiscStandaloneModule(BaseModule):
                 datasetDict["name"] = datasetName
                 datasetDict["id"] = datasetID
                 # read files
-                varMap = {}
-                varMap[":jediTaskID"] = task_id
-                varMap[":datasetID"] = datasetID
-                self.cur.execute(sqlS + comment, varMap)
-                resF = self.cur.fetchall()
-                fileList = []
-                for lfn, fileScope, fileID, status in resF:
-                    fileDict = {
-                        "lfn": lfn,
-                        "scope": fileScope,
-                        "id": fileID,
-                        "status": status,
-                    }
-                    fileList.append(fileDict)
+                if not dataset_only:
+                    varMap = {}
+                    varMap[":jediTaskID"] = task_id
+                    varMap[":datasetID"] = datasetID
+                    self.cur.execute(sqlS + comment, varMap)
+                    resF = self.cur.fetchall()
+                    fileList = []
+                    for lfn, fileScope, fileID, status in resF:
+                        fileDict = {
+                            "lfn": lfn,
+                            "scope": fileScope,
+                            "id": fileID,
+                            "status": status,
+                        }
+                        fileList.append(fileDict)
                 retVal.append({"dataset": datasetDict, "files": fileList})
             # commit
             if not self._commit():
@@ -3436,6 +3445,45 @@ class MiscStandaloneModule(BaseModule):
             # error
             self.dump_error_message(tmpLog)
             return retVal
+
+    # get dataset locality for a task and dataset
+    def get_dataset_locality(self, jedi_taskid: int, datasetid: int) -> list | None:
+        """
+        Get the list of RSEs where the dataset is available for the given task and dataset ID.
+        Args:
+            jedi_taskid (int): The JEDI task ID.
+            datasetid (int): The dataset ID.
+        Returns:
+            list: A list of RSEs where the dataset is available, or None if an error occurs.
+        """
+        comment = " /* JediDBProxy.get_dataset_locality */"
+        tmp_log = self.create_tagged_logger(comment, f"taskID={jedi_taskid} datasetID={datasetid}")
+        tmp_log.debug("start")
+        try:
+            ret_val = None
+            # sql to get all jediTaskID and datasetID of input
+            sql = f"SELECT rse FROM {panda_config.schemaJEDI}.JEDI_Dataset_Locality WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            # start transaction
+            self.conn.begin()
+            # get
+            varMap = {}
+            varMap[":jediTaskID"] = jedi_taskid
+            varMap[":datasetID"] = datasetid
+            self.cur.execute(sql + comment, varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            ret_val = [r[0] for r in res]
+            tmp_log.debug(f"done with {ret_val}")
+            return ret_val
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return ret_val
 
     # update dataset locality
     def updateDatasetLocality_JEDI(self, jedi_taskid, datasetid, rse):

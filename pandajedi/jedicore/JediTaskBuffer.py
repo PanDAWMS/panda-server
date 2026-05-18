@@ -250,9 +250,9 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
             )
 
     # get tasks to be processed
-    def checkWaitingTaskPrio_JEDI(self, vo, workQueue, prodSourceLabel, cloudName, resource_name=None):
+    def checkWaitingTaskPrio_JEDI(self, vo, workQueue, prodSourceLabel, cloudName, resource_name=None, pid=None):
         with self.proxyPool.get() as proxy:
-            return proxy.getTasksToBeProcessed_JEDI(None, vo, workQueue, prodSourceLabel, cloudName, isPeeking=True, resource_name=resource_name)
+            return proxy.getTasksToBeProcessed_JEDI(pid, vo, workQueue, prodSourceLabel, cloudName, isPeeking=True, resource_name=resource_name)
 
     # get job statistics with work queue
     def getJobStatisticsWithWorkQueue_JEDI(self, vo, prodSourceLabel, minPriority=None):
@@ -922,6 +922,11 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         with self.proxyPool.get() as proxy:
             return proxy.get_tasks_inputdatasets_JEDI(vo)
 
+    # get dataset locality for a task and dataset
+    def get_dataset_locality(self, jedi_taskid, datasetid):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_dataset_locality(jedi_taskid, datasetid)
+
     # update dataset locality
     def updateDatasetLocality_JEDI(self, jedi_taskid, datasetid, rse):
         with self.proxyPool.get() as proxy:
@@ -986,3 +991,8 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
     def get_task_failure_metrics(self, jedi_task_id):
         with self.proxyPool.get() as proxy:
             return proxy.get_task_failure_metrics(jedi_task_id)
+
+    # reset frozen time of a task to avoid being exausted
+    def reset_frozen_time_for_task(self, task_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.reset_frozen_time_for_task(task_id)

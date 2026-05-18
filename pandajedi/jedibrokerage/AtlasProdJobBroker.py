@@ -1126,11 +1126,11 @@ class AtlasProdJobBroker(JobBrokerBase):
                 if siteMaxTime != 0 and siteMaxTime < minTimeForZeroWalltime:
                     tmp_msg = f"  skip site={tmpSiteName} due to site walltime {tmpSiteStr} (site upper limit) insufficient "
                     if inputChunk.useScout():
-                        tmp_msg += f"for scouts ({str_minTimeForZeroWalltime} at least) "
-                        tmp_msg += "criteria=-scoutwalltime"
+                        tmp_msg += f"for scout jobs (requireing {str_minTimeForZeroWalltime} at least) "
+                        tmp_msg += "criteria=-scout_walltime"
                     else:
-                        tmp_msg += f"for zero walltime ({str_minTimeForZeroWalltime} at least) "
-                        tmp_msg += "criteria=-zerowalltime"
+                        tmp_msg += f"for walltime-undefined jobs (requiring {str_minTimeForZeroWalltime} at least) "
+                        tmp_msg += "criteria=-min_walltime"
                     msg_map[tmpSiteSpec.get_unified_name()] = tmp_msg
                     continue
             # check min walltime at the site

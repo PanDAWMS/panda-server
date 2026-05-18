@@ -1,3 +1,6 @@
+import os
+import socket
+
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 
@@ -33,6 +36,7 @@ class JobThrottlerBase(object):
         self.msgType = "jobthrottler"
         self.comp_name = "base_job_throttler"
         self.app = "jedi"
+        self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-{self.msgType}"
 
     # refresh
     def refresh(self):
@@ -297,12 +301,12 @@ class JobThrottlerBase(object):
             # find highest priority of currently defined jobs
             tmpStat, highestPrioJobStat = self.taskBufferIF.getHighestPrioJobStat_JEDI(prodSourceLabel, cloud_name, workQueue)
             # the highest priority of waiting tasks
-            highestPrioWaiting = self.taskBufferIF.checkWaitingTaskPrio_JEDI(vo, workQueue, prodSourceLabel, cloud_name)
+            highestPrioWaiting = self.taskBufferIF.checkWaitingTaskPrio_JEDI(vo, workQueue, prodSourceLabel, cloud_name, pid=self.pid)
         else:
             # find highest priority of currently defined jobs
             tmpStat, highestPrioJobStat = self.taskBufferIF.getHighestPrioJobStat_JEDI(prodSourceLabel, cloud_name, workQueue, resource_name)
             # the highest priority of waiting tasks
-            highestPrioWaiting = self.taskBufferIF.checkWaitingTaskPrio_JEDI(vo, workQueue, prodSourceLabel, cloud_name, resource_name)
+            highestPrioWaiting = self.taskBufferIF.checkWaitingTaskPrio_JEDI(vo, workQueue, prodSourceLabel, cloud_name, resource_name, pid=self.pid)
 
         highestPrioInPandaDB = highestPrioJobStat["highestPrio"]
         nNotRunHighestPrio = highestPrioJobStat["nNotRun"]
