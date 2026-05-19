@@ -2046,7 +2046,7 @@ class JobGeneratorThread(WorkerThread):
                 tmp_file_spec.dataset = tarball_via_pilot.split(":")[0]
                 tmp_file_spec.dispatchDBlock = tmp_file_spec.dataset
                 tmp_file_spec.prodDBlockToken = "local"
-                tmp_file_spec.status = "ready"
+                tmp_file_spec.status = None
                 jobSpec.addFile(tmp_file_spec)
             # make file spec which will be used by runJobs
             runFileSpec = copy.copy(lib_file_spec)
