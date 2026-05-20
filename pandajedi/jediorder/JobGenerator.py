@@ -1393,7 +1393,7 @@ class JobGeneratorThread(WorkerThread):
                         # check if merging
                         if taskSpec.mergeOutput() and tmpDatasetSpec.isMaster() and not tmpDatasetSpec.toMerge():
                             isUnMerging = True
-                        # tarball is downloaded by pilot
+                        # tarball is transferred by DDM
                         tarball_via_pilot = taskParamMap.get("tarBallViaDDM")
                         if tarball_via_pilot:
                             tmp_file_spec = FileSpec()
@@ -1402,10 +1402,13 @@ class JobGeneratorThread(WorkerThread):
                             tmp_file_spec.attemptNr = 0
                             tmp_file_spec.jediTaskID = taskSpec.jediTaskID
                             tmp_file_spec.dataset = tarball_via_pilot.split(":")[0]
-                            tmp_file_spec.dispatchDBlock = tmp_file_spec.dataset
                             tmp_file_spec.prodDBlockToken = "local"
-                            tmp_file_spec.status = "ready"
+                            tmp_file_spec.status = None
                             jobSpec.addFile(tmp_file_spec)
+                            if jobSpec.prodDBlock in [None, "NULL", ""]:
+                                # set prodDBlock to transfer tarball via dispatch dataset
+                                jobSpec.prodDBlock = tmp_file_spec.dataset
+
                     specialHandling = specialHandling[:-1]
                     # using job cloning
                     if setSpecialHandlingForJC:
@@ -2035,7 +2038,7 @@ class JobGeneratorThread(WorkerThread):
             paramMap["SURL"] = taskParamMap["sourceURL"]
             # job parameter
             jobSpec.jobParameters = self.makeBuildJobParameters(taskParamMap["buildSpec"]["jobParameters"], paramMap)
-            # tarball is downloaded by pilot
+            # tarball is transferred by DDM
             tarball_via_pilot = taskParamMap["buildSpec"].get("tarBallViaDDM")
             if tarball_via_pilot:
                 tmp_file_spec = FileSpec()
@@ -2044,10 +2047,11 @@ class JobGeneratorThread(WorkerThread):
                 tmp_file_spec.attemptNr = 0
                 tmp_file_spec.jediTaskID = taskSpec.jediTaskID
                 tmp_file_spec.dataset = tarball_via_pilot.split(":")[0]
-                tmp_file_spec.dispatchDBlock = tmp_file_spec.dataset
                 tmp_file_spec.prodDBlockToken = "local"
-                tmp_file_spec.status = "ready"
+                tmp_file_spec.status = None
                 jobSpec.addFile(tmp_file_spec)
+                # set prodDBlock to transfer tarball via dispatch dataset
+                jobSpec.prodDBlock = tmp_file_spec.dataset
             # make file spec which will be used by runJobs
             runFileSpec = copy.copy(lib_file_spec)
             runFileSpec.dispatchDBlock = lib_file_spec.dataset
