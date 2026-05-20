@@ -1298,7 +1298,7 @@ class TaskUtilsModule(BaseModule):
                                 self.cur.execute(sqlTSL + comment, varMap)
                                 toExhausted = False
                         # check scaled walltime
-                        if toExhausted and not taskSpec.getNumEventsPerJob() is None:
+                        if toExhausted and taskSpec.getNumEventsPerJob() is None:
                             scMsg = ""
                             if taskSpec.useScout():
                                 scaled_max_walltime = extraInfo["longestShortExecTime"]
