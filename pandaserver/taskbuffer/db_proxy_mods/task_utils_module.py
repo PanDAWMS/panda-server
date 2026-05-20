@@ -1298,7 +1298,7 @@ class TaskUtilsModule(BaseModule):
                                 self.cur.execute(sqlTSL + comment, varMap)
                                 toExhausted = False
                         # check scaled walltime
-                        if toExhausted:
+                        if toExhausted and not taskSpec.getNumEventsPerJob() is None:
                             scMsg = ""
                             if taskSpec.useScout():
                                 scaled_max_walltime = extraInfo["longestShortExecTime"]
@@ -1306,12 +1306,12 @@ class TaskUtilsModule(BaseModule):
                                 scaled_max_walltime = int(scaled_max_walltime / 60)
                                 if scaled_max_walltime > extraInfo["shortExecTime"]:
                                     tmpLog.debug(
-                                        "not to set exhausted since scaled execution time ({}) is longer "
+                                        "not to set exhausted since estimated execution time scaled with avalanced job size / scout job size ({} min) is longer "
                                         "than {} min".format(scaled_max_walltime, extraInfo["shortExecTime"])
                                     )
                                     toExhausted = False
                                 else:
-                                    scMsg = " and scaled execution time ({} = walltime * {}/{}) less than {} min".format(
+                                    scMsg = " and estimated execution time scaled with avalanced job size / scout job size ({} = walltime * {}/{}) less than {} min".format(
                                         scaled_max_walltime, InputChunk.maxInputSizeAvalanche, InputChunk.maxInputSizeScouts, extraInfo["shortExecTime"]
                                     )
                         # check if copy-to-scratch was imposed
