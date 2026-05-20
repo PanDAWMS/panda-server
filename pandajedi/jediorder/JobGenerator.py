@@ -1402,7 +1402,6 @@ class JobGeneratorThread(WorkerThread):
                             tmp_file_spec.attemptNr = 0
                             tmp_file_spec.jediTaskID = taskSpec.jediTaskID
                             tmp_file_spec.dataset = tarball_via_pilot.split(":")[0]
-                            tmp_file_spec.dispatchDBlock = tmp_file_spec.dataset
                             tmp_file_spec.prodDBlockToken = "local"
                             tmp_file_spec.status = None
                             jobSpec.addFile(tmp_file_spec)
@@ -2048,7 +2047,6 @@ class JobGeneratorThread(WorkerThread):
                 tmp_file_spec.attemptNr = 0
                 tmp_file_spec.jediTaskID = taskSpec.jediTaskID
                 tmp_file_spec.dataset = tarball_via_pilot.split(":")[0]
-                tmp_file_spec.dispatchDBlock = tmp_file_spec.dataset
                 tmp_file_spec.prodDBlockToken = "local"
                 tmp_file_spec.status = None
                 jobSpec.addFile(tmp_file_spec)
