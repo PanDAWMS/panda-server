@@ -54,6 +54,7 @@ AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 # ==== Global Parameters =======================================
 
 WORKFLOW_CHECK_INTERVAL_SEC = 60
+MAX_PROCESSING_LOOPS = 5
 MESSAGE_QUEUE_NAME = "jedi_workflow_manager"
 
 # ==== Plugin Map ==============================================
@@ -938,9 +939,6 @@ class WorkflowInterface(object):
                 tmp_res = self.process_data_waiting(data_spec)
             else:
                 tmp_log.debug(f"Data status {data_spec.status} is not handled in this context; skipped")
-        # For changes into transient status, send message to trigger processing immediately
-        if data_spec.status != orig_status and data_spec.status in WFDataStatus.transient_statuses:
-            self.send_data_message(data_spec.data_id)
         return tmp_res, data_spec
 
     def process_datas(self, data_specs: List[WFDataSpec], by: str = "dog") -> Dict:
@@ -961,6 +959,14 @@ class WorkflowInterface(object):
         for data_spec in data_specs:
             orig_status = data_spec.status
             tmp_res, data_spec = self.process_data(data_spec, by=by)
+            for _ in range(MAX_PROCESSING_LOOPS):
+                prev_status = data_spec.status
+                if prev_status not in WFDataStatus.transient_statuses:
+                    break
+                # For changes into transient status, process immediately in the loop again
+                tmp_res, data_spec = self.process_data(data_spec, by=by)
+                if data_spec.status == prev_status:
+                    break  # no progress made, stop retrying
             if tmp_res and tmp_res.success:
                 # update stats
                 if tmp_res.new_status and data_spec.status != orig_status:
@@ -1506,9 +1512,6 @@ class WorkflowInterface(object):
                 tmp_log.debug(f"Step in final status {step_spec.status} ; skipped")
             else:
                 tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
-        # For changes into transient status, send message to trigger processing immediately
-        if step_spec.status != orig_status and step_spec.status in WFStepStatus.transient_statuses:
-            self.send_step_message(step_spec.step_id)
         return tmp_res, step_spec
 
     def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> Dict:
@@ -1530,6 +1533,14 @@ class WorkflowInterface(object):
         for step_spec in step_specs:
             orig_status = step_spec.status
             tmp_res, step_spec = self.process_step(step_spec, data_spec_map=data_spec_map, by=by)
+            for _ in range(MAX_PROCESSING_LOOPS):
+                prev_status = step_spec.status
+                if prev_status not in WFStepStatus.transient_statuses:
+                    break
+                # For changes into transient status, process immediately in the loop again
+                tmp_res, step_spec = self.process_step(step_spec, data_spec_map=data_spec_map, by=by)
+                if step_spec.status == prev_status:
+                    break  # no progress made, stop retrying
             if tmp_res and tmp_res.success:
                 # update stats
                 if tmp_res.new_status and step_spec.status != orig_status:
@@ -1894,8 +1905,8 @@ class WorkflowInterface(object):
                 process_result.success = True
                 tmp_log.info(f"Done, status remains {workflow_spec.status}")
                 if processed_steps_stats.get(WFStepStatus.done) == len(step_specs):
-                    # all steps are done, trigger re-check to update workflow status
-                    self.send_workflow_message(workflow_spec.workflow_id)
+                    # All steps are done but outputs not yet checked; signal for immediate re-check
+                    process_result.immediate_recheck = True
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
@@ -1931,9 +1942,6 @@ class WorkflowInterface(object):
             case _:
                 process_result.message = f"Workflow status {workflow_spec.status} is not handled in this context; skipped"
                 tmp_log.warning(f"{process_result.message}")
-        # For changes into transient status, send message to trigger processing immediately
-        if workflow_spec.status != orig_status and workflow_spec.status in WorkflowStatus.transient_statuses:
-            self.send_workflow_message(workflow_spec.workflow_id)
         return process_result, workflow_spec
 
     # ---- Process all workflows -------------------------------------
@@ -1967,6 +1975,14 @@ class WorkflowInterface(object):
                     orig_status = workflow_spec.status
                     # Process the workflow
                     tmp_res, workflow_spec = self.process_workflow(workflow_spec)
+                    for _ in range(MAX_PROCESSING_LOOPS):
+                        prev_status = workflow_spec.status
+                        if prev_status not in WorkflowStatus.transient_statuses and not (tmp_res and tmp_res.immediate_recheck):
+                            break
+                        # For changes into transient status or explicit re-check request, process immediately in the loop again
+                        tmp_res, workflow_spec = self.process_workflow(workflow_spec)
+                        if workflow_spec.status == prev_status and not (tmp_res and tmp_res.immediate_recheck):
+                            break  # no progress made, stop retrying
                     if tmp_res and tmp_res.success:
                         # update stats
                         if tmp_res.new_status and workflow_spec.status != orig_status:
