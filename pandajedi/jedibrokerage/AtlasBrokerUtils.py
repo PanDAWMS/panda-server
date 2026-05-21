@@ -932,6 +932,8 @@ def compare_version_string(version_string, comparison_string):
         return None
 
     operator = match.group(1).strip()
+    if operator == "=":
+        operator = "=="
     version_to_compare = match.group(2).strip()
 
     try:
