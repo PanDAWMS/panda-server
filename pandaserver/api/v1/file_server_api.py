@@ -653,7 +653,7 @@ def upload_file_recovery_request(
     dry_run: bool = None,
     dataset: str = None,
     files: List[str] = None,
-    no_child_retry: bool = False,
+    no_child_retry: bool = True,
     resurrect_datasets: bool = False,
     force: bool = False,
     reproduce_parent: bool = False,
@@ -674,7 +674,7 @@ def upload_file_recovery_request(
         dry_run(bool, optional): dry run flag.
         dataset(string, optional): the dataset name in which to recover files. Either task_id or dataset must be provided.
         files(list of str, optional): list of file names to recover.
-        no_child_retry(bool, optional): flag to avoid retrying child tasks. Default is False.
+        no_child_retry(bool, optional): flag to avoid retrying child tasks. Default is True.
         resurrect_datasets(bool, optional): Specifies whether to resurrect datasets when they were already deleted. Default is False.
         force(bool, optional): To force recovery even if there is no lost file. Default is False.
         reproduce_parent(bool, optional): Specifies whether to reproduce the parent task if the input files that originally generated the lost files have been deleted. Default: False.
