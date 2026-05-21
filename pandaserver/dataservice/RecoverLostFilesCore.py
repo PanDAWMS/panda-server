@@ -84,12 +84,11 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
         help="JEDI task ID that produced the dataset",
     )
     parser.add_argument(
-        "--noChildRetry",
-        action="store_const",
-        const=True,
+        "--retryChildren",
+        action="store_false",
         dest="noChildRetry",
-        default=False,
-        help="not retry child tasks",
+        default=True,
+        help="retry child tasks after recovery (caution: may cause duplicate events)",
     )
     parser.add_argument(
         "--resurrectDS",
