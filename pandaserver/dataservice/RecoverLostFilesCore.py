@@ -271,7 +271,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
         if options.reproduceParent:
             # reproduce input
             for lostDS in lostInputFiles:
-                com_args = ["--ds", lostDS, "--noChildRetry", "--resurrectDS"]
+                com_args = ["--ds", lostDS, "--resurrectDS"]
                 if options.reproduceUptoNthGen > 0:
                     com_args += [
                         "--reproduceUptoNthGen",
