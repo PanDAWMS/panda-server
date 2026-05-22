@@ -8,7 +8,7 @@ name: Docker - Publish PanDA Server Image
 on:
   push:
     branches:
-      - main
+      - master
   release:
     types: [published]
   workflow_dispatch:
