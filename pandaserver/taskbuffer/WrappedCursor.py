@@ -260,13 +260,18 @@ class WrappedCursor(object):
             varList = vars_list[0]
             if self.dump:
                 _logger.debug(f"NEW: {sql} {str(varList)}")
-            # counting the number of unlocked rows and raise when nothing available, to mimic NOWAIT behavior in Oracle
+            # mimic Oracle NOWAIT: raise only when rows exist but are all locked, not when no rows match
             if "FOR UPDATE SKIP LOCKED" in sql:
                 cur.execute(f"SELECT COUNT(*) FROM ({sql}) t", varList)
                 if cur.fetchone()[0] == 0:
-                    from psycopg2.errors import LockNotAvailable
+                    sql_no_lock = re.sub(r"\s*FOR UPDATE SKIP LOCKED", "", sql, flags=re.IGNORECASE)
+                    cur.execute(f"SELECT COUNT(*) FROM ({sql_no_lock}) t", varList)
+                    if cur.fetchone()[0] > 0:
+                        from psycopg2.errors import LockNotAvailable
 
-                    raise LockNotAvailable("could not obtain lock on row")
+                        raise LockNotAvailable("could not obtain lock on row")
+                    else:
+                        return None
             ret = cur.execute(sql, varList)
         elif self.backend == "mysql":
             print(f"DEBUG execute : original SQL     {sql} ")
