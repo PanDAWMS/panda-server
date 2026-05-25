@@ -30,7 +30,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_task_buffer = task_buffer
 
     global global_dispatch_parameter_cache
-    global_dispatch_parameter_cache = CoreUtils.CachedObject("dispatcher_params", 60 * 10, task_buffer.get_dispatch_parameters, _logger)
+    global_dispatch_parameter_cache = CoreUtils.CachedObject("dispatcher_params", 60 * 10, task_buffer.get_special_dispatch_params, _logger)
 
 
 def _is_authorized(req):
