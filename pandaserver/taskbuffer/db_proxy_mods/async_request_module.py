@@ -7,6 +7,8 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 
+DEFAULT_MAX_ATTEMPTS = 3
+
 
 class AsyncRequestModule(BaseModule):
     def __init__(self, log_stream: LogWrapper):
@@ -229,6 +231,9 @@ class AsyncRequestModule(BaseModule):
         If no row exists: INSERT status='running', attempts=1.
         If status='pending' row exists (retry): UPDATE status='running', increment attempts, reset timestamps.
 
+        Concurrent callers serialize on the row's lock via SELECT ... FOR UPDATE; only one wins per
+        attempt cycle, the others observe status='running' once the winner commits and return False.
+
         :param request_id: unique request identifier
         :param machine_name: hostname claiming the result
         :return: True if claimed; False if the row already exists in a non-pending state (race guard) or on DB error
@@ -239,20 +244,27 @@ class AsyncRequestModule(BaseModule):
         try:
             self.conn.begin()
             now = naive_utcnow()
-            # check current state
-            sql_check = "SELECT status, attempts FROM ATLAS_PANDA.async_results " "WHERE request_id=:request_id AND machine_name=:machine_name "
+            # check current state under row lock to serialize concurrent claimers
+            sql_check = "SELECT status, attempts FROM ATLAS_PANDA.async_results " "WHERE request_id=:request_id AND machine_name=:machine_name FOR UPDATE "
             var_map = {":request_id": request_id, ":machine_name": machine_name}
             self.cur.arraysize = 1
             self.cur.execute(sql_check + comment, var_map)
             row = self.cur.fetchone()
             if row is None:
-                # no row yet — insert fresh claim
+                # no row yet — insert fresh claim; PK guards against concurrent insert
                 sql = (
                     "INSERT INTO ATLAS_PANDA.async_results "
                     "(request_id, machine_name, status, attempts, started_at) "
                     "VALUES (:request_id, :machine_name, 'running', 1, :started_at) "
                 )
-                self.cur.execute(sql + comment, {":request_id": request_id, ":machine_name": machine_name, ":started_at": now})
+                try:
+                    self.cur.execute(sql + comment, {":request_id": request_id, ":machine_name": machine_name, ":started_at": now})
+                except Exception as e:
+                    if self.is_unique_violation_exception(e):
+                        tmp_log.debug("lost INSERT race, another process claimed first")
+                        self._rollback()
+                        return False
+                    raise
                 tmp_log.debug("claimed via insert")
             elif row[0] == "pending":
                 # retry — update existing row
@@ -290,6 +302,10 @@ class AsyncRequestModule(BaseModule):
         """
         Update a result row to a terminal state (done or failed).
 
+        When status is "failed" and attempts < DEFAULT_MAX_ATTEMPTS, the row is reset to
+        "pending" for retry instead of being marked terminally failed, so the next daemon
+        cycle picks it up without waiting for the stale-timeout path in recover_stale_results.
+
         :param request_id: unique request identifier
         :param machine_name: hostname owning the result row
         :param status: terminal status, e.g. "done" or "failed"
@@ -302,6 +318,33 @@ class AsyncRequestModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id} machine={machine_name} status={status}")
         tmp_log.debug("start")
         try:
+            self.conn.begin()
+            var_map_key = {":request_id": request_id, ":machine_name": machine_name}
+            # for failures, decide retry-vs-give-up under a row lock
+            if status == "failed":
+                sql_lock = "SELECT attempts FROM ATLAS_PANDA.async_results " "WHERE request_id=:request_id AND machine_name=:machine_name FOR UPDATE "
+                self.cur.arraysize = 1
+                self.cur.execute(sql_lock + comment, var_map_key)
+                row = self.cur.fetchone()
+                if row is None:
+                    if not self._commit():
+                        raise RuntimeError("Commit error")
+                    tmp_log.debug("done (row missing, no-op)")
+                    return True
+                attempts = row[0]
+                if attempts < DEFAULT_MAX_ATTEMPTS:
+                    sql_retry = (
+                        "UPDATE ATLAS_PANDA.async_results "
+                        "SET status='pending', finished_at=NULL, result=NULL, error_msg=NULL, truncated=0 "
+                        "WHERE request_id=:request_id AND machine_name=:machine_name "
+                    )
+                    self.cur.execute(sql_retry + comment, var_map_key)
+                    if not self._commit():
+                        raise RuntimeError("Commit error")
+                    tmp_log.debug(f"reset to pending for retry (attempt {attempts}/{DEFAULT_MAX_ATTEMPTS})")
+                    return True
+                tmp_log.debug(f"giving up after {attempts} attempts")
+            # terminal write: "done", or "failed" with attempts cap reached
             sql = (
                 "UPDATE ATLAS_PANDA.async_results "
                 "SET status=:status, result=:result, error_msg=:error_msg, "
@@ -317,7 +360,6 @@ class AsyncRequestModule(BaseModule):
                 ":truncated": 1 if truncated else 0,
                 ":finished_at": naive_utcnow(),
             }
-            self.conn.begin()
             self.cur.execute(sql + comment, var_map)
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -393,7 +435,7 @@ class AsyncRequestModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def recover_stale_results(self, machine_name: str, max_processing_seconds: int = 300, max_attempts: int = 3) -> bool:
+    def recover_stale_results(self, machine_name: str, max_processing_seconds: int = 300, max_attempts: int = DEFAULT_MAX_ATTEMPTS) -> bool:
         """
         Reset or fail running result rows that have exceeded the processing budget.
 

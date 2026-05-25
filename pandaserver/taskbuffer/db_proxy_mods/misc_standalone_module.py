@@ -4159,7 +4159,14 @@ class MiscStandaloneModule(BaseModule):
                 varMap[":resource_name"] = resource_name
                 varMap[":component"] = component
                 varMap[":lockedBy"] = pid
-                self.cur.execute(sqlFR + comment, varMap)
+                try:
+                    self.cur.execute(sqlFR + comment, varMap)
+                except Exception as e:
+                    if self.is_unique_violation_exception(e):
+                        tmpLog.debug("skipped, locked by other process")
+                        self.conn.rollback()
+                        return retVal
+                    raise
                 tmpLog.debug("successfully locked")
                 retVal = True
             # commit
