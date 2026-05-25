@@ -1527,6 +1527,48 @@ class TaskBuffer:
             ret = proxy.get_cloud_list()
         return ret
 
+    # async request methods
+
+    def upsert_machine_heartbeat(self, machine_name, service_name):
+        with self.proxyPool.get() as proxy:
+            return proxy.upsert_machine_heartbeat(machine_name, service_name)
+
+    def get_alive_machines(self, service_name, within_seconds=60):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_alive_machines(service_name, within_seconds)
+
+    def insert_async_request(self, request_id, request_type, parameters_json, service_name, machine_name, expected_machines_json):
+        with self.proxyPool.get() as proxy:
+            return proxy.insert_async_request(request_id, request_type, parameters_json, service_name, machine_name, expected_machines_json)
+
+    def get_async_request(self, request_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_async_request(request_id)
+
+    def get_pending_requests_for_machine(self, my_hostname, my_service, known_types):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_pending_requests_for_machine(my_hostname, my_service, known_types)
+
+    def claim_async_result(self, request_id, machine_name):
+        with self.proxyPool.get() as proxy:
+            return proxy.claim_async_result(request_id, machine_name)
+
+    def finish_async_result(self, request_id, machine_name, status, result=None, error_msg=None, truncated=False):
+        with self.proxyPool.get() as proxy:
+            return proxy.finish_async_result(request_id, machine_name, status, result, error_msg, truncated)
+
+    def get_async_results(self, request_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_async_results(request_id)
+
+    def cleanup_async_requests(self, retention_days=7):
+        with self.proxyPool.get() as proxy:
+            return proxy.cleanup_async_requests(retention_days)
+
+    def recover_stale_results(self, machine_name, max_processing_seconds=300, max_attempts=3):
+        with self.proxyPool.get() as proxy:
+            return proxy.recover_stale_results(machine_name, max_processing_seconds, max_attempts)
+
     # get special dispatcher parameters
     def get_special_dispatch_params(self):
         # get DBproxy

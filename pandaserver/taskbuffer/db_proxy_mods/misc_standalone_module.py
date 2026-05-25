@@ -1623,6 +1623,7 @@ class MiscStandaloneModule(BaseModule):
             allow_key = []
             allow_proxy = []
             allow_token = []
+            allow_async_request = []
             sql = "SELECT DISTINCT name, gridpref FROM ATLAS_PANDAMETA.users " "WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
             var_map = {":ngStatus": "disabled"}
             self.cur.execute(sql + comment, var_map)
@@ -1643,9 +1644,14 @@ class MiscStandaloneModule(BaseModule):
                 if PrioUtil.PERMISSION_TOKEN_KEY in gridpref:
                     if compactDN not in allow_token:
                         allow_token.append(compactDN)
+                # users authorized to submit async requests
+                if PrioUtil.PERMISSION_ASYNC_REQUEST in gridpref:
+                    if compactDN not in allow_async_request:
+                        allow_async_request.append(compactDN)
             return_map["allowKeyPair"] = allow_key
             return_map["allowProxy"] = allow_proxy
             return_map["allowTokenKey"] = allow_token
+            return_map["allowAsyncRequest"] = allow_async_request
             tmp_log.debug(
                 f"got authed users key-pair:{len(return_map['allowKeyPair'])}, proxy:{len(return_map['allowProxy'])}, token-key:{len(return_map['allowTokenKey'])}"
             )
