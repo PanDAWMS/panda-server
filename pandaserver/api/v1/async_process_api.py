@@ -11,9 +11,9 @@ from typing import Any, Dict
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.api.v1 import credential_management_api as _cred_api
 from pandaserver.api.v1.common import generate_response, get_dn, request_validation
 from pandaserver.config import panda_config
+from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
@@ -21,6 +21,7 @@ from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 _logger = PandaLogger().getLogger("api_async_process")
 
 global_task_buffer = None
+global_dispatch_parameter_cache = None
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -28,13 +29,18 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global global_task_buffer
     global_task_buffer = task_buffer
 
+    global global_dispatch_parameter_cache
+    global_dispatch_parameter_cache = CoreUtils.CachedObject("dispatcher_params", 60 * 10, task_buffer.get_dispatch_parameters, _logger)
+
 
 def _is_authorized(req):
     """Check whether the caller's DN is in the allowAsyncRequest list."""
     compact_dn = clean_user_id(get_dn(req))
-    if _cred_api.global_dispatch_parameter_cache is None:
+    global global_dispatch_parameter_cache
+    global_dispatch_parameter_cache.update()
+    if global_dispatch_parameter_cache is None:
         return False, "authorization cache not ready"
-    allowed = _cred_api.global_dispatch_parameter_cache.get("allowAsyncRequest", [])
+    allowed = global_dispatch_parameter_cache.get("allowAsyncRequest", [])
     if compact_dn not in allowed:
         return False, f"'{compact_dn}' is not authorized to submit async requests"
     return True, ""
