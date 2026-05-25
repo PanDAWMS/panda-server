@@ -1668,13 +1668,13 @@ class MiscStandaloneModule(BaseModule):
             return_map["keyPair"] = keyPair
             tmp_log.debug(f"got {len(return_map['keyPair'])} key-pair files")
             tmp_log.debug("done")
-            return return_map
+            return True, return_map
         except Exception:
             # roll back
             self._rollback()
             # error
             self.dump_error_message(tmp_log)
-            return {}
+            return False, {}
 
     # get original consumers
     def getOriginalConsumers(self, jediTaskID, jobsetID, pandaID):

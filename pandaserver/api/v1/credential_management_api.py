@@ -59,7 +59,7 @@ def _get_dispatch_parameters():
     """
     Wrapper function around taskBuffer.get_special_dispatch_params to convert list to set since task buffer cannot return set
     """
-    parameters = global_task_buffer.get_special_dispatch_params()
+    _, parameters = global_task_buffer.get_special_dispatch_params()
     for client_name, client_data in parameters["tokenKeys"].items():
         client_data["fullList"] = set(client_data["fullList"])
 
