@@ -47,19 +47,19 @@ class AsyncRequestModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def get_alive_machines(self, service_name: str, within_seconds: int = 600) -> list[str]:
+    def get_alive_machines(self, service_name: str, within_minutes: int) -> list[str]:
         """
-        Return hostnames in the service that have sent a heartbeat within within_seconds.
+        Return hostnames in the service that have sent a heartbeat within within_minutes.
 
         :param service_name: name of the service to filter on
-        :param within_seconds: liveness window in seconds; default 600
+        :param within_minutes: liveness window in minutes
         :return: list of hostnames; empty list on DB error or no matches
         """
         comment = " /* DBProxy.get_alive_machines */"
         tmp_log = self.create_tagged_logger(comment, f"service={service_name}")
         tmp_log.debug("start")
         try:
-            threshold = naive_utcnow() - datetime.timedelta(seconds=within_seconds)
+            threshold = naive_utcnow() - datetime.timedelta(minutes=within_minutes)
             sql = "SELECT machine_name FROM ATLAS_PANDA.machine_heartbeat " "WHERE service_name=:service_name AND last_seen>=:threshold "
             var_map = {":service_name": service_name, ":threshold": threshold}
             self.conn.begin()

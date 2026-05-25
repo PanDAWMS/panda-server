@@ -68,6 +68,7 @@ def run(service_name, tbuf=None):
     Call this from the service-specific entrypoint (daemon script or WatchDog).
     tbuf: an already-initialised TaskBuffer, or None to use the module-level singleton.
     """
+    _logger.debug(f"running async request processor for service {service_name}")
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf
 
@@ -91,3 +92,4 @@ def run(service_name, tbuf=None):
             continue
         _logger.debug(f"processing request_id={request_id} type={request_type}")
         handler(row, tbuf)
+    _logger.debug("done processing async requests")

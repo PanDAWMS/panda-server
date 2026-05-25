@@ -6,6 +6,7 @@ Currently supports grep (rg / zgrep) on log files; extensible to other request t
 import json
 import os
 import uuid
+from threading import Lock
 from typing import Any, Dict
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -23,21 +24,25 @@ _logger = PandaLogger().getLogger("api_async_process")
 global_task_buffer = None
 global_dispatch_parameter_cache = None
 
+global_lock = Lock()
+
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
     """Initialize the task buffer. Must be called before any other method."""
-    global global_task_buffer
-    global_task_buffer = task_buffer
+    with global_lock:
+        global global_task_buffer
+        global_task_buffer = task_buffer
 
-    global global_dispatch_parameter_cache
-    global_dispatch_parameter_cache = CoreUtils.CachedObject("dispatcher_params", 60 * 10, task_buffer.get_special_dispatch_params, _logger)
+        global global_dispatch_parameter_cache
+        global_dispatch_parameter_cache = CoreUtils.CachedObject("dispatcher_params", 60 * 10, task_buffer.get_special_dispatch_params, _logger)
 
 
 def _is_authorized(req):
     """Check whether the caller's DN is in the allowAsyncRequest list."""
     compact_dn = clean_user_id(get_dn(req))
     global global_dispatch_parameter_cache
-    global_dispatch_parameter_cache.update()
+    with global_lock:
+        global_dispatch_parameter_cache.update()
     if global_dispatch_parameter_cache is None:
         return False, "authorization cache not ready"
     allowed = global_dispatch_parameter_cache.get("allowAsyncRequest", [])
@@ -91,7 +96,7 @@ def submit_grep_request(
         if not expected:
             return generate_response(False, f"no alive machines found for service '{service_name}'")
     else:
-        alive = global_task_buffer.get_alive_machines(machine_name, within_seconds=60)
+        alive = global_task_buffer.get_alive_machines(machine_name)
         # get_alive_machines matches on service_name; for a specific machine check heartbeat directly
         expected = [machine_name]
         # warn but don't block — machine may have started after last heartbeat window

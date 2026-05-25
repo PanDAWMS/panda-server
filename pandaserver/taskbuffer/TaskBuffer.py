@@ -1533,9 +1533,9 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.upsert_machine_heartbeat(machine_name, service_name)
 
-    def get_alive_machines(self, service_name, within_seconds=60):
+    def get_alive_machines(self, service_name, within_minutes=60):
         with self.proxyPool.get() as proxy:
-            return proxy.get_alive_machines(service_name, within_seconds)
+            return proxy.get_alive_machines(service_name, within_minutes)
 
     def insert_async_request(self, request_id, request_type, parameters_json, service_name, machine_name, expected_machines_json):
         with self.proxyPool.get() as proxy:
