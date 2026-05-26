@@ -51,7 +51,7 @@ class TaskRefinerBase(object):
         self.unmergeDatasetSpecMap = {}
         self.oldTaskStatus = None
         self.unknownDatasetList = []
-        self.in_content_dataset_specs = {}
+        self.in_content_dataset_specs = []
 
     # set jobParamsTemplate
     def setJobParamsTemplate(self, jobParamsTemplate):
@@ -664,12 +664,11 @@ class TaskRefinerBase(object):
                                 # add remaining constituent datasets if they are not used as master input
                                 if nIn == 0:
                                     for tmp_dataset_name_in_container in constituent_dataset_names_not_used_as_input:
-                                        self.in_content_dataset_specs.setdefault(datasetName, [])
-                                        if tmp_dataset_name_in_container not in self.in_content_dataset_specs[datasetName]:
+                                        if tmp_dataset_name_in_container not in [ds.datasetName for ds in self.in_content_dataset_specs]:
                                             tmp_dataset_spec = copy.copy(inDatasetSpec)
                                             tmp_dataset_spec.type = JediDatasetSpec.get_constituent_input_type()
                                             tmp_dataset_spec.datasetName = tmp_dataset_name_in_container
-                                            self.in_content_dataset_specs[datasetName].append(tmp_dataset_spec)
+                                            self.in_content_dataset_specs.append(tmp_dataset_spec)
                             else:
                                 if self.taskSpec.is_work_segmented():
                                     inDatasetSpec.containerName = "{}/{}".format(
