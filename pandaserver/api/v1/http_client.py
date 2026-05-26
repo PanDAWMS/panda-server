@@ -5,11 +5,7 @@ client methods
 import os
 
 import requests
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
-
-_logger = PandaLogger().getLogger("http_client")
-
 
 # PanDA server configuration
 base_url = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/panda")
@@ -24,7 +20,6 @@ EC_Failed = 255
 
 def is_https(url):
     # check if https is used
-    _logger.debug(f"Checking if URL is HTTPS: {url}")
     return url.startswith("https://")
 
 
@@ -50,10 +45,6 @@ class HttpClient:
         # SSL cert/key
         self.ssl_certificate = self._x509() if not self.oidc else None
         self.ssl_key = self._x509() if not self.oidc else None
-
-        _logger.debug(
-            f"Initialized HttpClient with verifyHost={self.verifyHost}, compress={self.compress}, oidc={self.oidc}, auth_vo={self.auth_vo}, ssl_certificate={self.ssl_certificate}, ssl_key={self.ssl_key}"
-        )
 
     def _x509(self):
         # retrieve the X509_USER_PROXY from the environment variables
@@ -111,7 +102,6 @@ class HttpClient:
                 verify = os.environ["X509_CERT_DIR"]
             elif os.path.exists("/etc/grid-security/certificates"):
                 verify = "/etc/grid-security/certificates"
-        _logger.debug(f"Prepared SSL config: cert={cert}, verify={verify}, use_https={use_https}")
         return cert, verify
 
     def get(self, url, data):
