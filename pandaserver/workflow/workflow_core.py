@@ -617,6 +617,10 @@ class WorkflowInterface(object):
                     data_spec.status = WFDataStatus.checked_suffice
                 case WFDataTargetCheckStatus.complete:
                     data_spec.status = WFDataStatus.checked_complete
+                case _:
+                    process_result.message = f"Unexpected check_status {check_result.check_status}; skipped"
+                    tmp_log.warning(f"{process_result.message}")
+                    return process_result
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
             process_result.new_status = data_spec.status
@@ -771,8 +775,9 @@ class WorkflowInterface(object):
                         # Data not yet exist, stay in generating_bound
                         pass
                     case _:
-                        # Unexpected status, log and skip
-                        tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
+                        process_result.message = f"Unexpected check_status {check_result.check_status} from target check result; skipped"
+                        tmp_log.warning(f"{process_result.message}")
+                        return process_result
             elif original_status == WFDataStatus.generating_insuffi:
                 match check_result.check_status:
                     case WFDataTargetCheckStatus.suffice | WFDataTargetCheckStatus.complete:
@@ -786,8 +791,9 @@ class WorkflowInterface(object):
                         # Data not exist anymore, unexpected, log and skip
                         tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
                     case _:
-                        # Unexpected status, log and skip
-                        tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
+                        process_result.message = f"Unexpected check_status {check_result.check_status} from target check result; skipped"
+                        tmp_log.warning(f"{process_result.message}")
+                        return process_result
             elif original_status == WFDataStatus.generating_suffice:
                 match check_result.check_status:
                     case WFDataTargetCheckStatus.complete:
@@ -805,8 +811,9 @@ class WorkflowInterface(object):
                         # Data not exist anymore, unexpected, log and skip
                         tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
                     case _:
-                        # Unexpected status, log and skip
-                        tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
+                        process_result.message = f"Unexpected check_status {check_result.check_status} from target check result; skipped"
+                        tmp_log.warning(f"{process_result.message}")
+                        return process_result
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
             process_result.success = True
@@ -964,6 +971,8 @@ class WorkflowInterface(object):
         Returns:
             Dict: Statistics of the processing results
         """
+        if not data_specs:
+            return {"n_data": 0, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         tmp_log = LogWrapper(logger, f"process_datas <workflow_id={data_specs[0].workflow_id}> by={by}")
         n_data = len(data_specs)
         tmp_log.debug(f"Start, processing {n_data} data specs")
@@ -1367,6 +1376,10 @@ class WorkflowInterface(object):
             input_data_list = list(input_data_dict.keys())
             # Get data spec map of the workflow
             data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
+            if data_specs is None:
+                process_result.message = f"Failed to get data of the workflow"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Check if all input data are good
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
@@ -1444,6 +1457,10 @@ class WorkflowInterface(object):
             input_data_list = list(input_data_dict.keys())
             # Get data spec map of the workflow
             data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
+            if data_specs is None:
+                process_result.message = f"Failed to get data of the workflow"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Check if all input data are good
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
@@ -1550,6 +1567,8 @@ class WorkflowInterface(object):
         Returns:
             Dict: Statistics of the processing results
         """
+        if not step_specs:
+            return {"n_steps": 0, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         tmp_log = LogWrapper(logger, f"process_steps <workflow_id={step_specs[0].workflow_id}> by={by}")
         n_steps = len(step_specs)
         tmp_log.debug(f"Start, processing {n_steps} steps")
@@ -1764,13 +1783,17 @@ class WorkflowInterface(object):
             # Update status to starting
             workflow_spec.status = WorkflowStatus.starting
             # Upsert DB
-            self.tbif.upsert_workflow_entities(
+            upsert_ret = self.tbif.upsert_workflow_entities(
                 workflow_spec.workflow_id,
                 actions_dict={"workflow": "update", "steps": "insert", "data": "insert"},
                 workflow_spec=workflow_spec,
                 step_specs=step_specs,
                 data_specs=data_specs,
             )
+            if upsert_ret is None:
+                process_result.message = f"Failed to upsert workflow entities into DB"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             process_result.success = True
             process_result.new_status = workflow_spec.status
             tmp_log.info(f"Done, inserted {len(step_specs)} steps and {len(data_specs)} data, status={workflow_spec.status}")
