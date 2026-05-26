@@ -24,7 +24,7 @@ t = json.loads(taskParamStr)
 
 s, o = proxy.querySQLS(
     "select cpuTime,cpuTimeUnit,ioIntensity,ioIntensityUnit,ramCount,ramUnit,outDiskCount,outDiskUnit,workDiskCount,workDiskUnit "
-    "FROM atlas_panda.jedi_tasks where jeditaskid=:task_id",
+    "FROM ATLAS_PANDA.jedi_tasks where jeditaskid=:task_id",
     {":task_id": jediTaskID},
 )
 (
