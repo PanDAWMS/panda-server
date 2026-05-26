@@ -590,6 +590,10 @@ class WorkflowInterface(object):
             original_status = data_spec.status
             # Get the data handler plugin
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
+            if data_handler is None:
+                process_result.message = f"Data handler plugin not found for flavor {data_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # Check the data status
             check_result = data_handler.check_target(data_spec)
             if check_result.success and check_result.check_status is None:
@@ -735,6 +739,10 @@ class WorkflowInterface(object):
             original_status = data_spec.status
             # Get the data handler plugin
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
+            if data_handler is None:
+                process_result.message = f"Data handler plugin not found for flavor {data_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # Check the data status
             check_result = data_handler.check_target(data_spec)
             if check_result.success and check_result.check_status is None:
@@ -836,6 +844,10 @@ class WorkflowInterface(object):
             original_status = data_spec.status
             # Get the data handler plugin
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
+            if data_handler is None:
+                process_result.message = f"Data handler plugin not found for flavor {data_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # Check the data status
             check_result = data_handler.check_target(data_spec)
             if check_result.success and check_result.check_status is None:
@@ -1301,6 +1313,10 @@ class WorkflowInterface(object):
         try:
             # Get the step handler plugin
             step_handler = self.get_plugin("step_handler", step_spec.flavor)
+            if step_handler is None:
+                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # Submit the step target
             submit_result = step_handler.submit_target(step_spec)
             if not submit_result.success or submit_result.target_id is None:
@@ -1356,6 +1372,10 @@ class WorkflowInterface(object):
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
             # Get the step handler plugin
             step_handler = self.get_plugin("step_handler", step_spec.flavor)
+            if step_handler is None:
+                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # Check the step status
             check_result = step_handler.check_target(step_spec)
             if not check_result.success or check_result.step_status is None:
@@ -1429,6 +1449,10 @@ class WorkflowInterface(object):
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
             # Get the step handler plugin
             step_handler = self.get_plugin("step_handler", step_spec.flavor)
+            if step_handler is None:
+                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # If all inputs are complete, mark in step_spec and call the hook of step_handler
             if all_inputs_stats["all_inputs_complete"]:
                 step_spec.set_parameter("all_inputs_complete", True)
