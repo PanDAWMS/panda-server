@@ -1623,6 +1623,7 @@ class MiscStandaloneModule(BaseModule):
             allow_key = []
             allow_proxy = []
             allow_token = []
+            allow_async_request = []
             sql = "SELECT DISTINCT name, gridpref FROM ATLAS_PANDAMETA.users " "WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
             var_map = {":ngStatus": "disabled"}
             self.cur.execute(sql + comment, var_map)
@@ -1643,9 +1644,14 @@ class MiscStandaloneModule(BaseModule):
                 if PrioUtil.PERMISSION_TOKEN_KEY in gridpref:
                     if compactDN not in allow_token:
                         allow_token.append(compactDN)
+                # users authorized to submit async requests
+                if PrioUtil.PERMISSION_ASYNC_REQUEST in gridpref:
+                    if compactDN not in allow_async_request:
+                        allow_async_request.append(compactDN)
             return_map["allowKeyPair"] = allow_key
             return_map["allowProxy"] = allow_proxy
             return_map["allowTokenKey"] = allow_token
+            return_map["allowAsyncRequest"] = allow_async_request
             tmp_log.debug(
                 f"got authed users key-pair:{len(return_map['allowKeyPair'])}, proxy:{len(return_map['allowProxy'])}, token-key:{len(return_map['allowTokenKey'])}"
             )
@@ -1662,13 +1668,13 @@ class MiscStandaloneModule(BaseModule):
             return_map["keyPair"] = keyPair
             tmp_log.debug(f"got {len(return_map['keyPair'])} key-pair files")
             tmp_log.debug("done")
-            return return_map
+            return True, return_map
         except Exception:
             # roll back
             self._rollback()
             # error
             self.dump_error_message(tmp_log)
-            return {}
+            return False, {}
 
     # get original consumers
     def getOriginalConsumers(self, jediTaskID, jobsetID, pandaID):
@@ -4153,7 +4159,14 @@ class MiscStandaloneModule(BaseModule):
                 varMap[":resource_name"] = resource_name
                 varMap[":component"] = component
                 varMap[":lockedBy"] = pid
-                self.cur.execute(sqlFR + comment, varMap)
+                try:
+                    self.cur.execute(sqlFR + comment, varMap)
+                except Exception as e:
+                    if self.is_unique_violation_exception(e):
+                        tmpLog.debug("skipped, locked by other process")
+                        self.conn.rollback()
+                        return retVal
+                    raise
                 tmpLog.debug("successfully locked")
                 retVal = True
             # commit

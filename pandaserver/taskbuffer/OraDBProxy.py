@@ -11,6 +11,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.db_proxy_mods import (
+    async_request_module,
     data_carousel_module,
     entity_module,
     job_complex_module,
@@ -63,6 +64,7 @@ for handler in _loggerFiltered.handlers:
 
 # proxy
 class DBProxy(
+    async_request_module.AsyncRequestModule,
     entity_module.EntityModule,
     metrics_module.MetricsModule,
     worker_module.WorkerModule,
