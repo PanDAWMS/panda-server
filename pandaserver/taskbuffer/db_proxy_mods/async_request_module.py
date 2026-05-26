@@ -271,7 +271,8 @@ class AsyncRequestModule(BaseModule):
                 sql = (
                     "UPDATE ATLAS_PANDA.async_results "
                     "SET status='running', attempts=attempts+1, started_at=:started_at, "
-                    "    finished_at=NULL, result=NULL, error_msg=NULL, truncated=0 "
+                    "    finished_at=NULL, result=NULL, error_msg=NULL, truncated=0, "
+                    "    stderr=NULL, return_code=NULL "
                     "WHERE request_id=:request_id AND machine_name=:machine_name "
                 )
                 self.cur.execute(sql + comment, {":request_id": request_id, ":machine_name": machine_name, ":started_at": now})
@@ -298,20 +299,29 @@ class AsyncRequestModule(BaseModule):
         result: str | None = None,
         error_msg: str | None = None,
         truncated: bool = False,
+        stderr: str | None = None,
+        return_code: int | None = None,
+        retriable: bool = True,
     ) -> bool:
         """
         Update a result row to a terminal state (done or failed).
 
-        When status is "failed" and attempts < DEFAULT_MAX_ATTEMPTS, the row is reset to
-        "pending" for retry instead of being marked terminally failed, so the next daemon
-        cycle picks it up without waiting for the stale-timeout path in recover_stale_results.
+        When status is "failed", retriable is True, and attempts < DEFAULT_MAX_ATTEMPTS,
+        the row is reset to "pending" for retry instead of being marked terminally failed,
+        so the next daemon cycle picks it up without waiting for the stale-timeout path in
+        recover_stale_results. Pass retriable=False for failures that won't benefit from
+        retry (e.g. subprocess timeout) to write the failure terminally.
 
         :param request_id: unique request identifier
         :param machine_name: hostname owning the result row
         :param status: terminal status, e.g. "done" or "failed"
-        :param result: handler output payload, or None
+        :param result: handler stdout payload, or None
         :param error_msg: error message when status is "failed", or None
-        :param truncated: True if result was truncated to fit the column
+        :param truncated: True if result or stderr was truncated to fit the column
+        :param stderr: handler stderr payload, or None
+        :param return_code: subprocess return code, or None
+        :param retriable: when False, a "failed" status is always written terminally,
+                          bypassing the attempts-vs-MAX retry reset; default True
         :return: True on success, False on DB error
         """
         comment = " /* DBProxy.finish_async_result */"
@@ -320,8 +330,8 @@ class AsyncRequestModule(BaseModule):
         try:
             self.conn.begin()
             var_map_key = {":request_id": request_id, ":machine_name": machine_name}
-            # for failures, decide retry-vs-give-up under a row lock
-            if status == "failed":
+            # for retriable failures, decide retry-vs-give-up under a row lock
+            if status == "failed" and retriable:
                 sql_lock = "SELECT attempts FROM ATLAS_PANDA.async_results " "WHERE request_id=:request_id AND machine_name=:machine_name FOR UPDATE "
                 self.cur.arraysize = 1
                 self.cur.execute(sql_lock + comment, var_map_key)
@@ -335,7 +345,8 @@ class AsyncRequestModule(BaseModule):
                 if attempts < DEFAULT_MAX_ATTEMPTS:
                     sql_retry = (
                         "UPDATE ATLAS_PANDA.async_results "
-                        "SET status='pending', finished_at=NULL, result=NULL, error_msg=NULL, truncated=0 "
+                        "SET status='pending', finished_at=NULL, result=NULL, error_msg=NULL, truncated=0, "
+                        "    stderr=NULL, return_code=NULL "
                         "WHERE request_id=:request_id AND machine_name=:machine_name "
                     )
                     self.cur.execute(sql_retry + comment, var_map_key)
@@ -344,11 +355,12 @@ class AsyncRequestModule(BaseModule):
                     tmp_log.debug(f"reset to pending for retry (attempt {attempts}/{DEFAULT_MAX_ATTEMPTS})")
                     return True
                 tmp_log.debug(f"giving up after {attempts} attempts")
-            # terminal write: "done", or "failed" with attempts cap reached
+            # terminal write: "done", "failed" with attempts cap reached, or non-retriable failure
             sql = (
                 "UPDATE ATLAS_PANDA.async_results "
                 "SET status=:status, result=:result, error_msg=:error_msg, "
-                "    truncated=:truncated, finished_at=:finished_at "
+                "    truncated=:truncated, finished_at=:finished_at, "
+                "    stderr=:stderr, return_code=:return_code "
                 "WHERE request_id=:request_id AND machine_name=:machine_name "
             )
             var_map = {
@@ -359,6 +371,8 @@ class AsyncRequestModule(BaseModule):
                 ":error_msg": error_msg,
                 ":truncated": 1 if truncated else 0,
                 ":finished_at": naive_utcnow(),
+                ":stderr": stderr,
+                ":return_code": return_code,
             }
             self.cur.execute(sql + comment, var_map)
             if not self._commit():
@@ -382,7 +396,8 @@ class AsyncRequestModule(BaseModule):
         tmp_log.debug("start")
         try:
             sql = (
-                "SELECT machine_name, status, result, truncated, error_msg, attempts, started_at, finished_at "
+                "SELECT machine_name, status, result, truncated, error_msg, attempts, started_at, finished_at, "
+                "stderr, return_code "
                 "FROM ATLAS_PANDA.async_results WHERE request_id=:request_id "
             )
             var_map = {":request_id": request_id}
@@ -395,7 +410,18 @@ class AsyncRequestModule(BaseModule):
             if not res:
                 tmp_log.debug("return 0 records")
                 return []
-            keys = ["machine_name", "status", "result", "truncated", "error_msg", "attempts", "started_at", "finished_at"]
+            keys = [
+                "machine_name",
+                "status",
+                "result",
+                "truncated",
+                "error_msg",
+                "attempts",
+                "started_at",
+                "finished_at",
+                "stderr",
+                "return_code",
+            ]
             tmp_log.debug(f"return {len(res)} records")
             return [dict(zip(keys, row)) for row in res]
         except Exception:

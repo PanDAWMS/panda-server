@@ -41,19 +41,37 @@ def _handle_grep(row, tb):
 
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
-        raw = proc.stdout
-        truncated = len(raw) > _MAX_RESULT_BYTES
+    except subprocess.TimeoutExpired:
         tb.finish_async_result(
             row["request_id"],
             MY_HOSTNAME,
-            "done",
-            result=raw[:_MAX_RESULT_BYTES],
-            truncated=truncated,
+            "failed",
+            error_msg="timeout",
+            retriable=False,
         )
-    except subprocess.TimeoutExpired:
-        tb.finish_async_result(row["request_id"], MY_HOSTNAME, "failed", error_msg="timeout")
+        return
     except Exception as e:
-        tb.finish_async_result(row["request_id"], MY_HOSTNAME, "failed", error_msg=str(e))
+        tb.finish_async_result(
+            row["request_id"],
+            MY_HOSTNAME,
+            "failed",
+            error_msg=str(e),
+            retriable=False,
+        )
+        return
+
+    stdout = proc.stdout
+    stderr = proc.stderr
+    truncated = len(stdout) > _MAX_RESULT_BYTES or len(stderr) > _MAX_RESULT_BYTES
+    tb.finish_async_result(
+        row["request_id"],
+        MY_HOSTNAME,
+        "done",
+        result=stdout[:_MAX_RESULT_BYTES],
+        stderr=stderr[:_MAX_RESULT_BYTES],
+        return_code=proc.returncode,
+        truncated=truncated,
+    )
 
 
 # Register new request types here — no new daemon needed

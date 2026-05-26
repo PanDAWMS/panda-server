@@ -144,7 +144,8 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
                 "expected_machines": [str, ...],
                 "results": [{"machine_name": str, "status": str, "result": str,
                               "truncated": int, "error_msg": str, "attempts": int,
-                              "started_at": str, "finished_at": str}, ...]
+                              "started_at": str, "finished_at": str,
+                              "stderr": str, "return_code": int}, ...]
             }
         }
         overall_status is "complete" when all expected machines have a terminal result (done/failed).

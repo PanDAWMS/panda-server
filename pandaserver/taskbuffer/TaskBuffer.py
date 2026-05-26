@@ -1553,9 +1553,30 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.claim_async_result(request_id, machine_name)
 
-    def finish_async_result(self, request_id, machine_name, status, result=None, error_msg=None, truncated=False):
+    def finish_async_result(
+        self,
+        request_id,
+        machine_name,
+        status,
+        result=None,
+        error_msg=None,
+        truncated=False,
+        stderr=None,
+        return_code=None,
+        retriable=True,
+    ):
         with self.proxyPool.get() as proxy:
-            return proxy.finish_async_result(request_id, machine_name, status, result, error_msg, truncated)
+            return proxy.finish_async_result(
+                request_id,
+                machine_name,
+                status,
+                result,
+                error_msg,
+                truncated,
+                stderr,
+                return_code,
+                retriable,
+            )
 
     def get_async_results(self, request_id):
         with self.proxyPool.get() as proxy:
