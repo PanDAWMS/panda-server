@@ -679,6 +679,27 @@ class BaseModule:
             return True
         return False
 
+    def is_unique_violation_exception(self, err_value: BaseException) -> bool:
+        """
+        Return True if the given exception is a unique-key violation (PK or unique constraint).
+
+        Recognises Oracle ORA-00001 by inspecting the leading error-code token of the message,
+        and Postgres by matching psycopg2.errors.UniqueViolation via class name (avoids importing
+        psycopg2 in code paths that may run against Oracle).
+
+        :param err_value: exception caught in an except clause
+        :return: True if the exception represents a unique-key violation, False otherwise
+        """
+        # for oracle
+        ora_err_code = str(err_value).split()[0]
+        ora_err_code = ora_err_code[:-1]
+        if ora_err_code == "ORA-00001":
+            return True
+        # for postgres
+        if type(err_value).__name__ == "UniqueViolation":
+            return True
+        return False
+
     # set super status
     def setSuperStatus_JEDI(self, jediTaskID, superStatus):
         comment = " /* JediDBProxy.setSuperStatus_JEDI */"

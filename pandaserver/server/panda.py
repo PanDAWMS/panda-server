@@ -26,6 +26,7 @@ from werkzeug.datastructures import CombinedMultiDict, EnvironHeaders
 from werkzeug.formparser import parse_form_data
 
 import pandaserver.taskbuffer.ErrorCode
+from pandaserver.api.v1 import async_process_api as async_process_api_v1
 from pandaserver.api.v1 import credential_management_api as cred_api_v1
 from pandaserver.api.v1 import data_carousel_api as data_carousel_api_v1
 from pandaserver.api.v1 import event_api as event_api_v1
@@ -70,6 +71,7 @@ LATEST = "1"
 
 # generate the allowed methods dynamically with all function names present in the API modules,
 # excluding functions imported from other modules or the init_task_buffer function
+async_process_api_v1_methods = extract_allowed_methods(async_process_api_v1)
 cred_api_v1_methods = extract_allowed_methods(cred_api_v1)
 data_carousel_api_v1_methods = extract_allowed_methods(data_carousel_api_v1)
 event_api_v1_methods = extract_allowed_methods(event_api_v1)
@@ -99,6 +101,7 @@ taskBuffer.init(
 
 if panda_config.nDBConnection != 0:
     # initialize all the API modules
+    async_process_api_v1.init_task_buffer(taskBuffer)
     cred_api_v1.init_task_buffer(taskBuffer)
     data_carousel_api_v1.init_task_buffer(taskBuffer)
     event_api_v1.init_task_buffer(taskBuffer)
@@ -264,6 +267,7 @@ def module_mapping(version, api_module):
     mapping = {
         "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},  # legacy API uses globals instead of a particular module
         "v1": {
+            "async_process": {"module": async_process_api_v1, "allowed_methods": async_process_api_v1_methods},
             "creds": {"module": cred_api_v1, "allowed_methods": cred_api_v1_methods},
             "data_carousel": {"module": data_carousel_api_v1, "allowed_methods": data_carousel_api_v1_methods},
             "event": {"module": event_api_v1, "allowed_methods": event_api_v1_methods},
