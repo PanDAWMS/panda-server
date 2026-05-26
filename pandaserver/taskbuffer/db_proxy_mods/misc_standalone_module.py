@@ -3576,7 +3576,7 @@ class MiscStandaloneModule(BaseModule):
             return retVal
 
     # append input datasets for incremental execution
-    def appendDatasets_JEDI(self, jediTaskID, inMasterDatasetSpecList, inSecDatasetSpecList):
+    def appendDatasets_JEDI(self, jediTaskID, inMasterDatasetSpecList, inSecDatasetSpecList, in_content_dataset_specs):
         comment = " /* JediDBProxy.appendDatasets_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -3610,16 +3610,17 @@ class MiscStandaloneModule(BaseModule):
                     # get existing input datasets
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
-                    sqlDS = "SELECT datasetName,datasetID,status,nFilesTobeUsed,nFilesUsed,masterID "
-                    sqlDS += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-                    sqlDS += f"WHERE jediTaskID=:jediTaskID AND type IN ({INPUT_TYPES_var_str}) "
+                    sql_get_constituent = "SELECT datasetName,datasetID,status,nFilesTobeUsed,nFilesUsed,masterID,containerName "
+                    sql_get_constituent += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                    sql_get_constituent += f"WHERE jediTaskID=:jediTaskID AND type IN ({INPUT_TYPES_var_str}) "
                     varMap.update(INPUT_TYPES_var_map)
-                    self.cur.execute(sqlDS + comment, varMap)
+                    self.cur.execute(sql_get_constituent + comment, varMap)
                     resDS = self.cur.fetchall()
                     # check if existing datasets are available, and update status if necessary
                     sql_ex = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                     existingDatasets = {}
-                    for datasetName, dataset_id, datasetStatus, nFilesTobeUsed, nFilesUsed, masterID in resDS:
+                    in_container_name_id_map = {}
+                    for datasetName, dataset_id, datasetStatus, nFilesTobeUsed, nFilesUsed, masterID, containerName in resDS:
                         # only master datasets with remaining files
                         try:
                             if masterID is None and (nFilesTobeUsed - nFilesUsed > 0 or datasetStatus in JediDatasetSpec.statusToUpdateContents()):
@@ -3644,6 +3645,8 @@ class MiscStandaloneModule(BaseModule):
                         except Exception:
                             pass
                         existingDatasets[datasetName] = datasetStatus
+                        if containerName and containerName not in in_container_name_id_map:
+                            in_container_name_id_map[containerName] = dataset_id
                     # insert datasets
                     sqlID = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Datasets ({JediDatasetSpec.columnNames()}) "
                     sqlID += JediDatasetSpec.bindValuesExpression()
@@ -3666,6 +3669,8 @@ class MiscStandaloneModule(BaseModule):
                         datasetID = int(val)
                         masterID = datasetID
                         datasetSpec.datasetID = datasetID
+                        if datasetSpec.containerName and datasetSpec.containerName not in in_container_name_id_map:
+                            in_container_name_id_map[datasetSpec.containerName] = datasetID
                         # insert secondary datasets
                         for datasetSpec in inSecDatasetSpecList:
                             datasetSpec.creationTime = timeNow
@@ -3679,6 +3684,29 @@ class MiscStandaloneModule(BaseModule):
                             datasetID = int(val)
                             datasetSpec.datasetID = datasetID
                         goDefined = True
+                    # get existing input constituent datasets
+                    varMap = {}
+                    varMap[":jediTaskID"] = jediTaskID
+                    varMap[":type_input_constituent"] = JediDatasetSpec.get_constituent_input_type()
+                    sql_get_constituent = "SELECT datasetName "
+                    sql_get_constituent += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                    sql_get_constituent += f"WHERE jediTaskID=:jediTaskID AND type=:type_input_constituent "
+                    self.cur.execute(sql_get_constituent + comment, varMap)
+                    res_ds = self.cur.fetchall()
+                    existing_constituent_datasets = [i[0] for i in res_ds]
+                    # insert constituent datasets
+                    for datasetSpec in in_content_dataset_specs:
+                        if datasetSpec.datasetName in existing_constituent_datasets:
+                            continue
+                        if datasetSpec.containerName and datasetSpec.containerName in in_container_name_id_map:
+                            datasetSpec.masterID = in_container_name_id_map[datasetSpec.containerName]
+                            datasetSpec.creationTime = timeNow
+                            datasetSpec.modificationTime = timeNow
+                            varMap = datasetSpec.valuesMap(useSeq=True)
+                            varMap[":newDatasetID"] = self.cur.var(varNUMBER)
+                            # insert dataset
+                            tmpLog.debug(f"append constituent {datasetSpec.datasetName}")
+                            self.cur.execute(sqlID + comment, varMap)
                     # update task
                     deft_staus = None
                     sqlUT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "

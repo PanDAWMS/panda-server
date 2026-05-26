@@ -564,6 +564,7 @@ class TaskRefinerThread(WorkerThread):
                                     impl.unmergeDatasetSpecMap,
                                     uniqueTaskName,
                                     taskStatus,
+                                    impl.in_content_dataset_specs,
                                 )
                                 if not tmpStat:
                                     tmpErrStr = "failed to register the task to JEDI in a single shot"
@@ -592,7 +593,9 @@ class TaskRefinerThread(WorkerThread):
                                 # update task with new params
                                 self.taskBufferIF.updateTask_JEDI(impl.taskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus])
                                 # appending for incremental execution
-                                tmpStat = self.taskBufferIF.appendDatasets_JEDI(jediTaskID, impl.inMasterDatasetSpec, impl.inSecDatasetSpecList)
+                                tmpStat = self.taskBufferIF.appendDatasets_JEDI(
+                                    jediTaskID, impl.inMasterDatasetSpec, impl.inSecDatasetSpecList, impl.in_content_dataset_specs
+                                )
                                 if not tmpStat:
                                     tmpLog.error("failed to append datasets for incexec")
                         except Exception:

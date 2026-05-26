@@ -51,6 +51,7 @@ class TaskRefinerBase(object):
         self.unmergeDatasetSpecMap = {}
         self.oldTaskStatus = None
         self.unknownDatasetList = []
+        self.in_content_dataset_specs = {}
 
     # set jobParamsTemplate
     def setJobParamsTemplate(self, jobParamsTemplate):
@@ -607,6 +608,7 @@ class TaskRefinerBase(object):
                         if datasetName == "":
                             continue
                         # expand
+                        constituent_dataset_names_not_used_as_input = []
                         if datasetSpec.isPseudo() or datasetSpec.type in ["random_seed"] or datasetName == "DBR_LATEST":
                             # pseudo input
                             tmpDatasetNameList = [datasetName]
@@ -617,54 +619,65 @@ class TaskRefinerBase(object):
                             if not tmpIF:
                                 tmpDatasetNameList = []
                             else:
+                                # get datasets in dataset container
+                                dataset_names_in_container = tmpIF.expandContainer(datasetName)
+                                # sort datasets to process online complete replicas first
+                                tmp_ok_list = []
+                                tmp_ng_list = []
+                                for tmp_dataset_name_in_container in dataset_names_in_container:
+                                    # skip the check if enough datasets are OK
+                                    if len(tmp_ok_list) > 10:
+                                        is_ok = True
+                                    else:
+                                        # check if complete replica is available at online endpoint
+                                        is_ok = False
+                                        tmp_dict = tmpIF.listDatasetReplicas(tmp_dataset_name_in_container)
+                                        for tmp_endpoint, tmp_data_list in tmp_dict.items():
+                                            tmp_data = tmp_data_list[0]
+                                            if (
+                                                tmp_data["total"]
+                                                and tmp_data["total"] == tmp_data["found"]
+                                                and self.siteMapper.is_readable_remotely(tmp_endpoint)
+                                            ):
+                                                is_ok = True
+                                                break
+                                    if is_ok:
+                                        tmp_ok_list.append(tmp_dataset_name_in_container)
+                                    else:
+                                        tmp_ng_list.append(tmp_dataset_name_in_container)
+                                dataset_names_in_container = tmp_ok_list + tmp_ng_list
                                 if "expand" in tmpItem and tmpItem["expand"] is True:
                                     # expand dataset container
-                                    tmpDatasetNameList = tmpIF.expandContainer(datasetName)
-                                    # sort datasets to process online complete replicas first
-                                    tmp_ok_list = []
-                                    tmp_ng_list = []
-                                    for tmp_dataset_name in tmpDatasetNameList:
-                                        # skip the check if enough datasets are OK
-                                        if len(tmp_ok_list) > 10:
-                                            is_ok = True
-                                        else:
-                                            # check if complete replica is available at online endpoint
-                                            is_ok = False
-                                            tmp_dict = tmpIF.listDatasetReplicas(tmp_dataset_name)
-                                            for tmp_endpoint, tmp_data_list in tmp_dict.items():
-                                                tmp_data = tmp_data_list[0]
-                                                if (
-                                                    tmp_data["total"]
-                                                    and tmp_data["total"] == tmp_data["found"]
-                                                    and self.siteMapper.is_readable_remotely(tmp_endpoint)
-                                                ):
-                                                    is_ok = True
-                                                    break
-                                        if is_ok:
-                                            tmp_ok_list.append(tmp_dataset_name)
-                                        else:
-                                            tmp_ng_list.append(tmp_dataset_name)
-                                    tmpDatasetNameList = tmp_ok_list + tmp_ng_list
+                                    tmpDatasetNameList = dataset_names_in_container
                                 else:
                                     # normal dataset name
                                     tmpDatasetNameList = tmpIF.listDatasets(datasetName)
+                                    constituent_dataset_names_not_used_as_input = [i for i in dataset_names_in_container if i not in tmpDatasetNameList]
                         i_element = 0
                         for elementDatasetName in tmpDatasetNameList:
-                            if "expandedList" in tmpItem:
-                                if elementDatasetName not in tmpItem["expandedList"]:
-                                    tmpItem["expandedList"].append(elementDatasetName)
-                                inDatasetSpec = copy.copy(datasetSpec)
-                                inDatasetSpec.datasetName = elementDatasetName
-                                if nIn > 0 or not self.taskSpec.is_hpo_workflow():
-                                    inDatasetSpec.containerName = datasetName
+                            if elementDatasetName not in tmpItem["expandedList"]:
+                                tmpItem["expandedList"].append(elementDatasetName)
+                            inDatasetSpec = copy.copy(datasetSpec)
+                            inDatasetSpec.datasetName = elementDatasetName
+                            if nIn > 0 or not self.taskSpec.is_hpo_workflow():
+                                inDatasetSpec.containerName = datasetName
+                                # add remaining constituent datasets if they are not used as master input
+                                if nIn == 0:
+                                    for tmp_dataset_name_in_container in constituent_dataset_names_not_used_as_input:
+                                        self.in_content_dataset_specs.setdefault(datasetName, [])
+                                        if tmp_dataset_name_in_container not in self.in_content_dataset_specs[datasetName]:
+                                            tmp_dataset_spec = copy.copy(inDatasetSpec)
+                                            tmp_dataset_spec.type = JediDatasetSpec.get_constituent_input_type()
+                                            tmp_dataset_spec.datasetName = tmp_dataset_name_in_container
+                                            self.in_content_dataset_specs[datasetName].append(tmp_dataset_spec)
+                            else:
+                                if self.taskSpec.is_work_segmented():
+                                    inDatasetSpec.containerName = "{}/{}".format(
+                                        taskParamMap["segmentSpecs"][i_element]["name"], taskParamMap["segmentSpecs"][i_element]["id"]
+                                    )
                                 else:
-                                    if self.taskSpec.is_work_segmented():
-                                        inDatasetSpec.containerName = "{}/{}".format(
-                                            taskParamMap["segmentSpecs"][i_element]["name"], taskParamMap["segmentSpecs"][i_element]["id"]
-                                        )
-                                    else:
-                                        inDatasetSpec.containerName = "None/None"
-                                inDatasetSpecList.append(inDatasetSpec)
+                                    inDatasetSpec.containerName = "None/None"
+                            inDatasetSpecList.append(inDatasetSpec)
                             i_element += 1
                     # empty input
                     if inDatasetSpecList == [] and self.oldTaskStatus != "rerefine":

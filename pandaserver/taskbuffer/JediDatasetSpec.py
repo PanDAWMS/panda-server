@@ -234,6 +234,12 @@ class JediDatasetSpec(object):
 
     getUnknownInputType = classmethod(getUnknownInputType)
 
+    # get type of constituent input
+    def get_constituent_input_type(cls):
+        return "in_constituent"
+
+    get_constituent_input_type = classmethod(get_constituent_input_type)
+
     # check if JEDI needs to keep track of file usage
     def toKeepTrack(self):
         if self.isNoSplit() and self.isRepeated():

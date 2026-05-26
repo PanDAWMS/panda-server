@@ -409,6 +409,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         unmergeDatasetSpecMap,
         uniqueTaskName,
         oldTaskStatus,
+        in_content_dataset_spec_list,
     ):
         with self.proxyPool.get() as proxy:
             return proxy.registerTaskInOneShot_JEDI(
@@ -424,6 +425,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
                 unmergeDatasetSpecMap,
                 uniqueTaskName,
                 oldTaskStatus,
+                in_content_dataset_spec_list,
             )
 
     # set tasks to be assigned
@@ -590,9 +592,9 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
             )
 
     # append input datasets for incremental execution
-    def appendDatasets_JEDI(self, jediTaskID, inMasterDatasetSpecList, inSecDatasetSpecList):
+    def appendDatasets_JEDI(self, jediTaskID, inMasterDatasetSpecList, inSecDatasetSpecList, in_content_dataset_specs):
         with self.proxyPool.get() as proxy:
-            return proxy.appendDatasets_JEDI(jediTaskID, inMasterDatasetSpecList, inSecDatasetSpecList)
+            return proxy.appendDatasets_JEDI(jediTaskID, inMasterDatasetSpecList, inSecDatasetSpecList, in_content_dataset_specs)
 
     # record retry history
     def recordRetryHistory_JEDI(self, jediTaskID, oldNewPandaIDs, relationType):

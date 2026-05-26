@@ -5614,6 +5614,7 @@ class TaskComplexModule(BaseModule):
         unmergeDatasetSpecMap,
         uniqueTaskName,
         oldTaskStatus,
+        in_content_dataset_spec_list,
     ):
         comment = " /* JediDBProxy.registerTaskInOneShot_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
@@ -5684,6 +5685,7 @@ class TaskComplexModule(BaseModule):
                 # insert master dataset
                 masterID = -1
                 datasetIdMap = {}
+                in_container_name_id_map = {}
                 for datasetSpec in inMasterDatasetSpecList:
                     if datasetSpec is not None:
                         datasetSpec.creationTime = timeNow
@@ -5697,6 +5699,8 @@ class TaskComplexModule(BaseModule):
                         masterID = datasetID
                         datasetIdMap[datasetSpec.uniqueMapKey()] = datasetID
                         datasetSpec.datasetID = datasetID
+                        if datasetSpec.containerName and datasetSpec.containerName not in in_container_name_id_map:
+                            in_container_name_id_map[datasetSpec.containerName] = datasetID
                         # insert files
                         for fileSpec in datasetSpec.Files:
                             fileSpec.datasetID = datasetID
@@ -5722,6 +5726,16 @@ class TaskComplexModule(BaseModule):
                             fileSpec.creationDate = timeNow
                             varMap = fileSpec.valuesMap(useSeq=True)
                             self.cur.execute(sqlI + comment, varMap)
+                # insert input content datasets
+                for datasetSpec in in_content_dataset_spec_list:
+                    if datasetSpec.containerName and datasetSpec.containerName in in_container_name_id_map:
+                        datasetSpec.creationTime = timeNow
+                        datasetSpec.modificationTime = timeNow
+                        datasetSpec.masterID = in_container_name_id_map[datasetSpec.containerName]
+                        varMap = datasetSpec.valuesMap(useSeq=True)
+                        varMap[":newDatasetID"] = self.cur.var(varNUMBER)
+                        # insert dataset
+                        self.cur.execute(sql + comment, varMap)
                 # insert unmerged master dataset
                 unmergeMasterID = -1
                 for datasetSpec in unmergeMasterDatasetSpec.values():
