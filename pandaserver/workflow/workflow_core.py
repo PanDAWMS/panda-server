@@ -1950,8 +1950,8 @@ class WorkflowInterface(object):
                 self.tbif.update_workflow(workflow_spec)
                 process_result.success = True
                 tmp_log.info(f"Done, status remains {workflow_spec.status}")
-                if processed_steps_stats.get(WFStepStatus.done) == len(step_specs):
-                    # All steps are done but outputs not yet checked; signal for immediate re-check
+                if (changed_steps_stats := steps_status_stats["changed"]) and changed_steps_stats.get(WFStepStatus.done):
+                    # Some steps changed to done; signal for immediate re-check
                     process_result.immediate_recheck = True
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
