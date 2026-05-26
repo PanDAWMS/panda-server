@@ -19,6 +19,7 @@ parser.add_argument("--use_http", action=argparse.BooleanOptionalAction, default
 parser.add_argument("--token", type=str, default=None, help="OIDC ID token for write-operations (default: None)")
 parser.add_argument("--vo", type=str, default=None, help="Virtual organization with ID token is given (default: None)")
 parser.add_argument("--tool", type=str, default="is_alive", help="A tool name to test (default: is_alive)")
+parser.add_argument("--ca-bundle", type=str, default=None, help="Path to CA bundle file for SSL verification (default: None)")
 parser.add_argument(
     "--kv",
     dest="kv",
@@ -49,13 +50,21 @@ if args.use_http:
 else:
     base_url = f"https://{args.host}:{args.port}/mcp/"
 
-headers = {"Origin": args.vo} if args.token else None
+headers = {}
+if args.token:
+    headers["Authorization"] = f"Bearer {args.token}"
+    headers["X-Auth-Token"] = f"Bearer {args.token}"
+if args.vo:
+    headers["Origin"] = args.vo
+headers = headers or None
 
 # select transport
+ssl_kwargs = {"verify": args.ca_bundle} if args.ca_bundle else {}
+
 if args.transport == "streamable-http":
-    transport = StreamableHttpTransport(url=base_url, auth=args.token, headers=headers)
+    transport = StreamableHttpTransport(url=base_url, headers=headers, **ssl_kwargs)
 else:
-    transport = SSETransport(url=base_url, auth=args.token, headers=headers)
+    transport = SSETransport(url=base_url, headers=headers, **ssl_kwargs)
 
 # create client
 client = Client(transport)
