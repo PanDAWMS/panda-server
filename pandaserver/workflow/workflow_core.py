@@ -1620,8 +1620,7 @@ class WorkflowInterface(object):
                     raw_request_dict=raw_request_dict,
                 )
                 # Failure handling
-                # if is_fatal:
-                if False:  # disable fatal for now
+                if is_fatal:
                     process_result.message = f"Fatal error in parsing raw request; cancelled the workflow"
                     tmp_log.error(f"{process_result.message}")
                     workflow_spec.status = WorkflowStatus.cancelled
