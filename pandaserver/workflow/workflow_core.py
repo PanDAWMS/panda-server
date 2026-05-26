@@ -1453,16 +1453,16 @@ class WorkflowInterface(object):
                 process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
-            # If all inputs are complete, mark in step_spec and call the hook of step_handler
-            if all_inputs_stats["all_inputs_complete"]:
-                step_spec.set_parameter("all_inputs_complete", True)
-                step_handler.on_all_inputs_done(step_spec)
             # Check the step status
             check_result = step_handler.check_target(step_spec)
             if not check_result.success or check_result.step_status is None:
                 process_result.message = f"Failed to check step; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
+            # If all inputs are complete, mark in step_spec and call the hook of step_handler
+            if all_inputs_stats["all_inputs_complete"]:
+                step_spec.set_parameter("all_inputs_complete", True)
+                step_handler.on_all_inputs_done(step_spec)
             # Update step status
             if check_result.step_status in WFStepStatus.after_running_statuses:
                 # Step status advanced
