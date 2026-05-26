@@ -39,10 +39,17 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
         gracePeriod = 1
 
     # number of threads
+    max_nThr = 50
     try:
         nThr = int(argv[2])
     except Exception:
         nThr = 10
+    if nThr < 1:
+        tmpLog.warning(f"invalid nThr={nThr}; using minimum value 1")
+        nThr = 1
+    elif nThr > max_nThr:
+        tmpLog.warning(f"nThr={nThr} exceeds maximum {max_nThr}; capping to {max_nThr}")
+        nThr = max_nThr
 
     # lock interval in minutes
     lock_interval = 10
