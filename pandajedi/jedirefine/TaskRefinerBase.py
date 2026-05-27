@@ -798,6 +798,7 @@ class TaskRefinerBase(object):
                         else:
                             # append
                             self.unmergeDatasetSpecMap[datasetSpec.outputMapKey()] = umDatasetSpec
+        self.tmpLog.debug(f"input constituent datasets: {len(self.in_content_dataset_specs)}")
         # set attributes for merging
         if "mergeOutput" in taskParamMap and taskParamMap["mergeOutput"] is True:
             self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["mergeOutput"])
