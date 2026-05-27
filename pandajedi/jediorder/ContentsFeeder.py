@@ -13,6 +13,7 @@ from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
 from pandajedi.jedirefine import RefinerUtils
+from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
 
 from .JediKnight import JediKnight
 
@@ -129,6 +130,12 @@ class ContentsFeederThread(WorkerThread):
             if not tmpStat or taskSpec is None:
                 self.logger.debug(f"failed to get taskSpec for jediTaskID={jediTaskID}")
                 continue
+            # get constituent datasets grouped by their master input datasetID
+            constituent_by_master = {}
+            _, c_datasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(jediTaskID, [JediDatasetSpec.get_constituent_input_type()])
+            if c_datasets:
+                for c_ds in c_datasets:
+                    constituent_by_master.setdefault(c_ds.masterID, []).append((c_ds.datasetID, c_ds.datasetName))
 
             # make logger
             try:
@@ -531,6 +538,16 @@ class ContentsFeederThread(WorkerThread):
                                 orderBy = taskSpec.order_input_by()
                             else:
                                 orderBy = None
+                            # build LFN -> constituent datasetID map for this input dataset
+                            lfn_constituent_map = {}
+                            if datasetSpec.datasetID in constituent_by_master:
+                                for c_id, c_name in constituent_by_master[datasetSpec.datasetID]:
+                                    try:
+                                        c_files = ddmIF.getFilesInDataset(c_name)
+                                        for f_data in c_files.values():
+                                            lfn_constituent_map[str(f_data["lfn"])] = c_id
+                                    except Exception:
+                                        tmpLog.warning(f"failed to get files for constituent dataset {c_name}")
                             # feed files to the contents table
                             tmpLog.debug("update contents")
                             res_dict = self.taskBufferIF.insertFilesForDataset_JEDI(
@@ -568,6 +585,7 @@ class ContentsFeederThread(WorkerThread):
                                 orderBy,
                                 maxFileRecords,
                                 skip_short_output,
+                                lfn_constituent_map=lfn_constituent_map,
                             )
                             retDB = res_dict["ret_val"]
                             missingFileList = res_dict["missingFileList"]

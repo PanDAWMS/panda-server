@@ -40,6 +40,7 @@ class JediFileSpec(object):
         "ramCount",
         "is_waiting",
         "proc_status",
+        "constituent_id",
     )
     # attributes which have 0 by default
     _zeroAttrs = ("fsize", "attemptNr", "failedAttempt", "ramCount")
