@@ -21,7 +21,7 @@ taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, req
 user = sys.stdin.read()
 user = user[:-1]
 
-sql = "UPDATE atlas_panda.%s set currentPriority=:prio where prodUserName=:uname and prodSourceLabel IN (:label1,:label2) and currentPriority<:prio"
+sql = "UPDATE ATLAS_PANDA.%s set currentPriority=:prio where prodUserName=:uname and prodSourceLabel IN (:label1,:label2) and currentPriority<:prio"
 varMap = {}
 varMap[":prio"] = 4000
 varMap[":uname"] = user

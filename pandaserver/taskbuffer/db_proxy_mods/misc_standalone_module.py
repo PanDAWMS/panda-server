@@ -5,6 +5,7 @@ import json
 import os
 import random
 import re
+import sys
 import time
 from typing import Dict, List, Tuple
 
@@ -3382,10 +3383,15 @@ class MiscStandaloneModule(BaseModule):
                                 try:
                                     self.cur.execute(sql + comment, var_map)
                                 except Exception:
-                                    tmp_log.error(f'failed to execute "{sql}" var={str(var_map)}')
-                                    self.dump_error_message(tmp_log)
+                                    errType, errValue = sys.exc_info()[:2]
+                                    if self.isNoWaitException(errValue):
+                                        tmp_log.error(f'failed to execute "{sql}" var={str(var_map)}, due to skip locking items')
+                                    else:
+                                        tmp_log.error(f'failed to execute "{sql}" var={str(var_map)}')
+                                        self.dump_error_message(tmp_log)
                                     all_ok = False
                                     break
+
                         # delete queries
                         if all_ok:
                             var_map = {":PandaID": tmp_id}
