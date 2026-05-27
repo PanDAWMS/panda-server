@@ -932,9 +932,9 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
             return proxy.get_dataset_locality(jedi_taskid, datasetid)
 
     # update dataset locality
-    def updateDatasetLocality_JEDI(self, jedi_taskid, datasetid, rse, read_lan_status):
+    def updateDatasetLocality_JEDI(self, jedi_taskid, datasetid, rse):
         with self.proxyPool.get() as proxy:
-            return proxy.updateDatasetLocality_JEDI(jedi_taskid, datasetid, rse, read_lan_status)
+            return proxy.updateDatasetLocality_JEDI(jedi_taskid, datasetid, rse)
 
     # delete outdated dataset locality records
     def deleteOutdatedDatasetLocality_JEDI(self, before_timestamp):

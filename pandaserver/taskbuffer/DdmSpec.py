@@ -5,6 +5,9 @@ ddm endpoint specification object
 
 import re
 
+# DDM endpoint activity statuses that indicate downtime (activity disabled)
+DOWNTIME_STATUSES = ("OFF", "TEST")
+
 
 class DdmSpec(object):
     # constructor

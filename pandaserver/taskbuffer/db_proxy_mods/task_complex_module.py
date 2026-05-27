@@ -1,5 +1,6 @@
 import copy
 import datetime
+import json
 import math
 import os
 import random
@@ -24,6 +25,7 @@ from pandaserver.taskbuffer.db_proxy_mods.job_complex_module import (
 from pandaserver.taskbuffer.db_proxy_mods.metrics_module import get_metrics_module
 from pandaserver.taskbuffer.db_proxy_mods.task_event_module import get_task_event_module
 from pandaserver.taskbuffer.db_proxy_mods.task_utils_module import get_task_utils_module
+from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
 from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediDatasetSpec import (
     INPUT_TYPES_var_map,
@@ -2645,23 +2647,43 @@ class TaskComplexModule(BaseModule):
         """
         # find constituent datasets that are available only at RSEs in downtime, to skip their files
         skip_constituent_ids = set()
-        sql_downtime_constituents = (
-            f"SELECT d.datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets d "
+        # get RSEs of constituent datasets
+        sql_constituent_rses = (
+            f"SELECT d.datasetID, l.rse FROM {panda_config.schemaJEDI}.JEDI_Datasets d, {panda_config.schemaJEDI}.JEDI_Dataset_Locality l "
             "WHERE d.jediTaskID=:jediTaskID AND d.masterID=:masterID AND d.type=:type "
-            f"AND EXISTS (SELECT 1 FROM {panda_config.schemaJEDI}.JEDI_Dataset_Locality l "
-            "WHERE l.jediTaskID=d.jediTaskID AND l.datasetID=d.datasetID) "
-            f"AND NOT EXISTS (SELECT 1 FROM {panda_config.schemaJEDI}.JEDI_Dataset_Locality l "
-            "WHERE l.jediTaskID=d.jediTaskID AND l.datasetID=d.datasetID AND l.read_lan_status<>:ngStatus) "
+            "AND l.jediTaskID=d.jediTaskID AND l.datasetID=d.datasetID "
         )
-        var_map_downtime_constituents = {
+        var_map_constituent_rses = {
             ":jediTaskID": jedi_task_id,
             ":masterID": primary_dataset_id,
             ":type": JediDatasetSpec.get_constituent_input_type(),
-            ":ngStatus": "N",
         }
-        self.cur.execute(sql_downtime_constituents + comment, var_map_downtime_constituents)
-        for (tmp_const_id,) in self.cur.fetchall():
-            skip_constituent_ids.add(tmp_const_id)
+        self.cur.execute(sql_constituent_rses + comment, var_map_constituent_rses)
+        constituent_rses_map = {}  # datasetID -> set of RSEs
+        for tmp_const_id, tmp_rse in self.cur.fetchall():
+            constituent_rses_map.setdefault(tmp_const_id, set()).add(tmp_rse)
+        if constituent_rses_map:
+            # check read_lan status of each RSE in ddm_endpoint
+            sql_ddm_status = f"SELECT detailed_status FROM {panda_config.schemaPANDA}.ddm_endpoint WHERE ddm_endpoint_name=:rse "
+            rse_in_downtime = {}  # rse -> bool
+            for tmp_rse in {rse for rses in constituent_rses_map.values() for rse in rses}:
+                self.cur.execute(sql_ddm_status + comment, {":rse": tmp_rse})
+                res_ddm = self.cur.fetchone()
+                in_downtime = False
+                if res_ddm and res_ddm[0]:
+                    try:
+                        detailed_status = res_ddm[0]
+                        if not isinstance(detailed_status, dict):
+                            detailed_status = json.loads(detailed_status)
+                        if detailed_status.get("read_lan") in DOWNTIME_STATUSES:
+                            in_downtime = True
+                    except Exception:
+                        pass
+                rse_in_downtime[tmp_rse] = in_downtime
+            # a constituent dataset is in downtime when all of its RSEs are in downtime
+            for tmp_const_id, tmp_rses in constituent_rses_map.items():
+                if tmp_rses and all(rse_in_downtime.get(rse, False) for rse in tmp_rses):
+                    skip_constituent_ids.add(tmp_const_id)
         if skip_constituent_ids:
             tmp_log.debug(f"jediTaskID={jedi_task_id} skipping files of constituent datasets in downtime: {sorted(skip_constituent_ids)}")
         # build a filter to skip files belonging to downtime constituent datasets
