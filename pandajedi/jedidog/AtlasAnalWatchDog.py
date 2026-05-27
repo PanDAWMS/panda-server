@@ -8,6 +8,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.dataservice.activator import Activator
+from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
 
 from .TypicalWatchDogBase import TypicalWatchDogBase
 
@@ -752,22 +753,25 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                         {"type=.+": {"lifetime": lifetime}, "(SCRATCH|USER)DISK": {"lifetime": lifetime}},
                     )
                 # get input datasets
-                _, tmp_datasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(task_id, ["input"])
+                _, tmp_datasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(task_id, ["input", JediDatasetSpec.get_constituent_input_type()])
                 for dataset_spec in tmp_datasets:
                     # get locations
-                    rses = self.taskBufferIF.get_dataset_locality(task_id, dataset_spec.datasetID)
+                    rse_status_list = self.taskBufferIF.get_dataset_locality(task_id, dataset_spec.datasetID)
                     # check if all locations are in downtime
-                    if rses:
+                    if rse_status_list:
                         all_in_downtime = True
-                        for rse in rses:
-                            if self.site_mapper.is_readable_locally(rse):
+                        rses = []
+                        for rse, read_lan_status in rse_status_list:
+                            if read_lan_status != "N":
                                 all_in_downtime = False
                                 break
+                            rses.append(rse)
                         if all_in_downtime:
                             tmp_log.debug(
                                 f"reset frozen time for taskID={task_id} since all locations {rses} of input dataset {dataset_spec.datasetName} are in downtime"
                             )
                             self.taskBufferIF.reset_frozen_time_for_task(task_id)
+                            break
 
         except Exception as e:
             tmp_log.error(f"failed with {str(e)}{traceback.format_exc()}")

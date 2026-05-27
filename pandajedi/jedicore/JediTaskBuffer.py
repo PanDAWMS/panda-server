@@ -74,6 +74,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         order_by,
         maxFileRecords,
         skip_short_output,
+        lfn_constituent_map=None,
     ):
         with self.proxyPool.get() as proxy:
             return proxy.insertFilesForDataset_JEDI(
@@ -111,6 +112,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
                 order_by,
                 maxFileRecords,
                 skip_short_output,
+                lfn_constituent_map=lfn_constituent_map,
             )
 
     # get files from the JEDI contents table with jediTaskID and/or datasetID
@@ -930,9 +932,9 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
             return proxy.get_dataset_locality(jedi_taskid, datasetid)
 
     # update dataset locality
-    def updateDatasetLocality_JEDI(self, jedi_taskid, datasetid, rse):
+    def updateDatasetLocality_JEDI(self, jedi_taskid, datasetid, rse, read_lan_status):
         with self.proxyPool.get() as proxy:
-            return proxy.updateDatasetLocality_JEDI(jedi_taskid, datasetid, rse)
+            return proxy.updateDatasetLocality_JEDI(jedi_taskid, datasetid, rse, read_lan_status)
 
     # delete outdated dataset locality records
     def deleteOutdatedDatasetLocality_JEDI(self, before_timestamp):

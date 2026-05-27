@@ -145,6 +145,7 @@ class DataLocalityUpdaterThread(WorkerThread):
         n_skipped_ds = 0
         n_updated_replicas = 0
         n_skipped_replicas = 0
+        site_mapper = self.taskBufferIF.get_site_mapper()
         while True:
             try:
                 # get part of datasets
@@ -207,7 +208,10 @@ class DataLocalityUpdaterThread(WorkerThread):
                                 n_skipped_replicas += 1
                                 continue
                         # update dataset locality table
-                        self.taskBufferIF.updateDatasetLocality_JEDI(jedi_taskid=jedi_task_id, datasetid=dataset_id, rse=tmp_rse)
+                        is_readable_locally = site_mapper.is_readable_locally(tmp_rse)
+                        self.taskBufferIF.updateDatasetLocality_JEDI(
+                            jedi_taskid=jedi_task_id, datasetid=dataset_id, rse=tmp_rse, read_lan_status=is_readable_locally
+                        )
                         n_updated_replicas += 1
                     n_updated_ds += 1
             except Exception as e:

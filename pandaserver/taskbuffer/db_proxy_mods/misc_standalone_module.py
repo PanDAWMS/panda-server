@@ -3460,7 +3460,7 @@ class MiscStandaloneModule(BaseModule):
             jedi_taskid (int): The JEDI task ID.
             datasetid (int): The dataset ID.
         Returns:
-            list: A list of RSEs where the dataset is available, or None if an error occurs.
+            list: A list of RSEs and their read LAN statuses where the dataset is available, or None if an error occurs.
         """
         comment = " /* JediDBProxy.get_dataset_locality */"
         tmp_log = self.create_tagged_logger(comment, f"taskID={jedi_taskid} datasetID={datasetid}")
@@ -3468,7 +3468,7 @@ class MiscStandaloneModule(BaseModule):
         try:
             ret_val = None
             # sql to get all jediTaskID and datasetID of input
-            sql = f"SELECT rse FROM {panda_config.schemaJEDI}.JEDI_Dataset_Locality WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sql = f"SELECT rse, read_lan_status FROM {panda_config.schemaJEDI}.JEDI_Dataset_Locality WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # start transaction
             self.conn.begin()
             # get
@@ -3481,7 +3481,7 @@ class MiscStandaloneModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return
-            ret_val = [r[0] for r in res]
+            ret_val = [(r[0], r[1]) for r in res]
             tmp_log.debug(f"done with {ret_val}")
             return ret_val
         except Exception:
@@ -3492,12 +3492,23 @@ class MiscStandaloneModule(BaseModule):
             return ret_val
 
     # update dataset locality
-    def updateDatasetLocality_JEDI(self, jedi_taskid, datasetid, rse):
+    def updateDatasetLocality_JEDI(self, jedi_taskid: int, datasetid: int, rse: str, read_lan_status: bool) -> bool:
+        """Update the dataset locality information for a given JEDI task, dataset ID, and RSE.
+        Args:
+            jedi_taskid (int): The JEDI task ID.
+            datasetid (int): The dataset ID.
+            rse (str): The RSE where the dataset is available.
+            read_lan_status (bool): The status of the local read operation (indicates if the RSE is in the downtime).
+        Returns:
+            bool: True if the update was successful, False otherwise.
+        """
         comment = " /* JediDBProxy.updateDatasetLocality_JEDI */"
         # last update time
         timestamp = naive_utcnow()
         timestamp_str = timestamp.strftime("%Y-%m-%d_%H:%M:%S")
-        tmpLog = self.create_tagged_logger(comment, f"taskID={jedi_taskid} datasetID={datasetid} rse={rse} timestamp={timestamp_str}")
+        tmpLog = self.create_tagged_logger(
+            comment, f"taskID={jedi_taskid} datasetID={datasetid} rse={rse} read_lan_status={read_lan_status} timestamp={timestamp_str}"
+        )
         # tmpLog.debug('start')
         try:
             retVal = False
@@ -3505,11 +3516,11 @@ class MiscStandaloneModule(BaseModule):
             sqlC = f"SELECT timestamp FROM {panda_config.schemaJEDI}.JEDI_Dataset_Locality WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rse=:rse "
             # sql to insert
             sqlI = (
-                "INSERT INTO {0}.JEDI_Dataset_Locality " "(jediTaskID, datasetID, rse, timestamp) " "VALUES (:jediTaskID, :datasetID, :rse, :timestamp)"
+                "INSERT INTO {0}.JEDI_Dataset_Locality (jediTaskID, datasetID, rse, timestamp, read_lan_status) VALUES (:jediTaskID, :datasetID, :rse, :timestamp, :read_lan_status)"
             ).format(panda_config.schemaJEDI)
             # sql to update
             sqlU = (
-                "UPDATE {0}.JEDI_Dataset_Locality " "SET timestamp=:timestamp " "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rse=:rse "
+                "UPDATE {0}.JEDI_Dataset_Locality SET timestamp=:timestamp, read_lan_status=:read_lan_status WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rse=:rse "
             ).format(panda_config.schemaJEDI)
             # start transaction
             self.conn.begin()
@@ -3518,6 +3529,10 @@ class MiscStandaloneModule(BaseModule):
             varMap[":jediTaskID"] = jedi_taskid
             varMap[":datasetID"] = datasetid
             varMap[":rse"] = rse
+            if read_lan_status:
+                varMap[":read_lan_status"] = "Y"
+            else:
+                varMap[":read_lan_status"] = "N"
             self.cur.execute(sqlC + comment, varMap)
             resC = self.cur.fetchone()
             varMap[":timestamp"] = timestamp
