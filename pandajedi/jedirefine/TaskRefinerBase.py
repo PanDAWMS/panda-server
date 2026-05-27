@@ -668,7 +668,8 @@ class TaskRefinerBase(object):
                                             tmp_dataset_spec = copy.copy(inDatasetSpec)
                                             tmp_dataset_spec.type = JediDatasetSpec.get_constituent_input_type()
                                             tmp_dataset_spec.datasetName = tmp_dataset_name_in_container
-                                            self.in_content_dataset_specs.append(tmp_dataset_spec)
+                                            # FIXME
+                                            # self.in_content_dataset_specs.append(tmp_dataset_spec)
                             else:
                                 if self.taskSpec.is_work_segmented():
                                     inDatasetSpec.containerName = "{}/{}".format(
