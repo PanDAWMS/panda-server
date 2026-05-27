@@ -1,5 +1,6 @@
 import copy
 import datetime
+import json
 import math
 import os
 import random
@@ -24,6 +25,7 @@ from pandaserver.taskbuffer.db_proxy_mods.job_complex_module import (
 from pandaserver.taskbuffer.db_proxy_mods.metrics_module import get_metrics_module
 from pandaserver.taskbuffer.db_proxy_mods.task_event_module import get_task_event_module
 from pandaserver.taskbuffer.db_proxy_mods.task_utils_module import get_task_utils_module
+from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
 from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediDatasetSpec import (
     INPUT_TYPES_var_map,
@@ -207,6 +209,7 @@ class TaskComplexModule(BaseModule):
         order_by,
         maxFileRecords,
         skip_short_output,
+        lfn_constituent_map=None,
     ):
         comment = " /* JediDBProxy.insertFilesForDataset_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={datasetSpec.jediTaskID} datasetID={datasetSpec.datasetID}")
@@ -442,6 +445,8 @@ class TaskComplexModule(BaseModule):
                 fileSpec.maxAttempt = maxAttempt
                 fileSpec.maxFailure = maxFailure
                 fileSpec.ramCount = ramCount
+                if lfn_constituent_map:
+                    fileSpec.constituent_id = lfn_constituent_map.get(str(fileVal["lfn"]))
                 tmpNumEvents = None
                 if "events" in fileVal:
                     try:
@@ -2640,10 +2645,63 @@ class TaskComplexModule(BaseModule):
         :param ds_with_fake_co_jumbo: Set of datasets with fake co-jumbo.
         :return: Tuple of (input chunks, the typical number of files per job).
         """
+        # find constituent datasets that are available only at RSEs in downtime, to skip their files
+        skip_constituent_ids = set()
+        # get RSEs of constituent datasets
+        sql_constituent_rses = (
+            f"SELECT d.datasetID, l.rse FROM {panda_config.schemaJEDI}.JEDI_Datasets d, {panda_config.schemaJEDI}.JEDI_Dataset_Locality l "
+            "WHERE d.jediTaskID=:jediTaskID AND d.masterID=:masterID AND d.type=:type "
+            "AND l.jediTaskID=d.jediTaskID AND l.datasetID=d.datasetID "
+        )
+        var_map_constituent_rses = {
+            ":jediTaskID": jedi_task_id,
+            ":masterID": primary_dataset_id,
+            ":type": JediDatasetSpec.get_constituent_input_type(),
+        }
+        self.cur.execute(sql_constituent_rses + comment, var_map_constituent_rses)
+        constituent_rses_map = {}  # datasetID -> set of RSEs
+        for tmp_const_id, tmp_rse in self.cur.fetchall():
+            constituent_rses_map.setdefault(tmp_const_id, set()).add(tmp_rse)
+        if constituent_rses_map:
+            # check read_lan status of each RSE in ddm_endpoint
+            sql_ddm_status = f"SELECT detailed_status FROM {panda_config.schemaPANDA}.ddm_endpoint WHERE ddm_endpoint_name=:rse "
+            rse_in_downtime = {}  # rse -> bool
+            for tmp_rse in {rse for rses in constituent_rses_map.values() for rse in rses}:
+                self.cur.execute(sql_ddm_status + comment, {":rse": tmp_rse})
+                res_ddm = self.cur.fetchone()
+                in_downtime = False
+                if res_ddm and res_ddm[0]:
+                    try:
+                        detailed_status = res_ddm[0]
+                        if not isinstance(detailed_status, dict):
+                            detailed_status = json.loads(detailed_status)
+                        if detailed_status.get("read_lan") in DOWNTIME_STATUSES:
+                            in_downtime = True
+                    except Exception:
+                        pass
+                rse_in_downtime[tmp_rse] = in_downtime
+            # a constituent dataset is in downtime when all of its RSEs are in downtime
+            for tmp_const_id, tmp_rses in constituent_rses_map.items():
+                if tmp_rses and all(rse_in_downtime.get(rse, False) for rse in tmp_rses):
+                    skip_constituent_ids.add(tmp_const_id)
+        if skip_constituent_ids:
+            tmp_log.debug(f"jediTaskID={jedi_task_id} skipping files of constituent datasets in downtime: {sorted(skip_constituent_ids)}")
+        # build a filter to skip files belonging to downtime constituent datasets
+        constituent_filter = ""
+        constituent_var_map = {}
+        if skip_constituent_ids:
+            bind_keys = []
+            for i, tmp_const_id in enumerate(skip_constituent_ids):
+                key = f":constituent_{i}"
+                bind_keys.append(key)
+                constituent_var_map[key] = tmp_const_id
+            constituent_filter = f"AND (constituent_id IS NULL OR constituent_id NOT IN ({','.join(bind_keys)})) "
+
         # sql to read files
         sql_read_files = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
         sql_read_files += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
         sql_read_files += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_read_files += constituent_filter
         if not simulation_with_file_stat:
             sql_read_files += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
             sql_read_files += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
@@ -2659,6 +2717,7 @@ class TaskComplexModule(BaseModule):
         sql_read_files_empty_ram = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
         sql_read_files_empty_ram += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
         sql_read_files_empty_ram += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_read_files_empty_ram += constituent_filter
         if not simulation_with_file_stat:
             sql_read_files_empty_ram += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
             sql_read_files_empty_ram += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
@@ -2677,6 +2736,7 @@ class TaskComplexModule(BaseModule):
         sql_read_files_ignore_ram = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
         sql_read_files_ignore_ram += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
         sql_read_files_ignore_ram += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_read_files_ignore_ram += constituent_filter
         if not simulation_with_file_stat:
             sql_read_files_ignore_ram += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
             sql_read_files_ignore_ram += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
@@ -2694,9 +2754,9 @@ class TaskComplexModule(BaseModule):
             panda_config.schemaJEDI
         )
         sql_update_file_status += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:oStatus "
+
         # sql to update file usage info in dataset
         sql_update_file_stat = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=:nFilesUsed "
-
         sql_update_file_stat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
 
         # determine how many files to read
@@ -2800,6 +2860,7 @@ class TaskComplexModule(BaseModule):
                     var_map = {}
                     var_map[":datasetID"] = dataset_id
                     var_map[":jediTaskID"] = jedi_task_id
+                    var_map.update(constituent_var_map)
                     if not tmp_dataset_spec.toKeepTrack():
                         if not simulation_with_file_stat:
                             var_map[":status"] = "ready"
@@ -2942,7 +3003,7 @@ class TaskComplexModule(BaseModule):
                         if tmp_file_spec.is_waiting == "Y":
                             tmp_num_waiting_files += 1
 
-                    # escape the duplication look since it is not requested
+                    # escape the duplication loop since it is not requested
                     if (
                         tmp_dataset_spec.isMaster()
                         or task_spec.useLoadXML()
@@ -5614,6 +5675,7 @@ class TaskComplexModule(BaseModule):
         unmergeDatasetSpecMap,
         uniqueTaskName,
         oldTaskStatus,
+        in_content_dataset_spec_list,
     ):
         comment = " /* JediDBProxy.registerTaskInOneShot_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
@@ -5684,6 +5746,7 @@ class TaskComplexModule(BaseModule):
                 # insert master dataset
                 masterID = -1
                 datasetIdMap = {}
+                in_container_name_id_map = {}
                 for datasetSpec in inMasterDatasetSpecList:
                     if datasetSpec is not None:
                         datasetSpec.creationTime = timeNow
@@ -5697,6 +5760,8 @@ class TaskComplexModule(BaseModule):
                         masterID = datasetID
                         datasetIdMap[datasetSpec.uniqueMapKey()] = datasetID
                         datasetSpec.datasetID = datasetID
+                        if datasetSpec.containerName and datasetSpec.containerName not in in_container_name_id_map:
+                            in_container_name_id_map[datasetSpec.containerName] = datasetID
                         # insert files
                         for fileSpec in datasetSpec.Files:
                             fileSpec.datasetID = datasetID
@@ -5722,6 +5787,16 @@ class TaskComplexModule(BaseModule):
                             fileSpec.creationDate = timeNow
                             varMap = fileSpec.valuesMap(useSeq=True)
                             self.cur.execute(sqlI + comment, varMap)
+                # insert input content datasets
+                for datasetSpec in in_content_dataset_spec_list:
+                    if datasetSpec.containerName and datasetSpec.containerName in in_container_name_id_map:
+                        datasetSpec.creationTime = timeNow
+                        datasetSpec.modificationTime = timeNow
+                        datasetSpec.masterID = in_container_name_id_map[datasetSpec.containerName]
+                        varMap = datasetSpec.valuesMap(useSeq=True)
+                        varMap[":newDatasetID"] = self.cur.var(varNUMBER)
+                        # insert dataset
+                        self.cur.execute(sql + comment, varMap)
                 # insert unmerged master dataset
                 unmergeMasterID = -1
                 for datasetSpec in unmergeMasterDatasetSpec.values():

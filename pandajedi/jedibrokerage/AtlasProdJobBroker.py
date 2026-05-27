@@ -12,6 +12,7 @@ from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
+from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
 
 from . import AtlasBrokerUtils
 from .JobBrokerBase import JobBrokerBase
@@ -262,7 +263,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 if not default_endpoint_out:
                     continue
                 receive_output_over_wan = default_endpoint_out["detailed_status"].get("write_wan")
-                if receive_output_over_wan in ["OFF", "TEST"]:
+                if receive_output_over_wan in DOWNTIME_STATUSES:
                     nucleus_with_storages_unwritable_over_wan[tmp_name] = receive_output_over_wan
 
         else:

@@ -17,6 +17,7 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.taskbuffer import JobUtils, ProcessGroups, SiteSpec
+from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
 
 
 # get nuclei where data is available
@@ -1094,10 +1095,7 @@ class JsonSoftwareCheck:
 
                             # check vendor
                             if host_gpu_spec["vendor"] != "*":
-                                if not wn_gpus or not any(
-                                    g.get("vendor") and re.match(host_gpu_spec["vendor"], g["vendor"], re.IGNORECASE)
-                                    for g in wn_gpus
-                                ):
+                                if not wn_gpus or not any(g.get("vendor") and re.match(host_gpu_spec["vendor"], g["vendor"], re.IGNORECASE) for g in wn_gpus):
                                     continue
 
                             # check model (include or exclude pattern)
@@ -1110,19 +1108,13 @@ class JsonSoftwareCheck:
                                     model_excl = False
                                 if not wn_gpus:
                                     continue
-                                matches = any(
-                                    g.get("model") and re.match(model_pattern, g["model"], re.IGNORECASE)
-                                    for g in wn_gpus
-                                )
+                                matches = any(g.get("model") and re.match(model_pattern, g["model"], re.IGNORECASE) for g in wn_gpus)
                                 if matches == model_excl:
                                     continue
 
                             # check VRAM (in MB); supports operators: ==, >=, <=, >, <, != (e.g. ">=40960")
                             if "vram" in host_gpu_spec:
-                                if not wn_gpus or not any(
-                                    g.get("vram") and compare_version_string(str(g["vram"]), host_gpu_spec["vram"])
-                                    for g in wn_gpus
-                                ):
+                                if not wn_gpus or not any(g.get("vram") and compare_version_string(str(g["vram"]), host_gpu_spec["vram"]) for g in wn_gpus):
                                     continue
 
                             # check GPU microarchitecture generation (e.g. Ampere, Hopper, Ada Lovelace)
@@ -1136,16 +1128,14 @@ class JsonSoftwareCheck:
                             # check minimum CUDA version
                             if "version" in host_gpu_spec:
                                 if not wn_gpus or not any(
-                                    g.get("framework_version") and compare_version_string(g["framework_version"], host_gpu_spec["version"])
-                                    for g in wn_gpus
+                                    g.get("framework_version") and compare_version_string(g["framework_version"], host_gpu_spec["version"]) for g in wn_gpus
                                 ):
                                     continue
 
                             # check minimum GPU driver version (kernel driver, e.g. 575.57.08)
                             if "driver_version" in host_gpu_spec:
                                 if not wn_gpus or not any(
-                                    g.get("driver_version") and compare_version_string(g["driver_version"], host_gpu_spec["driver_version"])
-                                    for g in wn_gpus
+                                    g.get("driver_version") and compare_version_string(g["driver_version"], host_gpu_spec["driver_version"]) for g in wn_gpus
                                 ):
                                     continue
                     go_ahead = True
@@ -1271,12 +1261,12 @@ def check_endpoints_with_blacklist(
             tmp_read_input_over_lan = tmp_input_endpoint["detailed_status"].get("read_lan")
             tmp_receive_input_over_wan = tmp_input_endpoint["detailed_status"].get("write_wan")
             # can read input from local
-            if tmp_read_input_over_lan not in ["OFF", "TEST"]:
+            if tmp_read_input_over_lan not in DOWNTIME_STATUSES:
                 read_input_over_lan = True
             # can receive input from remote to local
             if tmp_site_name not in sites_in_nucleus:
                 # satellite sites
-                if tmp_receive_input_over_wan not in ["OFF", "TEST"]:
+                if tmp_receive_input_over_wan not in DOWNTIME_STATUSES:
                     receive_input_over_wan = True
             else:
                 # NA for nucleus sites
@@ -1287,12 +1277,12 @@ def check_endpoints_with_blacklist(
             tmp_write_output_over_lan = tmp_output_endpoint["detailed_status"].get("write_lan")
             tmp_send_output_over_wan = tmp_output_endpoint["detailed_status"].get("read_wan")
             # can write output to local
-            if tmp_write_output_over_lan not in ["OFF", "TEST"]:
+            if tmp_write_output_over_lan not in DOWNTIME_STATUSES:
                 write_output_over_lan = True
             # can send output from local to remote
             if tmp_site_name not in sites_in_nucleus:
                 # satellite sites
-                if tmp_send_output_over_wan not in ["OFF", "TEST"]:
+                if tmp_send_output_over_wan not in DOWNTIME_STATUSES:
                     send_output_over_wan = True
             else:
                 # NA for nucleus sites

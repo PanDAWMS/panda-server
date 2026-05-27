@@ -8,6 +8,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.dataservice.activator import Activator
+from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
 
 from .TypicalWatchDogBase import TypicalWatchDogBase
 
@@ -752,7 +753,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                         {"type=.+": {"lifetime": lifetime}, "(SCRATCH|USER)DISK": {"lifetime": lifetime}},
                     )
                 # get input datasets
-                _, tmp_datasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(task_id, ["input"])
+                _, tmp_datasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(task_id, ["input", JediDatasetSpec.get_constituent_input_type()])
                 for dataset_spec in tmp_datasets:
                     # get locations
                     rses = self.taskBufferIF.get_dataset_locality(task_id, dataset_spec.datasetID)
@@ -768,6 +769,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                                 f"reset frozen time for taskID={task_id} since all locations {rses} of input dataset {dataset_spec.datasetName} are in downtime"
                             )
                             self.taskBufferIF.reset_frozen_time_for_task(task_id)
+                            break
 
         except Exception as e:
             tmp_log.error(f"failed with {str(e)}{traceback.format_exc()}")

@@ -6,6 +6,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
 from pandaserver.dataservice.DataServiceUtils import select_scope
+from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
 from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
 from pandaserver.taskbuffer.SiteSpec import SiteSpec
 
@@ -363,7 +364,7 @@ class SiteMapper:
             bool: True if the endpoint is readable, False otherwise
         """
         endpoints_with_read_wan_status = self.endpoint_detailed_status_summary.get("read_wan", {})
-        bad_endpoints = endpoints_with_read_wan_status.get("OFF", []) + endpoints_with_read_wan_status.get("TEST", [])
+        bad_endpoints = [ep for status in DOWNTIME_STATUSES for ep in endpoints_with_read_wan_status.get(status, [])]
         return endpoint_name not in bad_endpoints
 
     def is_readable_locally(self, endpoint_name: str) -> bool:
@@ -374,7 +375,7 @@ class SiteMapper:
             bool: True if the endpoint is readable, False otherwise
         """
         endpoints_with_read_lan_status = self.endpoint_detailed_status_summary.get("read_lan", {})
-        bad_endpoints = endpoints_with_read_lan_status.get("OFF", []) + endpoints_with_read_lan_status.get("TEST", [])
+        bad_endpoints = [ep for status in DOWNTIME_STATUSES for ep in endpoints_with_read_lan_status.get(status, [])]
         return endpoint_name not in bad_endpoints
 
     def make_endpoint_to_sites_map(self) -> None:
