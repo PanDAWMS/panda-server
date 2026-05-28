@@ -4312,7 +4312,7 @@ class TaskComplexModule(BaseModule):
                         self.cur.execute(sqlTC + comment, varMap)
                         resTC = self.cur.fetchone()
                         if resTC is None or resTC[0] is None:
-                            tmpLog.error(f"jediTaskID={jediTaskID} is not found in JEDI_Tasks")
+                            tmpLog.warning(f"jediTaskID={jediTaskID} is not found in JEDI_Tasks")
                             isOK = False
                         else:
                             taskStatus, taskOldStatus, wallTimeUnit = resTC
@@ -4320,43 +4320,43 @@ class TaskComplexModule(BaseModule):
                             if commandStr == "retry":
                                 if taskStatus not in JediTaskSpec.statusToRetry():
                                     # task is in a status which rejects retry
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for retry")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for retry")
                                     isOK = False
                             elif commandStr == "incexec":
                                 if taskStatus not in JediTaskSpec.statusToIncexec():
                                     # task is in a status which rejects retry
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for incexec")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for incexec")
                                     isOK = False
                             elif commandStr == "pause":
                                 if taskStatus in JediTaskSpec.statusNotToPause():
                                     # task is in a status which rejects pause
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for pause")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for pause")
                                     isOK = False
                             elif commandStr == "resume":
                                 if taskStatus not in ["paused", "throttled", "staging"]:
                                     # task is in a status which rejects resume
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for resume")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for resume")
                                     isOK = False
                             elif commandStr == "avalanche":
                                 if taskStatus not in ["scouting"]:
                                     # task is in a status which rejects avalanche
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for avalanche")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for avalanche")
                                     isOK = False
                             elif commandStr == "release":
                                 if taskStatus not in ["scouting", "pending", "running", "ready", "assigning", "defined"]:
                                     # task is in a status which rejects avalanche
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not applicable")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not applicable")
                                     isOK = False
                                 update_task = False
                                 sync_action_only = True
                             elif commandStr == "reassign":
                                 if taskStatus in ["failed", "aborted", "broken"]:
                                     # task is in a status which rejects reassign
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for reassign")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for reassign")
                                     isOK = False
                             elif taskStatus in JediTaskSpec.statusToRejectExtChange():
                                 # task is in a status which rejects external changes
-                                tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr} (due to status={taskStatus})")
+                                tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr} (due to status={taskStatus})")
                                 isOK = False
                             if isOK:
                                 # set new task status
@@ -4378,7 +4378,7 @@ class TaskComplexModule(BaseModule):
                                 elif commandStr in commandStatusMap:
                                     newTaskStatus = commandStatusMap[commandStr]["doing"]
                                 else:
-                                    tmpLog.error(f"jediTaskID={jediTaskID} new status is undefined for command={commandStr}")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} new status is undefined for command={commandStr}")
                                     isOK = False
                     if isOK:
                         # actions in transaction
