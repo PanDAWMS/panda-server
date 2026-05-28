@@ -646,7 +646,7 @@ def delete_hpo_checkpoint(req: PandaRequest, task_id: str, sub_id: str) -> Dict:
         return generate_response(False, message=message)
 
 
-@request_validation(_logger, secure=True, request_method="POST")
+@request_validation(_logger, secure=True, request_method="POST", task_owner=True, task_buffer=global_task_buffer)
 def upload_file_recovery_request(
     req: PandaRequest,
     task_id: int = None,

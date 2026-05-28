@@ -20,6 +20,7 @@ TIME_OUT = "TimeOut"
 
 MESSAGE_SSL = "SSL secure connection is required"
 MESSAGE_PROD_ROLE = "production or pilot role required"
+MESSAGE_TASK_OWNER = "not the task owner or no production role"
 MESSAGE_TASK_ID = "jediTaskID must be an integer"
 MESSAGE_DATABASE = "database error in the PanDA server"
 MESSAGE_JSON = "failed to load JSON"
@@ -194,7 +195,7 @@ def normalize_type(t):
     return mapping.get(t, t)
 
 
-def request_validation(logger, secure=True, production=False, request_method=None):
+def request_validation(logger, secure=True, production=False, request_method=None, task_owner=False, task_buffer=None, task_id_param="task_id"):
     def decorator(func):
         @wraps(func)
         def wrapper(req, *args, **kwargs):
@@ -313,6 +314,16 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                     message = f"Type error: '{param_name}' must be of type {expected_type.__name__}, got {type(param_value).__name__}."
                     tmp_logger_context.error(message)
                     return generate_response(False, message=message)
+
+            # check task ownership if required
+            if task_owner:
+                task_id = bound_args.arguments.get(task_id_param)
+                if task_id:
+                    dn = get_dn(req)
+                    prod_role = has_production_role(req)
+                    if not task_buffer.validate_task_permissions(task_id, dn, prod_role):
+                        tmp_logger.error(MESSAGE_TASK_OWNER)
+                        return generate_response(False, message=MESSAGE_TASK_OWNER)
 
             return func(*bound_args.args, **bound_args.kwargs)
 

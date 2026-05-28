@@ -38,7 +38,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_task_buffer = task_buffer
 
 
-@request_validation(_logger, secure=True, request_method="POST")
+@request_validation(_logger, secure=True, request_method="POST", task_owner=True, task_buffer=global_task_buffer)
 def retry(
     req: PandaRequest,
     task_id: int,
@@ -318,8 +318,8 @@ def pause(req: PandaRequest, task_id: int) -> Dict[str, Any]:
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True, request_method="POST")
-def kill(req: PandaRequest, task_id: int = None, broadcast: bool = False) -> Dict[str, Any]:
+@request_validation(_logger, secure=True, request_method="POST", task_owner=True, task_buffer=global_task_buffer)
+def kill(req: PandaRequest, task_id: int, broadcast: bool = False) -> Dict[str, Any]:
     """
     Task kill
 
@@ -430,7 +430,7 @@ def kill_unfinished_jobs(req: PandaRequest, task_id: int, code: int = None, use_
     return generate_response(True, data=ret)
 
 
-@request_validation(_logger, secure=True, request_method="POST")
+@request_validation(_logger, secure=True, request_method="POST", task_owner=True, task_buffer=global_task_buffer)
 def finish(req: PandaRequest, task_id: int, soft: bool = False, broadcast: bool = False) -> Dict[str, Any]:
     """
     Task finish
