@@ -3786,6 +3786,40 @@ class TaskEventModule(BaseModule):
                 return errorCode, retVal
             return False, retVal
 
+    def validate_ownership_or_production_role(self, task_id: int, dn: str, production_role: bool) -> bool:
+        """Return True if the user owns the task or has production role, False otherwise."""
+        comment = " /* JediDBProxy.validate_task_permissions */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
+
+        compact_dn = CoreUtils.clean_user_id(dn)
+        if compact_dn in ("", "NULL", None):
+            compact_dn = dn
+
+        # The user has production role
+        if production_role:
+            tmp_log.debug(f"access granted via production role for DN={compact_dn}")
+            return True
+
+        sql = f"SELECT userName FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:task_id "
+        var_map = {":task_id": task_id}
+        self.cur.execute(sql + comment, var_map)
+        row = self.cur.fetchone()
+
+        # Task was not found
+        if row is None:
+            tmp_log.debug(f"task not found")
+            return False
+
+        # The user is not the owner
+        (owner,) = row
+        if compact_dn != owner:
+            tmp_log.debug(f"permission denied: DN={compact_dn} is not owner={owner}")
+            return False
+
+        # The user is the owner
+        tmp_log.debug(f"access granted: DN={compact_dn} is the task owner")
+        return True
+
     # send command to task through DEFT
     def sendCommandTaskPanda(
         self,
