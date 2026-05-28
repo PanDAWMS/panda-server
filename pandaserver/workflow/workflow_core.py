@@ -54,6 +54,7 @@ AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 # ==== Global Parameters =======================================
 
 WORKFLOW_CHECK_INTERVAL_SEC = 60
+MAX_PROCESSING_LOOPS = 5
 MESSAGE_QUEUE_NAME = "jedi_workflow_manager"
 
 # ==== Plugin Map ==============================================
@@ -589,6 +590,10 @@ class WorkflowInterface(object):
             original_status = data_spec.status
             # Get the data handler plugin
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
+            if data_handler is None:
+                process_result.message = f"Data handler plugin not found for flavor {data_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # Check the data status
             check_result = data_handler.check_target(data_spec)
             if check_result.success and check_result.check_status is None:
@@ -612,6 +617,10 @@ class WorkflowInterface(object):
                     data_spec.status = WFDataStatus.checked_suffice
                 case WFDataTargetCheckStatus.complete:
                     data_spec.status = WFDataStatus.checked_complete
+                case _:
+                    process_result.message = f"Unexpected check_status {check_result.check_status}; skipped"
+                    tmp_log.warning(f"{process_result.message}")
+                    return process_result
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
             process_result.new_status = data_spec.status
@@ -734,6 +743,10 @@ class WorkflowInterface(object):
             original_status = data_spec.status
             # Get the data handler plugin
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
+            if data_handler is None:
+                process_result.message = f"Data handler plugin not found for flavor {data_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # Check the data status
             check_result = data_handler.check_target(data_spec)
             if check_result.success and check_result.check_status is None:
@@ -762,8 +775,9 @@ class WorkflowInterface(object):
                         # Data not yet exist, stay in generating_bound
                         pass
                     case _:
-                        # Unexpected status, log and skip
-                        tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
+                        process_result.message = f"Unexpected check_status {check_result.check_status} from target check result; skipped"
+                        tmp_log.warning(f"{process_result.message}")
+                        return process_result
             elif original_status == WFDataStatus.generating_insuffi:
                 match check_result.check_status:
                     case WFDataTargetCheckStatus.suffice | WFDataTargetCheckStatus.complete:
@@ -777,8 +791,9 @@ class WorkflowInterface(object):
                         # Data not exist anymore, unexpected, log and skip
                         tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
                     case _:
-                        # Unexpected status, log and skip
-                        tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
+                        process_result.message = f"Unexpected check_status {check_result.check_status} from target check result; skipped"
+                        tmp_log.warning(f"{process_result.message}")
+                        return process_result
             elif original_status == WFDataStatus.generating_suffice:
                 match check_result.check_status:
                     case WFDataTargetCheckStatus.complete:
@@ -796,8 +811,9 @@ class WorkflowInterface(object):
                         # Data not exist anymore, unexpected, log and skip
                         tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
                     case _:
-                        # Unexpected status, log and skip
-                        tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
+                        process_result.message = f"Unexpected check_status {check_result.check_status} from target check result; skipped"
+                        tmp_log.warning(f"{process_result.message}")
+                        return process_result
             data_spec.check_time = now_time
             self.tbif.update_workflow_data(data_spec)
             process_result.success = True
@@ -835,6 +851,10 @@ class WorkflowInterface(object):
             original_status = data_spec.status
             # Get the data handler plugin
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
+            if data_handler is None:
+                process_result.message = f"Data handler plugin not found for flavor {data_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # Check the data status
             check_result = data_handler.check_target(data_spec)
             if check_result.success and check_result.check_status is None:
@@ -938,9 +958,6 @@ class WorkflowInterface(object):
                 tmp_res = self.process_data_waiting(data_spec)
             else:
                 tmp_log.debug(f"Data status {data_spec.status} is not handled in this context; skipped")
-        # For changes into transient status, send message to trigger processing immediately
-        if data_spec.status != orig_status and data_spec.status in WFDataStatus.transient_statuses:
-            self.send_data_message(data_spec.data_id)
         return tmp_res, data_spec
 
     def process_datas(self, data_specs: List[WFDataSpec], by: str = "dog") -> Dict:
@@ -954,6 +971,8 @@ class WorkflowInterface(object):
         Returns:
             Dict: Statistics of the processing results
         """
+        if not data_specs:
+            return {"n_data": 0, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         tmp_log = LogWrapper(logger, f"process_datas <workflow_id={data_specs[0].workflow_id}> by={by}")
         n_data = len(data_specs)
         tmp_log.debug(f"Start, processing {n_data} data specs")
@@ -961,6 +980,14 @@ class WorkflowInterface(object):
         for data_spec in data_specs:
             orig_status = data_spec.status
             tmp_res, data_spec = self.process_data(data_spec, by=by)
+            for _ in range(MAX_PROCESSING_LOOPS):
+                prev_status = data_spec.status
+                if prev_status not in WFDataStatus.transient_statuses:
+                    break
+                # For changes into transient status, process immediately in the loop again
+                tmp_res, data_spec = self.process_data(data_spec, by=by)
+                if data_spec.status == prev_status:
+                    break  # no progress made, stop retrying
             if tmp_res and tmp_res.success:
                 # update stats
                 if tmp_res.new_status and data_spec.status != orig_status:
@@ -1295,6 +1322,10 @@ class WorkflowInterface(object):
         try:
             # Get the step handler plugin
             step_handler = self.get_plugin("step_handler", step_spec.flavor)
+            if step_handler is None:
+                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # Submit the step target
             submit_result = step_handler.submit_target(step_spec)
             if not submit_result.success or submit_result.target_id is None:
@@ -1345,11 +1376,19 @@ class WorkflowInterface(object):
             input_data_list = list(input_data_dict.keys())
             # Get data spec map of the workflow
             data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
+            if data_specs is None:
+                process_result.message = f"Failed to get data of the workflow"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Check if all input data are good
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
             # Get the step handler plugin
             step_handler = self.get_plugin("step_handler", step_spec.flavor)
+            if step_handler is None:
+                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # Check the step status
             check_result = step_handler.check_target(step_spec)
             if not check_result.success or check_result.step_status is None:
@@ -1418,21 +1457,29 @@ class WorkflowInterface(object):
             input_data_list = list(input_data_dict.keys())
             # Get data spec map of the workflow
             data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
+            if data_specs is None:
+                process_result.message = f"Failed to get data of the workflow"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Check if all input data are good
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
             # Get the step handler plugin
             step_handler = self.get_plugin("step_handler", step_spec.flavor)
-            # If all inputs are complete, mark in step_spec and call the hook of step_handler
-            if all_inputs_stats["all_inputs_complete"]:
-                step_spec.set_parameter("all_inputs_complete", True)
-                step_handler.on_all_inputs_done(step_spec)
+            if step_handler is None:
+                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             # Check the step status
             check_result = step_handler.check_target(step_spec)
             if not check_result.success or check_result.step_status is None:
                 process_result.message = f"Failed to check step; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
+            # If all inputs are complete, mark in step_spec and call the hook of step_handler
+            if all_inputs_stats["all_inputs_complete"]:
+                step_spec.set_parameter("all_inputs_complete", True)
+                step_handler.on_all_inputs_done(step_spec)
             # Update step status
             if check_result.step_status in WFStepStatus.after_running_statuses:
                 # Step status advanced
@@ -1506,9 +1553,6 @@ class WorkflowInterface(object):
                 tmp_log.debug(f"Step in final status {step_spec.status} ; skipped")
             else:
                 tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
-        # For changes into transient status, send message to trigger processing immediately
-        if step_spec.status != orig_status and step_spec.status in WFStepStatus.transient_statuses:
-            self.send_step_message(step_spec.step_id)
         return tmp_res, step_spec
 
     def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> Dict:
@@ -1523,6 +1567,8 @@ class WorkflowInterface(object):
         Returns:
             Dict: Statistics of the processing results
         """
+        if not step_specs:
+            return {"n_steps": 0, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         tmp_log = LogWrapper(logger, f"process_steps <workflow_id={step_specs[0].workflow_id}> by={by}")
         n_steps = len(step_specs)
         tmp_log.debug(f"Start, processing {n_steps} steps")
@@ -1530,6 +1576,14 @@ class WorkflowInterface(object):
         for step_spec in step_specs:
             orig_status = step_spec.status
             tmp_res, step_spec = self.process_step(step_spec, data_spec_map=data_spec_map, by=by)
+            for _ in range(MAX_PROCESSING_LOOPS):
+                prev_status = step_spec.status
+                if prev_status not in WFStepStatus.transient_statuses:
+                    break
+                # For changes into transient status, process immediately in the loop again
+                tmp_res, step_spec = self.process_step(step_spec, data_spec_map=data_spec_map, by=by)
+                if step_spec.status == prev_status:
+                    break  # no progress made, stop retrying
             if tmp_res and tmp_res.success:
                 # update stats
                 if tmp_res.new_status and step_spec.status != orig_status:
@@ -1585,8 +1639,7 @@ class WorkflowInterface(object):
                     raw_request_dict=raw_request_dict,
                 )
                 # Failure handling
-                # if is_fatal:
-                if False:  # disable fatal for now
+                if is_fatal:
                     process_result.message = f"Fatal error in parsing raw request; cancelled the workflow"
                     tmp_log.error(f"{process_result.message}")
                     workflow_spec.status = WorkflowStatus.cancelled
@@ -1730,13 +1783,17 @@ class WorkflowInterface(object):
             # Update status to starting
             workflow_spec.status = WorkflowStatus.starting
             # Upsert DB
-            self.tbif.upsert_workflow_entities(
+            upsert_ret = self.tbif.upsert_workflow_entities(
                 workflow_spec.workflow_id,
                 actions_dict={"workflow": "update", "steps": "insert", "data": "insert"},
                 workflow_spec=workflow_spec,
                 step_specs=step_specs,
                 data_specs=data_specs,
             )
+            if upsert_ret is None:
+                process_result.message = f"Failed to upsert workflow entities into DB"
+                tmp_log.error(f"{process_result.message}")
+                return process_result
             process_result.success = True
             process_result.new_status = workflow_spec.status
             tmp_log.info(f"Done, inserted {len(step_specs)} steps and {len(data_specs)} data, status={workflow_spec.status}")
@@ -1893,9 +1950,9 @@ class WorkflowInterface(object):
                 self.tbif.update_workflow(workflow_spec)
                 process_result.success = True
                 tmp_log.info(f"Done, status remains {workflow_spec.status}")
-                if processed_steps_stats.get(WFStepStatus.done) == len(step_specs):
-                    # all steps are done, trigger re-check to update workflow status
-                    self.send_workflow_message(workflow_spec.workflow_id)
+                if (changed_steps_stats := steps_status_stats["changed"]) and changed_steps_stats.get(WFStepStatus.done):
+                    # Some steps changed to done; signal for immediate re-check
+                    process_result.immediate_recheck = True
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
@@ -1931,9 +1988,6 @@ class WorkflowInterface(object):
             case _:
                 process_result.message = f"Workflow status {workflow_spec.status} is not handled in this context; skipped"
                 tmp_log.warning(f"{process_result.message}")
-        # For changes into transient status, send message to trigger processing immediately
-        if workflow_spec.status != orig_status and workflow_spec.status in WorkflowStatus.transient_statuses:
-            self.send_workflow_message(workflow_spec.workflow_id)
         return process_result, workflow_spec
 
     # ---- Process all workflows -------------------------------------
@@ -1967,6 +2021,14 @@ class WorkflowInterface(object):
                     orig_status = workflow_spec.status
                     # Process the workflow
                     tmp_res, workflow_spec = self.process_workflow(workflow_spec)
+                    for _ in range(MAX_PROCESSING_LOOPS):
+                        prev_status = workflow_spec.status
+                        if prev_status not in WorkflowStatus.transient_statuses and not (tmp_res and tmp_res.immediate_recheck):
+                            break
+                        # For changes into transient status or explicit re-check request, process immediately in the loop again
+                        tmp_res, workflow_spec = self.process_workflow(workflow_spec)
+                        if workflow_spec.status == prev_status and not (tmp_res and tmp_res.immediate_recheck):
+                            break  # no progress made, stop retrying
                     if tmp_res and tmp_res.success:
                         # update stats
                         if tmp_res.new_status and workflow_spec.status != orig_status:

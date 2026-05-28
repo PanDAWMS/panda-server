@@ -442,11 +442,13 @@ class WorkflowProcessResult:
         success (bool | None): Indicates if the processing was successful.
         new_status (WorkflowStatus | None): The new status of the workflow after processing, None if no change.
         message (str): A message providing additional information about the processing result.
+        immediate_recheck (bool): Indicates if an immediate re-check is requested.
     """
 
     success: bool | None = None
     new_status: WorkflowStatus | None = None
     message: str = ""
+    immediate_recheck: bool = False
 
 
 # === Return objects of step handler methods ===================
