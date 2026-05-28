@@ -322,7 +322,7 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                     dn = get_dn(req)
                     prod_role = has_production_role(req)
                     resolved_buffer = task_buffer() if callable(task_buffer) else task_buffer
-                    if not resolved_buffer.validate_task_permissions(task_id, dn, prod_role):
+                    if not resolved_buffer.validate_ownership_or_production_role(task_id, dn, prod_role):
                         tmp_logger.error(MESSAGE_TASK_OWNER)
                         return generate_response(False, message=MESSAGE_TASK_OWNER)
 
