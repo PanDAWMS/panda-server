@@ -668,14 +668,24 @@ class BaseModule:
         self.cur.execute(sqlI + comment, varMap)
 
     # check if exception is from NOWAIT
-    def isNoWaitException(self, errValue):
+    def is_no_wait_exception(self, err_value: BaseException) -> bool:
+        """
+        Return True if the given exception is a lock-not-available error (NOWAIT acquisition failed).
+
+        Recognises Oracle ORA-00054 by inspecting the leading error-code token of the message,
+        and Postgres by matching psycopg2.errors.LockNotAvailable via class name (avoids importing
+        psycopg2 in code paths that may run against Oracle).
+
+        :param err_value: exception caught in an except clause
+        :return: True if the exception represents a NOWAIT lock failure, False otherwise
+        """
         # for oracle
-        ora_err_code = str(errValue).split()[0]
+        ora_err_code = str(err_value).split()[0]
         ora_err_code = ora_err_code[:-1]
         if ora_err_code == "ORA-00054":
             return True
         # for postgres
-        if type(errValue).__name__ == "LockNotAvailable":
+        if type(err_value).__name__ == "LockNotAvailable":
             return True
         return False
 
@@ -697,6 +707,27 @@ class BaseModule:
             return True
         # for postgres
         if type(err_value).__name__ == "UniqueViolation":
+            return True
+        return False
+
+    def is_deadlock_exception(self, err_value: BaseException) -> bool:
+        """
+        Return True if the given exception is a deadlock error.
+
+        Recognises Oracle ORA-00060 by inspecting the leading error-code token of the message,
+        and Postgres by matching psycopg2.errors.DeadlockDetected via class name (avoids importing
+        psycopg2 in code paths that may run against Oracle).
+
+        :param err_value: exception caught in an except clause
+        :return: True if the exception represents a deadlock, False otherwise
+        """
+        # for oracle
+        ora_err_code = str(err_value).split()[0]
+        ora_err_code = ora_err_code[:-1]
+        if ora_err_code == "ORA-00060":
+            return True
+        # for postgres
+        if type(err_value).__name__ == "DeadlockDetected":
             return True
         return False
 

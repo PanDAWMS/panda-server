@@ -195,14 +195,13 @@ class TaskStandaloneModule(BaseModule):
                         datasetSpec = JediDatasetSpec()
                         datasetSpec.pack(res)
                         taskSpec.datasetSpecList.append(datasetSpec)
-            except Exception:
-                errType, errValue = sys.exc_info()[:2]
-                if self.isNoWaitException(errValue):
+            except Exception as e:
+                if self.is_no_wait_exception(e):
                     # resource busy and acquire with NOWAIT specified
                     tmpLog.debug("skip locked")
                 else:
                     # failed with something else
-                    raise errType(errValue)
+                    raise
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -617,14 +616,13 @@ class TaskStandaloneModule(BaseModule):
                 toSkip = False
                 try:
                     self.cur.execute(sqlNW + comment, varMap)
-                except Exception:
-                    errType, errValue = sys.exc_info()[:2]
-                    if self.isNoWaitException(errValue):
+                except Exception as e:
+                    if self.is_no_wait_exception(e):
                         tmpLog.debug(f"[jediTaskID={jediTaskID}] skip to rescue since locked by another")
                         toSkip = True
                     else:
                         # failed with something else
-                        raise errType(errValue)
+                        raise
                 if not toSkip:
                     # re-lock the task
                     varMap = {}
@@ -759,14 +757,13 @@ class TaskStandaloneModule(BaseModule):
                     if resNW is None:
                         tmpLog.debug(f"[jediTaskID={jediTaskID} datasetID={datasetID}] skip since checked by another")
                         toSkip = True
-                except Exception:
-                    errType, errValue = sys.exc_info()[:2]
-                    if self.isNoWaitException(errValue):
+                except Exception as e:
+                    if self.is_no_wait_exception(e):
                         tmpLog.debug(f"[jediTaskID={jediTaskID} datasetID={datasetID}] skip since locked by another")
                         toSkip = True
                     else:
                         # failed with something else
-                        raise errType(errValue)
+                        raise
                 if not toSkip:
                     # loop over all datasets
                     allOK = True
@@ -1149,15 +1146,14 @@ class TaskStandaloneModule(BaseModule):
                 try:
                     tmpLog.debug(sqlLock + comment + str(varMap))
                     self.cur.execute(sqlLock + comment, varMap)
-                except Exception:
-                    errType, errValue = sys.exc_info()[:2]
-                    if self.isNoWaitException(errValue):
+                except Exception as e:
+                    if self.is_no_wait_exception(e):
                         # resource busy and acquire with NOWAIT specified
                         toSkip = True
                         tmpLog.debug(f"skip locked jediTaskID={jediTaskID}")
                     else:
                         # failed with something else
-                        raise errType(errValue)
+                        raise
                 if not toSkip:
                     resLock = self.cur.fetchone()
                     if resLock is None:
