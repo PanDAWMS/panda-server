@@ -87,9 +87,9 @@ class PostProcessor(JediKnight, FactoryBase):
 class PostProcessorThread(WorkerThread):
     # constructor
     def __init__(self, taskList, threadPool, taskbufferIF, ddmIF, implFactory):
-        # initialize woker with no semaphore
+        # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
-        # attributres
+        # attributes
         self.taskList = taskList
         self.taskBufferIF = taskbufferIF
         self.ddmIF = ddmIF
