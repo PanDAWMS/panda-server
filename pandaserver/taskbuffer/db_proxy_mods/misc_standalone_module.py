@@ -3382,10 +3382,9 @@ class MiscStandaloneModule(BaseModule):
                                 query_list.append((sql, var_map))
                                 try:
                                     self.cur.execute(sql + comment, var_map)
-                                except Exception:
-                                    errType, errValue = sys.exc_info()[:2]
-                                    if self.isNoWaitException(errValue):
-                                        tmp_log.error(f'failed to execute "{sql}" var={str(var_map)}, due to skip locking items')
+                                except Exception as e:
+                                    if self.is_no_wait_exception(e):
+                                        tmp_log.debug(f'failed to execute "{sql}" var={str(var_map)}, due to skip locking items')
                                     else:
                                         tmp_log.error(f'failed to execute "{sql}" var={str(var_map)}')
                                         self.dump_error_message(tmp_log)
