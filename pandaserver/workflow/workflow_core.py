@@ -37,6 +37,7 @@ from pandaserver.workflow.workflow_base import (
     WorkflowSpec,
     WorkflowStatus,
 )
+from pandaserver.workflow.workflow_native_utils import extract_child_workflow_definition
 from pandaserver.workflow.workflow_parser import (
     json_serialize_default,
     parse_raw_request,
@@ -422,6 +423,14 @@ class WorkflowInterface(object):
                     for data_spec in data_specs:
                         if not self.cancel_data(data_spec.data_id, force):
                             all_cancelled = False
+                # Cancel child workflows (sub-workflow steps handle their own children via cancel_step, but any child workflow registered before the step was cancelled also needs cleanup)
+                child_workflows = self.tbif.get_child_workflows(workflow_spec.workflow_id)
+                if child_workflows:
+                    for child in child_workflows:
+                        if child.status not in WorkflowStatus.final_statuses:
+                            if not self.cancel_workflow(child.workflow_id, force=force):
+                                tmp_log.warning(f"Failed to cancel child workflow {child.workflow_id}")
+                                all_cancelled = False
                 # Update workflow status to cancelled if all steps and data are cancelled
                 if not all_cancelled and not force:
                     tmp_log.warning(f"Not all steps and data could be cancelled; skipped updating workflow status")
@@ -465,18 +474,29 @@ class WorkflowInterface(object):
                 if step_spec.status in WFStepStatus.final_statuses:
                     tmp_log.debug(f"Step already in final status {step_spec.status}; skipped")
                     return True
-                # Call plugin to cancel the target of the step
+                # Cancel the target — native handling for sub-workflow, plugin for ordinary steps
                 target_is_cancelled = False
-                step_handler = self.get_plugin("step_handler", step_spec.flavor)
-                if step_handler is None:
-                    tmp_log.warning(f"Step handler plugin not found for flavor {step_spec.flavor}; skipped target cancellation")
-                else:
-                    cancel_result = step_handler.cancel_target(step_spec)
-                    if not cancel_result.success:
-                        tmp_log.warning(f"Failed to cancel target with plugin {step_spec.flavor}; got message: {cancel_result.message}")
+                if step_spec.type == WFStepType.sub_workflow:
+                    if step_spec.target_id:
+                        child_cancelled = self.cancel_workflow(int(step_spec.target_id), force=force)
+                        if child_cancelled:
+                            target_is_cancelled = True
+                        else:
+                            tmp_log.warning(f"Failed to cancel child workflow {step_spec.target_id}")
                     else:
-                        tmp_log.debug(f"Cancelled target with flavor {step_spec.flavor}")
+                        # child workflow not yet created; nothing to cancel
                         target_is_cancelled = True
+                else:
+                    step_handler = self.get_plugin("step_handler", step_spec.flavor)
+                    if step_handler is None:
+                        tmp_log.warning(f"Step handler plugin not found for flavor {step_spec.flavor}; skipped target cancellation")
+                    else:
+                        cancel_result = step_handler.cancel_target(step_spec)
+                        if not cancel_result.success:
+                            tmp_log.warning(f"Failed to cancel target with plugin {step_spec.flavor}; got message: {cancel_result.message}")
+                        else:
+                            tmp_log.debug(f"Cancelled target with flavor {step_spec.flavor}")
+                            target_is_cancelled = True
                 # Update step status to cancelled
                 if not target_is_cancelled and not force:
                     tmp_log.warning(f"Target not cancelled; skipped updating step status")
@@ -1040,6 +1060,99 @@ class WorkflowInterface(object):
             tmp_log.debug("All input data are sufficient as input")
         return ret_dict
 
+    def _submit_sub_workflow(self, step_spec: WFStepSpec) -> WFStepTargetSubmitResult:
+        """
+        Create and register a child WorkflowSpec for a sub-workflow step.
+
+        Resolves the actual dataset names from the parent workflow's data specs and injects
+        them as root_inputs into the child workflow definition before registering it.
+
+        Args:
+            step_spec (WFStepSpec): The sub-workflow step specification
+
+        Returns:
+            WFStepTargetSubmitResult: Result with target_id = child workflow_id on success
+        """
+        result = WFStepTargetSubmitResult()
+        step_definition = step_spec.definition_json_map
+        child_definition = step_definition.get("child_workflow_definition")
+        if not child_definition:
+            result.message = "Step definition missing child_workflow_definition"
+            return result
+        # Fetch parent workflow data to resolve actual dataset names (target_ids)
+        parent_workflow = self.tbif.get_workflow(step_spec.workflow_id)
+        if parent_workflow is None:
+            result.message = f"Failed to get parent workflow {step_spec.workflow_id}"
+            return result
+        data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
+        data_spec_map = {ds.name: ds for ds in data_specs} if data_specs else {}
+        # Build root_inputs: map each workflow node input name to the resolved dataset name
+        child_root_inputs = {}
+        for input_name, input_data in step_definition.get("inputs", {}).items():
+            source = input_data.get("source") if isinstance(input_data, dict) else None
+            if source is None:
+                continue
+            sources = source if isinstance(source, list) else [source]
+            for src in sources:
+                if src in data_spec_map and data_spec_map[src].target_id:
+                    child_root_inputs[input_name] = data_spec_map[src].target_id
+                    break
+        child_definition = copy.deepcopy(child_definition)
+        child_definition["root_inputs"] = child_root_inputs
+        child_definition["user_name"] = step_definition.get("user_name")
+        # Build and register the child WorkflowSpec
+        child_spec = WorkflowSpec()
+        child_spec.parent_id = step_spec.workflow_id
+        child_spec.name = child_definition.get("workflow_name") or step_spec.name
+        child_spec.prodsourcelabel = parent_workflow.prodsourcelabel
+        child_spec.username = parent_workflow.username
+        child_spec.status = WorkflowStatus.checked  # definition is already resolved; skip parsing
+        child_spec.definition_json = json.dumps(child_definition, default=json_serialize_default)
+        child_spec.creation_time = naive_utcnow()
+        child_workflow_id = self.tbif.insert_workflow(child_spec)
+        if child_workflow_id is None:
+            result.message = "Failed to insert child workflow into DB"
+            return result
+        result.success = True
+        result.target_id = str(child_workflow_id)
+        return result
+
+    def _check_sub_workflow(self, step_spec: WFStepSpec) -> WFStepTargetCheckResult:
+        """
+        Check the status of a child workflow and map it to a WFStepStatus.
+
+        Args:
+            step_spec (WFStepSpec): The sub-workflow step specification (target_id = child workflow_id)
+
+        Returns:
+            WFStepTargetCheckResult: Result with step_status mapped from child workflow status
+        """
+        result = WFStepTargetCheckResult()
+        if not step_spec.target_id:
+            result.message = "sub_workflow step has no target_id (child workflow not yet submitted)"
+            return result
+        child_workflow_id = int(step_spec.target_id)
+        child_workflow = self.tbif.get_workflow(child_workflow_id)
+        if child_workflow is None:
+            result.message = f"Child workflow {child_workflow_id} not found"
+            return result
+        native_status = child_workflow.status
+        # Map child workflow status to WFStepStatus
+        if native_status == WorkflowStatus.done:
+            step_status = WFStepStatus.done
+        elif native_status == WorkflowStatus.running:
+            step_status = WFStepStatus.running
+        elif native_status in WorkflowStatus.final_statuses:
+            # failed or cancelled
+            step_status = WFStepStatus.failed
+        else:
+            # registered, parsed, checking, checked, starting → still starting from parent's perspective
+            step_status = WFStepStatus.starting
+        result.success = True
+        result.step_status = step_status
+        result.native_status = native_status
+        return result
+
     def process_step_registered(self, step_spec: WFStepSpec) -> WFStepProcessResult:
         """
         Process a step in registered status
@@ -1320,14 +1433,16 @@ class WorkflowInterface(object):
             return process_result
         # Process
         try:
-            # Get the step handler plugin
-            step_handler = self.get_plugin("step_handler", step_spec.flavor)
-            if step_handler is None:
-                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
-                tmp_log.error(f"{process_result.message}")
-                return process_result
-            # Submit the step target
-            submit_result = step_handler.submit_target(step_spec)
+            # Submit the step target — native handling for sub-workflow, plugin for ordinary steps
+            if step_spec.type == WFStepType.sub_workflow:
+                submit_result = self._submit_sub_workflow(step_spec)
+            else:
+                step_handler = self.get_plugin("step_handler", step_spec.flavor)
+                if step_handler is None:
+                    process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                    tmp_log.error(f"{process_result.message}")
+                    return process_result
+                submit_result = step_handler.submit_target(step_spec)
             if not submit_result.success or submit_result.target_id is None:
                 process_result.message = f"Failed to submit step target; {submit_result.message}"
                 tmp_log.error(f"{process_result.message}")
@@ -1338,7 +1453,7 @@ class WorkflowInterface(object):
             self.tbif.update_workflow_step(step_spec)
             process_result.success = True
             process_result.new_status = step_spec.status
-            tmp_log.info(f"Done, submitted target flavor={step_spec.flavor} target_id={step_spec.target_id}, status={step_spec.status}")
+            tmp_log.info(f"Done, submitted target type={step_spec.type} flavor={step_spec.flavor} target_id={step_spec.target_id}, status={step_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
@@ -1383,22 +1498,24 @@ class WorkflowInterface(object):
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Check if all input data are good
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
-            # Get the step handler plugin
-            step_handler = self.get_plugin("step_handler", step_spec.flavor)
-            if step_handler is None:
-                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
-                tmp_log.error(f"{process_result.message}")
-                return process_result
-            # Check the step status
-            check_result = step_handler.check_target(step_spec)
+            # Check the step status — native handling for sub-workflow, plugin for ordinary steps
+            if step_spec.type == WFStepType.sub_workflow:
+                check_result = self._check_sub_workflow(step_spec)
+            else:
+                step_handler = self.get_plugin("step_handler", step_spec.flavor)
+                if step_handler is None:
+                    process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                    tmp_log.error(f"{process_result.message}")
+                    return process_result
+                check_result = step_handler.check_target(step_spec)
+                # If all inputs are complete, mark in step_spec and call the hook of step_handler
+                if all_inputs_stats["all_inputs_complete"]:
+                    step_spec.set_parameter("all_inputs_complete", True)
+                    step_handler.on_all_inputs_done(step_spec)
             if not check_result.success or check_result.step_status is None:
                 process_result.message = f"Failed to check step; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
-            # If all inputs are complete, mark in step_spec and call the hook of step_handler
-            if all_inputs_stats["all_inputs_complete"]:
-                step_spec.set_parameter("all_inputs_complete", True)
-                step_handler.on_all_inputs_done(step_spec)
             # Update step status
             if check_result.step_status in WFStepStatus.after_starting_statuses:
                 # Step status advanced
@@ -1419,7 +1536,7 @@ class WorkflowInterface(object):
                 step_spec.end_time = now_time
             self.tbif.update_workflow_step(step_spec)
             process_result.success = True
-            tmp_log.info(f"Checked step, flavor={step_spec.flavor}, target_id={step_spec.target_id}, status={step_spec.status}")
+            tmp_log.info(f"Checked step, type={step_spec.type}, target_id={step_spec.target_id}, status={step_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
@@ -1464,22 +1581,24 @@ class WorkflowInterface(object):
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Check if all input data are good
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
-            # Get the step handler plugin
-            step_handler = self.get_plugin("step_handler", step_spec.flavor)
-            if step_handler is None:
-                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
-                tmp_log.error(f"{process_result.message}")
-                return process_result
-            # Check the step status
-            check_result = step_handler.check_target(step_spec)
+            # Check the step status — native handling for sub-workflow, plugin for ordinary steps
+            if step_spec.type == WFStepType.sub_workflow:
+                check_result = self._check_sub_workflow(step_spec)
+            else:
+                step_handler = self.get_plugin("step_handler", step_spec.flavor)
+                if step_handler is None:
+                    process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                    tmp_log.error(f"{process_result.message}")
+                    return process_result
+                check_result = step_handler.check_target(step_spec)
+                # If all inputs are complete, mark in step_spec and call the hook of step_handler
+                if all_inputs_stats["all_inputs_complete"]:
+                    step_spec.set_parameter("all_inputs_complete", True)
+                    step_handler.on_all_inputs_done(step_spec)
             if not check_result.success or check_result.step_status is None:
                 process_result.message = f"Failed to check step; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
-            # If all inputs are complete, mark in step_spec and call the hook of step_handler
-            if all_inputs_stats["all_inputs_complete"]:
-                step_spec.set_parameter("all_inputs_complete", True)
-                step_handler.on_all_inputs_done(step_spec)
             # Update step status
             if check_result.step_status in WFStepStatus.after_running_statuses:
                 # Step status advanced
@@ -1728,8 +1847,17 @@ class WorkflowInterface(object):
                 data_spec.flavor = "ddm_collection"  # FIXME: hardcoded flavor, should be configurable
                 data_spec.creation_time = now_time
                 data_specs.append(data_spec)
+            # collect IDs of all nodes that are sub-nodes of workflow-type nodes; they are
+            # registered as part of the child workflow, not as direct steps of this workflow
+            sub_node_ids = set()
+            for node in workflow_definition["nodes"]:
+                if node.get("type") == "workflow":
+                    sub_node_ids.update(node.get("sub_nodes") or [])
             # Register steps and their intermediate outputs based on nodes in the definition
             for node in workflow_definition["nodes"]:
+                # skip nodes that belong to a nested sub-workflow
+                if node["id"] in sub_node_ids:
+                    continue
                 # FIXME: not yet consider scatter, condition, loop, etc.
                 if not (node.get("condition") or node.get("scatter") or node.get("loop")):
                     step_spec = WFStepSpec()
@@ -1737,8 +1865,13 @@ class WorkflowInterface(object):
                     step_spec.member_id = node["id"]
                     step_spec.name = node["name"]
                     step_spec.status = WFStepStatus.registered
-                    step_spec.type = WFStepType.ordinary
-                    step_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
+                    is_sub_workflow = node.get("type") == "workflow"
+                    if is_sub_workflow:
+                        step_spec.type = WFStepType.sub_workflow
+                        step_spec.flavor = "sub_workflow"
+                    else:
+                        step_spec.type = WFStepType.ordinary
+                        step_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
                     # step definition
                     step_definition = copy.deepcopy(node)
                     # propagate user name and DN from workflow to step
@@ -1763,6 +1896,9 @@ class WorkflowInterface(object):
                         output_data_dict[output_name] = output_value.get("value")
                     step_definition["input_data_dict"] = input_data_dict
                     step_definition["output_data_list"] = list(output_data_dict.keys())
+                    if is_sub_workflow:
+                        # embed the child workflow definition for use at submit time
+                        step_definition["child_workflow_definition"] = extract_child_workflow_definition(node, workflow_definition["nodes"])
                     step_spec.definition_json_map = step_definition
                     step_spec.creation_time = now_time
                     step_specs.append(step_spec)
@@ -1934,7 +2070,14 @@ class WorkflowInterface(object):
             if (processed_steps_stats := steps_status_stats["processed"]) and (
                 processed_steps_stats.get(WFStepStatus.failed) or processed_steps_stats.get(WFStepStatus.cancelled)
             ):
-                # TODO: cancel all unfinished steps
+                # Cancel child workflows whose sub_workflow steps just failed or were cancelled
+                for step_spec in step_specs:
+                    if step_spec.type == WFStepType.sub_workflow and step_spec.status in (WFStepStatus.failed, WFStepStatus.cancelled) and step_spec.target_id:
+                        child_wf_id = int(step_spec.target_id)
+                        child_wf = self.tbif.get_workflow(child_wf_id)
+                        if child_wf and child_wf.status not in WorkflowStatus.final_statuses:
+                            self.cancel_workflow(child_wf_id, force=True)
+                # TODO: cancel all unfinished ordinary steps
                 # self.cancel_step(...)
                 # mark workflow as failed
                 tmp_log.warning(f"workflow failed due to some steps failed or cancelled")

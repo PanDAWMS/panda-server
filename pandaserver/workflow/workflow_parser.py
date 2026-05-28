@@ -153,9 +153,37 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                                 yaml = YAML(typ="safe", pure=True)
                                 wfd = yaml.load(workflow_spec)
                             workflow_name = wfd.get("name")
-                            nodes, root_in = workflow_native_utils.parse_workflow_data(wfd, tmp_log)
+                            id_counter = [0]
+                            nodes, root_in = workflow_native_utils.parse_workflow_data(wfd, tmp_log, _id_counter=id_counter)
                             data = wfd.get("inputs", dict())
                             workflow_options = wfd.get("options", None)
+                            # Resolve reference-based sub-workflow nodes (workflow_ref field)
+                            named_blocks = wfd.get("workflow_blocks", {})
+                            for node in list(nodes):
+                                if node.workflow_ref is None:
+                                    continue
+                                ref = node.workflow_ref
+                                ref_data = None
+                                # named block in the same file
+                                if ref in named_blocks:
+                                    ref_data = named_blocks[ref]
+                                else:
+                                    # external YAML file in the same sandbox directory
+                                    ref_path = os.path.join(tmp_dirname, ref)
+                                    if os.path.isfile(ref_path):
+                                        with open(ref_path) as ref_file:
+                                            yaml2 = YAML(typ="safe", pure=True)
+                                            ref_data = yaml2.load(ref_file)
+                                    else:
+                                        tmp_log.error(f"workflow_ref '{ref}' not found as a named block or file")
+                                        is_fatal = True
+                                        is_ok = False
+                                        break
+                                if ref_data is not None:
+                                    child_nodes, _ = workflow_native_utils.parse_workflow_data(ref_data, tmp_log, _id_counter=id_counter)
+                                    node.sub_nodes = {child_node.id for child_node in child_nodes}
+                                    node.workflow_ref = None
+                                    nodes.extend(child_nodes)
                         elif wf_lang == "cwl":
                             workflow_name = raw_request_dict.get("workflow_name")
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])

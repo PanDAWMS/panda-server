@@ -119,6 +119,7 @@ class WFStepType(object):
 
     ...
     ordinary = "ordinary"
+    sub_workflow = "sub_workflow"
 
 
 class WFDataType(object):

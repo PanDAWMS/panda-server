@@ -57,6 +57,31 @@ class WorkflowModule(BaseModule):
             tmp_log.warning("no workflow found; skipped")
             return None
 
+    def get_child_workflows(self, parent_id: int) -> list:
+        """
+        Retrieve all child workflows of a given parent workflow
+
+        Args:
+            parent_id (int): ID of the parent workflow
+
+        Returns:
+            list[WorkflowSpec]: List of child workflow specifications (may be empty)
+        """
+        comment = " /* DBProxy.get_child_workflows */"
+        tmp_log = self.create_tagged_logger(comment, f"parent_id={parent_id}")
+        sql = f"SELECT {WorkflowSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflows " f"WHERE parent_id=:parent_id "
+        var_map = {":parent_id": parent_id}
+        self.cur.execute(sql + comment, var_map)
+        res_list = self.cur.fetchall()
+        child_specs = []
+        if res_list is not None:
+            for res in res_list:
+                workflow_spec = WorkflowSpec()
+                workflow_spec.pack(res)
+                child_specs.append(workflow_spec)
+        tmp_log.debug(f"got {len(child_specs)} child workflows")
+        return child_specs
+
     def get_workflow_step(self, step_id: int) -> WFStepSpec | None:
         """
         Retrieve a workflow step specification by its ID

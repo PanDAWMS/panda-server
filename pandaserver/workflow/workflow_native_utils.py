@@ -64,6 +64,7 @@ class Node(object):
         self.loop = False
         self.in_loop = False
         self.upper_root_inputs = None
+        self.workflow_ref = None  # path or named block reference for type="workflow" nodes
 
     def add_parent(self, id):
         self.parents.add(id)
@@ -797,8 +798,33 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
     return serial_id, tail_nodes, all_nodes
 
 
+def extract_child_workflow_definition(workflow_node: dict, all_nodes: list) -> dict:
+    """
+    Build a child workflow definition dict from a workflow-type node and its sub-nodes.
+
+    Args:
+        workflow_node (dict): Serialised Node dict (from vars(node)) with type="workflow"
+        all_nodes (list): Full list of serialised Node dicts from the parent workflow definition
+
+    Returns:
+        dict: Child workflow definition with keys workflow_name, root_inputs, root_outputs, nodes
+    """
+    sub_node_ids = set(workflow_node.get("sub_nodes", []))
+    child_nodes = [n for n in all_nodes if n["id"] in sub_node_ids]
+    return {
+        "workflow_name": workflow_node.get("name"),
+        "root_inputs": workflow_node.get("root_inputs") or {},
+        "root_outputs": workflow_node.get("outputs") or {},
+        "nodes": child_nodes,
+    }
+
+
 # parse workflow data for native YAML workflow
-def parse_workflow_data(data, log_stream):
+def parse_workflow_data(data, log_stream, _id_counter=None):
+    # _id_counter is a mutable [int] shared across recursive calls to guarantee unique node IDs
+    if _id_counter is None:
+        _id_counter = [0]
+
     # Handle both nested (workflow:{...}) and flat ({...}) structures
     workflow_data = data.get("workflow", data)
 
@@ -811,11 +837,12 @@ def parse_workflow_data(data, log_stream):
     steps = workflow_data.get("steps", {})
     node_list = []
     node_name_map = {}
-    serial_id = 0
+    all_child_nodes = []  # child nodes from inline sub-workflows, to be merged at the end
 
     # first pass: create all nodes
     for step_name, step_spec in steps.items():
-        serial_id += 1
+        _id_counter[0] += 1
+        serial_id = _id_counter[0]
         step_type = step_spec.get("type", "prun")
         is_leaf = step_type in ["prun", "phpo", "junction", "reana", "gitlab"]
         node = Node(serial_id, step_type, None, is_leaf, step_name)
@@ -841,10 +868,26 @@ def parse_workflow_data(data, log_stream):
         node.inputs = inputs
         node.outputs = {f"{step_name}/outDS": {}}
         node.is_tail = step_name in tail_node_names
+
+        # handle sub-workflow nodes
+        if step_type == "workflow":
+            node.root_inputs = step_spec.get("inputs", {})
+            if "steps" in step_spec:
+                # inline sub-workflow: recursively parse the nested steps block
+                child_nodes, _ = parse_workflow_data(step_spec, log_stream, _id_counter=_id_counter)
+                node.sub_nodes = {child_node.id for child_node in child_nodes}
+                all_child_nodes.extend(child_nodes)
+            elif "workflow_ref" in step_spec:
+                # reference-based sub-workflow: mark for later resolution by the caller
+                node.workflow_ref = step_spec["workflow_ref"]
+
         node_list.append(node)
 
+    # merge child nodes so they are visible for parent resolution
+    combined_node_list = node_list + all_child_nodes
+
     # second pass: resolve parent relationships; note that the parent_id is not used in core workflow execution but only for parameter resolution
-    for node in node_list:
+    for node in combined_node_list:
         for input_name, input_data in node.inputs.items():
             source = input_data.get("source")
             if not source:
@@ -873,21 +916,21 @@ def parse_workflow_data(data, log_stream):
                 if parent_ids:
                     input_data["parent_id"] = parent_ids
 
-    # topological sort
+    # topological sort over all nodes (parents + child nodes together)
     visited = set()
     sorted_nodes = []
+    node_id_map = {n.id: n for n in combined_node_list}
 
     def visit(n):
         if n.id in visited:
             return
         for parent_id in n.parents:
-            for other in node_list:
-                if other.id == parent_id:
-                    visit(other)
+            if parent_id in node_id_map:
+                visit(node_id_map[parent_id])
         visited.add(n.id)
         sorted_nodes.append(n)
 
-    for node in node_list:
+    for node in combined_node_list:
         visit(node)
 
     return sorted_nodes, root_inputs
