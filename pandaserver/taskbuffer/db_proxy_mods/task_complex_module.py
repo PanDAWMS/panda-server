@@ -3862,7 +3862,14 @@ class TaskComplexModule(BaseModule):
                             use_exhausted = False
                         else:
                             use_exhausted = True
-                        scoutSucceeded, mergeScoutSucceeded = get_task_utils_module(self).setScoutJobData_JEDI(taskSpec, False, use_exhausted, site_mapper)
+                        try:
+                            scoutSucceeded, mergeScoutSucceeded = get_task_utils_module(self).setScoutJobData_JEDI(taskSpec, False, use_exhausted, site_mapper)
+                        except Exception as e:
+                            if self.is_deadlock_exception(e):
+                                tmpLog.warning(f"skip jediTaskID={jediTaskID} due to deadlock")
+                                self._rollback()
+                                continue
+                            raise
                         if jediTaskID in set_scout_data_only:
                             toSkip = True
                             tmpLog.debug(f"done set only scout data for jediTaskID={jediTaskID} in status={taskSpec.status}")
