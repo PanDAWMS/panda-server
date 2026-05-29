@@ -3922,21 +3922,21 @@ class TaskEventModule(BaseModule):
             # insert command
             if comComment is None:
                 qualifier_prefix = f"{comQualifier} " if comQualifier else ""
-                comm_comment = f"{qualifier_prefix}{comStr} by {compact_dn}"
+                comment = f"{qualifier_prefix}{comStr} by {compact_dn}"
             else:
-                comm_comment = comComment
+                comment = comComment
 
             sql_insert_command = (
                 f"INSERT INTO {panda_config.schemaDEFT}.PRODSYS_COMM (COMM_TASK, COMM_OWNER, COMM_CMD, COMM_COMMENT) "
-                "VALUES (:jediTaskID, :comm_owner, :comm_cmd, :comm_comment) "
+                "VALUES (:jediTaskID, :owner, :command, :comment) "
             )
             self.cur.execute(
                 sql_insert_command + comment,
                 {
                     ":jediTaskID": jediTaskID,
-                    ":comm_cmd": comStr,
-                    ":comm_owner": "DEFT",
-                    ":comm_comment": comm_comment,
+                    ":command": comStr,
+                    ":owner": "DEFT",
+                    ":comment": comment,
                 },
             )
             return_message = f"command={comStr} is registered. will be executed in a few minutes"
