@@ -3916,7 +3916,7 @@ class TaskEventModule(BaseModule):
             sendMsgToPilot = comStr in ("kill", "finish") and broadcast
 
             # delete command just in case
-            sql_delete_command = f"DELETE FROM {panda_config.schemaJEDI}.PRODSYS_COMM " "WHERE COMM_TASK=:jediTaskID "
+            sql_delete_command = f"DELETE FROM {panda_config.schemaDEFT}.PRODSYS_COMM " "WHERE COMM_TASK=:jediTaskID "
             self.cur.execute(sql_delete_command + comment, {":jediTaskID": jediTaskID})
 
             # insert command
@@ -3927,7 +3927,7 @@ class TaskEventModule(BaseModule):
                 comm_comment = comComment
 
             sql_insert_command = (
-                f"INSERT INTO {panda_config.schemaJEDI}.PRODSYS_COMM (COMM_TASK, COMM_OWNER, COMM_CMD, COMM_COMMENT) "
+                f"INSERT INTO {panda_config.schemaDEFT}.PRODSYS_COMM (COMM_TASK, COMM_OWNER, COMM_CMD, COMM_COMMENT) "
                 "VALUES (:jediTaskID, :comm_owner, :comm_cmd, :comm_comment) "
             )
             self.cur.execute(
