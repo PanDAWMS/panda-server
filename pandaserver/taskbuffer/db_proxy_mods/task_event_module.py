@@ -3425,10 +3425,10 @@ class TaskEventModule(BaseModule):
         comment = " /* JediDBProxy.insertTaskParamsPanda */"
         try:
             # get compact DN
-            compactDN = CoreUtils.clean_user_id(dn)
-            if compactDN in ["", "NULL", None]:
-                compactDN = dn
-            tmp_log = self.create_tagged_logger(comment, f"userName={compactDN}")
+            compact_dn = CoreUtils.clean_user_id(dn)
+            if compact_dn in ["", "NULL", None]:
+                compact_dn = dn
+            tmp_log = self.create_tagged_logger(comment, f"userName={compact_dn}")
             tmp_log.debug(f"start")
 
             # decode json
@@ -3439,7 +3439,7 @@ class TaskEventModule(BaseModule):
 
             # set user name
             if not prodRole or "userName" not in taskParamsJson:
-                taskParamsJson["userName"] = compactDN
+                taskParamsJson["userName"] = compact_dn
             # identify parent
             if "parentTaskName" in taskParamsJson:
                 parent_tid = self.get_parent_task_id_with_name(taskParamsJson["userName"], taskParamsJson["parentTaskName"])
@@ -3877,10 +3877,10 @@ class TaskEventModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         try:
             # get compact DN
-            compactDN = CoreUtils.clean_user_id(dn)
-            if compactDN in ["", "NULL", None]:
-                compactDN = dn
-            tmp_log.debug(f"start com={comStr} DN={compactDN} prod={prodRole} comment={comComment} qualifier={comQualifier} broadcast={broadcast}")
+            compact_dn = CoreUtils.clean_user_id(dn)
+            if compact_dn in ["", "NULL", None]:
+                compact_dn = dn
+            tmp_log.debug(f"start com={comStr} DN={compact_dn} prod={prodRole} comment={comComment} qualifier={comQualifier} broadcast={broadcast}")
 
             if useCommit:
                 self.conn.begin()
@@ -3890,30 +3890,30 @@ class TaskEventModule(BaseModule):
             self.cur.execute(sql_task_status + comment, {":jediTaskID": jediTaskID})
             result_task_status = self.cur.fetchone()
             if result_task_status is None:
-                retStr = f"jediTaskID={jediTaskID} not found"
-                tmp_log.debug(retStr)
+                return_message = f"jediTaskID={jediTaskID} not found"
+                tmp_log.debug(return_message)
                 if useCommit:
                     self._commit()
-                return (2, retStr) if properErrorCode else (False, retStr)
+                return (2, return_message) if properErrorCode else (False, return_message)
 
-            taskStatus, prodSourceLabel = result_task_status
-            tmp_log.debug(f"status={taskStatus}")
+            task_status, prodSourceLabel = result_task_status
+            tmp_log.debug(f"status={task_status}")
 
             # check command is valid for the current task status
-            allowed, add_msg = self._check_command_allowed(comStr, taskStatus, prodRole, comComment)
+            allowed, add_msg = self._check_command_allowed(comStr, task_status, prodRole, comComment)
             if not allowed:
-                retCode = 4
-                retStr = f"Command rejected: the {comStr} command is not accepted if the task is in {taskStatus} status {add_msg}"
-                tmp_log.debug(retStr)
+                return_code = 4
+                return_message = f"Command rejected: the {comStr} command is not accepted if the task is in {task_status} status {add_msg}"
+                tmp_log.debug(return_message)
                 # retry for failed analysis jobs
-                if comStr == "retry" and properErrorCode and taskStatus in ("running", "scouting", "pending") and prodSourceLabel == "user":
-                    retCode = 5
-                    retStr = taskStatus
+                if comStr == "retry" and properErrorCode and task_status in ("running", "scouting", "pending") and prodSourceLabel == "user":
+                    return_code = 5
+                    return_message = task_status
                 if useCommit:
                     self._commit()
-                return (retCode, retStr) if properErrorCode else (False, retStr)
+                return (return_code, return_message) if properErrorCode else (False, return_message)
 
-            sendMsgToPilot = comStr in ("kill", "finish") and broadcast
+            notify_pilot = comStr in ("kill", "finish") and broadcast
 
             # delete command just in case
             sql_delete_command = f"DELETE FROM {panda_config.schemaDEFT}.PRODSYS_COMM " "WHERE COMM_TASK=:jediTaskID "
@@ -3922,7 +3922,7 @@ class TaskEventModule(BaseModule):
             # insert command
             if comComment is None:
                 qualifier_prefix = f"{comQualifier} " if comQualifier else ""
-                comm_comment = f"{qualifier_prefix}{comStr} by {compactDN}"
+                comm_comment = f"{qualifier_prefix}{comStr} by {compact_dn}"
             else:
                 comm_comment = comComment
 
@@ -3939,15 +3939,15 @@ class TaskEventModule(BaseModule):
                     ":comm_comment": comm_comment,
                 },
             )
-            retStr = f"command={comStr} is registered. will be executed in a few minutes"
-            tmp_log.info(retStr)
+            return_message = f"command={comStr} is registered. will be executed in a few minutes"
+            tmp_log.info(return_message)
 
             if useCommit:
                 if not self._commit():
                     raise RuntimeError("Commit error")
 
             # send command to the pilot
-            if sendMsgToPilot:
+            if notify_pilot:
                 mb_proxy_topic = self.get_mb_proxy("panda_pilot_topic")
                 if mb_proxy_topic:
                     tmp_log.debug(f"push {comStr}")
@@ -3955,7 +3955,7 @@ class TaskEventModule(BaseModule):
                 else:
                     tmp_log.debug("message topic not configured")
 
-            return (0, retStr) if properErrorCode else (True, retStr)
+            return (0, return_message) if properErrorCode else (True, return_message)
 
         except Exception:
             # roll back
@@ -3975,9 +3975,9 @@ class TaskEventModule(BaseModule):
         tmp_log.debug(f"DN={dn} range={timeRange.strftime('%Y-%m-%d %H:%M:%S')} full={fullFlag}")
         try:
             # get compact DN
-            compactDN = CoreUtils.clean_user_id(dn)
-            if compactDN in ["", "NULL", None]:
-                compactDN = dn
+            compact_dn = CoreUtils.clean_user_id(dn)
+            if compact_dn in ["", "NULL", None]:
+                compact_dn = dn
             # make sql
             attrList = [
                 "jediTaskID",
@@ -4002,7 +4002,7 @@ class TaskEventModule(BaseModule):
             sql += f" FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sql += "WHERE userName=:userName AND modificationTime>=:modificationTime AND prodSourceLabel=:prodSourceLabel "
             varMap = {}
-            varMap[":userName"] = compactDN
+            varMap[":userName"] = compact_dn
             varMap[":prodSourceLabel"] = task_type
             varMap[":modificationTime"] = timeRange
             if minTaskID is not None:
