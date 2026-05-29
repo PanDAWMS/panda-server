@@ -116,36 +116,42 @@ class PandaTaskDataHandler(BaseDataHandler):
                 tmp_log.info(f"Source step step_id={source_step_spec.step_id} status={source_step_spec.status}; checking data availability")
         else:
             tmp_log.info("No source step yet; checking data availability")
-        # Without source step or source step not terminated; check number of files in DDM collections
+        # Without source step or source step not terminated; check number of files and state of DDM collections
         total_n_files = 0
         none_exist = True
+        all_existing_closed = True
         output_types = data_spec.get_parameter("output_types")
         if output_types is None:
             output_types = []
         for output_type in output_types:
             collection = f"{data_spec.target_id}_{output_type}"
-            tmp_stat, tmp_res = self.ddm_if.get_number_of_files(collection)
-            if tmp_stat is None:
-                tmp_log.debug(f"Collection {collection} does not exist")
-            elif not tmp_stat:
-                # Error in getting number of files
+            collection_meta = self.ddm_if.get_dataset_metadata(collection, ignore_missing=True)
+            if collection_meta is None:
                 check_result.success = False
-                check_result.message = f"Failed to get number of files for collection {collection}: {tmp_res}"
+                check_result.message = f"Failed to get metadata for collection {collection}"
                 tmp_log.error(f"{check_result.message}")
                 return check_result
-            else:
-                none_exist = False
-                n_files = tmp_res
-                total_n_files += n_files
-                tmp_log.debug(f"Got collection {collection} n_files={n_files}")
-        # Check number of files
+            collection_state = collection_meta.get("state")
+            if collection_state == DDMCollectionState.missing:
+                tmp_log.debug(f"Collection {collection} does not exist")
+                continue
+            none_exist = False
+            n_files = collection_meta.get("length", 0)
+            total_n_files += n_files
+            if collection_state != DDMCollectionState.closed:
+                all_existing_closed = False
+            tmp_log.debug(f"Got collection {collection} n_files={n_files} state={collection_state}")
+        # Check number of files and collection state
         if none_exist:
             check_result.check_status = WFDataTargetCheckStatus.nonexist
+        elif all_existing_closed and total_n_files > 0:
+            # All existing collections are closed and non-empty; data is complete
+            check_result.check_status = WFDataTargetCheckStatus.complete
         elif allow_partial_inputs and total_n_files >= min_input_files:
             # At least min_input_files files for step input
             check_result.check_status = WFDataTargetCheckStatus.suffice
         else:
             check_result.check_status = WFDataTargetCheckStatus.insuffi
         check_result.success = True
-        tmp_log.info(f"Got total_n_files={total_n_files}; check_status={check_result.check_status}")
+        tmp_log.info(f"Got total_n_files={total_n_files} all_existing_closed={all_existing_closed}; check_status={check_result.check_status}")
         return check_result

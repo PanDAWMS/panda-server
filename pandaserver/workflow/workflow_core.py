@@ -1970,6 +1970,16 @@ class WorkflowInterface(object):
             step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_filter_list=required_step_statuses)
             over_advanced_step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_filter_list=over_advanced_step_statuses)
             if not step_specs:
+                # Check if all steps are already in final statuses (e.g., all closed or cancelled)
+                all_step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id)
+                if all_step_specs and all(s.status in WFStepStatus.final_statuses for s in all_step_specs):
+                    workflow_spec.status = WorkflowStatus.running
+                    workflow_spec.start_time = naive_utcnow()
+                    self.tbif.update_workflow(workflow_spec)
+                    process_result.success = True
+                    process_result.new_status = workflow_spec.status
+                    tmp_log.info(f"All steps already in final status; advanced to status={workflow_spec.status}")
+                    return process_result
                 process_result.message = f"No step in required status; skipped"
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
@@ -2067,9 +2077,13 @@ class WorkflowInterface(object):
             steps_status_stats = self.process_steps(step_specs, data_spec_map=data_spec_map)
             # Update workflow status by steps
             now_time = naive_utcnow()
-            if (processed_steps_stats := steps_status_stats["processed"]) and (
-                processed_steps_stats.get(WFStepStatus.failed) or processed_steps_stats.get(WFStepStatus.cancelled)
-            ):
+            processed_steps_stats = steps_status_stats["processed"]
+            all_steps_final = (
+                steps_status_stats["n_processed"] > 0
+                and steps_status_stats["n_processed"] == len(step_specs)
+                and all(status in WFStepStatus.final_statuses for status in processed_steps_stats)
+            )
+            if processed_steps_stats and (processed_steps_stats.get(WFStepStatus.failed) or processed_steps_stats.get(WFStepStatus.cancelled)):
                 # Cancel child workflows whose sub_workflow steps just failed or were cancelled
                 for step_spec in step_specs:
                     if step_spec.type == WFStepType.sub_workflow and step_spec.status in (WFStepStatus.failed, WFStepStatus.cancelled) and step_spec.target_id:
@@ -2088,6 +2102,15 @@ class WorkflowInterface(object):
                 process_result.success = True
                 process_result.new_status = workflow_spec.status
                 tmp_log.info(f"Done, advanced to status={workflow_spec.status}")
+            elif all_steps_final:
+                # All steps are in final statuses with no failures; mark workflow as done
+                workflow_spec.status = WorkflowStatus.done
+                workflow_spec.end_time = now_time
+                workflow_spec.check_time = now_time
+                self.tbif.update_workflow(workflow_spec)
+                process_result.success = True
+                process_result.new_status = workflow_spec.status
+                tmp_log.info(f"All steps in final status; advanced to status={workflow_spec.status}")
             else:
                 workflow_spec.check_time = now_time
                 self.tbif.update_workflow(workflow_spec)
