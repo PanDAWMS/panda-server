@@ -154,7 +154,7 @@ class PostProcessorThread(WorkerThread):
                 tmp_log.info("done")
                 continue
 
-            # run final procedure
+            # run final procedure depending on prodsourcelabel (e.g. email notifications, manage output datasets, etc.)
             try:
                 impl.doFinalProcedure(task_spec, tmp_log)
             except Exception as e:
