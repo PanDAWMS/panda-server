@@ -3820,6 +3820,46 @@ class TaskEventModule(BaseModule):
         tmp_log.debug(f"access granted: DN={compact_dn} is the task owner")
         return True
 
+    def _check_command_allowed(self, com_str: str, task_status: str, prod_role: bool, com_comment: str | None) -> tuple[bool, str]:
+        """Return (allowed, extra_message) for the given command against the current task status."""
+        if com_str in ("kill", "finish"):
+            if task_status in {"finished", "done", "prepared", "broken", "aborted", "toabort", "aborting", "failed"}:
+                return False, ""
+
+        elif com_str == "retry":
+            if task_status not in {"finished", "failed", "exhausted"}:
+                return False, ""
+            if task_status == "exhausted" and not prod_role:
+                return False, "and production role is missing"
+
+        elif com_str == "incexec":
+            if task_status not in {"finished", "failed", "aborted", "done", "exhausted"}:
+                return False, ""
+
+        elif com_str == "reassign":
+            tmp_instructions = CoreUtils.parse_reassign_comment(com_comment)
+            if not tmp_instructions.get("back_to_old_status"):
+                if task_status not in {"defined", "ready", "running", "scouting", "scouted", "pending", "assigning", "exhausted"}:
+                    return False, ""
+
+        elif com_str == "pause":
+            if task_status in {"finished", "failed", "done", "aborted", "broken", "paused"}:
+                return False, ""
+
+        elif com_str == "resume":
+            if task_status not in {"paused", "throttled", "staging"}:
+                return False, ""
+
+        elif com_str == "avalanche":
+            if task_status != "scouting":
+                return False, ""
+
+        elif com_str == "release":
+            if task_status not in {"scouting", "pending", "running", "ready", "assigning", "defined"}:
+                return False, ""
+
+        return True, ""
+
     # send command to task through DEFT
     def sendCommandTaskPanda(
         self,
@@ -3841,143 +3881,71 @@ class TaskEventModule(BaseModule):
             if compactDN in ["", "NULL", None]:
                 compactDN = dn
             tmp_log.debug(f"start com={comStr} DN={compactDN} prod={prodRole} comment={comComment} qualifier={comQualifier} broadcast={broadcast}")
-            # sql to check status and owner
-            sqlTC = f"SELECT status,userName,prodSourceLabel FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTC += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
-            # sql to delete command
-            schemaDEFT = panda_config.schemaDEFT
-            sqlT = f"DELETE FROM {schemaDEFT}.PRODSYS_COMM "
-            sqlT += "WHERE COMM_TASK=:jediTaskID "
-            # sql to insert command
-            sqlC = f"INSERT INTO {schemaDEFT}.PRODSYS_COMM (COMM_TASK,COMM_OWNER,COMM_CMD,COMM_COMMENT) "
-            sqlC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd,:comm_comment) "
-            goForward = True
-            retStr = ""
-            retCode = 0
-            sendMsgToPilot = False
-            # begin transaction
+
             if useCommit:
                 self.conn.begin()
-            # get task status and owner
-            varMap = {}
-            varMap[":jediTaskID"] = jediTaskID
-            self.cur.execute(sqlTC + comment, varMap)
-            resTC = self.cur.fetchone()
-            if resTC is None:
-                # task not found
+
+            # get task status
+            sql_task_status = f"SELECT status, prodSourceLabel FROM {panda_config.schemaJEDI}.JEDI_Tasks " "WHERE jediTaskID=:jediTaskID FOR UPDATE "
+            self.cur.execute(sql_task_status + comment, {":jediTaskID": jediTaskID})
+            result_task_status = self.cur.fetchone()
+            if result_task_status is None:
                 retStr = f"jediTaskID={jediTaskID} not found"
                 tmp_log.debug(retStr)
-                goForward = False
-                retCode = 2
+                if useCommit:
+                    self._commit()
+                return (2, retStr) if properErrorCode else (False, retStr)
+
+            taskStatus, prodSourceLabel = result_task_status
+            tmp_log.debug(f"status={taskStatus}")
+
+            # check command is valid for the current task status
+            allowed, add_msg = self._check_command_allowed(comStr, taskStatus, prodRole, comComment)
+            if not allowed:
+                retCode = 4
+                retStr = f"Command rejected: the {comStr} command is not accepted if the task is in {taskStatus} status {add_msg}"
+                tmp_log.debug(retStr)
+                # retry for failed analysis jobs
+                if comStr == "retry" and properErrorCode and taskStatus in ("running", "scouting", "pending") and prodSourceLabel == "user":
+                    retCode = 5
+                    retStr = taskStatus
+                if useCommit:
+                    self._commit()
+                return (retCode, retStr) if properErrorCode else (False, retStr)
+
+            sendMsgToPilot = comStr in ("kill", "finish") and broadcast
+
+            # delete command just in case
+            sql_delete_command = f"DELETE FROM {panda_config.schemaJEDI}.PRODSYS_COMM " "WHERE COMM_TASK=:jediTaskID "
+            self.cur.execute(sql_delete_command + comment, {":jediTaskID": jediTaskID})
+
+            # insert command
+            if comComment is None:
+                qualifier_prefix = f"{comQualifier} " if comQualifier else ""
+                comm_comment = f"{qualifier_prefix}{comStr} by {compactDN}"
             else:
-                taskStatus, userName, prodSourceLabel = resTC
-                tmp_log.debug(f"status={taskStatus}")
-            # check owner
-            if goForward:
-                if not prodRole and compactDN != userName:
-                    retStr = "Permission denied: not the task owner or no production role"
-                    tmp_log.debug(retStr)
-                    goForward = False
-                    retCode = 3
-            # check task status
-            if goForward:
-                add_msg = ""
-                if comStr in ["kill", "finish"]:
-                    sendMsgToPilot = broadcast
-                    if taskStatus in [
-                        "finished",
-                        "done",
-                        "prepared",
-                        "broken",
-                        "aborted",
-                        "aborted",
-                        "toabort",
-                        "aborting",
-                        "failed",
-                    ]:
-                        goForward = False
-                if comStr == "retry":
-                    if taskStatus not in ["finished", "failed", "exhausted"]:
-                        goForward = False
-                    elif taskStatus == "exhausted" and not prodRole:
-                        goForward = False
-                        add_msg = "and production role is missing"
-                if comStr == "incexec":
-                    if taskStatus not in [
-                        "finished",
-                        "failed",
-                        "aborted",
-                        "done",
-                        "exhausted",
-                    ]:
-                        goForward = False
-                if comStr == "reassign":
-                    tmp_instructions = CoreUtils.parse_reassign_comment(comComment)
-                    if tmp_instructions.get("back_to_old_status"):
-                        pass
-                    elif taskStatus not in [
-                        "defined",
-                        "ready",
-                        "running",
-                        "scouting",
-                        "scouted",
-                        "pending",
-                        "assigning",
-                        "exhausted",
-                    ]:
-                        goForward = False
-                if comStr == "pause":
-                    if taskStatus in [
-                        "finished",
-                        "failed",
-                        "done",
-                        "aborted",
-                        "broken",
-                        "paused",
-                    ]:
-                        goForward = False
-                if comStr == "resume":
-                    if taskStatus not in ["paused", "throttled", "staging"]:
-                        goForward = False
-                if comStr == "avalanche":
-                    if taskStatus not in ["scouting"]:
-                        goForward = False
-                if comStr == "release":
-                    if taskStatus not in ["scouting", "pending", "running", "ready", "assigning", "defined"]:
-                        goForward = False
-                if not goForward:
-                    retStr = f"Command rejected: the {comStr} command is not accepted " f"if the task is in {taskStatus} status {add_msg}"
-                    tmp_log.debug(f"{retStr}")
-                    retCode = 4
-                    # retry for failed analysis jobs
-                    if comStr == "retry" and properErrorCode and taskStatus in ["running", "scouting", "pending"] and prodSourceLabel in ["user"]:
-                        retCode = 5
-                        retStr = taskStatus
-            if goForward:
-                # delete command just in case
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                self.cur.execute(sqlT + comment, varMap)
-                # insert command
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":comm_cmd"] = comStr
-                varMap[":comm_owner"] = "DEFT"
-                if comComment is None:
-                    tmpStr = ""
-                    if comQualifier not in ["", None]:
-                        tmpStr += f"{comQualifier} "
-                    tmpStr += f"{comStr} by {compactDN}"
-                    varMap[":comm_comment"] = tmpStr
-                else:
-                    varMap[":comm_comment"] = comComment
-                self.cur.execute(sqlC + comment, varMap)
-                retStr = f"command={comStr} is registered. will be executed in a few minutes"
-                tmp_log.info(f"{retStr}")
-            # commit
+                comm_comment = comComment
+
+            sql_insert_command = (
+                f"INSERT INTO {panda_config.schemaJEDI}.PRODSYS_COMM (COMM_TASK, COMM_OWNER, COMM_CMD, COMM_COMMENT) "
+                "VALUES (:jediTaskID, :comm_owner, :comm_cmd, :comm_comment) "
+            )
+            self.cur.execute(
+                sql_insert_command + comment,
+                {
+                    ":jediTaskID": jediTaskID,
+                    ":comm_cmd": comStr,
+                    ":comm_owner": "DEFT",
+                    ":comm_comment": comm_comment,
+                },
+            )
+            retStr = f"command={comStr} is registered. will be executed in a few minutes"
+            tmp_log.info(retStr)
+
             if useCommit:
                 if not self._commit():
                     raise RuntimeError("Commit error")
+
             # send command to the pilot
             if sendMsgToPilot:
                 mb_proxy_topic = self.get_mb_proxy("panda_pilot_topic")
@@ -3986,13 +3954,9 @@ class TaskEventModule(BaseModule):
                     srv_msg_utils.send_task_message(mb_proxy_topic, comStr, jediTaskID)
                 else:
                     tmp_log.debug("message topic not configured")
-            if properErrorCode:
-                return retCode, retStr
-            else:
-                if retCode == 0:
-                    return True, retStr
-                else:
-                    return False, retStr
+
+            return (0, retStr) if properErrorCode else (True, retStr)
+
         except Exception:
             # roll back
             if useCommit:
