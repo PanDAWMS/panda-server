@@ -1811,14 +1811,13 @@ class TaskUtilsModule(BaseModule):
                         varMap[":lockedBy"] = pid
                         varMap[":jediTaskID"] = jediTaskID
                         self.cur.execute(sqlLock + comment, varMap)
-            except Exception:
-                errType, errValue = sys.exc_info()[:2]
-                if self.isNoWaitException(errValue):
+            except Exception as e:
+                if self.is_no_wait_exception(e):
                     # resource busy and acquire with NOWAIT specified
                     tmpLog.debug("skip locked")
                 else:
                     # failed with something else
-                    raise errType(errValue)
+                    raise
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")

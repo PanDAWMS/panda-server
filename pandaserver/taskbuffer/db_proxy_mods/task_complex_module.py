@@ -649,9 +649,8 @@ class TaskComplexModule(BaseModule):
                 varMap[":jediTaskID"] = datasetSpec.jediTaskID
                 self.cur.execute(sqlTL + comment, varMap)
                 resTask = self.cur.fetchone()
-            except Exception:
-                errType, errValue = sys.exc_info()[:2]
-                if self.isNoWaitException(errValue):
+            except Exception as e:
+                if self.is_no_wait_exception(e):
                     # resource busy and acquire with NOWAIT specified
                     tmpLog.debug(f"skip locked jediTaskID={datasetSpec.jediTaskID}")
                     if not self._commit():
@@ -659,7 +658,7 @@ class TaskComplexModule(BaseModule):
                     return retVal
                 else:
                     # failed with something else
-                    raise errType(errValue)
+                    raise
             if resTask is None:
                 tmpLog.debug("task not found in Task table")
             else:
@@ -2133,9 +2132,8 @@ class TaskComplexModule(BaseModule):
                 if jedi_task_id not in locked_tasks:
                     locked_tasks.append(jedi_task_id)
             return to_skip, orig_task_spec, locked_tasks, locked_by_another
-        except Exception:
-            err_type, err_value = sys.exc_info()[:2]
-            if self.isNoWaitException(err_value):
+        except Exception as e:
+            if self.is_no_wait_exception(e):
                 # resource busy and acquire with NOWAIT specified
                 to_skip = True
                 tmp_log.debug(f"skip locked with NOWAIT jediTaskID={jedi_task_id}")
@@ -2144,7 +2142,7 @@ class TaskComplexModule(BaseModule):
                 return to_skip, orig_task_spec, locked_tasks, locked_by_another
             else:
                 # failed with something else
-                raise err_type(err_value)
+                raise
 
     # check a task with unprocessed inputs
     def _check_task_with_unprocessed_inputs(
@@ -2580,15 +2578,14 @@ class TaskComplexModule(BaseModule):
                         input_chunk.addMasterDS(dataset_spec)
                     else:
                         input_chunk.addSecondaryDS(dataset_spec)
-            except Exception:
-                err_type, err_value = sys.exc_info()[:2]
-                if self.isNoWaitException(err_value):
+            except Exception as e:
+                if self.is_no_wait_exception(e):
                     # resource busy and acquire with NOWAIT specified
                     to_skip = True
                     tmp_log.debug(f"skip locked jediTaskID={jedi_task_id} datasetID={dataset_id}")
                 else:
                     # failed with something else
-                    raise err_type(err_value)
+                    raise
         # flag input chunks to use scout
         if (num_avalanche == 0 and not input_chunk_list[0].isMutableMaster()) or not task_spec.useScout() or read_min_files:
             for input_chunk in input_chunk_list:
@@ -3533,7 +3530,14 @@ class TaskComplexModule(BaseModule):
                 tmpStat, taskSpec = get_task_utils_module(self).getTaskWithID_JEDI(jediTaskID, False)
                 if tmpStat:
                     tmpLog.debug(f"set jediTaskID={jediTaskID}")
-                    get_task_utils_module(self).setScoutJobData_JEDI(taskSpec, True, True, site_mapper)
+                    try:
+                        get_task_utils_module(self).setScoutJobData_JEDI(taskSpec, True, True, site_mapper)
+                    except Exception as e:
+                        if self.is_deadlock_exception(e):
+                            tmpLog.warning(f"skip jediTaskID={jediTaskID} due to deadlock")
+                            self._rollback()
+                            continue
+                        raise
                     # update exhausted task status
                     if taskSpec.status == "exhausted":
                         # begin transaction
@@ -3824,9 +3828,8 @@ class TaskComplexModule(BaseModule):
                         if not self._commit():
                             raise RuntimeError("Commit error")
                         continue
-                except Exception:
-                    errType, errValue = sys.exc_info()[:2]
-                    if self.isNoWaitException(errValue):
+                except Exception as e:
+                    if self.is_no_wait_exception(e):
                         # resource busy and acquire with NOWAIT specified
                         toSkip = True
                         tmpLog.debug(f"skip locked jediTaskID={jediTaskID}")
@@ -3835,7 +3838,7 @@ class TaskComplexModule(BaseModule):
                         continue
                     else:
                         # failed with something else
-                        raise errType(errValue)
+                        raise
                 # update dataset
                 if not toSkip:
                     tmpLog.debug(
@@ -3859,7 +3862,14 @@ class TaskComplexModule(BaseModule):
                             use_exhausted = False
                         else:
                             use_exhausted = True
-                        scoutSucceeded, mergeScoutSucceeded = get_task_utils_module(self).setScoutJobData_JEDI(taskSpec, False, use_exhausted, site_mapper)
+                        try:
+                            scoutSucceeded, mergeScoutSucceeded = get_task_utils_module(self).setScoutJobData_JEDI(taskSpec, False, use_exhausted, site_mapper)
+                        except Exception as e:
+                            if self.is_deadlock_exception(e):
+                                tmpLog.warning(f"skip jediTaskID={jediTaskID} due to deadlock")
+                                self._rollback()
+                                continue
+                            raise
                         if jediTaskID in set_scout_data_only:
                             toSkip = True
                             tmpLog.debug(f"done set only scout data for jediTaskID={jediTaskID} in status={taskSpec.status}")
@@ -4282,15 +4292,14 @@ class TaskComplexModule(BaseModule):
                 try:
                     tmpLog.debug(sqlLock + comment + str(varMap))
                     self.cur.execute(sqlLock + comment, varMap)
-                except Exception:
-                    errType, errValue = sys.exc_info()[:2]
-                    if self.isNoWaitException(errValue):
+                except Exception as e:
+                    if self.is_no_wait_exception(e):
                         # resource busy and acquire with NOWAIT specified
                         toSkip = True
                         tmpLog.debug(f"skip locked+nowauit jediTaskID={jediTaskID}")
                     else:
                         # failed with something else
-                        raise errType(errValue)
+                        raise
                 isOK = True
                 update_task = True
                 if not toSkip:
@@ -4303,7 +4312,7 @@ class TaskComplexModule(BaseModule):
                         self.cur.execute(sqlTC + comment, varMap)
                         resTC = self.cur.fetchone()
                         if resTC is None or resTC[0] is None:
-                            tmpLog.error(f"jediTaskID={jediTaskID} is not found in JEDI_Tasks")
+                            tmpLog.warning(f"jediTaskID={jediTaskID} is not found in JEDI_Tasks")
                             isOK = False
                         else:
                             taskStatus, taskOldStatus, wallTimeUnit = resTC
@@ -4311,43 +4320,43 @@ class TaskComplexModule(BaseModule):
                             if commandStr == "retry":
                                 if taskStatus not in JediTaskSpec.statusToRetry():
                                     # task is in a status which rejects retry
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for retry")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for retry")
                                     isOK = False
                             elif commandStr == "incexec":
                                 if taskStatus not in JediTaskSpec.statusToIncexec():
                                     # task is in a status which rejects retry
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for incexec")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for incexec")
                                     isOK = False
                             elif commandStr == "pause":
                                 if taskStatus in JediTaskSpec.statusNotToPause():
                                     # task is in a status which rejects pause
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for pause")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for pause")
                                     isOK = False
                             elif commandStr == "resume":
                                 if taskStatus not in ["paused", "throttled", "staging"]:
                                     # task is in a status which rejects resume
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for resume")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for resume")
                                     isOK = False
                             elif commandStr == "avalanche":
                                 if taskStatus not in ["scouting"]:
                                     # task is in a status which rejects avalanche
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for avalanche")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for avalanche")
                                     isOK = False
                             elif commandStr == "release":
                                 if taskStatus not in ["scouting", "pending", "running", "ready", "assigning", "defined"]:
                                     # task is in a status which rejects avalanche
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not applicable")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not applicable")
                                     isOK = False
                                 update_task = False
                                 sync_action_only = True
                             elif commandStr == "reassign":
                                 if taskStatus in ["failed", "aborted", "broken"]:
                                     # task is in a status which rejects reassign
-                                    tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for reassign")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr}. status={taskStatus} is not for reassign")
                                     isOK = False
                             elif taskStatus in JediTaskSpec.statusToRejectExtChange():
                                 # task is in a status which rejects external changes
-                                tmpLog.error(f"jediTaskID={jediTaskID} rejected command={commandStr} (due to status={taskStatus})")
+                                tmpLog.warning(f"jediTaskID={jediTaskID} rejected command={commandStr} (due to status={taskStatus})")
                                 isOK = False
                             if isOK:
                                 # set new task status
@@ -4369,7 +4378,7 @@ class TaskComplexModule(BaseModule):
                                 elif commandStr in commandStatusMap:
                                     newTaskStatus = commandStatusMap[commandStr]["doing"]
                                 else:
-                                    tmpLog.error(f"jediTaskID={jediTaskID} new status is undefined for command={commandStr}")
+                                    tmpLog.warning(f"jediTaskID={jediTaskID} new status is undefined for command={commandStr}")
                                     isOK = False
                     if isOK:
                         # actions in transaction

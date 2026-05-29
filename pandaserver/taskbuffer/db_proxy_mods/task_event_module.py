@@ -2141,7 +2141,7 @@ class TaskEventModule(BaseModule):
                     continue
                 # check status
                 if oldStatus is not None and oldStatus not in statusMap[newStatus] and oldStatus != newStatus:
-                    tmp_log.error(f"{oldStatus} -> {newStatus} is forbidden for fileID={fileID}")
+                    tmp_log.debug(f"{oldStatus} -> {newStatus} is forbidden for fileID={fileID}")
                     continue
                 # conversion for failed
                 tmpNewStatus = newStatus
