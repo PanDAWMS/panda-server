@@ -122,7 +122,7 @@ def submit_grep_request(
     return generate_response(True, "", {"request_id": request_id})
 
 
-@request_validation(_logger, secure=False, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
     """
     Poll for the results of an async request.
@@ -152,6 +152,10 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
     """
     tmp_logger = LogWrapper(_logger, f"get_result < request_id={request_id} >")
     tmp_logger.debug("Start")
+
+    ok, msg = _is_authorized(req)
+    if not ok:
+        return generate_response(False, msg)
 
     req_row = global_task_buffer.get_async_request(request_id)
     if req_row is None:

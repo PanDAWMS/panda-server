@@ -40,7 +40,7 @@ def _handle_grep(row, tb, tmp_logger):
     else:
         cmd = ["rg", pattern, log_path]
 
-    tmp_logger.debug(f"running command: {' '.join(cmd)}")
+    tmp_logger.debug(f"command: {' '.join(cmd)}")
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
     except subprocess.TimeoutExpired:
@@ -91,7 +91,7 @@ def run(service_name, tbuf=None):
     Call this from the service-specific entrypoint (daemon script or WatchDog).
     tbuf: an already-initialised TaskBuffer, or None to use the module-level singleton.
     """
-    _logger.debug(f"running async request processor for service {service_name}")
+    _logger.debug(f"stat for service {service_name}")
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf
 
@@ -106,7 +106,7 @@ def run(service_name, tbuf=None):
     for row in pending:
         request_id = row["request_id"]
         request_type = row["request_type"]
-        tmp_logger = LogWrapper(_logger, prefix=f"request_id={request_id}")
+        tmp_logger = LogWrapper(_logger, prefix=f"< request_id={request_id} >")
         handler = HANDLERS.get(request_type)
         if handler is None:
 
@@ -117,4 +117,4 @@ def run(service_name, tbuf=None):
             continue
         tmp_logger.debug(f"processing request_id={request_id} type={request_type}")
         handler(row, tbuf, tmp_logger)
-    _logger.debug("done processing async requests")
+    _logger.debug("done")
