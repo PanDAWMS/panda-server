@@ -1115,7 +1115,7 @@ class RucioAPI:
         return ret_list
 
     # get dataset metadata
-    def get_dataset_metadata(self, dataset_name, ignore_missing=False):
+    def get_dataset_metadata(self, dataset_name, ignore_missing=False, check_content_state=False):
         # make logger
         method_name = "get_dataset_metadata"
         method_name = f"{method_name} dataset_name={dataset_name}"
@@ -1129,20 +1129,30 @@ class RucioAPI:
             # get metadata
             if dsn.endswith("/"):
                 dsn = dsn[:-1]
-            tmpRet = client.get_metadata(scope, dsn)
+            metadata = client.get_metadata(scope, dsn)
             # set state
-            if tmpRet["is_open"] is True and tmpRet["did_type"] != "CONTAINER":
-                tmpRet["state"] = "open"
+            if metadata["is_open"] is True and metadata["did_type"] != "CONTAINER":
+                metadata["state"] = "open"
             else:
-                tmpRet["state"] = "closed"
-            tmp_log.debug(str(tmpRet))
-            return tmpRet
+                metadata["state"] = "closed"
+            if check_content_state:
+                metadata["content_state"] = metadata["state"]
+                if metadata["content_state"] == "closed" and metadata["did_type"] == "CONTAINER":
+                    # loop over all contents and check if there is open dataset
+                    for content in client.list_content(scope, dsn):
+                        if content["type"] == "DATASET":
+                            content_metadata = client.get_metadata(content["scope"], content["name"])
+                            if content_metadata["is_open"] is True:
+                                metadata["content_state"] = "open"
+                                break
+            tmp_log.debug(str(metadata))
+            return metadata
         except DataIdentifierNotFound as e:
             if ignore_missing:
                 tmp_log.warning(e)
-                tmpRet = {}
-                tmpRet["state"] = "missing"
-                return tmpRet
+                metadata = {}
+                metadata["state"] = "missing"
+                return metadata
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
