@@ -221,12 +221,12 @@ loopCycle = 20
 [watchdog]
 
 # interface config
-#modConfig = atlas:managed|test:pandajedi.jedidog.AtlasProdWatchDog:AtlasProdWatchDog,atlas:user:pandajedi.jedidog.AtlasAnalWatchDog:AtlasAnalWatchDog,vo_example:any:pandajedi.jedidog.GenWatchDog:GenWatchDog
-#modConfig = atlas:managed|test:pandajedi.jedidog.AtlasProdWatchDog:AtlasProdWatchDog,atlas:user:pandajedi.jedidog.AtlasAnalWatchDog:AtlasAnalWatchDog
-modConfig = wlcg:any:pandajedi.jedidog.GenWatchDog:GenWatchDog
+#modConfig = atlas:managed|test:pandajedi.jedidog.AtlasProdWatchDog:AtlasProdWatchDog,atlas:user:pandajedi.jedidog.AtlasAnalWatchDog:AtlasAnalWatchDog,vo_example:any:pandajedi.jedidog.GenWatchDog:GenWatchDog,wlcg:any:pandajedi.jedidog.AsyncRequestWatchDog:AsyncRequestWatchDog:async_request
+#modConfig = atlas:managed|test:pandajedi.jedidog.AtlasProdWatchDog:AtlasProdWatchDog,atlas:user:pandajedi.jedidog.AtlasAnalWatchDog:AtlasAnalWatchDog,wlcg:any:pandajedi.jedidog.AsyncRequestWatchDog:AsyncRequestWatchDog:async_request
+modConfig = wlcg:any:pandajedi.jedidog.GenWatchDog:GenWatchDog,wlcg:any:pandajedi.jedidog.AsyncRequestWatchDog:AsyncRequestWatchDog:async_request
 
 # process config
-procConfig = wlcg:any:1
+procConfig = wlcg:any:1;wlcg:any:1:async_request:30
 
 # loop interval in seconds
 loopCycle = 300
