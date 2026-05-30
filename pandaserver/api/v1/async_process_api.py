@@ -48,7 +48,7 @@ def _is_authorized(req):
     allowed = global_dispatch_parameter_cache.get("allowAsyncRequest", [])
     if compact_dn not in allowed:
         return False, f"'{compact_dn}' is not authorized to submit async requests"
-    return True, ""
+    return True, f"'{compact_dn}' is authorized to submit async requests"
 
 
 @request_validation(_logger, secure=True, request_method="POST")
@@ -82,6 +82,7 @@ def submit_grep_request(
     ok, msg = _is_authorized(req)
     if not ok:
         return generate_response(False, msg)
+    tmp_logger.debug(msg)
 
     if bool(service_name) == bool(machine_name):
         return generate_response(False, "exactly one of service_name or machine_name must be provided")
@@ -156,6 +157,7 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
     ok, msg = _is_authorized(req)
     if not ok:
         return generate_response(False, msg)
+    tmp_logger.debug(msg)
 
     req_row = global_task_buffer.get_async_request(request_id)
     if req_row is None:
