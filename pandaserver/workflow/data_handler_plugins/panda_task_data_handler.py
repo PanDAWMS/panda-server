@@ -125,20 +125,21 @@ class PandaTaskDataHandler(BaseDataHandler):
             output_types = []
         for output_type in output_types:
             collection = f"{data_spec.target_id}_{output_type}"
-            collection_meta = self.ddm_if.get_dataset_metadata(collection, ignore_missing=True)
+            collection_meta = self.ddm_if.get_dataset_metadata(collection, ignore_missing=True, check_content_state=True)
             if collection_meta is None:
                 check_result.success = False
                 check_result.message = f"Failed to get metadata for collection {collection}"
                 tmp_log.error(f"{check_result.message}")
                 return check_result
             collection_state = collection_meta.get("state")
+            collection_content_state = collection_meta.get("content_state")
             if collection_state == DDMCollectionState.missing:
                 tmp_log.debug(f"Collection {collection} does not exist")
                 continue
             none_exist = False
             n_files = collection_meta.get("length", 0)
             total_n_files += n_files
-            if collection_state != DDMCollectionState.closed:
+            if collection_state != DDMCollectionState.closed or collection_content_state == DDMCollectionState.open:
                 all_existing_closed = False
             tmp_log.debug(f"Got collection {collection} n_files={n_files} state={collection_state}")
         # Check number of files and collection state
