@@ -57,6 +57,8 @@ class WatchDog(JediKnight, FactoryBase):
                                 tmpLog.error(f"failed to run special action for vo={vo} label={prodSourceLabel} cls={plugin_name}")
                             else:
                                 tmpLog.info(f"done for vo={vo} label={prodSourceLabel} cls={plugin_name}")
+                        else:
+                            tmpLog.debug(f"no plugin for vo={vo} label={prodSourceLabel} subType={self.subStr}")
                 tmpLog.info("done")
             except Exception:
                 errtype, errvalue = sys.exc_info()[:2]
