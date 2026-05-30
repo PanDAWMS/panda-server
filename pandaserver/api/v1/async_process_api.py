@@ -96,6 +96,12 @@ def submit_grep_request(
         tmp_logger.warning(msg)
         return generate_response(False, msg)
 
+    # log_filename is expected to be something like "panda-*.log" or "panda-*.log.*.gz"
+    if not (log_filename.startswith("panda-") and (log_filename.endswith(".log") or log_filename.endswith(".gz"))):
+        msg = "invalid log_filename: must start with 'panda-' and end with '.log' or '.gz'"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
     # determine expected machines from liveness snapshot
     if service_name:
         expected = global_task_buffer.get_alive_machines(service_name)

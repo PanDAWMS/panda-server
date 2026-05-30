@@ -95,7 +95,7 @@ def run(service_name, tbuf=None):
     Call this from the service-specific entrypoint (daemon script or WatchDog).
     tbuf: an already-initialised TaskBuffer, or None to use the module-level singleton.
     """
-    _logger.debug(f"stat for service {service_name}")
+    _logger.debug(f"start with service={service_name}")
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf
 
@@ -123,6 +123,6 @@ def run(service_name, tbuf=None):
         if not tbuf.claim_async_result(request_id, MY_HOSTNAME):
             # another daemon instance on the same machine claimed it first
             continue
-        tmp_logger.debug(f"processing type={request_type} request from {requester}")
+        tmp_logger.debug(f"processing type={request_type} request from '{requester}'")
         handler(row, tbuf, tmp_logger)
     _logger.debug("done")
