@@ -11,6 +11,7 @@ import subprocess
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 
@@ -42,7 +43,10 @@ def _handle_grep(row, tb, tmp_logger):
 
     tmp_logger.debug(f"command: {' '.join(cmd)}")
     try:
+        start_time = naive_utcnow()
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
+        elapsed = (naive_utcnow() - start_time).total_seconds()
+        tmp_logger.debug(f"subprocess completed in {elapsed:.2f} seconds")
     except subprocess.TimeoutExpired:
         tmp_logger.error(f"subprocess timed out after {_SUBPROCESS_TIMEOUT} seconds")
         tb.finish_async_result(
@@ -67,7 +71,7 @@ def _handle_grep(row, tb, tmp_logger):
     stdout = proc.stdout
     stderr = proc.stderr
     truncated = len(stdout) > _MAX_RESULT_BYTES or len(stderr) > _MAX_RESULT_BYTES
-    tmp_logger.debug(f"subprocess finished with return code {proc.returncode}, stdout size {len(stdout)}, stderr size {len(stderr)}, truncated={truncated}")
+    tmp_logger.debug(f"outcome: return code {proc.returncode}, stdout size {len(stdout)}, stderr size {len(stderr)}, truncated={truncated}")
     tb.finish_async_result(
         row["request_id"],
         MY_HOSTNAME,
@@ -106,6 +110,10 @@ def run(service_name, tbuf=None):
     for row in pending:
         request_id = row["request_id"]
         request_type = row["request_type"]
+        try:
+            requester = json.loads(row["parameters"]).get("requester", "unknown")
+        except json.JSONDecodeError:
+            requester = "unknown"
         tmp_logger = LogWrapper(_logger, prefix=f"< request_id={request_id} >")
         handler = HANDLERS.get(request_type)
         if handler is None:
@@ -115,6 +123,6 @@ def run(service_name, tbuf=None):
         if not tbuf.claim_async_result(request_id, MY_HOSTNAME):
             # another daemon instance on the same machine claimed it first
             continue
-        tmp_logger.debug(f"processing request_id={request_id} type={request_type}")
+        tmp_logger.debug(f"processing type={request_type} request from {requester}")
         handler(row, tbuf, tmp_logger)
     _logger.debug("done")
