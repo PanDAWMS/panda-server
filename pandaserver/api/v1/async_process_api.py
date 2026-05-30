@@ -47,8 +47,8 @@ def _is_authorized(req):
         return False, "authorization cache not ready"
     allowed = global_dispatch_parameter_cache.get("allowAsyncRequest", [])
     if compact_dn not in allowed:
-        return False, f"'{compact_dn}' is not authorized to submit async requests"
-    return True, f"'{compact_dn}' is authorized to submit async requests"
+        return False, f"'{compact_dn}' is not authorized"
+    return True, f"'{compact_dn}' is authorized"
 
 
 @request_validation(_logger, secure=True, request_method="POST")
