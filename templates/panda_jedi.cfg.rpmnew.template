@@ -226,7 +226,7 @@ loopCycle = 20
 modConfig = wlcg:any:pandajedi.jedidog.GenWatchDog:GenWatchDog,wlcg:any:pandajedi.jedidog.AsyncRequestWatchDog:AsyncRequestWatchDog:async_request
 
 # process config
-procConfig = wlcg:any:1;wlcg:any:1:async_request:30
+procConfig = wlcg:any:1;wlcg:any:1:async_request:10
 
 # loop interval in seconds
 loopCycle = 300
