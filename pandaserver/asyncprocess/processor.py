@@ -9,7 +9,9 @@ import os
 import socket
 import subprocess
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 
@@ -27,7 +29,7 @@ _STALE_THRESHOLD_SECONDS = _SUBPROCESS_TIMEOUT * 2
 _MAX_RESULT_BYTES = 1_000_000
 
 
-def _handle_grep(row, tb):
+def _handle_grep(row, tb, tmp_logger):
     """Run rg or zgrep on a log file and store the output."""
     params = json.loads(row["parameters"])
     log_filename = params["log_filename"]
@@ -39,9 +41,14 @@ def _handle_grep(row, tb):
     else:
         cmd = ["rg", pattern, log_path]
 
+    tmp_logger.debug(f"command: {' '.join(cmd)}")
     try:
+        start_time = naive_utcnow()
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
+        elapsed = (naive_utcnow() - start_time).total_seconds()
+        tmp_logger.debug(f"subprocess completed in {elapsed:.2f} seconds")
     except subprocess.TimeoutExpired:
+        tmp_logger.error(f"subprocess timed out after {_SUBPROCESS_TIMEOUT} seconds")
         tb.finish_async_result(
             row["request_id"],
             MY_HOSTNAME,
@@ -51,6 +58,7 @@ def _handle_grep(row, tb):
         )
         return
     except Exception as e:
+        tmp_logger.error(f"subprocess failed with exception: {e}")
         tb.finish_async_result(
             row["request_id"],
             MY_HOSTNAME,
@@ -63,6 +71,7 @@ def _handle_grep(row, tb):
     stdout = proc.stdout
     stderr = proc.stderr
     truncated = len(stdout) > _MAX_RESULT_BYTES or len(stderr) > _MAX_RESULT_BYTES
+    tmp_logger.debug(f"outcome: return code {proc.returncode}, stdout size {len(stdout)}, stderr size {len(stderr)}, truncated={truncated}")
     tb.finish_async_result(
         row["request_id"],
         MY_HOSTNAME,
@@ -86,7 +95,7 @@ def run(service_name, tbuf=None):
     Call this from the service-specific entrypoint (daemon script or WatchDog).
     tbuf: an already-initialised TaskBuffer, or None to use the module-level singleton.
     """
-    _logger.debug(f"running async request processor for service {service_name}")
+    _logger.debug(f"start with service={service_name}")
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf
 
@@ -101,13 +110,19 @@ def run(service_name, tbuf=None):
     for row in pending:
         request_id = row["request_id"]
         request_type = row["request_type"]
+        try:
+            requester = json.loads(row["parameters"]).get("requester", "unknown")
+        except json.JSONDecodeError:
+            requester = "unknown"
+        tmp_logger = LogWrapper(_logger, prefix=f"< request_id={request_id} >")
         handler = HANDLERS.get(request_type)
         if handler is None:
-            _logger.warning(f"unknown request_type={request_type} for request_id={request_id}")
+
+            tmp_logger.warning(f"unknown request_type={request_type}")
             continue
         if not tbuf.claim_async_result(request_id, MY_HOSTNAME):
             # another daemon instance on the same machine claimed it first
             continue
-        _logger.debug(f"processing request_id={request_id} type={request_type}")
-        handler(row, tbuf)
-    _logger.debug("done processing async requests")
+        tmp_logger.debug(f"processing type={request_type} request from '{requester}'")
+        handler(row, tbuf, tmp_logger)
+    _logger.debug("done")
