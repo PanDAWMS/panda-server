@@ -47,8 +47,8 @@ def _is_authorized(req):
         return False, "authorization cache not ready"
     allowed = global_dispatch_parameter_cache.get("allowAsyncRequest", [])
     if compact_dn not in allowed:
-        return False, f"'{compact_dn}' is not authorized to submit async requests"
-    return True, ""
+        return False, f"'{compact_dn}' is not authorized"
+    return True, f"'{compact_dn}' is authorized"
 
 
 @request_validation(_logger, secure=True, request_method="POST")
@@ -81,30 +81,45 @@ def submit_grep_request(
 
     ok, msg = _is_authorized(req)
     if not ok:
+        tmp_logger.warning(msg)
         return generate_response(False, msg)
+    tmp_logger.debug(msg)
 
     if bool(service_name) == bool(machine_name):
-        return generate_response(False, "exactly one of service_name or machine_name must be provided")
+        msg = "exactly one of service_name or machine_name must be provided"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
 
     # prevent directory traversal — only bare filenames are accepted
     if os.sep in log_filename or ".." in log_filename:
-        return generate_response(False, "invalid log_filename: must not contain path separators")
+        msg = "invalid log_filename: must not contain path separators"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    # log_filename is expected to be something like "panda-*.log" or "panda-*.log.*.gz"
+    if not (log_filename.startswith("panda-") and (log_filename.endswith(".log") or log_filename.endswith(".gz"))):
+        msg = "invalid log_filename: must start with 'panda-' and end with '.log' or '.gz'"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
 
     # determine expected machines from liveness snapshot
     if service_name:
         expected = global_task_buffer.get_alive_machines(service_name)
         if not expected:
-            return generate_response(False, f"no alive machines found for service '{service_name}'")
+            msg = f"no alive machines found for service '{service_name}'"
+            tmp_logger.warning(msg)
+            return generate_response(False, msg)
     else:
         alive = global_task_buffer.get_alive_machines(machine_name)
         # get_alive_machines matches on service_name; for a specific machine check heartbeat directly
         expected = [machine_name]
         # warn but don't block — machine may have started after last heartbeat window
         if not alive:
-            tmp_logger.warning(f"machine '{machine_name}' has no recent heartbeat; request submitted anyway")
+            msg = f"machine '{machine_name}' has no recent heartbeat; request submitted anyway"
+            tmp_logger.warning(msg)
 
     request_id = str(uuid.uuid4())
-    parameters_json = json.dumps({"pattern": pattern, "log_filename": log_filename})
+    parameters_json = json.dumps({"pattern": pattern, "log_filename": log_filename, "requester": clean_user_id(get_dn(req))})
     expected_machines_json = json.dumps(expected)
 
     ok = global_task_buffer.insert_async_request(
@@ -116,13 +131,15 @@ def submit_grep_request(
         expected_machines_json,
     )
     if not ok:
-        return generate_response(False, "failed to insert request into DB")
+        msg = "failed to insert request into DB"
+        tmp_logger.error(msg)
+        return generate_response(False, msg)
 
     tmp_logger.debug(f"Done request_id={request_id}")
     return generate_response(True, "", {"request_id": request_id})
 
 
-@request_validation(_logger, secure=False, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
     """
     Poll for the results of an async request.
@@ -153,9 +170,28 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
     tmp_logger = LogWrapper(_logger, f"get_result < request_id={request_id} >")
     tmp_logger.debug("Start")
 
+    ok, msg = _is_authorized(req)
+    if not ok:
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+    tmp_logger.debug(msg)
+
     req_row = global_task_buffer.get_async_request(request_id)
     if req_row is None:
-        return generate_response(False, f"request_id '{request_id}' not found")
+        msg = f"request_id '{request_id}' not found"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    # only the original requester may read back the results
+    caller = clean_user_id(get_dn(req))
+    try:
+        requester = json.loads(req_row["parameters"] or "{}").get("requester")
+    except json.JSONDecodeError:
+        requester = None
+    if caller != requester:
+        msg = f"'{caller}' is not the requester '{requester}'"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
 
     results = global_task_buffer.get_async_results(request_id)
 
