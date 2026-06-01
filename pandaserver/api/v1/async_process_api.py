@@ -182,6 +182,17 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
         tmp_logger.warning(msg)
         return generate_response(False, msg)
 
+    # only the original requester may read back the results
+    caller = clean_user_id(get_dn(req))
+    try:
+        requester = json.loads(req_row["parameters"] or "{}").get("requester")
+    except json.JSONDecodeError:
+        requester = None
+    if caller != requester:
+        msg = f"'{caller}' is not the requester '{requester}'"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
     results = global_task_buffer.get_async_results(request_id)
 
     expected = json.loads(req_row["expected_machines"] or "[]")
