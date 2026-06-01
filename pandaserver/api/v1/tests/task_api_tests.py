@@ -581,6 +581,14 @@ class TestTaskAPI(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertFalse(output["success"])
 
+        # No since: time-window cap removed, still succeeds and returns a list
+        data = {}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertIsInstance(output["data"], list)
+
         if JEDI_TASK_ID != -1:
             # Real task: verify each returned dict has expected keys
             data = {"since": since_str}
@@ -588,6 +596,23 @@ class TestTaskAPI(unittest.TestCase):
             for task_info in output.get("data", []):
                 self.assertIn("jediTaskID", task_info)
                 self.assertIn("status", task_info)
+                # file-progress fields injected by get_task_details_json
+                self.assertIn("nFiles", task_info)
+                self.assertIn("nFilesFinished", task_info)
+                self.assertIn("nFilesFailed", task_info)
+                self.assertIn("pctFinished", task_info)
+                self.assertIn("pctFailed", task_info)
+
+            # No since but by-ID filter: returns the task regardless of age
+            # (e.g. last modified more than 30 days ago)
+            data = {"filters": json.dumps({"jediTaskID": int(JEDI_TASK_ID)})}
+            status, output = self.http_client.get(url, data)
+            print(output)
+            self.assertEqual(status, 0)
+            self.assertTrue(output["success"])
+            self.assertIsInstance(output["data"], list)
+            returned_ids = [task_info.get("jediTaskID") for task_info in output["data"]]
+            self.assertIn(int(JEDI_TASK_ID), returned_ids)
 
     def test_get_job_descriptions(self):
         # def get_job_descriptions(req: PandaRequest, task_id: int, unsuccessful_only: bool = False) -> Dict:
