@@ -28,8 +28,8 @@ class AtlasProdPostProcessor(PostProcessorBase):
         4. Delete transient output (trn_output) datasets.
         5. Check for duplicate tasks and pause if found.
         6. Delete Event Service datasets if applicable.
-        7. Send external notifications (doBasicPostProcess).
-
+        7. Send external notifications (send_notification).
+        8. Run common bookkeeping (doBasicPostProcess).
         Returns SC_SUCCEEDED, SC_FAILED, or SC_FATAL.
         """
         # pre-check
