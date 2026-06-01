@@ -1679,6 +1679,12 @@ class TaskBuffer:
                 ret = False, f"The following DN is banned: DN={user}"
         return ret
 
+    def validate_ownership_or_production_role(self, task_id: int, dn: str, production_role: bool):
+        with self.proxyPool.get() as proxy:
+            # exec
+            ret = proxy.validate_ownership_or_production_role(task_id, dn, production_role)
+        return ret
+
     # send command to task
     def sendCommandTaskPanda(
         self,
