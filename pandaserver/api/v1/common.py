@@ -20,6 +20,7 @@ TIME_OUT = "TimeOut"
 
 MESSAGE_SSL = "SSL secure connection is required"
 MESSAGE_PROD_ROLE = "production or pilot role required"
+MESSAGE_TASK_OWNER = "not the task owner or no production role"
 MESSAGE_TASK_ID = "jediTaskID must be an integer"
 MESSAGE_DATABASE = "database error in the PanDA server"
 MESSAGE_JSON = "failed to load JSON"
@@ -194,7 +195,25 @@ def normalize_type(t):
     return mapping.get(t, t)
 
 
-def request_validation(logger, secure=True, production=False, request_method=None):
+def request_validation(logger, secure=True, production=False, request_method=None, task_owner=False, task_buffer=None, task_id_param="task_id"):
+    """
+    Decorator that validates an incoming API request before the handler runs.
+
+    Args:
+        logger: Logger instance passed to LogWrapper for the decorated function.
+        secure(bool): If True, requires an SSL connection without a limited proxy. Defaults to True.
+        production(bool): If True, requires the caller to have a production role. Defaults to False.
+        request_method(str): If set, requires the HTTP method to match (e.g. "GET", "POST"). Defaults to None (any method).
+        task_owner(bool): If True, requires the caller to be the task owner or have a production role.
+                          The task ID is read from the parameter named by task_id_param after type casting.
+                          Requires task_buffer to be provided. Defaults to False.
+        task_buffer(callable or TaskBuffer): Used when task_owner=True to call validate_task_permissions.
+                          Pass as a lambda (e.g. ``lambda: global_task_buffer``) so it is resolved at
+                          request time rather than at import time when it may still be None.
+        task_id_param(str): Name of the task ID parameter in the decorated function's signature.
+                          Defaults to "task_id". Override to "jedi_task_id" for endpoints that use that name.
+    """
+
     def decorator(func):
         @wraps(func)
         def wrapper(req, *args, **kwargs):
@@ -313,6 +332,17 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                     message = f"Type error: '{param_name}' must be of type {expected_type.__name__}, got {type(param_value).__name__}."
                     tmp_logger_context.error(message)
                     return generate_response(False, message=message)
+
+            # check task ownership if required
+            if task_owner:
+                task_id = bound_args.arguments.get(task_id_param)
+                if task_id:
+                    dn = get_dn(req)
+                    prod_role = has_production_role(req)
+                    resolved_buffer = task_buffer() if callable(task_buffer) else task_buffer
+                    if not resolved_buffer.validate_ownership_or_production_role(task_id, dn, prod_role):
+                        tmp_logger.error(MESSAGE_TASK_OWNER)
+                        return generate_response(False, message=MESSAGE_TASK_OWNER)
 
             return func(*bound_args.args, **bound_args.kwargs)
 

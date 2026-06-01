@@ -183,7 +183,7 @@ class CachedObject:
             self.log_stream.debug(f"PID={os.getpid()} renewing {self.name} cache")
             try:
                 tmp_stat, tmp_out = self.updateFunc()
-                self.log_stream.debug(f"PID={os.getpid()} got for {self.name} {tmp_stat} {str(tmp_out)}")
+                self.log_stream.debug(f"PID={os.getpid()} got for {self.name} {tmp_stat}")
                 if tmp_stat:
                     self.cachedObj = tmp_out
             except Exception as e:
