@@ -225,7 +225,7 @@ class TaskStandaloneModule(BaseModule):
             criteria: dict of {JediTaskSpec_attribute: value} equality conditions.
                 Values of "NULL" / "NOT NULL" produce IS NULL / IS NOT NULL clauses.
             since: lower bound on modificationTime, format ``%Y-%m-%d %H:%M:%S``.
-                Capped to at most 30 days in the past. Ignored when None.
+                Capped to at most 90 days in the past. Ignored when None.
             nTasks: maximum number of task IDs returned (Oracle rownum limit).
 
         Returns:
@@ -253,7 +253,7 @@ class TaskStandaloneModule(BaseModule):
             except ValueError:
                 tmpLog.error(f"invalid since format: {since}")
                 return failedRet
-            maxRange = naive_utcnow() - datetime.timedelta(days=30)
+            maxRange = naive_utcnow() - datetime.timedelta(days=90)
             if timeRange < maxRange:
                 timeRange = maxRange
         varMap = {}
