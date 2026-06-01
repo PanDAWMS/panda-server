@@ -112,7 +112,7 @@ class AtlasAnalPostProcessor(PostProcessorBase):
                     if to_delete:
                         ddmIF.deleteFilesFromDataset(datasetSpec.datasetName, to_delete)
 
-                # freeze non-transient datasets
+                # freeze datasets, skipping transient ones (trn_*), except trn_log
                 if not closed_flag and not (datasetSpec.type.startswith("trn_") and datasetSpec.type not in ["trn_log"]):
                     tmp_logger.debug(f"freeze datasetID={datasetSpec.datasetID}:Name={datasetSpec.datasetName}")
                     ddmIF.freezeDataset(datasetSpec.datasetName, ignoreUnknown=True)
