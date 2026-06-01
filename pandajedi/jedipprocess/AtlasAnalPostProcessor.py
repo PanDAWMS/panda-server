@@ -56,7 +56,7 @@ class AtlasAnalPostProcessor(PostProcessorBase):
         2. Set an error dialog if the build step produced no successful jobs.
         3. Call doBasicPostProcess for common bookkeeping.
 
-        Returns SC_SUCCEEDED or SC_FATAL.
+        Returns SC_SUCCEEDED, SC_FAILED, or SC_FATAL.
         """
         # freeze datasets
         try:
