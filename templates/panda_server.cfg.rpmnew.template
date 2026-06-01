@@ -341,7 +341,7 @@ config = {
     "hs_scrapers": {
         "enable": true, "period": 604800, "sync": true},
     "async_request_daemon": {
-        "module": "async_request_daemon", "enable": true, "period": 30}
+        "module": "async_request_daemon", "enable": true, "period": 10}
   }
 
 
