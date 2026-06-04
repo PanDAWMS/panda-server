@@ -1129,7 +1129,7 @@ class WorkflowInterface(object):
         independent child workflow by _submit_sub_workflow when it reaches the ready state.
         """
         process_result = WorkflowProcessResult()
-        tmp_log = logger_utils.make_logger(base_logger, f"workflow_id={workflow_spec.workflow_id}")
+        tmp_log = LogWrapper(logger, f"_instantiate_scatter_workflow <workflow_id={workflow_spec.workflow_id}>")
 
         template = scatter_definition.get("template")
         scatter_inputs = scatter_definition.get("scatter_inputs", {})
