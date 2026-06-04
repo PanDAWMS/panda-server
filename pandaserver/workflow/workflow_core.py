@@ -1086,17 +1086,21 @@ class WorkflowInterface(object):
             return result
         data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
         data_spec_map = {ds.name: ds for ds in data_specs} if data_specs else {}
-        # Build root_inputs: map each workflow node input name to the resolved dataset name
-        child_root_inputs = {}
-        for input_name, input_data in step_definition.get("inputs", {}).items():
-            source = input_data.get("source") if isinstance(input_data, dict) else None
-            if source is None:
-                continue
-            sources = source if isinstance(source, list) else [source]
-            for src in sources:
-                if src in data_spec_map and data_spec_map[src].target_id:
-                    child_root_inputs[input_name] = data_spec_map[src].target_id
-                    break
+        # Build root_inputs for the child workflow
+        if step_spec.flavor == "scatter_child":
+            # Scatter children carry pre-resolved inputs; skip parent data spec resolution
+            child_root_inputs = step_definition.get("child_root_inputs", {})
+        else:
+            child_root_inputs = {}
+            for input_name, input_data in step_definition.get("inputs", {}).items():
+                source = input_data.get("source") if isinstance(input_data, dict) else None
+                if source is None:
+                    continue
+                sources = source if isinstance(source, list) else [source]
+                for src in sources:
+                    if src in data_spec_map and data_spec_map[src].target_id:
+                        child_root_inputs[input_name] = data_spec_map[src].target_id
+                        break
         child_definition = copy.deepcopy(child_definition)
         child_definition["root_inputs"] = child_root_inputs
         child_definition["user_name"] = step_definition.get("user_name")
@@ -1116,6 +1120,98 @@ class WorkflowInterface(object):
         result.success = True
         result.target_id = str(child_workflow_id)
         return result
+
+    def _instantiate_scatter_workflow(self, workflow_spec: WorkflowSpec, scatter_definition: dict) -> WorkflowProcessResult:
+        """
+        Expand a scatter definition into N parallel sub-workflow steps, one per scatter item.
+
+        Each step carries a pre-resolved child_root_inputs slice and will be submitted as an
+        independent child workflow by _submit_sub_workflow when it reaches the ready state.
+        """
+        process_result = WorkflowProcessResult()
+        tmp_log = logger_utils.make_logger(base_logger, f"workflow_id={workflow_spec.workflow_id}")
+
+        template = scatter_definition.get("template")
+        scatter_inputs = scatter_definition.get("scatter_inputs", {})
+        scatter_mode = scatter_definition.get("scatter_mode", "zip")
+
+        if not template:
+            process_result.message = "scatter_definition missing 'template'"
+            tmp_log.error(process_result.message)
+            workflow_spec.status = WorkflowStatus.cancelled
+            workflow_spec.set_parameter("cancel_reason", process_result.message)
+            self.tbif.update_workflow(workflow_spec)
+            return process_result
+
+        if not scatter_inputs:
+            workflow_spec.status = WorkflowStatus.done
+            workflow_spec.end_time = naive_utcnow()
+            self.tbif.update_workflow(workflow_spec)
+            process_result.success = True
+            process_result.new_status = WorkflowStatus.done
+            process_result.message = "No scatter inputs; workflow immediately done"
+            tmp_log.info(process_result.message)
+            return process_result
+
+        if scatter_mode != "zip":
+            process_result.message = f"Unsupported scatter_mode '{scatter_mode}'; only 'zip' is supported"
+            tmp_log.error(process_result.message)
+            workflow_spec.status = WorkflowStatus.cancelled
+            workflow_spec.set_parameter("cancel_reason", process_result.message)
+            self.tbif.update_workflow(workflow_spec)
+            return process_result
+
+        n_iterations = min(len(v) for v in scatter_inputs.values())
+        if n_iterations == 0:
+            workflow_spec.status = WorkflowStatus.done
+            workflow_spec.end_time = naive_utcnow()
+            self.tbif.update_workflow(workflow_spec)
+            process_result.success = True
+            process_result.new_status = WorkflowStatus.done
+            process_result.message = "All scatter input lists are empty; workflow immediately done"
+            tmp_log.info(process_result.message)
+            return process_result
+
+        now_time = naive_utcnow()
+        step_specs = []
+        for i in range(n_iterations):
+            child_root_inputs = {name: values[i] for name, values in scatter_inputs.items()}
+            step_spec = WFStepSpec()
+            step_spec.name = f"{workflow_spec.name}_scatter_{i}"
+            step_spec.workflow_id = workflow_spec.workflow_id
+            step_spec.member_id = i
+            step_spec.type = WFStepType.sub_workflow
+            step_spec.flavor = "scatter_child"
+            step_spec.status = WFStepStatus.registered
+            step_spec.creation_time = now_time
+            step_spec.definition_json = json.dumps(
+                {
+                    "scatter_index": i,
+                    "child_workflow_definition": template,
+                    "child_root_inputs": child_root_inputs,
+                    "input_data_dict": {},
+                },
+                default=json_serialize_default,
+            )
+            step_specs.append(step_spec)
+
+        workflow_spec.status = WorkflowStatus.starting
+        upsert_ret = self.tbif.upsert_workflow_entities(
+            workflow_spec.workflow_id,
+            actions_dict={"workflow": "update", "steps": "insert", "data": "insert"},
+            workflow_spec=workflow_spec,
+            step_specs=step_specs,
+            data_specs=[],
+        )
+        if not upsert_ret:
+            process_result.message = "Failed to upsert scatter workflow entities"
+            tmp_log.error(process_result.message)
+            return process_result
+
+        process_result.success = True
+        process_result.new_status = WorkflowStatus.starting
+        tmp_log.info(f"Scatter instantiated {n_iterations} child workflows")
+        return process_result
 
     def _check_sub_workflow(self, step_spec: WFStepSpec) -> WFStepTargetCheckResult:
         """
@@ -1819,6 +1915,9 @@ class WorkflowInterface(object):
                 workflow_spec.set_parameter("cancel_reason", "Workflow definition is None")
                 self.tbif.update_workflow(workflow_spec)
                 return process_result
+            # Scatter workflow: expand template into N parallel child workflows
+            if "scatter_definition" in workflow_definition:
+                return self._instantiate_scatter_workflow(workflow_spec, workflow_definition["scatter_definition"])
             # initialize
             data_specs = []
             step_specs = []
