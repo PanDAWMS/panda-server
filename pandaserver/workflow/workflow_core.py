@@ -565,15 +565,18 @@ class WorkflowInterface(object):
             WFStepTargetSubmitResult: Result with target_id = child workflow_id on success
         """
         result = WFStepTargetSubmitResult()
+        tmp_log = LogWrapper(logger, f"submit_sub_workflow <step_id={step_spec.step_id}> workflow_id={step_spec.workflow_id}")
         step_definition = step_spec.definition_json_map
         child_definition = step_definition.get("child_workflow_definition")
         if not child_definition:
             result.message = "Step definition missing child_workflow_definition"
+            tmp_log.error(result.message)
             return result
         # Fetch parent workflow data to resolve actual dataset names (target_ids)
         parent_workflow = self.tbif.get_workflow(step_spec.workflow_id)
         if parent_workflow is None:
             result.message = f"Failed to get parent workflow {step_spec.workflow_id}"
+            tmp_log.error(result.message)
             return result
         data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
         data_spec_map = {ds.name: ds for ds in data_specs} if data_specs else {}
@@ -607,9 +610,11 @@ class WorkflowInterface(object):
         child_workflow_id = self.tbif.insert_workflow(child_spec)
         if child_workflow_id is None:
             result.message = "Failed to insert child workflow into DB"
+            tmp_log.error(result.message)
             return result
         result.success = True
         result.target_id = str(child_workflow_id)
+        tmp_log.info(f"Submitted child workflow {child_workflow_id}")
         return result
 
     def instantiate_scatter_workflow(self, workflow_spec: WorkflowSpec, scatter_definition: dict) -> WorkflowProcessResult:
@@ -628,11 +633,10 @@ class WorkflowInterface(object):
         """
         process_result = WorkflowProcessResult()
         tmp_log = LogWrapper(logger, f"instantiate_scatter_workflow <workflow_id={workflow_spec.workflow_id}>")
-
+        # Validate scatter definition
         template = scatter_definition.get("template")
         scatter_inputs = scatter_definition.get("scatter_inputs", {})
         scatter_mode = scatter_definition.get("scatter_mode", "zip")
-
         if not template:
             process_result.message = "scatter_definition missing 'template'"
             tmp_log.error(process_result.message)
@@ -640,7 +644,6 @@ class WorkflowInterface(object):
             workflow_spec.set_parameter("cancel_reason", process_result.message)
             self.tbif.update_workflow(workflow_spec)
             return process_result
-
         if not scatter_inputs:
             workflow_spec.status = WorkflowStatus.done
             workflow_spec.end_time = naive_utcnow()
@@ -650,7 +653,6 @@ class WorkflowInterface(object):
             process_result.message = "No scatter inputs; workflow immediately done"
             tmp_log.info(process_result.message)
             return process_result
-
         if scatter_mode != "zip":
             process_result.message = f"Unsupported scatter_mode '{scatter_mode}'; only 'zip' is supported"
             tmp_log.error(process_result.message)
@@ -658,7 +660,7 @@ class WorkflowInterface(object):
             workflow_spec.set_parameter("cancel_reason", process_result.message)
             self.tbif.update_workflow(workflow_spec)
             return process_result
-
+        # Determine number of iterations based on scatter_inputs; in 'zip' mode, all input lists must have the same length
         n_iterations = min(len(v) for v in scatter_inputs.values())
         if n_iterations == 0:
             workflow_spec.status = WorkflowStatus.done
@@ -669,7 +671,7 @@ class WorkflowInterface(object):
             process_result.message = "All scatter input lists are empty; workflow immediately done"
             tmp_log.info(process_result.message)
             return process_result
-
+        # Create a child step for each iteration with the corresponding slice of inputs, and register them in the DB
         now_time = naive_utcnow()
         step_specs = []
         for i in range(n_iterations):
@@ -692,7 +694,7 @@ class WorkflowInterface(object):
                 default=json_serialize_default,
             )
             step_specs.append(step_spec)
-
+        # Update workflow status to starting and upsert the step specs
         workflow_spec.status = WorkflowStatus.starting
         upsert_ret = self.tbif.upsert_workflow_entities(
             workflow_spec.workflow_id,
@@ -705,7 +707,6 @@ class WorkflowInterface(object):
             process_result.message = "Failed to upsert scatter workflow entities"
             tmp_log.error(process_result.message)
             return process_result
-
         process_result.success = True
         process_result.new_status = WorkflowStatus.starting
         tmp_log.info(f"Scatter instantiated {n_iterations} child workflows")
@@ -722,13 +723,16 @@ class WorkflowInterface(object):
             WFStepTargetCheckResult: Result with step_status mapped from child workflow status
         """
         result = WFStepTargetCheckResult()
+        tmp_log = LogWrapper(logger, f"check_sub_workflow <step_id={step_spec.step_id}> workflow_id={step_spec.workflow_id} target_id={step_spec.target_id}")
         if not step_spec.target_id:
             result.message = "sub_workflow step has no target_id (child workflow not yet submitted)"
+            tmp_log.warning(result.message)
             return result
         child_workflow_id = int(step_spec.target_id)
         child_workflow = self.tbif.get_workflow(child_workflow_id)
         if child_workflow is None:
             result.message = f"Child workflow {child_workflow_id} not found"
+            tmp_log.error(result.message)
             return result
         native_status = child_workflow.status
         # Map child workflow status to WFStepStatus
@@ -745,6 +749,7 @@ class WorkflowInterface(object):
         result.success = True
         result.step_status = step_status
         result.native_status = native_status
+        tmp_log.debug(f"Child workflow {child_workflow_id} has status {native_status}; mapped to step status {step_status}")
         return result
 
     # ---- Data status transitions -----------------------------
