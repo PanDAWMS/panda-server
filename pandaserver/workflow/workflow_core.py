@@ -1880,8 +1880,7 @@ class WorkflowInterface(object):
                 workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
                 tmp_log.debug(f"Parsed raw request into definition")
             # Update status to parsed
-            # workflow_spec.status = WorkflowStatus.parsed
-            workflow_spec.status = WorkflowStatus.checked  # skip parsed for now
+            workflow_spec.status = WorkflowStatus.parsed
             # Update DB
             self.tbif.update_workflow(workflow_spec)
             process_result.success = True
@@ -1891,6 +1890,32 @@ class WorkflowInterface(object):
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return process_result
+
+    def process_workflow_parsed(self, workflow_spec: WorkflowSpec) -> WorkflowProcessResult:
+        """
+        Process a workflow in parsed status
+        To check the workflow definition and update status to checked if OK
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow specification to process
+
+        Returns:
+            WorkflowProcessResult: The result of processing the workflow
+        """
+        ...
+
+    def process_workflow_checking(self, workflow_spec: WorkflowSpec) -> WorkflowProcessResult:
+        """
+        Process a workflow in checking status
+        To check the workflow definition and update status to checked if OK
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow specification to process
+
+        Returns:
+            WorkflowProcessResult: The result of processing the workflow
+        """
+        ...
 
     def process_workflow_checked(self, workflow_spec: WorkflowSpec) -> WorkflowProcessResult:
         """
