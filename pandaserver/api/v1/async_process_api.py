@@ -62,7 +62,7 @@ ACCESS_LEVELS = ("owner", "production", "anyone")
 
 # bounds for the sleep+echo request
 MAX_SLEEP_SECONDS = 60  # cap below the processor's subprocess timeout (240s)
-MAX_MESSAGE_LENGTH = 1000  # cap echoed message size
+MAX_MESSAGE_LENGTH = 100  # cap echoed message size
 
 
 def _set_owner_info(parameters: dict, req, access: str = "owner") -> dict:
@@ -209,7 +209,7 @@ def submit_sleep_echo_request(
     req: PandaRequest,
     service_name: str,
     message: str,
-    seconds: int = 1,
+    seconds: int = 10,
 ) -> Dict[str, Any]:
     """
     Submit a sleep+echo request, run on any one machine in the target service.
@@ -223,7 +223,7 @@ def submit_sleep_echo_request(
         req(PandaRequest): request object
         service_name(str): target service; the job runs on exactly one of its alive machines
         message(str): text echoed back as the result
-        seconds(int): seconds to sleep before echoing (0..MAX_SLEEP_SECONDS)
+        seconds(int): seconds to sleep before echoing (0..60)
 
     Returns:
         dict: {"success": bool, "message": str, "data": {"request_id": str}}
