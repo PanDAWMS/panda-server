@@ -12,7 +12,12 @@ from typing import Any, Dict
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.api.v1.common import generate_response, get_dn, request_validation
+from pandaserver.api.v1.common import (
+    generate_response,
+    get_dn,
+    has_production_role,
+    request_validation,
+)
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id
@@ -49,6 +54,60 @@ def _is_authorized(req):
     if compact_dn not in allowed:
         return False, f"'{compact_dn}' is not authorized"
     return True, f"'{compact_dn}' is authorized"
+
+
+# valid access levels for reading back request results
+ACCESS_LEVELS = ("owner", "production", "anyone")
+
+
+def _set_owner_info(parameters: dict, req, access: str = "owner") -> dict:
+    """
+    Embed the requester and access level into a request's parameters dict.
+    Used by submit_* endpoints when building parameters_json.
+
+    Args:
+        parameters(dict): the request's parameters dict to be augmented in place
+        req(PandaRequest): request object, used to derive the requester's compact DN
+        access(str): access level controlling who may read results; one of
+            "owner", "production", "anyone" (default "owner")
+
+    Returns:
+        dict: the same parameters dict, with "requester" and "access" set
+    """
+    parameters["requester"] = clean_user_id(get_dn(req))
+    parameters["access"] = access
+    return parameters
+
+
+def _is_authorized_to_read(req, req_row):
+    """
+    Authorize the caller to read a request's results based on its access level.
+
+    Args:
+        req(PandaRequest): request object, used to derive the caller's compact DN
+            and (for the "production" level) the production role
+        req_row(dict): the row dict from global_task_buffer.get_async_request();
+            only req_row["parameters"] (the JSON holding requester/access) is used
+
+    Returns:
+        tuple[bool, str]: (authorized, message)
+    """
+    caller = clean_user_id(get_dn(req))
+    try:
+        params = json.loads(req_row["parameters"] or "{}")
+    except json.JSONDecodeError:
+        params = {}
+    requester = params.get("requester")
+    access = params.get("access", "owner")
+    if access == "owner":
+        authorized = caller == requester
+    elif access == "production":
+        authorized = caller == requester or has_production_role(req)
+    else:  # "anyone"; any unknown value falls through to not authorized
+        authorized = access == "anyone"
+    if not authorized:
+        return False, f"'{caller}' is not authorized to read results (access='{access}', requester='{requester}')"
+    return True, f"'{caller}' is authorized (access='{access}')"
 
 
 @request_validation(_logger, secure=True, request_method="POST")
@@ -119,7 +178,8 @@ def submit_grep_request(
             tmp_logger.warning(msg)
 
     request_id = str(uuid.uuid4())
-    parameters_json = json.dumps({"pattern": pattern, "log_filename": log_filename, "requester": clean_user_id(get_dn(req))})
+    parameters = _set_owner_info({"pattern": pattern, "log_filename": log_filename}, req)  # grep results stay owner-only
+    parameters_json = json.dumps(parameters)
     expected_machines_json = json.dumps(expected)
 
     ok = global_task_buffer.insert_async_request(
@@ -170,28 +230,18 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
     tmp_logger = LogWrapper(_logger, f"get_result < request_id={request_id} >")
     tmp_logger.debug("Start")
 
-    ok, msg = _is_authorized(req)
-    if not ok:
-        tmp_logger.warning(msg)
-        return generate_response(False, msg)
-    tmp_logger.debug(msg)
-
     req_row = global_task_buffer.get_async_request(request_id)
     if req_row is None:
         msg = f"request_id '{request_id}' not found"
         tmp_logger.warning(msg)
         return generate_response(False, msg)
 
-    # only the original requester may read back the results
-    caller = clean_user_id(get_dn(req))
-    try:
-        requester = json.loads(req_row["parameters"] or "{}").get("requester")
-    except json.JSONDecodeError:
-        requester = None
-    if caller != requester:
-        msg = f"'{caller}' is not the requester '{requester}'"
+    # authorize the caller to read the results based on the request's access level
+    ok, msg = _is_authorized_to_read(req, req_row)
+    if not ok:
         tmp_logger.warning(msg)
         return generate_response(False, msg)
+    tmp_logger.debug(msg)
 
     results = global_task_buffer.get_async_results(request_id)
 

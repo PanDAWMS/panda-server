@@ -1,10 +1,13 @@
 # TODO: the secure-endpoint results depend on the cert used for the call.
 # These results assume the cert's DN is in the `allowAsyncRequest` list.
 
+import json
 import socket
 import unittest
 import uuid
+from unittest import mock
 
+from pandaserver.api.v1 import async_process_api
 from pandaserver.api.v1.http_client import HttpClient, api_url, api_url_ssl
 
 NO_SSL_RESPONSE = {"success": False, "message": "SSL secure connection is required", "data": None}
@@ -122,6 +125,66 @@ class TestAsyncProcessAPI(unittest.TestCase):
         self.assertEqual(output["data"]["overall_status"], "pending")
         self.assertIsInstance(output["data"]["expected_machines"], list)
         self.assertIsInstance(output["data"]["results"], list)
+
+
+class TestAsyncAccessControl(unittest.TestCase):
+    """Unit tests for the access-control helpers (no live server needed)."""
+
+    def _row(self, requester, access=None):
+        params = {"requester": requester}
+        if access is not None:
+            params["access"] = access
+        return {"parameters": json.dumps(params)}
+
+    def test_set_owner_info_default_owner(self):
+        with mock.patch.object(async_process_api, "get_dn", return_value="dn"), mock.patch.object(async_process_api, "clean_user_id", return_value="alice"):
+            params = async_process_api._set_owner_info({"pattern": "x"}, req=object())
+        self.assertEqual(params["requester"], "alice")
+        self.assertEqual(params["access"], "owner")
+        self.assertEqual(params["pattern"], "x")
+
+    def test_set_owner_info_explicit_access(self):
+        with mock.patch.object(async_process_api, "get_dn", return_value="dn"), mock.patch.object(async_process_api, "clean_user_id", return_value="alice"):
+            params = async_process_api._set_owner_info({}, req=object(), access="anyone")
+        self.assertEqual(params["access"], "anyone")
+
+    def _authorize(self, caller, req_row, production_role=False):
+        with (
+            mock.patch.object(async_process_api, "get_dn", return_value="dn"),
+            mock.patch.object(async_process_api, "clean_user_id", return_value=caller),
+            mock.patch.object(async_process_api, "has_production_role", return_value=production_role),
+        ):
+            return async_process_api._is_authorized_to_read(object(), req_row)
+
+    def test_owner_matching_caller_ok(self):
+        ok, _ = self._authorize("alice", self._row("alice", "owner"))
+        self.assertTrue(ok)
+
+    def test_owner_other_caller_denied(self):
+        ok, _ = self._authorize("bob", self._row("alice", "owner"))
+        self.assertFalse(ok)
+
+    def test_production_role_caller_ok(self):
+        ok, _ = self._authorize("bob", self._row("alice", "production"), production_role=True)
+        self.assertTrue(ok)
+
+    def test_production_non_role_non_owner_denied(self):
+        ok, _ = self._authorize("bob", self._row("alice", "production"), production_role=False)
+        self.assertFalse(ok)
+
+    def test_anyone_any_caller_ok(self):
+        ok, _ = self._authorize("bob", self._row("alice", "anyone"))
+        self.assertTrue(ok)
+
+    def test_missing_access_defaults_to_owner(self):
+        ok, _ = self._authorize("alice", self._row("alice"))
+        self.assertTrue(ok)
+        ok, _ = self._authorize("bob", self._row("alice"))
+        self.assertFalse(ok)
+
+    def test_unknown_access_denied(self):
+        ok, _ = self._authorize("alice", self._row("alice", "bogus"))
+        self.assertFalse(ok)
 
 
 # Run tests
