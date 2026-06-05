@@ -84,9 +84,56 @@ def _handle_grep(row, tb, tmp_logger, result_machine):
     )
 
 
+def _handle_sleep_echo(row, tb, tmp_logger, result_machine):
+    """Sleep for the requested seconds, then echo the message; store echo stdout as the result."""
+    params = json.loads(row["parameters"])
+    seconds = params["seconds"]
+    message = params["message"]
+
+    tmp_logger.debug(f"sleeping {seconds}s then echoing")
+    try:
+        subprocess.run(["sleep", str(seconds)], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
+        proc = subprocess.run(["echo", message], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        tmp_logger.error(f"subprocess timed out after {_SUBPROCESS_TIMEOUT} seconds")
+        tb.finish_async_result(
+            row["request_id"],
+            result_machine,
+            "failed",
+            error_msg="timeout",
+            retriable=False,
+        )
+        return
+    except Exception as e:
+        tmp_logger.error(f"subprocess failed with exception: {e}")
+        tb.finish_async_result(
+            row["request_id"],
+            result_machine,
+            "failed",
+            error_msg=str(e),
+            retriable=False,
+        )
+        return
+
+    stdout = proc.stdout
+    stderr = proc.stderr
+    truncated = len(stdout) > _MAX_RESULT_BYTES or len(stderr) > _MAX_RESULT_BYTES
+    tmp_logger.debug(f"outcome: return code {proc.returncode}, stdout size {len(stdout)}, truncated={truncated}")
+    tb.finish_async_result(
+        row["request_id"],
+        result_machine,
+        "done",
+        result=stdout[:_MAX_RESULT_BYTES],
+        stderr=stderr[:_MAX_RESULT_BYTES],
+        return_code=proc.returncode,
+        truncated=truncated,
+    )
+
+
 # Register new request types here — no new daemon needed
 HANDLERS = {
     "grep": _handle_grep,
+    "sleep_echo": _handle_sleep_echo,
 }
 
 

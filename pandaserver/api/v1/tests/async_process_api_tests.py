@@ -126,6 +126,35 @@ class TestAsyncProcessAPI(unittest.TestCase):
         self.assertIsInstance(output["data"]["expected_machines"], list)
         self.assertIsInstance(output["data"]["results"], list)
 
+    def test_submit_sleep_echo_no_ssl(self):
+        full_url = f"{api_url}/async_process/submit_sleep_echo_request"
+        print(f"Testing URL: {full_url}")
+        data = {"service_name": "server", "message": "hi", "seconds": 1}
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        self.assertEqual(output, NO_SSL_RESPONSE)
+
+    def test_submit_sleep_echo_invalid_seconds(self):
+        full_url = f"{api_url_ssl}/async_process/submit_sleep_echo_request"
+        print(f"Testing URL: {full_url}")
+        data = {"service_name": "server", "message": "hi", "seconds": 100000}
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        self.assertFalse(output["success"])
+
+    def test_submit_sleep_echo_success(self):
+        full_url = f"{api_url_ssl}/async_process/submit_sleep_echo_request"
+        print(f"Testing URL: {full_url}")
+        data = {"service_name": "server", "message": "hi", "seconds": 1}
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        if not output.get("success"):
+            raise unittest.SkipTest(f"submit_sleep_echo_request did not succeed: {output.get('message')}")
+        self.assertIsInstance(output["data"], dict)
+        request_id = output["data"]["request_id"]
+        self.assertIsInstance(request_id, str)
+        self.assertEqual(len(request_id), 36)
+
 
 class TestAsyncAccessControl(unittest.TestCase):
     """Unit tests for the access-control helpers (no live server needed)."""

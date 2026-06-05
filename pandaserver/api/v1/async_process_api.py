@@ -22,6 +22,7 @@ from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.srvcore.panda_request import PandaRequest
+from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("api_async_process")
@@ -42,7 +43,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
         global_dispatch_parameter_cache = CoreUtils.CachedObject("dispatcher_params", 60 * 10, task_buffer.get_special_dispatch_params, _logger)
 
 
-def _is_authorized(req):
+def _is_authorized_with_allowlist(req):
     """Check whether the caller's DN is in the allowAsyncRequest list."""
     compact_dn = clean_user_id(get_dn(req))
     global global_dispatch_parameter_cache
@@ -58,6 +59,10 @@ def _is_authorized(req):
 
 # valid access levels for reading back request results
 ACCESS_LEVELS = ("owner", "production", "anyone")
+
+# bounds for the sleep+echo request
+MAX_SLEEP_SECONDS = 60  # cap below the processor's subprocess timeout (240s)
+MAX_MESSAGE_LENGTH = 1000  # cap echoed message size
 
 
 def _set_owner_info(parameters: dict, req, access: str = "owner") -> dict:
@@ -138,7 +143,7 @@ def submit_grep_request(
     tmp_logger = LogWrapper(_logger, "submit_grep_request")
     tmp_logger.debug("Start")
 
-    ok, msg = _is_authorized(req)
+    ok, msg = _is_authorized_with_allowlist(req)
     if not ok:
         tmp_logger.warning(msg)
         return generate_response(False, msg)
@@ -199,6 +204,75 @@ def submit_grep_request(
     return generate_response(True, "", {"request_id": request_id})
 
 
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def submit_sleep_echo_request(
+    req: PandaRequest,
+    service_name: str,
+    message: str,
+    seconds: int = 1,
+) -> Dict[str, Any]:
+    """
+    Submit a sleep+echo request, run on any one machine in the target service.
+    Results are readable by the requester or any production-role caller (access="production").
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/async_process/submit_sleep_echo_request
+
+    Args:
+        req(PandaRequest): request object
+        service_name(str): target service; the job runs on exactly one of its alive machines
+        message(str): text echoed back as the result
+        seconds(int): seconds to sleep before echoing (0..MAX_SLEEP_SECONDS)
+
+    Returns:
+        dict: {"success": bool, "message": str, "data": {"request_id": str}}
+    """
+    tmp_logger = LogWrapper(_logger, "submit_sleep_echo_request")
+    tmp_logger.debug("Start")
+
+    if not 0 <= seconds <= MAX_SLEEP_SECONDS:
+        msg = f"invalid seconds: must be between 0 and {MAX_SLEEP_SECONDS}"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    if len(message) > MAX_MESSAGE_LENGTH:
+        msg = f"invalid message: must be at most {MAX_MESSAGE_LENGTH} characters"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    if not service_name:
+        msg = "service_name must be provided"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    # the "any" job needs at least one alive machine in the service to run on
+    expected = global_task_buffer.get_alive_machines(service_name)
+    if not expected:
+        msg = f"no alive machines found for service '{service_name}'"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    request_id = str(uuid.uuid4())
+    parameters = _set_owner_info({"seconds": seconds, "message": message}, req, access="production")
+
+    ok = global_task_buffer.insert_async_request(
+        request_id,
+        "sleep_echo",
+        json.dumps(parameters),
+        service_name,
+        ANY_MACHINE,
+        None,  # expected_machines auto-derived to ["any"] for the sentinel
+    )
+    if not ok:
+        msg = "failed to insert request into DB"
+        tmp_logger.error(msg)
+        return generate_response(False, msg)
+
+    tmp_logger.debug(f"Done request_id={request_id}")
+    return generate_response(True, "", {"request_id": request_id})
+
+
 @request_validation(_logger, secure=True, request_method="GET")
 def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
     """
@@ -210,7 +284,7 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
 
     Args:
         req(PandaRequest): request object
-        request_id(str): UUID returned by submit_grep_request
+        request_id(str): UUID returned by a submit_* endpoint
 
     Returns:
         dict: {
