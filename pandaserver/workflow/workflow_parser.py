@@ -218,7 +218,15 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                         [node.resolve_params(raw_request_dict["taskParams"], id_node_map) for node in nodes]
                         dump_str = "the description was internally converted as follows\n" + workflow_native_utils.dump_nodes(nodes)
                         tmp_log.info(dump_str)
+                        # scatter template child nodes have unresolved scatter-parameter inputs
+                        # (e.g. {signal}, {background}) that are filled in at runtime — skip them
+                        scatter_template_ids = set()
                         for node in nodes:
+                            if node.scatter_inputs is not None:
+                                scatter_template_ids |= node.sub_nodes
+                        for node in nodes:
+                            if node.id in scatter_template_ids:
+                                continue
                             s_check, o_check = node.verify()
                             tmp_str = f"Verification failure in ID:{node.id} {o_check}"
                             if not s_check:

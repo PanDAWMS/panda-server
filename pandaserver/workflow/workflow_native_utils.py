@@ -217,7 +217,7 @@ class Node(object):
                         for pid in self.parents:
                             parent_node = id_map[pid]
                             if ds_name in parent_node.convert_set_outputs():
-                                dict_inputs["opt_secondaryDsTypes"].append(parent_node.output_types[0])
+                                dict_inputs["opt_secondaryDsTypes"].append(parent_node.output_types[0] if parent_node.output_types else None)
                                 added = True
                                 break
                         if not added:
@@ -255,7 +255,8 @@ class Node(object):
                         v.setdefault("requirements", {})["requires_complete"] = True
         if self.is_leaf and task_template:
             self.task_params = self.make_task_params(task_template, id_map, workflow)
-        [n.resolve_params(task_template, id_map, self) for n in self.sub_nodes]
+        if self.scatter_inputs is None:
+            [n.resolve_params(task_template, id_map, self) for n in self.sub_nodes]
 
     # create task params
     def make_task_params(self, task_template, id_map, workflow_node):
@@ -447,7 +448,7 @@ class Node(object):
                     for parent_id in self.parents:
                         parent_node = id_map[parent_id]
                         if dict_inputs["opt_trainingDS"] in parent_node.convert_set_outputs():
-                            in_ds_suffix = parent_node.output_types[0]
+                            in_ds_suffix = parent_node.output_types[0] if parent_node.output_types else None
                             break
                 else:
                     in_ds_suffix = dict_inputs["opt_inDsType"]
@@ -525,10 +526,11 @@ class Node(object):
         if all_ids is None:
             all_ids = set()
         all_ids.add(self.id)
-        for sub_node in self.sub_nodes:
-            all_ids.add(sub_node.id)
-            if not sub_node.is_leaf:
-                sub_node.get_all_sub_node_ids(all_ids)
+        if self.scatter_inputs is None:
+            for sub_node in self.sub_nodes:
+                all_ids.add(sub_node.id)
+                if not sub_node.is_leaf:
+                    sub_node.get_all_sub_node_ids(all_ids)
         return all_ids
 
     # get loop param name
@@ -559,9 +561,9 @@ class Node(object):
                     parent_node = id_map[parent_id]
                     if tmp_in_ds in parent_node.convert_set_outputs():
                         if is_list_in_ds:
-                            in_ds_suffix.append(parent_node.output_types[0])
+                            in_ds_suffix.append(parent_node.output_types[0] if parent_node.output_types else None)
                         else:
-                            in_ds_suffix = parent_node.output_types[0]
+                            in_ds_suffix = parent_node.output_types[0] if parent_node.output_types else None
                         break
         else:
             in_ds_suffix = dict_inputs["opt_inDsType"]
@@ -587,7 +589,8 @@ def dump_nodes(node_list, dump_str=None, only_leaves=False):
         else:
             if not only_leaves:
                 dump_str += f"{node}\n"
-            dump_str = dump_nodes(node.sub_nodes, dump_str, only_leaves)
+            if node.scatter_inputs is None:
+                dump_str = dump_nodes(node.sub_nodes, dump_str, only_leaves)
     return dump_str
 
 
@@ -597,7 +600,7 @@ def get_node_id_map(node_list, id_map=None):
         id_map = {}
     for node in node_list:
         id_map[node.id] = node
-        if node.sub_nodes:
+        if node.sub_nodes and node.scatter_inputs is None:
             id_map = get_node_id_map(node.sub_nodes, id_map)
     return id_map
 
@@ -608,7 +611,8 @@ def get_all_parents(node_list, all_parents=None):
         all_parents = set()
     for node in node_list:
         all_parents |= node.parents
-        if node.sub_nodes:
+        # scatter workflow nodes store integer IDs in sub_nodes (resolved at runtime); skip recursion
+        if node.sub_nodes and node.scatter_inputs is None:
             all_parents = get_all_parents(node.sub_nodes, all_parents)
     return all_parents
 
@@ -620,7 +624,8 @@ def set_workflow_outputs(node_list, all_parents=None):
     for node in node_list:
         if node.is_leaf and node.id not in all_parents:
             node.is_workflow_output = True
-        if node.sub_nodes:
+        # scatter workflow nodes store integer IDs in sub_nodes (resolved at runtime); skip recursion
+        if node.sub_nodes and node.scatter_inputs is None:
             set_workflow_outputs(node.sub_nodes, all_parents)
 
 
@@ -792,6 +797,18 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                     # add loop count for nodes in a loop
                     if sc_node.in_loop:
                         tmp_data["value"] += ".___idds___num_run___"
+    # Remap sub_nodes for scatter workflow nodes from pre-resolve IDs to post-resolve serial IDs.
+    # parents is already remapped above via tmp_to_real_id_map; sub_nodes needs the same treatment
+    # so that extract_child_workflow_definition can look up child nodes by their new serial IDs.
+    for node in all_nodes:
+        if node.scatter_inputs is not None and node.sub_nodes:
+            new_sub_ids = set()
+            for old_id in node.sub_nodes:
+                if old_id in tmp_to_real_id_map:
+                    new_sub_ids |= tmp_to_real_id_map[old_id]
+                else:
+                    new_sub_ids.add(old_id)
+            node.sub_nodes = new_sub_ids
     # return tails
     tail_nodes = []
     for node in all_nodes:
