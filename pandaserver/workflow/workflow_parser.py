@@ -183,6 +183,10 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                                     child_nodes, _ = workflow_native_utils.parse_workflow_data(ref_data, tmp_log, _id_counter=id_counter)
                                     node.sub_nodes = {child_node.id for child_node in child_nodes}
                                     node.workflow_ref = None
+                                    # child nodes are template nodes within the scatter parent; clear is_tail
+                                    # so they do not appear as tail nodes of the outer workflow
+                                    for child_node in child_nodes:
+                                        child_node.is_tail = False
                                     nodes.extend(child_nodes)
                                     # Resolve scatter_inputs name references to actual value lists
                                     if node.scatter_inputs:

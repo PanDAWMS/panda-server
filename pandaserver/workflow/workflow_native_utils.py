@@ -758,7 +758,10 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             sc_node.parents = real_parens
             if sc_node.is_head:
                 sc_node.parents |= parent_ids
-            if sc_node.is_leaf:
+            # scatter workflow nodes are resolved at runtime (instantiate_scatter_workflow);
+            # sub_nodes holds integer IDs (not Node objects) at this stage, so skip recursion
+            is_scatter_workflow = sc_node.scatter_inputs is not None
+            if sc_node.is_leaf or is_scatter_workflow:
                 resolved_map[original_node_id].append(sc_node)
                 tmp_to_real_id_map[original_node_id].add(serial_id)
                 sc_node.id = serial_id
@@ -783,7 +786,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                 pass
                 # convert_params_in_condition_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
             # resolve outputs
-            if sc_node.is_leaf:
+            if sc_node.is_leaf or is_scatter_workflow:
                 for tmp_name, tmp_data in sc_node.outputs.items():
                     tmp_data["value"] = f"{out_ds_name}_{sc_node.id:03d}_{sc_node.name}"
                     # add loop count for nodes in a loop
