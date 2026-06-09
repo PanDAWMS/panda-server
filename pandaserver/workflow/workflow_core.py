@@ -712,6 +712,128 @@ class WorkflowInterface(object):
         tmp_log.info(f"Scatter instantiated {n_iterations} child workflows")
         return process_result
 
+    def resolve_sub_workflow_outputs(self, step_spec: WFStepSpec, child_workflow_id: int) -> dict:
+        """
+        Collect output target_ids from a completed sub-workflow (scatter or regular) for aggregation.
+
+        For scatter workflows, iterates over all scatter_child steps and collects each grandchild
+        workflow's root output target_ids into a flat list (in scatter-index order).
+        For regular sub-workflows, maps the child's root output target_ids to parent outputs by position.
+
+        Args:
+            step_spec (WFStepSpec): The parent step whose output_data_list drives the mapping.
+            child_workflow_id (int): Workflow ID of the completed child workflow.
+
+        Returns:
+            dict: Maps parent output data name -> list[str] of raw target_id strings.
+                  Returns {} on failure (non-fatal; logged as warning/error).
+        """
+        tmp_log = LogWrapper(logger, f"resolve_sub_workflow_outputs <step_id={step_spec.step_id}> child_workflow_id={child_workflow_id}")
+        parent_output_data_list = step_spec.definition_json_map.get("output_data_list", [])
+        if not parent_output_data_list:
+            tmp_log.debug("No output_data_list in step definition; skipped")
+            return {}
+        try:
+            child_steps = self.tbif.get_steps_of_workflow(workflow_id=child_workflow_id)
+            scatter_child_steps = [s for s in child_steps if s.flavor == "scatter_child" and s.target_id]
+            if scatter_child_steps:
+                # Scatter branch: collect root outputs from all N grandchild workflows in index order
+                scatter_child_steps.sort(key=lambda s: s.member_id if s.member_id is not None else 0)
+                all_target_ids = []
+                for scatter_step in scatter_child_steps:
+                    grandchild_data = (
+                        self.tbif.get_data_of_workflow(
+                            workflow_id=int(scatter_step.target_id),
+                            type_filter_list=[WFDataType.output],
+                        )
+                        or []
+                    )
+                    for ds in grandchild_data:
+                        if ds.target_id:
+                            all_target_ids.append(ds.target_id)
+                if not all_target_ids:
+                    tmp_log.warning("Scatter branch: no output target_ids collected from grandchild workflows")
+                    return {}
+                result = {name: all_target_ids for name in parent_output_data_list}
+                tmp_log.debug(f"Scatter branch: {len(all_target_ids)} target_ids for {len(parent_output_data_list)} parent outputs")
+                return result
+            else:
+                # Regular branch: map child workflow's root outputs to parent outputs by position
+                child_data = (
+                    self.tbif.get_data_of_workflow(
+                        workflow_id=child_workflow_id,
+                        type_filter_list=[WFDataType.output],
+                    )
+                    or []
+                )
+                child_target_ids = [ds.target_id for ds in child_data if ds.target_id]
+                if not child_target_ids:
+                    tmp_log.warning("Regular branch: no output target_ids found in child workflow")
+                    return {}
+                result = {}
+                for i, name in enumerate(parent_output_data_list):
+                    if i < len(child_target_ids):
+                        result[name] = [child_target_ids[i]]
+                    else:
+                        tmp_log.warning(f"No child output for parent output {name} (index {i}); skipped")
+                tmp_log.debug(f"Regular branch: resolved {len(result)} output mappings")
+                return result
+        except Exception:
+            tmp_log.error(f"Got error; {traceback.format_exc()}")
+            return {}
+
+    def apply_sub_workflow_outputs(
+        self,
+        tmp_log: LogWrapper,
+        step_spec: WFStepSpec,
+        output_ids: dict,
+        data_spec_map: dict,
+        now_time,
+    ) -> None:
+        """
+        Write aggregated sub-workflow output target_ids into the parent workflow's data specs.
+
+        For each entry in output_ids, calls the appropriate data handler plugin's combine_targets
+        to produce a single DDM entity from the list of raw target_ids, then persists the result
+        on the parent data spec and advances its status to done_generated.
+
+        Args:
+            tmp_log (LogWrapper): Logger from the calling method.
+            step_spec (WFStepSpec): The parent step (provides workflow_id, step_id for naming).
+            output_ids (dict): Maps parent output data name -> list[str] of raw target_ids.
+            data_spec_map (dict): Name-keyed map of data specs for the parent workflow.
+            now_time: Timestamp to set on data_spec.end_time.
+        """
+        for output_data_name, target_id_list in output_ids.items():
+            if not target_id_list:
+                tmp_log.warning(f"Empty target_id list for output {output_data_name}; skipped")
+                continue
+            data_spec = data_spec_map.get(output_data_name)
+            if data_spec is None:
+                tmp_log.warning(f"Output data spec {output_data_name} not found in workflow data; skipped")
+                continue
+            if data_spec.status in WFDataStatus.done_statuses:
+                tmp_log.debug(f"Output data spec {output_data_name} already done (status={data_spec.status}); skipped")
+                continue
+            data_handler = self.get_plugin("data_handler", data_spec.flavor)
+            if data_handler is None:
+                tmp_log.warning(f"No data handler plugin for flavor {data_spec.flavor}; skipped")
+                continue
+            # Build a deterministic combined container name from workflow/step context
+            first_tid = target_id_list[0]
+            scope = first_tid.split(":")[0] if ":" in first_tid else "user"
+            safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", output_data_name)[:50]
+            combined_name = f"{scope}:wf{step_spec.workflow_id}_s{step_spec.step_id}_{safe_name}_agg/"
+            combined = data_handler.combine_targets(target_id_list, combined_name=combined_name)
+            if not combined:
+                tmp_log.error(f"combine_targets failed for output {output_data_name}; skipped")
+                continue
+            data_spec.target_id = combined
+            data_spec.status = WFDataStatus.done_generated
+            data_spec.end_time = now_time
+            self.tbif.update_workflow_data(data_spec)
+            tmp_log.info(f"Aggregated output {output_data_name} -> target_id={combined}")
+
     def check_sub_workflow(self, step_spec: WFStepSpec) -> WFStepTargetCheckResult:
         """
         Check the status of a child workflow and map it to a WFStepStatus.
@@ -749,6 +871,8 @@ class WorkflowInterface(object):
         result.success = True
         result.step_status = step_status
         result.native_status = native_status
+        if native_status == WorkflowStatus.done:
+            result.output_ids = self.resolve_sub_workflow_outputs(step_spec, child_workflow_id)
         tmp_log.debug(f"Child workflow {child_workflow_id} has status {native_status}; mapped to step status {step_status}")
         return result
 
@@ -1645,6 +1769,9 @@ class WorkflowInterface(object):
                 # step has ended, set end_time if not yet set
                 step_spec.end_time = now_time
             self.tbif.update_workflow_step(step_spec)
+            # Propagate sub-workflow outputs to parent data specs when step completes
+            if check_result.output_ids:
+                self.apply_sub_workflow_outputs(tmp_log, step_spec, check_result.output_ids, data_spec_map, now_time)
             process_result.success = True
             tmp_log.info(f"Checked step, type={step_spec.type}, target_id={step_spec.target_id}, status={step_spec.status}")
         except Exception as e:
@@ -1728,6 +1855,9 @@ class WorkflowInterface(object):
                 # step has ended, set end_time if not yet set
                 step_spec.end_time = now_time
             self.tbif.update_workflow_step(step_spec)
+            # Propagate sub-workflow outputs to parent data specs when step completes
+            if check_result.output_ids:
+                self.apply_sub_workflow_outputs(tmp_log, step_spec, check_result.output_ids, data_spec_map, now_time)
             process_result.success = True
             tmp_log.info(f"Checked step, flavor={step_spec.flavor}, target_id={step_spec.target_id}, status={step_spec.status}")
         except Exception as e:

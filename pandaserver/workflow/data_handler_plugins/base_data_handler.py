@@ -46,3 +46,20 @@ class BaseDataHandler:
             WFDataTargetCheckResult: The result of the target check.
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def combine_targets(self, target_ids: list, combined_name: str | None = None) -> str:
+        """
+        Combine multiple target IDs into a single new target via the plugin's functionality.
+
+        Used to aggregate scatter-child outputs into one entity (e.g. a Rucio container) that
+        can be stored as a single data_spec.target_id and consumed by downstream steps.
+
+        Args:
+            target_ids (list): List of raw target_id strings to combine.
+            combined_name (str | None): Suggested name for the combined target. If None,
+                the implementation may derive one. Should be deterministic for idempotency.
+
+        Returns:
+            str: The name of the combined target, or empty string on failure.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")

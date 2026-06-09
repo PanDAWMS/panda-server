@@ -98,3 +98,32 @@ class DDMCollectionDataHandler(BaseDataHandler):
         check_result.success = True
         tmp_log.info(f"Got collection {collection} check_status={check_result.check_status}")
         return check_result
+
+    def combine_targets(self, target_ids: list, combined_name: str | None = None) -> str:
+        """
+        Combine multiple DDM collection target IDs into a single Rucio container.
+
+        Args:
+            target_ids (list): List of DDM collection names to aggregate.
+            combined_name (str | None): Name for the new Rucio container. Should be caller-supplied
+                and deterministic to ensure idempotency across retries.
+
+        Returns:
+            str: The combined container name, or empty string on failure.
+        """
+        tmp_log = LogWrapper(logger, "combine_targets")
+        if not target_ids:
+            tmp_log.warning("Empty target_ids list; returning empty string")
+            return ""
+        if len(target_ids) == 1:
+            return target_ids[0]
+        if combined_name is None:
+            first = target_ids[0]
+            scope = first.split(":")[0] if ":" in first else "user"
+            combined_name = f"{scope}:wf_combined_{uuid.uuid4().hex}/"
+        ok = self.ddm_if.register_container(combined_name, datasets=target_ids)
+        if not ok:
+            tmp_log.error(f"Failed to register combined container {combined_name}")
+            return ""
+        tmp_log.info(f"Registered combined container {combined_name} with {len(target_ids)} datasets")
+        return combined_name

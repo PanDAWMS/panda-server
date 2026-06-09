@@ -481,12 +481,16 @@ class WFStepTargetCheckResult:
         status (WFStepStatus | None): The status of the step to move to.
         native_status (str | None): The native status string from the target system.
         message (str): A message providing additional information about the status check result.
+        output_ids (dict): Maps parent output data name to a list of raw target_id strings collected
+            from the completed child (or grandchild) workflows, for aggregation by the caller.
+            Populated only when step_status transitions to done.
     """
 
     success: bool | None = None
     step_status: WFStepStatus | None = None
     native_status: str | None = None
     message: str = ""
+    output_ids: dict = field(default_factory=dict)
 
 
 @dataclass(slots=True)
