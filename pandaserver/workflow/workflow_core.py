@@ -2029,7 +2029,7 @@ class WorkflowInterface(object):
     def process_workflow_parsed(self, workflow_spec: WorkflowSpec) -> WorkflowProcessResult:
         """
         Process a workflow in parsed status
-        To check the workflow definition and update status to checked if OK
+        To validate the workflow definition and advance to checking
 
         Args:
             workflow_spec (WorkflowSpec): The workflow specification to process
@@ -2037,12 +2037,39 @@ class WorkflowInterface(object):
         Returns:
             WorkflowProcessResult: The result of processing the workflow
         """
-        ...
+        tmp_log = LogWrapper(logger, f"process_workflow_parsed <workflow_id={workflow_spec.workflow_id}>")
+        # Initialize
+        process_result = WorkflowProcessResult()
+        # Check status
+        if workflow_spec.status != WorkflowStatus.parsed:
+            process_result.message = f"Workflow status changed unexpectedly from {WorkflowStatus.parsed} to {workflow_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
+        # Process
+        try:
+            workflow_definition = workflow_spec.definition_json_map
+            if not workflow_definition:
+                process_result.message = f"Workflow definition is missing or empty; cancelled the workflow"
+                tmp_log.error(f"{process_result.message}")
+                workflow_spec.status = WorkflowStatus.cancelled
+                workflow_spec.set_parameter("cancel_reason", "Workflow definition is missing or empty")
+                self.tbif.update_workflow(workflow_spec)
+                return process_result
+            # Advance to checking
+            workflow_spec.status = WorkflowStatus.checking
+            self.tbif.update_workflow(workflow_spec)
+            process_result.success = True
+            process_result.new_status = workflow_spec.status
+            tmp_log.info(f"Done, status={workflow_spec.status}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+        return process_result
 
     def process_workflow_checking(self, workflow_spec: WorkflowSpec) -> WorkflowProcessResult:
         """
         Process a workflow in checking status
-        To check the workflow definition and update status to checked if OK
+        To check root input dataset availability and advance to checked
 
         Args:
             workflow_spec (WorkflowSpec): The workflow specification to process
@@ -2050,7 +2077,64 @@ class WorkflowInterface(object):
         Returns:
             WorkflowProcessResult: The result of processing the workflow
         """
-        ...
+        tmp_log = LogWrapper(logger, f"process_workflow_checking <workflow_id={workflow_spec.workflow_id}>")
+        # Initialize
+        process_result = WorkflowProcessResult()
+        # Check status
+        if workflow_spec.status != WorkflowStatus.checking:
+            process_result.message = f"Workflow status changed unexpectedly from {WorkflowStatus.checking} to {workflow_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
+        # Process
+        try:
+            workflow_definition = workflow_spec.definition_json_map
+            if not workflow_definition:
+                process_result.message = f"Workflow definition is missing or empty; cancelled the workflow"
+                tmp_log.error(f"{process_result.message}")
+                workflow_spec.status = WorkflowStatus.cancelled
+                workflow_spec.set_parameter("cancel_reason", "Workflow definition is missing or empty")
+                self.tbif.update_workflow(workflow_spec)
+                return process_result
+            # Check root input datasets for availability; list-valued inputs are scatter collections
+            root_inputs = workflow_definition.get("root_inputs", {})
+            all_inputs_ready = True
+            for input_name, input_target in root_inputs.items():
+                datasets_to_check = input_target if isinstance(input_target, list) else [input_target]
+                for dataset in datasets_to_check:
+                    if not isinstance(dataset, str) or not dataset.strip():
+                        continue
+                    # Strip trailing slash: PanDA convention uses trailing slash for Rucio containers
+                    dataset_name = dataset.rstrip("/")
+                    collection_meta = self.ddm_if.get_dataset_metadata(dataset_name, ignore_missing=True)
+                    if collection_meta is None:
+                        tmp_log.warning(f"Failed to get metadata for input dataset {dataset} ({input_name}); will retry")
+                        all_inputs_ready = False
+                        break
+                    if collection_meta.get("state") == "missing":
+                        tmp_log.warning(f"Input dataset {dataset} ({input_name}) does not exist yet; waiting")
+                        all_inputs_ready = False
+                        break
+                if not all_inputs_ready:
+                    break
+            now_time = naive_utcnow()
+            if not all_inputs_ready:
+                # Stay in checking, retry on next processing cycle
+                workflow_spec.check_time = now_time
+                self.tbif.update_workflow(workflow_spec)
+                process_result.success = True
+                tmp_log.info(f"Done, some input datasets not ready yet; status stays in {workflow_spec.status}")
+            else:
+                # All inputs verified, advance to checked
+                workflow_spec.status = WorkflowStatus.checked
+                workflow_spec.check_time = now_time
+                self.tbif.update_workflow(workflow_spec)
+                process_result.success = True
+                process_result.new_status = workflow_spec.status
+                tmp_log.info(f"Done, all input datasets available; status={workflow_spec.status}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+        return process_result
 
     def process_workflow_checked(self, workflow_spec: WorkflowSpec) -> WorkflowProcessResult:
         """
@@ -2430,6 +2514,10 @@ class WorkflowInterface(object):
         match workflow_spec.status:
             case WorkflowStatus.registered:
                 process_result = self.process_workflow_registered(workflow_spec)
+            case WorkflowStatus.parsed:
+                process_result = self.process_workflow_parsed(workflow_spec)
+            case WorkflowStatus.checking:
+                process_result = self.process_workflow_checking(workflow_spec)
             case WorkflowStatus.checked:
                 process_result = self.process_workflow_checked(workflow_spec)
             case WorkflowStatus.starting:
