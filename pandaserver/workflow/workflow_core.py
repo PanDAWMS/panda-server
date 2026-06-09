@@ -2104,8 +2104,11 @@ class WorkflowInterface(object):
                 data_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
                 data_spec.creation_time = now_time
                 data_specs.append(data_spec)
-            # Register root inputs
+            # Register root inputs (skip list-valued entries — those are scatter input collections
+            # already resolved into step scatter_definitions, not individual DDM datasets)
             for input_name, input_target in workflow_definition["root_inputs"].items():
+                if isinstance(input_target, list):
+                    continue
                 data_spec = WFDataSpec()
                 data_spec.workflow_id = workflow_spec.workflow_id
                 data_spec.name = input_name
@@ -2165,8 +2168,22 @@ class WorkflowInterface(object):
                     step_definition["input_data_dict"] = input_data_dict
                     step_definition["output_data_list"] = list(output_data_dict.keys())
                     if is_sub_workflow:
-                        # embed the child workflow definition for use at submit time
-                        step_definition["child_workflow_definition"] = extract_child_workflow_definition(node, workflow_definition["nodes"])
+                        child_wf_def = extract_child_workflow_definition(node, workflow_definition["nodes"])
+                        if node.get("scatter_inputs"):
+                            # Scatter sub-workflow: child_wf_def nodes are the per-iteration template;
+                            # wrap in a scatter_definition so the child workflow expands into N children
+                            scatter_template = copy.deepcopy(child_wf_def)
+                            child_wf_def = {
+                                "workflow_name": child_wf_def.get("workflow_name"),
+                                "root_inputs": {},
+                                "root_outputs": child_wf_def.get("root_outputs", {}),
+                                "scatter_definition": {
+                                    "template": scatter_template,
+                                    "scatter_inputs": node["scatter_inputs"],
+                                    "scatter_mode": node.get("scatter_mode", "zip"),
+                                },
+                            }
+                        step_definition["child_workflow_definition"] = child_wf_def
                     step_spec.definition_json_map = step_definition
                     step_spec.creation_time = now_time
                     step_specs.append(step_spec)

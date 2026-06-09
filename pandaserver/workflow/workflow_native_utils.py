@@ -65,6 +65,8 @@ class Node(object):
         self.in_loop = False
         self.upper_root_inputs = None
         self.workflow_ref = None  # path or named block reference for type="workflow" nodes
+        self.scatter_inputs = None  # {param_name: [val1, val2, ...]} resolved at parse time; None if not a scatter step
+        self.scatter_mode = None  # scatter mode string, e.g. "zip"
 
     def add_parent(self, id):
         self.parents.add(id)
@@ -872,6 +874,10 @@ def parse_workflow_data(data, log_stream, _id_counter=None):
         # handle sub-workflow nodes
         if step_type == "workflow":
             node.root_inputs = step_spec.get("inputs", {})
+            if "scatter_inputs" in step_spec:
+                # Store raw name references; caller (parse_raw_request) resolves to actual value lists
+                node.scatter_inputs = step_spec.get("scatter_inputs", {})
+                node.scatter_mode = step_spec.get("scatter_mode", "zip")
             if "steps" in step_spec:
                 # inline sub-workflow: recursively parse the nested steps block
                 child_nodes, _ = parse_workflow_data(step_spec, log_stream, _id_counter=_id_counter)

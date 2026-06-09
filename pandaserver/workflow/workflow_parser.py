@@ -184,6 +184,16 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                                     node.sub_nodes = {child_node.id for child_node in child_nodes}
                                     node.workflow_ref = None
                                     nodes.extend(child_nodes)
+                                    # Resolve scatter_inputs name references to actual value lists
+                                    if node.scatter_inputs:
+                                        resolved = {}
+                                        for param_name, root_input_ref in node.scatter_inputs.items():
+                                            if root_input_ref in data:
+                                                val = data[root_input_ref]
+                                                resolved[param_name] = val if isinstance(val, list) else [val]
+                                            else:
+                                                tmp_log.warning(f"scatter_inputs ref '{root_input_ref}' not found in workflow inputs for node '{node.name}'")
+                                        node.scatter_inputs = resolved
                         elif wf_lang == "cwl":
                             workflow_name = raw_request_dict.get("workflow_name")
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
