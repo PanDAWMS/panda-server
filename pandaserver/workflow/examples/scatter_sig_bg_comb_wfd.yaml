@@ -1,0 +1,29 @@
+# scatter_sig_bg_comb_wfd.yaml
+name: scatter_sig_bg_comb
+
+inputs:
+  signals:
+    - mc16_valid:mc16_valid.900248.PG_singlepion_flatPt2to50.simul.HITS.e8312_s3238_tid26378578_00
+    - valid1.427080.Pythia8EvtGen_A14NNPDF23LO_flatpT_Zprime.simul.HITS.e5362_s3718_tid26356243_00
+  backgrounds:
+    - mc16_5TeV.361238.Pythia8EvtGen_A3NNPDF23LO_minbias_inelastic_low.merge.HITS.e6446_s3238_s3250/
+    - mc16_5TeV:mc16_5TeV.361239.Pythia8EvtGen_A3NNPDF23LO_minbias_inelastic_high.merge.HITS.e6446_s3238_s3250/
+
+outputs:
+  final_result:
+    from: merge/outDS
+
+steps:
+  many_sig_bg_comb:
+    type: workflow
+    workflow_ref: signal_background_combine_wfd.yaml   # <-- path relative to sandbox root
+    scatter_inputs:
+      signal: signals
+      background: backgrounds
+    scatter_mode: zip  
+
+  merge:
+    type: prun
+    inDS: many_sig_bg_comb/outDS
+    args: --outputs merged.root
+    exec: "python merge.py --type aaa --level 3 %IN"
