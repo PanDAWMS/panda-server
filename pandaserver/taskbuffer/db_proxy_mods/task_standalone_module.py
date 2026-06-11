@@ -225,7 +225,7 @@ class TaskStandaloneModule(BaseModule):
             criteria: dict of {JediTaskSpec_attribute: value} equality conditions.
                 Values of "NULL" / "NOT NULL" produce IS NULL / IS NOT NULL clauses.
             since: lower bound on modificationTime, format ``%Y-%m-%d %H:%M:%S``.
-                Capped to at most 30 days in the past. Ignored when None.
+                Capped to at most 90 days in the past.
             nTasks: maximum number of task IDs returned (Oracle rownum limit).
 
         Returns:
@@ -246,16 +246,17 @@ class TaskStandaloneModule(BaseModule):
                 tmpLog.error(f"unknown attribute {tmpKey} is used in criteria")
                 return failedRet
         # parse and cap since
-        timeRange = None
+        maxRange = naive_utcnow() - datetime.timedelta(days=90)
         if since is not None:
             try:
                 timeRange = datetime.datetime.strptime(since, "%Y-%m-%d %H:%M:%S")
             except ValueError:
                 tmpLog.error(f"invalid since format: {since}")
                 return failedRet
-            maxRange = naive_utcnow() - datetime.timedelta(days=30)
             if timeRange < maxRange:
                 timeRange = maxRange
+        else:
+            timeRange = maxRange
         varMap = {}
         try:
             # sql

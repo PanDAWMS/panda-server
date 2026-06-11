@@ -1430,7 +1430,9 @@ class JediTaskSpec(object):
                 mapped = shorthand_map.get(key)
                 if not mapped:
                     continue
-                if mapped in ("model", "microarchitecture"):
+                if mapped == "model":
+                    spec[mapped] = {"pattern": val, "excl": True} if op == "!=" else val
+                elif mapped == "microarchitecture":
                     spec[mapped] = val
                 else:
                     spec[mapped] = ("==" if op == "=" else op) + val

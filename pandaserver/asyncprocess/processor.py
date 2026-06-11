@@ -14,6 +14,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
+from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE
 
 _logger = PandaLogger().getLogger("async_request_processor")
 
@@ -29,8 +30,8 @@ _STALE_THRESHOLD_SECONDS = _SUBPROCESS_TIMEOUT * 2
 _MAX_RESULT_BYTES = 1_000_000
 
 
-def _handle_grep(row, tb, tmp_logger):
-    """Run rg or zgrep on a log file and store the output."""
+def _handle_grep(row, tb, tmp_logger, result_machine):
+    """Run rg or zgrep on a log file and store the output under result_machine's result row."""
     params = json.loads(row["parameters"])
     log_filename = params["log_filename"]
     pattern = params["pattern"]
@@ -51,7 +52,7 @@ def _handle_grep(row, tb, tmp_logger):
         tmp_logger.error(f"subprocess timed out after {_SUBPROCESS_TIMEOUT} seconds")
         tb.finish_async_result(
             row["request_id"],
-            MY_HOSTNAME,
+            result_machine,
             "failed",
             error_msg="timeout",
             retriable=False,
@@ -61,7 +62,7 @@ def _handle_grep(row, tb, tmp_logger):
         tmp_logger.error(f"subprocess failed with exception: {e}")
         tb.finish_async_result(
             row["request_id"],
-            MY_HOSTNAME,
+            result_machine,
             "failed",
             error_msg=str(e),
             retriable=False,
@@ -74,7 +75,53 @@ def _handle_grep(row, tb, tmp_logger):
     tmp_logger.debug(f"outcome: return code {proc.returncode}, stdout size {len(stdout)}, stderr size {len(stderr)}, truncated={truncated}")
     tb.finish_async_result(
         row["request_id"],
-        MY_HOSTNAME,
+        result_machine,
+        "done",
+        result=stdout[:_MAX_RESULT_BYTES],
+        stderr=stderr[:_MAX_RESULT_BYTES],
+        return_code=proc.returncode,
+        truncated=truncated,
+    )
+
+
+def _handle_sleep_echo(row, tb, tmp_logger, result_machine):
+    """Sleep for the requested seconds, then echo the message; store echo stdout as the result."""
+    params = json.loads(row["parameters"])
+    seconds = params["seconds"]
+    message = params["message"]
+
+    tmp_logger.debug(f"sleeping {seconds}s then echoing")
+    try:
+        subprocess.run(["sleep", str(seconds)], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
+        proc = subprocess.run(["echo", message], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        tmp_logger.error(f"subprocess timed out after {_SUBPROCESS_TIMEOUT} seconds")
+        tb.finish_async_result(
+            row["request_id"],
+            result_machine,
+            "failed",
+            error_msg="timeout",
+            retriable=False,
+        )
+        return
+    except Exception as e:
+        tmp_logger.error(f"subprocess failed with exception: {e}")
+        tb.finish_async_result(
+            row["request_id"],
+            result_machine,
+            "failed",
+            error_msg=str(e),
+            retriable=False,
+        )
+        return
+
+    stdout = proc.stdout
+    stderr = proc.stderr
+    truncated = len(stdout) > _MAX_RESULT_BYTES or len(stderr) > _MAX_RESULT_BYTES
+    tmp_logger.debug(f"outcome: return code {proc.returncode}, stdout size {len(stdout)}, truncated={truncated}")
+    tb.finish_async_result(
+        row["request_id"],
+        result_machine,
         "done",
         result=stdout[:_MAX_RESULT_BYTES],
         stderr=stderr[:_MAX_RESULT_BYTES],
@@ -86,6 +133,7 @@ def _handle_grep(row, tb, tmp_logger):
 # Register new request types here — no new daemon needed
 HANDLERS = {
     "grep": _handle_grep,
+    "sleep_echo": _handle_sleep_echo,
 }
 
 
@@ -102,8 +150,10 @@ def run(service_name, tbuf=None):
     # keep this machine's liveness record current
     tbuf.upsert_machine_heartbeat(MY_HOSTNAME, service_name)
 
-    # recover stale running rows from previous crashed cycles
+    # recover stale running rows from previous crashed cycles: this machine's own rows, plus
+    # shared "any" rows orphaned by a crashed winner (any machine can reclaim them afterwards)
     tbuf.recover_stale_results(MY_HOSTNAME, max_processing_seconds=_STALE_THRESHOLD_SECONDS)
+    tbuf.recover_stale_results(ANY_MACHINE, max_processing_seconds=_STALE_THRESHOLD_SECONDS)
 
     # find requests this machine should process
     pending = tbuf.get_pending_requests_for_machine(MY_HOSTNAME, service_name, list(HANDLERS.keys()))
@@ -120,9 +170,12 @@ def run(service_name, tbuf=None):
 
             tmp_logger.warning(f"unknown request_type={request_type}")
             continue
-        if not tbuf.claim_async_result(request_id, MY_HOSTNAME):
-            # another daemon instance on the same machine claimed it first
+        # "any" requests share a single result row keyed by the sentinel, so the claim and the
+        # result are written under ANY_MACHINE; single/all requests use this machine's hostname
+        result_machine = ANY_MACHINE if row.get("machine_name") == ANY_MACHINE else MY_HOSTNAME
+        if not tbuf.claim_async_result(request_id, result_machine):
+            # another daemon instance (or, for "any", another machine) claimed it first
             continue
         tmp_logger.debug(f"processing type={request_type} request from '{requester}'")
-        handler(row, tbuf, tmp_logger)
+        handler(row, tbuf, tmp_logger, result_machine)
     _logger.debug("done")
