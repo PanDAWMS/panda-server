@@ -9,6 +9,10 @@ from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 
 DEFAULT_MAX_ATTEMPTS = 3
 
+# reserved machine_name meaning "any one machine in the service"; real machine_name
+# values are FQDNs (socket.getfqdn()), so this sentinel can never collide
+ANY_MACHINE = "any"
+
 
 class AsyncRequestModule(BaseModule):
     def __init__(self, log_stream: LogWrapper):
@@ -93,14 +97,20 @@ class AsyncRequestModule(BaseModule):
         :param request_type: handler key registered in processor.HANDLERS (e.g. "grep")
         :param parameters_json: JSON-encoded handler parameters
         :param service_name: service that should process this request
-        :param machine_name: target hostname, or empty for any machine in the service
-        :param expected_machines_json: JSON-encoded list of hostnames expected to respond
+        :param machine_name: target hostname; empty means every alive machine in the service,
+            or the ANY_MACHINE sentinel means exactly one (unspecified) machine in the service
+        :param expected_machines_json: JSON-encoded list of hostnames expected to respond;
+            overridden to [ANY_MACHINE] when machine_name is the ANY_MACHINE sentinel
         :param retention_days: prune rows older than this many days; default 7
         :return: True if inserted, False on DB error
         """
         comment = " /* DBProxy.insert_async_request */"
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id}")
         tmp_log.debug("start")
+        # "any" requests have a single result row keyed by the sentinel, so the expected set is
+        # exactly the sentinel; enforce here so callers only need to set machine_name=ANY_MACHINE
+        if machine_name == ANY_MACHINE:
+            expected_machines_json = json.dumps([ANY_MACHINE])
         try:
             sql_insert = (
                 "INSERT INTO ATLAS_PANDA.async_requests "
@@ -187,6 +197,9 @@ class AsyncRequestModule(BaseModule):
             return []
         try:
             type_vars, type_var_map = get_sql_IN_bind_variables(known_types, prefix=":type")
+            # "any" requests (machine_name=ANY_MACHINE) have their single result row keyed by the
+            # sentinel, so their "already handled?" check uses :any_machine instead of :my_hostname;
+            # single/all requests keep the per-hostname check.
             sql = f"""
                 SELECT r.request_id, r.request_type, r.service_name, r.machine_name,
                        r.parameters, r.expected_machines, r.created_at
@@ -194,18 +207,38 @@ class AsyncRequestModule(BaseModule):
                 WHERE r.request_type IN ({type_vars})
                   AND (r.machine_name=:my_hostname OR r.service_name=:my_service)
                   AND (
-                    NOT EXISTS (
-                      SELECT 1 FROM ATLAS_PANDA.async_results ar
-                      WHERE ar.request_id=r.request_id AND ar.machine_name=:my_hostname
+                    (
+                      (r.machine_name IS NULL OR r.machine_name<>:any_machine)
+                      AND (
+                        NOT EXISTS (
+                          SELECT 1 FROM ATLAS_PANDA.async_results ar
+                          WHERE ar.request_id=r.request_id AND ar.machine_name=:my_hostname
+                        )
+                        OR EXISTS (
+                          SELECT 1 FROM ATLAS_PANDA.async_results ar
+                          WHERE ar.request_id=r.request_id AND ar.machine_name=:my_hostname
+                            AND ar.status='pending'
+                        )
+                      )
                     )
-                    OR EXISTS (
-                      SELECT 1 FROM ATLAS_PANDA.async_results ar
-                      WHERE ar.request_id=r.request_id AND ar.machine_name=:my_hostname
-                        AND ar.status='pending'
+                    OR
+                    (
+                      r.machine_name=:any_machine
+                      AND (
+                        NOT EXISTS (
+                          SELECT 1 FROM ATLAS_PANDA.async_results ar
+                          WHERE ar.request_id=r.request_id AND ar.machine_name=:any_machine
+                        )
+                        OR EXISTS (
+                          SELECT 1 FROM ATLAS_PANDA.async_results ar
+                          WHERE ar.request_id=r.request_id AND ar.machine_name=:any_machine
+                            AND ar.status='pending'
+                        )
+                      )
                     )
                   )
             """
-            var_map = {":my_hostname": my_hostname, ":my_service": my_service}
+            var_map = {":my_hostname": my_hostname, ":my_service": my_service, ":any_machine": ANY_MACHINE}
             var_map.update(type_var_map)
             self.conn.begin()
             self.cur.arraysize = 1000

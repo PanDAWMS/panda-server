@@ -1982,6 +1982,34 @@ class TaskUtilsModule(BaseModule):
             except Exception:
                 tmp_log.warning("failed to read taskParams")
 
+            # --- aggregate input-file progress over master input datasets ---
+            n_files = n_files_finished = n_files_failed = 0
+            try:
+                sql_file_progress = (
+                    f"SELECT SUM(nFiles),SUM(nFilesFinished),SUM(nFilesFailed) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                    "WHERE jediTaskID=:jediTaskID "
+                    f"AND type IN ({INPUT_TYPES_var_str}) "
+                    "AND masterID IS NULL "
+                )
+                var_map_fp = {":jediTaskID": target_task_id}
+                var_map_fp.update(INPUT_TYPES_var_map)
+                self.conn.begin()
+                self.cur.execute(sql_file_progress + comment, var_map_fp)
+                res_fp = self.cur.fetchone()
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                if res_fp is not None:
+                    n_files = res_fp[0] or 0
+                    n_files_finished = res_fp[1] or 0
+                    n_files_failed = res_fp[2] or 0
+            except Exception:
+                tmp_log.warning("failed to read input-file progress")
+            task_dict["nFiles"] = n_files
+            task_dict["nFilesFinished"] = n_files_finished
+            task_dict["nFilesFailed"] = n_files_failed
+            task_dict["pctFinished"] = round(100 * n_files_finished / n_files) if n_files else 0
+            task_dict["pctFailed"] = round(100 * n_files_failed / n_files) if n_files else 0
+
             tmp_log.debug("done")
             if include_resolve_status:
                 return "ok", target_task_id, task_dict

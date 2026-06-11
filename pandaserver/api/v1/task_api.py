@@ -1133,14 +1133,21 @@ def get_tasks_modified_since(req, since: str, dn: str = None, full: bool = False
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_tasks_detailed_info_since(req, since: str, filters: str = None, n_tasks: int = 500) -> Dict[str, Any]:
+def get_tasks_detailed_info_since(req, since: str = None, filters: str = None, n_tasks: int = 500) -> Dict[str, Any]:
     """
-    Get detailed task info for tasks modified since a given time.
+    Get detailed task info for tasks, optionally restricted to those modified since a given time.
 
-    Fetches task IDs for tasks modified since ``since`` (max 30-day window), applies optional
+    Fetches task IDs for tasks modified since ``since`` (max 90-day window), applies optional
     field filters, and returns full detail (all JediTaskSpec fields + jobParamsTemplate +
-    taskParams) for each matching task. The request is always scoped to the authenticated user
-    (DN from the request certificate) unless userName is explicity specified in the filters.
+    taskParams + input-file progress) for each matching task. The request is always scoped to the
+    authenticated user (DN from the request certificate) unless userName is explicity specified in
+    the filters.
+
+    When ``since`` is omitted the time-window cap is removed entirely, so matching tasks are
+    returned regardless of age. This is useful for by-ID / by-reqID lookups (e.g.
+    ``filters={"jediTaskID": <id>}`` or ``{"reqID": <id>}``) of tasks of any age. Because the
+    request always adds ``userName`` to the criteria, the criteria is never empty, so omitting
+    ``since`` is safe.
 
     Filters are split server-side: plain-value patterns (no regex metacharacters) become SQL
     equality conditions pushed to the DB; patterns with metacharacters are applied in Python via
@@ -1152,7 +1159,8 @@ def get_tasks_detailed_info_since(req, since: str, filters: str = None, n_tasks:
 
     Args:
         req(PandaRequest): internally generated request object
-        since(str): time in the format ``%Y-%m-%d %H:%M:%S``
+        since(str, optional): time in the format ``%Y-%m-%d %H:%M:%S``. When omitted, the
+            time-window cap is removed and matching tasks are returned regardless of age.
         filters(str, optional): JSON-encoded dict of {field: pattern} pairs.
             Plain values (no regex metacharacters) become SQL equality conditions.
             Regex patterns (containing ``|``, ``.``, ``*``, etc.) are matched with
