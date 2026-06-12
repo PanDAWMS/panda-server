@@ -265,15 +265,15 @@ class TaskStandaloneModule(BaseModule):
             sql += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
             for tmpKey, tmpVal in criteria.items():
                 if tmpVal in ["NULL", "NOT NULL"]:
-                    sql += f"AND {tmpKey} IS {tmpVal} "
+                    sql += f"AND tabT.{tmpKey} IS {tmpVal} "
                 elif tmpVal is None:
-                    sql += f"AND {tmpKey} IS NULL "
+                    sql += f"AND tabT.{tmpKey} IS NULL "
                 else:
                     crKey = f":cr_{tmpKey}"
-                    sql += f"AND {tmpKey}={crKey} "
+                    sql += f"AND tabT.{tmpKey}={crKey} "
                     varMap[crKey] = tmpVal
             if timeRange is not None:
-                sql += "AND modificationTime>=:since "
+                sql += "AND tabT.modificationTime>=:since "
                 varMap[":since"] = timeRange
             sql += f"AND rownum<={nTasks}"
             # begin transaction
