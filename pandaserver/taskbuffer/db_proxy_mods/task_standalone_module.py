@@ -261,19 +261,19 @@ class TaskStandaloneModule(BaseModule):
         try:
             # sql
             sql = "SELECT jediTaskID "
-            sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sql += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+            sql += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+            sql += "WHERE "
             for tmpKey, tmpVal in criteria.items():
                 if tmpVal in ["NULL", "NOT NULL"]:
-                    sql += f"AND tabT.{tmpKey} IS {tmpVal} "
+                    sql += f"AND {tmpKey} IS {tmpVal} "
                 elif tmpVal is None:
-                    sql += f"AND tabT.{tmpKey} IS NULL "
+                    sql += f"AND {tmpKey} IS NULL "
                 else:
                     crKey = f":cr_{tmpKey}"
-                    sql += f"AND tabT.{tmpKey}={crKey} "
+                    sql += f"AND {tmpKey}={crKey} "
                     varMap[crKey] = tmpVal
             if timeRange is not None:
-                sql += "AND tabT.modificationTime>=:since "
+                sql += "AND modificationTime>=:since "
                 varMap[":since"] = timeRange
             sql += f"AND rownum<={nTasks}"
             # begin transaction
