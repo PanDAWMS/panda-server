@@ -1986,7 +1986,7 @@ class TaskUtilsModule(BaseModule):
             n_files = n_files_finished = n_files_failed = 0
             try:
                 sql_file_progress = (
-                    f"SELECT SUM(nFiles),SUM(nFilesFinished),SUM(nFilesFailed) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                    f"SELECT SUM(nFiles),SUM(nFilesFinished),SUM(nFilesFailed),SUM(nFilesMissing) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
                     "WHERE jediTaskID=:jediTaskID "
                     f"AND type IN ({INPUT_TYPES_var_str}) "
                     "AND masterID IS NULL "
@@ -2002,11 +2002,13 @@ class TaskUtilsModule(BaseModule):
                     n_files = res_fp[0] or 0
                     n_files_finished = res_fp[1] or 0
                     n_files_failed = res_fp[2] or 0
+                    n_files_missing = res_fp[3] or 0
             except Exception:
                 tmp_log.warning("failed to read input-file progress")
             task_dict["nFiles"] = n_files
             task_dict["nFilesFinished"] = n_files_finished
             task_dict["nFilesFailed"] = n_files_failed
+            task_dict["nFilesMissing"] = n_files_missing
             task_dict["pctFinished"] = round(100 * n_files_finished / n_files) if n_files else 0
             task_dict["pctFailed"] = round(100 * n_files_failed / n_files) if n_files else 0
 
