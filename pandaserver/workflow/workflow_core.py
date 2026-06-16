@@ -597,7 +597,24 @@ class WorkflowInterface(object):
                         break
         child_definition = copy.deepcopy(child_definition)
         child_definition["root_inputs"] = child_root_inputs
-        child_definition["user_name"] = step_definition.get("user_name")
+        if step_spec.flavor == "scatter_child":
+            # All output dataset names in the template share the out_ds_name prefix
+            # (e.g. "user.flin.wf_003"). A single string replacement updates taskName,
+            # cliParams, jobParameters, log datasets, and inter-node input references in
+            # one pass — no per-field traversal needed.
+            out_ds_name = child_definition.get("out_ds_name")
+            if out_ds_name:
+                new_prefix = f"{out_ds_name}_s{step_spec.member_id}"
+                definition_str = json.dumps(child_definition, default=json_serialize_default)
+                definition_str = definition_str.replace(out_ds_name, new_prefix)
+                child_definition = json.loads(definition_str)
+            # Override the template's generic workflow_name after the JSON round-trip.
+            child_definition["workflow_name"] = step_spec.name
+        # Fall back to the parent workflow's username for scatter_child steps, whose step
+        # definition did not carry user_name before it was explicitly added.
+        child_definition["user_name"] = step_definition.get("user_name") or parent_workflow.username
+        # Propagate user_dn into child definition so grandchild panda-task steps inherit it.
+        child_definition["user_dn"] = step_definition.get("user_dn")
         # Build and register the child WorkflowSpec
         child_spec = WorkflowSpec()
         child_spec.parent_id = step_spec.workflow_id
@@ -672,12 +689,15 @@ class WorkflowInterface(object):
             tmp_log.info(process_result.message)
             return process_result
         # Create a child step for each iteration with the corresponding slice of inputs, and register them in the DB
+        workflow_definition = json.loads(workflow_spec.definition_json) if workflow_spec.definition_json else {}
         now_time = naive_utcnow()
         step_specs = []
         for i in range(n_iterations):
             child_root_inputs = {name: values[i] for name, values in scatter_inputs.items()}
             step_spec = WFStepSpec()
-            step_spec.name = f"{workflow_spec.name}_scatter_{i}"
+            # Name "{parent}_{i}" rather than "{parent}_scatter_{i}" so that submit_sub_workflow
+            # can use this name directly as the grandchild workflow_name without doubling "_scatter".
+            step_spec.name = f"{workflow_spec.name}_{i}"
             step_spec.workflow_id = workflow_spec.workflow_id
             step_spec.member_id = i
             step_spec.type = WFStepType.sub_workflow
@@ -690,6 +710,9 @@ class WorkflowInterface(object):
                     "child_workflow_definition": template,
                     "child_root_inputs": child_root_inputs,
                     "input_data_dict": {},
+                    # Propagate user identity so submit_sub_workflow can inject it into grandchild definitions.
+                    "user_name": workflow_spec.username,
+                    "user_dn": workflow_definition.get("user_dn"),
                 },
                 default=json_serialize_default,
             )
@@ -2264,8 +2287,14 @@ class WorkflowInterface(object):
                             # Scatter sub-workflow: child_wf_def nodes are the per-iteration template;
                             # wrap in a scatter_definition so the child workflow expands into N children
                             scatter_template = copy.deepcopy(child_wf_def)
+                            # Carry the outDS prefix into the template so submit_sub_workflow can
+                            # do a single-string replacement to uniquify dataset names per iteration.
+                            scatter_template["out_ds_name"] = workflow_definition.get("out_ds_name")
                             child_wf_def = {
-                                "workflow_name": child_wf_def.get("workflow_name"),
+                                # Append "_scatter" to distinguish the scatter-intermediate workflow
+                                # (which fans out iterations) from both its parent step and the
+                                # per-iteration grandchild workflows (named "{this}_0", "{this}_1", …).
+                                "workflow_name": f"{child_wf_def.get('workflow_name') or step_spec.name}_scatter",
                                 "root_inputs": {},
                                 "root_outputs": child_wf_def.get("root_outputs", {}),
                                 "scatter_definition": {

@@ -265,6 +265,9 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                         "root_inputs": root_inputs_dict,
                         "root_outputs": root_outputs_dict,
                         "nodes": nodes_list,
+                        # Stored so scatter grandchild dispatch can uniquify output dataset names
+                        # per iteration (all names share this prefix; see submit_sub_workflow).
+                        "out_ds_name": raw_request_dict.get("outDS"),
                     }
                     if workflow_options is not None:
                         workflow_definition_dict["options"] = workflow_options
