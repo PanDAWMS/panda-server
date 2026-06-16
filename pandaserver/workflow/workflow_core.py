@@ -1445,6 +1445,13 @@ class WorkflowInterface(object):
         try:
             # Decide whether to run the step: True = must run, False = can skip, None = undecided yet and must check later
             to_run_step = False
+            # scatter_child steps are pure orchestration: they submit one grandchild workflow per
+            # scatter iteration and own no output datasets themselves (instantiate_scatter_workflow
+            # never sets output_data_list in their definition). The output-checking logic below
+            # defaults to to_run_step=False when output_data_list is absent, which would wrongly
+            # close these steps before they ever launch a grandchild workflow. Always force them to run.
+            if step_spec.flavor == "scatter_child":
+                to_run_step = True
             # FIXME: For now, always check outputs, not customizable
             check_outputs = True
             if check_outputs and to_run_step is False:
