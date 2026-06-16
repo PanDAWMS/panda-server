@@ -1,4 +1,5 @@
 import argparse
+import copy
 import os
 import sys
 
@@ -160,6 +161,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
     # set options from dict
     if exec_options is None:
         exec_options = {}
+    orig_exec_options = copy.copy(exec_options)
     keys = set(vars(options).keys())
     for k in exec_options:
         if k in keys:
@@ -280,7 +282,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
                 if options.dryRun:
                     com_args.append("--dryRun")
                 com_args += ["--files", ",".join(lostInputFiles[lostDS])]
-            main(taskBuffer=taskBuffer, log_stream=log_stream, args_list=com_args)
+                main(taskBuffer=taskBuffer, exec_options=orig_exec_options, log_stream=log_stream, args_list=com_args)
 
     # go ahead
     if options.dryRun:
