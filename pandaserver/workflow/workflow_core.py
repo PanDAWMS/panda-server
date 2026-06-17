@@ -844,9 +844,9 @@ class WorkflowInterface(object):
                 continue
             # Build a deterministic combined container name from workflow/step context
             first_tid = target_id_list[0]
-            scope = first_tid.split(":")[0] if ":" in first_tid else "user"
+            scope, _ = self.ddm_if.extract_scope(first_tid)
             safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", output_data_name)[:50]
-            combined_name = f"{scope}:wf{step_spec.workflow_id}_s{step_spec.step_id}_{safe_name}_agg/"
+            combined_name = f"{scope}.wf{step_spec.workflow_id}_s{step_spec.step_id}_{safe_name}_agg/"
             combined = data_handler.combine_targets(target_id_list, combined_name=combined_name)
             if not combined:
                 tmp_log.error(f"combine_targets failed for output {output_data_name}; skipped")

@@ -119,8 +119,8 @@ class DDMCollectionDataHandler(BaseDataHandler):
             return target_ids[0]
         if combined_name is None:
             first = target_ids[0]
-            scope = first.split(":")[0] if ":" in first else "user"
-            combined_name = f"{scope}:wf_combined_{uuid.uuid4().hex}/"
+            scope, _ = self.ddm_if.extract_scope(first)
+            combined_name = f"{scope}.wf_combined_{uuid.uuid4().hex}/"
         ok = self.ddm_if.register_container(combined_name, datasets=target_ids)
         if not ok:
             tmp_log.error(f"Failed to register combined container {combined_name}")
