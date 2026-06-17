@@ -1645,7 +1645,7 @@ class TaskUtilsModule(BaseModule):
             sqlCT += "SELECT distinct lfn,startEvent,endEvent "
             sqlCT += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
             sqlCT += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            sqlCT += ") "
+            sqlCT += ") t "
             # sql to read file spec
             defaultVales = {}
             defaultVales["status"] = "ready"
@@ -1663,9 +1663,9 @@ class TaskUtilsModule(BaseModule):
             sqlFR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             sqlFR += "GROUP BY lfn,startEvent,endEvent) "
             if not datasetSpec.isRandom():
-                sqlFR += "ORDER BY fileID) "
+                sqlFR += "ORDER BY fileID) t "
             else:
-                sqlFR += "ORDER BY DBMS_RANDOM.value) "
+                sqlFR += "ORDER BY DBMS_RANDOM.value) t "
             # sql to update dataset record
             sqlDU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
             sqlDU += "SET nFiles=nFiles+:iFiles,nFilesTobeUsed=nFilesTobeUsed+:iFiles "
