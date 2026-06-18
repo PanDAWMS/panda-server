@@ -215,8 +215,18 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                             parser = SnakeParser(workflow_spec_file, logger=tmp_log)
                             nodes, root_in = parser.parse_nodes()
                             data = dict()
+                        # Build a scope map so scatter-template children (flattened into the same
+                        # node list) are numbered in their own member_id scope, independent of the
+                        # parent steps. Key: child temp id -> scatter node temp id (the scope key).
+                        scope_map = {}
+                        for node in nodes:
+                            if node.scatter_inputs is not None and node.sub_nodes:
+                                for child_id in node.sub_nodes:
+                                    scope_map[child_id] = node.id
                         # resolve nodes
-                        s_id, t_nodes, nodes = workflow_native_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log)
+                        s_id, t_nodes, nodes = workflow_native_utils.resolve_nodes(
+                            nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log, scope_map
+                        )
                         workflow_native_utils.set_workflow_outputs(nodes)
                         id_node_map = workflow_native_utils.get_node_id_map(nodes)
                         [node.resolve_params(raw_request_dict["taskParams"], id_node_map) for node in nodes]

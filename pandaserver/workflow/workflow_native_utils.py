@@ -45,6 +45,10 @@ def merge_job_params(base_params, io_params):
 class Node(object):
     def __init__(self, id, node_type, data, is_leaf, name):
         self.id = id
+        # Per-workflow-scope sequence number (starts at 1), assigned in resolve_nodes.
+        # Used only for building output dataset names; node.id stays globally unique as the
+        # graph key. Independent scopes (each sub-workflow, each scatter template) restart at 1.
+        self.member_id = None
         self.type = node_type
         self.data = data
         self.is_leaf = is_leaf
@@ -676,7 +680,20 @@ def set_workflow_outputs(node_list, all_parents=None):
 
 
 # resolve nodes
-def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_name, log_stream):
+def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_name, log_stream, scope_map=None):
+    # member_id is a per-scope sequence (starts at 1) used for output dataset names; node.id stays
+    # globally unique. member_counters is local to each call, so every recursive invocation (each
+    # inline sub-workflow) restarts numbering at 1. scope_map maps a node's pre-resolve temp id to a
+    # scope key (a scatter node's temp id) so scatter-template children flattened into this same call
+    # are numbered in their own scope, independent of the parent steps. None key = this call's scope.
+    if scope_map is None:
+        scope_map = {}
+    member_counters = {}
+
+    def _next_member(scope_key):
+        member_counters[scope_key] = member_counters.get(scope_key, 0) + 1
+        return member_counters[scope_key]
+
     for k in root_inputs:
         kk = k.split("#")[-1]
         if kk in data:
@@ -776,6 +793,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                 resolved_map[original_node_id].append(sc_node)
                 tmp_to_real_id_map[original_node_id].add(serial_id)
                 sc_node.id = serial_id
+                sc_node.member_id = _next_member(scope_map.get(original_node_id))
                 serial_id += 1
             else:
                 serial_id, sub_tail_nodes, sc_node.sub_nodes = resolve_nodes(
@@ -786,10 +804,12 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                     sc_node.parents,
                     out_ds_name,
                     log_stream,
+                    scope_map,
                 )
                 resolved_map[original_node_id] += sub_tail_nodes
                 tmp_to_real_id_map[original_node_id] |= set([n.id for n in sub_tail_nodes])
                 sc_node.id = serial_id
+                sc_node.member_id = _next_member(scope_map.get(original_node_id))
                 serial_id += 1
             # convert parameters to parent IDs in conditions
             # TODO: condition features not yet implemented
@@ -799,7 +819,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             # resolve outputs
             if sc_node.is_leaf or is_scatter_workflow:
                 for tmp_name, tmp_data in sc_node.outputs.items():
-                    tmp_data["value"] = f"{out_ds_name}_{sc_node.id:03d}_{sc_node.name}"
+                    tmp_data["value"] = f"{out_ds_name}_{sc_node.member_id:03d}_{sc_node.name}"
                     # add loop count for nodes in a loop
                     if sc_node.in_loop:
                         tmp_data["value"] += ".___idds___num_run___"

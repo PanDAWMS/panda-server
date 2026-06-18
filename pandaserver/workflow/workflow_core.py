@@ -604,7 +604,14 @@ class WorkflowInterface(object):
             # one pass — no per-field traversal needed.
             out_ds_name = child_definition.get("out_ds_name")
             if out_ds_name:
-                new_prefix = f"{out_ds_name}_s{step_spec.member_id}"
+                # Embed the scatter step's member_id and the 1-based scatter index, e.g.
+                # "..._001s1_...". member_id is the scatter_child step's member_id (the index).
+                parent_member_id = child_definition.get("scatter_parent_member_id")
+                if parent_member_id is not None:
+                    new_prefix = f"{out_ds_name}_{parent_member_id:03d}s{step_spec.member_id}"
+                else:
+                    # Fallback for legacy templates without scatter_parent_member_id.
+                    new_prefix = f"{out_ds_name}_s{step_spec.member_id}"
                 definition_str = json.dumps(child_definition, default=json_serialize_default)
                 definition_str = definition_str.replace(out_ds_name, new_prefix)
                 child_definition = json.loads(definition_str)
@@ -693,20 +700,22 @@ class WorkflowInterface(object):
         now_time = naive_utcnow()
         step_specs = []
         for i in range(n_iterations):
+            # i is the 0-based slice index into the input lists; scatter_index is 1-based for naming.
+            scatter_index = i + 1
             child_root_inputs = {name: values[i] for name, values in scatter_inputs.items()}
             step_spec = WFStepSpec()
             # Name "{parent}_{i}" rather than "{parent}_scatter_{i}" so that submit_sub_workflow
             # can use this name directly as the grandchild workflow_name without doubling "_scatter".
-            step_spec.name = f"{workflow_spec.name}_{i}"
+            step_spec.name = f"{workflow_spec.name}_{scatter_index}"
             step_spec.workflow_id = workflow_spec.workflow_id
-            step_spec.member_id = i
+            step_spec.member_id = scatter_index
             step_spec.type = WFStepType.sub_workflow
             step_spec.flavor = "scatter_child"
             step_spec.status = WFStepStatus.registered
             step_spec.creation_time = now_time
             step_spec.definition_json = json.dumps(
                 {
-                    "scatter_index": i,
+                    "scatter_index": scatter_index,
                     "child_workflow_definition": template,
                     "child_root_inputs": child_root_inputs,
                     "input_data_dict": {},
@@ -2260,7 +2269,9 @@ class WorkflowInterface(object):
                 if not (node.get("condition") or node.get("scatter") or node.get("loop")):
                     step_spec = WFStepSpec()
                     step_spec.workflow_id = workflow_spec.workflow_id
-                    step_spec.member_id = node["id"]
+                    # Per-scope sequence (starts at 1); falls back to global id for legacy
+                    # definitions parsed before member_id existed.
+                    step_spec.member_id = node.get("member_id") if node.get("member_id") is not None else node["id"]
                     step_spec.name = node["name"]
                     step_spec.status = WFStepStatus.registered
                     is_sub_workflow = node.get("type") == "workflow"
@@ -2303,6 +2314,9 @@ class WorkflowInterface(object):
                             # Carry the outDS prefix into the template so submit_sub_workflow can
                             # do a single-string replacement to uniquify dataset names per iteration.
                             scatter_template["out_ds_name"] = workflow_definition.get("out_ds_name")
+                            # Carry the scatter step's own member_id so each grandchild's dataset
+                            # names embed it (e.g. "_001s1_...") alongside the 1-based scatter index.
+                            scatter_template["scatter_parent_member_id"] = step_spec.member_id
                             # Replace the scatter template's root_outputs with the child YAML's
                             # resolved outputs (value = actual tail-step output base name,
                             # output_types = types from the YAML outputs spec).  Without this, the
