@@ -67,6 +67,12 @@ class Node(object):
         self.workflow_ref = None  # path or named block reference for type="workflow" nodes
         self.scatter_inputs = None  # {param_name: [val1, val2, ...]} resolved at parse time; None if not a scatter step
         self.scatter_mode = None  # scatter mode string, e.g. "zip"
+        # Raw root_outputs from the referenced child YAML (set before resolve_nodes, resolved after).
+        # Used so scatter templates can use the child YAML's actual tail-step output values instead
+        # of the parent scatter step's pre-baked container name (which is never created for
+        # panda_task-only child workflows).
+        self.child_root_outputs_raw = None
+        self.child_root_outputs = None
 
     def add_parent(self, id):
         self.parents.add(id)

@@ -188,6 +188,10 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                                     for child_node in child_nodes:
                                         child_node.is_tail = False
                                     nodes.extend(child_nodes)
+                                    # Stash the raw root_outputs from the child YAML so they can be
+                                    # resolved to actual values after resolve_nodes runs (output
+                                    # dataset names are not set until resolve_nodes assigns IDs).
+                                    node.child_root_outputs_raw = ref_data.get("outputs", {}) if isinstance(ref_data, dict) else {}
                                     # Resolve scatter_inputs name references to actual value lists
                                     if node.scatter_inputs:
                                         resolved = {}
@@ -216,6 +220,25 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                         workflow_native_utils.set_workflow_outputs(nodes)
                         id_node_map = workflow_native_utils.get_node_id_map(nodes)
                         [node.resolve_params(raw_request_dict["taskParams"], id_node_map) for node in nodes]
+                        # Resolve child_root_outputs_raw now that resolve_nodes has set output values
+                        # and resolve_params has set output_types on all nodes.
+                        # Build a map from step-output-name (e.g. "combine/outDS") to resolved output dict.
+                        node_out_map = {}
+                        for _n in nodes:
+                            for _out_name, _out_data in (_n.outputs or {}).items():
+                                node_out_map[_out_name] = _out_data
+                        for _n in nodes:
+                            if getattr(_n, "child_root_outputs_raw", None):
+                                _resolved = {}
+                                for _rout_name, _rout_spec in _n.child_root_outputs_raw.items():
+                                    if isinstance(_rout_spec, dict):
+                                        _from_key = _rout_spec.get("from")
+                                        _from_data = node_out_map.get(_from_key, {}) if _from_key else {}
+                                        _resolved[_rout_name] = {
+                                            "value": _from_data.get("value") if isinstance(_from_data, dict) else None,
+                                            "output_types": _rout_spec.get("output_types") or [],
+                                        }
+                                _n.child_root_outputs = _resolved
                         dump_str = "the description was internally converted as follows\n" + workflow_native_utils.dump_nodes(nodes)
                         tmp_log.info(dump_str)
                         # scatter template child nodes have unresolved scatter-parameter inputs

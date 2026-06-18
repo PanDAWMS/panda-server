@@ -773,7 +773,13 @@ class WorkflowInterface(object):
                     )
                     for ds in grandchild_data:
                         if ds.target_id:
-                            all_target_ids.append(ds.target_id)
+                            output_types = ds.get_parameter("output_types") or []
+                            if output_types:
+                                # Expand base name to actual Rucio dataset names per output type
+                                for ot in output_types:
+                                    all_target_ids.append(f"{ds.target_id}_{ot}")
+                            else:
+                                all_target_ids.append(ds.target_id)
                 if not all_target_ids:
                     tmp_log.warning("Scatter branch: no output target_ids collected from grandchild workflows")
                     return {}
@@ -2297,6 +2303,15 @@ class WorkflowInterface(object):
                             # Carry the outDS prefix into the template so submit_sub_workflow can
                             # do a single-string replacement to uniquify dataset names per iteration.
                             scatter_template["out_ds_name"] = workflow_definition.get("out_ds_name")
+                            # Replace the scatter template's root_outputs with the child YAML's
+                            # resolved outputs (value = actual tail-step output base name,
+                            # output_types = types from the YAML outputs spec).  Without this, the
+                            # template carries the parent scatter step's pre-baked container name
+                            # (e.g. "_000_many_sig_bg_comb") which is never created in Rucio for
+                            # panda_task-only grandchild workflows.  submit_sub_workflow will apply
+                            # the _s{N} prefix to all dataset-name occurrences via string replace.
+                            if node.get("child_root_outputs"):
+                                scatter_template["root_outputs"] = node.get("child_root_outputs")
                             child_wf_def = {
                                 # Append "_scatter" to distinguish the scatter-intermediate workflow
                                 # (which fans out iterations) from both its parent step and the
