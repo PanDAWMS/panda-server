@@ -906,10 +906,10 @@ class RucioAPI:
         # register container
         client = self._get_rucio_client()
         try:
-            scope, dataset_name = self.extract_scope(container_name)
+            scope, container_bare_name = self.extract_scope(container_name)
             if preset_scope is not None:
                 scope = preset_scope
-            client.add_container(scope=scope, name=container_name)
+            client.add_container(scope=scope, name=container_bare_name)
         except DataIdentifierAlreadyExists:
             pass
         # add files
@@ -923,11 +923,11 @@ class RucioAPI:
                     else:
                         dataset_name = {"scope": scope, "name": dataset}
                     dataset_names.append(dataset_name)
-                client.add_datasets_to_container(scope=scope, name=container_name, dsns=dataset_names)
+                client.add_datasets_to_container(scope=scope, name=container_bare_name, dsns=dataset_names)
             except DuplicateContent:
                 for dataset in dataset_names:
                     try:
-                        client.add_datasets_to_container(scope=scope, name=container_name, dsns=[dataset])
+                        client.add_datasets_to_container(scope=scope, name=container_bare_name, dsns=[dataset])
                     except DuplicateContent:
                         pass
         return True
