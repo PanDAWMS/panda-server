@@ -683,13 +683,14 @@ def set_workflow_outputs(node_list, all_parents=None):
 
 # resolve nodes
 def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_name, log_stream, scope_map=None):
-    # member_id is a per-scope sequence (starts at 1) used for output dataset names; node.id stays
-    # unique within this parsed definition (across iterations it repeats, but each iteration is a
-    # separate workflow built later from this template). member_counters is local to each call, so
-    # every recursive invocation (each inline sub-workflow) restarts numbering at 1. scope_map maps
-    # a node's pre-resolve temp id to a
-    # scope key (a scatter node's temp id) so scatter-template children flattened into this same call
-    # are numbered in their own scope, independent of the parent steps. None key = this call's scope.
+    # member_id is a per-scope sequence (starts at 1) used only for output dataset names. node.id
+    # stays unique within this parsed definition; across scatter iterations it repeats, since each
+    # iteration is a separate workflow built later from this template.
+    #
+    # member_counters is local to this call. scope_map maps a flattened scatter-template child's
+    # pre-resolve temp id to its scatter node's temp id (the scope key), so those children are
+    # numbered in their own scope, independent of the parent steps. A None key is this call's
+    # default scope (the parent steps).
     if scope_map is None:
         scope_map = {}
     member_counters = {}

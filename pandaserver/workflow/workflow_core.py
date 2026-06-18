@@ -715,7 +715,6 @@ class WorkflowInterface(object):
             step_spec.creation_time = now_time
             step_spec.definition_json = json.dumps(
                 {
-                    "scatter_index": scatter_index,
                     "child_workflow_definition": template,
                     "child_root_inputs": child_root_inputs,
                     "input_data_dict": {},
