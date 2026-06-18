@@ -1798,10 +1798,12 @@ class WorkflowInterface(object):
             if step_spec.status in WFStepStatus.final_statuses and step_spec.start_time is not None and step_spec.end_time is None:
                 # step has ended, set end_time if not yet set
                 step_spec.end_time = now_time
-            self.tbif.update_workflow_step(step_spec)
-            # Propagate sub-workflow outputs to parent data specs when step completes
+            # Propagate sub-workflow outputs before persisting done status: if aggregation
+            # fails the exception reaches the outer handler and update_workflow_step is skipped,
+            # leaving the step in running so the next cycle retries aggregation.
             if check_result.output_ids:
                 self.apply_sub_workflow_outputs(tmp_log, step_spec, check_result.output_ids, data_spec_map, now_time)
+            self.tbif.update_workflow_step(step_spec)
             process_result.success = True
             tmp_log.info(f"Checked step, type={step_spec.type}, target_id={step_spec.target_id}, status={step_spec.status}")
         except Exception as e:
@@ -1884,10 +1886,12 @@ class WorkflowInterface(object):
             if step_spec.status in WFStepStatus.final_statuses and step_spec.start_time is not None and step_spec.end_time is None:
                 # step has ended, set end_time if not yet set
                 step_spec.end_time = now_time
-            self.tbif.update_workflow_step(step_spec)
-            # Propagate sub-workflow outputs to parent data specs when step completes
+            # Propagate sub-workflow outputs before persisting done status: if aggregation
+            # fails the exception reaches the outer handler and update_workflow_step is skipped,
+            # leaving the step in running so the next cycle retries aggregation.
             if check_result.output_ids:
                 self.apply_sub_workflow_outputs(tmp_log, step_spec, check_result.output_ids, data_spec_map, now_time)
+            self.tbif.update_workflow_step(step_spec)
             process_result.success = True
             tmp_log.info(f"Checked step, flavor={step_spec.flavor}, target_id={step_spec.target_id}, status={step_spec.status}")
         except Exception as e:
