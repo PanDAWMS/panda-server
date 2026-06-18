@@ -2271,7 +2271,8 @@ class WorkflowInterface(object):
                     step_spec.workflow_id = workflow_spec.workflow_id
                     # Per-scope sequence (starts at 1); falls back to global id for legacy
                     # definitions parsed before member_id existed.
-                    step_spec.member_id = node.get("member_id") if node.get("member_id") is not None else node["id"]
+                    member_id = node.get("member_id")
+                    step_spec.member_id = member_id if member_id is not None else node["id"]
                     step_spec.name = node["name"]
                     step_spec.status = WFStepStatus.registered
                     is_sub_workflow = node.get("type") == "workflow"
