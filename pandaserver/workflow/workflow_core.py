@@ -842,11 +842,14 @@ class WorkflowInterface(object):
             if data_handler is None:
                 tmp_log.warning(f"No data handler plugin for flavor {data_spec.flavor}; skipped")
                 continue
-            # Build a deterministic combined container name from workflow/step context
-            first_tid = target_id_list[0]
-            scope, _ = self.ddm_if.extract_scope(first_tid)
-            safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", output_data_name)[:50]
-            combined_name = f"{scope}.wf{step_spec.workflow_id}_s{step_spec.step_id}_{safe_name}_agg/"
+            # Use the pre-baked target_id as the container name: it was set at workflow init
+            # from resolve_nodes output value and is the same name already in task_params.inDS
+            # for downstream steps.  Generating a different name here would leave the merge
+            # step's inDS pointing at a container that never gets created in Rucio.
+            combined_name = data_spec.target_id
+            if not combined_name:
+                tmp_log.error(f"Output data spec {output_data_name} has no pre-baked target_id; cannot create combined container")
+                continue
             combined = data_handler.combine_targets(target_id_list, combined_name=combined_name)
             if not combined:
                 tmp_log.error(f"combine_targets failed for output {output_data_name}; skipped")
