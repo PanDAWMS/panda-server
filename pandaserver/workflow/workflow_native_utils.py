@@ -682,22 +682,18 @@ def set_workflow_outputs(node_list, all_parents=None):
 
 
 # resolve nodes
-def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_name, log_stream, scope_map=None):
-    # member_id is a per-scope sequence (starts at 1) used only for output dataset names. node.id
+def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_name, log_stream):
+    # member_id is a per-call sequence (starts at 1) used only for output dataset names. node.id
     # stays unique within this parsed definition; across scatter iterations it repeats, since each
     # iteration is a separate workflow built later from this template.
     #
-    # member_counters is local to this call. scope_map maps a flattened scatter-template child's
-    # pre-resolve temp id to its scatter node's temp id (the scope key), so those children are
-    # numbered in their own scope, independent of the parent steps. A None key is this call's
-    # default scope (the parent steps).
-    if scope_map is None:
-        scope_map = {}
-    member_counters = {}
+    # member_counter is local to this call, so each recursive resolve_nodes scope (an inline
+    # sub-workflow, or a scatter parent's child template) restarts member_id at 1 naturally.
+    member_counter = [0]
 
-    def _next_member(scope_key):
-        member_counters[scope_key] = member_counters.get(scope_key, 0) + 1
-        return member_counters[scope_key]
+    def _next_member():
+        member_counter[0] += 1
+        return member_counter[0]
 
     for k in root_inputs:
         kk = k.split("#")[-1]
@@ -708,6 +704,9 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
     # map of object identity to original temporary node ID used in resolved_map keys
     node_key_map = {}
     all_nodes = []
+    # Resolved scatter-template children, spliced into all_nodes after the tail computation below
+    # (they belong to a recursive scope, so they have no resolved_map entry in this call).
+    scatter_child_nodes = []
     for node in node_list:
         # resolve input
         for tmp_name, tmp_data in node.inputs.items():
@@ -791,8 +790,9 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             sc_node.parents = real_parens
             if sc_node.is_head:
                 sc_node.parents |= parent_ids
-            # scatter workflow nodes are resolved at runtime (instantiate_scatter_workflow);
-            # sub_nodes holds integer IDs (not Node objects) at this stage, so skip recursion
+            # A scatter workflow node owns no task itself; its child template is resolved in its own
+            # recursive scope below (see scatter-child block). Here it is treated like a leaf so it
+            # gets a serial id, a member_id in this scope, and its own output dataset name.
             is_scatter_workflow = sc_node.scatter_inputs is not None
             if sc_node.is_leaf or is_scatter_workflow:
                 resolved_map[original_node_id].append(sc_node)
@@ -806,13 +806,12 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                     sc_node.parents,
                     out_ds_name,
                     log_stream,
-                    scope_map,
                 )
                 resolved_map[original_node_id] += sub_tail_nodes
                 tmp_to_real_id_map[original_node_id] |= set([n.id for n in sub_tail_nodes])
-            # assign this node's serial id and per-scope member_id (common to both branches)
+            # assign this node's serial id and per-call member_id (common to both branches)
             sc_node.id = serial_id
-            sc_node.member_id = _next_member(scope_map.get(original_node_id))
+            sc_node.member_id = _next_member()
             serial_id += 1
             # convert parameters to parent IDs in conditions
             # TODO: condition features not yet implemented
@@ -826,18 +825,25 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                     # add loop count for nodes in a loop
                     if sc_node.in_loop:
                         tmp_data["value"] += ".___idds___num_run___"
-    # Remap sub_nodes for scatter workflow nodes from pre-resolve IDs to post-resolve serial IDs.
-    # parents is already remapped above via tmp_to_real_id_map; sub_nodes needs the same treatment
-    # so that extract_child_workflow_definition can look up child nodes by their new serial IDs.
-    for node in all_nodes:
-        if node.scatter_inputs is not None and node.sub_nodes:
-            new_sub_ids = set()
-            for old_id in node.sub_nodes:
-                if old_id in tmp_to_real_id_map:
-                    new_sub_ids |= tmp_to_real_id_map[old_id]
-                else:
-                    new_sub_ids.add(old_id)
-            node.sub_nodes = new_sub_ids
+            # Resolve a scatter parent's child template in its own recursive scope. sub_nodes holds
+            # the child Node objects (a topo-sorted list) parsed from the referenced workflow; the
+            # recursion restarts member_id at 1, threads serial_id so child ids stay globally unique,
+            # and resolves the children against this call's inputs/data exactly as if they were
+            # top-level steps. The resolved children are spliced back into this flat node list and
+            # sub_nodes is replaced with their real ids, which extract_child_workflow_definition and
+            # the runtime scatter dispatch look up.
+            if is_scatter_workflow and sc_node.sub_nodes:
+                serial_id, _scatter_tails, scatter_children = resolve_nodes(
+                    list(sc_node.sub_nodes),
+                    root_inputs,
+                    data,
+                    serial_id,
+                    parent_ids,
+                    out_ds_name,
+                    log_stream,
+                )
+                scatter_child_nodes.extend(scatter_children)
+                sc_node.sub_nodes = {child.id for child in scatter_children}
     # return tails
     tail_nodes = []
     for node in all_nodes:
@@ -846,6 +852,9 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             tail_nodes.append(node)
         else:
             tail_nodes += resolved_map[original_node_id]
+    # Splice resolved scatter-template children into the flat node list now that tails are computed;
+    # they are template steps (never workflow tails) and keep their own resolved ids.
+    all_nodes.extend(scatter_child_nodes)
     return serial_id, tail_nodes, all_nodes
 
 

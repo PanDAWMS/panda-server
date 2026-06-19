@@ -181,13 +181,18 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                                         break
                                 if ref_data is not None:
                                     child_nodes, _ = workflow_native_utils.parse_workflow_data(ref_data, tmp_log, _id_counter=id_counter)
-                                    node.sub_nodes = {child_node.id for child_node in child_nodes}
+                                    # Keep the child template nodes as Node objects on sub_nodes (a
+                                    # topologically-sorted list, not flattened into the outer node
+                                    # list) so resolve_nodes can resolve them in their own recursive
+                                    # scope -- restarting member_id at 1 -- and splice them back as a
+                                    # flat, id-keyed list. resolve_nodes replaces sub_nodes with the
+                                    # resolved child ids.
+                                    node.sub_nodes = child_nodes
                                     node.workflow_ref = None
                                     # child nodes are template nodes within the scatter parent; clear is_tail
                                     # so they do not appear as tail nodes of the outer workflow
                                     for child_node in child_nodes:
                                         child_node.is_tail = False
-                                    nodes.extend(child_nodes)
                                     # Stash the raw root_outputs from the child YAML so they can be
                                     # resolved to actual values after resolve_nodes runs (output
                                     # dataset names are not set until resolve_nodes assigns IDs).
@@ -215,18 +220,8 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                             parser = SnakeParser(workflow_spec_file, logger=tmp_log)
                             nodes, root_in = parser.parse_nodes()
                             data = dict()
-                        # Build a scope map so scatter-template children (flattened into the same
-                        # node list) are numbered in their own member_id scope, independent of the
-                        # parent steps. Key: child temp id -> scatter node temp id (the scope key).
-                        scope_map = {}
-                        for node in nodes:
-                            if node.scatter_inputs is not None and node.sub_nodes:
-                                for child_id in node.sub_nodes:
-                                    scope_map[child_id] = node.id
                         # resolve nodes
-                        s_id, t_nodes, nodes = workflow_native_utils.resolve_nodes(
-                            nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log, scope_map
-                        )
+                        s_id, t_nodes, nodes = workflow_native_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log)
                         workflow_native_utils.set_workflow_outputs(nodes)
                         id_node_map = workflow_native_utils.get_node_id_map(nodes)
                         [node.resolve_params(raw_request_dict["taskParams"], id_node_map) for node in nodes]
