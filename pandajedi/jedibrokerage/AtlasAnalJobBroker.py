@@ -1175,8 +1175,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
             msg_map = {}
+            # free space must be >= 200GB
+            diskThreshold = 200
             for tmpSiteName in self.get_unified_sites(scanSiteList):
-                # check endpoint
+                # check output endpoint
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.ANALY_PS, JobUtils.ANALY_PS)
                 if scope_output not in tmpSiteSpec.ddm_endpoints_output:
@@ -1184,18 +1186,31 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     continue
                 tmp_output_endpoint = tmpSiteSpec.ddm_endpoints_output[scope_output].getEndPoint(tmpSiteSpec.ddm_output[scope_output])
                 if tmp_output_endpoint is not None:
-                    # free space must be >= 200GB
-                    diskThreshold = 200
-                    tmpSpaceSize = 0
+                    tmp_space_size = 0
                     if tmp_output_endpoint["space_expired"] is not None:
-                        tmpSpaceSize += tmp_output_endpoint["space_expired"]
+                        tmp_space_size += tmp_output_endpoint["space_expired"]
                     if tmp_output_endpoint["space_free"] is not None:
-                        tmpSpaceSize += tmp_output_endpoint["space_free"]
-                    if (
-                        tmpSpaceSize < diskThreshold and "skip_RSE_check" not in tmpSiteSpec.catchall
-                    ):  # skip_RSE_check: exceptional bypass of RSEs without storage reporting
-                        msg_map[tmpSiteName] = f"  skip site={tmpSiteName} due to disk shortage in SE {tmpSpaceSize} < {diskThreshold}GB criteria=-disk"
+                        tmp_space_size += tmp_output_endpoint["space_free"]
+                    if tmp_space_size < diskThreshold:
+                        msg_map[tmpSiteName] = f"  skip site={tmpSiteName} due to output disk shortage in SE {tmp_space_size} < {diskThreshold}GB criteria=-disk"
                         continue
+                # check input endpoint to transfer input when data locality is not required
+                if not checkDataLocality:
+                    if scope_input not in tmpSiteSpec.ddm_endpoints_input:
+                        msg_map[tmpSiteName] = f"  skip site={tmpSiteName} since {scope_input} input endpoint undefined criteria=-disk"
+                        continue
+                    # check only when input and output endpoints are different
+                    if tmpSiteSpec.ddm_output[scope_output] != tmpSiteSpec.ddm_input[scope_input]:
+                        tmp_input_endpoint = tmpSiteSpec.ddm_endpoints_input[scope_input].getEndPoint(tmpSiteSpec.ddm_input[scope_input])
+                        if tmp_input_endpoint is not None:
+                            tmp_space_size = 0
+                            if tmp_input_endpoint["space_expired"] is not None:
+                                tmp_space_size += tmp_input_endpoint["space_expired"]
+                            if tmp_input_endpoint["space_free"] is not None:
+                                tmp_space_size += tmp_input_endpoint["space_free"]
+                            if tmp_space_size < diskThreshold:
+                                msg_map[tmpSiteName] = f"  skip site={tmpSiteName} due to input disk shortage in SE {tmp_space_size} < {diskThreshold}GB criteria=-disk"
+                                continue
                 # check if blacklisted
                 tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available)
                 if tmp_msg is not None:

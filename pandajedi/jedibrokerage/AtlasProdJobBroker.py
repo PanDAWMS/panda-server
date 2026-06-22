@@ -998,9 +998,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 if tmp_default_output_endpoint["space_expired"] is not None:
                     tmpSpaceSize += tmp_default_output_endpoint["space_expired"]
                 diskThreshold = 200
-
-                # skip_RSE_check: exceptional bypass of RSEs without storage reporting
-                if tmpSpaceSize < diskThreshold and "skip_RSE_check" not in tmpSiteSpec.catchall:
+                if tmpSpaceSize < diskThreshold:
                     tmp_msg = (
                         f"  skip site={tmpSiteName} due to disk shortage at "
                         f"{tmpSiteSpec.ddm_output[scope_output]} {tmpSpaceSize}GB < {diskThreshold}GB criteria=-disk"
