@@ -1735,6 +1735,22 @@ class WorkflowInterface(object):
             process_result.success = True
             process_result.new_status = step_spec.status
             tmp_log.info(f"Done, submitted target type={step_spec.type} flavor={step_spec.flavor} target_id={step_spec.target_id}, status={step_spec.status}")
+            # Newly submitted sub-workflow children are created in 'checked' status; the next
+            # WatchDog cycle would pick them up (check_time is NULL so they are immediately
+            # eligible). Advance the child inline now to save that one-cycle wait, which compounds
+            # with nesting depth. Scatter parents submit many children in one pass, so skip the
+            # inline kick for scatter_child steps to avoid holding the parent lock while serially
+            # starting N children; those start on the next cycle instead.
+            if step_spec.type == WFStepType.sub_workflow and step_spec.flavor != "scatter_child":
+                try:
+                    child_workflow_id = int(step_spec.target_id)
+                    with self.workflow_lock(child_workflow_id) as child_spec:
+                        if child_spec is not None:
+                            child_res, child_spec = self.process_workflow(child_spec)
+                            child_res, child_spec = self._recheck_until_stable(child_spec, child_res)
+                            tmp_log.debug(f"Inline-advanced child workflow {child_workflow_id} to status={child_spec.status}")
+                except Exception:
+                    tmp_log.warning(f"Failed to inline-advance child workflow {step_spec.target_id}; will be picked up next cycle: {traceback.format_exc()}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
@@ -2601,6 +2617,30 @@ class WorkflowInterface(object):
                 tmp_log.warning(f"{process_result.message}")
         return process_result, workflow_spec
 
+    def _recheck_until_stable(self, workflow_spec: WorkflowSpec, tmp_res: WorkflowProcessResult) -> tuple[WorkflowProcessResult, WorkflowSpec]:
+        """
+        Repeatedly re-process a workflow while it keeps advancing through transient statuses or
+        explicitly requests an immediate re-check, so a chain of transitions resolves within a
+        single processing cycle instead of waiting for the next one.
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow specification, already processed once.
+            tmp_res (WorkflowProcessResult): The result of the initial process_workflow call.
+
+        Returns:
+            WorkflowProcessResult: The result of the last process_workflow call.
+            WorkflowSpec: The updated workflow specification.
+        """
+        for _ in range(MAX_PROCESSING_LOOPS):
+            prev_status = workflow_spec.status
+            if prev_status not in WorkflowStatus.transient_statuses and not (tmp_res and tmp_res.immediate_recheck):
+                break
+            # For changes into transient status or explicit re-check request, process immediately in the loop again
+            tmp_res, workflow_spec = self.process_workflow(workflow_spec)
+            if workflow_spec.status == prev_status and not (tmp_res and tmp_res.immediate_recheck):
+                break  # no progress made, stop retrying
+        return tmp_res, workflow_spec
+
     # ---- Process all workflows -------------------------------------
 
     def process_active_workflows(self) -> Dict:
@@ -2632,14 +2672,7 @@ class WorkflowInterface(object):
                     orig_status = workflow_spec.status
                     # Process the workflow
                     tmp_res, workflow_spec = self.process_workflow(workflow_spec)
-                    for _ in range(MAX_PROCESSING_LOOPS):
-                        prev_status = workflow_spec.status
-                        if prev_status not in WorkflowStatus.transient_statuses and not (tmp_res and tmp_res.immediate_recheck):
-                            break
-                        # For changes into transient status or explicit re-check request, process immediately in the loop again
-                        tmp_res, workflow_spec = self.process_workflow(workflow_spec)
-                        if workflow_spec.status == prev_status and not (tmp_res and tmp_res.immediate_recheck):
-                            break  # no progress made, stop retrying
+                    tmp_res, workflow_spec = self._recheck_until_stable(workflow_spec, tmp_res)
                     if tmp_res and tmp_res.success:
                         # update stats
                         if tmp_res.new_status and workflow_spec.status != orig_status:
