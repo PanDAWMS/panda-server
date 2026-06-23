@@ -1113,8 +1113,10 @@ class JsonSoftwareCheck:
                                     continue
 
                             # check VRAM (in MB); supports operators: ==, >=, <=, >, <, != (e.g. ">=40960")
+                            # all() ensures every GPU entry in the queue meets the minimum — prevents brokering to
+                            # mixed sites where some nodes fall below the requirement
                             if "vram" in host_gpu_spec:
-                                if not wn_gpus or not any(g.get("vram") and compare_version_string(str(g["vram"]), host_gpu_spec["vram"]) for g in wn_gpus):
+                                if not wn_gpus or not all(g.get("vram") and compare_version_string(str(g["vram"]), host_gpu_spec["vram"]) for g in wn_gpus):
                                     continue
 
                             # check GPU microarchitecture generation (e.g. Ampere, Hopper, Ada Lovelace)
@@ -1126,15 +1128,19 @@ class JsonSoftwareCheck:
                                     continue
 
                             # check minimum CUDA version
+                            # all() ensures every GPU entry in the queue meets the minimum — prevents brokering to
+                            # mixed sites where some nodes fall below the requirement
                             if "version" in host_gpu_spec:
-                                if not wn_gpus or not any(
+                                if not wn_gpus or not all(
                                     g.get("framework_version") and compare_version_string(g["framework_version"], host_gpu_spec["version"]) for g in wn_gpus
                                 ):
                                     continue
 
                             # check minimum GPU driver version (kernel driver, e.g. 575.57.08)
+                            # all() ensures every GPU entry in the queue meets the minimum — prevents brokering to
+                            # mixed sites where some nodes fall below the requirement
                             if "driver_version" in host_gpu_spec:
-                                if not wn_gpus or not any(
+                                if not wn_gpus or not all(
                                     g.get("driver_version") and compare_version_string(g["driver_version"], host_gpu_spec["driver_version"]) for g in wn_gpus
                                 ):
                                     continue
