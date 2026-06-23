@@ -170,6 +170,12 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                                 else:
                                     # external YAML file in the same sandbox directory
                                     ref_path = os.path.join(tmp_dirname, ref)
+                                    # guard against path traversal (e.g. "../../etc/passwd") escaping the sandbox dir
+                                    if not _is_within_directory(tmp_dirname, ref_path):
+                                        tmp_log.error(f"workflow_ref '{ref}' resolves outside the sandbox directory")
+                                        is_fatal = True
+                                        is_ok = False
+                                        break
                                     if os.path.isfile(ref_path):
                                         with open(ref_path) as ref_file:
                                             yaml2 = YAML(typ="safe", pure=True)
