@@ -685,7 +685,10 @@ class WorkflowInterface(object):
             self.tbif.update_workflow(workflow_spec)
             return process_result
         # Determine number of iterations based on scatter_inputs; in 'zip' mode, all input lists must have the same length
-        n_iterations = min(len(v) for v in scatter_inputs.values())
+        input_lengths = {name: len(values) for name, values in scatter_inputs.items()}
+        if len(set(input_lengths.values())) > 1:
+            tmp_log.warning(f"scatter_inputs have mismatched lengths {input_lengths} in 'zip' mode; " f"truncating to the shortest list")
+        n_iterations = min(input_lengths.values())
         if n_iterations == 0:
             workflow_spec.status = WorkflowStatus.done
             workflow_spec.end_time = naive_utcnow()
