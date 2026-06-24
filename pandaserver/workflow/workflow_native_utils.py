@@ -988,10 +988,29 @@ def parse_workflow_data(data, log_stream, _id_counter=None):
                 node.scatter_inputs = step_spec.get("scatter_inputs", {})
                 node.scatter_mode = step_spec.get("scatter_mode", "zip")
             if "steps" in step_spec:
-                # inline sub-workflow: recursively parse the nested steps block
-                child_nodes, _ = parse_workflow_data(step_spec, log_stream, _id_counter=_id_counter)
-                node.sub_nodes = {child_node.id for child_node in child_nodes}
-                all_child_nodes.extend(child_nodes)
+                # inline sub-workflow: recursively parse the nested steps block. Treat it exactly
+                # like a reference-based sub-workflow (shape B): keep the children as Node objects on
+                # sub_nodes -- a topologically-sorted list, NOT flattened into the outer node list --
+                # so resolve_nodes resolves them in their own recursive scope against this node's own
+                # inputs. Without this, the inline children would be resolved as top-level siblings
+                # and their {name} references would bind to the outer workflow's inputs instead of
+                # the sub-workflow's own declared inputs.
+                child_nodes, child_root_in = parse_workflow_data(step_spec, log_stream, _id_counter=_id_counter)
+                # Input resolution mirrors the ref-based path:
+                #  - scatter: the parent's scatter inputs replace the corresponding child inputs per
+                #    iteration at runtime, so the template's own declared inputs are not used here.
+                #  - ordinary: the inline sub-workflow uses its own declared inputs (defaults), with
+                #    the node's explicit inputs overriding them.
+                if not node.scatter_inputs:
+                    node.root_inputs = {**(child_root_in or {}), **(node.root_inputs or {})}
+                node.sub_nodes = child_nodes
+                # child nodes are template steps within the sub-workflow; clear is_tail so they do
+                # not appear as tail nodes of the outer workflow
+                for child_node in child_nodes:
+                    child_node.is_tail = False
+                # Stash the raw root_outputs from the inline block so they can be resolved to actual
+                # values after resolve_nodes assigns IDs (mirrors the ref-based path in the parser).
+                node.child_root_outputs_raw = step_spec.get("outputs", {})
             elif "workflow_ref" in step_spec:
                 # reference-based sub-workflow: mark for later resolution by the caller
                 node.workflow_ref = step_spec["workflow_ref"]

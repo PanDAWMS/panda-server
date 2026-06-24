@@ -186,7 +186,16 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                                         is_ok = False
                                         break
                                 if ref_data is not None:
-                                    child_nodes, _ = workflow_native_utils.parse_workflow_data(ref_data, tmp_log, _id_counter=id_counter)
+                                    child_nodes, child_root_in = workflow_native_utils.parse_workflow_data(ref_data, tmp_log, _id_counter=id_counter)
+                                    # Input resolution for the child template depends on the kind of
+                                    # sub-workflow:
+                                    #  - scatter: the parent's scatter inputs replace the corresponding
+                                    #    child inputs per iteration at runtime, so the template's own
+                                    #    declared inputs are not used here.
+                                    #  - ordinary: the referenced template uses its own declared inputs
+                                    #    (defaults), with the node's explicit inputs overriding them.
+                                    if not node.scatter_inputs:
+                                        node.root_inputs = {**(child_root_in or {}), **(node.root_inputs or {})}
                                     # Keep the child template nodes as Node objects on sub_nodes (a
                                     # topologically-sorted list, not flattened into the outer node
                                     # list) so resolve_nodes can resolve them in their own recursive

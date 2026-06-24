@@ -8,8 +8,8 @@
 name: signal_background_combine
 
 inputs:
-  signal: "<signal input dataset>"
-  background: "<background input dataset>"
+  signal: "mc16_valid:mc16_valid.900248.PG_singlepion_flatPt2to50.simul.HITS.e8312_s3238_tid26378578_00"
+  background: "mc16_5TeV.361238.Pythia8EvtGen_A3NNPDF23LO_minbias_inelastic_low.merge.HITS.e6446_s3238_s3250/"
 
 outputs:
   outDS:

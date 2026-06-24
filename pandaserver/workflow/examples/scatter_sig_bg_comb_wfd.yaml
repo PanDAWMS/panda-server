@@ -1,4 +1,10 @@
 # scatter_sig_bg_comb_wfd.yaml
+# Scatter sub-workflow example (shape A): the referenced signal_background_combine_wfd.yaml
+# is instantiated once per scattered item. scatter_inputs maps the parent's signals/backgrounds
+# lists onto the sub-workflow's signal/background inputs, and scatter_mode: zip pairs them
+# element-wise (signals[i] with backgrounds[i]) -- so here two sub-workflow instances run.
+# Unlike an ordinary sub-workflow, the parent's scatter inputs replace the corresponding child
+# inputs per iteration. The merge step then combines all per-iteration outputs.
 name: scatter_sig_bg_comb
 
 inputs:
