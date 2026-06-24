@@ -865,18 +865,27 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                 if is_scatter_workflow:
                     # scatter children are dispatched per-item at runtime against the parent's inputs
                     child_root_inputs, child_data, child_parent_ids = root_inputs, data, parent_ids
+                    # keep the bare prefix: submit_sub_workflow applies the per-iteration
+                    # "_{parent_member:03d}s{N}" scatter prefix (e.g. "_001s1_003") at runtime
+                    child_out_ds_name = out_ds_name
                 else:
                     # a plain sub-workflow resolves its template against its own declared inputs
                     child_root_inputs = sc_node.root_inputs or {}
                     child_data = sc_node.convert_dict_inputs()
                     child_parent_ids = sc_node.parents
+                    # Embed this sub-workflow step's own member_id into the prefix so child
+                    # dataset names reflect the hierarchy: e.g. the parent step
+                    # "_002_sig_bg_comb" yields children "_002_001_make_signal",
+                    # "_002_002_make_background_1", .... Deeper nesting appends further
+                    # segments naturally (e.g. "_002_007_001_...").
+                    child_out_ds_name = f"{out_ds_name}_{sc_node.member_id:03d}"
                 serial_id, _child_tails, child_nodes = resolve_nodes(
                     list(sc_node.sub_nodes),
                     child_root_inputs,
                     child_data,
                     serial_id,
                     child_parent_ids,
-                    out_ds_name,
+                    child_out_ds_name,
                     log_stream,
                 )
                 sub_workflow_child_nodes.extend(child_nodes)
