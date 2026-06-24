@@ -73,6 +73,12 @@ PLUGIN_RAW_MAP = {
     # Add more plugin types here
 }
 
+# Step flavors handled natively by the workflow engine, i.e. with no step_handler plugin
+# (see PLUGIN_RAW_MAP["step_handler"], which only has "panda_task"). Dispatch in the
+# process_step_* methods keys on flavor rather than step type: these flavors must be
+# handled natively by definition, and flavor is the value get_plugin() looks up.
+NATIVE_SUB_WORKFLOW_STEP_FLAVORS = ("sub_workflow", "scatter_child")
+
 
 # Global variable to cache the flavor to plugin class map, initialized lazily in _get_flavor_plugin_class_map
 _flavor_plugin_class_map_cache = None
@@ -476,7 +482,7 @@ class WorkflowInterface(object):
                     return True
                 # Cancel the target — native handling for sub-workflow, plugin for ordinary steps
                 target_is_cancelled = False
-                if step_spec.type == WFStepType.sub_workflow:
+                if step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS:
                     if step_spec.target_id:
                         child_cancelled = self.cancel_workflow(int(step_spec.target_id), force=force)
                         if child_cancelled:
@@ -1725,7 +1731,7 @@ class WorkflowInterface(object):
         # Process
         try:
             # Submit the step target — native handling for sub-workflow, plugin for ordinary steps
-            if step_spec.type == WFStepType.sub_workflow:
+            if step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS:
                 submit_result = self.submit_sub_workflow(step_spec)
             else:
                 step_handler = self.get_plugin("step_handler", step_spec.flavor)
@@ -1751,7 +1757,7 @@ class WorkflowInterface(object):
             # with nesting depth. Scatter parents submit many children in one pass, so skip the
             # inline kick for scatter_child steps to avoid holding the parent lock while serially
             # starting N children; those start on the next cycle instead.
-            if step_spec.type == WFStepType.sub_workflow and step_spec.flavor != "scatter_child":
+            if step_spec.flavor == "sub_workflow":
                 try:
                     child_workflow_id = int(step_spec.target_id)
                     with self.workflow_lock(child_workflow_id) as child_spec:
@@ -1806,7 +1812,7 @@ class WorkflowInterface(object):
             # Check if all input data are good
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
             # Check the step status — native handling for sub-workflow, plugin for ordinary steps
-            if step_spec.type == WFStepType.sub_workflow:
+            if step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS:
                 check_result = self.check_sub_workflow(step_spec)
             else:
                 step_handler = self.get_plugin("step_handler", step_spec.flavor)
@@ -1894,7 +1900,7 @@ class WorkflowInterface(object):
             # Check if all input data are good
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
             # Check the step status — native handling for sub-workflow, plugin for ordinary steps
-            if step_spec.type == WFStepType.sub_workflow:
+            if step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS:
                 check_result = self.check_sub_workflow(step_spec)
             else:
                 step_handler = self.get_plugin("step_handler", step_spec.flavor)
@@ -2553,7 +2559,11 @@ class WorkflowInterface(object):
             if processed_steps_stats and (processed_steps_stats.get(WFStepStatus.failed) or processed_steps_stats.get(WFStepStatus.cancelled)):
                 # Cancel child workflows whose sub_workflow steps just failed or were cancelled
                 for step_spec in step_specs:
-                    if step_spec.type == WFStepType.sub_workflow and step_spec.status in (WFStepStatus.failed, WFStepStatus.cancelled) and step_spec.target_id:
+                    if (
+                        step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS
+                        and step_spec.status in (WFStepStatus.failed, WFStepStatus.cancelled)
+                        and step_spec.target_id
+                    ):
                         child_wf_id = int(step_spec.target_id)
                         child_wf = self.tbif.get_workflow(child_wf_id)
                         if child_wf and child_wf.status not in WorkflowStatus.final_statuses:
