@@ -2387,6 +2387,19 @@ class WorkflowInterface(object):
                                     "scatter_mode": node.get("scatter_mode", "zip"),
                                 },
                             }
+                        else:
+                            # Regular (non-scatter) sub-workflow: extract_child_workflow_definition
+                            # seeds root_outputs from the parent node's outputs, whose value is this
+                            # step's pre-baked name (e.g. "..._002_sig_bg_comb"). The child must
+                            # instead expose its actual tail-step output (e.g. "combine/outDS" ->
+                            # "..._002_006_combine" with output_types), so the child workflow produces
+                            # a real dataset that apply_sub_workflow_outputs can wrap in the pre-baked
+                            # container. Without this the child's root output == the parent's name,
+                            # combine_targets finds nothing to combine, and the container is never
+                            # created -> downstream step fails with "unknown input dataset". Mirrors
+                            # the scatter branch above.
+                            if node.get("child_root_outputs"):
+                                child_wf_def["root_outputs"] = node.get("child_root_outputs")
                         step_definition["child_workflow_definition"] = child_wf_def
                     step_spec.definition_json_map = step_definition
                     step_spec.creation_time = now_time
