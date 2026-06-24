@@ -759,6 +759,28 @@ class WorkflowInterface(object):
         tmp_log.info(f"Scatter instantiated {n_iterations} child workflows")
         return process_result
 
+    @staticmethod
+    def _expand_output_data_to_ddm_names(data_spec: WFDataSpec) -> list:
+        """
+        Expand an output data spec's base target_id into the actual DDM dataset names.
+
+        The real DDM collection for an output is "{target_id}_{output_type}" (see
+        PandaTaskDataHandler.check_target). Expand per declared output_type, falling back to
+        the bare target_id when none are declared. Returns [] when target_id is unset.
+
+        Args:
+            data_spec (WFDataSpec): The output data spec to expand.
+
+        Returns:
+            list[str]: The actual DDM dataset names for this output.
+        """
+        if not data_spec.target_id:
+            return []
+        output_types = data_spec.get_parameter("output_types") or []
+        if output_types:
+            return [f"{data_spec.target_id}_{ot}" for ot in output_types]
+        return [data_spec.target_id]
+
     def resolve_sub_workflow_outputs(self, step_spec: WFStepSpec, child_workflow_id: int) -> dict:
         """
         Collect output target_ids from a completed sub-workflow (scatter or regular) for aggregation.
@@ -796,14 +818,7 @@ class WorkflowInterface(object):
                         or []
                     )
                     for ds in grandchild_data:
-                        if ds.target_id:
-                            output_types = ds.get_parameter("output_types") or []
-                            if output_types:
-                                # Expand base name to actual Rucio dataset names per output type
-                                for ot in output_types:
-                                    all_target_ids.append(f"{ds.target_id}_{ot}")
-                            else:
-                                all_target_ids.append(ds.target_id)
+                        all_target_ids.extend(self._expand_output_data_to_ddm_names(ds))
                 if not all_target_ids:
                     tmp_log.warning("Scatter branch: no output target_ids collected from grandchild workflows")
                     return {}
@@ -819,14 +834,15 @@ class WorkflowInterface(object):
                     )
                     or []
                 )
-                child_target_ids = [ds.target_id for ds in child_data if ds.target_id]
-                if not child_target_ids:
+                child_data = [ds for ds in child_data if ds.target_id]
+                if not child_data:
                     tmp_log.warning("Regular branch: no output target_ids found in child workflow")
                     return {}
                 result = {}
                 for i, name in enumerate(parent_output_data_list):
-                    if i < len(child_target_ids):
-                        result[name] = [child_target_ids[i]]
+                    if i < len(child_data):
+                        # Each child output may expand to several DDM datasets (one per output type)
+                        result[name] = self._expand_output_data_to_ddm_names(child_data[i])
                     else:
                         tmp_log.warning(f"No child output for parent output {name} (index {i}); skipped")
                 tmp_log.debug(f"Regular branch: resolved {len(result)} output mappings")

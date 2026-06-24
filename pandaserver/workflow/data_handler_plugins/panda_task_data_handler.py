@@ -173,13 +173,22 @@ class PandaTaskDataHandler(BaseDataHandler):
         if not target_ids:
             tmp_log.warning("Empty target_ids list; returning empty string")
             return ""
-        if len(target_ids) == 1:
-            return target_ids[0]
         if combined_name is None:
-            # Fallback: derive scope from first target and generate a unique name
+            # No explicit container name requested: a single target needs no aggregation,
+            # otherwise derive scope from the first target and generate a unique name.
+            if len(target_ids) == 1:
+                return target_ids[0]
             first = target_ids[0]
             scope, _ = self.ddm_if.extract_scope(first)
             combined_name = f"{scope}.wf_combined_{uuid.uuid4().hex}/"
+        elif len(target_ids) == 1 and target_ids[0] == combined_name:
+            # The single target already IS the requested container; nothing to combine.
+            return combined_name
+        # A distinct combined_name was requested (e.g. a sub-workflow step's pre-baked output
+        # name): always register the container, even for a single target, so that downstream
+        # steps whose inDS points at combined_name find a real Rucio entity. Without this, a
+        # regular (non-scatter) sub-workflow with one output would leave combined_name
+        # uncreated and the consuming step fails with "unknown input dataset".
         ok = self.ddm_if.register_container(combined_name, datasets=target_ids)
         if not ok:
             tmp_log.error(f"Failed to register combined container {combined_name}")
