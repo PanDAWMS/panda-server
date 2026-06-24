@@ -984,6 +984,10 @@ class AtlasProdJobBroker(JobBrokerBase):
         msg_map = {}
         tmpLog.set_message_slot()
         newSkippedTmp = dict()
+        diskThreshold = self.taskBufferIF.getConfigValue(COMPONENT, "STORAGE_MIN_FREE_SIZE", "jedi", taskSpec.vo)
+        if not diskThreshold:
+            # set default threshold to 200GB if not configured
+            diskThreshold = 200
         for tmpSiteName in self.get_unified_sites(scanSiteList):
             tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
             scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.PROD_PS, JobUtils.PROD_PS)
@@ -997,7 +1001,6 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmpSpaceSize += tmp_default_output_endpoint["space_free"]
                 if tmp_default_output_endpoint["space_expired"] is not None:
                     tmpSpaceSize += tmp_default_output_endpoint["space_expired"]
-                diskThreshold = 200
                 if tmpSpaceSize < diskThreshold:
                     tmp_msg = (
                         f"  skip site={tmpSiteName} due to disk shortage at "
