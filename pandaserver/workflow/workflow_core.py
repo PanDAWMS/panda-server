@@ -585,7 +585,14 @@ class WorkflowInterface(object):
             # Scatter children carry pre-resolved inputs; skip parent data spec resolution
             child_root_inputs = step_definition.get("child_root_inputs", {})
         else:
-            child_root_inputs = {}
+            # Ordinary (non-scatter) sub-workflow: start from the child's own declared
+            # root_inputs (its default datasets, e.g. signal/background), then override
+            # any entry that the parent step explicitly wires to parent workflow data via
+            # a source reference. Seeding from the child's own inputs is essential -- per
+            # the design principle, an ordinary sub-workflow uses its own inputs -- otherwise
+            # its root_inputs would be wiped to {} and its steps would fail input checks with
+            # "Input data <name> not found in workflow data".
+            child_root_inputs = dict(child_definition.get("root_inputs", {}) or {})
             for input_name, input_data in step_definition.get("inputs", {}).items():
                 source = input_data.get("source") if isinstance(input_data, dict) else None
                 if source is None:
