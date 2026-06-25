@@ -98,3 +98,41 @@ class DDMCollectionDataHandler(BaseDataHandler):
         check_result.success = True
         tmp_log.info(f"Got collection {collection} check_status={check_result.check_status}")
         return check_result
+
+    def combine_targets(self, target_ids: list, combined_name: str | None = None) -> str:
+        """
+        Combine multiple DDM collection target IDs into a single Rucio container.
+
+        Args:
+            target_ids (list): List of DDM collection names to aggregate.
+            combined_name (str | None): Name for the new Rucio container. Should be caller-supplied
+                and deterministic to ensure idempotency across retries.
+
+        Returns:
+            str: The combined container name, or empty string on failure.
+        """
+        tmp_log = LogWrapper(logger, "combine_targets")
+        if not target_ids:
+            tmp_log.warning("Empty target_ids list; returning empty string")
+            return ""
+        if combined_name is None:
+            # No explicit container name requested: a single target needs no aggregation,
+            # otherwise derive scope from the first target and generate a unique name.
+            if len(target_ids) == 1:
+                return target_ids[0]
+            first = target_ids[0]
+            scope, _ = self.ddm_if.extract_scope(first)
+            combined_name = f"{scope}.wf_combined_{uuid.uuid4().hex}/"
+        elif len(target_ids) == 1 and target_ids[0] == combined_name:
+            # The single target already IS the requested container; nothing to combine.
+            return combined_name
+        # A distinct combined_name was requested: always register the container, even for a
+        # single target, so downstream steps whose inDS points at combined_name find a real
+        # entity. (Currently this handler is only used for inputs and is not reached via
+        # sub-workflow output aggregation, but kept symmetric with PandaTaskDataHandler.)
+        ok = self.ddm_if.register_container(combined_name, datasets=target_ids)
+        if not ok:
+            tmp_log.error(f"Failed to register combined container {combined_name}")
+            return ""
+        tmp_log.info(f"Registered combined container {combined_name} with {len(target_ids)} datasets")
+        return combined_name

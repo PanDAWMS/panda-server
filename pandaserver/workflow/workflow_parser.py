@@ -153,9 +153,75 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                                 yaml = YAML(typ="safe", pure=True)
                                 wfd = yaml.load(workflow_spec)
                             workflow_name = wfd.get("name")
-                            nodes, root_in = workflow_native_utils.parse_workflow_data(wfd, tmp_log)
+                            id_counter = [0]
+                            nodes, root_in = workflow_native_utils.parse_workflow_data(wfd, tmp_log, _id_counter=id_counter)
                             data = wfd.get("inputs", dict())
                             workflow_options = wfd.get("options", None)
+                            # Resolve reference-based sub-workflow nodes (workflow_ref field)
+                            named_blocks = wfd.get("workflow_blocks", {})
+                            for node in list(nodes):
+                                if node.workflow_ref is None:
+                                    continue
+                                ref = node.workflow_ref
+                                ref_data = None
+                                # named block in the same file
+                                if ref in named_blocks:
+                                    ref_data = named_blocks[ref]
+                                else:
+                                    # external YAML file in the same sandbox directory
+                                    ref_path = os.path.join(tmp_dirname, ref)
+                                    # guard against path traversal (e.g. "../../etc/passwd") escaping the sandbox dir
+                                    if not _is_within_directory(tmp_dirname, ref_path):
+                                        tmp_log.error(f"workflow_ref '{ref}' resolves outside the sandbox directory")
+                                        is_fatal = True
+                                        is_ok = False
+                                        break
+                                    if os.path.isfile(ref_path):
+                                        with open(ref_path) as ref_file:
+                                            yaml2 = YAML(typ="safe", pure=True)
+                                            ref_data = yaml2.load(ref_file)
+                                    else:
+                                        tmp_log.error(f"workflow_ref '{ref}' not found as a named block or file")
+                                        is_fatal = True
+                                        is_ok = False
+                                        break
+                                if ref_data is not None:
+                                    child_nodes, child_root_in = workflow_native_utils.parse_workflow_data(ref_data, tmp_log, _id_counter=id_counter)
+                                    # Input resolution for the child template depends on the kind of
+                                    # sub-workflow:
+                                    #  - scatter: the parent's scatter inputs replace the corresponding
+                                    #    child inputs per iteration at runtime, so the template's own
+                                    #    declared inputs are not used here.
+                                    #  - ordinary: the referenced template uses its own declared inputs
+                                    #    (defaults), with the node's explicit inputs overriding them.
+                                    if not node.scatter_inputs:
+                                        node.root_inputs = {**(child_root_in or {}), **(node.root_inputs or {})}
+                                    # Keep the child template nodes as Node objects on sub_nodes (a
+                                    # topologically-sorted list, not flattened into the outer node
+                                    # list) so resolve_nodes can resolve them in their own recursive
+                                    # scope -- restarting member_id at 1 -- and splice them back as a
+                                    # flat, id-keyed list. resolve_nodes replaces sub_nodes with the
+                                    # resolved child ids.
+                                    node.sub_nodes = child_nodes
+                                    node.workflow_ref = None
+                                    # child nodes are template nodes within the scatter parent; clear is_tail
+                                    # so they do not appear as tail nodes of the outer workflow
+                                    for child_node in child_nodes:
+                                        child_node.is_tail = False
+                                    # Stash the raw root_outputs from the child YAML so they can be
+                                    # resolved to actual values after resolve_nodes runs (output
+                                    # dataset names are not set until resolve_nodes assigns IDs).
+                                    node.child_root_outputs_raw = ref_data.get("outputs", {}) if isinstance(ref_data, dict) else {}
+                                    # Resolve scatter_inputs name references to actual value lists
+                                    if node.scatter_inputs:
+                                        resolved = {}
+                                        for param_name, root_input_ref in node.scatter_inputs.items():
+                                            if root_input_ref in data:
+                                                val = data[root_input_ref]
+                                                resolved[param_name] = val if isinstance(val, list) else [val]
+                                            else:
+                                                tmp_log.warning(f"scatter_inputs ref '{root_input_ref}' not found in workflow inputs for node '{node.name}'")
+                                        node.scatter_inputs = resolved
                         elif wf_lang == "cwl":
                             workflow_name = raw_request_dict.get("workflow_name")
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
@@ -174,9 +240,36 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                         workflow_native_utils.set_workflow_outputs(nodes)
                         id_node_map = workflow_native_utils.get_node_id_map(nodes)
                         [node.resolve_params(raw_request_dict["taskParams"], id_node_map) for node in nodes]
+                        # Resolve child_root_outputs_raw now that resolve_nodes has set output values
+                        # and resolve_params has set output_types on all nodes.
+                        # Build a map from step-output-name (e.g. "combine/outDS") to resolved output dict.
+                        node_out_map = {}
+                        for _n in nodes:
+                            for _out_name, _out_data in (_n.outputs or {}).items():
+                                node_out_map[_out_name] = _out_data
+                        for _n in nodes:
+                            if getattr(_n, "child_root_outputs_raw", None):
+                                _resolved = {}
+                                for _rout_name, _rout_spec in _n.child_root_outputs_raw.items():
+                                    if isinstance(_rout_spec, dict):
+                                        _from_key = _rout_spec.get("from")
+                                        _from_data = node_out_map.get(_from_key, {}) if _from_key else {}
+                                        _resolved[_rout_name] = {
+                                            "value": _from_data.get("value") if isinstance(_from_data, dict) else None,
+                                            "output_types": _rout_spec.get("output_types") or [],
+                                        }
+                                _n.child_root_outputs = _resolved
                         dump_str = "the description was internally converted as follows\n" + workflow_native_utils.dump_nodes(nodes)
                         tmp_log.info(dump_str)
+                        # scatter template child nodes have unresolved scatter-parameter inputs
+                        # (e.g. {signal}, {background}) that are filled in at runtime — skip them
+                        scatter_template_ids = set()
                         for node in nodes:
+                            if node.scatter_inputs is not None:
+                                scatter_template_ids |= node.sub_nodes
+                        for node in nodes:
+                            if node.id in scatter_template_ids:
+                                continue
                             s_check, o_check = node.verify()
                             tmp_str = f"Verification failure in ID:{node.id} {o_check}"
                             if not s_check:
@@ -215,6 +308,9 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                         "root_inputs": root_inputs_dict,
                         "root_outputs": root_outputs_dict,
                         "nodes": nodes_list,
+                        # Stored so scatter grandchild dispatch can uniquify output dataset names
+                        # per iteration (all names share this prefix; see submit_sub_workflow).
+                        "out_ds_name": raw_request_dict.get("outDS"),
                     }
                     if workflow_options is not None:
                         workflow_definition_dict["options"] = workflow_options

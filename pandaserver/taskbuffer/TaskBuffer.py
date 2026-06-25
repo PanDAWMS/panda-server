@@ -2870,6 +2870,10 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.get_workflow(workflow_id)
 
+    def get_child_workflows(self, parent_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_child_workflows(parent_id)
+
     def get_workflow_step(self, step_id):
         with self.proxyPool.get() as proxy:
             return proxy.get_workflow_step(step_id)

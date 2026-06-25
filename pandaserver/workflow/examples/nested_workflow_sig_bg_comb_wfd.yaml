@@ -1,0 +1,33 @@
+# nested_workflow_sig_bg_comb_wfd.yaml
+# Nested (reference-based) sub-workflow example (shape B): an ordinary, non-scatter
+# sub-workflow. The sig_bg_comb step runs the referenced signal_background_combine_wfd.yaml
+# once, using that file's own declared inputs (signal/background). top produces a seed,
+# and bottom consumes the sub-workflow output plus top's seed.
+# The inline-steps equivalent is nested_workflow_inline_sig_bg_comb_wfd.yaml (shape C).
+name: nested_workflow_sig_bg_comb
+
+inputs: []
+
+outputs:
+  final_result:
+    from: merge/outDS
+
+steps:
+  top:
+    type: prun
+    args: --outputs seed.txt --nJobs 3 --avoidVP
+    exec: "echo %RNDM:10 > seed.txt"
+
+  sig_bg_comb:
+    type: workflow
+    workflow_ref: signal_background_combine_wfd.yaml   # <-- path relative to sandbox root
+
+  bottom:
+    type: prun
+    inDS: sig_bg_comb/outDS
+    secondaryDSs:
+      - top/outDS
+    secondaryDsTypes:
+      - seed.txt
+    args: --outputs results.root --forceStaged --avoidVP
+    exec: "echo %IN %IN2 > results.root"
