@@ -1243,7 +1243,7 @@ def resolve_cmt_config(queue_name: str, cmt_config: str, base_platform, sw_map: 
 
 
 def check_endpoints_with_blacklist(
-    site_spec: SiteSpec.SiteSpec, scope_input: str, scope_output: str, sites_in_nucleus: list, remote_source_available: bool
+    site_spec: SiteSpec.SiteSpec, scope_input: str, scope_output: str, sites_in_nucleus: list, remote_source_available: bool, storage_type: str = None
 ) -> str | None:
     """
     Check if site's endpoints are in the blacklist
@@ -1253,6 +1253,8 @@ def check_endpoints_with_blacklist(
     :param scope_output: output scope
     :param sites_in_nucleus: list of sites in nucleus
     :param remote_source_available: if remote source is available
+    :param storage_type: type of storage
+
 
     :return: description of blacklisted reason or None
     """
@@ -1264,6 +1266,8 @@ def check_endpoints_with_blacklist(
     tmp_site_name = site_spec.sitename
     if scope_input in site_spec.ddm_endpoints_input:
         for tmp_input_endpoint in site_spec.ddm_endpoints_input[scope_input].all.values():
+            if storage_type and tmp_input_endpoint["type"] != storage_type:
+                continue
             tmp_read_input_over_lan = tmp_input_endpoint["detailed_status"].get("read_lan")
             tmp_receive_input_over_wan = tmp_input_endpoint["detailed_status"].get("write_wan")
             # can read input from local
@@ -1280,6 +1284,8 @@ def check_endpoints_with_blacklist(
                 remote_source_available = True
     if scope_output in site_spec.ddm_endpoints_output:
         for tmp_output_endpoint in site_spec.ddm_endpoints_output[scope_output].all.values():
+            if storage_type and tmp_output_endpoint["type"] != storage_type:
+                continue
             tmp_write_output_over_lan = tmp_output_endpoint["detailed_status"].get("write_lan")
             tmp_send_output_over_wan = tmp_output_endpoint["detailed_status"].get("read_wan")
             # can write output to local
