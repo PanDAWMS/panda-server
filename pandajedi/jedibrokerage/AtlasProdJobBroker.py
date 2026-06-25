@@ -1790,8 +1790,11 @@ class AtlasProdJobBroker(JobBrokerBase):
                 tmpLog.debug(f"using nStarting+nRunning at {tmpPseudoSiteName} to set nRunning={nRunning} due to numSlot={numStandby}")
             else:
                 # the number of standby jobs is defined
+                old_nRunning = nRunning
                 nRunning = max(int(numStandby / tmpSiteSpec.coreCount), nRunning)
-                tmpLog.debug(f"using numSlots={numStandby}/coreCount at {tmpPseudoSiteName} to set nRunning={nRunning}")
+                tmpLog.debug(
+                    f"using max(int(numStandby={numStandby}/coreCount={tmpSiteSpec.coreCount}), nRunning={old_nRunning})={nRunning} at {tmpPseudoSiteName} to set nRunning"
+                )
             manyAssigned = float(nAssigned + 1) / float(nActivated + 1)
             manyAssigned = min(2.0, manyAssigned)
             manyAssigned = max(1.0, manyAssigned)
