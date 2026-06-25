@@ -1177,10 +1177,14 @@ class AtlasAnalJobBroker(JobBrokerBase):
             oldScanSiteList = copy.copy(scanSiteList)
             msg_map = {}
             # free space
-            diskThreshold = self.taskBufferIF.getConfigValue(COMPONENT, "STORAGE_MIN_FREE_SIZE", "jedi", taskSpec.vo)
-            if not diskThreshold:
+            diskThreshold_in = self.taskBufferIF.getConfigValue(COMPONENT, "STORAGE_MIN_FREE_SIZE", "jedi", taskSpec.vo)
+            if not diskThreshold_in:
                 # default to 200GB if not set in config
-                diskThreshold = 200
+                diskThreshold_in = 200
+            diskThreshold_out = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "STORAGE_MIN_FREE_SIZE_OUTPUT", "jedi", taskSpec.vo)
+            if not diskThreshold_out:
+                # default to 200GB if not set in config
+                diskThreshold_out = 200
             for tmpSiteName in self.get_unified_sites(scanSiteList):
                 # check output endpoint
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
@@ -1195,8 +1199,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         tmp_space_size += tmp_output_endpoint["space_expired"]
                     if tmp_output_endpoint["space_free"] is not None:
                         tmp_space_size += tmp_output_endpoint["space_free"]
-                    if tmp_space_size < diskThreshold:
-                        msg_map[tmpSiteName] = f"  skip site={tmpSiteName} due to output disk shortage in SE {tmp_space_size} < {diskThreshold}GB criteria=-disk"
+                    if tmp_space_size < diskThreshold_out:
+                        msg_map[tmpSiteName] = f"  skip site={tmpSiteName} due to output disk shortage in SE {tmp_space_size} < {diskThreshold_out}GB criteria=-disk"
                         continue
                 # check input endpoint to transfer input when data locality is not required
                 if not checkDataLocality:
@@ -1212,8 +1216,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
                                 tmp_space_size += tmp_input_endpoint["space_expired"]
                             if tmp_input_endpoint["space_free"] is not None:
                                 tmp_space_size += tmp_input_endpoint["space_free"]
-                            if tmp_space_size < diskThreshold:
-                                msg_map[tmpSiteName] = f"  skip site={tmpSiteName} due to input disk shortage in SE {tmp_space_size} < {diskThreshold}GB criteria=-disk"
+                            if tmp_space_size < diskThreshold_in:
+                                msg_map[tmpSiteName] = f"  skip site={tmpSiteName} due to input disk shortage in SE {tmp_space_size} < {diskThreshold_in}GB criteria=-disk"
                                 continue
                 # check if blacklisted
                 tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available)
