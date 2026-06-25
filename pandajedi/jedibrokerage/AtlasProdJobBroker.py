@@ -1008,7 +1008,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     )
             # check if blacklisted
             if not tmp_msg:
-                tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available)
+                tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available, "DATADISK")
             if tmp_msg is not None:
                 newSkippedTmp[tmpSiteName] = tmp_msg
                 msg_map[tmpSiteName] = tmp_msg
