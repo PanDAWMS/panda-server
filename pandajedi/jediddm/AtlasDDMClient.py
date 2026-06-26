@@ -1371,6 +1371,35 @@ class AtlasDDMClient(DDMClientBase):
         tmpLog.debug("done")
         return self.SC_SUCCEEDED, True
 
+    # move replication rules
+    def move_replication_rules(self, dataset_name, rse_expression):
+        methodName = "move_replication_rules"
+        methodName += f" pid={self.pid}"
+        methodName = f"{methodName} datasetName={dataset_name}"
+        tmpLog = MsgWrapper(logger, methodName)
+        tmpLog.debug("start")
+        isOK = True
+        try:
+            # get rucio API
+            client = RucioClient()
+            # get scope and name
+            scope, dsn = self.extract_scope(dataset_name)
+            # get rules
+            for rule in client.list_did_rules(scope=scope, name=dsn):
+                if client.account != rule["account"]:
+                    continue
+                tmpLog.debug(f"move {rule['id']} to {rse_expression}")
+                client.move_replication_rule(rule["id"], rse_expression, {})
+        except Exception as e:
+            isOK = False
+            errType = e
+        if not isOK:
+            errCode, errMsg = self.checkError(errType)
+            tmpLog.error(errMsg)
+            return errCode, f"{methodName} : {errMsg}"
+        tmpLog.debug("done")
+        return self.SC_SUCCEEDED, True
+
     # get active staging rule
     def getActiveStagingRule(self, dataset_name):
         methodName = "getActiveStagingRule"

@@ -316,6 +316,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         ######################################
         # check dataset completeness
         remote_source_available = True
+        complete_replica_locations = None
         if inputChunk.getDatasets() and not taskSpec.inputPreStaging():
             for datasetSpec in inputChunk.getDatasets():
                 datasetName = datasetSpec.datasetName
@@ -347,6 +348,11 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmpLog.error(f"failed to get available storage endpoints with {datasetName}")
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
                     return retTmpError
+                # get the list of locations with complete replicas for all datasets
+                if complete_replica_locations is None:
+                    complete_replica_locations = set(tmp_list_of_complete_replica_locations)
+                else:
+                    complete_replica_locations = complete_replica_locations.intersection(set(tmp_list_of_complete_replica_locations))
                 # pending if the dataset is incomplete or missing at online endpoints
                 if not tmp_complete_disk_ok and not tmp_complete_tape_ok:
                     err_msg = f"{datasetName} is "
@@ -1008,7 +1014,8 @@ class AtlasProdJobBroker(JobBrokerBase):
                     )
             # check if blacklisted
             if not tmp_msg:
-                tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available, "DATADISK")
+                tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available,
+                                                                          "DATADISK", complete_replica_locations)
             if tmp_msg is not None:
                 newSkippedTmp[tmpSiteName] = tmp_msg
                 msg_map[tmpSiteName] = tmp_msg
