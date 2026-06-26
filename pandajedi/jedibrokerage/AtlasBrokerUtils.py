@@ -1280,7 +1280,7 @@ def check_endpoints_with_blacklist(
                 if tmp_receive_input_over_wan not in DOWNTIME_STATUSES:
                     receive_input_over_wan = True
             else:
-                # NA for nucleus sites
+                # NA for nucleus sites when input datasets are already available
                 receive_input_over_wan = True
                 remote_source_available = True
     if scope_output in site_spec.ddm_endpoints_output:
