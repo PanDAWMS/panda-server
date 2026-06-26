@@ -317,7 +317,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         # check dataset completeness
         remote_source_available = True
         complete_replica_locations = None
-        if inputChunk.getDatasets() and not taskSpec.inputPreStaging():
+        if inputChunk.getDatasets():
             for datasetSpec in inputChunk.getDatasets():
                 datasetName = datasetSpec.datasetName
                 # skip distributed datasets
@@ -353,6 +353,9 @@ class AtlasProdJobBroker(JobBrokerBase):
                     complete_replica_locations = set(tmp_list_of_complete_replica_locations)
                 else:
                     complete_replica_locations = complete_replica_locations.intersection(set(tmp_list_of_complete_replica_locations))
+                if taskSpec.inputPreStaging():
+                    tmpLog.debug(f"completeness check disabled for {datasetName} since it is being pre-staged")  
+                    continue
                 # pending if the dataset is incomplete or missing at online endpoints
                 if not tmp_complete_disk_ok and not tmp_complete_tape_ok:
                     err_msg = f"{datasetName} is "
