@@ -73,7 +73,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                         secondaryNucleus = nucleusSpec.get_secondary_nucleus()
                         if secondaryNucleus:
                             secNucleusSpecBase = siteMapper.getNucleus(secondaryNucleus)
-                    siteInNucleus = siteMapper.getSite(nucleusSpec.getOnePandaSite())
+                    siteInNucleus = None #siteMapper.getSite(nucleusSpec.getOnePandaSite())
                     # check if dataset and container are available in DDM
                     for targetName in [datasetSpec.datasetName, datasetSpec.containerName]:
                         if targetName is None:
