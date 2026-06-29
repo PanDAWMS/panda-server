@@ -73,6 +73,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                         secondaryNucleus = nucleusSpec.get_secondary_nucleus()
                         if secondaryNucleus:
                             secNucleusSpecBase = siteMapper.getNucleus(secondaryNucleus)
+                    siteInNucleus = siteMapper.getSite(nucleusSpec.getOnePandaSite())
                     # check if dataset and container are available in DDM
                     for targetName in [datasetSpec.datasetName, datasetSpec.containerName]:
                         if targetName is None:
@@ -242,6 +243,17 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                             tmpLog.error(f"failed to register 2nd copy location {container_location} for container {targetName}")
                                             return retFatal
                                 avDatasetList.append(targetName)
+                            elif taskSpec.toMoveDatasets():
+                                # get location
+                                location = siteMapper.getDdmEndpoint(
+                                    siteInNucleus.sitename, datasetSpec.storageToken, taskSpec.prodSourceLabel, 
+                                    JobUtils.translate_tasktype_to_jobtype(taskSpec.taskType))
+                                # move replication rule
+                                tmpLog.info(f"{targetName} already registered, but will be moved to {location}")
+                                tmpStat = ddmIF.move_replication_rules(datasetSpec.datasetName, location)
+                                if not tmpStat:
+                                    tmpLog.error(f"failed to move replication rule")
+                                    return retFatal
                             else:
                                 tmpLog.info(f"{targetName} already registered")
                     # check if dataset is in the container

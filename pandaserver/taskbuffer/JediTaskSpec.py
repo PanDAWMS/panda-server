@@ -129,6 +129,7 @@ class JediTaskSpec(object):
     _inv = {v: k for k, v in task_split_rules.enum_registerDatasets.items()}
     enum_toRegisterDS = _inv["registering"]
     enum_registeredDS = _inv["registered"]
+    enum_moveDS = _inv["moving"]
     # enum for IP connectivity (single source of truth in task_split_rules)
     enum_ipConnectivity = task_split_rules.enum_ipConnectivity
     # enum for IP stack (single source of truth in task_split_rules)
@@ -977,11 +978,11 @@ class JediTaskSpec(object):
     def allowPartialFinish(self):
         return self.check_split_rule("allowPartialFinish")
 
-    # check if datasets should be registered
+    # check if datasets should be registered or moved
     def toRegisterDatasets(self):
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["registerDatasets"] + "=(\d+)", self.splitRule)
-            if tmpMatch is not None and tmpMatch.group(1) == self.enum_toRegisterDS:
+            if tmpMatch is not None and tmpMatch.group(1) in [self.enum_toRegisterDS, self.enum_moveDS]:
                 return True
         return False
 
@@ -992,6 +993,10 @@ class JediTaskSpec(object):
     # set datasets to be registered
     def setToRegisterDatasets(self):
         self.setSplitRule("registerDatasets", self.enum_toRegisterDS)
+
+    # set datasets to be moved
+    def setToMoveDatasets(self):
+        self.setSplitRule("registerDatasets", self.enum_moveDS)
 
     # get the max number of attempts for ES events
     def getMaxAttemptES(self):
