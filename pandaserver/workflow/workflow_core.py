@@ -37,6 +37,7 @@ from pandaserver.workflow.workflow_base import (
     WorkflowSpec,
     WorkflowStatus,
 )
+from pandaserver.workflow.workflow_native_utils import extract_child_workflow_definition
 from pandaserver.workflow.workflow_parser import (
     json_serialize_default,
     parse_raw_request,
@@ -71,6 +72,12 @@ PLUGIN_RAW_MAP = {
     },
     # Add more plugin types here
 }
+
+# Step flavors handled natively by the workflow engine, i.e. with no step_handler plugin
+# (see PLUGIN_RAW_MAP["step_handler"], which only has "panda_task"). Dispatch in the
+# process_step_* methods keys on flavor rather than step type: these flavors must be
+# handled natively by definition, and flavor is the value get_plugin() looks up.
+NATIVE_SUB_WORKFLOW_STEP_FLAVORS = ("sub_workflow", "scatter_child")
 
 
 # Global variable to cache the flavor to plugin class map, initialized lazily in _get_flavor_plugin_class_map
@@ -422,6 +429,14 @@ class WorkflowInterface(object):
                     for data_spec in data_specs:
                         if not self.cancel_data(data_spec.data_id, force):
                             all_cancelled = False
+                # Cancel child workflows (sub-workflow steps handle their own children via cancel_step, but any child workflow registered before the step was cancelled also needs cleanup)
+                child_workflows = self.tbif.get_child_workflows(workflow_spec.workflow_id)
+                if child_workflows:
+                    for child in child_workflows:
+                        if child.status not in WorkflowStatus.final_statuses:
+                            if not self.cancel_workflow(child.workflow_id, force=force):
+                                tmp_log.warning(f"Failed to cancel child workflow {child.workflow_id}")
+                                all_cancelled = False
                 # Update workflow status to cancelled if all steps and data are cancelled
                 if not all_cancelled and not force:
                     tmp_log.warning(f"Not all steps and data could be cancelled; skipped updating workflow status")
@@ -465,18 +480,29 @@ class WorkflowInterface(object):
                 if step_spec.status in WFStepStatus.final_statuses:
                     tmp_log.debug(f"Step already in final status {step_spec.status}; skipped")
                     return True
-                # Call plugin to cancel the target of the step
+                # Cancel the target — native handling for sub-workflow, plugin for ordinary steps
                 target_is_cancelled = False
-                step_handler = self.get_plugin("step_handler", step_spec.flavor)
-                if step_handler is None:
-                    tmp_log.warning(f"Step handler plugin not found for flavor {step_spec.flavor}; skipped target cancellation")
-                else:
-                    cancel_result = step_handler.cancel_target(step_spec)
-                    if not cancel_result.success:
-                        tmp_log.warning(f"Failed to cancel target with plugin {step_spec.flavor}; got message: {cancel_result.message}")
+                if step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS:
+                    if step_spec.target_id:
+                        child_cancelled = self.cancel_workflow(int(step_spec.target_id), force=force)
+                        if child_cancelled:
+                            target_is_cancelled = True
+                        else:
+                            tmp_log.warning(f"Failed to cancel child workflow {step_spec.target_id}")
                     else:
-                        tmp_log.debug(f"Cancelled target with flavor {step_spec.flavor}")
+                        # child workflow not yet created; nothing to cancel
                         target_is_cancelled = True
+                else:
+                    step_handler = self.get_plugin("step_handler", step_spec.flavor)
+                    if step_handler is None:
+                        tmp_log.warning(f"Step handler plugin not found for flavor {step_spec.flavor}; skipped target cancellation")
+                    else:
+                        cancel_result = step_handler.cancel_target(step_spec)
+                        if not cancel_result.success:
+                            tmp_log.warning(f"Failed to cancel target with plugin {step_spec.flavor}; got message: {cancel_result.message}")
+                        else:
+                            tmp_log.debug(f"Cancelled target with flavor {step_spec.flavor}")
+                            target_is_cancelled = True
                 # Update step status to cancelled
                 if not target_is_cancelled and not force:
                     tmp_log.warning(f"Target not cancelled; skipped updating step status")
@@ -528,6 +554,399 @@ class WorkflowInterface(object):
         except Exception as e:
             tmp_log.error(f"Got error {str(e)}")
             return False
+
+    # ---- Sub-workflow ----------------------------------------
+
+    def submit_sub_workflow(self, step_spec: WFStepSpec) -> WFStepTargetSubmitResult:
+        """
+        Create and register a child WorkflowSpec for a sub-workflow step.
+
+        Resolves the actual dataset names from the parent workflow's data specs and injects
+        them as root_inputs into the child workflow definition before registering it.
+
+        Args:
+            step_spec (WFStepSpec): The sub-workflow step specification
+
+        Returns:
+            WFStepTargetSubmitResult: Result with target_id = child workflow_id on success
+        """
+        result = WFStepTargetSubmitResult()
+        tmp_log = LogWrapper(logger, f"submit_sub_workflow <step_id={step_spec.step_id}> workflow_id={step_spec.workflow_id}")
+        step_definition = step_spec.definition_json_map
+        child_definition = step_definition.get("child_workflow_definition")
+        if not child_definition:
+            result.message = "Step definition missing child_workflow_definition"
+            tmp_log.error(result.message)
+            return result
+        # Fetch parent workflow data to resolve actual dataset names (target_ids)
+        parent_workflow = self.tbif.get_workflow(step_spec.workflow_id)
+        if parent_workflow is None:
+            result.message = f"Failed to get parent workflow {step_spec.workflow_id}"
+            tmp_log.error(result.message)
+            return result
+        data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
+        data_spec_map = {ds.name: ds for ds in data_specs} if data_specs else {}
+        # Build root_inputs for the child workflow
+        if step_spec.flavor == "scatter_child":
+            # Scatter children carry pre-resolved inputs; skip parent data spec resolution
+            child_root_inputs = step_definition.get("child_root_inputs", {})
+        else:
+            # Ordinary (non-scatter) sub-workflow: start from the child's own declared
+            # root_inputs (its default datasets, e.g. signal/background), then override
+            # any entry that the parent step explicitly wires to parent workflow data via
+            # a source reference. Seeding from the child's own inputs is essential -- per
+            # the design principle, an ordinary sub-workflow uses its own inputs -- otherwise
+            # its root_inputs would be wiped to {} and its steps would fail input checks with
+            # "Input data <name> not found in workflow data".
+            child_root_inputs = dict(child_definition.get("root_inputs", {}) or {})
+            for input_name, input_data in step_definition.get("inputs", {}).items():
+                source = input_data.get("source") if isinstance(input_data, dict) else None
+                if source is None:
+                    continue
+                sources = source if isinstance(source, list) else [source]
+                for src in sources:
+                    if src in data_spec_map and data_spec_map[src].target_id:
+                        child_root_inputs[input_name] = data_spec_map[src].target_id
+                        break
+        child_definition = copy.deepcopy(child_definition)
+        child_definition["root_inputs"] = child_root_inputs
+        if step_spec.flavor == "scatter_child":
+            # All output dataset names in the template share the out_ds_name prefix
+            # (e.g. "user.flin.wf_003"). A single string replacement updates taskName,
+            # cliParams, jobParameters, log datasets, and inter-node input references in
+            # one pass — no per-field traversal needed.
+            out_ds_name = child_definition.get("out_ds_name")
+            if out_ds_name:
+                # Embed the scatter step's member_id and the 1-based scatter index, e.g.
+                # "..._001s1_...". member_id is the scatter_child step's member_id (the index).
+                parent_member_id = child_definition.get("scatter_parent_member_id")
+                if parent_member_id is not None:
+                    new_prefix = f"{out_ds_name}_{parent_member_id:03d}s{step_spec.member_id}"
+                else:
+                    # Fallback for legacy templates without scatter_parent_member_id.
+                    new_prefix = f"{out_ds_name}_s{step_spec.member_id}"
+                definition_str = json.dumps(child_definition, default=json_serialize_default)
+                definition_str = definition_str.replace(out_ds_name, new_prefix)
+                child_definition = json.loads(definition_str)
+            # Override the template's generic workflow_name after the JSON round-trip.
+            child_definition["workflow_name"] = step_spec.name
+        # Fall back to the parent workflow's username for scatter_child steps, whose step
+        # definition did not carry user_name before it was explicitly added.
+        child_definition["user_name"] = step_definition.get("user_name") or parent_workflow.username
+        # Propagate user_dn into child definition so grandchild panda-task steps inherit it.
+        child_definition["user_dn"] = step_definition.get("user_dn")
+        # Build and register the child WorkflowSpec
+        child_spec = WorkflowSpec()
+        child_spec.parent_id = step_spec.workflow_id
+        child_spec.name = child_definition.get("workflow_name") or step_spec.name
+        child_spec.prodsourcelabel = parent_workflow.prodsourcelabel
+        child_spec.username = parent_workflow.username
+        child_spec.status = WorkflowStatus.checked  # definition is already resolved; skip parsing
+        child_spec.definition_json = json.dumps(child_definition, default=json_serialize_default)
+        child_spec.creation_time = naive_utcnow()
+        child_workflow_id = self.tbif.insert_workflow(child_spec)
+        if child_workflow_id is None:
+            result.message = "Failed to insert child workflow into DB"
+            tmp_log.error(result.message)
+            return result
+        result.success = True
+        result.target_id = str(child_workflow_id)
+        tmp_log.info(f"Submitted child workflow {child_workflow_id}")
+        return result
+
+    def instantiate_scatter_workflow(self, workflow_spec: WorkflowSpec, scatter_definition: dict) -> WorkflowProcessResult:
+        """
+        Expand a scatter definition into N parallel sub-workflow steps, one per scatter item.
+
+        Each step carries a pre-resolved child_root_inputs slice and will be submitted as an
+        independent child workflow by submit_sub_workflow when it reaches the ready state.
+
+        Args:
+            workflow_spec (WorkflowSpec): The parent workflow specification to update with scatter steps
+            scatter_definition (dict): The scatter definition containing template, scatter_inputs, and scatter_mode
+
+        Returns:
+            WorkflowProcessResult: The result of processing the scatter workflow instantiation
+        """
+        process_result = WorkflowProcessResult()
+        tmp_log = LogWrapper(logger, f"instantiate_scatter_workflow <workflow_id={workflow_spec.workflow_id}>")
+        # Validate scatter definition
+        template = scatter_definition.get("template")
+        scatter_inputs = scatter_definition.get("scatter_inputs", {})
+        scatter_mode = scatter_definition.get("scatter_mode", "zip")
+        if not template:
+            process_result.message = "scatter_definition missing 'template'"
+            tmp_log.error(process_result.message)
+            workflow_spec.status = WorkflowStatus.cancelled
+            workflow_spec.set_parameter("cancel_reason", process_result.message)
+            self.tbif.update_workflow(workflow_spec)
+            return process_result
+        if not scatter_inputs:
+            workflow_spec.status = WorkflowStatus.done
+            workflow_spec.end_time = naive_utcnow()
+            self.tbif.update_workflow(workflow_spec)
+            process_result.success = True
+            process_result.new_status = WorkflowStatus.done
+            process_result.message = "No scatter inputs; workflow immediately done"
+            tmp_log.info(process_result.message)
+            return process_result
+        if scatter_mode != "zip":
+            process_result.message = f"Unsupported scatter_mode '{scatter_mode}'; only 'zip' is supported"
+            tmp_log.error(process_result.message)
+            workflow_spec.status = WorkflowStatus.cancelled
+            workflow_spec.set_parameter("cancel_reason", process_result.message)
+            self.tbif.update_workflow(workflow_spec)
+            return process_result
+        # Determine number of iterations based on scatter_inputs; in 'zip' mode, all input lists must have the same length
+        input_lengths = {name: len(values) for name, values in scatter_inputs.items()}
+        if len(set(input_lengths.values())) > 1:
+            tmp_log.warning(f"scatter_inputs have mismatched lengths {input_lengths} in 'zip' mode; " f"truncating to the shortest list")
+        n_iterations = min(input_lengths.values())
+        if n_iterations == 0:
+            workflow_spec.status = WorkflowStatus.done
+            workflow_spec.end_time = naive_utcnow()
+            self.tbif.update_workflow(workflow_spec)
+            process_result.success = True
+            process_result.new_status = WorkflowStatus.done
+            process_result.message = "All scatter input lists are empty; workflow immediately done"
+            tmp_log.info(process_result.message)
+            return process_result
+        # Create a child step for each iteration with the corresponding slice of inputs, and register them in the DB
+        workflow_definition = json.loads(workflow_spec.definition_json) if workflow_spec.definition_json else {}
+        now_time = naive_utcnow()
+        step_specs = []
+        for i in range(n_iterations):
+            # i is the 0-based slice index into the input lists; scatter_index is 1-based for naming.
+            scatter_index = i + 1
+            child_root_inputs = {name: values[i] for name, values in scatter_inputs.items()}
+            step_spec = WFStepSpec()
+            # Name "{parent}_{i}" rather than "{parent}_scatter_{i}" so that submit_sub_workflow
+            # can use this name directly as the grandchild workflow_name without doubling "_scatter".
+            step_spec.name = f"{workflow_spec.name}_{scatter_index}"
+            step_spec.workflow_id = workflow_spec.workflow_id
+            step_spec.member_id = scatter_index
+            step_spec.type = WFStepType.sub_workflow
+            step_spec.flavor = "scatter_child"
+            step_spec.status = WFStepStatus.registered
+            step_spec.creation_time = now_time
+            step_spec.definition_json = json.dumps(
+                {
+                    "child_workflow_definition": template,
+                    "child_root_inputs": child_root_inputs,
+                    "input_data_dict": {},
+                    # Propagate user identity so submit_sub_workflow can inject it into grandchild definitions.
+                    "user_name": workflow_spec.username,
+                    "user_dn": workflow_definition.get("user_dn"),
+                },
+                default=json_serialize_default,
+            )
+            step_specs.append(step_spec)
+        # Update workflow status to starting and upsert the step specs
+        workflow_spec.status = WorkflowStatus.starting
+        upsert_ret = self.tbif.upsert_workflow_entities(
+            workflow_spec.workflow_id,
+            actions_dict={"workflow": "update", "steps": "insert", "data": "insert"},
+            workflow_spec=workflow_spec,
+            step_specs=step_specs,
+            data_specs=[],
+        )
+        if not upsert_ret:
+            process_result.message = "Failed to upsert scatter workflow entities"
+            tmp_log.error(process_result.message)
+            return process_result
+        process_result.success = True
+        process_result.new_status = WorkflowStatus.starting
+        tmp_log.info(f"Scatter instantiated {n_iterations} child workflows")
+        return process_result
+
+    @staticmethod
+    def _expand_output_data_to_ddm_names(data_spec: WFDataSpec) -> list:
+        """
+        Expand an output data spec's base target_id into the actual DDM dataset names.
+
+        The real DDM collection for an output is "{target_id}_{output_type}" (see
+        PandaTaskDataHandler.check_target). Expand per declared output_type, falling back to
+        the bare target_id when none are declared. Returns [] when target_id is unset.
+
+        Args:
+            data_spec (WFDataSpec): The output data spec to expand.
+
+        Returns:
+            list[str]: The actual DDM dataset names for this output.
+        """
+        if not data_spec.target_id:
+            return []
+        output_types = data_spec.get_parameter("output_types") or []
+        if output_types:
+            return [f"{data_spec.target_id}_{ot}" for ot in output_types]
+        return [data_spec.target_id]
+
+    def resolve_sub_workflow_outputs(self, step_spec: WFStepSpec, child_workflow_id: int) -> dict:
+        """
+        Collect output target_ids from a completed sub-workflow (scatter or regular) for aggregation.
+
+        For scatter workflows, iterates over all scatter_child steps and collects each grandchild
+        workflow's root output target_ids into a flat list (in scatter-index order).
+        For regular sub-workflows, maps the child's root output target_ids to parent outputs by position.
+
+        Args:
+            step_spec (WFStepSpec): The parent step whose output_data_list drives the mapping.
+            child_workflow_id (int): Workflow ID of the completed child workflow.
+
+        Returns:
+            dict: Maps parent output data name -> list[str] of raw target_id strings.
+                  Returns {} on failure (non-fatal; logged as warning/error).
+        """
+        tmp_log = LogWrapper(logger, f"resolve_sub_workflow_outputs <step_id={step_spec.step_id}> child_workflow_id={child_workflow_id}")
+        parent_output_data_list = step_spec.definition_json_map.get("output_data_list", [])
+        if not parent_output_data_list:
+            tmp_log.debug("No output_data_list in step definition; skipped")
+            return {}
+        try:
+            child_steps = self.tbif.get_steps_of_workflow(workflow_id=child_workflow_id)
+            scatter_child_steps = [s for s in child_steps if s.flavor == "scatter_child" and s.target_id]
+            if scatter_child_steps:
+                # Scatter branch: collect root outputs from all N grandchild workflows in index order
+                scatter_child_steps.sort(key=lambda s: s.member_id if s.member_id is not None else 0)
+                all_target_ids = []
+                for scatter_step in scatter_child_steps:
+                    grandchild_data = (
+                        self.tbif.get_data_of_workflow(
+                            workflow_id=int(scatter_step.target_id),
+                            type_filter_list=[WFDataType.output],
+                        )
+                        or []
+                    )
+                    for ds in grandchild_data:
+                        all_target_ids.extend(self._expand_output_data_to_ddm_names(ds))
+                if not all_target_ids:
+                    tmp_log.warning("Scatter branch: no output target_ids collected from grandchild workflows")
+                    return {}
+                result = {name: all_target_ids for name in parent_output_data_list}
+                tmp_log.debug(f"Scatter branch: {len(all_target_ids)} target_ids for {len(parent_output_data_list)} parent outputs")
+                return result
+            else:
+                # Regular branch: map child workflow's root outputs to parent outputs by position
+                child_data = (
+                    self.tbif.get_data_of_workflow(
+                        workflow_id=child_workflow_id,
+                        type_filter_list=[WFDataType.output],
+                    )
+                    or []
+                )
+                child_data = [ds for ds in child_data if ds.target_id]
+                if not child_data:
+                    tmp_log.warning("Regular branch: no output target_ids found in child workflow")
+                    return {}
+                result = {}
+                for i, name in enumerate(parent_output_data_list):
+                    if i < len(child_data):
+                        # Each child output may expand to several DDM datasets (one per output type)
+                        result[name] = self._expand_output_data_to_ddm_names(child_data[i])
+                    else:
+                        tmp_log.warning(f"No child output for parent output {name} (index {i}); skipped")
+                tmp_log.debug(f"Regular branch: resolved {len(result)} output mappings")
+                return result
+        except Exception:
+            tmp_log.error(f"Got error; {traceback.format_exc()}")
+            return {}
+
+    def apply_sub_workflow_outputs(
+        self,
+        tmp_log: LogWrapper,
+        step_spec: WFStepSpec,
+        output_ids: dict,
+        data_spec_map: dict,
+        now_time,
+    ) -> None:
+        """
+        Write aggregated sub-workflow output target_ids into the parent workflow's data specs.
+
+        For each entry in output_ids, calls the appropriate data handler plugin's combine_targets
+        to produce a single DDM entity from the list of raw target_ids, then persists the result
+        on the parent data spec and advances its status to done_generated.
+
+        Args:
+            tmp_log (LogWrapper): Logger from the calling method.
+            step_spec (WFStepSpec): The parent step (provides workflow_id, step_id for naming).
+            output_ids (dict): Maps parent output data name -> list[str] of raw target_ids.
+            data_spec_map (dict): Name-keyed map of data specs for the parent workflow.
+            now_time: Timestamp to set on data_spec.end_time.
+        """
+        for output_data_name, target_id_list in output_ids.items():
+            if not target_id_list:
+                tmp_log.warning(f"Empty target_id list for output {output_data_name}; skipped")
+                continue
+            data_spec = data_spec_map.get(output_data_name)
+            if data_spec is None:
+                tmp_log.warning(f"Output data spec {output_data_name} not found in workflow data; skipped")
+                continue
+            if data_spec.status in WFDataStatus.done_statuses:
+                tmp_log.debug(f"Output data spec {output_data_name} already done (status={data_spec.status}); skipped")
+                continue
+            data_handler = self.get_plugin("data_handler", data_spec.flavor)
+            if data_handler is None:
+                tmp_log.warning(f"No data handler plugin for flavor {data_spec.flavor}; skipped")
+                continue
+            # Use the pre-baked target_id as the container name: it was set at workflow init
+            # from resolve_nodes output value and is the same name already in task_params.inDS
+            # for downstream steps.  Generating a different name here would leave the merge
+            # step's inDS pointing at a container that never gets created in Rucio.
+            combined_name = data_spec.target_id
+            if not combined_name:
+                tmp_log.error(f"Output data spec {output_data_name} has no pre-baked target_id; cannot create combined container")
+                continue
+            combined = data_handler.combine_targets(target_id_list, combined_name=combined_name)
+            if not combined:
+                tmp_log.error(f"combine_targets failed for output {output_data_name}; skipped")
+                continue
+            data_spec.target_id = combined
+            data_spec.status = WFDataStatus.done_generated
+            data_spec.end_time = now_time
+            self.tbif.update_workflow_data(data_spec)
+            tmp_log.info(f"Aggregated output {output_data_name} -> target_id={combined}")
+
+    def check_sub_workflow(self, step_spec: WFStepSpec) -> WFStepTargetCheckResult:
+        """
+        Check the status of a child workflow and map it to a WFStepStatus.
+
+        Args:
+            step_spec (WFStepSpec): The sub-workflow step specification (target_id = child workflow_id)
+
+        Returns:
+            WFStepTargetCheckResult: Result with step_status mapped from child workflow status
+        """
+        result = WFStepTargetCheckResult()
+        tmp_log = LogWrapper(logger, f"check_sub_workflow <step_id={step_spec.step_id}> workflow_id={step_spec.workflow_id} target_id={step_spec.target_id}")
+        if not step_spec.target_id:
+            result.message = "sub_workflow step has no target_id (child workflow not yet submitted)"
+            tmp_log.warning(result.message)
+            return result
+        child_workflow_id = int(step_spec.target_id)
+        child_workflow = self.tbif.get_workflow(child_workflow_id)
+        if child_workflow is None:
+            result.message = f"Child workflow {child_workflow_id} not found"
+            tmp_log.error(result.message)
+            return result
+        native_status = child_workflow.status
+        # Map child workflow status to WFStepStatus
+        if native_status == WorkflowStatus.done:
+            step_status = WFStepStatus.done
+        elif native_status == WorkflowStatus.running:
+            step_status = WFStepStatus.running
+        elif native_status in WorkflowStatus.final_statuses:
+            # failed or cancelled
+            step_status = WFStepStatus.failed
+        else:
+            # registered, parsed, checking, checked, starting → still starting from parent's perspective
+            step_status = WFStepStatus.starting
+        result.success = True
+        result.step_status = step_status
+        result.native_status = native_status
+        if native_status == WorkflowStatus.done:
+            result.output_ids = self.resolve_sub_workflow_outputs(step_spec, child_workflow_id)
+        tmp_log.debug(f"Child workflow {child_workflow_id} has status {native_status}; mapped to step status {step_status}")
+        return result
 
     # ---- Data status transitions -----------------------------
 
@@ -1098,6 +1517,13 @@ class WorkflowInterface(object):
         try:
             # Decide whether to run the step: True = must run, False = can skip, None = undecided yet and must check later
             to_run_step = False
+            # scatter_child steps are pure orchestration: they submit one grandchild workflow per
+            # scatter iteration and own no output datasets themselves (instantiate_scatter_workflow
+            # never sets output_data_list in their definition). The output-checking logic below
+            # defaults to to_run_step=False when output_data_list is absent, which would wrongly
+            # close these steps before they ever launch a grandchild workflow. Always force them to run.
+            if step_spec.flavor == "scatter_child":
+                to_run_step = True
             # FIXME: For now, always check outputs, not customizable
             check_outputs = True
             if check_outputs and to_run_step is False:
@@ -1320,14 +1746,16 @@ class WorkflowInterface(object):
             return process_result
         # Process
         try:
-            # Get the step handler plugin
-            step_handler = self.get_plugin("step_handler", step_spec.flavor)
-            if step_handler is None:
-                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
-                tmp_log.error(f"{process_result.message}")
-                return process_result
-            # Submit the step target
-            submit_result = step_handler.submit_target(step_spec)
+            # Submit the step target — native handling for sub-workflow, plugin for ordinary steps
+            if step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS:
+                submit_result = self.submit_sub_workflow(step_spec)
+            else:
+                step_handler = self.get_plugin("step_handler", step_spec.flavor)
+                if step_handler is None:
+                    process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                    tmp_log.error(f"{process_result.message}")
+                    return process_result
+                submit_result = step_handler.submit_target(step_spec)
             if not submit_result.success or submit_result.target_id is None:
                 process_result.message = f"Failed to submit step target; {submit_result.message}"
                 tmp_log.error(f"{process_result.message}")
@@ -1338,7 +1766,23 @@ class WorkflowInterface(object):
             self.tbif.update_workflow_step(step_spec)
             process_result.success = True
             process_result.new_status = step_spec.status
-            tmp_log.info(f"Done, submitted target flavor={step_spec.flavor} target_id={step_spec.target_id}, status={step_spec.status}")
+            tmp_log.info(f"Done, submitted target type={step_spec.type} flavor={step_spec.flavor} target_id={step_spec.target_id}, status={step_spec.status}")
+            # Newly submitted sub-workflow children are created in 'checked' status; the next
+            # WatchDog cycle would pick them up (check_time is NULL so they are immediately
+            # eligible). Advance the child inline now to save that one-cycle wait, which compounds
+            # with nesting depth. Scatter parents submit many children in one pass, so skip the
+            # inline kick for scatter_child steps to avoid holding the parent lock while serially
+            # starting N children; those start on the next cycle instead.
+            if step_spec.flavor == "sub_workflow":
+                try:
+                    child_workflow_id = int(step_spec.target_id)
+                    with self.workflow_lock(child_workflow_id) as child_spec:
+                        if child_spec is not None:
+                            child_res, child_spec = self.process_workflow(child_spec)
+                            child_res, child_spec = self._recheck_until_stable(child_spec, child_res)
+                            tmp_log.debug(f"Inline-advanced child workflow {child_workflow_id} to status={child_spec.status}")
+                except Exception:
+                    tmp_log.warning(f"Failed to inline-advance child workflow {step_spec.target_id}; will be picked up next cycle: {traceback.format_exc()}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
@@ -1383,22 +1827,24 @@ class WorkflowInterface(object):
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Check if all input data are good
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
-            # Get the step handler plugin
-            step_handler = self.get_plugin("step_handler", step_spec.flavor)
-            if step_handler is None:
-                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
-                tmp_log.error(f"{process_result.message}")
-                return process_result
-            # Check the step status
-            check_result = step_handler.check_target(step_spec)
+            # Check the step status — native handling for sub-workflow, plugin for ordinary steps
+            if step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS:
+                check_result = self.check_sub_workflow(step_spec)
+            else:
+                step_handler = self.get_plugin("step_handler", step_spec.flavor)
+                if step_handler is None:
+                    process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                    tmp_log.error(f"{process_result.message}")
+                    return process_result
+                check_result = step_handler.check_target(step_spec)
+                # If all inputs are complete, mark in step_spec and call the hook of step_handler
+                if all_inputs_stats["all_inputs_complete"]:
+                    step_spec.set_parameter("all_inputs_complete", True)
+                    step_handler.on_all_inputs_done(step_spec)
             if not check_result.success or check_result.step_status is None:
                 process_result.message = f"Failed to check step; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
-            # If all inputs are complete, mark in step_spec and call the hook of step_handler
-            if all_inputs_stats["all_inputs_complete"]:
-                step_spec.set_parameter("all_inputs_complete", True)
-                step_handler.on_all_inputs_done(step_spec)
             # Update step status
             if check_result.step_status in WFStepStatus.after_starting_statuses:
                 # Step status advanced
@@ -1417,9 +1863,14 @@ class WorkflowInterface(object):
             if step_spec.status in WFStepStatus.final_statuses and step_spec.start_time is not None and step_spec.end_time is None:
                 # step has ended, set end_time if not yet set
                 step_spec.end_time = now_time
+            # Propagate sub-workflow outputs before persisting done status: if aggregation
+            # fails the exception reaches the outer handler and update_workflow_step is skipped,
+            # leaving the step in running so the next cycle retries aggregation.
+            if check_result.output_ids:
+                self.apply_sub_workflow_outputs(tmp_log, step_spec, check_result.output_ids, data_spec_map, now_time)
             self.tbif.update_workflow_step(step_spec)
             process_result.success = True
-            tmp_log.info(f"Checked step, flavor={step_spec.flavor}, target_id={step_spec.target_id}, status={step_spec.status}")
+            tmp_log.info(f"Checked step, type={step_spec.type}, target_id={step_spec.target_id}, status={step_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
@@ -1464,22 +1915,24 @@ class WorkflowInterface(object):
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             # Check if all input data are good
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
-            # Get the step handler plugin
-            step_handler = self.get_plugin("step_handler", step_spec.flavor)
-            if step_handler is None:
-                process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
-                tmp_log.error(f"{process_result.message}")
-                return process_result
-            # Check the step status
-            check_result = step_handler.check_target(step_spec)
+            # Check the step status — native handling for sub-workflow, plugin for ordinary steps
+            if step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS:
+                check_result = self.check_sub_workflow(step_spec)
+            else:
+                step_handler = self.get_plugin("step_handler", step_spec.flavor)
+                if step_handler is None:
+                    process_result.message = f"Step handler plugin not found for flavor {step_spec.flavor}"
+                    tmp_log.error(f"{process_result.message}")
+                    return process_result
+                check_result = step_handler.check_target(step_spec)
+                # If all inputs are complete, mark in step_spec and call the hook of step_handler
+                if all_inputs_stats["all_inputs_complete"]:
+                    step_spec.set_parameter("all_inputs_complete", True)
+                    step_handler.on_all_inputs_done(step_spec)
             if not check_result.success or check_result.step_status is None:
                 process_result.message = f"Failed to check step; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
-            # If all inputs are complete, mark in step_spec and call the hook of step_handler
-            if all_inputs_stats["all_inputs_complete"]:
-                step_spec.set_parameter("all_inputs_complete", True)
-                step_handler.on_all_inputs_done(step_spec)
             # Update step status
             if check_result.step_status in WFStepStatus.after_running_statuses:
                 # Step status advanced
@@ -1498,6 +1951,11 @@ class WorkflowInterface(object):
             if step_spec.status in WFStepStatus.final_statuses and step_spec.start_time is not None and step_spec.end_time is None:
                 # step has ended, set end_time if not yet set
                 step_spec.end_time = now_time
+            # Propagate sub-workflow outputs before persisting done status: if aggregation
+            # fails the exception reaches the outer handler and update_workflow_step is skipped,
+            # leaving the step in running so the next cycle retries aggregation.
+            if check_result.output_ids:
+                self.apply_sub_workflow_outputs(tmp_log, step_spec, check_result.output_ids, data_spec_map, now_time)
             self.tbif.update_workflow_step(step_spec)
             process_result.success = True
             tmp_log.info(f"Checked step, flavor={step_spec.flavor}, target_id={step_spec.target_id}, status={step_spec.status}")
@@ -1656,13 +2114,122 @@ class WorkflowInterface(object):
                 workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
                 tmp_log.debug(f"Parsed raw request into definition")
             # Update status to parsed
-            # workflow_spec.status = WorkflowStatus.parsed
-            workflow_spec.status = WorkflowStatus.checked  # skip parsed for now
+            workflow_spec.status = WorkflowStatus.parsed
             # Update DB
             self.tbif.update_workflow(workflow_spec)
             process_result.success = True
             process_result.new_status = workflow_spec.status
             tmp_log.info(f"Done, status={workflow_spec.status}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+        return process_result
+
+    def process_workflow_parsed(self, workflow_spec: WorkflowSpec) -> WorkflowProcessResult:
+        """
+        Process a workflow in parsed status
+        To validate the workflow definition and advance to checking
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow specification to process
+
+        Returns:
+            WorkflowProcessResult: The result of processing the workflow
+        """
+        tmp_log = LogWrapper(logger, f"process_workflow_parsed <workflow_id={workflow_spec.workflow_id}>")
+        # Initialize
+        process_result = WorkflowProcessResult()
+        # Check status
+        if workflow_spec.status != WorkflowStatus.parsed:
+            process_result.message = f"Workflow status changed unexpectedly from {WorkflowStatus.parsed} to {workflow_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
+        # Process
+        try:
+            workflow_definition = workflow_spec.definition_json_map
+            if not workflow_definition:
+                process_result.message = f"Workflow definition is missing or empty; cancelled the workflow"
+                tmp_log.error(f"{process_result.message}")
+                workflow_spec.status = WorkflowStatus.cancelled
+                workflow_spec.set_parameter("cancel_reason", "Workflow definition is missing or empty")
+                self.tbif.update_workflow(workflow_spec)
+                return process_result
+            # Advance to checking
+            workflow_spec.status = WorkflowStatus.checking
+            self.tbif.update_workflow(workflow_spec)
+            process_result.success = True
+            process_result.new_status = workflow_spec.status
+            tmp_log.info(f"Done, status={workflow_spec.status}")
+        except Exception as e:
+            process_result.message = f"Got error {str(e)}"
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+        return process_result
+
+    def process_workflow_checking(self, workflow_spec: WorkflowSpec) -> WorkflowProcessResult:
+        """
+        Process a workflow in checking status
+        To check root input dataset availability and advance to checked
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow specification to process
+
+        Returns:
+            WorkflowProcessResult: The result of processing the workflow
+        """
+        tmp_log = LogWrapper(logger, f"process_workflow_checking <workflow_id={workflow_spec.workflow_id}>")
+        # Initialize
+        process_result = WorkflowProcessResult()
+        # Check status
+        if workflow_spec.status != WorkflowStatus.checking:
+            process_result.message = f"Workflow status changed unexpectedly from {WorkflowStatus.checking} to {workflow_spec.status}; skipped"
+            tmp_log.warning(f"{process_result.message}")
+            return process_result
+        # Process
+        try:
+            workflow_definition = workflow_spec.definition_json_map
+            if not workflow_definition:
+                process_result.message = f"Workflow definition is missing or empty; cancelled the workflow"
+                tmp_log.error(f"{process_result.message}")
+                workflow_spec.status = WorkflowStatus.cancelled
+                workflow_spec.set_parameter("cancel_reason", "Workflow definition is missing or empty")
+                self.tbif.update_workflow(workflow_spec)
+                return process_result
+            # Check root input datasets for availability; list-valued inputs are scatter collections
+            root_inputs = workflow_definition.get("root_inputs", {})
+            all_inputs_ready = True
+            for input_name, input_target in root_inputs.items():
+                datasets_to_check = input_target if isinstance(input_target, list) else [input_target]
+                for dataset in datasets_to_check:
+                    if not isinstance(dataset, str) or not dataset.strip():
+                        continue
+                    # Strip trailing slash: PanDA convention uses trailing slash for Rucio containers
+                    dataset_name = dataset.rstrip("/")
+                    collection_meta = self.ddm_if.get_dataset_metadata(dataset_name, ignore_missing=True)
+                    if collection_meta is None:
+                        tmp_log.warning(f"Failed to get metadata for input dataset {dataset} ({input_name}); will retry")
+                        all_inputs_ready = False
+                        break
+                    if collection_meta.get("state") == "missing":
+                        tmp_log.warning(f"Input dataset {dataset} ({input_name}) does not exist yet; waiting")
+                        all_inputs_ready = False
+                        break
+                if not all_inputs_ready:
+                    break
+            now_time = naive_utcnow()
+            if not all_inputs_ready:
+                # Stay in checking, retry on next processing cycle
+                workflow_spec.check_time = now_time
+                self.tbif.update_workflow(workflow_spec)
+                process_result.success = True
+                tmp_log.info(f"Done, some input datasets not ready yet; status stays in {workflow_spec.status}")
+            else:
+                # All inputs verified, advance to checked
+                workflow_spec.status = WorkflowStatus.checked
+                workflow_spec.check_time = now_time
+                self.tbif.update_workflow(workflow_spec)
+                process_result.success = True
+                process_result.new_status = workflow_spec.status
+                tmp_log.info(f"Done, all input datasets available; status={workflow_spec.status}")
         except Exception as e:
             process_result.message = f"Got error {str(e)}"
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
@@ -1700,6 +2267,9 @@ class WorkflowInterface(object):
                 workflow_spec.set_parameter("cancel_reason", "Workflow definition is None")
                 self.tbif.update_workflow(workflow_spec)
                 return process_result
+            # Scatter workflow: expand template into N parallel child workflows
+            if "scatter_definition" in workflow_definition:
+                return self.instantiate_scatter_workflow(workflow_spec, workflow_definition["scatter_definition"])
             # initialize
             data_specs = []
             step_specs = []
@@ -1717,8 +2287,11 @@ class WorkflowInterface(object):
                 data_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
                 data_spec.creation_time = now_time
                 data_specs.append(data_spec)
-            # Register root inputs
+            # Register root inputs (skip list-valued entries — those are scatter input collections
+            # already resolved into step scatter_definitions, not individual DDM datasets)
             for input_name, input_target in workflow_definition["root_inputs"].items():
+                if isinstance(input_target, list):
+                    continue
                 data_spec = WFDataSpec()
                 data_spec.workflow_id = workflow_spec.workflow_id
                 data_spec.name = input_name
@@ -1728,17 +2301,34 @@ class WorkflowInterface(object):
                 data_spec.flavor = "ddm_collection"  # FIXME: hardcoded flavor, should be configurable
                 data_spec.creation_time = now_time
                 data_specs.append(data_spec)
+            # collect IDs of all nodes that are sub-nodes of workflow-type nodes; they are
+            # registered as part of the child workflow, not as direct steps of this workflow
+            sub_node_ids = set()
+            for node in workflow_definition["nodes"]:
+                if node.get("type") == "workflow":
+                    sub_node_ids.update(node.get("sub_nodes") or [])
             # Register steps and their intermediate outputs based on nodes in the definition
             for node in workflow_definition["nodes"]:
+                # skip nodes that belong to a nested sub-workflow
+                if node["id"] in sub_node_ids:
+                    continue
                 # FIXME: not yet consider scatter, condition, loop, etc.
                 if not (node.get("condition") or node.get("scatter") or node.get("loop")):
                     step_spec = WFStepSpec()
                     step_spec.workflow_id = workflow_spec.workflow_id
-                    step_spec.member_id = node["id"]
+                    # Per-scope sequence (starts at 1); falls back to global id for legacy
+                    # definitions parsed before member_id existed.
+                    member_id = node.get("member_id")
+                    step_spec.member_id = member_id if member_id is not None else node["id"]
                     step_spec.name = node["name"]
                     step_spec.status = WFStepStatus.registered
-                    step_spec.type = WFStepType.ordinary
-                    step_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
+                    is_sub_workflow = node.get("type") == "workflow"
+                    if is_sub_workflow:
+                        step_spec.type = WFStepType.sub_workflow
+                        step_spec.flavor = "sub_workflow"
+                    else:
+                        step_spec.type = WFStepType.ordinary
+                        step_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
                     # step definition
                     step_definition = copy.deepcopy(node)
                     # propagate user name and DN from workflow to step
@@ -1763,6 +2353,54 @@ class WorkflowInterface(object):
                         output_data_dict[output_name] = output_value.get("value")
                     step_definition["input_data_dict"] = input_data_dict
                     step_definition["output_data_list"] = list(output_data_dict.keys())
+                    if is_sub_workflow:
+                        child_wf_def = extract_child_workflow_definition(node, workflow_definition["nodes"])
+                        if node.get("scatter_inputs"):
+                            # Scatter sub-workflow: child_wf_def nodes are the per-iteration template;
+                            # wrap in a scatter_definition so the child workflow expands into N children
+                            scatter_template = copy.deepcopy(child_wf_def)
+                            # Carry the outDS prefix into the template so submit_sub_workflow can
+                            # do a single-string replacement to uniquify dataset names per iteration.
+                            scatter_template["out_ds_name"] = workflow_definition.get("out_ds_name")
+                            # Carry the scatter step's own member_id so each grandchild's dataset
+                            # names embed it (e.g. "_001s1_...") alongside the 1-based scatter index.
+                            scatter_template["scatter_parent_member_id"] = step_spec.member_id
+                            # Replace the scatter template's root_outputs with the child YAML's
+                            # resolved outputs (value = actual tail-step output base name,
+                            # output_types = types from the YAML outputs spec).  Without this, the
+                            # template carries the parent scatter step's pre-baked container name
+                            # (e.g. "_000_many_sig_bg_comb") which is never created in Rucio for
+                            # panda_task-only grandchild workflows.  submit_sub_workflow will apply
+                            # the _s{N} prefix to all dataset-name occurrences via string replace.
+                            if node.get("child_root_outputs"):
+                                scatter_template["root_outputs"] = node.get("child_root_outputs")
+                            child_wf_def = {
+                                # Append "_scatter" to distinguish the scatter-intermediate workflow
+                                # (which fans out iterations) from both its parent step and the
+                                # per-iteration grandchild workflows (named "{this}_0", "{this}_1", …).
+                                "workflow_name": f"{child_wf_def.get('workflow_name') or step_spec.name}_scatter",
+                                "root_inputs": {},
+                                "root_outputs": child_wf_def.get("root_outputs", {}),
+                                "scatter_definition": {
+                                    "template": scatter_template,
+                                    "scatter_inputs": node["scatter_inputs"],
+                                    "scatter_mode": node.get("scatter_mode", "zip"),
+                                },
+                            }
+                        else:
+                            # Regular (non-scatter) sub-workflow: extract_child_workflow_definition
+                            # seeds root_outputs from the parent node's outputs, whose value is this
+                            # step's pre-baked name (e.g. "..._002_sig_bg_comb"). The child must
+                            # instead expose its actual tail-step output (e.g. "combine/outDS" ->
+                            # "..._002_006_combine" with output_types), so the child workflow produces
+                            # a real dataset that apply_sub_workflow_outputs can wrap in the pre-baked
+                            # container. Without this the child's root output == the parent's name,
+                            # combine_targets finds nothing to combine, and the container is never
+                            # created -> downstream step fails with "unknown input dataset". Mirrors
+                            # the scatter branch above.
+                            if node.get("child_root_outputs"):
+                                child_wf_def["root_outputs"] = node.get("child_root_outputs")
+                        step_definition["child_workflow_definition"] = child_wf_def
                     step_spec.definition_json_map = step_definition
                     step_spec.creation_time = now_time
                     step_specs.append(step_spec)
@@ -1834,6 +2472,16 @@ class WorkflowInterface(object):
             step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_filter_list=required_step_statuses)
             over_advanced_step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id, status_filter_list=over_advanced_step_statuses)
             if not step_specs:
+                # Check if all steps are already in final statuses (e.g., all closed or cancelled)
+                all_step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id)
+                if all_step_specs and all(s.status in WFStepStatus.final_statuses for s in all_step_specs):
+                    workflow_spec.status = WorkflowStatus.running
+                    workflow_spec.start_time = naive_utcnow()
+                    self.tbif.update_workflow(workflow_spec)
+                    process_result.success = True
+                    process_result.new_status = workflow_spec.status
+                    tmp_log.info(f"All steps already in final status; advanced to status={workflow_spec.status}")
+                    return process_result
                 process_result.message = f"No step in required status; skipped"
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
@@ -1931,10 +2579,25 @@ class WorkflowInterface(object):
             steps_status_stats = self.process_steps(step_specs, data_spec_map=data_spec_map)
             # Update workflow status by steps
             now_time = naive_utcnow()
-            if (processed_steps_stats := steps_status_stats["processed"]) and (
-                processed_steps_stats.get(WFStepStatus.failed) or processed_steps_stats.get(WFStepStatus.cancelled)
-            ):
-                # TODO: cancel all unfinished steps
+            processed_steps_stats = steps_status_stats["processed"]
+            all_steps_final = (
+                steps_status_stats["n_processed"] > 0
+                and steps_status_stats["n_processed"] == len(step_specs)
+                and all(status in WFStepStatus.final_statuses for status in processed_steps_stats)
+            )
+            if processed_steps_stats and (processed_steps_stats.get(WFStepStatus.failed) or processed_steps_stats.get(WFStepStatus.cancelled)):
+                # Cancel child workflows whose sub_workflow steps just failed or were cancelled
+                for step_spec in step_specs:
+                    if (
+                        step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS
+                        and step_spec.status in (WFStepStatus.failed, WFStepStatus.cancelled)
+                        and step_spec.target_id
+                    ):
+                        child_wf_id = int(step_spec.target_id)
+                        child_wf = self.tbif.get_workflow(child_wf_id)
+                        if child_wf and child_wf.status not in WorkflowStatus.final_statuses:
+                            self.cancel_workflow(child_wf_id, force=True)
+                # TODO: cancel all unfinished ordinary steps
                 # self.cancel_step(...)
                 # mark workflow as failed
                 tmp_log.warning(f"workflow failed due to some steps failed or cancelled")
@@ -1945,6 +2608,15 @@ class WorkflowInterface(object):
                 process_result.success = True
                 process_result.new_status = workflow_spec.status
                 tmp_log.info(f"Done, advanced to status={workflow_spec.status}")
+            elif all_steps_final:
+                # All steps are in final statuses with no failures; mark workflow as done
+                workflow_spec.status = WorkflowStatus.done
+                workflow_spec.end_time = now_time
+                workflow_spec.check_time = now_time
+                self.tbif.update_workflow(workflow_spec)
+                process_result.success = True
+                process_result.new_status = workflow_spec.status
+                tmp_log.info(f"All steps in final status; advanced to status={workflow_spec.status}")
             else:
                 workflow_spec.check_time = now_time
                 self.tbif.update_workflow(workflow_spec)
@@ -1979,6 +2651,10 @@ class WorkflowInterface(object):
         match workflow_spec.status:
             case WorkflowStatus.registered:
                 process_result = self.process_workflow_registered(workflow_spec)
+            case WorkflowStatus.parsed:
+                process_result = self.process_workflow_parsed(workflow_spec)
+            case WorkflowStatus.checking:
+                process_result = self.process_workflow_checking(workflow_spec)
             case WorkflowStatus.checked:
                 process_result = self.process_workflow_checked(workflow_spec)
             case WorkflowStatus.starting:
@@ -1989,6 +2665,30 @@ class WorkflowInterface(object):
                 process_result.message = f"Workflow status {workflow_spec.status} is not handled in this context; skipped"
                 tmp_log.warning(f"{process_result.message}")
         return process_result, workflow_spec
+
+    def _recheck_until_stable(self, workflow_spec: WorkflowSpec, tmp_res: WorkflowProcessResult) -> tuple[WorkflowProcessResult, WorkflowSpec]:
+        """
+        Repeatedly re-process a workflow while it keeps advancing through transient statuses or
+        explicitly requests an immediate re-check, so a chain of transitions resolves within a
+        single processing cycle instead of waiting for the next one.
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow specification, already processed once.
+            tmp_res (WorkflowProcessResult): The result of the initial process_workflow call.
+
+        Returns:
+            WorkflowProcessResult: The result of the last process_workflow call.
+            WorkflowSpec: The updated workflow specification.
+        """
+        for _ in range(MAX_PROCESSING_LOOPS):
+            prev_status = workflow_spec.status
+            if prev_status not in WorkflowStatus.transient_statuses and not (tmp_res and tmp_res.immediate_recheck):
+                break
+            # For changes into transient status or explicit re-check request, process immediately in the loop again
+            tmp_res, workflow_spec = self.process_workflow(workflow_spec)
+            if workflow_spec.status == prev_status and not (tmp_res and tmp_res.immediate_recheck):
+                break  # no progress made, stop retrying
+        return tmp_res, workflow_spec
 
     # ---- Process all workflows -------------------------------------
 
@@ -2021,14 +2721,7 @@ class WorkflowInterface(object):
                     orig_status = workflow_spec.status
                     # Process the workflow
                     tmp_res, workflow_spec = self.process_workflow(workflow_spec)
-                    for _ in range(MAX_PROCESSING_LOOPS):
-                        prev_status = workflow_spec.status
-                        if prev_status not in WorkflowStatus.transient_statuses and not (tmp_res and tmp_res.immediate_recheck):
-                            break
-                        # For changes into transient status or explicit re-check request, process immediately in the loop again
-                        tmp_res, workflow_spec = self.process_workflow(workflow_spec)
-                        if workflow_spec.status == prev_status and not (tmp_res and tmp_res.immediate_recheck):
-                            break  # no progress made, stop retrying
+                    tmp_res, workflow_spec = self._recheck_until_stable(workflow_spec, tmp_res)
                     if tmp_res and tmp_res.success:
                         # update stats
                         if tmp_res.new_status and workflow_spec.status != orig_status:
