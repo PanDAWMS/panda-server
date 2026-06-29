@@ -986,6 +986,14 @@ class JediTaskSpec(object):
                 return True
         return False
 
+    # check if datasets should be moved
+    def toMoveDatasets(self):
+        if self.splitRule is not None:
+            tmpMatch = re.search(self.splitRuleToken["registerDatasets"] + "=(\d+)", self.splitRule)
+            if tmpMatch is not None and tmpMatch.group(1) == self.enum_moveDS:
+                return True
+        return False
+    
     # datasets were registered
     def registeredDatasets(self):
         self.setSplitRule("registerDatasets", self.enum_registeredDS)
