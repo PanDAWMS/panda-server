@@ -331,17 +331,17 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                 location = siteMapper.getDdmEndpoint(
                     t1Site.sitename, datasetSpec.storageToken, taskSpec.prodSourceLabel, JobUtils.translate_tasktype_to_jobtype(taskSpec.taskType)
                 )
-                # make subscription
+                # move replication rules
                 try:
-                    tmpLog.debug(f"registering subscription to {location} with backend={ddmBackEnd}")
-                    tmpStat = ddmIF.registerDatasetSubscription(datasetSpec.datasetName, location, "Production Output", asynchronous=True)
+                    tmpLog.debug(f"moving replication rules to {location}")
+                    tmpStat = ddmIF.move_replication_rules(datasetSpec.datasetName, location)
                     if tmpStat is not True:
-                        tmpLog.error("failed to make subscription")
+                        tmpLog.error("failed to move replication rules")
                         isOK = False
                         break
                 except Exception:
                     errtype, errvalue = sys.exc_info()[:2]
-                    tmpLog.warning(f"failed to make subscription with {errtype.__name__}:{errvalue}")
+                    tmpLog.warning(f"failed to move replication rules with {errtype.__name__}:{errvalue}")
                     isOK = False
                     break
             # succeeded

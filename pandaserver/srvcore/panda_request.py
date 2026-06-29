@@ -85,6 +85,14 @@ def decode_token(serialized_token, env, tmp_log):
                                 token[groups_claim_name] = [f"{vo}"]
                         if "name" not in token:
                             token["name"] = f"robot {role}"
+                # auto role assignment
+                if not role:
+                    # find a suitable role for the user based on the groups claim
+                    for role_candidate in panda_config.auth_vo_dict[vo_role].get("auto_roles", []):
+                        if f"{vo}/{role_candidate}" in token[groups_claim_name] or f"/{vo}/{role_candidate}" in token[groups_claim_name]:
+                            role = role_candidate
+                            tmp_log.debug(f"Auto-assigned role:{role}")
+                            break
                 # check role
                 if role:
                     if f"{vo}/{role}" not in token[groups_claim_name] and f"/{vo}/{role}" not in token[groups_claim_name]:
