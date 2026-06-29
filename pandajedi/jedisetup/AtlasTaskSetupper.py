@@ -246,7 +246,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                             tmpLog.error(f"failed to register 2nd copy location {container_location} for container {targetName}")
                                             return retFatal
                                 avDatasetList.append(targetName)
-                            elif taskSpec.toMoveDatasets():
+                            elif taskSpec.toMoveDatasets() and DataServiceUtils.getDistributedDestination(datasetSpec.storageToken) is None:
                                 # get location
                                 location = siteMapper.getDdmEndpoint(
                                     siteInNucleus.sitename, datasetSpec.storageToken, taskSpec.prodSourceLabel, 
