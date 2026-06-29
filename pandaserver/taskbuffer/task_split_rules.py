@@ -122,7 +122,7 @@ enum_inputLAN = {"1": "use", "2": "only"}
 # decode dicts for tokens whose JediTaskSpec counterparts are scalar constants or class-based enums
 enum_useScout = {"1": "no_use", "2": "will_update_requirements", "3": "updated_requirements"}
 enum_usePrePro = {"1": "toPreProcess", "2": "preProcessed", "3": "postPProcess"}
-enum_registerDatasets = {"1": "registering", "2": "registered"}
+enum_registerDatasets = {"1": "registering", "2": "registered", "3": "moving"}
 enum_inputPreStaging = {"0": "notUse", "1": "use"}  # inverted vs JediTaskSpec's label→value dict
 enum_firstContentsFeed = {"0": "False", "1": "True"}
 enum_fullChain = {"1": "only", "2": "require", "3": "capable"}

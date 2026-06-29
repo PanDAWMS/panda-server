@@ -301,7 +301,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
             if taskSpec.nucleus in [None, ""]:
                 taskSpec.status = "assigning"
                 taskSpec.oldStatus = None
-                taskSpec.setToRegisterDatasets()
+                taskSpec.setToMoveDatasets()
                 self.taskBufferIF.updateTask_JEDI(taskSpec, {"jediTaskID": taskSpec.jediTaskID}, setOldModTime=True)
                 tmpLog.debug(f"#ATM #KV label=managed action=trigger_new_brokerage by setting task_status={taskSpec.status}")
                 continue
