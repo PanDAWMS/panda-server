@@ -1390,6 +1390,8 @@ class AtlasDDMClient(DDMClientBase):
                     continue
                 tmpLog.debug(f"move {rule['id']} to {rse_expression}")
                 client.move_replication_rule(rule["id"], rse_expression, {})
+        except DataIdentifierNotFound:
+            pass
         except Exception as e:
             isOK = False
             errType = e
