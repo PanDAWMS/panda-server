@@ -77,7 +77,8 @@ def decode_token(serialized_token, env, tmp_log):
                     if not robot_ids:
                         robot_ids = []
                     robot_ids = [i for i in robot_ids if i]
-                    if token["sub"] in robot_ids:
+                    client_id = token.get("extracted_client_id")
+                    if client_id in robot_ids:
                         if groups_claim_name not in token:
                             if role:
                                 token[groups_claim_name] = [f"{vo}/{role}"]

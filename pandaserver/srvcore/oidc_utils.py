@@ -65,16 +65,26 @@ class TokenDecoder:
         try:
             # check audience
             unverified = jwt.decode(token, verify=False, options={"verify_signature": False})
-            conf_key = None
+            client_id = None
             audience = None
             if "aud" in unverified:
                 audience = unverified["aud"]
+                # client ID from aud of ID token
                 if audience in auth_config:
-                    conf_key = audience
-            if not conf_key:
-                # use sub as config key for access token
-                conf_key = unverified["sub"]
-            discovery_endpoint = auth_config[conf_key]["oidc_config_url"]
+                    client_id = audience
+            if not client_id:
+                # client ID from access token including ID info with device code flow
+                client_id = unverified.get("client_id")
+                if client_id and client_id not in auth_config:
+                    client_id = None
+            if not client_id:
+                # client ID from sub of access token with client_credentials flow
+                client_id = unverified["sub"]
+                if client_id and client_id not in auth_config:
+                    client_id = None
+            if not client_id:
+                raise jwt.exceptions.InvalidTokenError("cannot extract client_id from token")
+            discovery_endpoint = auth_config[client_id]["oidc_config_url"]
             # decode headers
             headers = jwt.get_unverified_header(token)
             # get key id
@@ -117,7 +127,9 @@ class TokenDecoder:
             if vo is not None:
                 decoded["vo"] = vo
             else:
-                decoded["vo"] = auth_config[conf_key]["vo"]
+                decoded["vo"] = auth_config[client_id]["vo"]
+            # client ID
+            decoded["extracted_client_id"] = client_id
             return decoded
         except Exception:
             raise
