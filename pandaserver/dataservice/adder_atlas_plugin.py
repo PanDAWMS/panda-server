@@ -707,6 +707,9 @@ class AdderAtlasPlugin(AdderPluginBase):
         :param cont_zip_map: Container zip map.
         :return: 1 if registration fails, None otherwise.
         """
+        if not dest_id_map and not zip_files and not cont_zip_map: 
+            self.logger.debug("no files to register")
+            return
         max_attempt = 3
         for attempt_number in range(max_attempt):
             is_fatal = False

@@ -435,7 +435,14 @@ class RucioAPI:
         # add files
         client = self._get_rucio_client()
         client.add_files_to_datasets(attachment_list, ignore_duplicate=True)
-        return True
+        # add again to verify files are there
+        try:
+            client.add_files_to_datasets(attachment_list, ignore_duplicate=False)
+        except FileAlreadyExists:
+            return True
+        except Exception:
+            raise
+        raise RuntimeError("Failed to verify file registration")
 
     # register zip files
     def register_zip_files(self, zip_map: dict) -> None:
