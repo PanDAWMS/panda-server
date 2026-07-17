@@ -257,7 +257,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
         base_expected_wait_hour_on_pq = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "BASE_EXPECTED_WAIT_HOUR_ON_PQ", "jedi", taskSpec.vo)
         if base_expected_wait_hour_on_pq is None:
             base_expected_wait_hour_on_pq = 8
-        base_default_queue_length_per_pq_user = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "BASE_DEFAULT_QUEUE_LENGTH_PER_PQ_USER", "jedi", taskSpec.vo)
+        base_default_queue_length_per_pq_user = self.taskBufferIF.getConfigValue(
+            ANALYSIS_COMPONENT, "BASE_DEFAULT_QUEUE_LENGTH_PER_PQ_USER", "jedi", taskSpec.vo
+        )
         if base_default_queue_length_per_pq_user is None:
             base_default_queue_length_per_pq_user = 5
         base_queue_ratio_on_pq = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "BASE_QUEUE_RATIO_ON_PQ", "jedi", taskSpec.vo)
@@ -1200,7 +1202,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     if tmp_output_endpoint["space_free"] is not None:
                         tmp_space_size += tmp_output_endpoint["space_free"]
                     if tmp_space_size < diskThreshold_out:
-                        msg_map[tmpSiteName] = f"  skip site={tmpSiteName} due to output disk shortage in SE {tmp_space_size} < {diskThreshold_out}GB criteria=-disk"
+                        msg_map[tmpSiteName] = (
+                            f"  skip site={tmpSiteName} due to output disk shortage in SE {tmp_space_size} < {diskThreshold_out}GB criteria=-disk"
+                        )
                         continue
                 # check input endpoint to transfer input when data locality is not required
                 if not checkDataLocality:
@@ -1217,7 +1221,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                             if tmp_input_endpoint["space_free"] is not None:
                                 tmp_space_size += tmp_input_endpoint["space_free"]
                             if tmp_space_size < diskThreshold_in:
-                                msg_map[tmpSiteName] = f"  skip site={tmpSiteName} due to input disk shortage in SE {tmp_space_size} < {diskThreshold_in}GB criteria=-disk"
+                                msg_map[tmpSiteName] = (
+                                    f"  skip site={tmpSiteName} due to input disk shortage in SE {tmp_space_size} < {diskThreshold_in}GB criteria=-disk"
+                                )
                                 continue
                 # check if blacklisted
                 tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available)
@@ -1355,7 +1361,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     if siteMaxTime != 0 and siteMaxTime < minTimeForZeroWalltime:
                         tmpMsg = f"  skip site={tmpSiteName} due to site walltime {tmpSiteStr} (site upper limit) insufficient "
                         if inputChunk.useScout():
-                            tmpMsg += f"for scout jobs (requireing {str_minTimeForZeroWalltime} at least) "
+                            tmpMsg += f"for scout jobs (requiring {str_minTimeForZeroWalltime} at least) "
                             tmpMsg += "criteria=-scout_walltime"
                         else:
                             tmpMsg += f"for merge or walltime-undefined jobs (requiring {str_minTimeForZeroWalltime} at least) "

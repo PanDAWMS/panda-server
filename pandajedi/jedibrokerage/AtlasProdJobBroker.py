@@ -354,7 +354,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 else:
                     complete_replica_locations = complete_replica_locations.intersection(set(tmp_list_of_complete_replica_locations))
                 if taskSpec.inputPreStaging():
-                    tmpLog.debug(f"completeness check disabled for {datasetName} since it is being pre-staged")  
+                    tmpLog.debug(f"completeness check disabled for {datasetName} since it is being pre-staged")
                     continue
                 # pending if the dataset is incomplete or missing at online endpoints
                 if not tmp_complete_disk_ok and not tmp_complete_tape_ok:
@@ -1017,8 +1017,9 @@ class AtlasProdJobBroker(JobBrokerBase):
                     )
             # check if blacklisted
             if not tmp_msg:
-                tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available,
-                                                                          "DATADISK", complete_replica_locations)
+                tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(
+                    tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available, "DATADISK", complete_replica_locations
+                )
             if tmp_msg is not None:
                 newSkippedTmp[tmpSiteName] = tmp_msg
                 msg_map[tmpSiteName] = tmp_msg
@@ -1145,7 +1146,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 if siteMaxTime != 0 and siteMaxTime < minTimeForZeroWalltime:
                     tmp_msg = f"  skip site={tmpSiteName} due to site walltime {tmpSiteStr} (site upper limit) insufficient "
                     if inputChunk.useScout():
-                        tmp_msg += f"for scout jobs (requireing {str_minTimeForZeroWalltime} at least) "
+                        tmp_msg += f"for scout jobs (requiring {str_minTimeForZeroWalltime} at least) "
                         tmp_msg += "criteria=-scout_walltime"
                     else:
                         tmp_msg += f"for walltime-undefined jobs (requiring {str_minTimeForZeroWalltime} at least) "
