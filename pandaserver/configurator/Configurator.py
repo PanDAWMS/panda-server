@@ -98,8 +98,7 @@ class Configurator(threading.Thread):
                     self.log_stream.error("The blacklisted endpoint dump could not be retrieved (None)")
                     return False
                 # Treat {} as valid/empty
-                self.blacklisted_endpoints = list(dump) if isinstance(dump, (dict, list, tuple, set)) else list(
-                    dump or [])
+                self.blacklisted_endpoints = list(dump) if isinstance(dump, (dict, list, tuple, set)) else list(dump or [])
                 self.blacklisted_endpoints_write = self.blacklisted_endpoints
                 self.log_stream.debug(f"ddmblacklist(write) retrieved {len(self.blacklisted_endpoints)} endpoints")
             else:
@@ -124,9 +123,7 @@ class Configurator(threading.Thread):
                     self.log_stream.warning("ddmblacklist(read) returned None; defaulting to empty")
                     self.blacklisted_endpoints_read = []
                 else:
-                    self.blacklisted_endpoints_read = list(dump) if isinstance(dump,
-                                                                               (dict, list, tuple, set)) else list(
-                        dump or [])
+                    self.blacklisted_endpoints_read = list(dump) if isinstance(dump, (dict, list, tuple, set)) else list(dump or [])
                 self.log_stream.debug(f"ddmblacklist(read) retrieved {len(self.blacklisted_endpoints_read)} endpoints")
             else:
                 self.blacklisted_endpoints_read = []
@@ -153,9 +150,7 @@ class Configurator(threading.Thread):
                 else:
                     # Be tolerant but safe: coerce to dict if possible, else empty
                     self.ddm_detailed_exclusions = dict(dump) if hasattr(dump, "items") else {}
-                self.log_stream.debug(
-                    f"ddmblacklist(full) retrieved {len(self.ddm_detailed_exclusions)} entries"
-                )
+                self.log_stream.debug(f"ddmblacklist(full) retrieved {len(self.ddm_detailed_exclusions)} entries")
             else:
                 self.ddm_detailed_exclusions = {}
         except Exception as e:
@@ -304,6 +299,20 @@ class Configurator(threading.Thread):
                     space_expired = 0
                     self.log_stream.warning(f"process_site_dumps: no rse EXPIRED usage information for {ddm_endpoint_name}")
 
+                # Get the min_free space
+                try:
+                    space_min_free = self.rse_usage[ddm_endpoint_name]["min_free_space"]["used"] / GB
+                except KeyError:
+                    space_min_free = 0
+                    self.log_stream.warning(f"process_site_dumps: no rse MIN_FREE usage information for {ddm_endpoint_name}")
+
+                # Get the unavailable space
+                try:
+                    space_unavailable = self.rse_usage[ddm_endpoint_name]["unavailable"]["used"] / GB
+                except KeyError:
+                    space_unavailable = 0
+                    self.log_stream.warning(f"process_site_dumps: no rse UNAVAILABLE usage information for {ddm_endpoint_name}")
+
                 ddm_spacetoken_state = site_config["ddmendpoints"][ddm_endpoint_name]["state"]
                 if ddm_spacetoken_state == "ACTIVE":
                     ddm_endpoints_list.append(
@@ -321,6 +330,8 @@ class Configurator(threading.Thread):
                             "space_free": space_free,
                             "space_total": space_total,
                             "space_expired": space_expired,
+                            "space_min_free": space_min_free,
+                            "space_unavailable": space_unavailable,
                             "space_timestamp": space_timestamp,
                         }
                     )

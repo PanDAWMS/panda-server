@@ -2392,7 +2392,8 @@ class EntityModule(BaseModule):
                 "UPDATE ATLAS_PANDA.ddm_endpoint set "
                 "site_name=:site_name, ddm_spacetoken_name=:ddm_spacetoken_name, type=:type, is_tape=:is_tape, "
                 "blacklisted=:blacklisted, blacklisted_write=:blacklisted_write, blacklisted_read=:blacklisted_read, detailed_status=:detailed_status, "
-                "space_used=:space_used, space_free=:space_free, space_total=:space_total, space_expired=:space_expired, space_timestamp=:space_timestamp "
+                "space_used=:space_used, space_free=:space_free, space_total=:space_total, space_expired=:space_expired, "
+                "space_min_free=:space_min_free, space_unavailable=:space_unavailable, space_timestamp=:space_timestamp "
                 "WHERE ddm_endpoint_name=:ddm_endpoint_name"
             )
             for shard in create_shards(var_map_update, 100):
@@ -2402,10 +2403,10 @@ class EntityModule(BaseModule):
             sql_insert = (
                 "INSERT INTO ATLAS_PANDA.ddm_endpoint (ddm_endpoint_name, site_name, ddm_spacetoken_name, type, is_tape, "
                 "blacklisted, blacklisted_write, blacklisted_read,  detailed_status, "
-                "space_used, space_free, space_total, space_expired, space_timestamp) "
+                "space_used, space_free, space_total, space_expired, space_min_free, space_unavailable, space_timestamp) "
                 "VALUES(:ddm_endpoint_name, :site_name, :ddm_spacetoken_name, :type, :is_tape, "
                 ":blacklisted, :blacklisted_write, :blacklisted_read, :detailed_status, "
-                ":space_used, :space_free, :space_total, :space_expired, :space_timestamp)"
+                ":space_used, :space_free, :space_total, :space_expired, :space_min_free, :space_unavailable, :space_timestamp)"
             )
             for shard in create_shards(var_map_insert, 100):
                 self.cur.executemany(sql_insert + comment, shard)

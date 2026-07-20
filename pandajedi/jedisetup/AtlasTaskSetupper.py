@@ -235,7 +235,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                             targetName,
                                             container_location,
                                             copies=1,
-                                            owner=userName,
+                                            owner=None,
                                             lifetime=self.user_container_lifetime,
                                             activity=activity,
                                             grouping="NONE",
