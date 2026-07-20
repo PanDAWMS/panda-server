@@ -365,18 +365,18 @@ class MiscStandaloneModule(BaseModule):
             tmp_log.debug(f"No input files for job {job_id}, so could not update CPU time for task {task_id}")
             return None, None
 
-        # Get the corecount from the job spec
+        # Get the corecount and start/end time from the job spec
         var_map = {":task_id": task_id, ":job_id": job_id}
         sql_select = f"""
-        SELECT jact4.corecount 
+        SELECT jact4.corecount, jact4.starttime, jact4.endtime
         FROM ATLAS_PANDA.jobsactive4 jact4
         WHERE jeditaskid = :task_id AND pandaid = :job_id
         UNION
-        SELECT jarc4.corecount 
+        SELECT jarc4.corecount, jarc4.starttime, jarc4.endtime
         FROM ATLAS_PANDA.jobsarchived4 jarc4
         WHERE jeditaskid = :task_id AND pandaid = :job_id
         UNION
-        SELECT jarch.corecount 
+        SELECT jarch.corecount, jarch.starttime, jarch.endtime
         FROM ATLAS_PANDAARCH.jobsarchived jarch
         WHERE jeditaskid = :task_id AND pandaid = :job_id
         """
@@ -384,18 +384,28 @@ class MiscStandaloneModule(BaseModule):
 
         results = self.cur.fetchone()
         try:
-            core_count_job = results[0]
-        except (IndexError, TypeError):
-            core_count_job = None
+            core_count_job, start_time_job, end_time_job = results
+        except (IndexError, TypeError, ValueError):
+            core_count_job, start_time_job, end_time_job = None, None, None
 
         if not core_count_job:
             core_count_job = 1  # Default to 1 if no core_count is defined in the job spec
         tmp_log.debug(f"core_count_job: {core_count_job}")
 
+        if not start_time_job or not end_time_job:
+            tmp_log.debug(f"start/end time not available for job {job_id}... nothing to do")
+            return None, None
+
+        job_walltime = (end_time_job - start_time_job).total_seconds()
+        tmp_log.debug(f"job_walltime: {job_walltime}")
+        if job_walltime < 0:
+            tmp_log.debug(f"calculated a negative walltime for job {job_id}... nothing to do")
+            return None, None
+
         # Calculate the new CPU time
         try:
             new_cputime_unit = "HS06sPerEvent"
-            new_cputime = ((max_time_site - basewalltime) * core_power_site * core_count_job * 1.1 / (cpuefficiency / 100.0) / n_events_total) * 1.5
+            new_cputime = ((job_walltime - basewalltime) * core_power_site * core_count_job * 1.1 / (cpuefficiency / 100.0) / n_events_total) * 1.5
             new_cputime_normalized = new_cputime
 
             if new_cputime and new_cputime < 10:
