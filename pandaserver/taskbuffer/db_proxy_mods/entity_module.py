@@ -2048,6 +2048,11 @@ class EntityModule(BaseModule):
             except Exception as e:
                 tmp_log.error(f"exception when decoding detailed_status for {ddm_endpoint_name}: {str(e)}")
                 tmp_endpoint["detailed_status"] = {}
+
+            # add usable space info
+            tmp_endpoint["space_usable"] = (tmp_endpoint.get("space_free") or 0) + (tmp_endpoint.get("space_expired") or 0) \
+                - (tmp_endpoint.get("space_min_free") or 0) - (tmp_endpoint.get("space_unavailable") or 0)
+
             endpoint_dict[ddm_endpoint_name] = tmp_endpoint
 
         # get relationship between panda sites and ddm endpoints

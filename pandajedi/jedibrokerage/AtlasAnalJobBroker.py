@@ -1196,11 +1196,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     continue
                 tmp_output_endpoint = tmpSiteSpec.ddm_endpoints_output[scope_output].getEndPoint(tmpSiteSpec.ddm_output[scope_output])
                 if tmp_output_endpoint is not None:
-                    tmp_space_size = 0
-                    if tmp_output_endpoint["space_expired"] is not None:
-                        tmp_space_size += tmp_output_endpoint["space_expired"]
-                    if tmp_output_endpoint["space_free"] is not None:
-                        tmp_space_size += tmp_output_endpoint["space_free"]
+                    tmp_space_size = tmp_output_endpoint["space_usable"]
                     if tmp_space_size < diskThreshold_out:
                         msg_map[tmpSiteName] = (
                             f"  skip site={tmpSiteName} due to output disk shortage in SE {tmp_space_size} < {diskThreshold_out}GB criteria=-disk"
@@ -1215,11 +1211,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     if tmpSiteSpec.ddm_output[scope_output] != tmpSiteSpec.ddm_input[scope_input]:
                         tmp_input_endpoint = tmpSiteSpec.ddm_endpoints_input[scope_input].getEndPoint(tmpSiteSpec.ddm_input[scope_input])
                         if tmp_input_endpoint is not None:
-                            tmp_space_size = 0
-                            if tmp_input_endpoint["space_expired"] is not None:
-                                tmp_space_size += tmp_input_endpoint["space_expired"]
-                            if tmp_input_endpoint["space_free"] is not None:
-                                tmp_space_size += tmp_input_endpoint["space_free"]
+                            tmp_space_size = tmp_input_endpoint["space_usable"]
                             if tmp_space_size < diskThreshold_in:
                                 msg_map[tmpSiteName] = (
                                     f"  skip site={tmpSiteName} due to input disk shortage in SE {tmp_space_size} < {diskThreshold_in}GB criteria=-disk"

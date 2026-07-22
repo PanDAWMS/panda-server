@@ -1005,11 +1005,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             tmp_msg = None
             # check free size on output endpoint
             if tmp_default_output_endpoint is not None:
-                tmpSpaceSize = 0
-                if tmp_default_output_endpoint["space_free"] is not None:
-                    tmpSpaceSize += tmp_default_output_endpoint["space_free"]
-                if tmp_default_output_endpoint["space_expired"] is not None:
-                    tmpSpaceSize += tmp_default_output_endpoint["space_expired"]
+                tmpSpaceSize = tmp_default_output_endpoint["space_usable"]
                 if tmpSpaceSize < diskThreshold:
                     tmp_msg = (
                         f"  skip site={tmpSiteName} due to disk shortage at "
