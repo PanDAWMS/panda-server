@@ -376,17 +376,20 @@ class RucioAPI:
         return file
 
     # register files in dataset
-    def register_files_in_dataset(self, id_map: dict, files_without_rses: list = None) -> bool:
+    def register_files_in_dataset(self, id_map: dict, files_without_rses: list = None, files_to_skip_validation: list = None) -> bool:
         """
         Register files in a dataset
 
         Parameters:
         id_map (dict): A dictionary containing dataset information. Maps RSEs to datasets and files.
         files_without_rses (list, optional): List of files without RSEs. Defaults to None.
+        files_to_skip_validation (list, optional): List of files to skip validation for. Defaults to None.
 
         Returns:
         bool: True if the operation is successful, False otherwise
         """
+        function_name = f"register_files_in_dataset-{naive_utcnow().isoformat('/')}"
+        tmp_log = LogWrapper(_logger, function_name)
         # loop over all rse
         attachment_list = []
         for rse in id_map:
@@ -435,10 +438,27 @@ class RucioAPI:
         # add files
         client = self._get_rucio_client()
         client.add_files_to_datasets(attachment_list, ignore_duplicate=True)
+        # build attachment list for validation, excluding files to skip
+        if files_to_skip_validation:
+            skip_set = set(files_to_skip_validation)
+            validation_list = []
+            for attachment in attachment_list:
+                dids = [did for did in attachment["dids"] if did["name"] not in skip_set]
+                if dids:
+                    validation_attachment = dict(attachment)
+                    validation_attachment["dids"] = dids
+                    validation_list.append(validation_attachment)
+        else:
+            validation_list = attachment_list
+        tmp_log.debug(f"Validation list: {validation_list}")
+        # nothing left to validate
+        if not validation_list:
+            return True
         # add again to verify files are there
         try:
-            client.add_files_to_datasets(attachment_list, ignore_duplicate=False)
+            client.add_files_to_datasets(validation_list, ignore_duplicate=False)
         except FileAlreadyExists:
+            tmp_log.debug("FileAlreadyExists exception caught during validation, indicating files are already registered.")
             return True
         except Exception:
             raise
