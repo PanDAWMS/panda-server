@@ -269,6 +269,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         map_for_alt_stage_out = {}
         alt_staged_files = set()
         zip_files = {}
+        log_files = []
         cont_zip_map = {}
         sub_to_ds_map = {}
         ds_id_to_ds_map = self.taskBuffer.getOutputDatasetsJEDI(self.job.PandaID)
@@ -279,6 +280,8 @@ class AdderAtlasPlugin(AdderPluginBase):
             gc.collect()
             if file.type not in {"output", "log"}:
                 continue
+            if file.type == "log":
+                log_files.append(file.lfn)
 
             # prepare the site spec and scope for the destinationSE site
             destination_se_site_spec = self.siteMapper.getSite(file.destinationSE)
@@ -655,7 +658,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             dest_id_map = self.decompose_id_map(id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_ds_map, alt_staged_files)
 
         # add files
-        result = self.register_files(reg_num_files, zip_files, dest_id_map, cont_zip_map)
+        result = self.register_files(reg_num_files, zip_files, dest_id_map, cont_zip_map, log_files)
         if result == 1:
             return 1
 
@@ -697,7 +700,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         self.logger.debug("addFiles end")
         return 0
 
-    def register_files(self, reg_num_files: int, zip_files: list, dest_id_map: dict, cont_zip_map: dict) -> int | None:
+    def register_files(self, reg_num_files: int, zip_files: list, dest_id_map: dict, cont_zip_map: dict, log_files: list = None) -> int | None:
         """
         Register files with Rucio.
 
@@ -705,6 +708,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         :param zip_files: List of zip files to register.
         :param dest_id_map: Destination ID map.
         :param cont_zip_map: Container zip map.
+        :param log_files: List of log file LFNs to skip during registration validation.
         :return: 1 if registration fails, None otherwise.
         """
         if not dest_id_map and not zip_files and not cont_zip_map: 
@@ -724,7 +728,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     self.logger.debug(f"registerZipFiles {str(zip_files)}")
                     rucioAPI.register_zip_files(zip_files)
                 self.logger.debug(f"registerFilesInDatasets {str(dest_id_map)} zip={str(cont_zip_map)}")
-                out = rucioAPI.register_files_in_dataset(dest_id_map, cont_zip_map)
+                out = rucioAPI.register_files_in_dataset(dest_id_map, cont_zip_map, files_to_skip_validation=log_files)
             except (
                 DataIdentifierNotFound,
                 FileConsistencyMismatch,
