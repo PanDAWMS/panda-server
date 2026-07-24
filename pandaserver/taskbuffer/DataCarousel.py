@@ -1264,13 +1264,14 @@ class DataCarouselInterface(object):
                 # with contents to consider
                 for dataset in jobparam_dataset_list:
                     jobparam_ds_coll_map[dataset] = collection
-                # expand constituent dataset names if notExpandInDS is specified
-                if task_params_map.get("notExpandInDS") and dsname_list is not None and collection in dsname_list:
+                # expand constituent dataset names if notExpandInDS (no "expand" in task_params_map) is specified
+                if not task_params_map.get("expand") and dsname_list is not None and collection in dsname_list:
                     expanded_dsname_list.extend(jobparam_dataset_list)
             # merge of jobparam_dataset_list and dnsname_list
             jobparam_datasets_set = set(jobparam_ds_coll_map.keys())
             all_input_datasets_set |= jobparam_datasets_set
             if dsname_list is not None:
+                tmp_log.debug(f"dsname_list={dsname_list} ; expanded_dsname_list={expanded_dsname_list}")
                 # dsname_list is given; filter out extra container slash
                 master_datasets_set = set([dsname for dsname in dsname_list if not dsname.endswith("/")])
                 # extra dataset not in job parameters when task resubmitted/rerefined
@@ -1285,7 +1286,7 @@ class DataCarouselInterface(object):
                 if dsname_list is not None and dataset not in dsname_list and dataset not in expanded_dsname_list:
                     # not in dsname_list; skip
                     ret_map["to_skip_ds_list"].append(dataset)
-                    tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
+                    tmp_log.debug(f"dataset={dataset} not in dsname_list or expanded_dsname_list; skipped")
                     continue
                 # check if already in existing Data Carousel requests
                 existing_dcreq_id = self.taskBufferIF.get_data_carousel_request_id_by_dataset_JEDI(dataset)
