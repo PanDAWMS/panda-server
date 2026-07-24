@@ -316,7 +316,8 @@ class AtlasProdJobBroker(JobBrokerBase):
         ######################################
         # check dataset completeness
         remote_source_available = True
-        if inputChunk.getDatasets() and not taskSpec.inputPreStaging():
+        complete_replica_locations = None
+        if inputChunk.getDatasets():
             for datasetSpec in inputChunk.getDatasets():
                 datasetName = datasetSpec.datasetName
                 # skip distributed datasets
@@ -347,6 +348,14 @@ class AtlasProdJobBroker(JobBrokerBase):
                     tmpLog.error(f"failed to get available storage endpoints with {datasetName}")
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
                     return retTmpError
+                # get the list of locations with complete replicas for all datasets
+                if complete_replica_locations is None:
+                    complete_replica_locations = set(tmp_list_of_complete_replica_locations)
+                else:
+                    complete_replica_locations = complete_replica_locations.intersection(set(tmp_list_of_complete_replica_locations))
+                if taskSpec.inputPreStaging():
+                    tmpLog.debug(f"completeness check disabled for {datasetName} since it is being pre-staged")
+                    continue
                 # pending if the dataset is incomplete or missing at online endpoints
                 if not tmp_complete_disk_ok and not tmp_complete_tape_ok:
                     err_msg = f"{datasetName} is "
@@ -984,6 +993,10 @@ class AtlasProdJobBroker(JobBrokerBase):
         msg_map = {}
         tmpLog.set_message_slot()
         newSkippedTmp = dict()
+        diskThreshold = self.taskBufferIF.getConfigValue(COMPONENT, "STORAGE_MIN_FREE_SIZE", "jedi", taskSpec.vo)
+        if not diskThreshold:
+            # set default threshold to 200GB if not configured
+            diskThreshold = 200
         for tmpSiteName in self.get_unified_sites(scanSiteList):
             tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
             scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.PROD_PS, JobUtils.PROD_PS)
@@ -992,22 +1005,17 @@ class AtlasProdJobBroker(JobBrokerBase):
             tmp_msg = None
             # check free size on output endpoint
             if tmp_default_output_endpoint is not None:
-                tmpSpaceSize = 0
-                if tmp_default_output_endpoint["space_free"] is not None:
-                    tmpSpaceSize += tmp_default_output_endpoint["space_free"]
-                if tmp_default_output_endpoint["space_expired"] is not None:
-                    tmpSpaceSize += tmp_default_output_endpoint["space_expired"]
-                diskThreshold = 200
-
-                # skip_RSE_check: exceptional bypass of RSEs without storage reporting
-                if tmpSpaceSize < diskThreshold and "skip_RSE_check" not in tmpSiteSpec.catchall:
+                tmpSpaceSize = tmp_default_output_endpoint["space_usable"]
+                if tmpSpaceSize < diskThreshold:
                     tmp_msg = (
                         f"  skip site={tmpSiteName} due to disk shortage at "
                         f"{tmpSiteSpec.ddm_output[scope_output]} {tmpSpaceSize}GB < {diskThreshold}GB criteria=-disk"
                     )
             # check if blacklisted
             if not tmp_msg:
-                tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available)
+                tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(
+                    tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available, "DATADISK", complete_replica_locations
+                )
             if tmp_msg is not None:
                 newSkippedTmp[tmpSiteName] = tmp_msg
                 msg_map[tmpSiteName] = tmp_msg
@@ -1134,7 +1142,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 if siteMaxTime != 0 and siteMaxTime < minTimeForZeroWalltime:
                     tmp_msg = f"  skip site={tmpSiteName} due to site walltime {tmpSiteStr} (site upper limit) insufficient "
                     if inputChunk.useScout():
-                        tmp_msg += f"for scout jobs (requireing {str_minTimeForZeroWalltime} at least) "
+                        tmp_msg += f"for scout jobs (requiring {str_minTimeForZeroWalltime} at least) "
                         tmp_msg += "criteria=-scout_walltime"
                     else:
                         tmp_msg += f"for walltime-undefined jobs (requiring {str_minTimeForZeroWalltime} at least) "
@@ -1789,8 +1797,11 @@ class AtlasProdJobBroker(JobBrokerBase):
                 tmpLog.debug(f"using nStarting+nRunning at {tmpPseudoSiteName} to set nRunning={nRunning} due to numSlot={numStandby}")
             else:
                 # the number of standby jobs is defined
+                old_nRunning = nRunning
                 nRunning = max(int(numStandby / tmpSiteSpec.coreCount), nRunning)
-                tmpLog.debug(f"using numSlots={numStandby}/coreCount at {tmpPseudoSiteName} to set nRunning={nRunning}")
+                tmpLog.debug(
+                    f"using max(int(numStandby={numStandby}/coreCount={tmpSiteSpec.coreCount}), nRunning={old_nRunning}) at {tmpPseudoSiteName} to set nRunning={nRunning}"
+                )
             manyAssigned = float(nAssigned + 1) / float(nActivated + 1)
             manyAssigned = min(2.0, manyAssigned)
             manyAssigned = max(1.0, manyAssigned)

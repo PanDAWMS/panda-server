@@ -77,7 +77,7 @@ Alias /auth/ "/opt/panda/etc/panda/auth/"
     AllowOverride None
     Order allow,deny
     Allow from all
-    Header set Content-Encoding gzip
+    Header set Content-Encoding gzip "expr=%{REQUEST_URI} !~ m#\.log$#"
 </Directory>
 
 <IfModule mod_wsgi.c>

@@ -1,0 +1,91 @@
+# nested_workflow_inline_sig_bg_comb_wfd.yaml
+# Same workflow as nested_workflow_sig_bg_comb_wfd.yaml, but the sub-workflow is
+# expressed inline (shape C) instead of via workflow_ref. The inline steps are
+# identical to signal_background_combine_wfd.yaml.
+name: nested_workflow_inline_sig_bg_comb
+
+inputs: []
+
+outputs:
+  final_result:
+    from: merge/outDS
+
+steps:
+  top:
+    type: prun
+    args: --outputs seed.txt --nJobs 3 --avoidVP
+    exec: "echo %RNDM:10 > seed.txt"
+
+  sig_bg_comb:
+    type: workflow
+    inputs:
+      signal: "mc16_valid:mc16_valid.900248.PG_singlepion_flatPt2to50.simul.HITS.e8312_s3238_tid26378578_00"
+      background: "mc16_5TeV.361238.Pythia8EvtGen_A3NNPDF23LO_minbias_inelastic_low.merge.HITS.e6446_s3238_s3250/"
+    outputs:
+      outDS:
+        from: combine/outDS
+        output_types:
+          - aaa.root
+    steps:
+      make_signal:
+        type: prun
+        inDS: "{signal}"
+        containerImage: docker://busybox
+        exec: "echo %IN > abc.dat; echo 123 > def.zip"
+        args: "--outputs abc.dat,def.zip --nFilesPerJob 5"
+
+      make_background_1:
+        type: prun
+        inDS: "{background}"
+        exec: "echo %IN > opq.root; echo %IN > xyz.pool"
+        args: "--outputs opq.root,xyz.pool --nGBPerJob 10"
+
+      generate_some:
+        type: prun
+        exec: "echo %RNDM:10 > gen.root"
+        args: "--outputs gen.root --nJobs 10"
+
+      premix:
+        type: prun
+        inDS: make_signal/outDS
+        inDsType: def.zip
+        secondaryDSs:
+          - make_background_1/outDS
+        secondaryDsTypes:
+          - xyz.pool
+        exec: "echo %IN %IN2 > klm.root"
+        args: "--outputs klm.root --secondaryDSs IN2:13:%{SECDS1}"
+
+      make_background_2:
+        type: prun
+        inDS: "{background}"
+        containerImage: docker://alpine
+        secondaryDSs:
+          - generate_some/outDS
+        secondaryDsTypes:
+          - gen.root
+        exec: "echo %IN > ooo.root; echo %IN2 > jjj.txt"
+        args: "--outputs ooo.root,jjj.txt --secondaryDSs IN2:10:%{SECDS1}"
+
+      combine:
+        type: prun
+        inDS: make_signal/outDS
+        inDsType: abc.dat
+        secondaryDSs:
+          - premix/outDS
+          - make_background_2/outDS
+        secondaryDsTypes:
+          - klm.root
+          - ooo.root
+        exec: "echo %IN %IN2 %IN3 > aaa.root"
+        args: "--outputs aaa.root --secondaryDSs IN2:2:%{SECDS1},IN3:5:%{SECDS2}"
+
+  bottom:
+    type: prun
+    inDS: sig_bg_comb/outDS
+    secondaryDSs:
+      - top/outDS
+    secondaryDsTypes:
+      - seed.txt
+    args: --outputs results.root --forceStaged --avoidVP
+    exec: "echo %IN %IN2 > results.root"

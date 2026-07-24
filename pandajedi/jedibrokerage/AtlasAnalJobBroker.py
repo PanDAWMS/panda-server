@@ -23,6 +23,7 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 APP = "jedi"
 COMPONENT = "jobbroker"
+ANALYSIS_COMPONENT = "anal_jobbroker"
 VO = "atlas"
 
 
@@ -150,12 +151,12 @@ class AtlasAnalJobBroker(JobBrokerBase):
             # not use MCORE
             useMP = "unuse"
         # get statistics of failures
-        timeWindowForFC = self.taskBufferIF.getConfigValue("anal_jobbroker", "TW_DONE_JOB_STAT", "jedi", taskSpec.vo)
+        timeWindowForFC = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "TW_DONE_JOB_STAT", "jedi", taskSpec.vo)
         if timeWindowForFC is None:
             timeWindowForFC = 6
 
         # get minimum bad jobs to skip PQ
-        minBadJobsToSkipPQ = self.taskBufferIF.getConfigValue("anal_jobbroker", "MIN_BAD_JOBS_TO_SKIP_PQ", "jedi", taskSpec.vo)
+        minBadJobsToSkipPQ = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "MIN_BAD_JOBS_TO_SKIP_PQ", "jedi", taskSpec.vo)
         if minBadJobsToSkipPQ is None:
             minBadJobsToSkipPQ = 5
 
@@ -250,38 +251,40 @@ class AtlasAnalJobBroker(JobBrokerBase):
         user_analyis_throttle_intensity_A = 1.0
 
         # parameters about Analysis Stabilizer
-        base_queue_length_per_pq = self.taskBufferIF.getConfigValue("anal_jobbroker", "BASE_QUEUE_LENGTH_PER_PQ", "jedi", taskSpec.vo)
+        base_queue_length_per_pq = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "BASE_QUEUE_LENGTH_PER_PQ", "jedi", taskSpec.vo)
         if base_queue_length_per_pq is None:
             base_queue_length_per_pq = 100
-        base_expected_wait_hour_on_pq = self.taskBufferIF.getConfigValue("anal_jobbroker", "BASE_EXPECTED_WAIT_HOUR_ON_PQ", "jedi", taskSpec.vo)
+        base_expected_wait_hour_on_pq = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "BASE_EXPECTED_WAIT_HOUR_ON_PQ", "jedi", taskSpec.vo)
         if base_expected_wait_hour_on_pq is None:
             base_expected_wait_hour_on_pq = 8
-        base_default_queue_length_per_pq_user = self.taskBufferIF.getConfigValue("anal_jobbroker", "BASE_DEFAULT_QUEUE_LENGTH_PER_PQ_USER", "jedi", taskSpec.vo)
+        base_default_queue_length_per_pq_user = self.taskBufferIF.getConfigValue(
+            ANALYSIS_COMPONENT, "BASE_DEFAULT_QUEUE_LENGTH_PER_PQ_USER", "jedi", taskSpec.vo
+        )
         if base_default_queue_length_per_pq_user is None:
             base_default_queue_length_per_pq_user = 5
-        base_queue_ratio_on_pq = self.taskBufferIF.getConfigValue("anal_jobbroker", "BASE_QUEUE_RATIO_ON_PQ", "jedi", taskSpec.vo)
+        base_queue_ratio_on_pq = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "BASE_QUEUE_RATIO_ON_PQ", "jedi", taskSpec.vo)
         if base_queue_ratio_on_pq is None:
             base_queue_ratio_on_pq = 0.05
-        static_max_queue_running_ratio = self.taskBufferIF.getConfigValue("anal_jobbroker", "STATIC_MAX_QUEUE_RUNNING_RATIO", "jedi", taskSpec.vo)
+        static_max_queue_running_ratio = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "STATIC_MAX_QUEUE_RUNNING_RATIO", "jedi", taskSpec.vo)
         if static_max_queue_running_ratio is None:
             static_max_queue_running_ratio = 2.0
-        max_expected_wait_hour = self.taskBufferIF.getConfigValue("anal_jobbroker", "MAX_EXPECTED_WAIT_HOUR", "jedi", taskSpec.vo)
+        max_expected_wait_hour = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "MAX_EXPECTED_WAIT_HOUR", "jedi", taskSpec.vo)
         if max_expected_wait_hour is None:
             max_expected_wait_hour = 12.0
 
-        max_missing_input_files = self.taskBufferIF.getConfigValue("jobbroker", "MAX_MISSING_INPUT_FILES", "jedi", taskSpec.vo)
+        max_missing_input_files = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "MAX_MISSING_INPUT_FILES", "jedi", taskSpec.vo)
         if max_missing_input_files is None:
             max_missing_input_files = 10
-        min_input_completeness = self.taskBufferIF.getConfigValue("jobbroker", "MIN_INPUT_COMPLETENESS", "jedi", taskSpec.vo)
+        min_input_completeness = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "MIN_INPUT_COMPLETENESS", "jedi", taskSpec.vo)
         if min_input_completeness is None:
             min_input_completeness = 90
 
         # minimum brokerage weight
         min_weight_param = f"MIN_WEIGHT_{taskSpec.prodSourceLabel}_{taskSpec.gshare}"
-        min_weight = self.taskBufferIF.getConfigValue("jobbroker", min_weight_param, "jedi", taskSpec.vo)
+        min_weight = self.taskBufferIF.getConfigValue(COMPONENT, min_weight_param, "jedi", taskSpec.vo)
         if min_weight is None:
             min_weight_param = f"MIN_WEIGHT_{taskSpec.prodSourceLabel}"
-            min_weight = self.taskBufferIF.getConfigValue("jobbroker", min_weight_param, "jedi", taskSpec.vo)
+            min_weight = self.taskBufferIF.getConfigValue(COMPONENT, min_weight_param, "jedi", taskSpec.vo)
         if min_weight is None:
             min_weight = 0
 
@@ -362,11 +365,11 @@ class AtlasAnalJobBroker(JobBrokerBase):
 
         # IO intensity cutoff in kB/sec to allow input transfers
         io_intensity_key = "IO_INTENSITY_CUTOFF_USER"
-        io_intensity_cutoff = self.taskBufferIF.getConfigValue("anal_jobbroker", io_intensity_key, "jedi", taskSpec.vo)
+        io_intensity_cutoff = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, io_intensity_key, "jedi", taskSpec.vo)
 
         # timelimit for data locality check
         loc_check_timeout_key = "DATA_CHECK_TIMEOUT_USER"
-        loc_check_timeout_val = self.taskBufferIF.getConfigValue("anal_jobbroker", loc_check_timeout_key, "jedi", taskSpec.vo)
+        loc_check_timeout_val = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, loc_check_timeout_key, "jedi", taskSpec.vo)
 
         # check input datasets
         element_map = dict()
@@ -1175,8 +1178,17 @@ class AtlasAnalJobBroker(JobBrokerBase):
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
             msg_map = {}
+            # free space
+            diskThreshold_in = self.taskBufferIF.getConfigValue(COMPONENT, "STORAGE_MIN_FREE_SIZE", "jedi", taskSpec.vo)
+            if not diskThreshold_in:
+                # default to 200GB if not set in config
+                diskThreshold_in = 200
+            diskThreshold_out = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "STORAGE_MIN_FREE_SIZE_OUTPUT", "jedi", taskSpec.vo)
+            if not diskThreshold_out:
+                # default to 200GB if not set in config
+                diskThreshold_out = 200
             for tmpSiteName in self.get_unified_sites(scanSiteList):
-                # check endpoint
+                # check output endpoint
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.ANALY_PS, JobUtils.ANALY_PS)
                 if scope_output not in tmpSiteSpec.ddm_endpoints_output:
@@ -1184,18 +1196,27 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     continue
                 tmp_output_endpoint = tmpSiteSpec.ddm_endpoints_output[scope_output].getEndPoint(tmpSiteSpec.ddm_output[scope_output])
                 if tmp_output_endpoint is not None:
-                    # free space must be >= 200GB
-                    diskThreshold = 200
-                    tmpSpaceSize = 0
-                    if tmp_output_endpoint["space_expired"] is not None:
-                        tmpSpaceSize += tmp_output_endpoint["space_expired"]
-                    if tmp_output_endpoint["space_free"] is not None:
-                        tmpSpaceSize += tmp_output_endpoint["space_free"]
-                    if (
-                        tmpSpaceSize < diskThreshold and "skip_RSE_check" not in tmpSiteSpec.catchall
-                    ):  # skip_RSE_check: exceptional bypass of RSEs without storage reporting
-                        msg_map[tmpSiteName] = f"  skip site={tmpSiteName} due to disk shortage in SE {tmpSpaceSize} < {diskThreshold}GB criteria=-disk"
+                    tmp_space_size = tmp_output_endpoint["space_usable"]
+                    if tmp_space_size < diskThreshold_out:
+                        msg_map[tmpSiteName] = (
+                            f"  skip site={tmpSiteName} due to output disk shortage in SE {tmp_space_size} < {diskThreshold_out}GB criteria=-disk"
+                        )
                         continue
+                # check input endpoint to transfer input when data locality is not required
+                if not checkDataLocality:
+                    if scope_input not in tmpSiteSpec.ddm_endpoints_input:
+                        msg_map[tmpSiteName] = f"  skip site={tmpSiteName} since {scope_input} input endpoint undefined criteria=-disk"
+                        continue
+                    # check only when input and output endpoints are different
+                    if tmpSiteSpec.ddm_output[scope_output] != tmpSiteSpec.ddm_input[scope_input]:
+                        tmp_input_endpoint = tmpSiteSpec.ddm_endpoints_input[scope_input].getEndPoint(tmpSiteSpec.ddm_input[scope_input])
+                        if tmp_input_endpoint is not None:
+                            tmp_space_size = tmp_input_endpoint["space_usable"]
+                            if tmp_space_size < diskThreshold_in:
+                                msg_map[tmpSiteName] = (
+                                    f"  skip site={tmpSiteName} due to input disk shortage in SE {tmp_space_size} < {diskThreshold_in}GB criteria=-disk"
+                                )
+                                continue
                 # check if blacklisted
                 tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available)
                 if tmp_msg is not None:
@@ -1332,7 +1353,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     if siteMaxTime != 0 and siteMaxTime < minTimeForZeroWalltime:
                         tmpMsg = f"  skip site={tmpSiteName} due to site walltime {tmpSiteStr} (site upper limit) insufficient "
                         if inputChunk.useScout():
-                            tmpMsg += f"for scout jobs (requireing {str_minTimeForZeroWalltime} at least) "
+                            tmpMsg += f"for scout jobs (requiring {str_minTimeForZeroWalltime} at least) "
                             tmpMsg += "criteria=-scout_walltime"
                         else:
                             tmpMsg += f"for merge or walltime-undefined jobs (requiring {str_minTimeForZeroWalltime} at least) "
@@ -1525,10 +1546,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 msg_map = {}
                 msgList = []
                 msgListVP = []
-                minQueue = self.taskBufferIF.getConfigValue("anal_jobbroker", "OVERLOAD_MIN_QUEUE", "jedi", taskSpec.vo)
+                minQueue = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "OVERLOAD_MIN_QUEUE", "jedi", taskSpec.vo)
                 if minQueue is None:
                     minQueue = 20
-                ratioOffset = self.taskBufferIF.getConfigValue("anal_jobbroker", "OVERLOAD_RATIO_OFFSET", "jedi", taskSpec.vo)
+                ratioOffset = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "OVERLOAD_RATIO_OFFSET", "jedi", taskSpec.vo)
                 if ratioOffset is None:
                     ratioOffset = 1.2
                 grandRatio = AtlasBrokerUtils.get_total_nq_nr_ratio(jobStatPrioMap, taskSpec.gshare)

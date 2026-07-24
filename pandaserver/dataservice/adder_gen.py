@@ -758,8 +758,11 @@ class AdderGen:
                     full_lfn_map[lfn] = full_lfn
         except Exception:
             exc_type, value, _ = sys.exc_info()
-            self.logger.warning("Issue with parsing JSON")
-            self.logger.error(f"{exc_type} {value}")
+            if self.data is None:
+                self.logger.warning("Job Output Report is empty")
+            else:
+                self.logger.warning("Issue with parsing Job Output Report")
+                self.logger.error(f"{exc_type} {value}")
             # set failed anyway
             self.job.jobStatus = "failed"
             # JSON error happens when pilot got killed due to wall-time limit or failures in wrapper

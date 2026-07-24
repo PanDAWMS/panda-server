@@ -45,6 +45,12 @@ def merge_job_params(base_params, io_params):
 class Node(object):
     def __init__(self, id, node_type, data, is_leaf, name):
         self.id = id
+        # Per-workflow-scope sequence number (starts at 1), assigned in resolve_nodes.
+        # Used only for building output dataset names. node.id stays unique within a single
+        # parsed definition (the graph key used in id maps / parents / sub_nodes); it is not
+        # unique across scatter iterations, which are separate workflows built later from the
+        # same template. Independent scopes (each sub-workflow, each scatter template) restart at 1.
+        self.member_id = None
         self.type = node_type
         self.data = data
         self.is_leaf = is_leaf
@@ -65,8 +71,18 @@ class Node(object):
         self.in_loop = False
         self.upper_root_inputs = None
         self.workflow_ref = None  # path or named block reference for type="workflow" nodes
+        # True for native (parse_workflow_data) type="workflow" orchestration nodes: they own an
+        # output dataset and submit a child workflow at runtime. CWL/snakemake sub-workflow nodes
+        # are built by other parsers and stay False, keeping the transparent recursion semantics.
+        self.is_sub_workflow = False
         self.scatter_inputs = None  # {param_name: [val1, val2, ...]} resolved at parse time; None if not a scatter step
         self.scatter_mode = None  # scatter mode string, e.g. "zip"
+        # Raw root_outputs from the referenced child YAML (set before resolve_nodes, resolved after).
+        # Used so scatter templates can use the child YAML's actual tail-step output values instead
+        # of the parent scatter step's pre-baked container name (which is never created for
+        # panda_task-only child workflows).
+        self.child_root_outputs_raw = None
+        self.child_root_outputs = None
 
     def add_parent(self, id):
         self.parents.add(id)
@@ -255,7 +271,9 @@ class Node(object):
                         v.setdefault("requirements", {})["requires_complete"] = True
         if self.is_leaf and task_template:
             self.task_params = self.make_task_params(task_template, id_map, workflow)
-        if self.scatter_inputs is None:
+        # only recurse into nested Node objects (CWL/snakemake); native sub-workflow steps hold
+        # resolved int IDs and are processed directly as part of the flat node list
+        if _sub_nodes_are_objects(self.sub_nodes):
             [n.resolve_params(task_template, id_map, self) for n in self.sub_nodes]
 
     # create task params
@@ -526,7 +544,9 @@ class Node(object):
         if all_ids is None:
             all_ids = set()
         all_ids.add(self.id)
-        if self.scatter_inputs is None:
+        # only nested Node objects (CWL/snakemake) carry .id; native sub-workflow steps hold
+        # resolved int IDs already accounted for in the flat node list
+        if _sub_nodes_are_objects(self.sub_nodes):
             for sub_node in self.sub_nodes:
                 all_ids.add(sub_node.id)
                 if not sub_node.is_leaf:
@@ -576,6 +596,14 @@ class Node(object):
         return list_in_ds
 
 
+def _sub_nodes_are_objects(sub_nodes):
+    # After resolve_nodes, a native sub-workflow node stores its children as resolved int IDs
+    # (the children are spliced into the flat node list and processed there). CWL/snakemake
+    # sub-workflows instead keep their children as nested Node objects. Recurse only into the
+    # latter; iterating int IDs as if they were nodes would crash.
+    return bool(sub_nodes) and all(isinstance(n, Node) for n in sub_nodes)
+
+
 # dump nodes
 def dump_nodes(node_list, dump_str=None, only_leaves=False):
     if dump_str is None:
@@ -589,7 +617,7 @@ def dump_nodes(node_list, dump_str=None, only_leaves=False):
         else:
             if not only_leaves:
                 dump_str += f"{node}\n"
-            if node.scatter_inputs is None:
+            if _sub_nodes_are_objects(node.sub_nodes):
                 dump_str = dump_nodes(node.sub_nodes, dump_str, only_leaves)
     return dump_str
 
@@ -600,7 +628,9 @@ def get_node_id_map(node_list, id_map=None):
         id_map = {}
     for node in node_list:
         id_map[node.id] = node
-        if node.sub_nodes and node.scatter_inputs is None:
+        # native sub-workflow children are flat int IDs (already in node_list); only recurse into
+        # nested Node objects (CWL/snakemake)
+        if _sub_nodes_are_objects(node.sub_nodes):
             id_map = get_node_id_map(node.sub_nodes, id_map)
     return id_map
 
@@ -611,8 +641,9 @@ def get_all_parents(node_list, all_parents=None):
         all_parents = set()
     for node in node_list:
         all_parents |= node.parents
-        # scatter workflow nodes store integer IDs in sub_nodes (resolved at runtime); skip recursion
-        if node.sub_nodes and node.scatter_inputs is None:
+        # native sub-workflow nodes store resolved int IDs in sub_nodes (children are flat); only
+        # recurse into nested Node objects (CWL/snakemake)
+        if _sub_nodes_are_objects(node.sub_nodes):
             all_parents = get_all_parents(node.sub_nodes, all_parents)
     return all_parents
 
@@ -624,8 +655,9 @@ def set_workflow_outputs(node_list, all_parents=None):
     for node in node_list:
         if node.is_leaf and node.id not in all_parents:
             node.is_workflow_output = True
-        # scatter workflow nodes store integer IDs in sub_nodes (resolved at runtime); skip recursion
-        if node.sub_nodes and node.scatter_inputs is None:
+        # native sub-workflow nodes store resolved int IDs in sub_nodes (children are flat); only
+        # recurse into nested Node objects (CWL/snakemake)
+        if _sub_nodes_are_objects(node.sub_nodes):
             set_workflow_outputs(node.sub_nodes, all_parents)
 
 
@@ -671,6 +703,18 @@ def set_workflow_outputs(node_list, all_parents=None):
 
 # resolve nodes
 def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_name, log_stream):
+    # member_id is a per-call sequence (starts at 1) used only for output dataset names. node.id
+    # stays unique within this parsed definition; across scatter iterations it repeats, since each
+    # iteration is a separate workflow built later from this template.
+    #
+    # member_counter is local to this call, so each recursive resolve_nodes scope (an inline
+    # sub-workflow, or a scatter parent's child template) restarts member_id at 1 naturally.
+    member_counter = [0]
+
+    def _next_member():
+        member_counter[0] += 1
+        return member_counter[0]
+
     for k in root_inputs:
         kk = k.split("#")[-1]
         if kk in data:
@@ -680,6 +724,13 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
     # map of object identity to original temporary node ID used in resolved_map keys
     node_key_map = {}
     all_nodes = []
+    # Resolved sub-workflow template children, spliced into all_nodes after the tail computation
+    # below (they belong to a recursive scope, so they have no resolved_map entry in this call).
+    sub_workflow_child_nodes = []
+    # Inline (steps-based) sub-workflow nodes whose int-id sub_nodes reference children resolved in
+    # THIS call (merged into node_list at parse time). Their sub_nodes are remapped from parse-time
+    # ids to resolved ids after the full id map is built (see remap pass below).
+    inline_sub_workflow_nodes = []
     for node in node_list:
         # resolve input
         for tmp_name, tmp_data in node.inputs.items():
@@ -763,14 +814,17 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             sc_node.parents = real_parens
             if sc_node.is_head:
                 sc_node.parents |= parent_ids
-            # scatter workflow nodes are resolved at runtime (instantiate_scatter_workflow);
-            # sub_nodes holds integer IDs (not Node objects) at this stage, so skip recursion
+            # A native sub-workflow node (scatter, workflow_ref, or inline steps) owns no task
+            # itself; it is an orchestration step that gets its own output dataset and submits a
+            # child workflow at runtime. Any Node-object child template it carries is resolved in
+            # its own recursive scope below (see sub-workflow-child block). Here it is treated like
+            # a leaf so it gets a serial id, a member_id in this scope, and its own output dataset
+            # name. CWL/snakemake sub-workflow nodes (is_sub_workflow False) keep the transparent
+            # recursion semantics: they own no dataset and expose their child tail outputs directly.
             is_scatter_workflow = sc_node.scatter_inputs is not None
-            if sc_node.is_leaf or is_scatter_workflow:
+            if sc_node.is_leaf or sc_node.is_sub_workflow:
                 resolved_map[original_node_id].append(sc_node)
                 tmp_to_real_id_map[original_node_id].add(serial_id)
-                sc_node.id = serial_id
-                serial_id += 1
             else:
                 serial_id, sub_tail_nodes, sc_node.sub_nodes = resolve_nodes(
                     sc_node.sub_nodes,
@@ -783,32 +837,71 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                 )
                 resolved_map[original_node_id] += sub_tail_nodes
                 tmp_to_real_id_map[original_node_id] |= set([n.id for n in sub_tail_nodes])
-                sc_node.id = serial_id
-                serial_id += 1
+            # assign this node's serial id and per-call member_id (common to both branches)
+            sc_node.id = serial_id
+            sc_node.member_id = _next_member()
+            serial_id += 1
             # convert parameters to parent IDs in conditions
             # TODO: condition features not yet implemented
             if sc_node.condition:
                 pass
                 # convert_params_in_condition_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
             # resolve outputs
-            if sc_node.is_leaf or is_scatter_workflow:
+            if sc_node.is_leaf or sc_node.is_sub_workflow:
                 for tmp_name, tmp_data in sc_node.outputs.items():
-                    tmp_data["value"] = f"{out_ds_name}_{sc_node.id:03d}_{sc_node.name}"
+                    tmp_data["value"] = f"{out_ds_name}_{sc_node.member_id:03d}_{sc_node.name}"
                     # add loop count for nodes in a loop
                     if sc_node.in_loop:
                         tmp_data["value"] += ".___idds___num_run___"
-    # Remap sub_nodes for scatter workflow nodes from pre-resolve IDs to post-resolve serial IDs.
-    # parents is already remapped above via tmp_to_real_id_map; sub_nodes needs the same treatment
-    # so that extract_child_workflow_definition can look up child nodes by their new serial IDs.
-    for node in all_nodes:
-        if node.scatter_inputs is not None and node.sub_nodes:
-            new_sub_ids = set()
-            for old_id in node.sub_nodes:
-                if old_id in tmp_to_real_id_map:
-                    new_sub_ids |= tmp_to_real_id_map[old_id]
+            # Resolve a native sub-workflow node's child template in its own recursive scope.
+            # sub_nodes holds the child Node objects (a topo-sorted list) parsed from the referenced
+            # workflow; the recursion restarts member_id at 1, threads serial_id so child ids stay
+            # globally unique, and resolves the children as if they were top-level steps. The
+            # resolved children are spliced back into this flat node list and sub_nodes is replaced
+            # with their real ids, which extract_child_workflow_definition and the runtime sub-
+            # workflow dispatch look up. Inline (steps-based) sub-workflows keep their int-id
+            # sub_nodes -- their children are already merged into the flat node list at parse time.
+            if sc_node.is_sub_workflow and _sub_nodes_are_objects(sc_node.sub_nodes):
+                if is_scatter_workflow:
+                    # scatter children are dispatched per-item at runtime against the parent's inputs
+                    child_root_inputs, child_data, child_parent_ids = root_inputs, data, parent_ids
+                    # keep the bare prefix: submit_sub_workflow applies the per-iteration
+                    # "_{parent_member:03d}s{N}" scatter prefix (e.g. "_001s1_003") at runtime
+                    child_out_ds_name = out_ds_name
                 else:
-                    new_sub_ids.add(old_id)
-            node.sub_nodes = new_sub_ids
+                    # a plain sub-workflow resolves its template against its own declared inputs
+                    child_root_inputs = sc_node.root_inputs or {}
+                    child_data = sc_node.convert_dict_inputs()
+                    child_parent_ids = sc_node.parents
+                    # Embed this sub-workflow step's own member_id into the prefix so child
+                    # dataset names reflect the hierarchy: e.g. the parent step
+                    # "_002_sig_bg_comb" yields children "_002_001_make_signal",
+                    # "_002_002_make_background_1", .... Deeper nesting appends further
+                    # segments naturally (e.g. "_002_007_001_...").
+                    child_out_ds_name = f"{out_ds_name}_{sc_node.member_id:03d}"
+                serial_id, _child_tails, child_nodes = resolve_nodes(
+                    list(sc_node.sub_nodes),
+                    child_root_inputs,
+                    child_data,
+                    serial_id,
+                    child_parent_ids,
+                    child_out_ds_name,
+                    log_stream,
+                )
+                sub_workflow_child_nodes.extend(child_nodes)
+                sc_node.sub_nodes = {child.id for child in child_nodes}
+            elif sc_node.is_sub_workflow and sc_node.sub_nodes:
+                # inline (steps-based) sub-workflow: its children were merged into this node_list
+                # and are resolved here as top-level nodes; their parse-time ids in sub_nodes must
+                # be remapped to resolved ids once the full id map is available (see remap below).
+                inline_sub_workflow_nodes.append(sc_node)
+    # Remap inline sub-workflow nodes' parse-time child ids to resolved ids now that every node in
+    # this scope has an entry in tmp_to_real_id_map.
+    for sc_node in inline_sub_workflow_nodes:
+        remapped = set()
+        for old_id in sc_node.sub_nodes:
+            remapped |= tmp_to_real_id_map.get(old_id, set())
+        sc_node.sub_nodes = remapped
     # return tails
     tail_nodes = []
     for node in all_nodes:
@@ -817,6 +910,9 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             tail_nodes.append(node)
         else:
             tail_nodes += resolved_map[original_node_id]
+    # Splice resolved sub-workflow template children into the flat node list now that tails are
+    # computed; they are template steps (never workflow tails) and keep their own resolved ids.
+    all_nodes.extend(sub_workflow_child_nodes)
     return serial_id, tail_nodes, all_nodes
 
 
@@ -893,16 +989,37 @@ def parse_workflow_data(data, log_stream, _id_counter=None):
 
         # handle sub-workflow nodes
         if step_type == "workflow":
+            # native orchestration node: owns an outDS and submits a child workflow at runtime
+            node.is_sub_workflow = True
             node.root_inputs = step_spec.get("inputs", {})
             if "scatter_inputs" in step_spec:
                 # Store raw name references; caller (parse_raw_request) resolves to actual value lists
                 node.scatter_inputs = step_spec.get("scatter_inputs", {})
                 node.scatter_mode = step_spec.get("scatter_mode", "zip")
             if "steps" in step_spec:
-                # inline sub-workflow: recursively parse the nested steps block
-                child_nodes, _ = parse_workflow_data(step_spec, log_stream, _id_counter=_id_counter)
-                node.sub_nodes = {child_node.id for child_node in child_nodes}
-                all_child_nodes.extend(child_nodes)
+                # inline sub-workflow: recursively parse the nested steps block. Treat it exactly
+                # like a reference-based sub-workflow (shape B): keep the children as Node objects on
+                # sub_nodes -- a topologically-sorted list, NOT flattened into the outer node list --
+                # so resolve_nodes resolves them in their own recursive scope against this node's own
+                # inputs. Without this, the inline children would be resolved as top-level siblings
+                # and their {name} references would bind to the outer workflow's inputs instead of
+                # the sub-workflow's own declared inputs.
+                child_nodes, child_root_in = parse_workflow_data(step_spec, log_stream, _id_counter=_id_counter)
+                # Input resolution mirrors the ref-based path:
+                #  - scatter: the parent's scatter inputs replace the corresponding child inputs per
+                #    iteration at runtime, so the template's own declared inputs are not used here.
+                #  - ordinary: the inline sub-workflow uses its own declared inputs (defaults), with
+                #    the node's explicit inputs overriding them.
+                if not node.scatter_inputs:
+                    node.root_inputs = {**(child_root_in or {}), **(node.root_inputs or {})}
+                node.sub_nodes = child_nodes
+                # child nodes are template steps within the sub-workflow; clear is_tail so they do
+                # not appear as tail nodes of the outer workflow
+                for child_node in child_nodes:
+                    child_node.is_tail = False
+                # Stash the raw root_outputs from the inline block so they can be resolved to actual
+                # values after resolve_nodes assigns IDs (mirrors the ref-based path in the parser).
+                node.child_root_outputs_raw = step_spec.get("outputs", {})
             elif "workflow_ref" in step_spec:
                 # reference-based sub-workflow: mark for later resolution by the caller
                 node.workflow_ref = step_spec["workflow_ref"]

@@ -254,11 +254,81 @@ class WorkflowModule(BaseModule):
             tmp_log.warning("no data found; skipped")
             return []
 
-    def query_workflows(
+    def query_workflows_old(
         self, status_filter_list: list | None = None, status_exclusion_list: list | None = None, check_interval_sec: int = 300
     ) -> list[WorkflowSpec]:
         """
         Retrieve list of workflows with optional status filtering
+
+        DEPRECATED: this is the original flat-ordering implementation, kept for reference and
+        as a fallback. It returns workflows ordered solely by (check_time, creation_time) with
+        no awareness of sub-workflow nesting, so a parent workflow may be processed before its
+        children within the same check cycle, deferring upward status propagation by up to one
+        cycle per level of nesting. Use query_workflows() instead, which groups each main
+        workflow with its (nested) sub-workflows and orders the deepest sub-workflows first so
+        a child's status change reaches its parent within the same cycle.
+
+        Args:
+            status_filter_list (list | None): List of statuses to filter the workflows by (optional)
+            status_exclusion_list (list | None): List of statuses to exclude the workflows by (optional)
+            check_interval_sec (int): Time in seconds to wait between checks (default: 300)
+
+        Returns:
+            list[WorkflowSpec]: List of workflow specifications
+        """
+        comment = " /* DBProxy.query_workflows_old */"
+        tmp_log = self.create_tagged_logger(comment, "query_workflows_old")
+        tmp_log.debug(f"start, status_filter_list={status_filter_list} status_exclusion_list={status_exclusion_list} check_interval_sec={check_interval_sec}")
+        sql = f"SELECT {WorkflowSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflows " f"WHERE (check_time IS NULL OR check_time<:check_time) "
+        now_time = naive_utcnow()
+        var_map = {":check_time": now_time - timedelta(seconds=check_interval_sec)}
+        if status_filter_list:
+            status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
+            sql += f"AND status IN ({status_var_names_str}) "
+            var_map.update(status_var_map)
+        if status_exclusion_list:
+            antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
+            sql += f"AND status NOT IN ({antistatus_var_names_str}) "
+            var_map.update(antistatus_var_map)
+        sql += "ORDER BY check_time, creation_time "
+        self.cur.execute(sql + comment, var_map)
+        res_list = self.cur.fetchall()
+        if res_list is not None:
+            workflow_specs = []
+            for res in res_list:
+                workflow_spec = WorkflowSpec()
+                workflow_spec.pack(res)
+                workflow_specs.append(workflow_spec)
+            tmp_log.debug(f"got {len(workflow_specs)} workflows")
+            return workflow_specs
+        else:
+            tmp_log.warning("no workflows found; skipped")
+            return []
+
+    def query_workflows(
+        self, status_filter_list: list | None = None, status_exclusion_list: list | None = None, check_interval_sec: int = 300
+    ) -> list[WorkflowSpec]:
+        """
+        Retrieve list of workflows with optional status filtering, ordered for efficient
+        sub-workflow processing.
+
+        Workflows are returned grouped by their top-level (main) workflow and, within each
+        group, with the deepest (most nested) sub-workflows first. Because process_active_workflows
+        iterates this list sequentially and persists each status change to the DB, ordering
+        children ahead of their parents lets a child's status change be picked up by its parent's
+        check within the same cycle, instead of one cycle later per nesting level.
+
+        Ordering is implemented with an Oracle CONNECT BY hierarchy:
+          - START WITH parent_id IS NULL ... CONNECT BY PRIOR workflow_id = parent_id builds the
+            full main->sub-workflow tree.
+          - CONNECT_BY_ROOT check_time / creation_time are the main workflow's timestamps, so each
+            tree sorts contiguously and trees are ranked by their main workflow's (check_time,
+            creation_time) exactly as the flat ordering did for non-nested workflows.
+          - LEVEL DESC orders within a tree deepest-first (the main workflow, LEVEL 1, comes last).
+        The status/check_time filters stay in the WHERE clause and are applied as post-filters
+        after the hierarchy is built, so LEVEL and CONNECT_BY_ROOT are computed against the true
+        full tree (even if an intermediate parent is itself filtered out) while the exact set of
+        returned rows is unchanged from query_workflows_old() -- only their order differs.
 
         Args:
             status_filter_list (list | None): List of statuses to filter the workflows by (optional)
@@ -282,7 +352,11 @@ class WorkflowModule(BaseModule):
             antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
             sql += f"AND status NOT IN ({antistatus_var_names_str}) "
             var_map.update(antistatus_var_map)
-        sql += "ORDER BY check_time, creation_time "
+        # Build the main->sub-workflow hierarchy and order it: trees ranked by the main workflow's
+        # (check_time, creation_time), and within each tree the deepest sub-workflows first.
+        sql += "START WITH parent_id IS NULL "
+        sql += "CONNECT BY PRIOR workflow_id = parent_id "
+        sql += "ORDER BY CONNECT_BY_ROOT check_time, CONNECT_BY_ROOT creation_time, CONNECT_BY_ROOT workflow_id, LEVEL DESC, creation_time "
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
         if res_list is not None:

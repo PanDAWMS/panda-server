@@ -90,9 +90,6 @@ def main(tbuf=None, **kwargs):
                         tag = ops.get("jediTaskID")
                         if tag:
                             tag = f"< jediTaskID={tag} >"
-                        else:
-                            tag = ops.get("dataset")
-                            tag = f"< dataset={tag} >"
                         tmp_log = LogWrapper(_logger, tag)
                         tmp_log.info(f"start {self.fileName}")
                         s, o = RecoverLostFilesCore.main(self.taskBuffer, ops, tmp_log)

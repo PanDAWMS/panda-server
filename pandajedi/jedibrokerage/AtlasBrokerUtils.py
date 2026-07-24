@@ -1113,8 +1113,10 @@ class JsonSoftwareCheck:
                                     continue
 
                             # check VRAM (in MB); supports operators: ==, >=, <=, >, <, != (e.g. ">=40960")
+                            # all() ensures every GPU entry in the queue meets the minimum — prevents brokering to
+                            # mixed sites where some nodes fall below the requirement
                             if "vram" in host_gpu_spec:
-                                if not wn_gpus or not any(g.get("vram") and compare_version_string(str(g["vram"]), host_gpu_spec["vram"]) for g in wn_gpus):
+                                if not wn_gpus or not all(g.get("vram") and compare_version_string(str(g["vram"]), host_gpu_spec["vram"]) for g in wn_gpus):
                                     continue
 
                             # check GPU microarchitecture generation (e.g. Ampere, Hopper, Ada Lovelace)
@@ -1126,15 +1128,19 @@ class JsonSoftwareCheck:
                                     continue
 
                             # check minimum CUDA version
+                            # all() ensures every GPU entry in the queue meets the minimum — prevents brokering to
+                            # mixed sites where some nodes fall below the requirement
                             if "version" in host_gpu_spec:
-                                if not wn_gpus or not any(
+                                if not wn_gpus or not all(
                                     g.get("framework_version") and compare_version_string(g["framework_version"], host_gpu_spec["version"]) for g in wn_gpus
                                 ):
                                     continue
 
                             # check minimum GPU driver version (kernel driver, e.g. 575.57.08)
+                            # all() ensures every GPU entry in the queue meets the minimum — prevents brokering to
+                            # mixed sites where some nodes fall below the requirement
                             if "driver_version" in host_gpu_spec:
-                                if not wn_gpus or not any(
+                                if not wn_gpus or not all(
                                     g.get("driver_version") and compare_version_string(g["driver_version"], host_gpu_spec["driver_version"]) for g in wn_gpus
                                 ):
                                     continue
@@ -1237,7 +1243,8 @@ def resolve_cmt_config(queue_name: str, cmt_config: str, base_platform, sw_map: 
 
 
 def check_endpoints_with_blacklist(
-    site_spec: SiteSpec.SiteSpec, scope_input: str, scope_output: str, sites_in_nucleus: list, remote_source_available: bool
+    site_spec: SiteSpec.SiteSpec, scope_input: str, scope_output: str, sites_in_nucleus: list, remote_source_available: bool,
+    storage_type: str = None, complete_replica_locations: set = None
 ) -> str | None:
     """
     Check if site's endpoints are in the blacklist
@@ -1247,6 +1254,8 @@ def check_endpoints_with_blacklist(
     :param scope_output: output scope
     :param sites_in_nucleus: list of sites in nucleus
     :param remote_source_available: if remote source is available
+    :param storage_type: type of storage
+    :param complete_replica_locations: set of locations with complete replicas for all datasets
 
     :return: description of blacklisted reason or None
     """
@@ -1258,22 +1267,26 @@ def check_endpoints_with_blacklist(
     tmp_site_name = site_spec.sitename
     if scope_input in site_spec.ddm_endpoints_input:
         for tmp_input_endpoint in site_spec.ddm_endpoints_input[scope_input].all.values():
+            if storage_type and tmp_input_endpoint["type"] != storage_type:
+                continue
             tmp_read_input_over_lan = tmp_input_endpoint["detailed_status"].get("read_lan")
             tmp_receive_input_over_wan = tmp_input_endpoint["detailed_status"].get("write_wan")
             # can read input from local
             if tmp_read_input_over_lan not in DOWNTIME_STATUSES:
                 read_input_over_lan = True
             # can receive input from remote to local
-            if tmp_site_name not in sites_in_nucleus:
+            if tmp_site_name not in sites_in_nucleus or (complete_replica_locations and tmp_input_endpoint["ddm_endpoint_name"] not in complete_replica_locations):
                 # satellite sites
                 if tmp_receive_input_over_wan not in DOWNTIME_STATUSES:
                     receive_input_over_wan = True
             else:
-                # NA for nucleus sites
+                # NA for nucleus sites when input datasets are already available
                 receive_input_over_wan = True
                 remote_source_available = True
     if scope_output in site_spec.ddm_endpoints_output:
         for tmp_output_endpoint in site_spec.ddm_endpoints_output[scope_output].all.values():
+            if storage_type and tmp_output_endpoint["type"] != storage_type:
+                continue
             tmp_write_output_over_lan = tmp_output_endpoint["detailed_status"].get("write_lan")
             tmp_send_output_over_wan = tmp_output_endpoint["detailed_status"].get("read_wan")
             # can write output to local

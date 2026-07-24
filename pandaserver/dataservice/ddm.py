@@ -376,17 +376,20 @@ class RucioAPI:
         return file
 
     # register files in dataset
-    def register_files_in_dataset(self, id_map: dict, files_without_rses: list = None) -> bool:
+    def register_files_in_dataset(self, id_map: dict, files_without_rses: list = None, files_to_skip_validation: list = None) -> bool:
         """
         Register files in a dataset
 
         Parameters:
         id_map (dict): A dictionary containing dataset information. Maps RSEs to datasets and files.
         files_without_rses (list, optional): List of files without RSEs. Defaults to None.
+        files_to_skip_validation (list, optional): List of files to skip validation for. Defaults to None.
 
         Returns:
         bool: True if the operation is successful, False otherwise
         """
+        function_name = f"register_files_in_dataset-{naive_utcnow().isoformat('/')}"
+        tmp_log = LogWrapper(_logger, function_name)
         # loop over all rse
         attachment_list = []
         for rse in id_map:
@@ -435,7 +438,31 @@ class RucioAPI:
         # add files
         client = self._get_rucio_client()
         client.add_files_to_datasets(attachment_list, ignore_duplicate=True)
-        return True
+        # build attachment list for validation, excluding files to skip
+        if files_to_skip_validation:
+            skip_set = set(files_to_skip_validation)
+            validation_list = []
+            for attachment in attachment_list:
+                dids = [did for did in attachment["dids"] if did["name"] not in skip_set]
+                if dids:
+                    validation_attachment = dict(attachment)
+                    validation_attachment["dids"] = dids
+                    validation_list.append(validation_attachment)
+        else:
+            validation_list = attachment_list
+        tmp_log.debug(f"Validation list: {validation_list}")
+        # nothing left to validate
+        if not validation_list:
+            return True
+        # add again to verify files are there
+        try:
+            client.add_files_to_datasets(validation_list, ignore_duplicate=False)
+        except FileAlreadyExists:
+            tmp_log.debug("FileAlreadyExists exception caught during validation, indicating files are already registered.")
+            return True
+        except Exception:
+            raise
+        raise RuntimeError("Failed to verify file registration")
 
     # register zip files
     def register_zip_files(self, zip_map: dict) -> None:
@@ -906,10 +933,10 @@ class RucioAPI:
         # register container
         client = self._get_rucio_client()
         try:
-            scope, dataset_name = self.extract_scope(container_name)
+            scope, container_bare_name = self.extract_scope(container_name)
             if preset_scope is not None:
                 scope = preset_scope
-            client.add_container(scope=scope, name=container_name)
+            client.add_container(scope=scope, name=container_bare_name)
         except DataIdentifierAlreadyExists:
             pass
         # add files
@@ -923,11 +950,11 @@ class RucioAPI:
                     else:
                         dataset_name = {"scope": scope, "name": dataset}
                     dataset_names.append(dataset_name)
-                client.add_datasets_to_container(scope=scope, name=container_name, dsns=dataset_names)
+                client.add_datasets_to_container(scope=scope, name=container_bare_name, dsns=dataset_names)
             except DuplicateContent:
                 for dataset in dataset_names:
                     try:
-                        client.add_datasets_to_container(scope=scope, name=container_name, dsns=[dataset])
+                        client.add_datasets_to_container(scope=scope, name=container_bare_name, dsns=[dataset])
                     except DuplicateContent:
                         pass
         return True
