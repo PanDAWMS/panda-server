@@ -1223,6 +1223,7 @@ class DataCarouselInterface(object):
             raw_coll_did_list = []
             coll_on_tape_set = set()
             ret_prestaging_list = []
+            expanded_dsname_list = []
             ret_map = {
                 "pseudo_coll_list": [],
                 "unfound_coll_list": [],
@@ -1263,6 +1264,9 @@ class DataCarouselInterface(object):
                 # with contents to consider
                 for dataset in jobparam_dataset_list:
                     jobparam_ds_coll_map[dataset] = collection
+                # expand constituent dataset names if notExpandInDS is specified
+                if task_params_map.get("notExpandInDS") and dsname_list is not None and collection in dsname_list:
+                    expanded_dsname_list.extend(jobparam_dataset_list)
             # merge of jobparam_dataset_list and dnsname_list
             jobparam_datasets_set = set(jobparam_ds_coll_map.keys())
             all_input_datasets_set |= jobparam_datasets_set
@@ -1278,7 +1282,7 @@ class DataCarouselInterface(object):
             # check source of each dataset
             for dataset in all_input_datasets_list:
                 # check if dataset in the required dsname_list
-                if dsname_list is not None and dataset not in dsname_list:
+                if dsname_list is not None and dataset not in dsname_list and dataset not in expanded_dsname_list:
                     # not in dsname_list; skip
                     ret_map["to_skip_ds_list"].append(dataset)
                     tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
