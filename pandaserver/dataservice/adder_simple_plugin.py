@@ -9,17 +9,6 @@ import traceback
 import uuid
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
-from rucio.common.exception import (
-    DataIdentifierNotFound,
-    FileConsistencyMismatch,
-    InvalidObject,
-    InvalidPath,
-    InvalidRSEExpression,
-    RSEFileNameNotSupported,
-    RSENotFound,
-    RSEProtocolNotSupported,
-    UnsupportedOperation,
-)
 
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.ddm import rucioAPI
@@ -94,27 +83,13 @@ class AdderSimplePlugin(AdderPluginBase):
                     try:
                         self.logger.debug(f"registerFilesInDatasets {str(destination_id_map)}")
                         out = rucioAPI.register_files_in_dataset(destination_id_map, {})
-                    except (
-                        DataIdentifierNotFound,
-                        FileConsistencyMismatch,
-                        UnsupportedOperation,
-                        InvalidPath,
-                        InvalidObject,
-                        RSENotFound,
-                        RSEProtocolNotSupported,
-                        InvalidRSEExpression,
-                        RSEFileNameNotSupported,
-                        KeyError,
-                    ) as e:
-                        # fatal errors
-                        out = f"failed with {str(e)}\n {traceback.format_exc()}"
-                        is_fatal = True
-                        is_failed = True
                     except FileRegistrationError as e:
-                        # registration could not be verified - retryable, clean message without traceback
                         out = str(e)
-                        is_fatal = False
+                        is_fatal = e.fatal
                         is_failed = True
+                        if is_fatal:
+                            # keep the traceback for fatal errors; verification failures stay clean
+                            out += "\n" + traceback.format_exc()
                     except Exception as e:
                         # unknown errors
                         is_failed = True

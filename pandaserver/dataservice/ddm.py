@@ -25,9 +25,13 @@ from rucio.common.exception import (
     DuplicateContent,
     DuplicateRule,
     FileAlreadyExists,
+    FileConsistencyMismatch,
     InvalidObject,
+    InvalidPath,
     InvalidRSEExpression,
+    RSEFileNameNotSupported,
     RSENotFound,
+    RSEProtocolNotSupported,
     RuleNotFound,
     UnsupportedOperation,
 )
@@ -37,6 +41,19 @@ from pandaserver.srvcore.exceptions import FileRegistrationError
 
 # logger
 _logger = PandaLogger().getLogger("ddm_rucio_api")
+
+# Rucio/other exceptions treated as fatal (non-retryable) file-registration failures
+_FATAL_REGISTRATION_ERRORS = (
+    FileConsistencyMismatch,
+    UnsupportedOperation,
+    InvalidPath,
+    InvalidObject,
+    RSENotFound,
+    RSEProtocolNotSupported,
+    InvalidRSEExpression,
+    RSEFileNameNotSupported,
+    KeyError,
+)
 
 
 # rucio
@@ -376,8 +393,14 @@ class RucioAPI:
             file["pfn"] = tmp_file["surl"]
         return file
 
+    # raise a clean fatal file-registration error, chaining the original exception
+    def _raise_fatal_registration_error(self, exc):
+        raise FileRegistrationError(f"{type(exc).__name__}: {exc}", fatal=True) from exc
+
     # register files in dataset
-    def register_files_in_dataset(self, id_map: dict, files_without_rses: list = None, files_to_skip_validation: list = None) -> bool:
+    def register_files_in_dataset(
+        self, id_map: dict, files_without_rses: list = None, files_to_skip_validation: list = None, ignore_missing_data_identifier: bool = False
+    ) -> bool:
         """
         Register files in a dataset
 
@@ -385,85 +408,95 @@ class RucioAPI:
         id_map (dict): A dictionary containing dataset information. Maps RSEs to datasets and files.
         files_without_rses (list, optional): List of files without RSEs. Defaults to None.
         files_to_skip_validation (list, optional): List of files to skip validation for. Defaults to None.
+        ignore_missing_data_identifier (bool, optional): If True, ignore DataIdentifierNotFound instead of raising a fatal error. Defaults to False.
 
         Returns:
         bool: True if the operation is successful, False otherwise
+
+        Raises:
+        FileRegistrationError: If registration fails. The fatal attribute indicates whether the error is non-retryable.
         """
         function_name = f"register_files_in_dataset-{naive_utcnow().isoformat('/')}"
         tmp_log = LogWrapper(_logger, function_name)
-        # loop over all rse
-        attachment_list = []
-        for rse in id_map:
-            tmp_map = id_map[rse]
-            # loop over all datasets
-            for dataset_name in tmp_map:
-                file_list = tmp_map[dataset_name]
-                # extract scope from dataset
-                scope, given_dataset_name = self.extract_scope(dataset_name)
-                files_with_rse = []
-                files_without_rse = []
-                for tmp_file in file_list:
-                    # convert file attribute
-                    file = self.convert_file_attributes(tmp_file, scope)
-                    # append files
-                    if rse is not None and (files_without_rses is None or file["name"] not in files_without_rses):
-                        files_with_rse.append(file)
-                    else:
-                        if "pfn" in file:
-                            del file["pfn"]
-                        files_without_rse.append(file)
-                # add attachment
-                if len(files_with_rse) > 0:
-                    n_files = 100
-                    i_files = 0
-                    while i_files < len(files_with_rse):
-                        attachment = {
-                            "scope": scope,
-                            "name": given_dataset_name,
-                            "dids": files_with_rse[i_files : i_files + n_files],
-                            "rse": rse,
-                        }
-                        attachment_list.append(attachment)
-                        i_files += n_files
-                if len(files_without_rse) > 0:
-                    n_files = 100
-                    i_files = 0
-                    while i_files < len(files_without_rse):
-                        attachment = {
-                            "scope": scope,
-                            "name": given_dataset_name,
-                            "dids": files_without_rse[i_files : i_files + n_files],
-                        }
-                        attachment_list.append(attachment)
-                        i_files += n_files
-        # add files
-        client = self._get_rucio_client()
-        client.add_files_to_datasets(attachment_list, ignore_duplicate=True)
-        # build attachment list for validation, excluding files to skip
-        if files_to_skip_validation:
-            skip_set = set(files_to_skip_validation)
-            validation_list = []
-            for attachment in attachment_list:
-                dids = [did for did in attachment["dids"] if did["name"] not in skip_set]
-                if dids:
-                    validation_attachment = dict(attachment)
-                    validation_attachment["dids"] = dids
-                    validation_list.append(validation_attachment)
-        else:
-            validation_list = attachment_list
-        tmp_log.debug(f"Validation list: {validation_list}")
-        # nothing left to validate
-        if not validation_list:
-            return True
-        # add again to verify files are there
         try:
-            client.add_files_to_datasets(validation_list, ignore_duplicate=False)
-        except FileAlreadyExists:
-            tmp_log.debug("FileAlreadyExists exception caught during validation, indicating files are already registered.")
-            return True
-        except Exception:
-            raise
-        raise FileRegistrationError("Failed to verify file registration")
+            # loop over all rse
+            attachment_list = []
+            for rse in id_map:
+                tmp_map = id_map[rse]
+                # loop over all datasets
+                for dataset_name in tmp_map:
+                    file_list = tmp_map[dataset_name]
+                    # extract scope from dataset
+                    scope, given_dataset_name = self.extract_scope(dataset_name)
+                    files_with_rse = []
+                    files_without_rse = []
+                    for tmp_file in file_list:
+                        # convert file attribute
+                        file = self.convert_file_attributes(tmp_file, scope)
+                        # append files
+                        if rse is not None and (files_without_rses is None or file["name"] not in files_without_rses):
+                            files_with_rse.append(file)
+                        else:
+                            if "pfn" in file:
+                                del file["pfn"]
+                            files_without_rse.append(file)
+                    # add attachment
+                    if len(files_with_rse) > 0:
+                        n_files = 100
+                        i_files = 0
+                        while i_files < len(files_with_rse):
+                            attachment = {
+                                "scope": scope,
+                                "name": given_dataset_name,
+                                "dids": files_with_rse[i_files : i_files + n_files],
+                                "rse": rse,
+                            }
+                            attachment_list.append(attachment)
+                            i_files += n_files
+                    if len(files_without_rse) > 0:
+                        n_files = 100
+                        i_files = 0
+                        while i_files < len(files_without_rse):
+                            attachment = {
+                                "scope": scope,
+                                "name": given_dataset_name,
+                                "dids": files_without_rse[i_files : i_files + n_files],
+                            }
+                            attachment_list.append(attachment)
+                            i_files += n_files
+            # add files
+            client = self._get_rucio_client()
+            client.add_files_to_datasets(attachment_list, ignore_duplicate=True)
+            # build attachment list for validation, excluding files to skip
+            if files_to_skip_validation:
+                skip_set = set(files_to_skip_validation)
+                validation_list = []
+                for attachment in attachment_list:
+                    dids = [did for did in attachment["dids"] if did["name"] not in skip_set]
+                    if dids:
+                        validation_attachment = dict(attachment)
+                        validation_attachment["dids"] = dids
+                        validation_list.append(validation_attachment)
+            else:
+                validation_list = attachment_list
+            tmp_log.debug(f"Validation list: {validation_list}")
+            # nothing left to validate
+            if not validation_list:
+                return True
+            # add again to verify files are there
+            try:
+                client.add_files_to_datasets(validation_list, ignore_duplicate=False)
+            except FileAlreadyExists:
+                tmp_log.debug("FileAlreadyExists exception caught during validation, indicating files are already registered.")
+                return True
+            raise FileRegistrationError("Failed to verify file registration")
+        except DataIdentifierNotFound as e:
+            if ignore_missing_data_identifier:
+                tmp_log.debug("ignored DataIdentifierNotFound")
+                return True
+            self._raise_fatal_registration_error(e)
+        except _FATAL_REGISTRATION_ERRORS as e:
+            self._raise_fatal_registration_error(e)
 
     # register zip files
     def register_zip_files(self, zip_map: dict) -> None:
@@ -484,37 +517,40 @@ class RucioAPI:
         # no zip files
         if len(zip_map) == 0:
             return
-        client = self._get_rucio_client()
-        # loop over all zip files
-        for zip_file_name in zip_map:
-            zip_file_attr = zip_map[zip_file_name]
-            # convert file attribute
-            zip_file = self.convert_file_attributes(zip_file_attr, zip_file_attr["scope"])
-            # loop over all contents
-            files = []
-            for con_file_attr in zip_file_attr["files"]:
-                # get scope
-                scope, _ = self.extract_scope(con_file_attr["ds"])
+        try:
+            client = self._get_rucio_client()
+            # loop over all zip files
+            for zip_file_name in zip_map:
+                zip_file_attr = zip_map[zip_file_name]
                 # convert file attribute
-                con_file = self.convert_file_attributes(con_file_attr, scope)
-                con_file["type"] = "FILE"
-                if "pfn" in con_file:
-                    del con_file["pfn"]
-                # append files
-                files.append(con_file)
-            # register zip file
-            for rse in zip_file_attr["rse"]:
-                client.add_replicas(rse=rse, files=[zip_file])
-            # add files
-            n_files = 100
-            i_files = 0
-            while i_files < len(files):
-                client.add_files_to_archive(
-                    scope=zip_file["scope"],
-                    name=zip_file["name"],
-                    files=files[i_files : i_files + n_files],
-                )
-                i_files += n_files
+                zip_file = self.convert_file_attributes(zip_file_attr, zip_file_attr["scope"])
+                # loop over all contents
+                files = []
+                for con_file_attr in zip_file_attr["files"]:
+                    # get scope
+                    scope, _ = self.extract_scope(con_file_attr["ds"])
+                    # convert file attribute
+                    con_file = self.convert_file_attributes(con_file_attr, scope)
+                    con_file["type"] = "FILE"
+                    if "pfn" in con_file:
+                        del con_file["pfn"]
+                    # append files
+                    files.append(con_file)
+                # register zip file
+                for rse in zip_file_attr["rse"]:
+                    client.add_replicas(rse=rse, files=[zip_file])
+                # add files
+                n_files = 100
+                i_files = 0
+                while i_files < len(files):
+                    client.add_files_to_archive(
+                        scope=zip_file["scope"],
+                        name=zip_file["name"],
+                        files=files[i_files : i_files + n_files],
+                    )
+                    i_files += n_files
+        except (DataIdentifierNotFound, *_FATAL_REGISTRATION_ERRORS) as e:
+            self._raise_fatal_registration_error(e)
 
     # list datasets
     def list_datasets(self, dataset_name: str, old: bool = False):

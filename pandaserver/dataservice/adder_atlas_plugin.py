@@ -14,15 +14,8 @@ from typing import Dict, List
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 from rucio.common.exception import (
-    DataIdentifierNotFound,
-    FileConsistencyMismatch,
     InsufficientAccountLimit,
-    InvalidObject,
-    InvalidPath,
     InvalidRSEExpression,
-    RSENotFound,
-    RSEProtocolNotSupported,
-    UnsupportedOperation,
 )
 
 from pandaserver.config import panda_config
@@ -730,28 +723,13 @@ class AdderAtlasPlugin(AdderPluginBase):
                     rucioAPI.register_zip_files(zip_files)
                 self.logger.debug(f"registerFilesInDatasets {str(dest_id_map)} zip={str(cont_zip_map)}")
                 out = rucioAPI.register_files_in_dataset(dest_id_map, cont_zip_map, files_to_skip_validation=log_files)
-            except (
-                DataIdentifierNotFound,
-                FileConsistencyMismatch,
-                UnsupportedOperation,
-                InvalidPath,
-                InvalidObject,
-                RSENotFound,
-                RSEProtocolNotSupported,
-                InvalidRSEExpression,
-                KeyError,
-            ):
-                # fatal errors
-                err_type, err_value = sys.exc_info()[:2]
-                out = f"{err_type} : {err_value}"
-                out += traceback.format_exc()
-                is_fatal = True
-                is_failed = True
             except FileRegistrationError as e:
-                # registration could not be verified - retryable, log a clean message without traceback
                 out = f"{str(e)} : {self.job.prodSourceLabel} in {self.job.jobStatus}"
-                is_fatal = False
+                is_fatal = e.fatal
                 is_failed = True
+                if is_fatal:
+                    # keep the traceback for fatal errors; verification failures stay clean
+                    out += "\n" + traceback.format_exc()
             except Exception:
                 # unknown errors
                 err_type, err_value = sys.exc_info()[:2]
@@ -1106,10 +1084,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             # add files to dataset
             if id_map:
                 self.logger.debug(f"adding ES files {str(id_map)}")
-                try:
-                    rucioAPI.register_files_in_dataset(id_map)
-                except DataIdentifierNotFound:
-                    self.logger.debug("ignored DataIdentifierNotFound")
+                rucioAPI.register_files_in_dataset(id_map, ignore_missing_data_identifier=True)
         except Exception:
             err_type, err_value = sys.exc_info()[:2]
             err_str = f" : {err_type} {err_value}"
