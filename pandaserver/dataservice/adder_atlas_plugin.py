@@ -749,7 +749,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 is_failed = True
             except FileRegistrationError as e:
                 # registration could not be verified - retryable, log a clean message without traceback
-                out = str(e)
+                out = f"{str(e)} : {self.job.prodSourceLabel} in {self.job.jobStatus}"
                 is_fatal = False
                 is_failed = True
             except Exception:
