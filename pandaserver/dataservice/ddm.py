@@ -26,6 +26,7 @@ from rucio.common.exception import (
     DuplicateRule,
     FileAlreadyExists,
     FileConsistencyMismatch,
+    InsufficientAccountLimit,
     InvalidObject,
     InvalidPath,
     InvalidRSEExpression,
@@ -37,7 +38,7 @@ from rucio.common.exception import (
 )
 
 from pandaserver.srvcore import CoreUtils
-from pandaserver.srvcore.exceptions import FileRegistrationError
+from pandaserver.srvcore.exceptions import DatasetLocationError, FileRegistrationError, SubscriptionRegistrationError
 
 # logger
 _logger = PandaLogger().getLogger("ddm_rucio_api")
@@ -284,6 +285,8 @@ class RucioAPI:
             )
         except (Duplicate, DuplicateRule):
             pass
+        except (InvalidRSEExpression, InsufficientAccountLimit) as e:
+            raise DatasetLocationError(f"{type(e).__name__}: {e}") from e
         return True
 
     # get user
@@ -362,6 +365,8 @@ class RucioAPI:
             )
         except (Duplicate, DuplicateRule):
             pass
+        except InvalidRSEExpression as e:
+            raise SubscriptionRegistrationError(f"{type(e).__name__}: {e}") from e
         return True
 
     # convert file attribute

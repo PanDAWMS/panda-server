@@ -13,17 +13,12 @@ import traceback
 from typing import Dict, List
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
-from rucio.common.exception import (
-    InsufficientAccountLimit,
-    InvalidRSEExpression,
-)
-
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.adder_plugin_base import AdderPluginBase
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
-from pandaserver.srvcore.exceptions import FileRegistrationError
+from pandaserver.srvcore.exceptions import DatasetLocationError, FileRegistrationError, SubscriptionRegistrationError
 from pandaserver.srvcore.MailUtils import MailUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 
@@ -801,7 +796,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 )
                                 out = "OK"
                                 break
-                            except InvalidRSEExpression:
+                            except SubscriptionRegistrationError:
                                 status = False
                                 err_type, err_value = sys.exc_info()[:2]
                                 out = f"{err_type} {err_value}"
@@ -940,7 +935,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     # set dataset status
                     for tmp_name in sub_map:
                         self.dataset_map[tmp_name].status = "running"
-                except (InsufficientAccountLimit, InvalidRSEExpression) as err_type:
+                except DatasetLocationError as err_type:
                     tmp_msg = f"Rucio rejected to transfer files to {','.join(user_endpoints)} since {err_type}"
                     self.logger.error(tmp_msg)
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
