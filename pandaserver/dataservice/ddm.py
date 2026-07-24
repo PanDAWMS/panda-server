@@ -33,6 +33,7 @@ from rucio.common.exception import (
 )
 
 from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore.exceptions import FileRegistrationError
 
 # logger
 _logger = PandaLogger().getLogger("ddm_rucio_api")
@@ -462,7 +463,7 @@ class RucioAPI:
             return True
         except Exception:
             raise
-        raise RuntimeError("Failed to verify file registration")
+        raise FileRegistrationError("Failed to verify file registration")
 
     # register zip files
     def register_zip_files(self, zip_map: dict) -> None:

@@ -23,6 +23,7 @@ from rucio.common.exception import (
 
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.ddm import rucioAPI
+from pandaserver.srvcore.exceptions import FileRegistrationError
 
 from .adder_plugin_base import AdderPluginBase
 
@@ -108,6 +109,11 @@ class AdderSimplePlugin(AdderPluginBase):
                         # fatal errors
                         out = f"failed with {str(e)}\n {traceback.format_exc()}"
                         is_fatal = True
+                        is_failed = True
+                    except FileRegistrationError as e:
+                        # registration could not be verified - retryable, clean message without traceback
+                        out = str(e)
+                        is_fatal = False
                         is_failed = True
                     except Exception as e:
                         # unknown errors

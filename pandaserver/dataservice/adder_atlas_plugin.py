@@ -30,6 +30,7 @@ from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.adder_plugin_base import AdderPluginBase
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
+from pandaserver.srvcore.exceptions import FileRegistrationError
 from pandaserver.srvcore.MailUtils import MailUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 
@@ -745,6 +746,11 @@ class AdderAtlasPlugin(AdderPluginBase):
                 out = f"{err_type} : {err_value}"
                 out += traceback.format_exc()
                 is_fatal = True
+                is_failed = True
+            except FileRegistrationError as e:
+                # registration could not be verified - retryable, log a clean message without traceback
+                out = str(e)
+                is_fatal = False
                 is_failed = True
             except Exception:
                 # unknown errors
