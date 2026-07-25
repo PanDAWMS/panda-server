@@ -1275,7 +1275,8 @@ class DataCarouselInterface(object):
             jobparam_datasets_set = set(jobparam_ds_coll_map.keys())
             all_input_datasets_set |= jobparam_datasets_set
             if dsname_set is not None:
-                tmp_log.debug(f"dsname_list={dsname_list} ; expanded_dsname_list={sorted(expanded_dsname_set)}")
+                # tmp_log.debug(f"dsname_list={dsname_list} ; expanded_dsname_set={sorted(expanded_dsname_set)}")
+                tmp_log.debug(f"dsname_list_len={len(dsname_list)} ; expanded_dsname_set_len={len(expanded_dsname_set)}")
                 # dsname_list is given; filter out extra container slash
                 master_datasets_set = set([dsname for dsname in dsname_set if not dsname.endswith("/")])
                 # extra dataset not in job parameters when task resubmitted/rerefined
@@ -1290,7 +1291,7 @@ class DataCarouselInterface(object):
                 if dsname_set is not None and dataset not in dsname_set and dataset not in expanded_dsname_set:
                     # not in dsname_list; skip
                     ret_map["to_skip_ds_list"].append(dataset)
-                    tmp_log.debug(f"dataset={dataset} not in dsname_list or expanded_dsname_list; skipped")
+                    tmp_log.debug(f"dataset={dataset} not in dsname_list or expanded_dsname_set; skipped")
                     continue
                 # check if already in existing Data Carousel requests
                 existing_dcreq_id = self.taskBufferIF.get_data_carousel_request_id_by_dataset_JEDI(dataset)
