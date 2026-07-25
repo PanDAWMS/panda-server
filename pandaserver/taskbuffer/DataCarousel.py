@@ -1265,8 +1265,10 @@ class DataCarouselInterface(object):
                 for dataset in jobparam_dataset_list:
                     jobparam_ds_coll_map[dataset] = collection
                 # expand constituent dataset names if notExpandInDS (no "expand" in task_params_map) is specified
-                if not task_params_map.get("expand") and dsname_list is not None and collection in dsname_list:
-                    expanded_dsname_list.extend(jobparam_dataset_list)
+                if not task_params_map.get("expand") and dsname_list is not None:
+                    collection_did = self.ddmIF.get_did_str(collection)
+                    if collection in dsname_list or collection_did in dsname_list:
+                        expanded_dsname_list.extend(jobparam_dataset_list)
             # merge of jobparam_dataset_list and dnsname_list
             jobparam_datasets_set = set(jobparam_ds_coll_map.keys())
             all_input_datasets_set |= jobparam_datasets_set
