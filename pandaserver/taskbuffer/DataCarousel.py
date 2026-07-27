@@ -1223,6 +1223,9 @@ class DataCarouselInterface(object):
             raw_coll_did_list = []
             coll_on_tape_set = set()
             ret_prestaging_list = []
+            expanded_dsname_set = set()
+            # set of required dataset names for fast membership tests
+            dsname_set = set(dsname_list) if dsname_list is not None else None
             ret_map = {
                 "pseudo_coll_list": [],
                 "unfound_coll_list": [],
@@ -1263,12 +1266,19 @@ class DataCarouselInterface(object):
                 # with contents to consider
                 for dataset in jobparam_dataset_list:
                     jobparam_ds_coll_map[dataset] = collection
+                # expand constituent dataset names if notExpandInDS (no "expand" in task_params_map) is specified
+                if not task_params_map.get("expand") and dsname_set is not None:
+                    collection_did = self.ddmIF.get_did_str(collection)
+                    if collection in dsname_set or collection_did in dsname_set:
+                        expanded_dsname_set.update(jobparam_dataset_list)
             # merge of jobparam_dataset_list and dnsname_list
             jobparam_datasets_set = set(jobparam_ds_coll_map.keys())
             all_input_datasets_set |= jobparam_datasets_set
-            if dsname_list is not None:
+            if dsname_set is not None:
+                # tmp_log.debug(f"dsname_list={dsname_list} ; expanded_dsname_set={sorted(expanded_dsname_set)}")
+                tmp_log.debug(f"dsname_list_len={len(dsname_list)} ; expanded_dsname_set_len={len(expanded_dsname_set)}")
                 # dsname_list is given; filter out extra container slash
-                master_datasets_set = set([dsname for dsname in dsname_list if not dsname.endswith("/")])
+                master_datasets_set = set([dsname for dsname in dsname_set if not dsname.endswith("/")])
                 # extra dataset not in job parameters when task resubmitted/rerefined
                 extra_datasets_set = master_datasets_set - jobparam_datasets_set - set(raw_coll_did_list)
                 all_input_datasets_set |= extra_datasets_set
@@ -1278,10 +1288,10 @@ class DataCarouselInterface(object):
             # check source of each dataset
             for dataset in all_input_datasets_list:
                 # check if dataset in the required dsname_list
-                if dsname_list is not None and dataset not in dsname_list:
+                if dsname_set is not None and dataset not in dsname_set and dataset not in expanded_dsname_set:
                     # not in dsname_list; skip
                     ret_map["to_skip_ds_list"].append(dataset)
-                    tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
+                    tmp_log.debug(f"dataset={dataset} not in dsname_list or expanded_dsname_set; skipped")
                     continue
                 # check if already in existing Data Carousel requests
                 existing_dcreq_id = self.taskBufferIF.get_data_carousel_request_id_by_dataset_JEDI(dataset)
