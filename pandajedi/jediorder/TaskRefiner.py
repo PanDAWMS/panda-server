@@ -425,7 +425,7 @@ class TaskRefinerThread(WorkerThread):
                                             if tmp_to_pin:
                                                 # replicas already on datadisks, only to pin; not from tape
                                                 continue
-                                            tmp_metadata = rucioAPI.get_dataset_metadata(tmp_dataset)
+                                            tmp_metadata = rucioAPI.get_dataset_metadata(tmp_dataset, ignore_missing=True)
                                             if not tmp_metadata or tmp_metadata.get("bytes") is None:
                                                 tmpLog.warning(f"cannot get size of {tmp_dataset} ; skipped")
                                                 continue
