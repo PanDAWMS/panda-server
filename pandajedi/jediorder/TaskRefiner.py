@@ -412,7 +412,35 @@ class TaskRefinerThread(WorkerThread):
                                     tmpLog.info("no need to prestage, try to resume task from staging")
                                     # no dataset needs pre-staging; resume task from staging
                                     self.taskBufferIF.sendCommandTaskPanda(jediTaskID, "TaskRefiner. No need to prestage. Resumed from staging", True, "resume")
-                                if prestaging_list:
+                                # check size of each input dataset from tape for analysis tasks
+                                if prestaging_list and taskParamMap.get("taskType") == "anal" and taskParamMap.get("prodSourceLabel") == "user":
+                                    analysis_tape_input_limit_TB = self.taskBufferIF.getConfigValue(
+                                        "taskrefiner", "USER_MAX_TAPE_INPUT_TB", "jedi", vo, default=300
+                                    )
+                                    if analysis_tape_input_limit_TB < 0:
+                                        # negative limit means unlimited
+                                        tmpLog.debug(f"input size limit from tape is {analysis_tape_input_limit_TB} TB (unlimited) ; skipped checking")
+                                    else:
+                                        for tmp_dataset, _, _, tmp_to_pin, _ in prestaging_list:
+                                            if tmp_to_pin:
+                                                # replicas already on datadisks, only to pin; not from tape
+                                                continue
+                                            tmp_metadata = rucioAPI.get_dataset_metadata(tmp_dataset, ignore_missing=True)
+                                            if not tmp_metadata or tmp_metadata.get("bytes") is None:
+                                                tmpLog.warning(f"cannot get size of {tmp_dataset} ; skipped")
+                                                continue
+                                            tmp_dataset_size_TB = tmp_metadata["bytes"] / 1024**4
+                                            tmpLog.debug(f"input dataset {tmp_dataset} from tape is {tmp_dataset_size_TB:.3f} TB")
+                                            if tmp_dataset_size_TB > analysis_tape_input_limit_TB:
+                                                errStr = (
+                                                    f"input dataset {tmp_dataset} from tape exceeds the limit for analysis tasks "
+                                                    f"({tmp_dataset_size_TB:.3f} TB > {analysis_tape_input_limit_TB} TB). "
+                                                    f"Please contact support"
+                                                )
+                                                tmpLog.error(errStr)
+                                                tmpStat = Interaction.SC_FAILED
+                                                break
+                                if prestaging_list and tmpStat == Interaction.SC_SUCCEEDED:
                                     # something to prestage
                                     if to_reuse_staging_ds_list := ds_list_dict["to_reuse_staging_ds_list"]:
                                         # update to_staging_datasets with datasets to reuse existing staging DDM rules (de facto already staging, still need to submit DC requests)
