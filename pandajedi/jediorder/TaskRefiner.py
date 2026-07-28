@@ -412,16 +412,15 @@ class TaskRefinerThread(WorkerThread):
                                     tmpLog.info("no need to prestage, try to resume task from staging")
                                     # no dataset needs pre-staging; resume task from staging
                                     self.taskBufferIF.sendCommandTaskPanda(jediTaskID, "TaskRefiner. No need to prestage. Resumed from staging", True, "resume")
-                                # check total size of input datasets from tapes for analysis tasks
+                                # check size of each input dataset from tape for analysis tasks
                                 if prestaging_list and taskParamMap.get("taskType") == "anal" and taskParamMap.get("prodSourceLabel") == "user":
                                     analysis_tape_input_limit_TB = self.taskBufferIF.getConfigValue(
                                         "taskrefiner", "USER_MAX_TAPE_INPUT_TB", "jedi", vo, default=300
                                     )
                                     if analysis_tape_input_limit_TB < 0:
                                         # negative limit means unlimited
-                                        tmpLog.debug(f"input size limit from tapes is {analysis_tape_input_limit_TB} TB (unlimited) ; skipped checking")
+                                        tmpLog.debug(f"input size limit from tape is {analysis_tape_input_limit_TB} TB (unlimited) ; skipped checking")
                                     else:
-                                        tape_input_size = 0
                                         for tmp_dataset, _, _, tmp_to_pin, _ in prestaging_list:
                                             if tmp_to_pin:
                                                 # replicas already on datadisks, only to pin; not from tape
@@ -430,16 +429,17 @@ class TaskRefinerThread(WorkerThread):
                                             if not tmp_metadata or tmp_metadata.get("bytes") is None:
                                                 tmpLog.warning(f"cannot get size of {tmp_dataset} ; skipped")
                                                 continue
-                                            tape_input_size += tmp_metadata["bytes"]
-                                        tape_input_size_TB = tape_input_size / 1024**4
-                                        tmpLog.info(f"input data from tapes: {tape_input_size_TB:.3f} TB")
-                                        if tape_input_size_TB > analysis_tape_input_limit_TB:
-                                            errStr = (
-                                                f"input data from tapes exceeds the limit for analysis tasks "
-                                                f"({tape_input_size_TB:.3f} TB > {analysis_tape_input_limit_TB} TB)"
-                                            )
-                                            tmpLog.error(errStr)
-                                            tmpStat = Interaction.SC_FAILED
+                                            tmp_dataset_size_TB = tmp_metadata["bytes"] / 1024**4
+                                            tmpLog.debug(f"input dataset {tmp_dataset} from tape is {tmp_dataset_size_TB:.3f} TB")
+                                            if tmp_dataset_size_TB > analysis_tape_input_limit_TB:
+                                                errStr = (
+                                                    f"input dataset {tmp_dataset} from tape exceeds the limit for analysis tasks "
+                                                    f"({tmp_dataset_size_TB:.3f} TB > {analysis_tape_input_limit_TB} TB). "
+                                                    f"Please contact support"
+                                                )
+                                                tmpLog.error(errStr)
+                                                tmpStat = Interaction.SC_FAILED
+                                                break
                                 if prestaging_list and tmpStat == Interaction.SC_SUCCEEDED:
                                     # something to prestage
                                     if to_reuse_staging_ds_list := ds_list_dict["to_reuse_staging_ds_list"]:
