@@ -12,9 +12,15 @@ without a server configuration.
 import ast
 import re
 import shlex
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.JobSpec import JobSpec
 
 # python script embedded in the offline running script to generate PoolFileCatalog.xml for direct access.
-# it takes an RSE expression, comma-separated protocol schemes, and DIDs of input files as arguments
+# it takes an RSE expression, comma-separated protocol schemes, and DIDs of input files as arguments.
+# note that this snippet runs with the python3 of the ALRB environment, hence it is deliberately kept
+# independent of the conventions of this module
 _PFC_GENERATOR = r"""import sys
 
 from rucio.client import Client
@@ -77,33 +83,59 @@ print("INFO: generated PoolFileCatalog.xml for {0} input file(s)".format(len(did
 """
 
 
-# find the list of input files in trf parameters, so that it can be replaced with a shell variable.
-# returns the matched substring, the ordered LFNs, and the replacement string
-def _get_input_file_list_in_params(param_str, lfn_set):
+def _get_input_file_list_in_params(param_str: str, lfn_set: set[str]) -> tuple[str | None, list[str] | None, str | None]:
+    """
+    Find the list of input files in trf parameters, so that it can be replaced with a shell variable
+
+    Two styles are recognized: a python list used by runAthena/runGen (e.g. -i "['a', 'b']"), and a
+    comma-separated list used by production trfs (e.g. --inputEVNTFile=a,b,c).
+
+    Args:
+        param_str (str): trf parameters of the job
+        lfn_set (set[str]): LFNs of the input files which may appear in the parameters
+
+    Returns:
+        tuple[str | None, list[str] | None, str | None]: the matched substring, the LFNs in the order
+            they appear in the parameters, and the string to replace the matched substring with.
+            (None, None, None) if no list of input files is found
+    """
     # python list style used by runAthena/runGen, e.g. -i "['a', 'b']"
-    for tmp_match in re.finditer(r"\[[^\[\]]*\]", param_str):
+    for match in re.finditer(r"\[[^\[\]]*\]", param_str):
         try:
-            tmp_list = ast.literal_eval(tmp_match.group(0))
+            lfn_list = ast.literal_eval(match.group(0))
         except Exception:
             continue
-        if isinstance(tmp_list, list) and tmp_list and all(isinstance(i, str) and i in lfn_set for i in tmp_list):
-            return tmp_match.group(0), tmp_list, "[${input_list}]"
+        if isinstance(lfn_list, list) and lfn_list and all(isinstance(i, str) and i in lfn_set for i in lfn_list):
+            return match.group(0), lfn_list, "[${input_list}]"
     # comma separated style used by production trfs, e.g. --inputEVNTFile=a,b,c
-    for tmp_match in re.finditer(r"(--input\w*=)(\"?)([^\s\"']+)\2", param_str):
-        tmp_list = tmp_match.group(3).split(",")
-        if all(i in lfn_set for i in tmp_list):
+    for match in re.finditer(r"(--input\w*=)(\"?)([^\s\"']+)\2", param_str):
+        lfn_list = match.group(3).split(",")
+        if all(i in lfn_set for i in lfn_list):
             return (
-                tmp_match.group(0),
-                tmp_list,
-                tmp_match.group(1) + tmp_match.group(2) + "${input_csv}" + tmp_match.group(2),
+                match.group(0),
+                lfn_list,
+                match.group(1) + match.group(2) + "${input_csv}" + match.group(2),
             )
     return None, None, None
 
 
-# generate a script to rerun the job interactively
-def generate_offline_run_script(tmpJob):
+def generate_offline_run_script(job_spec: "JobSpec") -> str:
+    """
+    Generate a shell script to rerun a job interactively
+
+    The script sets up an ALRB container, retrieves the input files, and runs the transformations of
+    the job. It takes options to use only a subset of the input files (--nfiles) and to read them
+    directly from storage through PoolFileCatalog.xml instead of downloading them (--direct).
+
+    Args:
+        job_spec (JobSpec): job specification with the Files attribute filled in
+
+    Returns:
+        str: the shell script, or a message starting with "ERROR: " when the script cannot be
+            generated from the job specification
+    """
     # user job
-    isUser = False
+    is_user = False
     for trf in [
         "runAthena",
         "runGen",
@@ -112,61 +144,65 @@ def generate_offline_run_script(tmpJob):
         "buildJob",
         "buildGen",
     ]:
-        if trf in tmpJob.transformation:
-            isUser = True
+        if trf in job_spec.transformation:
+            is_user = True
             break
     # check prodSourceLabel
-    if tmpJob.prodSourceLabel == "user":
-        isUser = True
-    if isUser:
-        tmpAtls = [tmpJob.AtlasRelease]
-        tmpRels = [re.sub("^AnalysisTransforms-*", "", tmpJob.homepackage)]
-        tmpPars = [tmpJob.jobParameters]
-        tmpTrfs = [tmpJob.transformation]
+    if job_spec.prodSourceLabel == "user":
+        is_user = True
+    # the release is optional, i.e. it can be NULL in the DB
+    atlas_release_str = job_spec.AtlasRelease
+    if atlas_release_str in [None, "NULL"]:
+        atlas_release_str = ""
+    if is_user:
+        atlas_releases = [atlas_release_str]
+        home_packages = [re.sub("^AnalysisTransforms-*", "", job_spec.homepackage)]
+        job_params_list = [job_spec.jobParameters]
+        transformations = [job_spec.transformation]
     else:
         # release and trf
-        tmpAtls = tmpJob.AtlasRelease.split("\n")
-        tmpRels = tmpJob.homepackage.split("\n")
-        tmpPars = tmpJob.jobParameters.split("\n")
-        tmpTrfs = tmpJob.transformation.split("\n")
-    if not (len(tmpRels) == len(tmpPars) == len(tmpTrfs)):
+        atlas_releases = atlas_release_str.split("\n")
+        home_packages = job_spec.homepackage.split("\n")
+        job_params_list = job_spec.jobParameters.split("\n")
+        transformations = job_spec.transformation.split("\n")
+    if not (len(atlas_releases) == len(home_packages) == len(job_params_list) == len(transformations)):
         return "ERROR: The number of releases or parameters or trfs is inconsistent with others"
     # collect inputs. archives (lib.tgz, DBRelease, ...) are always downloaded since
     # they cannot be read directly from storage
-    auxDIDs = []
-    dataDIDs = {}
-    guidMap = {}
-    for tmpFile in tmpJob.Files:
-        if tmpFile.type != "input":
+    aux_dids = []
+    data_dids = {}
+    guid_map = {}
+    for tmp_file in job_spec.Files:
+        if tmp_file.type != "input":
             continue
-        tmpDID = tmpFile.scope + ":" + tmpFile.lfn
-        if tmpFile.lfn.endswith(".tgz") or tmpFile.lfn.endswith(".tar.gz"):
-            if tmpDID not in auxDIDs:
-                auxDIDs.append(tmpDID)
-        elif tmpFile.lfn not in dataDIDs:
-            dataDIDs[tmpFile.lfn] = tmpDID
-            guidMap[tmpDID] = None if tmpFile.GUID in [None, "NULL", ""] else tmpFile.GUID.upper()
+        tmp_did = tmp_file.scope + ":" + tmp_file.lfn
+        if tmp_file.lfn.endswith(".tgz") or tmp_file.lfn.endswith(".tar.gz"):
+            if tmp_did not in aux_dids:
+                aux_dids.append(tmp_did)
+        elif tmp_file.lfn not in data_dids:
+            data_dids[tmp_file.lfn] = tmp_did
+            guid_map[tmp_did] = None if tmp_file.GUID in [None, "NULL", ""] else tmp_file.GUID.upper()
     # replace the list of input files in the trf parameters with a shell variable, so that
     # --nfiles can shrink it when the script runs
-    orderedLFNs = None
-    newPars = []
-    for tmpParamStr in tmpPars:
-        tmpSubStr, tmpLFNs, tmpReplStr = _get_input_file_list_in_params(tmpParamStr, set(dataDIDs))
-        if tmpSubStr is not None:
-            tmpParamStr = tmpParamStr.replace(tmpSubStr, tmpReplStr)
-            if orderedLFNs is None:
-                orderedLFNs = tmpLFNs
-        newPars.append(tmpParamStr)
-    tmpPars = newPars
-    if orderedLFNs is None:
+    ordered_lfns = None
+    new_params = []
+    for param_str in job_params_list:
+        matched_str, matched_lfns, replacement_str = _get_input_file_list_in_params(param_str, set(data_dids))
+        if matched_str is not None:
+            param_str = param_str.replace(matched_str, replacement_str)
+            if ordered_lfns is None:
+                ordered_lfns = matched_lfns
+        new_params.append(param_str)
+    job_params_list = new_params
+    if ordered_lfns is None:
         # the list was not found in the parameters, i.e. --nfiles cannot be supported
-        dataFiles = list(dataDIDs)
+        data_files = list(data_dids)
     else:
-        dataFiles = [tmpLFN for tmpLFN in orderedLFNs if tmpLFN in dataDIDs]
+        data_files = [tmp_lfn for tmp_lfn in ordered_lfns if tmp_lfn in data_dids]
         # input files which don't appear in the parameters are simply downloaded
-        auxDIDs += [tmpDID for tmpLFN, tmpDID in dataDIDs.items() if tmpLFN not in dataFiles]
+        aux_dids += [tmp_did for tmp_lfn, tmp_did in data_dids.items() if tmp_lfn not in data_files]
     # construct script
-    scrStr = (
+    script_str = (
         "#!/bin/bash\n\n"
         "# To rerun the job interactively :\n"
         "#   1) download this script\n"
@@ -191,11 +227,11 @@ def generate_offline_run_script(tmpJob):
         '  case "$arg" in\n'
     )
     # --usePFCTurl and --directIn are understood only by the trfs for analysis jobs
-    if isUser:
-        scrStr += '    --direct)           direct=1; direct_opts=" --usePFCTurl --directIn" ;;\n'
+    if is_user:
+        script_str += '    --direct)           direct=1; direct_opts=" --usePFCTurl --directIn" ;;\n'
     else:
-        scrStr += "    --direct)           direct=1 ;;\n"
-    scrStr += (
+        script_str += "    --direct)           direct=1 ;;\n"
+    script_str += (
         '    --nfiles=*)         nfiles="${arg#*=}" ;;\n'
         '    --rse_expression=*) rse_expression="${arg#*=}" ;;\n'
         '    --schemes=*)        schemes="${arg#*=}" ;;\n'
@@ -205,24 +241,24 @@ def generate_offline_run_script(tmpJob):
         "done\n\n"
     )
     # list of input files which are subject to --nfiles and --direct
-    if not dataFiles:
-        scrStr += (
+    if not data_files:
+        script_str += (
             'if [ -n "$nfiles" ]; then echo "ERROR: --nfiles is not available for this job"; exit 1; fi\n'
             'if [ "$direct" -eq 1 ]; then echo "ERROR: --direct is not available for this job"; exit 1; fi\n\n'
         )
     else:
-        scrStr += "#input files\n"
-        scrStr += "data_dids=(" + " ".join(['"' + dataDIDs[tmpLFN] + '"' for tmpLFN in dataFiles]) + ")\n"
-        if orderedLFNs is None:
-            scrStr += 'if [ -n "$nfiles" ]; then\n' '  echo "ERROR: --nfiles is not available for this job"; exit 1\n' "fi\n"
+        script_str += "#input files\n"
+        script_str += "data_dids=(" + " ".join(['"' + data_dids[tmp_lfn] + '"' for tmp_lfn in data_files]) + ")\n"
+        if ordered_lfns is None:
+            script_str += 'if [ -n "$nfiles" ]; then\n  echo "ERROR: --nfiles is not available for this job"; exit 1\nfi\n'
         else:
-            scrStr += 'if [ -n "$nfiles" ]; then\n'
-            scrStr += '  case "$nfiles" in \'\'|*[!0-9]*|0) echo "ERROR: --nfiles must be a positive integer"; exit 1 ;; esac\n'
-            scrStr += "  nfiles=$((10#$nfiles))\n"
-            scrStr += '  data_dids=("${data_dids[@]:0:$nfiles}")\n'
-            scrStr += f'  echo "INFO: using ${{#data_dids[@]}} of {len(dataFiles)} input files"\n'
-            scrStr += "fi\n"
-        scrStr += (
+            script_str += 'if [ -n "$nfiles" ]; then\n'
+            script_str += '  case "$nfiles" in \'\'|*[!0-9]*|0) echo "ERROR: --nfiles must be a positive integer"; exit 1 ;; esac\n'
+            script_str += "  nfiles=$((10#$nfiles))\n"
+            script_str += '  data_dids=("${data_dids[@]:0:$nfiles}")\n'
+            script_str += f'  echo "INFO: using ${{#data_dids[@]}} of {len(data_files)} input files"\n'
+            script_str += "fi\n"
+        script_str += (
             "data_lfns=()\n"
             'for did in "${data_dids[@]}"; do data_lfns+=("${did#*:}"); done\n'
             'input_csv=$(IFS=,; echo "${data_lfns[*]}")\n'
@@ -230,7 +266,7 @@ def generate_offline_run_script(tmpJob):
             'input_list="${input_list:2}"\n\n'
         )
         # generate the file catalog for direct access
-        scrStr += (
+        script_str += (
             'if [ "$direct" -eq 1 ]; then\n'
             '  if [ -z "$ATLAS_LOCAL_ROOT_BASE" ]; then\n'
             '    echo "ERROR: setupATLAS is required to run this script"; exit 1\n'
@@ -239,13 +275,13 @@ def generate_offline_run_script(tmpJob):
             "  lsetup rucio\n"
             '  python3 - "$rse_expression" "$schemes" "${data_dids[@]}" << \'PFCEOF\'\n'
         )
-        tmpGuidMap = {dataDIDs[tmpLFN]: guidMap[dataDIDs[tmpLFN]] for tmpLFN in dataFiles}
-        scrStr += _PFC_GENERATOR.replace("__GUID_MAP__", repr(tmpGuidMap))
-        scrStr += "PFCEOF\n"
-        scrStr += "  if [ $? -ne 0 ]; then exit 1; fi\n"
-        scrStr += "fi\n\n"
+        sub_guid_map = {data_dids[tmp_lfn]: guid_map[data_dids[tmp_lfn]] for tmp_lfn in data_files}
+        script_str += _PFC_GENERATOR.replace("__GUID_MAP__", repr(sub_guid_map))
+        script_str += "PFCEOF\n"
+        script_str += "  if [ $? -ne 0 ]; then exit 1; fi\n"
+        script_str += "fi\n\n"
     # the rest of the script runs in an ALRB container
-    scrStr += (
+    script_str += (
         "temp_file=$(mktemp)\n"
         'cat << EOF > "$temp_file"\n\n'
         "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh\n"
@@ -253,8 +289,8 @@ def generate_offline_run_script(tmpJob):
         "#retrieve inputs\n\n"
         "EOF\n\n"
     )
-    if dataFiles:
-        scrStr += (
+    if data_files:
+        script_str += (
             'if [ "$direct" -eq 0 ]; then\n'
             '  for did in "${data_dids[@]}"; do\n'
             '    echo "rucio download $did --no-subdir" >> "$temp_file"\n'
@@ -263,53 +299,53 @@ def generate_offline_run_script(tmpJob):
             '  echo "#input files are read directly from storage. see PoolFileCatalog.xml" >> "$temp_file"\n'
             "fi\n\n"
         )
-    scrStr += 'cat << EOF >> "$temp_file"\n'
-    for tmpDID in auxDIDs:
-        scrStr += f"rucio download {tmpDID} --no-subdir\n"
-    if isUser:
-        scrStr += "\n#get trf\n"
-        scrStr += f"wget {tmpTrfs[0]}\n"
-        scrStr += f"chmod +x {tmpTrfs[0].split('/')[-1]}\n"
-    scrStr += "\n#transform commands\n\n"
-    cmtConfig = ""
-    for tmpIdx, tmpRel in enumerate(tmpRels):
+    script_str += 'cat << EOF >> "$temp_file"\n'
+    for tmp_did in aux_dids:
+        script_str += f"rucio download {tmp_did} --no-subdir\n"
+    if is_user:
+        script_str += "\n#get trf\n"
+        script_str += f"wget {transformations[0]}\n"
+        script_str += f"chmod +x {transformations[0].split('/')[-1]}\n"
+    script_str += "\n#transform commands\n\n"
+    cmt_config = ""
+    for tmp_idx, home_package in enumerate(home_packages):
         # asetup
-        atlRel = re.sub("Atlas-", "", tmpAtls[tmpIdx])
-        atlTags = re.split("[/_]", tmpRel)
-        if "" in atlTags:
-            atlTags.remove("")
-        if atlRel != "" and atlRel not in atlTags and (re.search("^\d+\.\d+\.\d+$", atlRel) is None or isUser):
-            atlTags.append(atlRel)
+        atlas_release = re.sub("Atlas-", "", atlas_releases[tmp_idx])
+        atlas_tags = re.split("[/_]", home_package)
+        if "" in atlas_tags:
+            atlas_tags.remove("")
+        if atlas_release != "" and atlas_release not in atlas_tags and (re.search(r"^\d+\.\d+\.\d+$", atlas_release) is None or is_user):
+            atlas_tags.append(atlas_release)
         try:
-            cmtConfig = [s for s in tmpJob.cmtConfig.split("@") if s][-1]
+            cmt_config = [s for s in job_spec.cmtConfig.split("@") if s][-1]
         except Exception:
-            cmtConfig = ""
-        scrStr += f"asetup --platform={tmpJob.cmtConfig.split('@')[0]} {','.join(atlTags)}\n"
+            cmt_config = ""
+        script_str += f"asetup --platform={job_spec.cmtConfig.split('@')[0]} {','.join(atlas_tags)}\n"
         # athenaMP
-        if tmpJob.coreCount not in ["NULL", None] and tmpJob.coreCount > 1:
-            scrStr += f"export ATHENA_PROC_NUMBER={tmpJob.coreCount}\n"
-            scrStr += f"export ATHENA_CORE_NUMBER={tmpJob.coreCount}\n"
+        if job_spec.coreCount not in ["NULL", None] and job_spec.coreCount > 1:
+            script_str += f"export ATHENA_PROC_NUMBER={job_spec.coreCount}\n"
+            script_str += f"export ATHENA_CORE_NUMBER={job_spec.coreCount}\n"
         # add double quotes for zsh
-        tmpParamStr = tmpPars[tmpIdx]
-        tmpSplitter = shlex.shlex(tmpParamStr, posix=True)
-        tmpSplitter.whitespace = " "
-        tmpSplitter.whitespace_split = True
+        param_str = job_params_list[tmp_idx]
+        splitter = shlex.shlex(param_str, posix=True)
+        splitter.whitespace = " "
+        splitter.whitespace_split = True
         # loop for params
-        for tmpItem in tmpSplitter:
-            tmpMatch = re.search("^(-[^=]+=)(.+)$", tmpItem)
-            if tmpMatch is not None:
-                tmpArgName = tmpMatch.group(1)
-                tmpArgVal = tmpMatch.group(2)
-                tmpArgIdx = tmpParamStr.find(tmpArgName) + len(tmpArgName)
+        for item in splitter:
+            match = re.search("^(-[^=]+=)(.+)$", item)
+            if match is not None:
+                arg_name = match.group(1)
+                arg_value = match.group(2)
+                arg_index = param_str.find(arg_name) + len(arg_name)
                 # add "
-                if tmpParamStr[tmpArgIdx] != '"':
-                    tmpParamStr = tmpParamStr.replace(tmpMatch.group(0), tmpArgName + '"' + tmpArgVal + '"')
+                if param_str[arg_index] != '"':
+                    param_str = param_str.replace(match.group(0), arg_name + '"' + arg_value + '"')
         # run trf
-        if isUser:
-            scrStr += "./"
-            tmpParamStr += " --debug${direct_opts}"
-        scrStr += f"{tmpTrfs[tmpIdx].split('/')[-1]} {tmpParamStr}\n\n"
-    scrStr += "EOF\n\n" 'chmod +x "$temp_file"\n'
-    scrStr += 'source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh -c %s -r "$temp_file"\n' % cmtConfig
-    scrStr += 'rm "$temp_file"\n'
-    return scrStr
+        if is_user:
+            script_str += "./"
+            param_str += " --debug${direct_opts}"
+        script_str += f"{transformations[tmp_idx].split('/')[-1]} {param_str}\n\n"
+    script_str += 'EOF\n\nchmod +x "$temp_file"\n'
+    script_str += f'source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh -c {cmt_config} -r "$temp_file"\n'
+    script_str += 'rm "$temp_file"\n'
+    return script_str
