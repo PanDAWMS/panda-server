@@ -1,7 +1,6 @@
 import datetime
 import json
 import re
-import shlex
 import sys
 import time
 import traceback
@@ -19,6 +18,7 @@ from pandaserver.dataservice.setupper import Setupper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
 from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
+from pandaserver.taskbuffer.offline_run_script import generate_offline_run_script
 
 _logger = PandaLogger().getLogger("TaskBuffer")
 
@@ -1064,109 +1064,7 @@ class TaskBuffer:
                 else:
                     errStr += f"for the last {days} days. You may change &days=N in the URL"
                 return errStr
-            tmpJob = tmpJobs[0]
-            # user job
-            isUser = False
-            for trf in [
-                "runAthena",
-                "runGen",
-                "runcontainer",
-                "runMerge",
-                "buildJob",
-                "buildGen",
-            ]:
-                if trf in tmpJob.transformation:
-                    isUser = True
-                    break
-            # check prodSourceLabel
-            if tmpJob.prodSourceLabel == "user":
-                isUser = True
-            if isUser:
-                tmpAtls = [tmpJob.AtlasRelease]
-                tmpRels = [re.sub("^AnalysisTransforms-*", "", tmpJob.homepackage)]
-                tmpPars = [tmpJob.jobParameters]
-                tmpTrfs = [tmpJob.transformation]
-            else:
-                # release and trf
-                tmpAtls = tmpJob.AtlasRelease.split("\n")
-                tmpRels = tmpJob.homepackage.split("\n")
-                tmpPars = tmpJob.jobParameters.split("\n")
-                tmpTrfs = tmpJob.transformation.split("\n")
-            if not (len(tmpRels) == len(tmpPars) == len(tmpTrfs)):
-                return "ERROR: The number of releases or parameters or trfs is inconsistent with others"
-            # construct script
-            scrStr = (
-                "#!/bin/bash\n\n"
-                "# To rerun the job interactively :\n"
-                "#   1) download this script\n"
-                "#   2) chmod +x ./<this script>\n"
-                "#   3) setupATLAS\n"
-                "#   4) ./<this script>\n\n"
-                "temp_file=$(mktemp)\n"
-                'cat << EOF > "$temp_file"\n\n'
-                "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh\n"
-                "lsetup rucio\n\n"
-                "#retrieve inputs\n\n"
-            )
-            # collect inputs
-            dsFileMap = {}
-            for tmpFile in tmpJob.Files:
-                if tmpFile.type == "input":
-                    if tmpFile.dataset not in dsFileMap:
-                        dsFileMap[tmpFile.dataset] = []
-                    if tmpFile.lfn not in dsFileMap[tmpFile.dataset]:
-                        dsFileMap[tmpFile.dataset].append(tmpFile.scope + ":" + tmpFile.lfn)
-            # get
-            for tmpDS in dsFileMap:
-                tmpFileList = dsFileMap[tmpDS]
-                for tmpLFN in tmpFileList:
-                    scrStr += f"rucio download {tmpLFN} --no-subdir\n"
-            if isUser:
-                scrStr += "\n#get trf\n"
-                scrStr += f"wget {tmpTrfs[0]}\n"
-                scrStr += f"chmod +x {tmpTrfs[0].split('/')[-1]}\n"
-            scrStr += "\n#transform commands\n\n"
-            for tmpIdx, tmpRel in enumerate(tmpRels):
-                # asetup
-                atlRel = re.sub("Atlas-", "", tmpAtls[tmpIdx])
-                atlTags = re.split("[/_]", tmpRel)
-                if "" in atlTags:
-                    atlTags.remove("")
-                if atlRel != "" and atlRel not in atlTags and (re.search("^\d+\.\d+\.\d+$", atlRel) is None or isUser):
-                    atlTags.append(atlRel)
-                try:
-                    cmtConfig = [s for s in tmpJob.cmtConfig.split("@") if s][-1]
-                except Exception:
-                    cmtConfig = ""
-                scrStr += f"asetup --platform={tmpJob.cmtConfig.split('@')[0]} {','.join(atlTags)}\n"
-                # athenaMP
-                if tmpJob.coreCount not in ["NULL", None] and tmpJob.coreCount > 1:
-                    scrStr += f"export ATHENA_PROC_NUMBER={tmpJob.coreCount}\n"
-                    scrStr += f"export ATHENA_CORE_NUMBER={tmpJob.coreCount}\n"
-                # add double quotes for zsh
-                tmpParamStr = tmpPars[tmpIdx]
-                tmpSplitter = shlex.shlex(tmpParamStr, posix=True)
-                tmpSplitter.whitespace = " "
-                tmpSplitter.whitespace_split = True
-                # loop for params
-                for tmpItem in tmpSplitter:
-                    tmpMatch = re.search("^(-[^=]+=)(.+)$", tmpItem)
-                    if tmpMatch is not None:
-                        tmpArgName = tmpMatch.group(1)
-                        tmpArgVal = tmpMatch.group(2)
-                        tmpArgIdx = tmpParamStr.find(tmpArgName) + len(tmpArgName)
-                        # add "
-                        if tmpParamStr[tmpArgIdx] != '"':
-                            tmpParamStr = tmpParamStr.replace(tmpMatch.group(0), tmpArgName + '"' + tmpArgVal + '"')
-                # run trf
-                if isUser:
-                    scrStr += "./"
-                    tmpParamStr += " --debug"
-                scrStr += f"{tmpTrfs[tmpIdx].split('/')[-1]} {tmpParamStr}\n\n"
-                scrStr += "EOF\n\n" 'chmod +x "$temp_file"\n'
-                scrStr += 'source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh -c %s -r "$temp_file"\n' % cmtConfig
-                scrStr += 'rm "$temp_file"\n'
-            return scrStr
+            return generate_offline_run_script(tmpJobs[0])
         except Exception as e:
             _logger.error(f"getScriptOfflineRunning : {str(e)} {traceback.format_exc()}")
             return f"ERROR: ServerError in getScriptOfflineRunning with {str(e)}"
