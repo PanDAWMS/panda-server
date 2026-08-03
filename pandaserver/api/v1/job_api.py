@@ -163,7 +163,9 @@ def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int 
     """
     Get execution script for a job.
 
-    Gets the execution script for a job, including Rucio download of input, ALRB setup, downloading transformation script and running the script. Requires a secure connection.
+    Gets the execution script for a job, including Rucio download of input, ALRB setup, downloading transformation script and running the script.
+    The generated script takes options to use only a subset of the input files (`--nfiles=<N>`) and to read them directly from storage
+    through a generated PoolFileCatalog.xml instead of downloading them (`--direct`, `--rse_expression=<RSE_EXP>`, `--schemes=<SCHEMES>`).
 
     API details:
         HTTP Method: GET
@@ -172,10 +174,10 @@ def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
         job_id (int): PanDA job ID
-        timeout (int, optional): The timeout value. Defaults to 60.
+        days (int, optional): Number of days to look back in the archive tables. Defaults to 30.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field will contain `{"script": script}`. When unsuccessful, the message field contains the error message and data an error code.
+        str: The generated script, or a message starting with `ERROR:` when the script could not be generated.
     """
     tmp_logger = LogWrapper(_logger, f"generate_offline_execution_script job_id={job_id} days={days}")
     tmp_logger.debug("Start")
