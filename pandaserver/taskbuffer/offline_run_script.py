@@ -83,7 +83,26 @@ print("INFO: generated PoolFileCatalog.xml for {0} input file(s)".format(len(did
 """
 
 
-def _get_input_file_list_in_params(param_str: str, lfn_set: set[str]) -> tuple[str | None, list[str] | None, str | None]:
+def _get_file_name_pattern(*name_str_list: str) -> re.Pattern:
+    """
+    Compile a regex to match one of the strings in trf parameters as an entire file name or list of
+    file names
+
+    The boundaries are checked so that a name is not matched when it is a part of a longer file name.
+    Note that a name can directly follow a URL-quoted delimiter such as %3D since the trf command is
+    URL-quoted in the -j option of runAthena/runGen.
+
+    Args:
+        *name_str_list (str): file names or comma-separated lists of file names
+
+    Returns:
+        re.Pattern: the compiled regex. the longest string is matched when they overlap
+    """
+    alternatives = "|".join([re.escape(name_str) for name_str in sorted(name_str_list, key=len, reverse=True)])
+    return re.compile(r"(?:(?<=%[0-9A-Fa-f]{2})|(?<![\w.\-]))(?:" + alternatives + r")(?![\w.\-])")
+
+
+def _get_input_file_list_in_params(param_str: str, lfn_set: set[str]) -> list[str] | None:
     """
     Find the list of input files in trf parameters, so that it can be replaced with a shell variable
 
@@ -95,9 +114,8 @@ def _get_input_file_list_in_params(param_str: str, lfn_set: set[str]) -> tuple[s
         lfn_set (set[str]): LFNs of the input files which may appear in the parameters
 
     Returns:
-        tuple[str | None, list[str] | None, str | None]: the matched substring, the LFNs in the order
-            they appear in the parameters, and the string to replace the matched substring with.
-            (None, None, None) if no list of input files is found
+        list[str] | None: the LFNs in the order they appear in the parameters, or None if no list of
+            input files is found
     """
     # python list style used by runAthena/runGen, e.g. -i "['a', 'b']"
     for match in re.finditer(r"\[[^\[\]]*\]", param_str):
@@ -106,17 +124,45 @@ def _get_input_file_list_in_params(param_str: str, lfn_set: set[str]) -> tuple[s
         except Exception:
             continue
         if isinstance(lfn_list, list) and lfn_list and all(isinstance(i, str) and i in lfn_set for i in lfn_list):
-            return match.group(0), lfn_list, "[${input_list}]"
+            return lfn_list
     # comma separated style used by production trfs, e.g. --inputEVNTFile=a,b,c
-    for match in re.finditer(r"(--input\w*=)(\"?)([^\s\"']+)\2", param_str):
-        lfn_list = match.group(3).split(",")
+    for match in re.finditer(r"--input\w*=\"?([^\s\"']+)", param_str):
+        lfn_list = match.group(1).split(",")
         if all(i in lfn_set for i in lfn_list):
-            return (
-                match.group(0),
-                lfn_list,
-                match.group(1) + match.group(2) + "${input_csv}" + match.group(2),
-            )
-    return None, None, None
+            return lfn_list
+    return None
+
+
+def _replace_input_file_list_in_params(param_str: str, ordered_lfns: list[str]) -> str:
+    """
+    Replace every occurrence of the list of input files in trf parameters with a shell variable
+
+    The same list is expanded more than once and in different formats. E.g. runAthena/runGen takes
+    it as a python list in -i, while the trf command in -j contains it as a comma-separated string
+    which is URL-quoted together with the rest of the command, i.e.
+    -i "['a', 'b']" ... -j "athena.py%20--filesInput%3Da,b".
+
+    Args:
+        param_str (str): trf parameters of the job
+        ordered_lfns (list[str]): LFNs of the input files in the order they appear in the parameters
+
+    Returns:
+        str: the parameters where the list of input files is replaced with a shell variable
+    """
+
+    # python list style. other lists are kept intact, e.g. the secondary input stream of
+    # --inMap "{'IN': [...], 'IN2': [...]}" and the output map of -o "{'X': [('a', 'b')]}"
+    def replace_list(match: re.Match) -> str:
+        try:
+            if ast.literal_eval(match.group(0)) == ordered_lfns:
+                return "[${input_list}]"
+        except Exception:
+            pass
+        return match.group(0)
+
+    param_str = re.sub(r"\[[^\[\]]*\]", replace_list, param_str)
+    # comma separated style
+    return _get_file_name_pattern(",".join(ordered_lfns)).sub("${input_csv}", param_str)
 
 
 def generate_offline_run_script(job_spec: "JobSpec") -> str:
@@ -183,17 +229,22 @@ def generate_offline_run_script(job_spec: "JobSpec") -> str:
             data_dids[tmp_file.lfn] = tmp_did
             guid_map[tmp_did] = None if tmp_file.GUID in [None, "NULL", ""] else tmp_file.GUID.upper()
     # replace the list of input files in the trf parameters with a shell variable, so that
-    # --nfiles can shrink it when the script runs
+    # --nfiles can shrink it when the script runs. only the first list is subject to --nfiles when
+    # multiple lists are found, e.g. for secondary input datasets
     ordered_lfns = None
-    new_params = []
     for param_str in job_params_list:
-        matched_str, matched_lfns, replacement_str = _get_input_file_list_in_params(param_str, set(data_dids))
-        if matched_str is not None:
-            param_str = param_str.replace(matched_str, replacement_str)
-            if ordered_lfns is None:
-                ordered_lfns = matched_lfns
-        new_params.append(param_str)
-    job_params_list = new_params
+        ordered_lfns = _get_input_file_list_in_params(param_str, set(data_dids))
+        if ordered_lfns:
+            break
+    if ordered_lfns:
+        new_params = [_replace_input_file_list_in_params(param_str, ordered_lfns) for param_str in job_params_list]
+        leftover_pattern = _get_file_name_pattern(*ordered_lfns)
+        if any(leftover_pattern.search(tmp_params) for tmp_params in new_params):
+            # some input files are still hardcoded in the parameters, i.e. the list appears in an
+            # unsupported format somewhere, so that --nfiles cannot be supported
+            ordered_lfns = None
+        else:
+            job_params_list = new_params
     if ordered_lfns is None:
         # the list was not found in the parameters, i.e. --nfiles cannot be supported
         data_files = list(data_dids)
