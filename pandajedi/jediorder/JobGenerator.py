@@ -2388,7 +2388,7 @@ class JobGeneratorThread(WorkerThread):
                     # remove numbers : ABC_00,00_XYZ -> ABC_,_XYZ
                     tmpHead = re.sub("\d*$", "", tmpHead)
                     tmpTail = re.sub("^\d*", "", tmpTail)
-                    # create compact paramter
+                    # create compact parameter
                     compactPar = f"{tmpHead}["
                     for tmpLFN in compactLFNs:
                         # extract number
