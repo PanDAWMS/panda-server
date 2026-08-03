@@ -1,9 +1,9 @@
 """
 generation of a shell script to rerun a job interactively
 
-The generated script sets up an ALRB container, retrieves the input files, and runs the
-transformations of the job. It takes options to use only a subset of the input files and to read
-them directly from storage through a PoolFileCatalog.xml instead of downloading them.
+The generated script retrieves the input files and then runs the transformations of the job in an
+ALRB container. It takes options to use only a subset of the input files and to read them directly
+from storage through a PoolFileCatalog.xml instead of downloading them.
 
 This module intentionally depends only on the standard library, so that it can be used and tested
 without a server configuration.
@@ -123,8 +123,8 @@ def generate_offline_run_script(job_spec: "JobSpec") -> str:
     """
     Generate a shell script to rerun a job interactively
 
-    The script sets up an ALRB container, retrieves the input files, and runs the transformations of
-    the job. It takes options to use only a subset of the input files (--nfiles) and to read them
+    The script retrieves the input files and then runs the transformations of the job in an ALRB
+    container. It takes options to use only a subset of the input files (--nfiles) and to read them
     directly from storage through PoolFileCatalog.xml instead of downloading them (--direct).
 
     Args:
@@ -240,6 +240,8 @@ def generate_offline_run_script(job_spec: "JobSpec") -> str:
         "  esac\n"
         "done\n\n"
     )
+    # setupATLAS is required both to retrieve the input files and to setup the container
+    script_str += 'if [ -z "$ATLAS_LOCAL_ROOT_BASE" ]; then\n  echo "ERROR: setupATLAS is required to run this script"; exit 1\nfi\n\n'
     # list of input files which are subject to --nfiles and --direct
     if not data_files:
         script_str += (
@@ -265,48 +267,46 @@ def generate_offline_run_script(job_spec: "JobSpec") -> str:
             'input_list=$(printf ", \'%s\'" "${data_lfns[@]}")\n'
             'input_list="${input_list:2}"\n\n'
         )
-        # generate the file catalog for direct access
-        script_str += (
-            'if [ "$direct" -eq 1 ]; then\n'
-            '  if [ -z "$ATLAS_LOCAL_ROOT_BASE" ]; then\n'
-            '    echo "ERROR: setupATLAS is required to run this script"; exit 1\n'
-            "  fi\n"
-            "  #generate PoolFileCatalog.xml with replica PFNs\n"
-            "  lsetup rucio\n"
-            '  python3 - "$rse_expression" "$schemes" "${data_dids[@]}" << \'PFCEOF\'\n'
-        )
-        sub_guid_map = {data_dids[tmp_lfn]: guid_map[data_dids[tmp_lfn]] for tmp_lfn in data_files}
-        script_str += _PFC_GENERATOR.replace("__GUID_MAP__", repr(sub_guid_map))
-        script_str += "PFCEOF\n"
-        script_str += "  if [ $? -ne 0 ]; then exit 1; fi\n"
-        script_str += "fi\n\n"
-    # the rest of the script runs in an ALRB container
+    # retrieve inputs. the current directory is shared with the ALRB container, so that the trf sees
+    # the downloaded files and PoolFileCatalog.xml. rucio is setup in a subshell to keep its
+    # environment out of the container setup and the transformations. ALRB is setup there as well
+    # since lsetup is a shell function which is not necessarily inherited by this script
+    if data_files or aux_dids:
+        script_str += "#retrieve inputs\n(\n"
+        script_str += "  source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh --quiet\n  lsetup rucio\n"
+        if data_files:
+            # generate the file catalog for direct access
+            script_str += (
+                '  if [ "$direct" -eq 1 ]; then\n'
+                "    #generate PoolFileCatalog.xml with replica PFNs\n"
+                '    python3 - "$rse_expression" "$schemes" "${data_dids[@]}" << \'PFCEOF\'\n'
+            )
+            sub_guid_map = {data_dids[tmp_lfn]: guid_map[data_dids[tmp_lfn]] for tmp_lfn in data_files}
+            script_str += _PFC_GENERATOR.replace("__GUID_MAP__", repr(sub_guid_map))
+            script_str += "PFCEOF\n"
+            script_str += (
+                "    if [ $? -ne 0 ]; then exit 1; fi\n"
+                "  else\n"
+                '    for did in "${data_dids[@]}"; do\n'
+                '      rucio download "$did" --no-subdir || exit 1\n'
+                "    done\n"
+                "  fi\n"
+            )
+        # archives (lib.tgz, DBRelease, ...) are always downloaded
+        for tmp_did in aux_dids:
+            script_str += f'  rucio download "{tmp_did}" --no-subdir || exit 1\n'
+        script_str += ") || exit 1\n\n"
+    if is_user:
+        script_str += "#get trf\n"
+        script_str += f"wget {transformations[0]} || exit 1\n"
+        script_str += f"chmod +x {transformations[0].split('/')[-1]}\n\n"
+    # the transformations run in an ALRB container
     script_str += (
         "temp_file=$(mktemp)\n"
         'cat << EOF > "$temp_file"\n\n'
         "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh\n"
-        "lsetup rucio\n\n"
-        "#retrieve inputs\n\n"
-        "EOF\n\n"
+        "\n#transform commands\n\n"
     )
-    if data_files:
-        script_str += (
-            'if [ "$direct" -eq 0 ]; then\n'
-            '  for did in "${data_dids[@]}"; do\n'
-            '    echo "rucio download $did --no-subdir" >> "$temp_file"\n'
-            "  done\n"
-            "else\n"
-            '  echo "#input files are read directly from storage. see PoolFileCatalog.xml" >> "$temp_file"\n'
-            "fi\n\n"
-        )
-    script_str += 'cat << EOF >> "$temp_file"\n'
-    for tmp_did in aux_dids:
-        script_str += f"rucio download {tmp_did} --no-subdir\n"
-    if is_user:
-        script_str += "\n#get trf\n"
-        script_str += f"wget {transformations[0]}\n"
-        script_str += f"chmod +x {transformations[0].split('/')[-1]}\n"
-    script_str += "\n#transform commands\n\n"
     cmt_config = ""
     for tmp_idx, home_package in enumerate(home_packages):
         # asetup
