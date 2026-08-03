@@ -2864,7 +2864,7 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.resubmit_data_carousel_request_JEDI(request_id, exclude_prev_dst)
 
-    # ==== Workflow fucntions ==================================
+    # ==== Workflow functions ==================================
 
     def get_workflow(self, workflow_id):
         with self.proxyPool.get() as proxy:
