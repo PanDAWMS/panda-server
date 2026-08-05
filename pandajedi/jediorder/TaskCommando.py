@@ -45,7 +45,7 @@ class TaskCommando(JediKnight):
                     # loop over all sourceLabels
                     for prodSourceLabel in self.prodSourceLabels:
                         # lock process
-                        get_lock = self.taskBufferIF.lockProcess_JEDI(vo, prodSourceLabel, None, None, None, self.__class__.__name__, self.pid)
+                        get_lock = self.taskBufferIF.lockProcess_JEDI(vo, prodSourceLabel, None, None, None, self.__class__.__name__, self.pid, timeLimit=1)
                         if not get_lock:
                             tmpLog.debug(f"failed to get lock for vo={vo} label={prodSourceLabel}")
                             continue
