@@ -28,7 +28,10 @@ from pandaserver.api.v1.common import (
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer import data_carousel_ops
 from pandaserver.taskbuffer.DataCarousel import DataCarouselInterface
-from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE
+from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
+    ANY_MACHINE,
+    SERVICE_SERVER,
+)
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("api_data_carousel")
@@ -37,9 +40,10 @@ _logger = PandaLogger().getLogger("api_data_carousel")
 global_task_buffer = None
 global_dcif = None
 
-# service whose async request daemon runs the Data Carousel operations; the requests are
-# submitted with machine_name=ANY_MACHINE so exactly one of its machines executes each one
-DC_SERVICE_NAME = "server"
+# service whose async request daemon runs the Data Carousel operations, which must match the
+# service_name that daemon runs with (pandaserver.daemons.scripts.async_request_daemon); the
+# requests are submitted with machine_name=ANY_MACHINE so exactly one of its machines executes each
+DC_SERVICE_NAME = SERVICE_SERVER
 
 # prefix of the async_requests.request_type values owned by this module; get_result refuses
 # to read back requests of any other type

@@ -10,10 +10,12 @@ from unittest import mock
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 from pandaserver.asyncprocess import data_carousel_handlers
 from pandaserver.taskbuffer import data_carousel_ops
+from pandaserver.taskbuffer.DataCarousel import DataCarouselRequestStatus
 
-# to run the tests with a real Data Carousel request ID or dataset name by setting the environment variable
-REQUEST_ID = int(os.environ.get("REQUEST_ID", None))
-DATASET = str(os.environ.get("DATASET", None))
+# to run the tests with a real Data Carousel request ID or dataset name by setting the environment
+# variable; left as None when unset so the tests needing them skip instead of failing to import
+REQUEST_ID = int(os.environ["REQUEST_ID"]) if os.environ.get("REQUEST_ID") else None
+DATASET = os.environ.get("DATASET") or None
 
 # how long to wait for the async request daemon to process a submitted request
 POLL_TIMEOUT_SECONDS = 120
@@ -93,6 +95,11 @@ class TestDataCarouselAsyncAPI(unittest.TestCase):
     def setUp(self):
         self.http_client = HttpClient()
 
+    def _require(self, value, name):
+        if value is None:
+            raise unittest.SkipTest(f"{name} environment variable is not set")
+        return value
+
     def _submit(self, method, data):
         url = f"{api_url_ssl}/data_carousel/{method}"
         print(f"Testing URL: {url}")
@@ -138,6 +145,7 @@ class TestDataCarouselAsyncAPI(unittest.TestCase):
         self.assertEqual(output, expected_response)
 
     def test_submit_change_staging_destination_by_request_id(self):
+        self._require(REQUEST_ID, "REQUEST_ID")
         status, output = self._submit("submit_change_staging_destination", {"request_id": REQUEST_ID})
         async_id = self._assert_submitted(output)
         data = self._poll(async_id)
@@ -147,6 +155,7 @@ class TestDataCarouselAsyncAPI(unittest.TestCase):
             self.assertIsInstance(data["result"]["data"].get("new_request_id"), int)
 
     def test_submit_change_staging_source_by_request_id(self):
+        self._require(REQUEST_ID, "REQUEST_ID")
         status, output = self._submit("submit_change_staging_source", {"request_id": REQUEST_ID})
         async_id = self._assert_submitted(output)
         data = self._poll(async_id)
@@ -156,6 +165,7 @@ class TestDataCarouselAsyncAPI(unittest.TestCase):
             self.assertIsInstance(data["result"]["data"].get("ddm_rule_id"), str)
 
     def test_submit_force_to_staging_by_dataset(self):
+        self._require(DATASET, "DATASET")
         status, output = self._submit("submit_force_to_staging", {"dataset": DATASET})
         async_id = self._assert_submitted(output)
         data = self._poll(async_id)
@@ -165,6 +175,7 @@ class TestDataCarouselAsyncAPI(unittest.TestCase):
             self.assertEqual(data["result"]["data"].get("status"), "staging")
 
     def test_submit_retire_unused_by_request_id(self):
+        self._require(REQUEST_ID, "REQUEST_ID")
         status, output = self._submit("submit_retire_unused", {"request_id": REQUEST_ID})
         async_id = self._assert_submitted(output)
         data = self._poll(async_id)
@@ -192,6 +203,61 @@ class TestDataCarouselTargetValidation(unittest.TestCase):
 
     def test_dataset_only(self):
         self.assertEqual(data_carousel_ops.validate_target(None, "scope:dataset"), (True, ""))
+
+
+class TestDataCarouselIddsSubmission(unittest.TestCase):
+    """Unit tests for the iDDS fan-out of change_staging_destination (no live server needed)."""
+
+    def _dcif(self, related_tasks, failing_task_ids=()):
+        dcif = mock.MagicMock()
+        dcif.get_request_by_id.return_value = mock.MagicMock(request_id=1, dataset="scope:ds", status="staging")
+        dcif.resubmit_request.return_value = (mock.MagicMock(request_id=2, dataset="scope:ds", status=DataCarouselRequestStatus.staging), None)
+        dcif._get_related_tasks.return_value = related_tasks
+
+        def submit(task_id, dc_req_spec):
+            if task_id in failing_task_ids:
+                raise RuntimeError(f"iDDS is down for {task_id}")
+            return 100 + task_id
+
+        dcif._submit_idds_stagein_request.side_effect = submit
+        return dcif
+
+    def test_all_submissions_succeed(self):
+        dcif = self._dcif([11, 12, 13])
+        success, message, data = data_carousel_ops.change_staging_destination(dcif, request_id=1)
+        self.assertTrue(success)
+        self.assertEqual(message, "new request resubmitted, destination changed; submitted iDDS requests")
+        self.assertEqual(data, {"request_id": 1, "new_request_id": 2, "dataset": "scope:ds"})
+
+    def test_failed_submission_is_reported(self):
+        # a submission raising in its worker thread must not be swallowed
+        dcif = self._dcif([11, 12, 13], failing_task_ids=(12,))
+        success, message, data = data_carousel_ops.change_staging_destination(dcif, request_id=1)
+        self.assertTrue(success)
+        self.assertIn("submitted iDDS requests for 2/3 related tasks; failed for [12]", message)
+        # the other tasks are still attempted
+        self.assertEqual(dcif._submit_idds_stagein_request.call_count, 3)
+
+    def test_thread_pool_is_bounded(self):
+        sizes = []
+        real_pool = data_carousel_ops.ThreadPoolExecutor
+
+        class RecordingPool(real_pool):
+            def __init__(self, max_workers=None, **kwargs):
+                sizes.append(max_workers)
+                super().__init__(max_workers=max_workers, **kwargs)
+
+        with mock.patch.object(data_carousel_ops, "ThreadPoolExecutor", RecordingPool):
+            data_carousel_ops.change_staging_destination(self._dcif(list(range(50))), request_id=1)
+            data_carousel_ops.change_staging_destination(self._dcif([7]), request_id=1)
+        self.assertEqual(sizes, [data_carousel_ops.IDDS_SUBMISSION_MAX_WORKERS, 1])
+
+    def test_no_related_tasks(self):
+        dcif = self._dcif([])
+        success, message, data = data_carousel_ops.change_staging_destination(dcif, request_id=1)
+        self.assertTrue(success)
+        self.assertIn("failed to get related tasks; skipped to submit iDDS requests", message)
+        dcif._submit_idds_stagein_request.assert_not_called()
 
 
 class TestDataCarouselAsyncHandlers(unittest.TestCase):

@@ -13,6 +13,11 @@ DEFAULT_MAX_ATTEMPTS = 3
 # values are FQDNs (socket.getfqdn()), so this sentinel can never collide
 ANY_MACHINE = "any"
 
+# service_name values of the async request daemons. A request is only picked up by a daemon
+# running with its service_name, so anything submitting requests must use these same values
+SERVICE_SERVER = "server"
+SERVICE_JEDI = "jedi"
+
 
 class AsyncRequestModule(BaseModule):
     def __init__(self, log_stream: LogWrapper):
@@ -423,11 +428,12 @@ class AsyncRequestModule(BaseModule):
 
         Long-running handlers call this periodically so recover_stale_results doesn't declare the
         row stale and hand the request to another machine, which for a handler with side effects
-        would mean executing it twice. A no-op once the row leaves the 'running' state.
+        would mean executing it twice.
 
         :param request_id: unique request identifier
         :param machine_name: hostname owning the result row
-        :return: True on success, False on DB error
+        :return: True if the row was refreshed; False on DB error or when no row is in 'running'
+            state, which tells the caller its claim is gone (already recovered, finished or missing)
         """
         comment = " /* DBProxy.touch_async_result */"
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id} machine={machine_name}")
@@ -437,8 +443,12 @@ class AsyncRequestModule(BaseModule):
             var_map = {":request_id": request_id, ":machine_name": machine_name, ":now": naive_utcnow()}
             self.conn.begin()
             self.cur.execute(sql + comment, var_map)
+            n_row = self.cur.rowcount
             if not self._commit():
                 raise RuntimeError("Commit error")
+            if not n_row:
+                tmp_log.warning("no running row to refresh; the claim is gone")
+                return False
             tmp_log.debug("done")
             return True
         except Exception:

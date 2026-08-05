@@ -28,6 +28,10 @@ _logger = PandaLogger().getLogger("api_data_carousel")
 # (success, message, data) returned by every operation
 OperationResult = tuple[bool, str, dict | None]
 
+# cap on the threads submitting iDDS requests in parallel, so a request with many related tasks
+# can't spawn an unbounded number of threads in the API or daemon process
+IDDS_SUBMISSION_MAX_WORKERS = 8
+
 
 def validate_target(request_id: int | str | None = None, dataset: str | None = None) -> tuple[bool, str]:
     """
@@ -121,10 +125,23 @@ def change_staging_destination(dcif: DataCarouselInterface, request_id: int | st
             task_id_list = dcif._get_related_tasks(new_request_id)
             if task_id_list:
                 tmp_logger.debug(f"related tasks: {task_id_list}")
-                with ThreadPoolExecutor() as thread_pool:
-                    thread_pool.map((lambda task_id: dcif._submit_idds_stagein_request(task_id, dc_req_spec_resubmitted)), task_id_list)
-                tmp_logger.debug(f"submitted corresponding iDDS requests for related tasks")
-                message += "; submitted iDDS requests"
+                with ThreadPoolExecutor(max_workers=min(IDDS_SUBMISSION_MAX_WORKERS, len(task_id_list))) as thread_pool:
+                    future_map = {task_id: thread_pool.submit(dcif._submit_idds_stagein_request, task_id, dc_req_spec_resubmitted) for task_id in task_id_list}
+                # the results must be consumed, otherwise a submission raising in its thread is silently lost
+                failed_task_id_list = []
+                for task_id, future in future_map.items():
+                    try:
+                        future.result()
+                    except Exception as e:
+                        failed_task_id_list.append(task_id)
+                        tmp_logger.error(f"failed to submit iDDS request for task_id={task_id} : {e}")
+                if failed_task_id_list:
+                    err_msg = f"submitted iDDS requests for {len(task_id_list) - len(failed_task_id_list)}/{len(task_id_list)} related tasks; failed for {failed_task_id_list}"
+                    tmp_logger.warning(err_msg)
+                    message += f"; {err_msg}"
+                else:
+                    tmp_logger.debug(f"submitted corresponding iDDS requests for related tasks")
+                    message += "; submitted iDDS requests"
 
             else:
                 err_msg = f"failed to get related tasks; skipped to submit iDDS requests"

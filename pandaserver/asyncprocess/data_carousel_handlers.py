@@ -69,7 +69,10 @@ class _ResultHeartbeat:
     def _beat(self):
         while not self._stop_event.wait(_HEARTBEAT_INTERVAL_SECONDS):
             try:
-                self._tb.touch_async_result(self._request_id, self._machine_name)
+                if not self._tb.touch_async_result(self._request_id, self._machine_name):
+                    # the row is no longer running, so this operation may already have been handed
+                    # to another machine by recover_stale_results; keep going but make it visible
+                    self._tmp_logger.warning(f"heartbeat did not refresh the result row of machine={self._machine_name}; the claim may have been lost")
             except Exception as e:
                 self._tmp_logger.warning(f"heartbeat failed with {e}")
 
