@@ -4136,14 +4136,12 @@ class MiscStandaloneModule(BaseModule):
     def lockProcess_JEDI(self, vo, prodSourceLabel, cloud, workqueue_id, resource_name, component, pid, forceOption, timeLimit):
         comment = " /* JediDBProxy.lockProcess_JEDI */"
         # defaults
-        if cloud is None:
-            cloud = "default"
-        if workqueue_id is None:
-            workqueue_id = 0
-        if resource_name is None:
-            resource_name = "default"
-        if component is None:
-            component = "default"
+        vo = "default" if vo is None else vo
+        prodSourceLabel = "default" if prodSourceLabel is None else prodSourceLabel
+        cloud = "default" if cloud is None else cloud
+        workqueue_id = 0 if workqueue_id is None else workqueue_id
+        resource_name = "default" if resource_name is None else resource_name
+        component = "default" if component is None else component
         tmpLog = self.create_tagged_logger(
             comment, f"vo={vo} label={prodSourceLabel} cloud={cloud} queue={workqueue_id} resource_type={resource_name} component={component} pid={pid}"
         )
