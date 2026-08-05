@@ -1476,6 +1476,10 @@ class TaskBuffer:
                 retriable,
             )
 
+    def touch_async_result(self, request_id, machine_name):
+        with self.proxyPool.get() as proxy:
+            return proxy.touch_async_result(request_id, machine_name)
+
     def get_async_results(self, request_id):
         with self.proxyPool.get() as proxy:
             return proxy.get_async_results(request_id)

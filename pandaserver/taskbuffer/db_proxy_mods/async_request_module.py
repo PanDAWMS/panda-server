@@ -417,6 +417,35 @@ class AsyncRequestModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
+    def touch_async_result(self, request_id: str, machine_name: str) -> bool:
+        """
+        Refresh started_at of a running result row to show that it is still being processed.
+
+        Long-running handlers call this periodically so recover_stale_results doesn't declare the
+        row stale and hand the request to another machine, which for a handler with side effects
+        would mean executing it twice. A no-op once the row leaves the 'running' state.
+
+        :param request_id: unique request identifier
+        :param machine_name: hostname owning the result row
+        :return: True on success, False on DB error
+        """
+        comment = " /* DBProxy.touch_async_result */"
+        tmp_log = self.create_tagged_logger(comment, f"request_id={request_id} machine={machine_name}")
+        tmp_log.debug("start")
+        try:
+            sql = "UPDATE ATLAS_PANDA.async_results SET started_at=:now " "WHERE request_id=:request_id AND machine_name=:machine_name AND status='running' "
+            var_map = {":request_id": request_id, ":machine_name": machine_name, ":now": naive_utcnow()}
+            self.conn.begin()
+            self.cur.execute(sql + comment, var_map)
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug("done")
+            return True
+        except Exception:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            return False
+
     def get_async_results(self, request_id: str) -> list[dict]:
         """
         Return all async_results rows for a request as a list of dicts.

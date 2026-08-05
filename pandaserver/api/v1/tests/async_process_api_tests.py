@@ -7,7 +7,7 @@ import unittest
 import uuid
 from unittest import mock
 
-from pandaserver.api.v1 import async_process_api
+from pandaserver.api.v1 import common
 from pandaserver.api.v1.http_client import HttpClient, api_url, api_url_ssl
 
 NO_SSL_RESPONSE = {"success": False, "message": "SSL secure connection is required", "data": None}
@@ -166,24 +166,24 @@ class TestAsyncAccessControl(unittest.TestCase):
         return {"parameters": json.dumps(params)}
 
     def test_set_owner_info_default_owner(self):
-        with mock.patch.object(async_process_api, "get_dn", return_value="dn"), mock.patch.object(async_process_api, "clean_user_id", return_value="alice"):
-            params = async_process_api._set_owner_info({"pattern": "x"}, req=object())
+        with mock.patch.object(common, "get_dn", return_value="dn"), mock.patch.object(common, "clean_user_id", return_value="alice"):
+            params = common.set_owner_info({"pattern": "x"}, req=object())
         self.assertEqual(params["requester"], "alice")
         self.assertEqual(params["access"], "owner")
         self.assertEqual(params["pattern"], "x")
 
     def test_set_owner_info_explicit_access(self):
-        with mock.patch.object(async_process_api, "get_dn", return_value="dn"), mock.patch.object(async_process_api, "clean_user_id", return_value="alice"):
-            params = async_process_api._set_owner_info({}, req=object(), access="anyone")
+        with mock.patch.object(common, "get_dn", return_value="dn"), mock.patch.object(common, "clean_user_id", return_value="alice"):
+            params = common.set_owner_info({}, req=object(), access="anyone")
         self.assertEqual(params["access"], "anyone")
 
     def _authorize(self, caller, req_row, production_role=False):
         with (
-            mock.patch.object(async_process_api, "get_dn", return_value="dn"),
-            mock.patch.object(async_process_api, "clean_user_id", return_value=caller),
-            mock.patch.object(async_process_api, "has_production_role", return_value=production_role),
+            mock.patch.object(common, "get_dn", return_value="dn"),
+            mock.patch.object(common, "clean_user_id", return_value=caller),
+            mock.patch.object(common, "has_production_role", return_value=production_role),
         ):
-            return async_process_api._is_authorized_to_read(object(), req_row)
+            return common.is_authorized_to_read(object(), req_row)
 
     def test_owner_matching_caller_ok(self):
         ok, _ = self._authorize("alice", self._row("alice", "owner"))

@@ -1,25 +1,34 @@
-import datetime
-from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
-from typing import Any, Dict, List
+"""
+API endpoints for Data Carousel operations.
+
+Each operation comes in two flavours sharing one implementation
+(pandaserver.taskbuffer.data_carousel_ops):
+
+* the synchronous endpoints (`change_staging_destination`, ...) run the operation inline and
+  return its outcome, at the risk of hitting the HTTP timeout on slow DDM/iDDS calls;
+* the asynchronous endpoints (`submit_change_staging_destination`, ...) register a request in
+  the async_requests table and return immediately with an async_id; the async request daemon
+  runs the very same operation and the outcome is polled with `get_result`.
+
+Both flavours are kept so callers can switch between them without a server-side change.
+"""
+
+import json
+import uuid
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.api.v1.common import (
-    MESSAGE_DATABASE,
-    TIME_OUT,
-    TimedMethod,
     generate_response,
-    get_dn,
+    is_authorized_to_read,
     request_validation,
+    set_owner_info,
 )
 from pandaserver.srvcore.panda_request import PandaRequest
-from pandaserver.taskbuffer.DataCarousel import (
-    DataCarouselInterface,
-    DataCarouselRequestStatus,
-)
+from pandaserver.taskbuffer import data_carousel_ops
+from pandaserver.taskbuffer.DataCarousel import DataCarouselInterface
+from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("api_data_carousel")
@@ -28,9 +37,13 @@ _logger = PandaLogger().getLogger("api_data_carousel")
 global_task_buffer = None
 global_dcif = None
 
-# These global variables don't depend on DB access and can be initialized here
-# global_proxy_cache = panda_proxy_cache.MyProxyInterface()
-# global_token_cache = token_cache.TokenCache()
+# service whose async request daemon runs the Data Carousel operations; the requests are
+# submitted with machine_name=ANY_MACHINE so exactly one of its machines executes each one
+DC_SERVICE_NAME = "server"
+
+# prefix of the async_requests.request_type values owned by this module; get_result refuses
+# to read back requests of any other type
+REQUEST_TYPE_PREFIX = "dc_"
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -44,6 +57,46 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_dcif = DataCarouselInterface(global_task_buffer)
 
 
+def _submit_request(req: PandaRequest, operation: str, parameters: dict, tmp_logger: LogWrapper) -> dict:
+    """
+    Register an async request running the given Data Carousel operation.
+
+    Args:
+        req(PandaRequest): internally generated request object
+        operation(str): name of the operation in pandaserver.taskbuffer.data_carousel_ops.OPERATIONS
+        parameters(dict): arguments to pass to the operation
+        tmp_logger(LogWrapper): logger of the calling endpoint
+
+    Returns:
+        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': {'async_id': <uuid>}}`
+    """
+    is_valid, err_msg = data_carousel_ops.validate_target(parameters.get("request_id"), parameters.get("dataset"))
+    if not is_valid:
+        tmp_logger.warning(err_msg)
+        return generate_response(False, err_msg)
+
+    async_id = str(uuid.uuid4())
+    # results are readable by the requester or any production-role caller, matching the
+    # production role already required to submit
+    parameters = set_owner_info(dict(parameters), req, access="production")
+
+    is_ok = global_task_buffer.insert_async_request(
+        async_id,
+        f"{REQUEST_TYPE_PREFIX}{operation}",
+        json.dumps(parameters),
+        DC_SERVICE_NAME,
+        ANY_MACHINE,
+        None,  # expected_machines auto-derived to ["any"] for the sentinel
+    )
+    if not is_ok:
+        err_msg = "failed to insert request into DB"
+        tmp_logger.error(err_msg)
+        return generate_response(False, err_msg)
+
+    tmp_logger.debug(f"submitted async_id={async_id}")
+    return generate_response(True, "request submitted", {"async_id": async_id})
+
+
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def change_staging_destination(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
     """
@@ -52,6 +105,7 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
     The current active staging request will be cancelled, and a new request will be created with the newly selected destination RSE, excluding the original destination.
     The requests can be specified by request_id or dataset (if both exist, request_id is taken).
     Requires a secure connection production role.
+    Runs synchronously; see `submit_change_staging_destination` for the asynchronous flavour.
 
     API details:
         HTTP Method: POST
@@ -65,56 +119,7 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"change_staging_destination request_id={request_id} dataset={dataset}")
-    tmp_logger.debug("Start")
-    success, message, data = False, "", None
-    dc_req_spec_resubmitted = None
-    to_submit_idds = False
-    time_start = naive_utcnow()
-
-    dc_req_spec = None
-    if request_id is not None:
-        # specified by request_id
-        dc_req_spec = global_dcif.get_request_by_id(request_id)
-    elif request_id is None and dataset is not None:
-        # specified by dataset
-        dc_req_spec = global_dcif.get_request_by_dataset(dataset)
-
-    if dc_req_spec is not None:
-        dc_req_spec_resubmitted, err_msg = global_dcif.resubmit_request(dc_req_spec, submit_idds_request=False, exclude_prev_dst=True)
-        if not dc_req_spec_resubmitted or err_msg:
-            err_msg = f"failed to resubmit request_id={dc_req_spec.request_id} : {err_msg}"
-            tmp_logger.error(err_msg)
-            success, message = False, err_msg
-        else:
-            to_submit_idds = True
-    else:
-        err_msg = f"failed to get corresponding request"
-        tmp_logger.error(err_msg)
-        success, message = False, err_msg
-
-    if dc_req_spec_resubmitted and dc_req_spec_resubmitted.status == DataCarouselRequestStatus.staging:
-        success = True
-        data = {"request_id": dc_req_spec.request_id, "new_request_id": dc_req_spec_resubmitted.request_id, "dataset": dc_req_spec_resubmitted.dataset}
-        message = "new request resubmitted, destination changed"
-        if to_submit_idds:
-            new_request_id = dc_req_spec_resubmitted.request_id
-            task_id_list = global_dcif._get_related_tasks(new_request_id)
-            if task_id_list:
-                tmp_logger.debug(f"related tasks: {task_id_list}")
-                with ThreadPoolExecutor() as thread_pool:
-                    thread_pool.map((lambda task_id: global_dcif._submit_idds_stagein_request(task_id, dc_req_spec_resubmitted)), task_id_list)
-                tmp_logger.debug(f"submitted corresponding iDDS requests for related tasks")
-                message += "; submitted iDDS requests"
-
-            else:
-                err_msg = f"failed to get related tasks; skipped to submit iDDS requests"
-                tmp_logger.warning(err_msg)
-                message += f"; {err_msg}"
-
-    time_delta = naive_utcnow() - time_start
-    tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
-
+    success, message, data = data_carousel_ops.change_staging_destination(global_dcif, request_id, dataset)
     return generate_response(success, message, data)
 
 
@@ -135,6 +140,7 @@ def change_staging_source(
     Only effective on queued or staging requests.
     The requests can be specified by request_id or dataset (if both exist, request_id is taken).
     Requires a secure connection production role.
+    Runs synchronously; see `submit_change_staging_source` for the asynchronous flavour.
 
     API details:
         HTTP Method: POST
@@ -151,55 +157,7 @@ def change_staging_source(
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(
-        _logger,
-        f"change_staging_source request_id={request_id} dataset={dataset} cancel_fts={cancel_fts} change_src_expr={change_src_expr} source_rse={source_rse}",
-    )
-    tmp_logger.debug("Start")
-    success, message, data = False, "", None
-    time_start = naive_utcnow()
-
-    dc_req_spec = None
-    if request_id is not None:
-        # specified by request_id
-        dc_req_spec = global_dcif.get_request_by_id(request_id)
-    elif request_id is None and dataset is not None:
-        # specified by dataset
-        dc_req_spec = global_dcif.get_request_by_dataset(dataset)
-
-    if dc_req_spec is not None:
-        status = dc_req_spec.status
-        orig_source_rse = dc_req_spec.source_rse
-        if status not in [DataCarouselRequestStatus.queued, DataCarouselRequestStatus.staging]:
-            err_msg = f"request_id={dc_req_spec.request_id} status={status} not queued or staging; skipped"
-            tmp_logger.warning(err_msg)
-            success, message = False, err_msg
-        else:
-            ret, dc_req_spec, err_msg = global_dcif.change_request_source_rse(dc_req_spec, cancel_fts, change_src_expr, source_rse)
-            if not ret:
-                err_msg = f"failed to change source request_id={dc_req_spec.request_id} : {err_msg}"
-                tmp_logger.error(err_msg)
-                success, message = False, err_msg
-            else:
-                success = True
-                if dc_req_spec.status == DataCarouselRequestStatus.queued or change_src_expr:
-                    message = f"status={status} changed source_rse from {orig_source_rse} to {dc_req_spec.source_rse}"
-                else:
-                    message = f"status={status} source replica expression is dropped"
-                data = {
-                    "request_id": dc_req_spec.request_id,
-                    "dataset": dc_req_spec.dataset,
-                    "source_rse": dc_req_spec.source_rse,
-                    "ddm_rule_id": dc_req_spec.ddm_rule_id,
-                }
-    else:
-        err_msg = f"failed to get corresponding request"
-        tmp_logger.error(err_msg)
-        success, message = False, err_msg
-
-    time_delta = naive_utcnow() - time_start
-    tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
-
+    success, message, data = data_carousel_ops.change_staging_source(global_dcif, request_id, dataset, cancel_fts, change_src_expr, source_rse)
     return generate_response(success, message, data)
 
 
@@ -212,6 +170,7 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
     Only effective on queued requests.
     The requests can be specified by request_id or dataset (if both exist, request_id is taken).
     Requires a secure connection production role.
+    Runs synchronously; see `submit_force_to_staging` for the asynchronous flavour.
 
     API details:
         HTTP Method: POST
@@ -225,42 +184,7 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"force_to_staging request_id={request_id} dataset={dataset}")
-    tmp_logger.debug("Start")
-    success, message, data = False, "", None
-    time_start = naive_utcnow()
-
-    dc_req_spec = None
-    if request_id is not None:
-        # specified by request_id
-        dc_req_spec = global_dcif.get_request_by_id(request_id)
-    elif request_id is None and dataset is not None:
-        # specified by dataset
-        dc_req_spec = global_dcif.get_request_by_dataset(dataset)
-
-    if dc_req_spec is not None:
-        is_ok, err_msg, dc_req_spec = global_dcif.stage_request(dc_req_spec)
-        if not is_ok:
-            err_msg = f"failed to stage request_id={dc_req_spec.request_id} : {err_msg}"
-            tmp_logger.error(err_msg)
-            success, message = False, err_msg
-        else:
-            success = True
-            message = f"status has become {dc_req_spec.status}"
-            data = {
-                "request_id": dc_req_spec.request_id,
-                "dataset": dc_req_spec.dataset,
-                "status": dc_req_spec.status,
-                "ddm_rule_id": dc_req_spec.ddm_rule_id,
-            }
-    else:
-        err_msg = f"failed to get corresponding request"
-        tmp_logger.error(err_msg)
-        success, message = False, err_msg
-
-    time_delta = naive_utcnow() - time_start
-    tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
-
+    success, message, data = data_carousel_ops.force_to_staging(global_dcif, request_id, dataset)
     return generate_response(success, message, data)
 
 
@@ -272,6 +196,7 @@ def retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str
     If the request is done and has no related tasks, it can be retired to clean up the DDM rules and replicas.
     The requests can be specified by request_id or dataset (if both exist, request_id is taken).
     Requires a secure connection production role.
+    Runs synchronously; see `submit_retire_unused` for the asynchronous flavour.
 
     API details:
         HTTP Method: POST
@@ -285,40 +210,212 @@ def retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"retire_unused request_id={request_id} dataset={dataset}")
-    tmp_logger.debug("Start")
-    success, message, data = False, "", None
-    time_start = naive_utcnow()
-
-    dc_req_spec = None
-    if request_id is not None:
-        # specified by request_id
-        dc_req_spec = global_dcif.get_request_by_id(request_id)
-    elif request_id is None and dataset is not None:
-        # specified by dataset
-        dc_req_spec = global_dcif.get_request_by_dataset(dataset)
-
-    if dc_req_spec is not None:
-        is_ok, dc_req_spec, err_msg = global_dcif.retire_unused_request(dc_req_spec)
-        if not is_ok:
-            err_msg = f"failed to retire request_id={dc_req_spec.request_id} : {err_msg}"
-            tmp_logger.error(err_msg)
-            success, message = False, err_msg
-        else:
-            success = True
-            message = f"retired successfully"
-            data = {
-                "request_id": dc_req_spec.request_id,
-                "dataset": dc_req_spec.dataset,
-                "status": dc_req_spec.status,
-                "ddm_rule_id": dc_req_spec.ddm_rule_id,
-            }
-    else:
-        err_msg = f"failed to get corresponding request"
-        tmp_logger.error(err_msg)
-        success, message = False, err_msg
-
-    time_delta = naive_utcnow() - time_start
-    tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
-
+    success, message, data = data_carousel_ops.retire_unused(global_dcif, request_id, dataset)
     return generate_response(success, message, data)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def submit_change_staging_destination(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+    """
+    Submit a request to change destination of staging, to be processed asynchronously
+
+    Asynchronous flavour of `change_staging_destination`: the request is registered in DB and
+    processed by the async request daemon, so the call returns without waiting for DDM or iDDS.
+    Poll `get_result` with the returned async_id to get the outcome.
+    Requires a secure connection production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/data_carousel/submit_change_staging_destination
+
+    Args:
+        req(PandaRequest): internally generated request object
+        request_id (int|None): request_id of the staging request, e.g. `123`
+        dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
+
+    Returns:
+        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': {'async_id': <uuid to poll with get_result>}}`
+    """
+    tmp_logger = LogWrapper(_logger, f"submit_change_staging_destination request_id={request_id} dataset={dataset}")
+    tmp_logger.debug("Start")
+    return _submit_request(req, "change_staging_destination", {"request_id": request_id, "dataset": dataset}, tmp_logger)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def submit_change_staging_source(
+    req: PandaRequest,
+    request_id: int | None = None,
+    dataset: str | None = None,
+    cancel_fts: bool = False,
+    change_src_expr: bool = False,
+    source_rse: str | None = None,
+) -> dict:
+    """
+    Submit a request to change source of staging, to be processed asynchronously
+
+    Asynchronous flavour of `change_staging_source`: the request is registered in DB and
+    processed by the async request daemon, so the call returns without waiting for DDM or iDDS.
+    Poll `get_result` with the returned async_id to get the outcome.
+    Requires a secure connection production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/data_carousel/submit_change_staging_source
+
+    Args:
+        req(PandaRequest): internally generated request object
+        request_id (int|None): request_id of the staging request, e.g. `123`
+        dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
+        cancel_fts (bool): whether to cancel current FTS requests on DDM, False by default
+        change_src_expr (bool): whether to change source_replica_expression of the DDM rule by replacing old source with new one, instead of just dropping old source
+        source_rse (str|None): if set, use this source RSE instead of choosing one randomly, also force change_src_expr to be True; default is None
+
+    Returns:
+        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': {'async_id': <uuid to poll with get_result>}}`
+    """
+    tmp_logger = LogWrapper(
+        _logger,
+        f"submit_change_staging_source request_id={request_id} dataset={dataset} cancel_fts={cancel_fts} change_src_expr={change_src_expr} source_rse={source_rse}",
+    )
+    tmp_logger.debug("Start")
+    parameters = {
+        "request_id": request_id,
+        "dataset": dataset,
+        "cancel_fts": cancel_fts,
+        "change_src_expr": change_src_expr,
+        "source_rse": source_rse,
+    }
+    return _submit_request(req, "change_staging_source", parameters, tmp_logger)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def submit_force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+    """
+    Submit a request to force to staging, to be processed asynchronously
+
+    Asynchronous flavour of `force_to_staging`: the request is registered in DB and processed
+    by the async request daemon, so the call returns without waiting for DDM or iDDS.
+    Poll `get_result` with the returned async_id to get the outcome.
+    Requires a secure connection production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/data_carousel/submit_force_to_staging
+
+    Args:
+        req(PandaRequest): internally generated request object
+        request_id (int|None): request_id of the staging request, e.g. `123`
+        dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
+
+    Returns:
+        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': {'async_id': <uuid to poll with get_result>}}`
+    """
+    tmp_logger = LogWrapper(_logger, f"submit_force_to_staging request_id={request_id} dataset={dataset}")
+    tmp_logger.debug("Start")
+    return _submit_request(req, "force_to_staging", {"request_id": request_id, "dataset": dataset}, tmp_logger)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def submit_retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+    """
+    Submit a request to retire an unused staging request, to be processed asynchronously
+
+    Asynchronous flavour of `retire_unused`: the request is registered in DB and processed by
+    the async request daemon, so the call returns without waiting for DDM or iDDS.
+    Poll `get_result` with the returned async_id to get the outcome.
+    Requires a secure connection production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/data_carousel/submit_retire_unused
+
+    Args:
+        req(PandaRequest): internally generated request object
+        request_id (int|None): request_id of the staging request, e.g. `123`
+        dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
+
+    Returns:
+        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': {'async_id': <uuid to poll with get_result>}}`
+    """
+    tmp_logger = LogWrapper(_logger, f"submit_retire_unused request_id={request_id} dataset={dataset}")
+    tmp_logger.debug("Start")
+    return _submit_request(req, "retire_unused", {"request_id": request_id, "dataset": dataset}, tmp_logger)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="GET")
+def get_result(req: PandaRequest, async_id: str) -> dict:
+    """
+    Poll for the result of an asynchronous Data Carousel request
+
+    Once the status is `"done"`, `result` holds exactly what the synchronous flavour of the
+    operation would have returned. Requests are pruned from DB after a few days, after which
+    the async_id is no longer found.
+    Requires a secure connection production role.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/data_carousel/get_result
+
+    Args:
+        req(PandaRequest): internally generated request object
+        async_id (str): async_id returned by one of the submit_* endpoints
+
+    Returns:
+        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`,
+            where data is `{'status': 'pending'|'running'|'done'|'failed', 'attempts': <int>,
+            'started_at': <str|None>, 'finished_at': <str|None>, 'error_msg': <str|None>,
+            'result': {'success': True/False, 'message': <str>, 'data': <operation data>}|None}`.
+            `result` is None until the operation reaches a terminal state, and `status='failed'`
+            means the operation crashed, with the reason in `error_msg`.
+    """
+    tmp_logger = LogWrapper(_logger, f"get_result < async_id={async_id} >")
+    tmp_logger.debug("Start")
+
+    req_row = global_task_buffer.get_async_request(async_id)
+    if req_row is None:
+        err_msg = f"async_id '{async_id}' not found"
+        tmp_logger.warning(err_msg)
+        return generate_response(False, err_msg)
+
+    # only requests submitted by this module are readable here
+    if not req_row["request_type"].startswith(REQUEST_TYPE_PREFIX):
+        err_msg = f"async_id '{async_id}' is not a Data Carousel request"
+        tmp_logger.warning(err_msg)
+        return generate_response(False, err_msg)
+
+    # authorize the caller to read the results based on the request's access level
+    is_ok, msg = is_authorized_to_read(req, req_row)
+    if not is_ok:
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+    tmp_logger.debug(msg)
+
+    # these requests target ANY_MACHINE, so there is at most one result row, keyed by the sentinel
+    results = global_task_buffer.get_async_results(async_id)
+    result_row = next((row for row in results if row["machine_name"] == ANY_MACHINE), None)
+
+    if result_row is None:
+        # not claimed by any machine yet
+        data = {"status": "pending", "attempts": 0, "started_at": None, "finished_at": None, "error_msg": None, "result": None}
+        tmp_logger.debug("Done status=pending (not claimed yet)")
+        return generate_response(True, "", data)
+
+    result = None
+    if result_row["status"] == "done" and result_row["result"]:
+        try:
+            result = json.loads(result_row["result"])
+        except json.JSONDecodeError as e:
+            err_msg = f"failed to decode stored result : {e}"
+            tmp_logger.error(err_msg)
+            return generate_response(False, err_msg)
+
+    data = {
+        "status": result_row["status"],
+        "attempts": result_row["attempts"],
+        "started_at": str(result_row["started_at"]) if result_row["started_at"] is not None else None,
+        "finished_at": str(result_row["finished_at"]) if result_row["finished_at"] is not None else None,
+        "error_msg": result_row["error_msg"],
+        "result": result,
+    }
+    tmp_logger.debug(f"""Done status={data["status"]}""")
+    return generate_response(True, "", data)
