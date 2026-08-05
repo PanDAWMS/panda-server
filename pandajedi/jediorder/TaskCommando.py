@@ -24,7 +24,7 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 class TaskCommando(JediKnight):
     # constructor
     def __init__(self, commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels):
-        self.vos = self.parseInit(vos)
+        self.vos = self.parseInit(vos)        
         self.prodSourceLabels = self.parseInit(prodSourceLabels)
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-dog"
         JediKnight.__init__(self, commuChannel, taskBufferIF, ddmIF, logger)
@@ -44,6 +44,11 @@ class TaskCommando(JediKnight):
                 for vo in self.vos:
                     # loop over all sourceLabels
                     for prodSourceLabel in self.prodSourceLabels:
+                        # lock process
+                        get_lock = self.taskBufferIF.lockProcess_JEDI(vo, prodSourceLabel, None, None, None, self.__class__.__name__, self.pid)
+                        if not get_lock:
+                            tmpLog.debug(f"failed to get lock for vo={vo} label={prodSourceLabel}")
+                            continue
                         # get the list of tasks to exec command
                         tmpList = self.taskBufferIF.getTasksToExecCommand_JEDI(vo, prodSourceLabel)
                         if tmpList is None:
@@ -62,6 +67,8 @@ class TaskCommando(JediKnight):
                                 thr.start()
                             # join
                             threadPool.join()
+                        # unlock process
+                        self.taskBufferIF.unlockProcess_JEDI(vo, prodSourceLabel, None, None, None, self.__class__.__name__, self.pid)
                 tmpLog.debug("done")
             except Exception as e:
                 tmpLog.error(f"failed in {self.__class__.__name__}.start() with {str(e)} {traceback.format_exc()}")
