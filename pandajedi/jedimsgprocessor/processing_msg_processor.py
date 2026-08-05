@@ -92,7 +92,7 @@ class ProcessingMsgProcPlugin(BaseMsgProcPlugin):
                             # got error and rollback in dbproxy
                             err_str = f"jeditaskid={jeditaskid}, scope={scope}, failed to update datasets"
                             raise RuntimeError(err_str)
-                        tmp_log.info(f"jeditaskid={jeditaskid}, scope={scope}, updated {res} datasets")
+                        tmp_log.info(f"jeditaskid={jeditaskid}, scope={scope}, updated {res} files in {len(name_dict)} datasets")
                     # send message to contents feeder if new files are staged
                     if res > 0 or msg_type == "collection_processing":
                         tmp_s, task_spec = self.tbIF.getTaskWithID_JEDI(jeditaskid)
@@ -103,14 +103,18 @@ class ProcessingMsgProcPlugin(BaseMsgProcPlugin):
                             else:
                                 tmp_log.warning(f"failed to push trigger message to jedi_contents_feeder for jeditaskid={jeditaskid}")
                     # check if all ok
-                    if res == len(target_list):
-                        tmp_log.debug(f"jeditaskid={jeditaskid}, scope={scope}, all OK")
-                    elif res < len(target_list):
-                        tmp_log.warning(f"jeditaskid={jeditaskid}, scope={scope}, only {res} out of {len(target_list)} done...")
-                    elif res > len(target_list):
-                        tmp_log.warning(f"jeditaskid={jeditaskid}, scope={scope}, strangely, {res} out of {len(target_list)} done...")
-                    else:
-                        tmp_log.warning(f"jeditaskid={jeditaskid}, scope={scope}, something unwanted happened...")
+                    if msg_type == "file_processing":
+                        if res == len(name_dict):
+                            tmp_log.debug(f"jeditaskid={jeditaskid}, scope={scope}, all OK")
+                        elif res < len(name_dict):
+                            tmp_log.warning(f"jeditaskid={jeditaskid}, scope={scope}, only {res} out of {len(name_dict)} done...")
+                        else:
+                            tmp_log.warning(f"jeditaskid={jeditaskid}, scope={scope}, strangely, {res} out of {len(name_dict)} done...")
+                    elif msg_type == "collection_processing":
+                        if res > 0:
+                            tmp_log.debug(f"jeditaskid={jeditaskid}, scope={scope}, {res} files done")
+                        else:
+                            tmp_log.info(f"jeditaskid={jeditaskid}, scope={scope}, no file updated")
                 # handle missing files
                 n_missing = len(missing_files_dict)
                 if n_missing > 0:
