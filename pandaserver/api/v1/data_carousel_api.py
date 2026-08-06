@@ -7,8 +7,8 @@ Each operation comes in two flavours sharing one implementation
 * the synchronous endpoints (`change_staging_destination`, ...) run the operation inline and
   return its outcome, at the risk of hitting the HTTP timeout on slow DDM/iDDS calls;
 * the asynchronous endpoints (`submit_change_staging_destination`, ...) register a request in
-  the async_requests table and return immediately with an async_id; the async request daemon
-  runs the very same operation and the outcome is polled with `get_result`.
+  the async_requests table and return immediately with an async_id; the async request watchdog
+  on JEDI runs the very same operation and the outcome is polled with `get_result`.
 
 Both flavours are kept so callers can switch between them without a server-side change.
 """
@@ -30,7 +30,7 @@ from pandaserver.taskbuffer import data_carousel_ops
 from pandaserver.taskbuffer.DataCarousel import DataCarouselInterface
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
     ANY_MACHINE,
-    SERVICE_SERVER,
+    SERVICE_JEDI,
 )
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
@@ -41,9 +41,11 @@ global_task_buffer = None
 global_dcif = None
 
 # service whose async request daemon runs the Data Carousel operations, which must match the
-# service_name that daemon runs with (pandaserver.daemons.scripts.async_request_daemon); the
-# requests are submitted with machine_name=ANY_MACHINE so exactly one of its machines executes each
-DC_SERVICE_NAME = SERVICE_SERVER
+# service_name that daemon runs with (pandajedi.jedidog.AsyncRequestWatchDog); JEDI is where the
+# rest of the Data Carousel machinery lives, so its operations run next to the Data Carousel
+# watchdog rather than on the server. The requests are submitted with machine_name=ANY_MACHINE so
+# exactly one of the service's machines executes each one
+DC_SERVICE_NAME = SERVICE_JEDI
 
 # prefix of the async_requests.request_type values owned by this module; get_result refuses
 # to read back requests of any other type

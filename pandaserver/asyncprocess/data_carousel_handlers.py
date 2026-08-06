@@ -34,8 +34,12 @@ def _get_dcif(tb):
     The import and the constructor are expensive (Rucio, iDDS and polars imports, RSE listing
     and config loading), so a daemon that never gets a Data Carousel request never pays for it.
 
+    Only the task buffer is passed: the constructor sets its own ddmIF, so the second argument
+    other JEDI callers pass would be ignored anyway.
+
     Args:
-        tb(TaskBuffer): task buffer to build the interface on
+        tb(TaskBuffer): task buffer to build the interface on; the JEDI taskBufferIF when the
+            operations run under pandajedi.jedidog.AsyncRequestWatchDog
 
     Returns:
         DataCarouselInterface: shared interface instance
