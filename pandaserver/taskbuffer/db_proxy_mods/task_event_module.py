@@ -3939,7 +3939,8 @@ class TaskEventModule(BaseModule):
                     ":comm_comment": comm_comment,
                 },
             )
-            return_message = f"command={comStr} is registered. will be executed in a few minutes"
+
+            return_message = f"command={comStr} is registered for task ID {jediTaskID}. will be executed in a few minutes"
             tmp_log.info(return_message)
 
             if useCommit:
