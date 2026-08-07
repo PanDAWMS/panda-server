@@ -17,6 +17,9 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
+    STRUCTURED_RESULT_KEY,
+)
 
 TIME_OUT = "TimeOut"
 
@@ -148,9 +151,9 @@ def has_production_role(req):
 ACCESS_LEVELS = ("owner", "production", "anyone")
 
 
-def set_owner_info(parameters: dict, req, access: str = "owner") -> dict:
+def set_owner_info(parameters: dict, req, access: str = "owner", structured_result: bool = False) -> dict:
     """
-    Embed the requester and access level into an async request's parameters dict.
+    Embed the requester, access level and result format into an async request's parameters dict.
     Used by the endpoints submitting async requests when building parameters_json.
 
     Args:
@@ -158,12 +161,18 @@ def set_owner_info(parameters: dict, req, access: str = "owner") -> dict:
         req(PandaRequest): request object, used to derive the requester's compact DN
         access(str): access level controlling who may read results; one of
             "owner", "production", "anyone" (default "owner")
+        structured_result(bool): True when the handler stores a {"success", "message", "data"}
+            payload rather than raw output, which makes get_result report that payload at the
+            top level of its response instead of the per-machine shape (default False)
 
     Returns:
-        dict: the same parameters dict, with "requester" and "access" set
+        dict: the same parameters dict, with "requester", "access" and, when asked for,
+            "structured_result" set
     """
     parameters["requester"] = clean_user_id(get_dn(req))
     parameters["access"] = access
+    if structured_result:
+        parameters[STRUCTURED_RESULT_KEY] = True
     return parameters
 
 

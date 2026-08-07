@@ -117,16 +117,17 @@ class TestDataCarouselAsyncAPI(unittest.TestCase):
         return async_id
 
     def _poll(self, async_id):
-        """Poll get_result until the request reaches a terminal state, or skip the test on timeout."""
-        url = f"{api_url_ssl}/data_carousel/get_result"
+        """Poll the shared reader until the request reaches a terminal state, or skip on timeout."""
+        url = f"{api_url_ssl}/async_process/get_result"
         print(f"Testing URL: {url}")
         deadline = time.time() + POLL_TIMEOUT_SECONDS
         while time.time() < deadline:
-            status, output = self.http_client.get(url, {"async_id": async_id})
+            status, output = self.http_client.get(url, {"request_id": async_id})
             print(status, output)
-            self.assertTrue(output["success"])
-            if output["data"]["status"] in ("done", "failed"):
-                return output["data"]
+            # async_meta is present whenever the poll itself succeeded
+            self.assertIn("async_meta", output)
+            if output["async_meta"]["status"] in ("done", "failed"):
+                return output
             time.sleep(POLL_INTERVAL_SECONDS)
         raise unittest.SkipTest(f"async_id={async_id} not processed within {POLL_TIMEOUT_SECONDS} sec; is the async request daemon running?")
 
@@ -136,52 +137,53 @@ class TestDataCarouselAsyncAPI(unittest.TestCase):
         self.assertEqual(output, expected_response)
 
     def test_get_result_not_found(self):
+        # the shared reader owns the not-found response; a response without async_meta means the
+        # poll itself failed rather than reporting on a request
         missing_id = str(uuid.uuid4())
-        url = f"{api_url_ssl}/data_carousel/get_result"
+        url = f"{api_url_ssl}/async_process/get_result"
         print(f"Testing URL: {url}")
-        status, output = self.http_client.get(url, {"async_id": missing_id})
+        status, output = self.http_client.get(url, {"request_id": missing_id})
         print(status, output)
-        expected_response = {"success": False, "message": f"async_id '{missing_id}' not found", "data": None}
-        self.assertEqual(output, expected_response)
+        self.assertEqual(output, {"success": False, "message": f"request_id '{missing_id}' not found", "data": None})
 
     def test_submit_change_staging_destination_by_request_id(self):
         self._require(REQUEST_ID, "REQUEST_ID")
         status, output = self._submit("submit_change_staging_destination", {"request_id": REQUEST_ID})
         async_id = self._assert_submitted(output)
-        data = self._poll(async_id)
-        self.assertEqual(data["status"], "done")
-        if data["result"]["success"]:
-            self.assertEqual(data["result"]["data"].get("request_id"), REQUEST_ID)
-            self.assertIsInstance(data["result"]["data"].get("new_request_id"), int)
+        output = self._poll(async_id)
+        self.assertEqual(output["async_meta"]["status"], "done")
+        if output["success"]:
+            self.assertEqual(output["data"].get("request_id"), REQUEST_ID)
+            self.assertIsInstance(output["data"].get("new_request_id"), int)
 
     def test_submit_change_staging_source_by_request_id(self):
         self._require(REQUEST_ID, "REQUEST_ID")
         status, output = self._submit("submit_change_staging_source", {"request_id": REQUEST_ID})
         async_id = self._assert_submitted(output)
-        data = self._poll(async_id)
-        self.assertEqual(data["status"], "done")
-        if data["result"]["success"]:
-            self.assertEqual(data["result"]["data"].get("request_id"), REQUEST_ID)
-            self.assertIsInstance(data["result"]["data"].get("ddm_rule_id"), str)
+        output = self._poll(async_id)
+        self.assertEqual(output["async_meta"]["status"], "done")
+        if output["success"]:
+            self.assertEqual(output["data"].get("request_id"), REQUEST_ID)
+            self.assertIsInstance(output["data"].get("ddm_rule_id"), str)
 
     def test_submit_force_to_staging_by_dataset(self):
         self._require(DATASET, "DATASET")
         status, output = self._submit("submit_force_to_staging", {"dataset": DATASET})
         async_id = self._assert_submitted(output)
-        data = self._poll(async_id)
-        self.assertEqual(data["status"], "done")
-        if data["result"]["success"]:
-            self.assertEqual(data["result"]["data"].get("dataset"), DATASET)
-            self.assertEqual(data["result"]["data"].get("status"), "staging")
+        output = self._poll(async_id)
+        self.assertEqual(output["async_meta"]["status"], "done")
+        if output["success"]:
+            self.assertEqual(output["data"].get("dataset"), DATASET)
+            self.assertEqual(output["data"].get("status"), "staging")
 
     def test_submit_retire_unused_by_request_id(self):
         self._require(REQUEST_ID, "REQUEST_ID")
         status, output = self._submit("submit_retire_unused", {"request_id": REQUEST_ID})
         async_id = self._assert_submitted(output)
-        data = self._poll(async_id)
-        self.assertEqual(data["status"], "done")
-        if data["result"]["success"]:
-            self.assertEqual(data["result"]["data"].get("request_id"), REQUEST_ID)
+        output = self._poll(async_id)
+        self.assertEqual(output["async_meta"]["status"], "done")
+        if output["success"]:
+            self.assertEqual(output["data"].get("request_id"), REQUEST_ID)
 
 
 class TestDataCarouselTargetValidation(unittest.TestCase):

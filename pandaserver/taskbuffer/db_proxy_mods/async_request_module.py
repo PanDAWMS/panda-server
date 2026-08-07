@@ -18,6 +18,13 @@ ANY_MACHINE = "any"
 SERVICE_SERVER = "server"
 SERVICE_JEDI = "jedi"
 
+# parameters key marking a request whose handler stores a {"success", "message", "data"} payload
+# instead of raw output, so the API can report that payload at the top level of its response
+STRUCTURED_RESULT_KEY = "structured_result"
+
+# keys the API layer adds to the stored parameters as metadata; handlers never receive them
+PARAMETER_META_KEYS = ("requester", "access", STRUCTURED_RESULT_KEY)
+
 
 class AsyncRequestModule(BaseModule):
     def __init__(self, log_stream: LogWrapper):

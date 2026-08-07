@@ -17,8 +17,9 @@ import json
 import threading
 import traceback
 
-# keys added to the stored parameters by the API layer, not accepted by the operations
-_META_PARAMETER_KEYS = {"requester", "access"}
+from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
+    PARAMETER_META_KEYS,
+)
 
 # how often the heartbeat refreshes started_at of a running result row
 _HEARTBEAT_INTERVAL_SECONDS = 60
@@ -108,7 +109,7 @@ def _handle(operation_name, row, tb, tmp_logger, result_machine):
     try:
         operation = data_carousel_ops.OPERATIONS[operation_name]
         parameters = json.loads(row["parameters"] or "{}")
-        kwargs = {key: value for key, value in parameters.items() if key not in _META_PARAMETER_KEYS}
+        kwargs = {key: value for key, value in parameters.items() if key not in PARAMETER_META_KEYS}
         tmp_logger.debug(f"running {operation_name} with {kwargs}")
         with _ResultHeartbeat(tb, request_id, result_machine, tmp_logger):
             success, message, data = operation(_get_dcif(tb), **kwargs)
