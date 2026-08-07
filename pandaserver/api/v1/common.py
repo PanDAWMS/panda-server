@@ -1,5 +1,6 @@
 import ast
 import inspect
+import json
 import re
 import sys
 import threading
@@ -15,6 +16,10 @@ import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
+    STRUCTURED_RESULT_KEY,
+)
 
 TIME_OUT = "TimeOut"
 
@@ -140,6 +145,66 @@ def has_production_role(req):
             if re.search(rolePat, fqan):
                 return True
     return False
+
+
+# valid access levels for reading back async request results
+ACCESS_LEVELS = ("owner", "production", "anyone")
+
+
+def set_owner_info(parameters: dict, req, access: str = "owner", structured_result: bool = False) -> dict:
+    """
+    Embed the requester, access level and result format into an async request's parameters dict.
+    Used by the endpoints submitting async requests when building parameters_json.
+
+    Args:
+        parameters(dict): the request's parameters dict to be augmented in place
+        req(PandaRequest): request object, used to derive the requester's compact DN
+        access(str): access level controlling who may read results; one of
+            "owner", "production", "anyone" (default "owner")
+        structured_result(bool): True when the handler stores a {"success", "message", "data"}
+            payload rather than raw output, which makes get_result report that payload at the
+            top level of its response instead of the per-machine shape (default False)
+
+    Returns:
+        dict: the same parameters dict, with "requester", "access" and, when asked for,
+            "structured_result" set
+    """
+    parameters["requester"] = clean_user_id(get_dn(req))
+    parameters["access"] = access
+    if structured_result:
+        parameters[STRUCTURED_RESULT_KEY] = True
+    return parameters
+
+
+def is_authorized_to_read(req, req_row) -> tuple[bool, str]:
+    """
+    Authorize the caller to read an async request's results based on its access level.
+
+    Args:
+        req(PandaRequest): request object, used to derive the caller's compact DN
+            and (for the "production" level) the production role
+        req_row(dict): the row dict from TaskBuffer.get_async_request();
+            only req_row["parameters"] (the JSON holding requester/access) is used
+
+    Returns:
+        tuple[bool, str]: (authorized, message)
+    """
+    caller = clean_user_id(get_dn(req))
+    try:
+        params = json.loads(req_row["parameters"] or "{}")
+    except json.JSONDecodeError:
+        params = {}
+    requester = params.get("requester")
+    access = params.get("access", "owner")
+    if access == "owner":
+        authorized = caller == requester
+    elif access == "production":
+        authorized = caller == requester or has_production_role(req)
+    else:  # "anyone"; any unknown value falls through to not authorized
+        authorized = access == "anyone"
+    if not authorized:
+        return False, f"'{caller}' is not authorized to read results (access='{access}', requester='{requester}')"
+    return True, f"'{caller}' is authorized (access='{access}')"
 
 
 def extract_production_working_groups(fqans):

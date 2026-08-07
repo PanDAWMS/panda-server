@@ -13,6 +13,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
+from pandaserver.asyncprocess import data_carousel_handlers
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE
 
@@ -134,6 +135,8 @@ def _handle_sleep_echo(row, tb, tmp_logger, result_machine):
 HANDLERS = {
     "grep": _handle_grep,
     "sleep_echo": _handle_sleep_echo,
+    # Data Carousel operations, submitted by pandaserver.api.v1.data_carousel_api
+    **data_carousel_handlers.HANDLERS,
 }
 
 
