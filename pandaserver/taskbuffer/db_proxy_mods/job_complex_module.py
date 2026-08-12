@@ -168,7 +168,7 @@ class JobComplexModule(BaseModule):
                         and jobStatus == "holding"
                         and ("jobDispatcherErrorDiag" not in param or param["jobDispatcherErrorDiag"] not in [None, ""])
                     ):
-                        # just ignore hearbeats for job recovery
+                        # just ignore heartbeats for job recovery
                         tmp_log.debug("skip to reset holding")
                     elif (
                         oldJobStatus == "holding"
@@ -1002,7 +1002,7 @@ class JobComplexModule(BaseModule):
                     # set status etc. for non-failed jobs
                     if job.endTime in [None, "NULL"]:
                         job.endTime = currentTime
-                    # reset startTime for aCT where starting jobs don't acutally get started
+                    # reset startTime for aCT where starting jobs don't actually get started
                     if job.jobStatus == "starting":
                         job.startTime = job.endTime
                     job.modificationTime = currentTime
@@ -1071,7 +1071,7 @@ class JobComplexModule(BaseModule):
                 varMap[":type1"] = "output"
                 varMap[":type2"] = "log"
                 self.cur.execute(sqlF + comment, varMap)
-                # update files,metadata,parametes
+                # update files,metadata,parameters
                 varMap = {}
                 varMap[":PandaID"] = pandaID
                 varMap[":modificationTime"] = job.modificationTime
@@ -1371,7 +1371,7 @@ class JobComplexModule(BaseModule):
                             varMap[":type1"] = "output"
                             varMap[":type2"] = "log"
                             self.cur.execute(sqlDFup + comment, varMap)
-                            # update files,metadata,parametes
+                            # update files,metadata,parameters
                             varMap = {}
                             varMap[":PandaID"] = downID
                             varMap[":modificationTime"] = dJob.modificationTime
@@ -3122,7 +3122,7 @@ class JobComplexModule(BaseModule):
                     varMap = {}
                     varMap[":fileID"] = file.fileID
                     if isFileForWaitingCoJumbo:
-                        # not change status for wating co-jumbo jobs to allow new jobs to pickup files
+                        # not change status for waiting co-jumbo jobs to allow new jobs to pickup files
                         varMap[":status"] = "picked"
                         varMap[":is_waiting"] = "Y"
                     else:
@@ -4760,7 +4760,7 @@ class JobComplexModule(BaseModule):
                     tmp_log.debug(f"finalizing {pandaID}")
                     # insert
                     self.cur.execute(sql3 + comment, job.valuesMap())
-                    # update files,metadata,parametes
+                    # update files,metadata,parameters
                     varMap = {}
                     varMap[":PandaID"] = pandaID
                     varMap[":modificationTime"] = job.modificationTime

@@ -1102,7 +1102,7 @@ class DataCarouselInterface(object):
     def _choose_tape_source_rse(self, dataset: str, rse_set: set, staging_rule, no_cern: bool = True) -> tuple[str, (str | None), (str | None)]:
         """
         Choose a TAPE source RSE
-        If with exsiting staging rule, then get source RSE from it
+        If with existing staging rule, then get source RSE from it
 
         Args:
             dataset (str): dataset name
@@ -1755,7 +1755,7 @@ class DataCarouselInterface(object):
             # split with to_pin and not to_pin
             to_pin_df = tmp_df.filter(pl.col("to_pin"))
             tmp_queued_df = tmp_df.filter(pl.col("to_pin").not_())
-            # fill dummy cumulative sum (0) for reqeusts to pin
+            # fill dummy cumulative sum (0) for requests to pin
             to_pin_df = to_pin_df.with_columns(cum_total_files=pl.lit(0, dtype=pl.datatypes.Int64), cum_dataset_size=pl.lit(0, dtype=pl.datatypes.Int64))
             # fair share for gshares
             if True and not tmp_queued_df.is_empty() and (fair_share_init_quota := min(QUEUE_FAIR_SHARE_MAX_QUOTA, max(quota_size, 0))) > 0:
@@ -1766,10 +1766,10 @@ class DataCarouselInterface(object):
                 gshare_staging_files_map = {x["init_task_gshare"]: x["staging_files"] for x in tmp_source_rse_gshare_stats_list}
                 n_queued_gshares = len(queued_gshare_list)
                 n_staging_files_of_gshares = sum([gshare_staging_files_map.get(gshare, 0) for gshare in queued_gshare_list])
-                # fair share quota per gshare and the virtual one including remaing staging files
+                # fair share quota per gshare and the virtual one including remaining staging files
                 fair_share_quota_per_gshare = fair_share_init_quota // n_queued_gshares
                 virtual_fair_share_quota_per_gshare = (fair_share_init_quota + n_staging_files_of_gshares) // n_queued_gshares
-                # list of gshares to stage by exluding gshares already having remaining staging files exceeding fair_share_quota_per_gshare
+                # list of gshares to stage by excluding gshares already having remaining staging files exceeding fair_share_quota_per_gshare
                 to_stage_gshare_list = [
                     gshare for gshare in queued_gshare_list if gshare_staging_files_map.get(gshare, 0) < virtual_fair_share_quota_per_gshare
                 ]
@@ -2761,7 +2761,7 @@ class DataCarouselInterface(object):
                 if dc_req_spec.status == DataCarouselRequestStatus.staging and dc_req_spec.get_parameter("rule_unfound"):
                     # requests staging but DDM rule not found; to cancel
                     self.cancel_request(dc_req_spec, by=by, reason="rule_unfound")
-            # cancel orphan reqeusts
+            # cancel orphan requests
             orphan_requests = self._get_orphan_requests()
             if orphan_requests:
                 for dc_req_spec in orphan_requests:
@@ -2858,7 +2858,7 @@ class DataCarouselInterface(object):
             reason (str|None): annotation of the reason for resubmitting
 
         Returns:
-            DataCarouselRequestSpec|None : spec of the resubmitted reqeust spec if success, None otherwise
+            DataCarouselRequestSpec|None : spec of the resubmitted request spec if success, None otherwise
             str|None : error message if any, None otherwise
         """
         tmp_log = LogWrapper(
@@ -2880,7 +2880,7 @@ class DataCarouselInterface(object):
             orig_dc_req_spec = locked_spec
             # dummy spec to resubmit
             dummy_dc_req_spec_to_resubmit = get_resubmit_request_spec(orig_dc_req_spec, exclude_prev_dst)
-            # check and choose availble destination RSE
+            # check and choose available destination RSE
             destination_rse = self._choose_destination_rse_for_request(dummy_dc_req_spec_to_resubmit)
             if destination_rse is None:
                 err_msg = f"no other available destination RSE for request_id={orig_dc_req_spec.request_id}; skipped"
@@ -2976,7 +2976,7 @@ class DataCarouselInterface(object):
             # exclude old source RSE for queued request
             rse_set.discard(dc_req_spec.source_rse)
             if not rse_set:
-                # no availible source RSE
+                # no available source RSE
                 err_msg = f"dataset={dataset} has no other source RSE available; skipped"
                 tmp_log.warning(err_msg)
                 ret = False
@@ -3046,7 +3046,7 @@ class DataCarouselInterface(object):
             if change_src_expr:
                 # change source_replica_expression by replacing old source with new one
                 if not rse_set:
-                    # no availible source RSE
+                    # no available source RSE
                     err_msg = f"dataset={dataset} has no other source RSE available; skipped"
                     tmp_log.warning(err_msg)
                     ret = False

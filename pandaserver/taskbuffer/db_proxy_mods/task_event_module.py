@@ -826,7 +826,7 @@ class TaskEventModule(BaseModule):
                 varMap[":type2"] = "log"
                 varMap[":newStatus"] = "failed"
                 self.cur.execute(sqlFSF + comment, varMap)
-                # update files,metadata,parametes
+                # update files,metadata,parameters
                 varMap = {}
                 varMap[":PandaID"] = pandaID
                 varMap[":modificationTime"] = dJob.modificationTime
@@ -1000,7 +1000,7 @@ class TaskEventModule(BaseModule):
                 varMap[":type2"] = "log"
                 varMap[":newStatus"] = "failed"
                 self.cur.execute(sqlFSF + comment, varMap)
-                # update files,metadata,parametes
+                # update files,metadata,parameters
                 varMap = {}
                 varMap[":PandaID"] = pandaID
                 varMap[":modificationTime"] = dJob.modificationTime
@@ -4126,7 +4126,7 @@ class TaskEventModule(BaseModule):
                 nFilesUsed,
                 nFilesOnHold,
             ) in resList:
-                # primay input
+                # primary input
                 if datasetType in ["input", "pseudo_input", "trn_log"] and masterID is None:
                     # unmerge dataset
                     if datasetType == "trn_log":

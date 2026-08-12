@@ -996,7 +996,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         with self.proxyPool.get() as proxy:
             return proxy.get_task_failure_metrics(jedi_task_id)
 
-    # reset frozen time of a task to avoid being exausted
+    # reset frozen time of a task to avoid being exhausted
     def reset_frozen_time_for_task(self, task_id):
         with self.proxyPool.get() as proxy:
             return proxy.reset_frozen_time_for_task(task_id)

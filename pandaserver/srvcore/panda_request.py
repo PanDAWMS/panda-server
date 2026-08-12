@@ -184,7 +184,7 @@ class PandaRequest:
                     tmp_log.error(f"""{self.message} - Origin: {env.get("HTTP_ORIGIN", None)}, Token: {env["HTTP_AUTHORIZATION"]}""")
                 self.subprocess_env.update(cached_decision["subprocess_env"])
         except Exception as e:
-            self.message = f"Failed to instantiate reqeust object. {str(e)}"
+            self.message = f"Failed to instantiate request object. {str(e)}"
             tmp_log.error(
                 f"""{self.message} - Origin: {env.get("HTTP_ORIGIN", None)}, Token: {env.get("HTTP_AUTHORIZATION", None)}\n{traceback.format_exc()}"""
             )

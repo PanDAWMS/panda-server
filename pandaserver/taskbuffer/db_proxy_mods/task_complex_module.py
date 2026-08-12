@@ -500,7 +500,7 @@ class TaskComplexModule(BaseModule):
                     tmpStartEvent = 0
                     # change nEventsPerJob if target number is specified
                     if tgtNumEventsPerJob is not None and tgtNumEventsPerJob > 0:
-                        # calcurate to how many chunks the file is split
+                        # calculate to how many chunks the file is split
                         tmpItem = divmod(fileSpec.nEvents, tgtNumEventsPerJob)
                         nSubChunk = tmpItem[0]
                         if tmpItem[1] > 0:
@@ -1157,7 +1157,7 @@ class TaskComplexModule(BaseModule):
                         tmpLog.debug(f"nFilesToUseDS={nFilesToUseDS}")
                         if nFilesToUseDS is None:
                             nFilesToUseDS = 0
-                        # updata dataset
+                        # update dataset
                         varMap = {}
                         varMap[":jediTaskID"] = datasetSpec.jediTaskID
                         varMap[":datasetID"] = datasetSpec.datasetID
@@ -3324,7 +3324,7 @@ class TaskComplexModule(BaseModule):
                                 continue
                             if n_files_unprocessed > num_hpo_samples[dataset_id]:
                                 n_files_unprocessed = num_hpo_samples[dataset_id]
-                        # See if there are different memory requirements that need to be mapped to different chuncks
+                        # See if there are different memory requirements that need to be mapped to different chunks
                         to_skip_dataset, memory_requirements = self._get_memory_requirements_unprocessed_inputs(
                             comment,
                             tmp_log,
@@ -3934,7 +3934,7 @@ class TaskComplexModule(BaseModule):
                             varMap[":datasetID"] = datasetID
                             varMap[":jediTaskID"] = jediTaskID
                             if masterID is not None:
-                                # seconday dataset, this will be reset in post-processor
+                                # secondary dataset, this will be reset in post-processor
                                 varMap[":status"] = "done"
                             else:
                                 # master dataset
@@ -5173,7 +5173,7 @@ class TaskComplexModule(BaseModule):
                                     )
                         # update secondary
                         for masterID in changedMasterList:
-                            # no seconday
+                            # no secondary
                             if masterID not in secMap:
                                 continue
                             # loop over all datasets

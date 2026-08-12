@@ -5165,7 +5165,7 @@ class TaskStandaloneModule(BaseModule):
             self.dump_error_message(tmpLog)
             return False
 
-    # reset frozen time of a task to avoid being exausted
+    # reset frozen time of a task to avoid being exhausted
     def reset_frozen_time_for_task(self, task_id: int) -> bool:
         """
         Reset the frozen time of a task to avoid being exhausted

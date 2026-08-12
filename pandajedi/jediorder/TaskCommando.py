@@ -86,7 +86,7 @@ class TaskCommando(JediKnight):
 class TaskCommandoThread(WorkerThread):
     # constructor
     def __init__(self, taskList, threadPool, taskbufferIF, ddmIF, pid):
-        # initialize woker with no semaphore
+        # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributres
         self.taskList = taskList
@@ -199,7 +199,7 @@ class TaskCommandoThread(WorkerThread):
                                         tmpMsg = f"trying to kill {len(queuedPandaIDs)} queued jobs for soft finish"
                                         tmpLog.info(tmpMsg)
                                         tmpRet = self.taskBufferIF.killJobs(queuedPandaIDs, commentStr, "52", True)
-                                        tmpMsg = f"wating {len(pandaIDs)} jobs for soft finish"
+                                        tmpMsg = f"waiting {len(pandaIDs)} jobs for soft finish"
                                         tmpLog.info(tmpMsg)
                                         tmpRet = True
                                         tmpLog.info(f"done with {str(tmpRet)}")

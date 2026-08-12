@@ -49,7 +49,7 @@ class AtlasProdTaskRefiner(TaskRefinerBase):
                     if minNumEvents is not None and nEvents < minNumEvents and maxPending is not None and (maxPending is None or maxPending > nPendingTasks):
                         autoEsConversion = True
                         tmpLog.info("will be converted to AES unless it goes to pending")
-        # add ES paramsters
+        # add ES parameters
         if ("esFraction" in taskParamMap and taskParamMap["esFraction"] > 0) or ("esConvertible" in taskParamMap and taskParamMap["esConvertible"] is True):
             tmpStr = "<PANDA_ES_ONLY>--eventService=True</PANDA_ES_ONLY>"
             taskParamMap["jobParameters"].append({"type": "constant", "value": tmpStr})

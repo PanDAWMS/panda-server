@@ -191,7 +191,7 @@ class WorkerThread(threading.Thread):
             self.workerSemaphore.release()
 
 
-# thread class to cleanup zombi processes
+# thread class to cleanup zombie processes
 class ZombieCleaner(threading.Thread):
     # constructor
     def __init__(self, interval=20):
