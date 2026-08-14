@@ -526,7 +526,7 @@ class JobGeneratorThread(WorkerThread):
         resource_types,
         test_mode=False,
     ):
-        # initialize woker with no semaphore
+        # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributes
         self.inputList = inputList

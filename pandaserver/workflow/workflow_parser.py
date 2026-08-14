@@ -283,7 +283,7 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tu
                         tmp_log.error(dump_str)
                         is_fatal = True
                         is_ok = False
-                # genertate workflow definition
+                # generate workflow definition
                 if is_ok:
                     # root inputs
                     root_inputs_dict = dict()

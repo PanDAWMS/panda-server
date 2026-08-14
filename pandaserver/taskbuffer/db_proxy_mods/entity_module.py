@@ -2946,7 +2946,7 @@ class EntityModule(BaseModule):
                 # use larger JobID
                 if dbJobID >= int(retJobID) or (jobsetID == -1 and dbJobID >= int(retJobsetID)):
                     if jobsetID == -1:
-                        # generate new jobsetID = 1 + exsiting jobID
+                        # generate new jobsetID = 1 + existing jobID
                         retJobsetID = dbJobID + 1
                         # new jobID = 1 + new jobsetID
                         retJobID = retJobsetID + 1

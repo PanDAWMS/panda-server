@@ -131,7 +131,7 @@ class WorkQueue(object):
             tmp_eval_str = re.sub(" IS NOT NULL", "!=None", tmp_eval_str)
             # replace NOT to not
             tmp_eval_str = re.sub(" NOT ", " not ", tmp_eval_str, re.I)
-            # fomat cases
+            # format cases
             for tmp_param in self._paramsForSelection:
                 tmp_eval_str = re.sub(tmp_param, tmp_param, tmp_eval_str, re.I)
             # replace bind-variables

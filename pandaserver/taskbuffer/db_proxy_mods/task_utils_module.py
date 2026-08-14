@@ -1124,7 +1124,7 @@ class TaskUtilsModule(BaseModule):
         jediTaskID = taskSpec.jediTaskID
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} label={taskSpec.prodSourceLabel}")
         tmpLog.debug("start")
-        # get thresholds for exausted
+        # get thresholds for exhausted
         ramThr = self.getConfigValue("dbproxy", "RAM_THR_EXAUSTED", "jedi")
         if ramThr is None:
             ramThr = 4

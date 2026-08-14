@@ -449,7 +449,7 @@ class JediTaskSpec(object):
                 # 2 : cannot split. one boundayID per sub chunk
                 # 3 : cannot split. multiple boundayIDs per sub chunk
                 #
-                # * rule for secodary
+                # * rule for secondary
                 # 1 : must have same boundayID. cannot split
                 #
                 retMap = {}
