@@ -3533,7 +3533,10 @@ class JobComplexModule(BaseModule):
             tmp_log.debug(f"bulk execution for {len(arg_list)} jobs")
             for target_key in sql_key_list:
                 if target_key not in extracted_sqls:
+                    tmp_log.debug(f"no SQLs for {target_key}")
                     continue
+                else:
+                    tmp_log.debug(f"SQLs for {target_key}: {len(extracted_sqls[target_key]['sqls'])} SQLs")
                 for sql in extracted_sqls[target_key]["sqls"]:
                     self.cur.executemany(sql, extracted_sqls[target_key]["vars"][sql])
             # commit
