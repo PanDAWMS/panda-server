@@ -3486,6 +3486,8 @@ class JobComplexModule(BaseModule):
             return_list = []
             extracted_sqls = {}
             es_jobset_map = {}
+            bad_sql = None
+            bad_vars = None
             for args, kwargs, extra_params in arg_list:
                 tmp_extracted_sqls = {}
                 new_kwargs = {
@@ -3540,6 +3542,8 @@ class JobComplexModule(BaseModule):
                 for sql in extracted_sqls[target_key]["sqls"]:
                     if len(extracted_sqls[target_key]["vars"][sql]) == 0:
                         tmp_log.debug(f"no variables for {target_key} SQL: {sql}")
+                    bad_sql = sql
+                    bad_vars = extracted_sqls[target_key]["vars"][sql]
                     self.cur.executemany(sql, extracted_sqls[target_key]["vars"][sql])
             # commit
             if not self._commit():
@@ -3555,6 +3559,10 @@ class JobComplexModule(BaseModule):
             self._rollback()
             # error
             self.dump_error_message(tmp_log)
+            if bad_sql is not None:
+                tmp_log.debug(f"bad SQL: {bad_sql}")
+            if bad_vars is not None:
+                tmp_log.debug(f"bad variables: {bad_vars}")
             exec_time = naive_utcnow() - start_time
             tmp_log.debug("done NG. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
             return False, None, None
