@@ -3538,6 +3538,8 @@ class JobComplexModule(BaseModule):
                 else:
                     tmp_log.debug(f"SQLs for {target_key}: {len(extracted_sqls[target_key]['sqls'])} SQLs")
                 for sql in extracted_sqls[target_key]["sqls"]:
+                    if len(extracted_sqls[target_key]["vars"][sql]) == 0:
+                        tmp_log.debug(f"no variables for {target_key} SQL: {sql}")
                     self.cur.executemany(sql, extracted_sqls[target_key]["vars"][sql])
             # commit
             if not self._commit():
