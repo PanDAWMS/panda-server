@@ -3886,7 +3886,7 @@ class TaskEventModule(BaseModule):
                 self.conn.begin()
 
             # get task status
-            sql_task_status = f"SELECT status, prodSourceLabel FROM {panda_config.schemaJEDI}.JEDI_Tasks " "WHERE jediTaskID=:jediTaskID FOR UPDATE "
+            sql_task_status = f"SELECT status, prodSourceLabel FROM {panda_config.schemaJEDI}.JEDI_Tasks " "WHERE jediTaskID=:jediTaskID "
             self.cur.execute(sql_task_status + comment, {":jediTaskID": jediTaskID})
             result_task_status = self.cur.fetchone()
             if result_task_status is None:
