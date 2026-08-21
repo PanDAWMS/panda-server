@@ -94,7 +94,7 @@ class AtlasProdTaskBroker(TaskBrokerBase):
 class AtlasProdTaskBrokerThread(WorkerThread):
     # constructor
     def __init__(self, inputList, threadPool, taskbufferIF, ddmIF, fullRW, prioRW, workQueue):
-        # initialize woker with no semaphore
+        # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributres
         self.inputList = inputList

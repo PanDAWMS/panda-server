@@ -143,10 +143,14 @@ def get_user_secrets(req: PandaRequest, keys: List[str] = None) -> dict:
 
     success, data_or_message = global_task_buffer.get_user_secrets(owner, keys_str)
     message, data = "", {}
+    if success and not data_or_message:
+        message = "No secrets found for the specified keys and user"
+
     if success:
         data = data_or_message
     else:
         message = data_or_message
+
     tmp_logger.debug(f"Done for client={owner}")
     return generate_response(success, message, data)
 

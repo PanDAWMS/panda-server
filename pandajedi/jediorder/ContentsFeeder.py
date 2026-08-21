@@ -86,7 +86,7 @@ class ContentsFeeder(JediKnight):
 class ContentsFeederThread(WorkerThread):
     # constructor
     def __init__(self, taskDsList, threadPool, taskbufferIF, ddmIF, pid):
-        # initialize woker with no semaphore
+        # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributres
         self.taskDsList = taskDsList

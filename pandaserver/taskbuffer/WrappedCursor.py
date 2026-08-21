@@ -118,7 +118,7 @@ def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
                 if to_skip:
                     continue
                 old_pat = item
-                # colum.field
+                # column.field
                 if not new_pat:
                     new_pat = re.sub(r"\.(?P<pat>\w+)", r"->>'\1'", item)
                 # guess type

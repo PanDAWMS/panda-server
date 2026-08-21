@@ -126,7 +126,7 @@ def main(tbuf=None, **kwargs):
 
     # add
     while len(fileList) != 0:
-        # time limit to aviod too many copyArchve running at the sametime
+        # time limit to avoid too many copyArchve running at the sametime
         if (naive_utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
             _logger.debug("time over in main session")
             break

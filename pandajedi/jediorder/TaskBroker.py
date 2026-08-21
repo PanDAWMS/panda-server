@@ -116,7 +116,7 @@ class TaskBroker(JediKnight, FactoryBase):
 class TaskCheckerThread(WorkerThread):
     # constructor
     def __init__(self, taskList, threadPool, taskbufferIF, ddmIF, implFactory, vo, prodSourceLabel):
-        # initialize woker with no semaphore
+        # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributres
         self.taskList = taskList
@@ -188,7 +188,7 @@ class TaskCheckerThread(WorkerThread):
 class TaskBrokerThread(WorkerThread):
     # constructor
     def __init__(self, taskList, threadPool, taskbufferIF, ddmIF, implFactory, vo, prodSourceLabel, workQueue, resource_name):
-        # initialize woker with no semaphore
+        # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributres
         self.taskList = taskList

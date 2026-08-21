@@ -1638,7 +1638,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         continue
                     allowed_queue_length_from_wait_time = base_expected_wait_hour_on_pq * to_running_rate
                     if nQueue_pq_in_gshare < allowed_queue_length_from_wait_time:
-                        # not statisfy since overall waiting time of the site is not long enough
+                        # not satisfy since overall waiting time of the site is not long enough
                         tmpLog.debug(
                             "not throttle on {0} since nQ({1}) < {2:.3f} = toRunningRate({3:.3f} /hr) * base wait time ({4} hr)".format(
                                 tmpSiteName, nQueue_pq_in_gshare, allowed_queue_length_from_wait_time, to_running_rate, base_expected_wait_hour_on_pq
@@ -2076,7 +2076,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     nbw_main = n_jobs_to_submit
                     if taskSpec.gshare in ["User Analysis", "Express Analysis"]:
                         nbw_main = main_weight_site_class_dict[bw_map["class"]]
-                    # secondary weight proportional to remaing queue length
+                    # secondary weight proportional to remaining queue length
                     nbw_sec = 1
                     if taskSpec.gshare in ["User Analysis", "Express Analysis"]:
                         _nbw_numer = max(bw_map["rem_q_len"] - nbw_main / site_class_n_site_dict[bw_map["class"]], nbw_main * 0.001)

@@ -47,7 +47,7 @@ if res_list:
         # make request spec
         dc_req_spec = DataCarouselRequestSpec()
         dc_req_spec.pack(res)
-        # submit iDDS stage-in reqeust
+        # submit iDDS stage-in request
         ret = data_carousel_interface._submit_idds_stagein_request(task_id, dc_req_spec)
         print(f"Done submit to iDDS; iDDS_requestID={ret}")
         break

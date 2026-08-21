@@ -52,7 +52,7 @@ class JediMaster:
 
     # main loop
     def start(self):
-        # start zombi cleaner
+        # start zombie cleaner
         ZombieCleaner().start()
         # setup DDM I/F
         ddmIF = DDMInterface()

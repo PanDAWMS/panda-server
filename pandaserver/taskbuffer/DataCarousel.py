@@ -1102,7 +1102,7 @@ class DataCarouselInterface(object):
     def _choose_tape_source_rse(self, dataset: str, rse_set: set, staging_rule, no_cern: bool = True) -> tuple[str, (str | None), (str | None)]:
         """
         Choose a TAPE source RSE
-        If with exsiting staging rule, then get source RSE from it
+        If with existing staging rule, then get source RSE from it
 
         Args:
             dataset (str): dataset name
@@ -1223,6 +1223,9 @@ class DataCarouselInterface(object):
             raw_coll_did_list = []
             coll_on_tape_set = set()
             ret_prestaging_list = []
+            expanded_dsname_set = set()
+            # set of required dataset names for fast membership tests
+            dsname_set = set(dsname_list) if dsname_list is not None else None
             ret_map = {
                 "pseudo_coll_list": [],
                 "unfound_coll_list": [],
@@ -1263,12 +1266,19 @@ class DataCarouselInterface(object):
                 # with contents to consider
                 for dataset in jobparam_dataset_list:
                     jobparam_ds_coll_map[dataset] = collection
+                # expand constituent dataset names if notExpandInDS (no "expand" in task_params_map) is specified
+                if not task_params_map.get("expand") and dsname_set is not None:
+                    collection_did = self.ddmIF.get_did_str(collection)
+                    if collection in dsname_set or collection_did in dsname_set:
+                        expanded_dsname_set.update(jobparam_dataset_list)
             # merge of jobparam_dataset_list and dnsname_list
             jobparam_datasets_set = set(jobparam_ds_coll_map.keys())
             all_input_datasets_set |= jobparam_datasets_set
-            if dsname_list is not None:
+            if dsname_set is not None:
+                # tmp_log.debug(f"dsname_list={dsname_list} ; expanded_dsname_set={sorted(expanded_dsname_set)}")
+                tmp_log.debug(f"dsname_list_len={len(dsname_list)} ; expanded_dsname_set_len={len(expanded_dsname_set)}")
                 # dsname_list is given; filter out extra container slash
-                master_datasets_set = set([dsname for dsname in dsname_list if not dsname.endswith("/")])
+                master_datasets_set = set([dsname for dsname in dsname_set if not dsname.endswith("/")])
                 # extra dataset not in job parameters when task resubmitted/rerefined
                 extra_datasets_set = master_datasets_set - jobparam_datasets_set - set(raw_coll_did_list)
                 all_input_datasets_set |= extra_datasets_set
@@ -1278,10 +1288,10 @@ class DataCarouselInterface(object):
             # check source of each dataset
             for dataset in all_input_datasets_list:
                 # check if dataset in the required dsname_list
-                if dsname_list is not None and dataset not in dsname_list:
+                if dsname_set is not None and dataset not in dsname_set and dataset not in expanded_dsname_set:
                     # not in dsname_list; skip
                     ret_map["to_skip_ds_list"].append(dataset)
-                    tmp_log.debug(f"dataset={dataset} not in dsname_list ; skipped")
+                    tmp_log.debug(f"dataset={dataset} not in dsname_list or expanded_dsname_set; skipped")
                     continue
                 # check if already in existing Data Carousel requests
                 existing_dcreq_id = self.taskBufferIF.get_data_carousel_request_id_by_dataset_JEDI(dataset)
@@ -1745,7 +1755,7 @@ class DataCarouselInterface(object):
             # split with to_pin and not to_pin
             to_pin_df = tmp_df.filter(pl.col("to_pin"))
             tmp_queued_df = tmp_df.filter(pl.col("to_pin").not_())
-            # fill dummy cumulative sum (0) for reqeusts to pin
+            # fill dummy cumulative sum (0) for requests to pin
             to_pin_df = to_pin_df.with_columns(cum_total_files=pl.lit(0, dtype=pl.datatypes.Int64), cum_dataset_size=pl.lit(0, dtype=pl.datatypes.Int64))
             # fair share for gshares
             if True and not tmp_queued_df.is_empty() and (fair_share_init_quota := min(QUEUE_FAIR_SHARE_MAX_QUOTA, max(quota_size, 0))) > 0:
@@ -1756,10 +1766,10 @@ class DataCarouselInterface(object):
                 gshare_staging_files_map = {x["init_task_gshare"]: x["staging_files"] for x in tmp_source_rse_gshare_stats_list}
                 n_queued_gshares = len(queued_gshare_list)
                 n_staging_files_of_gshares = sum([gshare_staging_files_map.get(gshare, 0) for gshare in queued_gshare_list])
-                # fair share quota per gshare and the virtual one including remaing staging files
+                # fair share quota per gshare and the virtual one including remaining staging files
                 fair_share_quota_per_gshare = fair_share_init_quota // n_queued_gshares
                 virtual_fair_share_quota_per_gshare = (fair_share_init_quota + n_staging_files_of_gshares) // n_queued_gshares
-                # list of gshares to stage by exluding gshares already having remaining staging files exceeding fair_share_quota_per_gshare
+                # list of gshares to stage by excluding gshares already having remaining staging files exceeding fair_share_quota_per_gshare
                 to_stage_gshare_list = [
                     gshare for gshare in queued_gshare_list if gshare_staging_files_map.get(gshare, 0) < virtual_fair_share_quota_per_gshare
                 ]
@@ -2751,7 +2761,7 @@ class DataCarouselInterface(object):
                 if dc_req_spec.status == DataCarouselRequestStatus.staging and dc_req_spec.get_parameter("rule_unfound"):
                     # requests staging but DDM rule not found; to cancel
                     self.cancel_request(dc_req_spec, by=by, reason="rule_unfound")
-            # cancel orphan reqeusts
+            # cancel orphan requests
             orphan_requests = self._get_orphan_requests()
             if orphan_requests:
                 for dc_req_spec in orphan_requests:
@@ -2848,7 +2858,7 @@ class DataCarouselInterface(object):
             reason (str|None): annotation of the reason for resubmitting
 
         Returns:
-            DataCarouselRequestSpec|None : spec of the resubmitted reqeust spec if success, None otherwise
+            DataCarouselRequestSpec|None : spec of the resubmitted request spec if success, None otherwise
             str|None : error message if any, None otherwise
         """
         tmp_log = LogWrapper(
@@ -2870,7 +2880,7 @@ class DataCarouselInterface(object):
             orig_dc_req_spec = locked_spec
             # dummy spec to resubmit
             dummy_dc_req_spec_to_resubmit = get_resubmit_request_spec(orig_dc_req_spec, exclude_prev_dst)
-            # check and choose availble destination RSE
+            # check and choose available destination RSE
             destination_rse = self._choose_destination_rse_for_request(dummy_dc_req_spec_to_resubmit)
             if destination_rse is None:
                 err_msg = f"no other available destination RSE for request_id={orig_dc_req_spec.request_id}; skipped"
@@ -2966,7 +2976,7 @@ class DataCarouselInterface(object):
             # exclude old source RSE for queued request
             rse_set.discard(dc_req_spec.source_rse)
             if not rse_set:
-                # no availible source RSE
+                # no available source RSE
                 err_msg = f"dataset={dataset} has no other source RSE available; skipped"
                 tmp_log.warning(err_msg)
                 ret = False
@@ -3036,7 +3046,7 @@ class DataCarouselInterface(object):
             if change_src_expr:
                 # change source_replica_expression by replacing old source with new one
                 if not rse_set:
-                    # no availible source RSE
+                    # no available source RSE
                     err_msg = f"dataset={dataset} has no other source RSE available; skipped"
                     tmp_log.warning(err_msg)
                     ret = False

@@ -826,7 +826,7 @@ class TaskEventModule(BaseModule):
                 varMap[":type2"] = "log"
                 varMap[":newStatus"] = "failed"
                 self.cur.execute(sqlFSF + comment, varMap)
-                # update files,metadata,parametes
+                # update files,metadata,parameters
                 varMap = {}
                 varMap[":PandaID"] = pandaID
                 varMap[":modificationTime"] = dJob.modificationTime
@@ -1000,7 +1000,7 @@ class TaskEventModule(BaseModule):
                 varMap[":type2"] = "log"
                 varMap[":newStatus"] = "failed"
                 self.cur.execute(sqlFSF + comment, varMap)
-                # update files,metadata,parametes
+                # update files,metadata,parameters
                 varMap = {}
                 varMap[":PandaID"] = pandaID
                 varMap[":modificationTime"] = dJob.modificationTime
@@ -3886,7 +3886,7 @@ class TaskEventModule(BaseModule):
                 self.conn.begin()
 
             # get task status
-            sql_task_status = f"SELECT status, prodSourceLabel FROM {panda_config.schemaJEDI}.JEDI_Tasks " "WHERE jediTaskID=:jediTaskID FOR UPDATE "
+            sql_task_status = f"SELECT status, prodSourceLabel FROM {panda_config.schemaJEDI}.JEDI_Tasks " "WHERE jediTaskID=:jediTaskID "
             self.cur.execute(sql_task_status + comment, {":jediTaskID": jediTaskID})
             result_task_status = self.cur.fetchone()
             if result_task_status is None:
@@ -3939,7 +3939,8 @@ class TaskEventModule(BaseModule):
                     ":comm_comment": comm_comment,
                 },
             )
-            return_message = f"command={comStr} is registered. will be executed in a few minutes"
+
+            return_message = f"command={comStr} is registered for task ID {jediTaskID}. will be executed in a few minutes"
             tmp_log.info(return_message)
 
             if useCommit:
@@ -4125,7 +4126,7 @@ class TaskEventModule(BaseModule):
                 nFilesUsed,
                 nFilesOnHold,
             ) in resList:
-                # primay input
+                # primary input
                 if datasetType in ["input", "pseudo_input", "trn_log"] and masterID is None:
                     # unmerge dataset
                     if datasetType == "trn_log":

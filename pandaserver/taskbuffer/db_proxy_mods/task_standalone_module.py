@@ -2038,10 +2038,10 @@ class TaskStandaloneModule(BaseModule):
                 res_list = self.cur.fetchall()
                 # loop over all datasets
                 for res_item in res_list:
-                    dataset_spec = JediDatasetSpec()
-                    dataset_spec.pack(res_item)
+                    tmp_dataset_spec = JediDatasetSpec()
+                    tmp_dataset_spec.pack(res_item)
                     # get file
-                    var_map = {":jediTaskID": jedi_task_id, ":datasetID": dataset_spec.datasetID, ":type": "lib", ":status1": "failed", ":status2": "cancelled"}
+                    var_map = {":jediTaskID": jedi_task_id, ":datasetID": tmp_dataset_spec.datasetID, ":type": "lib", ":status1": "failed", ":status2": "cancelled"}
                     self.cur.execute(sql_read_file + comment, var_map)
                     res_file_list = self.cur.fetchall()
                     for res_file_item in res_file_list:
@@ -2050,6 +2050,7 @@ class TaskStandaloneModule(BaseModule):
                         tmp_file_spec.pack(res_file_item)
                         if tmp_file_spec.status == "finished":
                             found_flag = True
+                            dataset_spec = tmp_dataset_spec
                             file_spec = tmp_file_spec
                             break
                         # check if the corresponding job is still active
@@ -2060,6 +2061,7 @@ class TaskStandaloneModule(BaseModule):
                             # no active job
                             tmp_log.debug(f"no active job for {tmp_file_spec.lfn} (PandaID={tmp_file_spec.PandaID})")
                         else:
+                            dataset_spec = tmp_dataset_spec
                             file_spec = tmp_file_spec
                     # no more dataset lookup
                     if found_flag:
@@ -5165,7 +5167,7 @@ class TaskStandaloneModule(BaseModule):
             self.dump_error_message(tmpLog)
             return False
 
-    # reset frozen time of a task to avoid being exausted
+    # reset frozen time of a task to avoid being exhausted
     def reset_frozen_time_for_task(self, task_id: int) -> bool:
         """
         Reset the frozen time of a task to avoid being exhausted

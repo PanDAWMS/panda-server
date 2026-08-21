@@ -147,7 +147,7 @@ class SiteSpec(object):
                 return True
         return False
 
-    # get extra queue paramaeter
+    # get extra queue parameter
     def get_extra_queue_param(self, name: str) -> tuple[bool, None | Any]:
         """
         Get an extra queue parameter by name.
