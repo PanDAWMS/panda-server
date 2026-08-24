@@ -209,6 +209,7 @@ class TaskComplexModule(BaseModule):
         order_by,
         maxFileRecords,
         skip_short_output,
+        skip_empty_input,
         lfn_constituent_map=None,
     ):
         comment = " /* JediDBProxy.insertFilesForDataset_JEDI */"
@@ -222,7 +223,10 @@ class TaskComplexModule(BaseModule):
         tmpLog.debug(f"len(fileMap)={len(fileMap)} pid={pid}")
         tmpLog.debug(f"datasetState={datasetState} dataset.state={datasetSpec.state}")
         tmpLog.debug(f"respectLB={respectLB} tgtNumEventsPerJob={tgtNumEventsPerJob} skipFilesUsedBy={skipFilesUsedBy} ramCount={ramCount}")
-        tmpLog.debug(f"skipShortInput={skipShortInput} skipShortOutput={skip_short_output} inputPreStaging={inputPreStaging} order_by={order_by}")
+        tmpLog.debug(
+            f"skipShortInput={skipShortInput} skipShortOutput={skip_short_output} skip_empty_input={skip_empty_input} "
+            f"inputPreStaging={inputPreStaging} order_by={order_by}"
+        )
         # return value for failure
         diagMap = {"errMsg": "", "nChunksForScout": nChunksForScout, "nActivatedPending": 0, "isRunningTask": False}
         # failedRet = False, 0, None, diagMap
@@ -453,6 +457,9 @@ class TaskComplexModule(BaseModule):
                         tmpNumEvents = int(fileVal["events"])
                     except Exception:
                         pass
+                if skip_empty_input and tmpNumEvents == 0:
+                    tmpLog.debug(f"skip {fileSpec.lfn} due to nEvents=0")
+                    continue
                 if skipShortInput and tmpNumEvents is not None:
                     # set multiples of nEventsPerJob if actual nevents is small
                     if tmpNumEvents >= nEventsPerFile:

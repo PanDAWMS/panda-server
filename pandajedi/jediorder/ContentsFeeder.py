@@ -533,6 +533,11 @@ class ContentsFeederThread(WorkerThread):
                                 skip_short_output = True
                             else:
                                 skip_short_output = False
+                            # skip empty input
+                            if datasetSpec.isMaster() and not datasetSpec.isPseudo() and taskParamMap.get("skipEmptyInput"):
+                                skip_empty_input = True
+                            else:
+                                skip_empty_input = False
                             # order by
                             if taskSpec.order_input_by() and datasetSpec.isMaster() and not datasetSpec.isPseudo():
                                 orderBy = taskSpec.order_input_by()
@@ -585,6 +590,7 @@ class ContentsFeederThread(WorkerThread):
                                 orderBy,
                                 maxFileRecords,
                                 skip_short_output,
+                                skip_empty_input,
                                 lfn_constituent_map=lfn_constituent_map,
                             )
                             retDB = res_dict["ret_val"]
