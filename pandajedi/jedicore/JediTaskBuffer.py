@@ -74,6 +74,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         order_by,
         maxFileRecords,
         skip_short_output,
+        skip_empty_input,
         lfn_constituent_map=None,
     ):
         with self.proxyPool.get() as proxy:
@@ -112,6 +113,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
                 order_by,
                 maxFileRecords,
                 skip_short_output,
+                skip_empty_input,
                 lfn_constituent_map=lfn_constituent_map,
             )
 
