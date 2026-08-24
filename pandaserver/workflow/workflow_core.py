@@ -343,6 +343,8 @@ class WorkflowInterface(object):
         workflow_name: str | None = None,
         workflow_definition: dict | None = None,
         raw_request_params: dict | None = None,
+        prod_role: bool = False,
+        fqans: list | None = None,
         *args,
         **kwargs,
     ) -> int | None:
@@ -355,6 +357,10 @@ class WorkflowInterface(object):
             workflow_name (str | None): Name of the workflow
             workflow_definition (dict | None): Dictionary of workflow definition
             raw_request_params (dict | None): Dictionary of parameters of the raw request
+            prod_role (bool): Whether the submitter holds a production role, captured from VOMS at
+                request time. Steps are submitted long after the request, so this is recorded here
+                rather than being derived later, and is never taken from the submitted payload
+            fqans (list | None): FQANs of the submitter, recorded for the same reason
             *args: Additional arguments
             **kwargs: Additional keyword arguments
 
@@ -371,11 +377,14 @@ class WorkflowInterface(object):
         workflow_spec.username = username
         if workflow_name is not None:
             workflow_spec.name = workflow_name
+        # Credentials are captured from VOMS at request time and carried with the workflow, because
+        # a step's task is submitted long afterwards and cannot re-derive them from the request.
+        submitter_credentials = {"user_dn": user_dn, "prod_role": bool(prod_role), "fqans": fqans or []}
         if workflow_definition is not None:
-            workflow_definition["user_dn"] = user_dn
+            workflow_definition.update(submitter_credentials)
             workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
         elif raw_request_params is not None:
-            raw_request_params["user_dn"] = user_dn
+            raw_request_params.update(submitter_credentials)
             workflow_spec.raw_request_json = json.dumps(raw_request_params, default=json_serialize_default)
         else:
             tmp_log.error(f"Either workflow_definition or raw_request_params must be provided")
@@ -2115,6 +2124,8 @@ class WorkflowInterface(object):
                     return process_result
                 # extra info from raw request
                 workflow_definition["user_dn"] = raw_request_dict.get("user_dn")
+                workflow_definition["prod_role"] = raw_request_dict.get("prod_role", False)
+                workflow_definition["fqans"] = raw_request_dict.get("fqans", [])
                 # Parsed successfully, update definition
                 workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
                 tmp_log.debug(f"Parsed raw request into definition")
@@ -2336,9 +2347,11 @@ class WorkflowInterface(object):
                         step_spec.flavor = "panda_task"  # FIXME: hardcoded flavor, should be configurable
                     # step definition
                     step_definition = copy.deepcopy(node)
-                    # propagate user name and DN from workflow to step
+                    # propagate user name, DN and submitter credentials from workflow to step
                     step_definition["user_name"] = workflow_spec.username
                     step_definition["user_dn"] = workflow_definition.get("user_dn")
+                    step_definition["prod_role"] = workflow_definition.get("prod_role", False)
+                    step_definition["fqans"] = workflow_definition.get("fqans", [])
                     # resolve inputs and outputs
                     input_data_dict = dict()
                     output_data_dict = dict()

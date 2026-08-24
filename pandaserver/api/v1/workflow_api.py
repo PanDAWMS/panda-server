@@ -14,6 +14,7 @@ from pandaserver.api.v1.common import (
     TimedMethod,
     generate_response,
     get_dn,
+    get_fqan,
     has_production_role,
     request_validation,
 )
@@ -257,7 +258,11 @@ def submit_workflow_description(req: PandaRequest, workflow_description: dict | 
     """
 
     user_dn = get_dn(req)
-    prodsourcelabel = "managed" if has_production_role(req) else "user"
+    # Captured here, from VOMS, because a step's task is submitted long after this request and
+    # cannot re-derive them; never taken from the submitted description.
+    prod_role = has_production_role(req)
+    fqans = get_fqan(req)
+    prodsourcelabel = "managed" if prod_role else "user"
 
     tmp_logger = LogWrapper(_logger, f'submit_workflow_description prodsourcelabel={prodsourcelabel} user_dn="{user_dn}" ')
     tmp_logger.debug("Start")
@@ -286,7 +291,9 @@ def submit_workflow_description(req: PandaRequest, workflow_description: dict | 
 
     # the description is carried in the raw request so that parsing happens asynchronously
     raw_request_params = {INLINE_DESCRIPTION_KEY: workflow_description}
-    workflow_id = global_wfif.register_workflow(prodsourcelabel, user_dn, workflow_name, raw_request_params=raw_request_params)
+    workflow_id = global_wfif.register_workflow(
+        prodsourcelabel, user_dn, workflow_name, raw_request_params=raw_request_params, prod_role=prod_role, fqans=fqans
+    )
 
     if workflow_id is not None:
         success = True

@@ -1560,6 +1560,22 @@ class TaskBuffer:
             ret = proxy.checkQuota(dn)
         return ret
 
+    # queue the task of a workflow step
+    def insert_step_task(self, task_params_map, user_dn, parent_tid=None):
+        # query an SQL return Status
+        with self.proxyPool.get() as proxy:
+            # check user status, as insertTaskParamsPanda does at this layer
+            tmp_status = proxy.checkBanUser(user_dn, None, True)
+            if tmp_status is True:
+                ret = proxy.insert_step_task(task_params_map, user_dn, parent_tid)
+            elif tmp_status == 1:
+                ret = None, "Failed to update DN in PandaDB"
+            elif tmp_status == 2:
+                ret = None, "Failed to insert user info to PandaDB"
+            else:
+                ret = None, f"The following DN is banned: DN={user_dn}"
+        return ret
+
     # look up existing tasks by name
     def get_existing_task_names(self, vo, prod_source_label, task_names):
         # query an SQL return Status

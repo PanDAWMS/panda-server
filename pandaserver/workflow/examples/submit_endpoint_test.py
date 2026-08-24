@@ -88,8 +88,9 @@ stub("pandacommon.pandalogger.LogWrapper", LogWrapper=QuietLogWrapper)
 stub("pandacommon.pandalogger.PandaLogger", PandaLogger=lambda: types.SimpleNamespace(getLogger=lambda name: None))
 stub("pandaserver.config", panda_config=types.SimpleNamespace(schemaJEDI="ATLAS_PANDA", schemaDEFT="ATLAS_DEFT"))
 
-# the production role reported to the endpoint; flipped by the tests
+# the VOMS attributes reported to the endpoint; adjusted by the tests
 FAKE_ROLE = {"production": True}
+FAKE_FQANS = ["/atlas/Role=production", "/atlas/usatlas"]
 
 
 def fake_request_validation(logger, secure=False, production=False, request_method=None):
@@ -106,6 +107,7 @@ stub(
     TimedMethod=object,
     generate_response=lambda success, message="", data=None: {"success": success, "message": message, "data": data},
     get_dn=lambda req: "/DC=ch/DC=cern/CN=test user",
+    get_fqan=lambda req: list(FAKE_FQANS),
     has_production_role=lambda req: FAKE_ROLE["production"],
     request_validation=fake_request_validation,
 )
@@ -137,13 +139,17 @@ class FakeWorkflowInterface:
         self.workflow_id = workflow_id
         self.calls = []
 
-    def register_workflow(self, prodsourcelabel, user_dn, workflow_name=None, workflow_definition=None, raw_request_params=None, *args, **kwargs):
+    def register_workflow(
+        self, prodsourcelabel, user_dn, workflow_name=None, workflow_definition=None, raw_request_params=None, prod_role=False, fqans=None, *args, **kwargs
+    ):
         self.calls.append(
             {
                 "prodsourcelabel": prodsourcelabel,
                 "user_dn": user_dn,
                 "workflow_name": workflow_name,
                 "raw_request_params": raw_request_params,
+                "prod_role": prod_role,
+                "fqans": fqans,
             }
         )
         return self.workflow_id
@@ -183,6 +189,25 @@ def main():
         list(call["raw_request_params"]),
     )
     failures += not check("no sandbox keys invented", "sandbox" not in call["raw_request_params"] and "sourceURL" not in call["raw_request_params"])
+    failures += not check("production role captured from VOMS", call["prod_role"] is True, call["prod_role"])
+    failures += not check("fqans captured from VOMS", call["fqans"] == FAKE_FQANS, call["fqans"])
+
+    print("\n=== credentials come from VOMS, never from the payload ===")
+    spoofed = copy.deepcopy(wfd)
+    spoofed["prod_role"] = True
+    spoofed["fqans"] = ["/atlas/Role=production"]
+    FAKE_ROLE["production"] = False
+    FAKE_FQANS_SAVED = list(FAKE_FQANS)
+    del FAKE_FQANS[:]
+    FAKE_FQANS.extend(["/atlas"])
+    tbif_s, wfif_s = install()
+    submit(None, spoofed)
+    failures += not check("payload cannot claim a production role", wfif_s.calls[0]["prod_role"] is False, wfif_s.calls[0]["prod_role"])
+    failures += not check("payload cannot inject fqans", wfif_s.calls[0]["fqans"] == ["/atlas"], wfif_s.calls[0]["fqans"])
+    failures += not check("payload cannot force prodsourcelabel", wfif_s.calls[0]["prodsourcelabel"] == "user")
+    FAKE_ROLE["production"] = True
+    del FAKE_FQANS[:]
+    FAKE_FQANS.extend(FAKE_FQANS_SAVED)
 
     print("\n=== the description is accepted as a JSON string too ===")
     tbif, wfif = install()

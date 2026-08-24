@@ -14,6 +14,7 @@ from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMB
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.workflow.workflow_base import (
+    TASKID_PLACEHOLDER,
     WFDataSpec,
     WFDataStatus,
     WFStepSpec,
@@ -622,6 +623,138 @@ class WorkflowModule(BaseModule):
                     return True
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow data: {e}")
+
+    def insert_step_task(self, task_params_map: dict, user_dn: str, parent_tid: int | None = None) -> tuple[int | None, str]:
+        """
+        Queue the task of a workflow step in DEFT, resolving the late-bound task ID
+
+        This is a deliberately narrow counterpart to insertTaskParamsPanda for workflow steps. A step
+        needs only a plain insert, and none of the branches that function carries: the duplication
+        check is analysis-only, parentTaskName is rejected for workflow steps because the engine
+        orders them itself, and the reactivation path applies to resubmitting an existing task.
+        Keeping this separate also means workflow-specific behaviour is not accreted onto the insert
+        that every analysis and ProdSys submission goes through.
+
+        Task parameters are taken as authored: neither userName nor taskType nor taskPriority is
+        rewritten, since a workflow step is submitted on behalf of whoever the description names. The
+        caller is responsible for having verified that the submitter may do so.
+
+        The task ID cannot be known before the insert, because it comes from the sequence the insert
+        itself consumes, so any TASKID_PLACEHOLDER in the parameters is resolved immediately
+        afterwards and the stored parameters rewritten within the same transaction. Nothing outside
+        this transaction ever observes the unresolved form.
+
+        Args:
+            task_params_map (dict): Task parameters of the step, already fully resolved except for
+                TASKID_PLACEHOLDER
+            user_dn (str): Distinguished name of the submitter, used for logging; it does not
+                override the userName in the task parameters
+            parent_tid (int | None): Parent task ID; defaults to the new task's own ID
+
+        Returns:
+            int | None: The new jediTaskID, or None on failure
+            str: An error message when the insert failed, otherwise an empty string
+        """
+        comment = " /* DBProxy.insert_step_task */"
+        task_name = task_params_map.get("taskName")
+        tmp_log = self.create_tagged_logger(comment, f"taskName={task_name}")
+        tmp_log.debug(f'start user_dn="{user_dn}"')
+        try:
+            # the parameters must name their owner and destination themselves
+            for key in ("taskName", "vo", "prodSourceLabel", "userName"):
+                if not task_params_map.get(key):
+                    message = f"task parameters are missing {key}"
+                    tmp_log.error(message)
+                    return None, message
+            vo = task_params_map["vo"]
+            prod_source_label = task_params_map["prodSourceLabel"]
+            user_name = task_params_map["userName"]
+            priority = task_params_map.get("taskPriority", 100)
+            schema_deft = panda_config.schemaDEFT
+            task_params = json.dumps(task_params_map)
+
+            # honour the per-user active task limit, as insertTaskParamsPanda does; a workflow can
+            # submit many steps unattended, so the backstop matters more here than for a human
+            # submitting one task at a time
+            max_n_tasks = self.getConfigValue("dbproxy", f"MAX_ACTIVE_TASKS_PER_USER_{prod_source_label}")
+            sql_count = (
+                "SELECT COUNT(*) "
+                "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.prodSourceLabel=:prodSourceLabel AND tabT.userName=:userName "
+            ).format(panda_config.schemaJEDI)
+            status_var_names_str, status_var_map = get_sql_IN_bind_variables(
+                ["registered", "defined", "ready", "scouting", "running", "paused", "throttled"],
+                prefix=":",
+                value_as_suffix=True,
+            )
+            sql_count += f"AND tabT.status IN ({status_var_names_str}) "
+
+            # sql to rewrite the parameters once the task ID is known
+            sql_resolve = f"UPDATE {schema_deft}.T_TASK SET jedi_task_parameters=:param WHERE taskid=:taskid "
+
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                # check the active task limit
+                if max_n_tasks is not None:
+                    var_map_count = {":prodSourceLabel": prod_source_label, ":userName": user_name}
+                    var_map_count.update(status_var_map)
+                    cur.execute(sql_count + comment, var_map_count)
+                    res_count = cur.fetchone()
+                    if res_count is not None and res_count[0] > max_n_tasks:
+                        message = f"too many active tasks for {user_name}: {res_count[0]}>{max_n_tasks}"
+                        tmp_log.debug(message)
+                        return None, message
+                # resolve how the task ID is allocated for this backend
+                var_map = {}
+                if self.backend in ["oracle", "postgres"]:
+                    task_id_expression = f"{schema_deft}.PRODSYS2_TASK_ID_SEQ.nextval"
+                    own_id_expression = f"{schema_deft}.PRODSYS2_TASK_ID_SEQ.currval"
+                else:
+                    # no sequence support: take the next value from the stand-in table first
+                    cur.execute(" INSERT INTO PRODSYS2_TASK_ID_SEQ (col) VALUES (NULL) " + comment, {})
+                    cur.execute(" SELECT LAST_INSERT_ID() " + comment, {})
+                    (next_val,) = cur.fetchone()
+                    var_map[":nextval"] = next_val
+                    task_id_expression = ":nextval"
+                    own_id_expression = ":nextval"
+                # a task with no parent is its own parent, matching insertTaskParamsPanda
+                if parent_tid is None:
+                    parent_expression = own_id_expression
+                else:
+                    parent_expression = ":parent_tid"
+                    var_map[":parent_tid"] = parent_tid
+                # queue the task in DEFT
+                sql_insert = (
+                    f"INSERT INTO {schema_deft}.T_TASK "
+                    "(taskid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) "
+                    f"VALUES ({task_id_expression},:status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,"
+                    f":priority,:current_priority,{parent_expression}) "
+                    "RETURNING TASKID INTO :jediTaskID"
+                )
+                var_map.update(
+                    {
+                        ":param": task_params,
+                        ":status": "waiting",
+                        ":vo": vo,
+                        ":prodSourceLabel": prod_source_label,
+                        ":userName": user_name,
+                        ":taskName": task_name,
+                        ":priority": priority,
+                        ":current_priority": priority,
+                        ":jediTaskID": self.cur.var(varNUMBER),
+                    }
+                )
+                cur.execute(sql_insert + comment, var_map)
+                jedi_task_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":jediTaskID"])))
+                # resolve the late-bound task ID in the same transaction
+                if TASKID_PLACEHOLDER in task_params:
+                    cur.execute(sql_resolve + comment, {":param": task_params.replace(TASKID_PLACEHOLDER, str(jedi_task_id)), ":taskid": jedi_task_id})
+                    tmp_log.debug(f"resolved {TASKID_PLACEHOLDER} to {jedi_task_id}")
+            tmp_log.debug(f"queued jediTaskID={jedi_task_id}")
+            return jedi_task_id, ""
+        except Exception as e:
+            tmp_log.error(f"failed to queue the step task: {e}")
+            return None, f"exception {str(e)}"
 
     def insert_workflow(self, workflow_spec: WorkflowSpec) -> int | None:
         """
