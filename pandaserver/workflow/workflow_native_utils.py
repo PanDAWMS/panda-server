@@ -26,6 +26,26 @@ RE_DATASET_REFERENCE = re.compile(r"^\{([^{}]+)\}$")
 # Task parameter keys which every raw-task-params step must define
 REQUIRED_TASK_PARAM_KEYS = ("taskName", "jobParameters", "log", "transPath", "vo", "prodSourceLabel")
 
+# Step types the native description language understands. Used to reject a typo in "type" up front
+# instead of silently treating the step as a prun step.
+KNOWN_STEP_TYPES = ("prun", "phpo", "junction", "reana", "gitlab", "workflow") + RAW_TASK_PARAMS_STEP_TYPES
+
+
+class _QuietLog:
+    """Logger stand-in for validation, where warnings are collected as errors instead of logged"""
+
+    def info(self, message):
+        pass
+
+    def debug(self, message):
+        pass
+
+    def warning(self, message):
+        pass
+
+    def error(self, message):
+        pass
+
 
 def extract_dataset_reference(dataset):
     """
@@ -1296,3 +1316,91 @@ def parse_workflow_data(data, log_stream, _id_counter=None):
         visit(node)
 
     return sorted_nodes, root_inputs
+
+
+def validate_workflow_description(description) -> tuple[bool, list]:
+    """
+    Validate the structure of a workflow description before the workflow is registered
+
+    This runs synchronously when a description is submitted, so that an authoring mistake comes back
+    on the request instead of surfacing later as a cancelled workflow. It checks the overall shape,
+    each raw-task-params step's task parameters, and that every dataset reference and declared
+    workflow output actually resolves to something in the description.
+
+    Args:
+        description (Any): The workflow description as submitted
+
+    Returns:
+        bool: Whether the description is valid
+        list: List of human readable error messages; empty when valid
+    """
+    errors = []
+    if not isinstance(description, dict):
+        return False, ["the workflow description must be a mapping"]
+    workflow_data = description.get("workflow", description)
+    if not isinstance(workflow_data, dict):
+        return False, ["the workflow description must be a mapping"]
+    steps = workflow_data.get("steps")
+    if not isinstance(steps, dict) or not steps:
+        return False, ["the workflow description has no steps"]
+    quiet_log = _QuietLog()
+    workflow_inputs = set(workflow_data.get("inputs") or {})
+    declared_outputs = set()
+
+    # first pass: validate each step and collect the outputs it declares
+    for step_name, step_spec in steps.items():
+        if not isinstance(step_spec, dict):
+            errors.append(f"step {step_name}: must be a mapping")
+            continue
+        step_type = step_spec.get("type", "prun")
+        if step_type not in KNOWN_STEP_TYPES:
+            errors.append(f"step {step_name}: unknown type {step_type}")
+            continue
+        if step_type not in RAW_TASK_PARAMS_STEP_TYPES:
+            continue
+        task_params = step_spec.get("task_params")
+        if not isinstance(task_params, dict) or not task_params:
+            errors.append(f"step {step_name}: task_params is missing or empty")
+            continue
+        # reuse the same verification the parser applies to a resolved node
+        probe = Node(0, step_type, None, True, step_name)
+        probe.task_params = task_params
+        is_ok, message = probe.verify_task_params()
+        if not is_ok:
+            errors.append(f"step {step_name}: {message}")
+            continue
+        declared_outputs |= set(build_task_step_outputs(step_name, task_params, step_spec.get("outputs"), quiet_log))
+
+    # second pass: every dataset reference must resolve to a declared output or a workflow input
+    for step_name, step_spec in steps.items():
+        if not isinstance(step_spec, dict) or step_spec.get("type") not in RAW_TASK_PARAMS_STEP_TYPES:
+            continue
+        task_params = step_spec.get("task_params")
+        if not isinstance(task_params, dict):
+            continue
+        for job_param in task_params.get("jobParameters") or []:
+            if not isinstance(job_param, dict) or job_param.get("param_type") not in DATA_INPUT_PARAM_TYPES:
+                continue
+            reference = extract_dataset_reference(job_param.get("dataset"))
+            if reference is None:
+                continue
+            if "/" in reference:
+                if reference not in declared_outputs:
+                    errors.append(f"step {step_name}: input reference {{{reference}}} does not match any step output")
+            elif reference not in workflow_inputs:
+                errors.append(f"step {step_name}: input reference {{{reference}}} is not a workflow input")
+
+    # declared workflow outputs must point at a step output
+    for output_name, output_spec in (workflow_data.get("outputs") or {}).items():
+        if not isinstance(output_spec, dict) or not output_spec.get("from"):
+            errors.append(f"workflow output {output_name}: missing the from field")
+            continue
+        source = output_spec["from"]
+        # only raw-task-params outputs are known here; a prun step's outputs are named later
+        if declared_outputs and source.split("/")[0] in steps and steps[source.split("/")[0]].get("type") in RAW_TASK_PARAMS_STEP_TYPES:
+            if source not in declared_outputs:
+                errors.append(f"workflow output {output_name}: {source} does not match any step output")
+        elif source.split("/")[0] not in steps:
+            errors.append(f"workflow output {output_name}: step {source.split('/')[0]} does not exist")
+
+    return not errors, errors

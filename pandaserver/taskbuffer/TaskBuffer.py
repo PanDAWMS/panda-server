@@ -1560,6 +1560,13 @@ class TaskBuffer:
             ret = proxy.checkQuota(dn)
         return ret
 
+    # look up existing tasks by name
+    def get_existing_task_names(self, vo, prod_source_label, task_names):
+        # query an SQL return Status
+        with self.proxyPool.get() as proxy:
+            ret = proxy.get_existing_task_names(vo, prod_source_label, task_names)
+        return ret
+
     # insert TaskParams
     def insertTaskParamsPanda(self, taskParams, user, prodRole, fqans=[], parent_tid=None, properErrorCode=False, allowActiveTask=False, decode=True):
         # query an SQL return Status

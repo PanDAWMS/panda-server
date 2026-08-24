@@ -5,7 +5,7 @@ Stubs the runtime dependencies which are not installed in a bare checkout (panda
 pandacommon, ruamel, pandaserver.config) so that parse_workflow_data / resolve_nodes /
 resolve_params / verify can be exercised directly on the example description.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/tmp_parse_task_steps_test.py
+Run from the repository root:  python3 pandaserver/workflow/examples/parse_task_steps_test.py
 """
 
 import json

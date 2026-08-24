@@ -2,15 +2,19 @@
 Differential check: prun / nested / scatter parsing must be identical before and after the
 raw-task-params ("task") step support was added.
 
-Loads the pre-change workflow_native_utils.py straight out of git HEAD alongside the working-tree
-version, runs both over the same workflow descriptions, and diffs the resulting node lists.
+Loads the pre-change workflow_native_utils.py out of a pinned baseline commit alongside the
+working-tree version, runs both over the same workflow descriptions, and diffs the resulting node
+lists.
+
+The baseline is pinned to an explicit commit rather than HEAD: once the change under test is
+committed, HEAD contains it too and the comparison would silently be new-against-new.
 
 The descriptions below mirror the shapes of pandaserver/workflow/examples/*.yaml. They are given as
 dicts rather than loaded from the YAML files because no YAML loader is installed in a bare checkout
 -- and because the YAML->dict step is not touched by this change, so parsing from an equivalent
 dict exercises exactly the code under test.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/tmp_regression_diff_test.py
+Run from the repository root:  python3 pandaserver/workflow/examples/regression_diff_test.py
 """
 
 import copy
@@ -26,6 +30,8 @@ import types
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 sys.path.insert(0, REPO_ROOT)
 MODULE_PATH = "pandaserver/workflow/workflow_native_utils.py"
+# Last commit before raw-task-params ("task") step support was added
+MODULE_BASE_COMMIT = "83733672"
 
 
 def _stub(name, **attrs):
@@ -57,9 +63,9 @@ class Log:
 
 
 def load_old_module():
-    """Load the pre-change module from git HEAD under its own module name."""
+    """Load the pre-change module from the pinned baseline commit under its own module name."""
     src = subprocess.run(
-        ["git", "show", f"HEAD:{MODULE_PATH}"],
+        ["git", "show", f"{MODULE_BASE_COMMIT}:{MODULE_PATH}"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -202,7 +208,7 @@ def main():
     old = load_old_module()
     from pandaserver.workflow import workflow_native_utils as new
 
-    print(f"comparing working tree against HEAD ({MODULE_PATH})\n")
+    print(f"comparing working tree against {MODULE_BASE_COMMIT} ({MODULE_PATH})\n")
     failures = 0
     for case_name, description in CASES.items():
         out_ds_name = "user.me.myOutDS"
@@ -217,7 +223,7 @@ def main():
                 print(f"        tails differ: {old_tails} -> {new_tails}")
             if old_verdicts != new_verdicts:
                 print(f"        verify differs: {old_verdicts} -> {new_verdicts}")
-            for line in list(difflib.unified_diff(old_dump.splitlines(), new_dump.splitlines(), "HEAD", "working-tree", lineterm=""))[:40]:
+            for line in list(difflib.unified_diff(old_dump.splitlines(), new_dump.splitlines(), MODULE_BASE_COMMIT, "working-tree", lineterm=""))[:40]:
                 print(f"        {line}")
 
     print(f"\n{'ALL CASES IDENTICAL' if not failures else f'{failures} CASE(S) DIFFER'}")

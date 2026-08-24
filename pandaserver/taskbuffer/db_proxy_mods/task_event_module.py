@@ -3420,6 +3420,70 @@ class TaskEventModule(BaseModule):
             self.dump_error_message(tmp_log)
             return None
 
+    # look up existing tasks by name
+    def get_existing_task_names(self, vo, prod_source_label, task_names):
+        """
+        Look up which of the given task names already exist, in JEDI or still queued in DEFT
+
+        Production tasks are not duplicate-checked when they are inserted (insertTaskParamsPanda
+        gates that on taskType being "anal"), so this exists to let a caller warn about a colliding
+        taskName up front. The lookup is group scoped rather than user scoped, mirroring the
+        isOfficial branch of the duplication check in insertTaskParamsPanda, because a production
+        taskName is owned by the group and not by the submitter.
+
+        Args:
+            vo (str): VO of the tasks
+            prod_source_label (str): Production source label of the tasks
+            task_names (list): Task names to look up
+
+        Returns:
+            dict | None: Map of existing task name to {"jediTaskID": int, "status": str | None};
+                status is None when the task is only queued in DEFT. None if the lookup failed
+        """
+        comment = " /* DBProxy.get_existing_task_names */"
+        tmp_log = self.create_tagged_logger(comment, f"vo={vo} prodSourceLabel={prod_source_label}")
+        try:
+            if not task_names:
+                return {}
+            tmp_log.debug(f"checking {len(task_names)} task name(s)")
+            existing_map = {}
+            name_var_names_str, name_var_map = get_sql_IN_bind_variables(task_names, prefix=":taskName")
+            # tasks already known to JEDI, with their status
+            sql_jedi = (
+                f"SELECT taskName,jediTaskID,status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+                f"WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND taskName IN ({name_var_names_str}) "
+                "ORDER BY jediTaskID DESC "
+            )
+            # tasks still queued in DEFT and not yet refined into JEDI
+            sql_deft = (
+                f"SELECT taskName,taskid FROM {panda_config.schemaDEFT}.T_TASK "
+                f"WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND taskName IN ({name_var_names_str}) "
+                "ORDER BY taskid DESC "
+            )
+            var_map = {":vo": vo, ":prodSourceLabel": prod_source_label}
+            var_map.update(name_var_map)
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            self.cur.execute(sql_jedi + comment, var_map)
+            for task_name, jedi_task_id, status in self.cur.fetchall():
+                # ORDER BY is descending, so keep the first (most recent) hit per name
+                existing_map.setdefault(task_name, {"jediTaskID": jedi_task_id, "status": status})
+            self.cur.execute(sql_deft + comment, var_map)
+            for task_name, task_id in self.cur.fetchall():
+                existing_map.setdefault(task_name, {"jediTaskID": task_id, "status": None})
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug(f"found {len(existing_map)} existing task name(s)")
+            return existing_map
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
     # insert TaskParams
     def insertTaskParamsPanda(self, taskParams, dn, prodRole, fqans, parent_tid, properErrorCode=False, allowActiveTask=False, decode=True):
         comment = " /* JediDBProxy.insertTaskParamsPanda */"
