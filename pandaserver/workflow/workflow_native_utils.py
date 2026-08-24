@@ -6,6 +6,164 @@ import tempfile
 
 from pandaclient import PhpoScript, PrunScript
 
+from pandaserver.workflow.workflow_base import TASKID_PLACEHOLDER
+
+# Step types whose task parameters are supplied verbatim by the author instead of being
+# generated from a command line. See make_task_params / verify_task_params.
+RAW_TASK_PARAMS_STEP_TYPES = ("task",)
+
+# Job-parameter param_type values whose dataset field names a real DDM collection and can
+# therefore take part in the workflow data graph. "pseudo_input" is deliberately excluded:
+# its dataset is a JEDI-internal pseudo collection (e.g. "seq_number") which does not exist
+# in DDM, and treating it as an input would leave the workflow waiting for it forever.
+DATA_INPUT_PARAM_TYPES = ("input",)
+
+# A dataset field written wholly inside braces is a reference rather than a literal dataset
+# name: "{workflow_input}" points at a workflow-level input, "{step_name/output_key}" at
+# another step's output. Anything else is passed through to JEDI untouched.
+RE_DATASET_REFERENCE = re.compile(r"^\{([^{}]+)\}$")
+
+# Task parameter keys which every raw-task-params step must define
+REQUIRED_TASK_PARAM_KEYS = ("taskName", "jobParameters", "log", "transPath", "vo", "prodSourceLabel")
+
+
+def extract_dataset_reference(dataset):
+    """
+    Extract the reference target from a dataset field, if it is a reference
+
+    Args:
+        dataset (Any): Value of a job parameter's dataset field
+
+    Returns:
+        str | None: The referenced name without braces, or None if this is a literal dataset name
+    """
+    if not isinstance(dataset, str):
+        return None
+    match = RE_DATASET_REFERENCE.match(dataset.strip())
+    return match.group(1) if match else None
+
+
+def extract_job_param_option(job_param):
+    """
+    Extract the leading command line option name from a job parameter's value
+
+    Args:
+        job_param (dict): Job parameter dictionary
+
+    Returns:
+        str | None: Option name without leading dashes, e.g. "outputDAOD_PHYSFile"; None if absent
+    """
+    value = job_param.get("value")
+    if not isinstance(value, str):
+        return None
+    match = re.match(r"^--?([A-Za-z0-9_]+)", value.strip())
+    return match.group(1) if match else None
+
+
+def derive_output_key(job_param, output_overrides=None):
+    """
+    Derive the short output key of an output job parameter
+
+    The key is taken from the leading command line option with the "output" prefix and "File"
+    suffix stripped, so --outputDAOD_PHYSFile becomes DAOD_PHYS. An explicit override wins, which
+    lets merge steps expose e.g. --outputHITS_MRGFile as the plainer "HITS".
+
+    Args:
+        job_param (dict): Job parameter dictionary with param_type "output"
+        output_overrides (dict | None): Map of desired key to the option name it refers to
+
+    Returns:
+        str | None: The output key, or None if no option name could be extracted
+    """
+    option = extract_job_param_option(job_param)
+    if option is None:
+        return None
+    # an explicit override takes precedence over the derived name
+    for key, overridden_option in (output_overrides or {}).items():
+        if isinstance(overridden_option, str) and overridden_option.lstrip("-") == option:
+            return key
+    match = re.match(r"^output(.+?)File$", option)
+    if match:
+        return match.group(1)
+    return option
+
+
+def build_task_step_outputs(step_name, task_params, output_overrides, log_stream):
+    """
+    Build the outputs of a raw-task-params step from its output job parameters
+
+    One workflow output is registered per output job parameter, so a step producing several
+    datasets (e.g. DAOD_PHYS and DAOD_PHYSLITE) exposes each of them independently and downstream
+    steps can consume whichever they need. The dataset name is taken verbatim from the author's
+    task parameters, since it encodes the physics and any late-bound ID placeholder.
+
+    Args:
+        step_name (str): Name of the step
+        task_params (dict): Raw task parameters of the step
+        output_overrides (dict | None): Optional map of desired output key to the option it refers to
+        log_stream: Logger
+
+    Returns:
+        dict: Map of "{step_name}/{output_key}" to a dict holding the output dataset name
+    """
+    outputs = {}
+    for job_param in task_params.get("jobParameters") or []:
+        if not isinstance(job_param, dict) or job_param.get("param_type") != "output":
+            continue
+        output_key = derive_output_key(job_param, output_overrides)
+        if output_key is None:
+            # verify_task_params reports this as a fatal error; keep parsing to collect them all
+            log_stream.warning(f"cannot derive an output key from {job_param.get('value')} in step {step_name}")
+            continue
+        full_name = f"{step_name}/{output_key}"
+        if full_name in outputs:
+            log_stream.warning(f"duplicated output key {output_key} in step {step_name}; disambiguating")
+            suffix = 2
+            while f"{full_name}_{suffix}" in outputs:
+                suffix += 1
+            full_name = f"{full_name}_{suffix}"
+        outputs[full_name] = {"value": job_param.get("dataset")}
+    return outputs
+
+
+def build_task_step_inputs(step_name, task_params, log_stream):
+    """
+    Build the inputs of a raw-task-params step from its input job parameters
+
+    Only dataset fields written as references take part in the workflow data graph; a literal
+    dataset name is an external input which the engine does not track. The reference form is
+    normalised to what the parent-resolution pass expects: a "step/output" reference is stored
+    bare so it resolves to a parent edge, while a workflow input reference keeps its braces so it
+    is recognised as a root input.
+
+    Args:
+        step_name (str): Name of the step
+        task_params (dict): Raw task parameters of the step
+        log_stream: Logger
+
+    Returns:
+        dict: Map of input name to a dict with source and default keys
+    """
+    inputs = {}
+    for index, job_param in enumerate(task_params.get("jobParameters") or []):
+        if not isinstance(job_param, dict) or job_param.get("param_type") not in DATA_INPUT_PARAM_TYPES:
+            continue
+        reference = extract_dataset_reference(job_param.get("dataset"))
+        if reference is None:
+            # a literal dataset name: an external input, not produced inside this workflow
+            continue
+        # name the input after its command line option so it is recognisable in logs and unique
+        # within the step; fall back to the job parameter position if there is no option
+        option = extract_job_param_option(job_param) or f"input_{index}"
+        input_name = f"{step_name}/{option}"
+        if input_name in inputs:
+            log_stream.warning(f"duplicated input option {option} in step {step_name}; disambiguating")
+            input_name = f"{input_name}_{index}"
+        # "step/output" resolves to a parent edge; a bare name resolves to a workflow input
+        source = reference if "/" in reference else f"{{{reference}}}"
+        inputs[input_name] = {"default": None, "source": source}
+    return inputs
+
 
 # merge job parameters
 def merge_job_params(base_params, io_params):
@@ -188,6 +346,8 @@ class Node(object):
                         "opt_input_location",
                     ]:
                         return False, f"unknown input parameter {k} for {self.type}"
+            elif self.type in RAW_TASK_PARAMS_STEP_TYPES:
+                return self.verify_task_params()
         elif self.type == "workflow":
             reserved_params = ["i"]
             loop_global, workflow_global = self.get_global_parameters()
@@ -198,6 +358,41 @@ class Node(object):
                             False,
                             f"parameter {k} cannot be used since it is reserved by the system",
                         )
+        return True, ""
+
+    # verify raw task parameters supplied by the author
+    def verify_task_params(self):
+        task_params = self.task_params or {}
+        if not isinstance(task_params, dict) or not task_params:
+            return False, f"task_params is missing or empty for {self.type} step"
+        # required keys
+        for key in REQUIRED_TASK_PARAM_KEYS:
+            if not task_params.get(key):
+                return False, f"task_params is missing required key {key}"
+        if not isinstance(task_params["jobParameters"], list):
+            return False, "task_params.jobParameters must be a list"
+        # Chaining is driven by the workflow engine through workflowHoldup, not by JEDI's parent
+        # bookkeeping. parentTaskName is resolved when the task is inserted and fails outright if
+        # the named parent does not exist yet, which it generally will not inside a workflow.
+        if task_params.get("parentTaskName"):
+            return False, "parentTaskName cannot be used in a workflow step; the workflow engine orders the steps"
+        # taskName is stored in its own column before the task ID exists, so a ${TASKID} there
+        # would silently diverge from the substituted copy inside the task parameters.
+        if TASKID_PLACEHOLDER in task_params["taskName"]:
+            return False, f"{TASKID_PLACEHOLDER} cannot be used in taskName"
+        # every output must name the dataset it produces, since the engine registers workflow data
+        # for it and downstream steps refer to it
+        n_outputs = 0
+        for job_param in task_params["jobParameters"]:
+            if not isinstance(job_param, dict) or job_param.get("param_type") != "output":
+                continue
+            n_outputs += 1
+            if not job_param.get("dataset"):
+                return False, f"output job parameter {job_param.get('value')} has no dataset"
+            if derive_output_key(job_param) is None:
+                return False, f"cannot derive an output key from job parameter {job_param.get('value')}"
+        if not n_outputs:
+            return False, "task_params has no output job parameter"
         return True, ""
 
     # string representation
@@ -269,7 +464,8 @@ class Node(object):
                     # Set requirement for secondary datasets
                     if k.endswith("opt_secondaryDSs"):
                         v.setdefault("requirements", {})["requires_complete"] = True
-        if self.is_leaf and task_template:
+        # A raw-task-params step brings its own task parameters, so it needs no CLI task template
+        if self.is_leaf and (task_template or self.type in RAW_TASK_PARAMS_STEP_TYPES):
             self.task_params = self.make_task_params(task_template, id_map, workflow)
         # only recurse into nested Node objects (CWL/snakemake); native sub-workflow steps hold
         # resolved int IDs and are processed directly as part of the flat node list
@@ -278,6 +474,13 @@ class Node(object):
 
     # create task params
     def make_task_params(self, task_template, id_map, workflow_node):
+        # A raw-task-params step carries task parameters written by the author, so there is no
+        # command line to parse and no task template to merge. The parameters are passed through
+        # as they are: dataset references and ${TASKID} stay unresolved here on purpose, since
+        # neither the producing step's real dataset names nor the JEDI task ID exist yet. Both are
+        # resolved by the step handler when the task is actually submitted.
+        if self.type in RAW_TASK_PARAMS_STEP_TYPES:
+            return copy.deepcopy(self.task_params or {})
         # task name
         for k, v in self.outputs.items():
             task_name = v["value"]
@@ -849,6 +1052,13 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             # resolve outputs
             if sc_node.is_leaf or sc_node.is_sub_workflow:
                 for tmp_name, tmp_data in sc_node.outputs.items():
+                    # A raw-task-params step's output dataset names are supplied by the author and
+                    # already set at parse time; they encode the physics (and any late-bound ID
+                    # placeholder) and must not be replaced by a generated name. Every other parser
+                    # -- native prun steps, CWL, snakemake -- creates outputs as empty dicts, so
+                    # this only ever skips names that were deliberately set.
+                    if "value" in tmp_data:
+                        continue
                     tmp_data["value"] = f"{out_ds_name}_{sc_node.member_id:03d}_{sc_node.name}"
                     # add loop count for nodes in a loop
                     if sc_node.in_loop:
@@ -962,29 +1172,38 @@ def parse_workflow_data(data, log_stream, _id_counter=None):
         _id_counter[0] += 1
         serial_id = _id_counter[0]
         step_type = step_spec.get("type", "prun")
-        is_leaf = step_type in ["prun", "phpo", "junction", "reana", "gitlab"]
+        is_leaf = step_type in ["prun", "phpo", "junction", "reana", "gitlab"] + list(RAW_TASK_PARAMS_STEP_TYPES)
         node = Node(serial_id, step_type, None, is_leaf, step_name)
         node_name_map[step_name] = node
 
-        # parse inputs
-        inputs = {}
-        for key, yaml_key in [
-            ("inDS", "opt_inDS"),
-            ("args", "opt_args"),
-            ("exec", "opt_exec"),
-            ("containerImage", "opt_containerImage"),
-            ("useAthenaPackages", "opt_useAthenaPackages"),
-            ("secondaryDSs", "opt_secondaryDSs"),
-            ("secondaryDsTypes", "opt_secondaryDsTypes"),
-        ]:
-            if key in step_spec:
-                inputs[f"{step_name}/{yaml_key}"] = {
-                    "default": step_spec.get(key) if key not in ["inDS", "secondaryDSs"] else None,
-                    "source": step_spec.get(key) if key in ["inDS", "secondaryDSs"] else None,
-                }
+        if step_type in RAW_TASK_PARAMS_STEP_TYPES:
+            # A raw-task-params step describes itself entirely through its task parameters: the
+            # output job parameters name the datasets it produces, and the input job parameters
+            # name what it consumes. Both the data graph and the dependency edges are derived from
+            # them, so there is no separate inDS/args/exec to parse.
+            node.task_params = copy.deepcopy(step_spec.get("task_params") or {})
+            node.inputs = build_task_step_inputs(step_name, node.task_params, log_stream)
+            node.outputs = build_task_step_outputs(step_name, node.task_params, step_spec.get("outputs"), log_stream)
+        else:
+            # parse inputs
+            inputs = {}
+            for key, yaml_key in [
+                ("inDS", "opt_inDS"),
+                ("args", "opt_args"),
+                ("exec", "opt_exec"),
+                ("containerImage", "opt_containerImage"),
+                ("useAthenaPackages", "opt_useAthenaPackages"),
+                ("secondaryDSs", "opt_secondaryDSs"),
+                ("secondaryDsTypes", "opt_secondaryDsTypes"),
+            ]:
+                if key in step_spec:
+                    inputs[f"{step_name}/{yaml_key}"] = {
+                        "default": step_spec.get(key) if key not in ["inDS", "secondaryDSs"] else None,
+                        "source": step_spec.get(key) if key in ["inDS", "secondaryDSs"] else None,
+                    }
 
-        node.inputs = inputs
-        node.outputs = {f"{step_name}/outDS": {}}
+            node.inputs = inputs
+            node.outputs = {f"{step_name}/outDS": {}}
         node.is_tail = step_name in tail_node_names
 
         # handle sub-workflow nodes

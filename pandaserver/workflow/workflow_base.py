@@ -16,6 +16,61 @@ from pandaserver.config import panda_config
 AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 
 
+# ==== Late-bound ID placeholders ==============================
+
+# Author-supplied task parameters may embed IDs which are not known when the workflow
+# description is written. Each placeholder is resolved as soon as its ID becomes available:
+#   ${WFID}   -> the workflow ID, resolved when the workflow is registered and parsed
+#   ${TASKID} -> the JEDI task ID, resolved when the step's task is actually submitted
+# Both are substituted by PanDA before the task parameters reach DEFT, so neither ever
+# reaches JEDI. They are deliberately distinct from the JEDI-side per-job templates
+# (${SN}, ${MAXEVENTS}, ${SEQNUMBER}, ...), which must be left untouched, and from
+# $JEDITASKID, which JEDI substitutes into job LFNs for non-managed tasks only.
+WFID_PLACEHOLDER = "${WFID}"
+TASKID_PLACEHOLDER = "${TASKID}"
+
+
+def substitute_placeholder(value: Any, placeholder: str, resolved: Any) -> Any:
+    """
+    Replace every occurrence of a late-bound placeholder in a nested structure.
+
+    Args:
+        value (Any): String, list, dict or scalar to substitute in; traversed recursively
+        placeholder (str): Placeholder token to replace, e.g. WFID_PLACEHOLDER
+        resolved (Any): Value to substitute in; stringified
+
+    Returns:
+        Any: A new structure with the placeholder replaced; scalars are returned unchanged
+    """
+    if isinstance(value, str):
+        return value.replace(placeholder, str(resolved))
+    if isinstance(value, list):
+        return [substitute_placeholder(item, placeholder, resolved) for item in value]
+    if isinstance(value, dict):
+        return {k: substitute_placeholder(v, placeholder, resolved) for k, v in value.items()}
+    return value
+
+
+def has_placeholder(value: Any, placeholder: str) -> bool:
+    """
+    Check whether a late-bound placeholder is still present anywhere in a nested structure.
+
+    Args:
+        value (Any): String, list, dict or scalar to inspect; traversed recursively
+        placeholder (str): Placeholder token to look for, e.g. TASKID_PLACEHOLDER
+
+    Returns:
+        bool: True if the placeholder occurs at least once
+    """
+    if isinstance(value, str):
+        return placeholder in value
+    if isinstance(value, list):
+        return any(has_placeholder(item, placeholder) for item in value)
+    if isinstance(value, dict):
+        return any(has_placeholder(v, placeholder) for v in value.values())
+    return False
+
+
 # ==== Status of Entities ======================================
 
 

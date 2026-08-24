@@ -2088,13 +2088,18 @@ class WorkflowInterface(object):
             else:
                 # Parse the workflow definition from raw request
                 raw_request_dict = workflow_spec.raw_request_json_map
-                sandbox_url = os.path.join(raw_request_dict["sourceURL"], "cache", raw_request_dict["sandbox"])
-                log_token = f'< user="{workflow_spec.username}" outDS={raw_request_dict["outDS"]}>'
+                # A request carrying its description inline has no sandbox and needs no outDS
+                if raw_request_dict.get("sourceURL") and raw_request_dict.get("sandbox"):
+                    sandbox_url = os.path.join(raw_request_dict["sourceURL"], "cache", raw_request_dict["sandbox"])
+                else:
+                    sandbox_url = None
+                log_token = f'< user="{workflow_spec.username}" workflow_id={workflow_spec.workflow_id} outDS={raw_request_dict.get("outDS")}>'
                 is_ok, is_fatal, workflow_definition = parse_raw_request(
                     sandbox_url=sandbox_url,
                     log_token=log_token,
                     user_name=workflow_spec.username,
                     raw_request_dict=raw_request_dict,
+                    workflow_id=workflow_spec.workflow_id,
                 )
                 # Failure handling
                 if is_fatal:

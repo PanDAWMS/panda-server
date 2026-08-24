@@ -7,6 +7,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.workflow.data_handler_plugins.base_data_handler import BaseDataHandler
 from pandaserver.workflow.workflow_base import (
+    TASKID_PLACEHOLDER,
     WFDataSpec,
     WFDataStatus,
     WFDataTargetCheckResult,
@@ -17,6 +18,7 @@ from pandaserver.workflow.workflow_base import (
     WFStepType,
     WorkflowSpec,
     WorkflowStatus,
+    has_placeholder,
 )
 
 # Default workflow options for partial data handling
@@ -92,6 +94,14 @@ class PandaTaskDataHandler(BaseDataHandler):
             tmp_log.warning(f"flavor={data_spec.flavor} not {self.plugin_flavor}; skipped")
             check_result.message = f"flavor not {self.plugin_flavor}; skipped"
             return check_result
+        # The dataset name is only known once the task producing it has been submitted and JEDI has
+        # assigned its ID. Until then the name still holds ${TASKID} and there is nothing to look
+        # up, so report success with no status change and wait for the next cycle.
+        if has_placeholder(data_spec.target_id, TASKID_PLACEHOLDER):
+            check_result.success = True
+            check_result.message = f"target_id still holds {TASKID_PLACEHOLDER}; the producing task is not submitted yet"
+            tmp_log.debug(f"{check_result.message}")
+            return check_result
         # Check source step status
         if data_spec.source_step_id is not None:
             source_step_spec = self.tbif.get_workflow_step(data_spec.source_step_id)
@@ -123,8 +133,15 @@ class PandaTaskDataHandler(BaseDataHandler):
         output_types = data_spec.get_parameter("output_types")
         if output_types is None:
             output_types = []
-        for output_type in output_types:
-            collection = f"{data_spec.target_id}_{output_type}"
+        # An analysis step's output is a family of collections, one per output type. A step whose
+        # dataset name is supplied by the author declares no output types, and its target_id is
+        # already the full collection name; fall back to it so the loop below is never empty, which
+        # would otherwise leave the data reported as non-existent forever.
+        if output_types:
+            collections = [f"{data_spec.target_id}_{output_type}" for output_type in output_types]
+        else:
+            collections = [data_spec.target_id]
+        for collection in collections:
             collection_meta = self.ddm_if.get_dataset_metadata(collection, ignore_missing=True, check_content_state=True)
             if collection_meta is None:
                 check_result.success = False
