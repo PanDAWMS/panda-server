@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import sys
 import time
@@ -72,6 +73,7 @@ def acquire_jobs(
     job_type: str = None,
     via_topic: bool = None,
     remaining_time=None,
+    target_architecture: dict | str = None,
 ) -> dict:
     """
     Acquire jobs
@@ -104,6 +106,14 @@ def acquire_jobs(
                                  to disambiguate the cases of test jobs that can be production or analysis. Optional and defaults to `None`.
         via_topic(bool, optional): Topic for message broker. Optional and defaults to `None`.
         remaining_time(int, optional): Remaining walltime. Optional and defaults to `None`.
+        target_architecture(dict or str, optional): Hardware of the worker node, either as a dictionary or as a JSON-encoded string.
+                                 Only jobs of tasks whose hardware requirements are satisfied by the worker node are returned.
+                                 The `gpus` key contains the list of GPUs, using the same key names as `update_worker_node_gpu`, e.g.
+                                 ``{"gpus": [{"vendor": "NVIDIA", "model": "NVIDIA A100-SXM4-40GB", "vram": 40960,
+                                 "architecture": "Ampere", "framework_version": "12.4", "driver_version": "575.57.08"}]}``.
+                                 An empty `gpus` list means that the worker node has no GPU, while an absent `gpus` key means that
+                                 the worker node doesn't report GPU information, in which case GPU requirements are not checked.
+                                 Optional and defaults to `None`.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. The data is a list of job dictionaries.
@@ -153,6 +163,23 @@ def acquire_jobs(
     except (ValueError, TypeError):
         remaining_time = 0
 
+    # convert target architecture. Bad values are rejected instead of being ignored,
+    # since ignoring them would dispatch jobs to unsuitable hardware
+    if target_architecture:
+        if isinstance(target_architecture, str):
+            try:
+                target_architecture = json.loads(target_architecture)
+            except Exception as e:
+                message = f"failed to parse target_architecture with {str(e)}"
+                tmp_logger.error(message)
+                return generate_response(False, message=message)
+        if not isinstance(target_architecture, dict):
+            message = "target_architecture must be a JSON object"
+            tmp_logger.error(message)
+            return generate_response(False, message=message)
+    else:
+        target_architecture = None
+
     # harvester ID was not set, but we haver the scheduler ID, which should be the same
     if not harvester_id and scheduler_id:
         harvester_id = scheduler_id
@@ -162,7 +189,8 @@ def acquire_jobs(
         f"node={node}, ce={computing_element}, user={prod_user_id}, proxy={get_proxy_key}, "
         f"task_id={task_id}, DN={real_dn}, role={is_production_manager}, "
         f"bg={background}, rt={resource_type}, harvester_id={harvester_id}, worker_id={worker_id}, "
-        f"scheduler_id={scheduler_id}, job_type={job_type}, via_topic={via_topic} remaining_time={remaining_time}"
+        f"scheduler_id={scheduler_id}, job_type={job_type}, via_topic={via_topic} remaining_time={remaining_time}, "
+        f"target_architecture={target_architecture}"
     )
 
     # log the acquire_jobs as it's used for site activity metrics
@@ -204,6 +232,7 @@ def acquire_jobs(
         is_grandly_unified,
         via_topic,
         remaining_time,
+        target_architecture,
     )
 
     # Time-out
@@ -267,7 +296,7 @@ def acquire_jobs(
             tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
             raise
 
-    tmp_logger.debug(f"Done for {site_name} {node}")
+    tmp_logger.debug(f"Sent {len(response_list)} jobs for {site_name} {node}")
 
     t_end = time.time()
     t_delta = t_end - t_start
