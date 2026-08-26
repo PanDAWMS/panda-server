@@ -8,7 +8,6 @@ import time
 import traceback
 from typing import Any
 
-from packaging import version
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction
@@ -16,6 +15,10 @@ from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
+from pandaserver.srvcore.hardware_matching import (
+    compare_version_string,
+    match_gpu_spec,
+)
 from pandaserver.taskbuffer import JobUtils, ProcessGroups, SiteSpec
 from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
 
@@ -916,49 +919,6 @@ def getAnalySitesClass(tbIF, fresher_than_minutes_ago=60):
     return ret_val, ret_map
 
 
-def compare_version_string(version_string, comparison_string):
-    """
-    Compares a version string with another string composed of a comparison operator and a version string.
-
-    Args:
-        version_string (str): The version string to compare.
-        comparison_string (str): The string containing the comparison operator and version string (e.g., ">=2.0").
-
-    Returns:
-        bool or None: True if the version string satisfies the comparison, False if it doesn't,
-                       or None if the comparison string is invalid.
-    """
-    match = re.match(r"([=><]+)(.+)", comparison_string)
-    if not match:
-        return None
-
-    operator = match.group(1).strip()
-    if operator == "=":
-        operator = "=="
-    version_to_compare = match.group(2).strip()
-
-    try:
-        version1 = version.parse(version_string)
-        version2 = version.parse(version_to_compare)
-    except version.InvalidVersion:
-        return None
-
-    if operator == "==":
-        return version1 == version2
-    elif operator == "!=":
-        return version1 != version2
-    elif operator == ">=":
-        return version1 >= version2
-    elif operator == "<=":
-        return version1 <= version2
-    elif operator == ">":
-        return version1 > version2
-    elif operator == "<":
-        return version1 < version2
-    else:
-        return None
-
-
 # check SW with json
 class JsonSoftwareCheck:
     # constructor
@@ -1090,60 +1050,12 @@ class JsonSoftwareCheck:
                                 continue
 
                             # All attribute checks use WN GPU monitoring (MV_WORKER_NODE_GPU_SUMMARY)
-                            # which has richer per-host data (vram, architecture, driver version)
-                            wn_gpus = self.wn_gpu_map.get(tmp_site_name, [])
-
-                            # check vendor
-                            if host_gpu_spec["vendor"] != "*":
-                                if not wn_gpus or not any(g.get("vendor") and re.match(host_gpu_spec["vendor"], g["vendor"], re.IGNORECASE) for g in wn_gpus):
-                                    continue
-
-                            # check model (include or exclude pattern)
-                            if host_gpu_spec["model"] != "*":
-                                if isinstance(host_gpu_spec["model"], dict):
-                                    model_pattern = host_gpu_spec["model"]["pattern"]
-                                    model_excl = host_gpu_spec["model"].get("excl", False)
-                                else:
-                                    model_pattern = host_gpu_spec["model"]
-                                    model_excl = False
-                                if not wn_gpus:
-                                    continue
-                                matches = any(g.get("model") and re.match(model_pattern, g["model"], re.IGNORECASE) for g in wn_gpus)
-                                if matches == model_excl:
-                                    continue
-
-                            # check VRAM (in MB); supports operators: ==, >=, <=, >, <, != (e.g. ">=40960")
-                            # all() ensures every GPU entry in the queue meets the minimum — prevents brokering to
-                            # mixed sites where some nodes fall below the requirement
-                            if "vram" in host_gpu_spec:
-                                if not wn_gpus or not all(g.get("vram") and compare_version_string(str(g["vram"]), host_gpu_spec["vram"]) for g in wn_gpus):
-                                    continue
-
-                            # check GPU microarchitecture generation (e.g. Ampere, Hopper, Ada Lovelace)
-                            if "microarchitecture" in host_gpu_spec:
-                                req_arch = host_gpu_spec["microarchitecture"]
-                                if isinstance(req_arch, str):
-                                    req_arch = [req_arch]
-                                if not wn_gpus or not any(g.get("architecture") in req_arch for g in wn_gpus):
-                                    continue
-
-                            # check minimum CUDA version
-                            # all() ensures every GPU entry in the queue meets the minimum — prevents brokering to
-                            # mixed sites where some nodes fall below the requirement
-                            if "version" in host_gpu_spec:
-                                if not wn_gpus or not all(
-                                    g.get("framework_version") and compare_version_string(g["framework_version"], host_gpu_spec["version"]) for g in wn_gpus
-                                ):
-                                    continue
-
-                            # check minimum GPU driver version (kernel driver, e.g. 575.57.08)
-                            # all() ensures every GPU entry in the queue meets the minimum — prevents brokering to
-                            # mixed sites where some nodes fall below the requirement
-                            if "driver_version" in host_gpu_spec:
-                                if not wn_gpus or not all(
-                                    g.get("driver_version") and compare_version_string(g["driver_version"], host_gpu_spec["driver_version"]) for g in wn_gpus
-                                ):
-                                    continue
+                            # which has richer per-host data (vram, architecture, driver version).
+                            # The minimum-requirement attributes are checked against all GPU entries of
+                            # the queue, to prevent brokering to mixed sites where some nodes fall below
+                            # the requirement
+                            if not match_gpu_spec(host_gpu_spec, self.wn_gpu_map.get(tmp_site_name, [])):
+                                continue
                     go_ahead = True
                 except Exception as e:
                     if log_stream:
