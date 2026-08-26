@@ -296,7 +296,7 @@ def acquire_jobs(
             tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
             raise
 
-    tmp_logger.debug(f"Done for {site_name} {node}")
+    tmp_logger.debug(f"Sent {len(response_list)} jobs for {site_name} {node}")
 
     t_end = time.time()
     t_delta = t_end - t_start
