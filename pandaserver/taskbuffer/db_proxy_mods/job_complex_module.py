@@ -11,6 +11,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
+from pandaserver.srvcore.hardware_matching import match_gpu_spec
 from pandaserver.taskbuffer import (
     ErrorCode,
     EventServiceUtils,
@@ -28,7 +29,14 @@ from pandaserver.taskbuffer.db_proxy_mods.metrics_module import get_metrics_modu
 from pandaserver.taskbuffer.db_proxy_mods.task_event_module import get_task_event_module
 from pandaserver.taskbuffer.db_proxy_mods.worker_module import get_worker_module
 from pandaserver.taskbuffer.FileSpec import FileSpec
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec, get_task_queued_time
+
+# maximum number of task IDs excluded from job dispatch due to hardware mismatch
+MAX_EXCLUDED_TASK_IDS = 500
+
+# maximum number of attempts to get job candidates while excluding tasks with hardware mismatch
+MAX_ARCHITECTURE_MATCHING_TRIES = 5
 
 
 # Module class to define job-related methods that use another module's methods or serve as their dependencies
@@ -2073,6 +2081,7 @@ class JobComplexModule(BaseModule):
         task_id,
         average_memory_limit,
         remaining_time,
+        excluded_task_ids=None,
     ):
         get_val_map = {":oldJobStatus": "activated", ":computingSite": site_name}
 
@@ -2147,7 +2156,78 @@ class JobComplexModule(BaseModule):
             sql_where_clause += "AND minramcount / NVL(corecount, 1)<=:average_memory_limit "
             get_val_map[":average_memory_limit"] = average_memory_limit
 
+        # skip tasks whose hardware requirements are not satisfied by the worker node
+        if excluded_task_ids:
+            var_names_str, var_map = get_sql_IN_bind_variables(excluded_task_ids, prefix=":excludedTaskID")
+            sql_where_clause += f"AND (jediTaskID IS NULL OR jediTaskID NOT IN ({var_names_str})) "
+            get_val_map.update(var_map)
+
         return sql_where_clause, get_val_map
+
+    # get architectures of tasks
+    def get_task_architectures(self, task_ids):
+        """
+        Get the architecture of tasks. jediTaskID is the primary key of JEDI_Tasks, so that this is an index lookup.
+        Task IDs without a row in JEDI_Tasks are missing from the returned dictionary.
+
+        Args:
+            task_ids (iterable): JEDI task IDs.
+
+        Returns:
+            dict: Map of JEDI task ID and architecture. Empty when the lookup fails.
+        """
+        comment = " /* DBProxy.get_task_architectures */"
+        tmp_log = self.create_tagged_logger(comment)
+        task_ids = list(task_ids)
+        if not task_ids:
+            return {}
+        try:
+            var_names_str, var_map = get_sql_IN_bind_variables(task_ids, prefix=":jediTaskID")
+            sql = f"SELECT jediTaskID,architecture FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID IN ({var_names_str}) "
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 100
+            self.cur.execute(sql + comment, var_map)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            return {jedi_task_id: architecture for jedi_task_id, architecture in res}
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return {}
+
+    # check if a task can run on the worker node
+    def check_task_architecture(self, architecture, target_architecture):
+        """
+        Check if the hardware requirements of a task are satisfied by the hardware of the worker node.
+        Unknown requirements and unreported hardware are accepted, so that jobs are not withheld when
+        information is missing.
+
+        Args:
+            architecture (str): The architecture of the task, i.e. JEDI_Tasks.architecture.
+            target_architecture (dict): The hardware of the worker node, with the `gpus` key containing
+                                        the list of GPUs. See pandaserver.srvcore.hardware_matching.
+
+        Returns:
+            bool: True if the task can run on the worker node.
+        """
+        if not architecture:
+            return True
+        # reuse the task spec parser which understands both the old and new architecture formats
+        task_spec = JediTaskSpec()
+        task_spec.architecture = architecture
+        gpu_spec = task_spec.get_host_gpu_spec()
+        # the task doesn't require any GPU
+        if not gpu_spec:
+            return True
+        # the worker node doesn't report GPU information
+        if "gpus" not in target_architecture:
+            return True
+        return match_gpu_spec(gpu_spec, target_architecture["gpus"])
 
     # get jobs
     def getJobs(
@@ -2171,12 +2251,16 @@ class JobComplexModule(BaseModule):
         is_gu,
         via_topic,
         remaining_time,
+        target_architecture,
     ):
         """
         1. Construct where clause (sql_where_clause) based on applicable filters for request
         2. Select n jobs with the highest priorities and the lowest pandaids
-        3. Update the jobs to status SENT
-        4. Pack the files and if jobs are AES also the event ranges
+        3. Skip candidates of tasks whose hardware requirements are not satisfied by the worker node,
+           and retry the selection while excluding those tasks, so that a high priority task requiring
+           other hardware doesn't starve the worker node
+        4. Update the jobs to status SENT
+        5. Pack the files and if jobs are AES also the event ranges
         """
         comment = " /* DBProxy.getJobs */"
         timeStart = naive_utcnow()
@@ -2220,32 +2304,42 @@ class JobComplexModule(BaseModule):
                 average_memory_limit = average_memory_target
                 tmp_log.info(f"Queue {siteName} meanRSS will be throttled to jobs under {average_memory_limit}MB")
 
-        # generate the WHERE clauses based on the requirements for the job
-        sql_where_clause, getValMap = self.construct_where_clause(
-            site_name=siteName,
-            mem=mem,
-            disk_space=diskSpace,
-            background=background,
-            resource_type=resourceType,
-            prod_source_label=prodSourceLabel,
-            computing_element=computingElement,
-            is_gu=is_gu,
-            job_type=jobType,
-            prod_user_id=prodUserID,
-            task_id=taskID,
-            average_memory_limit=average_memory_limit,
-            remaining_time=remaining_time,
-        )
-
         # get the sorting criteria (global shares, age, etc.)
         sorting_sql, sorting_varmap = get_entity_module(self).getSortingCriteria(siteName, maxAttemptIDx)
-        if sorting_varmap:  # copy the var map, but not the sql, since it has to be at the very end
-            for tmp_key in sorting_varmap:
-                getValMap[tmp_key] = sorting_varmap[tmp_key]
+
+        # task IDs excluded since the worker node doesn't satisfy their hardware requirements, and the
+        # verdicts to avoid looking up the same task twice. They are local to this request and are reused
+        # over the iterations to get multiple jobs
+        excluded_task_ids = set()
+        task_match_verdict = {}
+
+        # generate the WHERE clause based on the requirements for the job
+        def build_where_clause():
+            tmp_where_clause, tmp_val_map = self.construct_where_clause(
+                site_name=siteName,
+                mem=mem,
+                disk_space=diskSpace,
+                background=background,
+                resource_type=resourceType,
+                prod_source_label=prodSourceLabel,
+                computing_element=computingElement,
+                is_gu=is_gu,
+                job_type=jobType,
+                prod_user_id=prodUserID,
+                task_id=taskID,
+                average_memory_limit=average_memory_limit,
+                remaining_time=remaining_time,
+                excluded_task_ids=sorted(excluded_task_ids),
+            )
+            if sorting_varmap:  # copy the var map, but not the sql, since it has to be at the very end
+                for tmp_key in sorting_varmap:
+                    tmp_val_map[tmp_key] = sorting_varmap[tmp_key]
+            return tmp_where_clause, tmp_val_map
+
+        sql_where_clause, getValMapOrig = build_where_clause()
 
         retJobs = []
         nSent = 0
-        getValMapOrig = copy.copy(getValMap)
 
         try:
             timeLimit = datetime.timedelta(seconds=timeout - 10)
@@ -2255,10 +2349,13 @@ class JobComplexModule(BaseModule):
                 getValMap = copy.copy(getValMapOrig)
                 pandaID = 0
 
-                nTry = 1
+                # retry with tasks excluded by the hardware matching removed from the candidates
+                nTry = MAX_ARCHITECTURE_MATCHING_TRIES if target_architecture else 1
                 for iTry in range(nTry):
                     # set siteID
                     tmpSiteID = siteName
+                    # task IDs newly excluded in this attempt due to hardware mismatch
+                    newly_excluded_task_ids = set()
                     # get file lock
                     tmp_log.debug("lock")
                     if (naive_utcnow() - timeStart) < timeLimit:
@@ -2268,7 +2365,7 @@ class JobComplexModule(BaseModule):
 
                         if toGetPandaIDs:
                             # get PandaIDs
-                            sqlP = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
+                            sqlP = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ PandaID,currentPriority,specialHandling,jediTaskID FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlP += sql_where_clause
 
                             if sorting_sql:
@@ -2286,13 +2383,34 @@ class JobComplexModule(BaseModule):
                             if not self._commit():
                                 raise RuntimeError("Commit error")
 
+                            # check the hardware requirements of the tasks which are not yet checked
+                            if target_architecture:
+                                unchecked_task_ids = {tmpRes[-1] for tmpRes in resIDs if tmpRes[-1] and tmpRes[-1] not in task_match_verdict}
+                                if unchecked_task_ids:
+                                    architecture_map = self.get_task_architectures(unchecked_task_ids)
+                                    for tmpTaskID in unchecked_task_ids:
+                                        # tasks missing in JEDI_Tasks are treated as unconstrained
+                                        task_match_verdict[tmpTaskID] = self.check_task_architecture(architecture_map.get(tmpTaskID), target_architecture)
+
                             for (
                                 tmpPandaID,
                                 tmpCurrentPriority,
                                 tmpSpecialHandling,
+                                tmpJediTaskID,
                             ) in resIDs:
+                                # skip jobs of tasks which cannot run on the worker node
+                                if target_architecture and tmpJediTaskID and not task_match_verdict.get(tmpJediTaskID, True):
+                                    if len(excluded_task_ids) < MAX_EXCLUDED_TASK_IDS and tmpJediTaskID not in excluded_task_ids:
+                                        excluded_task_ids.add(tmpJediTaskID)
+                                        newly_excluded_task_ids.add(tmpJediTaskID)
+                                    continue
                                 pandaIDs.append(tmpPandaID)
                                 specialHandlingMap[tmpPandaID] = tmpSpecialHandling
+
+                            # rebuild the query so that the excluded tasks are skipped in the subsequent attempts
+                            if newly_excluded_task_ids:
+                                tmp_log.debug(f"excluding jediTaskIDs={sorted(newly_excluded_task_ids)} due to hardware mismatch")
+                                sql_where_clause, getValMapOrig = build_where_clause()
 
                         if pandaIDs == []:
                             tmp_log.debug("no PandaIDs")
@@ -2433,9 +2551,12 @@ class JobComplexModule(BaseModule):
                     # succeeded
                     if retU != 0:
                         break
-                    if iTry + 1 < nTry:
-                        # time.sleep(0.5)
-                        pass
+                    # retry only when tasks were newly excluded by the hardware matching, since otherwise
+                    # the same candidates would be selected again. Matching jobs can be hidden behind
+                    # the excluded tasks in the candidate list
+                    if not newly_excluded_task_ids:
+                        break
+                    getValMap = copy.copy(getValMapOrig)
                 # failed to UPDATE
                 if retU == 0:
                     # reset pandaID
