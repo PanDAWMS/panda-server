@@ -1127,6 +1127,52 @@ class JsonSoftwareCheck:
         return ok_sites, no_auto_sites, preference_weight_map
 
 
+# pattern to extract the architecture alternation of a cmt_config, e.g. (x86_64|aarch64)-el9-gcc15-opt
+ARCH_ALTERNATION_IN_CMT_CONFIG = re.compile(r"^\(([A-Za-z0-9_.+-]+(?:\|[A-Za-z0-9_.+-]+)*)\)([A-Za-z0-9_.+-]+)$")
+
+
+# get CPU architectures of a queue
+def get_queue_cpu_architectures(queue_name: str, sw_map: dict) -> list:
+    """
+    get CPU architectures of a queue
+    :param queue_name: queue name
+    :param sw_map: software map
+    :return: list of CPU architectures. empty if unavailable
+    """
+    arch_list = []
+    for arch_spec in sw_map.get(queue_name, {}).get("architectures", []):
+        if arch_spec.get("type") == "cpu":
+            arch_list += arch_spec.get("arch", [])
+    return arch_list
+
+
+# resolve the architecture of cmt_config
+def resolve_arch_in_cmt_config(queue_name: str, cmt_config: str, sw_map: dict) -> str | None:
+    """
+    resolve the architecture alternation of a cmt_config with the queue's CPU architectures,
+    e.g. (x86_64|aarch64)-el9-gcc15-opt to x86_64-el9-gcc15-opt at an x86_64 queue.
+    Only a leading alternation followed by a literal remainder is supported
+    :param queue_name: queue name
+    :param cmt_config: cmt config to resolve
+    :param sw_map: software map
+    :return: resolved cmt config or None if unresolvable
+    """
+    match = ARCH_ALTERNATION_IN_CMT_CONFIG.search(cmt_config)
+    if not match:
+        return None
+    # return None if the queue doesn't describe CPU architectures
+    queue_arch_list = get_queue_cpu_architectures(queue_name, sw_map)
+    if not queue_arch_list:
+        return None
+    # use the first architecture supported by the queue
+    remainder = match.group(2)
+    for arch in match.group(1).split("|"):
+        if "any" in queue_arch_list or arch in queue_arch_list:
+            return arch + remainder
+    # return None if no architecture is supported by the queue
+    return None
+
+
 # resolve cmt_config
 def resolve_cmt_config(queue_name: str, cmt_config: str, base_platform, sw_map: dict) -> str | None:
     """
@@ -1140,18 +1186,30 @@ def resolve_cmt_config(queue_name: str, cmt_config: str, base_platform, sw_map: 
     # return None if queue_name is unavailable
     if queue_name not in sw_map:
         return None
+    cmt_config_list = sw_map[queue_name].get("cmtconfigs", [])
     # return None if cmt_config is valid
-    if cmt_config in sw_map[queue_name]["cmtconfigs"]:
+    if cmt_config in cmt_config_list:
         return None
+    resolved_cmt_config = None
     # check if cmt_config matches with any of the queue's cmt_configs
-    for tmp_cmt_config in sw_map[queue_name]["cmtconfigs"]:
-        if re.search("^" + cmt_config + "$", tmp_cmt_config):
-            if base_platform:
-                # add base_platform if necessary
-                tmp_cmt_config = tmp_cmt_config + "@" + base_platform
-            return tmp_cmt_config
+    try:
+        for tmp_cmt_config in cmt_config_list:
+            if re.search("^" + cmt_config + "$", tmp_cmt_config):
+                resolved_cmt_config = tmp_cmt_config
+                break
+    except re.error:
+        # ignore malformed cmt_config
+        return None
+    # resolve the architecture if the queue has no matching cmt_config
+    if resolved_cmt_config is None:
+        resolved_cmt_config = resolve_arch_in_cmt_config(queue_name, cmt_config, sw_map)
     # return None if cmt_config is unavailable
-    return None
+    if resolved_cmt_config is None:
+        return None
+    if base_platform:
+        # add base_platform if necessary
+        resolved_cmt_config = resolved_cmt_config + "@" + base_platform
+    return resolved_cmt_config
 
 
 def check_endpoints_with_blacklist(
