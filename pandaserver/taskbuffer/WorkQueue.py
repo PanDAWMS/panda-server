@@ -125,7 +125,7 @@ class WorkQueue(object):
             # replace = to ==
             tmp_eval_str = tmp_eval_str.replace("=", "==")
             # replace LIKE
-            tmp_eval_str = re.sub("(?P<var>[^ \\(]+)\\s+LIKE\\s+(?P<pat>[^ \\(]+)", "re.search(\\g<pat>,\\g<var>,re.I) is not None", tmp_eval_str, flags=re.I)
+            tmp_eval_str = re.sub(r"(?P<var>[^ \(]+)\s+LIKE\s+(?P<pat>[^ \(]+)", r"re.search(\g<pat>,\g<var>,re.I) is not None", tmp_eval_str, flags=re.I)
             # NULL
             tmp_eval_str = re.sub(" IS NULL", "==None", tmp_eval_str)
             tmp_eval_str = re.sub(" IS NOT NULL", "!=None", tmp_eval_str)
