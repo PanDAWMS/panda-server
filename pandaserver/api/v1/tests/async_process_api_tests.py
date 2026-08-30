@@ -70,6 +70,58 @@ class TestAsyncProcessAPI(unittest.TestCase):
         }
         self.assertEqual(output, expected_response)
 
+    def test_submit_grep_request_max_matches_out_of_range(self):
+        full_url = f"{api_url_ssl}/async_process/submit_grep_request"
+        print(f"Testing URL: {full_url}")
+        data = {
+            "pattern": "ERROR",
+            "log_filename": "panda-server.log",
+            "service_name": "server",
+            "max_matches": async_process_api.MAX_MATCH_LIMIT + 1,
+        }
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        expected_response = {
+            "success": False,
+            "message": f"invalid max_matches: must be between 1 and {async_process_api.MAX_MATCH_LIMIT}",
+            "data": None,
+        }
+        self.assertEqual(output, expected_response)
+
+    def test_submit_grep_request_tail_bytes_out_of_range(self):
+        full_url = f"{api_url_ssl}/async_process/submit_grep_request"
+        print(f"Testing URL: {full_url}")
+        data = {
+            "pattern": "ERROR",
+            "log_filename": "panda-server.log",
+            "service_name": "server",
+            "tail_bytes": 0,
+        }
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        expected_response = {
+            "success": False,
+            "message": f"invalid tail_bytes: must be between 1 and {async_process_api.MAX_TAIL_BYTES}",
+            "data": None,
+        }
+        self.assertEqual(output, expected_response)
+
+    def test_submit_grep_request_bounded_success(self):
+        """A bounded query is how a multi-gigabyte log should be asked about."""
+        full_url = f"{api_url_ssl}/async_process/submit_grep_request"
+        print(f"Testing URL: {full_url}")
+        data = {
+            "pattern": "ERROR",
+            "log_filename": "panda-server.log",
+            "machine_name": socket.getfqdn(),
+            "max_matches": 10,
+            "tail_bytes": 1_000_000,
+        }
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        self.assertTrue(output["success"])
+        self.assertIsInstance(output["data"]["request_id"], str)
+
     def test_submit_grep_request_success(self):
         full_url = f"{api_url_ssl}/async_process/submit_grep_request"
         print(f"Testing URL: {full_url}")

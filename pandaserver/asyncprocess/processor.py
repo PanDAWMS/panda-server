@@ -29,23 +29,107 @@ _STALE_THRESHOLD_SECONDS = _SUBPROCESS_TIMEOUT * 2
 # max result size stored in DB (bytes)
 _MAX_RESULT_BYTES = 1_000_000
 
+# Cap on how many matching lines a grep may produce.  Log files here reach
+# several gigabytes, and an unselective pattern against one of those makes the
+# matcher stream the whole file back: capture_output buffers all of it in this
+# process before _MAX_RESULT_BYTES is applied, so the byte cap protects the
+# database and not the daemon.  Bounding the match count cannot lose anything a
+# caller could have seen -- everything past the byte cap was already discarded
+# -- so it applies by default, and the default is set high enough that the
+# stored result and its truncated flag are what they were before.
+_DEFAULT_MAX_MATCHES = 20000
+_MAX_MAX_MATCHES = 200000
+
+# grep and rg spell --max-count the same way, so this works compressed or not.
+_MAX_COUNT_FLAG = "-m"
+
+# A file opened at an arbitrary offset is not a valid gzip stream, so a tail
+# window is only meaningful on plain text.
+_GZIP_SUFFIX = ".gz"
+
+# Kept verbatim because callers distinguish "the file is not there" -- which
+# says the code writing it never ran -- from a query that failed for some other
+# reason, and that distinction must not depend on which tool reported it.
+_NO_SUCH_FILE = "No such file or directory"
+
+
+def _bounded_matcher(log_path, pattern, max_matches, from_stdin):
+    """The matcher command, capped, reading a path or standard input."""
+    tool = "zgrep" if log_path.endswith(_GZIP_SUFFIX) else "rg"
+    cmd = [tool, _MAX_COUNT_FLAG, str(max_matches), pattern]
+    return cmd if from_stdin else cmd + [log_path]
+
+
+def _run_grep(log_path, pattern, max_matches, tail_bytes):
+    """Run the matcher, optionally over just the tail of the file.
+
+    The pipe is built process to process rather than through a shell: the
+    pattern is caller-supplied, so handing it to a shell would hand the caller
+    the daemon.
+    """
+    windowed = bool(tail_bytes) and not log_path.endswith(_GZIP_SUFFIX)
+    cmd = _bounded_matcher(log_path, pattern, max_matches, from_stdin=windowed)
+    if not windowed:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
+
+    tail = subprocess.Popen(
+        ["tail", "-c", str(tail_bytes), log_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    matcher = subprocess.Popen(
+        cmd,
+        stdin=tail.stdout,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    # Hand the read end over completely.  Keeping a copy here would leave the
+    # matcher's exit at the cap invisible to tail, which would then block on a
+    # full pipe instead of being told to stop.
+    tail.stdout.close()
+    try:
+        stdout, stderr = matcher.communicate(timeout=_SUBPROCESS_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        matcher.kill()
+        matcher.wait()
+        raise
+    finally:
+        # tail dying of SIGPIPE is the cap working, not a failure, so its status
+        # is deliberately not inspected -- the file was checked before we got here.
+        tail.kill()
+        tail.wait()
+    return subprocess.CompletedProcess(cmd, matcher.returncode, stdout, stderr)
+
 
 def _handle_grep(row, tb, tmp_logger, result_machine):
     """Run rg or zgrep on a log file and store the output under result_machine's result row."""
     params = json.loads(row["parameters"])
     log_filename = params["log_filename"]
     pattern = params["pattern"]
+    max_matches = min(int(params.get("max_matches") or _DEFAULT_MAX_MATCHES), _MAX_MAX_MATCHES)
+    tail_bytes = params.get("tail_bytes")
     log_path = os.path.join(panda_config.logdir, log_filename)
 
-    if log_path.endswith(".gz"):
-        cmd = ["zgrep", pattern, log_path]
-    else:
-        cmd = ["rg", pattern, log_path]
+    # Checked here rather than left to the tool, because with a tail window the
+    # matcher reads standard input and never sees the path -- it would report
+    # "no match" for a file that does not exist.  One answer, whichever way the
+    # query was built.
+    if not os.path.isfile(log_path):
+        tmp_logger.debug(f"{log_path}: {_NO_SUCH_FILE}")
+        tb.finish_async_result(
+            row["request_id"],
+            result_machine,
+            "failed",
+            error_msg=f"{log_path}: {_NO_SUCH_FILE}",
+            retriable=False,
+        )
+        return
 
-    tmp_logger.debug(f"command: {' '.join(cmd)}")
+    tmp_logger.debug(f"grep {pattern!r} in {log_path} (max_matches={max_matches}, tail_bytes={tail_bytes})")
     try:
         start_time = naive_utcnow()
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
+        proc = _run_grep(log_path, pattern, max_matches, tail_bytes)
         elapsed = (naive_utcnow() - start_time).total_seconds()
         tmp_logger.debug(f"subprocess completed in {elapsed:.2f} seconds")
     except subprocess.TimeoutExpired:
@@ -71,7 +155,11 @@ def _handle_grep(row, tb, tmp_logger, result_machine):
 
     stdout = proc.stdout
     stderr = proc.stderr
-    truncated = len(stdout) > _MAX_RESULT_BYTES or len(stderr) > _MAX_RESULT_BYTES
+    # Reaching the cap truncates just as surely as exceeding the byte limit
+    # does, and a caller that reads an incomplete result as "this never appears
+    # in the log" gets the wrong answer, so both set the same flag.
+    capped = stdout.count("\n") >= max_matches
+    truncated = capped or len(stdout) > _MAX_RESULT_BYTES or len(stderr) > _MAX_RESULT_BYTES
     tmp_logger.debug(f"outcome: return code {proc.returncode}, stdout size {len(stdout)}, stderr size {len(stderr)}, truncated={truncated}")
     tb.finish_async_result(
         row["request_id"],
