@@ -13,6 +13,18 @@ DEFAULT_MAX_ATTEMPTS = 3
 # values are FQDNs (socket.getfqdn()), so this sentinel can never collide
 ANY_MACHINE = "any"
 
+# service_name values of the async request daemons. A request is only picked up by a daemon
+# running with its service_name, so anything submitting requests must use these same values
+SERVICE_SERVER = "server"
+SERVICE_JEDI = "jedi"
+
+# parameters key marking a request whose handler stores a {"success", "message", "data"} payload
+# instead of raw output, so the API can report that payload at the top level of its response
+STRUCTURED_RESULT_KEY = "structured_result"
+
+# keys the API layer adds to the stored parameters as metadata; handlers never receive them
+PARAMETER_META_KEYS = ("requester", "access", STRUCTURED_RESULT_KEY)
+
 
 class AsyncRequestModule(BaseModule):
     def __init__(self, log_stream: LogWrapper):
@@ -410,6 +422,40 @@ class AsyncRequestModule(BaseModule):
             self.cur.execute(sql + comment, var_map)
             if not self._commit():
                 raise RuntimeError("Commit error")
+            tmp_log.debug("done")
+            return True
+        except Exception:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            return False
+
+    def touch_async_result(self, request_id: str, machine_name: str) -> bool:
+        """
+        Refresh started_at of a running result row to show that it is still being processed.
+
+        Long-running handlers call this periodically so recover_stale_results doesn't declare the
+        row stale and hand the request to another machine, which for a handler with side effects
+        would mean executing it twice.
+
+        :param request_id: unique request identifier
+        :param machine_name: hostname owning the result row
+        :return: True if the row was refreshed; False on DB error or when no row is in 'running'
+            state, which tells the caller its claim is gone (already recovered, finished or missing)
+        """
+        comment = " /* DBProxy.touch_async_result */"
+        tmp_log = self.create_tagged_logger(comment, f"request_id={request_id} machine={machine_name}")
+        tmp_log.debug("start")
+        try:
+            sql = "UPDATE ATLAS_PANDA.async_results SET started_at=:now " "WHERE request_id=:request_id AND machine_name=:machine_name AND status='running' "
+            var_map = {":request_id": request_id, ":machine_name": machine_name, ":now": naive_utcnow()}
+            self.conn.begin()
+            self.cur.execute(sql + comment, var_map)
+            n_row = self.cur.rowcount
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            if not n_row:
+                tmp_log.warning("no running row to refresh; the claim is gone")
+                return False
             tmp_log.debug("done")
             return True
         except Exception:
