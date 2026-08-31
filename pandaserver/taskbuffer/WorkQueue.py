@@ -119,18 +119,18 @@ class WorkQueue(object):
         else:
             tmp_eval_str = self.criteria
             # replace IN/OR/AND to in/or/and
-            tmp_eval_str = re.sub(" IN ", " in ", tmp_eval_str, re.I)
-            tmp_eval_str = re.sub(" OR ", " or ", tmp_eval_str, re.I)
-            tmp_eval_str = re.sub(" AND ", " and ", tmp_eval_str, re.I)
+            tmp_eval_str = re.sub(" IN ", " in ", tmp_eval_str, flags=re.I)
+            tmp_eval_str = re.sub(" OR ", " or ", tmp_eval_str, flags=re.I)
+            tmp_eval_str = re.sub(" AND ", " and ", tmp_eval_str, flags=re.I)
             # replace = to ==
             tmp_eval_str = tmp_eval_str.replace("=", "==")
             # replace LIKE
-            tmp_eval_str = re.sub("(?P<var>[^ \(]+)\s+LIKE\s+(?P<pat>[^ \(]+)", "re.search(\g<pat>,\g<var>,re.I) is not None", tmp_eval_str, re.I)
+            tmp_eval_str = re.sub(r"(?P<var>[^ \(]+)\s+LIKE\s+(?P<pat>[^ \(]+)", r"re.search(\g<pat>,\g<var>,re.I) is not None", tmp_eval_str, flags=re.I)
             # NULL
             tmp_eval_str = re.sub(" IS NULL", "==None", tmp_eval_str)
             tmp_eval_str = re.sub(" IS NOT NULL", "!=None", tmp_eval_str)
             # replace NOT to not
-            tmp_eval_str = re.sub(" NOT ", " not ", tmp_eval_str, re.I)
+            tmp_eval_str = re.sub(" NOT ", " not ", tmp_eval_str, flags=re.I)
             # format cases
             for tmp_param in self._paramsForSelection:
                 tmp_eval_str = re.sub(tmp_param, tmp_param, tmp_eval_str, re.I)

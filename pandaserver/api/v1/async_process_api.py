@@ -67,6 +67,13 @@ MAX_MESSAGE_LENGTH = 100  # cap echoed message size
 
 # terminal statuses of a result row
 TERMINAL_STATUSES = ("done", "failed")
+# bounds for the grep request.  Log files reach several gigabytes, and the
+# processor buffers a matcher's whole output before the stored result is capped,
+# so an unselective pattern against a big file costs the daemon that much
+# memory.  Both limits below only ever remove output the caller could not have
+# received anyway -- the stored result has always been capped at 1 MB.
+MAX_MATCH_LIMIT = 200000  # ceiling on max_matches
+MAX_TAIL_BYTES = 1 << 30  # 1 GiB; a window this wide is already generous
 
 
 def _structured_result_response(req_row: Dict[str, Any], results: list) -> Dict[str, Any]:
@@ -125,6 +132,8 @@ def submit_grep_request(
     log_filename: str,
     service_name: str = None,
     machine_name: str = None,
+    max_matches: int = None,
+    tail_bytes: int = None,
 ) -> Dict[str, Any]:
     """
     Submit a grep request to be processed asynchronously on the target service or machine.
@@ -139,6 +148,12 @@ def submit_grep_request(
         log_filename(str): filename (not full path) of the log file under panda_config.logdir
         service_name(str): target service (e.g. "server", "jedi"); mutually exclusive with machine_name
         machine_name(str): target specific machine hostname; mutually exclusive with service_name
+        max_matches(int): stop after this many matching lines (1..200000). Defaults to a
+            bound that leaves the stored result unchanged; results that hit the cap come
+            back with truncated set, so an incomplete answer is never read as an absent one
+        tail_bytes(int): search only the last this many bytes of the file (1..1073741824),
+            which is how to ask about recent activity in a multi-gigabyte log. Ignored for
+            .gz files, where an arbitrary offset is not a valid stream
 
     Returns:
         dict: {"success": bool, "message": str, "data": {"request_id": str}}
@@ -169,6 +184,16 @@ def submit_grep_request(
         tmp_logger.warning(msg)
         return generate_response(False, msg)
 
+    if max_matches is not None and not 1 <= int(max_matches) <= MAX_MATCH_LIMIT:
+        msg = f"invalid max_matches: must be between 1 and {MAX_MATCH_LIMIT}"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    if tail_bytes is not None and not 1 <= int(tail_bytes) <= MAX_TAIL_BYTES:
+        msg = f"invalid tail_bytes: must be between 1 and {MAX_TAIL_BYTES}"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
     # determine expected machines from liveness snapshot
     if service_name:
         expected = global_task_buffer.get_alive_machines(service_name)
@@ -186,7 +211,12 @@ def submit_grep_request(
             tmp_logger.warning(msg)
 
     request_id = str(uuid.uuid4())
-    parameters = set_owner_info({"pattern": pattern, "log_filename": log_filename}, req)  # grep results stay owner-only
+    grep_parameters = {"pattern": pattern, "log_filename": log_filename}
+    if max_matches is not None:
+        grep_parameters["max_matches"] = int(max_matches)
+    if tail_bytes is not None:
+        grep_parameters["tail_bytes"] = int(tail_bytes)
+    parameters = set_owner_info(grep_parameters, req)  # grep results stay owner-only
     parameters_json = json.dumps(parameters)
     expected_machines_json = json.dumps(expected)
 
