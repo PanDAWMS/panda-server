@@ -1116,9 +1116,8 @@ class WorkerModule(BaseModule):
         total_local_disk,
     ):
         comment = " /* DBProxy.update_worker_node */"
-        method_name = comment.split(" ")[-2].split(".")[-1]
 
-        tmp_logger = self.create_tagged_logger(comment, f"{method_name} < site={site} panda_queue={panda_queue} host_name={host_name} cpu_model={cpu_model} >")
+        tmp_logger = self.create_tagged_logger(comment, f"site={site} panda_queue={panda_queue} host_name={host_name} cpu_model={cpu_model}")
         tmp_logger.debug("Start")
 
         timestamp_utc = naive_utcnow()
@@ -1274,9 +1273,7 @@ class WorkerModule(BaseModule):
         driver_version: str,
     ):
         comment = " /* DBProxy.update_worker_node_gpu */"
-        method_name = comment.split(" ")[-2].split(".")[-1]
-
-        tmp_logger = self.create_tagged_logger(comment, f"{method_name} < site={site} host_name={host_name} vendor={vendor} model={model} >")
+        tmp_logger = self.create_tagged_logger(comment, f"site={site} host_name={host_name} vendor={vendor} model={model}")
         tmp_logger.debug("Start")
 
         timestamp_utc = naive_utcnow()
@@ -1432,6 +1429,34 @@ class WorkerModule(BaseModule):
 
             tmp_log.debug("Done")
             return gpu_map
+
+        except Exception:
+            self.dump_error_message(tmp_log)
+            return {}
+
+    def get_worker_node_metrics(self, site, host, key, days):
+        comment = " /* DBProxy.get_worker_node_metrics */"
+        tmp_log = self.create_tagged_logger(comment, f"site={site} host={host} key={key} days={days}")
+        tmp_log.debug("Start")
+
+        try:
+            var_map = {":site": site}
+            sql = "SELECT site, host_name, timestamp, key, statistics FROM  ATLAS_PANDA.WORKER_NODE_METRICS " "where SITE = :site"
+
+            # Host and key are optional
+            if host:
+                sql = f"{sql} AND host_name LIKE :host_name"
+                var_map[":host_name"] = host
+            if key:
+                sql = f"{sql} AND key LIKE :key"
+                var_map[":key"] = key
+
+            self.cur.execute(sql + comment, var_map)
+            results = self.cur.fetchall()
+
+            tmp_log.debug(f"Got {len(results)} entries from WORKER_NODE_METRICS")
+            tmp_log.debug("Done")
+            return results
 
         except Exception:
             self.dump_error_message(tmp_log)
