@@ -15,14 +15,18 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.api.v1.common import (
     generate_response,
     get_dn,
-    has_production_role,
+    is_authorized_to_read,
     request_validation,
+    set_owner_info,
 )
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.srvcore.panda_request import PandaRequest
-from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE
+from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
+    ANY_MACHINE,
+    STRUCTURED_RESULT_KEY,
+)
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("api_async_process")
@@ -57,62 +61,68 @@ def _is_authorized_with_allowlist(req):
     return True, f"'{compact_dn}' is authorized"
 
 
-# valid access levels for reading back request results
-ACCESS_LEVELS = ("owner", "production", "anyone")
-
 # bounds for the sleep+echo request
 MAX_SLEEP_SECONDS = 60  # cap below the processor's subprocess timeout (240s)
 MAX_MESSAGE_LENGTH = 100  # cap echoed message size
 
+# terminal statuses of a result row
+TERMINAL_STATUSES = ("done", "failed")
+# bounds for the grep request.  Log files reach several gigabytes, and the
+# processor buffers a matcher's whole output before the stored result is capped,
+# so an unselective pattern against a big file costs the daemon that much
+# memory.  Both limits below only ever remove output the caller could not have
+# received anyway -- the stored result has always been capped at 1 MB.
+MAX_MATCH_LIMIT = 200000  # ceiling on max_matches
+MAX_TAIL_BYTES = 1 << 30  # 1 GiB; a window this wide is already generous
 
-def _set_owner_info(parameters: dict, req, access: str = "owner") -> dict:
+
+def _structured_result_response(req_row: Dict[str, Any], results: list) -> Dict[str, Any]:
     """
-    Embed the requester and access level into a request's parameters dict.
-    Used by submit_* endpoints when building parameters_json.
+    Build the response of a request whose handler stores a {"success", "message", "data"} payload.
+
+    Such requests target a single machine (the ANY_MACHINE sentinel), so there is at most one
+    result row and the per-machine shape would only bury the payload. Instead the payload is
+    reported at the top level, exactly as the synchronous flavour of the operation would return
+    it, and the polling metadata goes into "async_meta".
 
     Args:
-        parameters(dict): the request's parameters dict to be augmented in place
-        req(PandaRequest): request object, used to derive the requester's compact DN
-        access(str): access level controlling who may read results; one of
-            "owner", "production", "anyone" (default "owner")
+        req_row(dict): the row from global_task_buffer.get_async_request()
+        results(list): the rows from global_task_buffer.get_async_results()
 
     Returns:
-        dict: the same parameters dict, with "requester" and "access" set
+        dict: {"success": bool, "message": str, "data": <payload data>, "async_meta": {...}}
     """
-    parameters["requester"] = clean_user_id(get_dn(req))
-    parameters["access"] = access
-    return parameters
+    result_row = next((row for row in results if row["machine_name"] == ANY_MACHINE), None)
 
+    if result_row is None:
+        # not claimed by any machine yet
+        async_meta = {"status": "pending", "attempts": 0, "started_at": None, "finished_at": None, "error_msg": None}
+    else:
+        async_meta = {
+            "status": result_row["status"],
+            "attempts": result_row["attempts"],
+            "started_at": str(result_row["started_at"]) if result_row["started_at"] is not None else None,
+            "finished_at": str(result_row["finished_at"]) if result_row["finished_at"] is not None else None,
+            "error_msg": result_row["error_msg"],
+        }
 
-def _is_authorized_to_read(req, req_row):
-    """
-    Authorize the caller to read a request's results based on its access level.
+    if async_meta["status"] not in TERMINAL_STATUSES:
+        # no outcome yet; success stays False so a caller reading it alone never mistakes an
+        # unfinished request for a successful one
+        response = generate_response(False, f"""request is {async_meta["status"]}""")
+    elif async_meta["status"] == "failed":
+        # the handler itself crashed, so there is no payload; the reason is in async_meta
+        response = generate_response(False, "request failed before producing a result")
+    else:
+        try:
+            payload = json.loads(result_row["result"] or "{}")
+        except json.JSONDecodeError as e:
+            return generate_response(False, f"failed to decode stored result : {e}")
+        # a payload missing its success key must never look unfinished
+        response = generate_response(payload.get("success", False), payload.get("message", ""), payload.get("data"))
 
-    Args:
-        req(PandaRequest): request object, used to derive the caller's compact DN
-            and (for the "production" level) the production role
-        req_row(dict): the row dict from global_task_buffer.get_async_request();
-            only req_row["parameters"] (the JSON holding requester/access) is used
-
-    Returns:
-        tuple[bool, str]: (authorized, message)
-    """
-    caller = clean_user_id(get_dn(req))
-    try:
-        params = json.loads(req_row["parameters"] or "{}")
-    except json.JSONDecodeError:
-        params = {}
-    requester = params.get("requester")
-    access = params.get("access", "owner")
-    if access == "owner":
-        authorized = caller == requester
-    elif access == "production":
-        authorized = caller == requester or has_production_role(req)
-    else:  # "anyone"; any unknown value falls through to not authorized
-        authorized = access == "anyone"
-    if not authorized:
-        return False, f"'{caller}' is not authorized to read results (access='{access}', requester='{requester}')"
-    return True, f"'{caller}' is authorized (access='{access}')"
+    response["async_meta"] = async_meta
+    return response
 
 
 @request_validation(_logger, secure=True, request_method="POST")
@@ -122,6 +132,8 @@ def submit_grep_request(
     log_filename: str,
     service_name: str = None,
     machine_name: str = None,
+    max_matches: int = None,
+    tail_bytes: int = None,
 ) -> Dict[str, Any]:
     """
     Submit a grep request to be processed asynchronously on the target service or machine.
@@ -136,6 +148,12 @@ def submit_grep_request(
         log_filename(str): filename (not full path) of the log file under panda_config.logdir
         service_name(str): target service (e.g. "server", "jedi"); mutually exclusive with machine_name
         machine_name(str): target specific machine hostname; mutually exclusive with service_name
+        max_matches(int): stop after this many matching lines (1..200000). Defaults to a
+            bound that leaves the stored result unchanged; results that hit the cap come
+            back with truncated set, so an incomplete answer is never read as an absent one
+        tail_bytes(int): search only the last this many bytes of the file (1..1073741824),
+            which is how to ask about recent activity in a multi-gigabyte log. Ignored for
+            .gz files, where an arbitrary offset is not a valid stream
 
     Returns:
         dict: {"success": bool, "message": str, "data": {"request_id": str}}
@@ -166,6 +184,16 @@ def submit_grep_request(
         tmp_logger.warning(msg)
         return generate_response(False, msg)
 
+    if max_matches is not None and not 1 <= int(max_matches) <= MAX_MATCH_LIMIT:
+        msg = f"invalid max_matches: must be between 1 and {MAX_MATCH_LIMIT}"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    if tail_bytes is not None and not 1 <= int(tail_bytes) <= MAX_TAIL_BYTES:
+        msg = f"invalid tail_bytes: must be between 1 and {MAX_TAIL_BYTES}"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
     # determine expected machines from liveness snapshot
     if service_name:
         expected = global_task_buffer.get_alive_machines(service_name)
@@ -183,7 +211,12 @@ def submit_grep_request(
             tmp_logger.warning(msg)
 
     request_id = str(uuid.uuid4())
-    parameters = _set_owner_info({"pattern": pattern, "log_filename": log_filename}, req)  # grep results stay owner-only
+    grep_parameters = {"pattern": pattern, "log_filename": log_filename}
+    if max_matches is not None:
+        grep_parameters["max_matches"] = int(max_matches)
+    if tail_bytes is not None:
+        grep_parameters["tail_bytes"] = int(tail_bytes)
+    parameters = set_owner_info(grep_parameters, req)  # grep results stay owner-only
     parameters_json = json.dumps(parameters)
     expected_machines_json = json.dumps(expected)
 
@@ -254,7 +287,7 @@ def submit_sleep_echo_request(
         return generate_response(False, msg)
 
     request_id = str(uuid.uuid4())
-    parameters = _set_owner_info({"seconds": seconds, "message": message}, req, access="production")
+    parameters = set_owner_info({"seconds": seconds, "message": message}, req, access="production")
 
     ok = global_task_buffer.insert_async_request(
         request_id,
@@ -276,19 +309,13 @@ def submit_sleep_echo_request(
 @request_validation(_logger, secure=True, request_method="GET")
 def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
     """
-    Poll for the results of an async request.
+    Poll for the results of an async request, of any type and from any submitting module.
 
-    API details:
-        HTTP Method: GET
-        Path: /v1/async_process/get_result
+    The response has two shapes, depending on what the request's handler stores.
 
-    Args:
-        req(PandaRequest): request object
-        request_id(str): UUID returned by a submit_* endpoint
-
-    Returns:
-        dict: {
-            "success": bool,
+    Handlers writing raw output (grep, sleep_echo) report one entry per machine:
+        {
+            "success": bool,        # whether this poll succeeded
             "message": str,
             "data": {
                 "overall_status": "complete" | "pending",
@@ -300,6 +327,29 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
             }
         }
         overall_status is "complete" when all expected machines have a terminal result (done/failed).
+
+    Handlers writing a structured payload (e.g. the Data Carousel operations submitted by
+    pandaserver.api.v1.data_carousel_api) report that payload at the top level instead:
+        {
+            "success": bool,        # whether the OPERATION succeeded
+            "message": str,         # the operation's message
+            "data": <the operation's data>,
+            "async_meta": {"status": "pending" | "running" | "done" | "failed",
+                           "attempts": int, "started_at": str, "finished_at": str,
+                           "error_msg": str}
+        }
+        Poll on async_meta.status, not on success: success is False while the request is still
+        pending or running, and False again when the handler crashed (status "failed", reason in
+        async_meta.error_msg), so it only tells the operation's outcome once status is "done".
+        async_meta is present whenever the poll itself succeeded, so a response without it is a
+        failure of this call (not found, not authorized) rather than a report about the request.
+
+    Args:
+        req(PandaRequest): request object
+        request_id(str): UUID returned by a submit_* endpoint
+
+    Returns:
+        dict: one of the two shapes above
     """
     tmp_logger = LogWrapper(_logger, f"get_result < request_id={request_id} >")
     tmp_logger.debug("Start")
@@ -311,13 +361,23 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
         return generate_response(False, msg)
 
     # authorize the caller to read the results based on the request's access level
-    ok, msg = _is_authorized_to_read(req, req_row)
+    ok, msg = is_authorized_to_read(req, req_row)
     if not ok:
         tmp_logger.warning(msg)
         return generate_response(False, msg)
     tmp_logger.debug(msg)
 
     results = global_task_buffer.get_async_results(request_id)
+
+    # requests whose handler stores a structured payload get that payload at the top level
+    try:
+        request_parameters = json.loads(req_row["parameters"] or "{}")
+    except json.JSONDecodeError:
+        request_parameters = {}
+    if request_parameters.get(STRUCTURED_RESULT_KEY):
+        response = _structured_result_response(req_row, results)
+        tmp_logger.debug(f"""Done status={response.get("async_meta", {}).get("status")}""")
+        return response
 
     expected = json.loads(req_row["expected_machines"] or "[]")
     responded = {r["machine_name"] for r in results if r["status"] in ("done", "failed")}

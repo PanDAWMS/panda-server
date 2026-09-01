@@ -9,6 +9,7 @@ from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.asyncprocess import processor
 from pandaserver.config import panda_config
+from pandaserver.taskbuffer.db_proxy_mods.async_request_module import SERVICE_SERVER
 
 
 def main(argv=tuple(), tbuf=None, **kwargs):
@@ -27,7 +28,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     else:
         taskBuffer = tbuf
 
-    processor.run(service_name="server", tbuf=taskBuffer)
+    processor.run(service_name=SERVICE_SERVER, tbuf=taskBuffer)
 
     if tbuf is None:
         taskBuffer.cleanup(requester=requester_id)
