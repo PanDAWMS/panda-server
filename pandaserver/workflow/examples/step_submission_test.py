@@ -160,6 +160,7 @@ def main():
     wfd = json.load(open(os.path.join(os.path.dirname(__file__), "production_chain_wfd.json")))
     # the simul step consumes {merge_evnt/EVNT} and produces one HITS dataset
     simul_params = copy.deepcopy(wfd["steps"]["simul"]["task_params"])
+    # resolve ${WFID} the way registration would, so this works whether or not the description uses it
     simul_params = json.loads(json.dumps(simul_params).replace("${WFID}", "12345"))
 
     def make_step(prod_role=True, all_inputs_complete=True, params=None):

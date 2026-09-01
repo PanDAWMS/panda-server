@@ -131,9 +131,11 @@ def main():
     print(f"    evgen/EVNT -> {evgen_out}")
     failures += not check("author-supplied output name survives resolve_nodes", evgen_out.startswith("mc23_13p6TeV.526140"))
     failures += not check("no generated name was substituted in", "_001_evgen" not in evgen_out)
-    failures += not check(
-        "both placeholders still outstanding", has_placeholder(evgen_out, WFID_PLACEHOLDER) and has_placeholder(evgen_out, TASKID_PLACEHOLDER)
-    )
+    # Dataset names follow the standard ATLAS convention, which carries no workflow ID, so only
+    # ${TASKID} is expected here. ${WFID} remains supported and is covered by
+    # placeholder_resolution_test.py.
+    failures += not check("${TASKID} still outstanding", has_placeholder(evgen_out, TASKID_PLACEHOLDER))
+    failures += not check("no workflow ID in the dataset name, per the ATLAS convention", not has_placeholder(evgen_out, WFID_PLACEHOLDER), evgen_out)
 
     print("\n--- parent edges")
     id_to_name = {n.id: n.name for n in nodes}
@@ -177,16 +179,12 @@ def main():
         if not ok:
             print(f"          -> {msg}")
 
-    print("\n=== ${WFID} / ${TASKID} substitution ===")
-    resolved_wfid = substitute_placeholder(evgen_out, WFID_PLACEHOLDER, 12345)
-    resolved_both = substitute_placeholder(resolved_wfid, TASKID_PLACEHOLDER, 49900001)
+    print("\n=== ${TASKID} substitution ===")
+    resolved = substitute_placeholder(evgen_out, TASKID_PLACEHOLDER, 49900001)
     print(f"    authored  {evgen_out}")
-    print(f"    + WFID    {resolved_wfid}")
-    print(f"    + TASKID  {resolved_both}")
-    failures += not check(
-        "WFID resolved, TASKID still pending", has_placeholder(resolved_wfid, TASKID_PLACEHOLDER) and not has_placeholder(resolved_wfid, WFID_PLACEHOLDER)
-    )
-    failures += not check("both resolved", not has_placeholder(resolved_both, TASKID_PLACEHOLDER))
+    print(f"    + TASKID  {resolved}")
+    failures += not check("resolved to the task id", not has_placeholder(resolved, TASKID_PLACEHOLDER) and "tid49900001_00" in resolved, resolved)
+    failures += not check("matches the original production name shape", resolved.endswith("_tid49900001_00"), resolved)
     failures += not check("JEDI per-job templates untouched", "${SN}" in substitute_placeholder("log.${TASKID}._${SN}.tgz", TASKID_PLACEHOLDER, 7))
 
     print("\n=== regression: prun steps are unaffected ===")

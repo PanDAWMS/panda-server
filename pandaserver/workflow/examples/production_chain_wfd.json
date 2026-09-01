@@ -1,6 +1,6 @@
 {
   "name": "mc23_526140_AZH_llbb_full_chain",
-  "description": "Production chain translated from tasks 48810693 -> 48810699 -> 48810706 -> 48810713 -> 48810727 -> 48810733 -> 48810738 -> 48810746, with 49827875 branching off merge_aod. Each step is a 'task' step carrying raw PanDA/JEDI task parameters. Inside task_params, a dataset value wholly enclosed in braces is a reference: {name} to a workflow input, {step/output} to another step's output; both are resolved at submission time. ${WFID} is resolved to the workflow id at workflow registration; ${TASKID} to the real jediTaskID when the step's task is submitted. Every other key is passed to insertTaskParamsPanda untouched (note ${SN}, ${MAXEVENTS}, ${IN_AOD/L}, ${SEQNUMBER} are JEDI-side per-job templates and are left alone). NOTE: the _wfid${WFID}_tid${TASKID}_00 placement is an ASSUMED naming pattern and needs confirmation against the ATLAS/DEFT dataset naming convention.",
+  "description": "Translated from a real ATLAS production chain, as an example of expressing one as a single PanDA native workflow. The original tasks were: 48810693 (evgen) -> 48810699 (merge_evnt) -> 48810706 (simul) -> 48810713 (merge_hits) -> 48810727 (recon) -> 48810733 (merge_aod) -> 48810738 (deriv_prw) -> 48810746 (merge_ntup), with 49827875 (deriv_phys) branching off merge_aod and emitting both DAOD_PHYS and DAOD_PHYSLITE. Step names are this description's own; the task IDs are given so each step can be traced back to the task it was taken from. Each step is a 'task' step carrying raw PanDA/JEDI task parameters, which are passed through as authored -- note that deriv_phys deliberately runs under a different userName and workingGroup from the rest of the chain, as it did originally. Inside task_params, a dataset value wholly enclosed in braces is a reference: {name} to a workflow input, {step/output} to another step's output; both are resolved when the consuming step's task is submitted. ${TASKID} is resolved to the real jediTaskID when that step's task is queued, which is what lets a dataset name embed the ID of the task that produced it. The JEDI-side per-job templates (${SN}, ${MAXEVENTS}, ${IN_AOD/L}, ${SEQNUMBER}) are left untouched. Dataset names follow the standard ATLAS convention, so they carry no workflow ID. A ${WFID} placeholder, resolved to the workflow ID when the workflow is registered, is also supported and may be used anywhere in task_params should a future convention want it.",
   "inputs": {
     "rdo_bkg": "mc23_13p6TeV.900149.PG_single_nu_Pt50.merge.RDO.e8514_s4332_d1994_sub0002_rnd526140"
   },
@@ -53,7 +53,7 @@
           "type": "template",
           "param_type": "log",
           "value": "log.${TASKID}._${SN}.job.log.tgz",
-          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.log.e8590_wfid${WFID}_tid${TASKID}_00",
+          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.log.e8590_tid${TASKID}_00",
           "destination": "(type=DATADISK)\\(dontkeeplog=True)",
           "token": "ddd:.*DATADISK",
           "transient": false,
@@ -92,7 +92,7 @@
             "type": "template",
             "param_type": "output",
             "value": "--outputEVNTFile=EVNT.${TASKID}._${SN}.pool.root",
-            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.EVNT.e8590_wfid${WFID}_tid${TASKID}_00",
+            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.EVNT.e8590_tid${TASKID}_00",
             "token": "ATLASDATADISK",
             "offset": 0
           },
@@ -146,7 +146,7 @@
           "type": "template",
           "param_type": "log",
           "value": "log.${TASKID}._${SN}.job.log.tgz",
-          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_wfid${WFID}_tid${TASKID}_00",
+          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_tid${TASKID}_00",
           "destination": "(type=DATADISK)\\(dontkeeplog=True)",
           "token": "ddd:.*DATADISK",
           "transient": false,
@@ -178,7 +178,7 @@
             "type": "template",
             "param_type": "output",
             "value": "--outputEVNT_MRGFile=EVNT.${TASKID}._${SN}.pool.root",
-            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.EVNT.e8590_e8586_wfid${WFID}_tid${TASKID}_00",
+            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.EVNT.e8590_e8586_tid${TASKID}_00",
             "token": "ATLASDATADISK",
             "offset": 0
           }
@@ -225,7 +225,7 @@
           "type": "template",
           "param_type": "log",
           "value": "log.${TASKID}._${SN}.job.log.tgz",
-          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.log.e8590_e8586_a934_wfid${WFID}_tid${TASKID}_00",
+          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.log.e8590_e8586_a934_tid${TASKID}_00",
           "destination": "(type=DATADISK)\\(dontkeeplog=True)",
           "token": "ddd:.*DATADISK",
           "transient": false,
@@ -299,7 +299,7 @@
             "type": "template",
             "param_type": "output",
             "value": "--outputHITSFile=HITS.${TASKID}._${SN}.pool.root",
-            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.HITS.e8590_e8586_a934_wfid${WFID}_tid${TASKID}_00",
+            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.HITS.e8590_e8586_a934_tid${TASKID}_00",
             "token": "ATLASDATADISK",
             "offset": 0
           },
@@ -363,7 +363,7 @@
           "type": "template",
           "param_type": "log",
           "value": "log.${TASKID}._${SN}.job.log.tgz",
-          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_a934_s4370_wfid${WFID}_tid${TASKID}_00",
+          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_a934_s4370_tid${TASKID}_00",
           "destination": "(type=DATADISK)\\(dontkeeplog=True)",
           "token": "ddd:.*DATADISK",
           "transient": false,
@@ -407,7 +407,7 @@
             "type": "template",
             "param_type": "output",
             "value": "--outputHITS_MRGFile=HITS.${TASKID}._${SN}.pool.root",
-            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.HITS.e8590_e8586_a934_s4370_wfid${WFID}_tid${TASKID}_00",
+            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.HITS.e8590_e8586_a934_s4370_tid${TASKID}_00",
             "token": "ATLASDATADISK",
             "offset": 0
           }
@@ -455,7 +455,7 @@
           "type": "template",
           "param_type": "log",
           "value": "log.${TASKID}._${SN}.job.log.tgz",
-          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.log.e8590_e8586_a934_s4370_r16083_wfid${WFID}_tid${TASKID}_00",
+          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.log.e8590_e8586_a934_s4370_r16083_tid${TASKID}_00",
           "destination": "(type=DATADISK)\\(dontkeeplog=True)",
           "token": "ddd:.*DATADISK",
           "transient": false,
@@ -537,7 +537,7 @@
             "type": "template",
             "param_type": "output",
             "value": "--outputAODFile=AOD.${TASKID}._${SN}.pool.root",
-            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.AOD.e8590_e8586_a934_s4370_r16083_wfid${WFID}_tid${TASKID}_00",
+            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.AOD.e8590_e8586_a934_s4370_r16083_tid${TASKID}_00",
             "token": "ATLASDATADISK",
             "offset": 0
           },
@@ -611,7 +611,7 @@
           "type": "template",
           "param_type": "log",
           "value": "log.${TASKID}._${SN}.job.log.tgz",
-          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_a934_s4370_r16083_r15970_wfid${WFID}_tid${TASKID}_00",
+          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_a934_s4370_r16083_r15970_tid${TASKID}_00",
           "destination": "(type=DATADISK)\\(dontkeeplog=True)",
           "token": "ddd:.*DATADISK",
           "transient": false,
@@ -649,7 +649,7 @@
             "type": "template",
             "param_type": "output",
             "value": "--outputAOD_MRGFile=AOD.${TASKID}._${SN}.pool.root",
-            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.AOD.e8590_e8586_a934_s4370_r16083_r15970_wfid${WFID}_tid${TASKID}_00",
+            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.AOD.e8590_e8586_a934_s4370_r16083_r15970_tid${TASKID}_00",
             "token": "ATLASDATADISK",
             "transient": false,
             "offset": 0
@@ -701,7 +701,7 @@
           "type": "template",
           "param_type": "log",
           "value": "log.${TASKID}._${SN}.job.log.tgz",
-          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.log.e8590_e8586_a934_s4370_r16083_r15970_p5667_wfid${WFID}_tid${TASKID}_00",
+          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.log.e8590_e8586_a934_s4370_r16083_r15970_p5667_tid${TASKID}_00",
           "destination": "(type=DATADISK)\\(dontkeeplog=True)",
           "token": "ddd:.*DATADISK",
           "transient": false,
@@ -723,7 +723,7 @@
             "type": "template",
             "param_type": "output",
             "value": "--outputNTUP_PILEUPFile=NTUP_PILEUP.${TASKID}._${SN}.pool.root",
-            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.NTUP_PILEUP.e8590_e8586_a934_s4370_r16083_r15970_p5667_wfid${WFID}_tid${TASKID}_00",
+            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.NTUP_PILEUP.e8590_e8586_a934_s4370_r16083_r15970_p5667_tid${TASKID}_00",
             "token": "ATLASDATADISK",
             "offset": 0
           }
@@ -773,7 +773,7 @@
           "type": "template",
           "param_type": "log",
           "value": "log.${TASKID}._${SN}.job.log.tgz",
-          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_a934_r16083_p5667_p5669_wfid${WFID}_tid${TASKID}_00",
+          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_a934_r16083_p5667_p5669_tid${TASKID}_00",
           "destination": "(type=DATADISK)\\(dontkeeplog=True)",
           "token": "ddd:.*DATADISK",
           "transient": false,
@@ -795,7 +795,7 @@
             "type": "template",
             "param_type": "output",
             "value": "--outputNTUP_PILEUP_MRGFile=NTUP_PILEUP.${TASKID}._${SN}.pool.root",
-            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.NTUP_PILEUP.e8590_a934_r16083_p5667_p5669_wfid${WFID}_tid${TASKID}_00",
+            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.NTUP_PILEUP.e8590_a934_r16083_p5667_p5669_tid${TASKID}_00",
             "token": "ATLASDATADISK",
             "offset": 0
           }
@@ -846,7 +846,7 @@
           "type": "template",
           "param_type": "log",
           "value": "log.${TASKID}._${SN}.job.log.tgz",
-          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.log.e8590_e8586_a934_s4370_r16083_r15970_p7017_wfid${WFID}_tid${TASKID}_00",
+          "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.log.e8590_e8586_a934_s4370_r16083_r15970_p7017_tid${TASKID}_00",
           "destination": "(type=DATADISK)\\(dontkeeplog=True)",
           "token": "ddd:.*DATADISK",
           "transient": false,
@@ -901,7 +901,7 @@
             "type": "template",
             "param_type": "output",
             "value": "--outputDAOD_PHYSFile=DAOD_PHYS.${TASKID}._${SN}.pool.root.1",
-            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.DAOD_PHYS.e8590_e8586_a934_s4370_r16083_r15970_p7017_wfid${WFID}_tid${TASKID}_00",
+            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.DAOD_PHYS.e8590_e8586_a934_s4370_r16083_r15970_p7017_tid${TASKID}_00",
             "token": "ATLASDATADISK",
             "hidden": true,
             "offset": 0
@@ -910,7 +910,7 @@
             "type": "template",
             "param_type": "output",
             "value": "--outputDAOD_PHYSLITEFile=DAOD_PHYSLITE.${TASKID}._${SN}.pool.root.1",
-            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.DAOD_PHYSLITE.e8590_e8586_a934_s4370_r16083_r15970_p7017_wfid${WFID}_tid${TASKID}_00",
+            "dataset": "mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.DAOD_PHYSLITE.e8590_e8586_a934_s4370_r16083_r15970_p7017_tid${TASKID}_00",
             "token": "ATLASDATADISK",
             "hidden": true,
             "offset": 0
