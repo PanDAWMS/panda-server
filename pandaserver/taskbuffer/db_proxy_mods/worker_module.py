@@ -1440,8 +1440,8 @@ class WorkerModule(BaseModule):
         tmp_log.debug("Start")
 
         try:
-            var_map = {":site": site}
-            sql = "SELECT site, host_name, timestamp, key, statistics FROM  ATLAS_PANDA.WORKER_NODE_METRICS " "where SITE = :site"
+            var_map = {":site": site, ":time_limit": naive_utcnow() - datetime.timedelta(days=days)}
+            sql = "SELECT site, host_name, timestamp, key, statistics FROM ATLAS_PANDA.WORKER_NODE_METRICS WHERE SITE = :site AND timestamp > :time_limit"
 
             # Host and key are optional
             if host:
