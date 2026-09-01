@@ -214,12 +214,28 @@ def main():
     failures += not check("workflowHoldup set", tbif.inserted[0].get("workflowHoldup") is True)
 
     print("\n=== a production label without the role is refused ===")
+    # every label JobUtils.prod_sources treats as production must be guarded, not just "managed"
+    for label in ["managed", "prod_test"]:
+        params = copy.deepcopy(simul_params)
+        params["prodSourceLabel"] = label
+        tbif = make_tbif()
+        handler = PandaTaskStepHandler(tbif)
+        res = handler.submit_target(make_step(prod_role=False, params=params))
+        failures += not check(f"{label} refused without the role", res.success is not True)
+        failures += not check(f"{label} reason mentions the production role", "production role" in res.message, res.message)
+        failures += not check(f"{label} submitted nothing", tbif.inserted == [])
+        # ... and is accepted once the submitter holds it
+        tbif = make_tbif()
+        handler = PandaTaskStepHandler(tbif)
+        res = handler.submit_target(make_step(prod_role=True, params=params))
+        failures += not check(f"{label} accepted with the role", res.success is True, res.message)
+    # a non-production label needs no role
+    params = copy.deepcopy(simul_params)
+    params["prodSourceLabel"] = "user"
     tbif = make_tbif()
     handler = PandaTaskStepHandler(tbif)
-    res = handler.submit_target(make_step(prod_role=False))
-    failures += not check("refused", res.success is not True)
-    failures += not check("reason mentions the production role", "production role" in res.message, res.message)
-    failures += not check("nothing submitted", tbif.inserted == [])
+    res = handler.submit_target(make_step(prod_role=False, params=params))
+    failures += not check("a non-production label needs no role", res.success is True, res.message)
 
     print("\n=== an unresolved upstream output blocks submission ===")
     tbif = make_tbif()
