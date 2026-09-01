@@ -427,8 +427,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     file_attrs["campaign"] = campaign
                 # cross-section from the job report, which is a job-level value
                 if file.type == "output" and self.extra_info.get("xsec") is not None:
-                    #file_attrs["xsec"] = self.extra_info["xsec"]
-                    pass
+                    file_attrs["xsec"] = self.extra_info["xsec"]
 
                 # For files uploaded to alternative RSEs
                 has_normal_url = True

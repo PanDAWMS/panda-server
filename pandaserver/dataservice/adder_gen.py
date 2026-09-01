@@ -685,7 +685,6 @@ class AdderGen:
                 if not isinstance(meta_data, dict) or "cross-section (nb)" not in meta_data:
                     continue
                 self.extra_info["xsec"] = float(meta_data["cross-section (nb)"])
-                self.logger.debug(f"extract_cross_section: xsec={self.extra_info['xsec']}")
                 return
         except Exception as e:
             self.logger.warning(f"extract_cross_section: failed to extract cross-section from job report: {e}")
