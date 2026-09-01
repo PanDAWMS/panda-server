@@ -65,6 +65,7 @@ class AdderGen:
             "lbnr": {},
             "endpoint": {},
             "guid": {},
+            "xsec": None,
         }
         self.attempt_nr = attempt_nr
         self.pid = pid
@@ -671,6 +672,23 @@ class AdderGen:
         except Exception:
             self.logger.error(f"update_worker_node_gpu: issue with updating worker node GPU specs: {traceback.format_exc()}")
 
+    def extract_cross_section(self, json_dict: dict) -> None:
+        """
+        Extract the generator cross-section from the job report and set it in extra_info.
+
+        :param json_dict: The job report as a dictionary.
+        """
+        try:
+            executors = json_dict.get("executor", [])
+            for executor in executors:
+                meta_data = executor.get("metaData", {})
+                if not isinstance(meta_data, dict) or "cross-section (nb)" not in meta_data:
+                    continue
+                self.extra_info["xsec"] = float(meta_data["cross-section (nb)"])
+                return
+        except Exception as e:
+            self.logger.warning(f"extract_cross_section: failed to extract cross-section from job report: {e}")
+
     # parse JSON
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
     def parse_job_output_report(self):
@@ -798,10 +816,11 @@ class AdderGen:
             self.logger.warning("Issue with parsing JSON for nEvents")
             pass
 
-        # parse metadata to get worker node specs and GPU specs
+        # parse metadata to get worker node specs, GPU specs, and cross-section
         if isinstance(json_dict, dict):
             self.update_worker_node(json_dict)
             self.update_worker_node_gpu(json_dict)
+            self.extract_cross_section(json_dict)
 
         # use nEvents and GUIDs reported by the pilot if no job report
         if self.job.metadata == "NULL" and self.job_status == "finished" and self.job.nEvents > 0 and self.job.prodSourceLabel in ["managed"]:
