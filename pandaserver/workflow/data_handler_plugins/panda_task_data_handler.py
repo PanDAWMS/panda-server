@@ -94,13 +94,22 @@ class PandaTaskDataHandler(BaseDataHandler):
             tmp_log.warning(f"flavor={data_spec.flavor} not {self.plugin_flavor}; skipped")
             check_result.message = f"flavor not {self.plugin_flavor}; skipped"
             return check_result
-        # The dataset name is only known once the task producing it has been submitted and JEDI has
-        # assigned its ID. Until then the name still holds ${TASKID} and there is nothing to look
-        # up, so report success with no status change and wait for the next cycle.
+        # A name embedding ${TASKID} is not final until the producing task has been queued and its
+        # ID assigned, so the dataset cannot exist yet and is reported as non-existent. That is the
+        # truthful answer, it keeps an unresolved name out of DDM queries, and it lets an output
+        # advance to binding so the step that generates it can run. Reporting no status change
+        # instead would leave the data in checking forever, and with it the step and the workflow.
         if has_placeholder(data_spec.target_id, TASKID_PLACEHOLDER):
             check_result.success = True
-            check_result.message = f"target_id still holds {TASKID_PLACEHOLDER}; the producing task is not submitted yet"
+            check_result.check_status = WFDataTargetCheckStatus.nonexist
+            check_result.message = f"target_id still holds {TASKID_PLACEHOLDER}; the producing task has not been queued yet"
             tmp_log.debug(f"{check_result.message}")
+            if data_spec.source_step_id is not None:
+                # the name should have been resolved when the producing step submitted its task, so
+                # a step that has already finished with it unresolved is worth surfacing
+                source_step_spec = self.tbif.get_workflow_step(data_spec.source_step_id)
+                if source_step_spec is not None and source_step_spec.status in WFStepStatus.final_statuses:
+                    tmp_log.warning(f"source step step_id={data_spec.source_step_id} is {source_step_spec.status} but {TASKID_PLACEHOLDER} is still unresolved")
             return check_result
         # Check source step status
         if data_spec.source_step_id is not None:
