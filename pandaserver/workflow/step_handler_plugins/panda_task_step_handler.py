@@ -219,8 +219,17 @@ class PandaTaskStepHandler(BaseStepHandler):
             task_id = int(step_spec.target_id)
             res = self.tbif.getTaskStatusSuperstatus(task_id)
             if not res:
-                check_result.message = f"task_id={task_id} not found"
-                tmp_log.error(f"{check_result.message}")
+                # A submitted task is queued in DEFT immediately but only appears in JEDI once
+                # TaskRefiner picks it up, which lags by up to a refiner cycle. That window is
+                # expected, so consult DEFT to tell it apart from a task that has really gone
+                # missing, and report it as a warning rather than an error.
+                deft_status = self.tbif.get_deft_task_status(task_id)
+                if deft_status is not None:
+                    check_result.message = f"task_id={task_id} is queued in DEFT table (status={deft_status}) but not yet refined into JEDI; will retry"
+                    tmp_log.warning(f"{check_result.message}")
+                else:
+                    check_result.message = f"task_id={task_id} not found in JEDI or DEFT table"
+                    tmp_log.error(f"{check_result.message}")
                 return check_result
             # Interpret status
             task_status = res[0]
@@ -291,7 +300,13 @@ class PandaTaskStepHandler(BaseStepHandler):
             # Get task spec
             _, task_spec = self.tbif.getTaskWithID_JEDI(task_id)
             if task_spec is None:
-                tmp_log.error(f"task_id={task_id} not found; skipped")
+                # Same not-yet-refined window as in check_target: there is nothing to release until
+                # the task exists in JEDI, and the next cycle will retry.
+                deft_status = self.tbif.get_deft_task_status(task_id)
+                if deft_status is not None:
+                    tmp_log.warning(f"task_id={task_id} is queued in DEFT (status={deft_status}) but not yet refined into JEDI; nothing to release yet")
+                else:
+                    tmp_log.error(f"task_id={task_id} not found in JEDI or DEFT; skipped")
                 return
             # Unset workflowHoldup, release the task if in pending, and trigger jedi_contents_feeder
             if task_spec.is_workflow_holdup():

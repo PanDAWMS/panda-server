@@ -624,6 +624,36 @@ class WorkflowModule(BaseModule):
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow data: {e}")
 
+    def get_deft_task_status(self, task_id: int) -> str | None:
+        """
+        Get the DEFT status of a task, to tell a not-yet-refined task from a missing one
+
+        A task is queued in DEFT as soon as it is submitted, but only appears in JEDI once
+        TaskRefiner has picked it up, which lags by up to a refiner cycle. During that window a
+        JEDI lookup finds nothing, which is expected rather than an error; consulting DEFT
+        distinguishes the two cases.
+
+        Args:
+            task_id (int): Task ID to look up
+
+        Returns:
+            str | None: The task's DEFT status, or None if it is not in DEFT at all or the lookup
+                failed
+        """
+        comment = " /* DBProxy.get_deft_task_status */"
+        tmp_log = self.create_tagged_logger(comment, f"taskid={task_id}")
+        try:
+            sql_get = f"SELECT status FROM {panda_config.schemaDEFT}.T_TASK WHERE taskid=:taskid "
+            with self.transaction(tmp_log=tmp_log) as (cur, _):
+                cur.execute(sql_get + comment, {":taskid": task_id})
+                res = cur.fetchone()
+            status = res[0] if res else None
+            tmp_log.debug(f"got status={status}")
+            return status
+        except Exception as e:
+            tmp_log.error(f"failed to get the DEFT task status: {e}")
+            return None
+
     def insert_step_task(self, task_params_map: dict, user_dn: str, parent_tid: int | None = None) -> tuple[int | None, str]:
         """
         Queue the task of a workflow step in DEFT, resolving the late-bound task ID

@@ -55,9 +55,12 @@ def stub(name, **attrs):
     return module
 
 
+LOGGED = {"warning": [], "error": []}
+
+
 class Log:
     def __init__(self, *a, **k):
-        self.errors = []
+        pass
 
     def info(self, m):
         pass
@@ -66,10 +69,10 @@ class Log:
         pass
 
     def warning(self, m):
-        pass
+        LOGGED["warning"].append(m)
 
     def error(self, m):
-        self.errors.append(m)
+        LOGGED["error"].append(m)
 
 
 stub("pandacommon")
@@ -121,7 +124,8 @@ class FakeStep:
 
 
 class FakeTaskBuffer:
-    def __init__(self, data_by_name=None, task_id=49900001, error=""):
+    def __init__(self, data_by_name=None, task_id=49900001, error="", deft_status=None):
+        self.deft_status = deft_status
         self.data = data_by_name or {}
         self.task_id = task_id
         self.error = error
@@ -146,8 +150,16 @@ class FakeTaskBuffer:
     def getTaskStatusSuperstatus(self, task_id):
         return self._status
 
+    def get_deft_task_status(self, task_id):
+        return self.deft_status
+
     def set_status(self, status, superstatus=None):
-        self._status = (status, superstatus or status)
+        # a real getTaskStatusSuperstatus returns a falsy value when the task is not in JEDI
+        self._status = None if status is None else (status, superstatus or status)
+
+    def getTaskWithID_JEDI(self, task_id, *args, **kwargs):
+        # mirrors the real signature: (found, task_spec); None when the task is not in JEDI yet
+        return (False, None) if self._status is None else (True, None)
 
 
 def check(label, condition, detail=""):
@@ -278,6 +290,37 @@ def main():
     failures += not check("submitted", res.success is True, res.message)
     datasets = [p["dataset"] for p in tbif.inserted[0]["jobParameters"] if p.get("param_type") == "input"]
     failures += not check("both inputs resolved", set(datasets) == {"mc23...merge.HITS..._tid48810713_00", wfd["inputs"]["rdo_bkg"]}, datasets)
+
+    print("\n=== a task submitted but not yet refined into JEDI ===")
+    # JEDI has no row yet, but DEFT does: expected for up to a refiner cycle, so this must be a
+    # warning naming the situation, not an error suggesting the task was lost.
+    del LOGGED["warning"][:], LOGGED["error"][:]
+    tbif = make_tbif(deft_status="waiting")
+    tbif.set_status(None)
+    handler = PandaTaskStepHandler(tbif)
+    step = make_step()
+    step.status = WFStepStatus.running
+    step.target_id = "49900001"
+    result = handler.check_target(step)
+    failures += not check("check_target does not advance the step", not result.success)
+    failures += not check("logged as a warning, not an error", LOGGED["warning"] and not LOGGED["error"], (LOGGED["warning"], LOGGED["error"]))
+    failures += not check("message explains it is queued in DEFT", "queued in DEFT" in result.message and "not yet refined" in result.message, result.message)
+
+    del LOGGED["warning"][:], LOGGED["error"][:]
+    handler.on_all_inputs_done(step)
+    failures += not check("on_all_inputs_done also warns rather than errors", LOGGED["warning"] and not LOGGED["error"], (LOGGED["warning"], LOGGED["error"]))
+
+    print("\n=== a task missing from both JEDI and DEFT is still an error ===")
+    del LOGGED["warning"][:], LOGGED["error"][:]
+    tbif = make_tbif(deft_status=None)
+    tbif.set_status(None)
+    handler = PandaTaskStepHandler(tbif)
+    step = make_step()
+    step.status = WFStepStatus.running
+    step.target_id = "49900001"
+    result = handler.check_target(step)
+    failures += not check("logged as an error", LOGGED["error"] and not LOGGED["warning"], (LOGGED["warning"], LOGGED["error"]))
+    failures += not check("message says neither JEDI nor DEFT", "not found in JEDI or DEFT" in result.message, result.message)
 
     print("\n=== check_target status mapping ===")
     expectations = {

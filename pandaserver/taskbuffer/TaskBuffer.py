@@ -1566,6 +1566,11 @@ class TaskBuffer:
             ret = proxy.checkQuota(dn)
         return ret
 
+    # get the DEFT status of a task
+    def get_deft_task_status(self, task_id):
+        with self.proxyPool.get() as proxy:
+            return proxy.get_deft_task_status(task_id)
+
     # queue the task of a workflow step
     def insert_step_task(self, task_params_map, user_dn, parent_tid=None):
         # query an SQL return Status
