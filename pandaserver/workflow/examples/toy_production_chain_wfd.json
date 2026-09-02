@@ -1,6 +1,6 @@
 {
   "name": "toy_mc23_526140_AZH_llbb_full_chain",
-  "description": "Small-scale toy of production_chain_wfd.json, for testing the production-workflow path in a real PanDA instance. Same 9-step shape and the same transformations as the original chain (48810693 evgen -> 48810699 merge_evnt -> 48810706 simul -> 48810713 merge_hits -> 48810727 recon -> 48810733 merge_aod -> 48810738 deriv_prw -> 48810746 merge_ntup, with 49827875 deriv_phys branching off merge_aod), but scaled down and made safe to run alongside real production: every step runs as userName=panda with prodSourceLabel=prod_test and no workingGroup. Note that prod_test counts as a production label, so submitting this requires a production role (smoketest: --prod-role); and every dataset it writes -- outputs and logs -- lives in the panda scope under 'panda:panda.workflow_test.wfid${WFID}.', so nothing can collide with or pollute real production data. taskNames carry the same prefix, so each run is distinguishable both from real production tasks and from previous toy runs. ${WFID} is resolved to the workflow ID at registration and ${TASKID} to the real jediTaskID when each step's task is queued. The only dataset read from outside the panda scope is the rdo_bkg pileup input, which is read-only.",
+  "description": "Small-scale toy of production_chain_wfd.json, for testing the production-workflow path in a real PanDA instance. Same 9-step shape and the same transformations as the original chain (48810693 evgen -> 48810699 merge_evnt -> 48810706 simul -> 48810713 merge_hits -> 48810727 recon -> 48810733 merge_aod -> 48810738 deriv_prw -> 48810746 merge_ntup, with 49827875 deriv_phys branching off merge_aod), but scaled down and made safe to run alongside real production: every step runs as userName=panda with prodSourceLabel=test and no workingGroup. The label must be one the target JEDI instance accepts in its agents' procConfig, otherwise the tasks sit in DEFT as 'waiting' and never reach JEDI; and every dataset it writes -- outputs and logs -- lives in the panda scope under 'panda:panda.workflow_test.wfid${WFID}.', so nothing can collide with or pollute real production data. taskNames carry the same prefix, so each run is distinguishable both from real production tasks and from previous toy runs. ${WFID} is resolved to the workflow ID at registration and ${TASKID} to the real jediTaskID when each step's task is queued. The only dataset read from outside the panda scope is the rdo_bkg pileup input, which is read-only.",
   "inputs": {
     "rdo_bkg": "mc23_13p6TeV.900149.PG_single_nu_Pt50.merge.RDO.e8514_s4332_d1994_sub0002_rnd526140"
   },
@@ -21,7 +21,7 @@
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.e8590",
         "taskType": "prod",
-        "prodSourceLabel": "prod_test",
+        "prodSourceLabel": "test",
         "vo": "atlas",
         "userName": "panda",
         "taskPriority": 275,
@@ -113,7 +113,7 @@
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586",
         "taskType": "prod",
-        "prodSourceLabel": "prod_test",
+        "prodSourceLabel": "test",
         "vo": "atlas",
         "userName": "panda",
         "taskPriority": 885,
@@ -188,7 +188,7 @@
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.e8590_e8586_a934",
         "taskType": "prod",
-        "prodSourceLabel": "prod_test",
+        "prodSourceLabel": "test",
         "vo": "atlas",
         "userName": "panda",
         "taskPriority": 240,
@@ -325,7 +325,7 @@
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586_a934_s4370",
         "taskType": "prod",
-        "prodSourceLabel": "prod_test",
+        "prodSourceLabel": "test",
         "vo": "atlas",
         "userName": "panda",
         "taskPriority": 885,
@@ -415,7 +415,7 @@
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.e8590_e8586_a934_s4370_r16083",
         "taskType": "prod",
-        "prodSourceLabel": "prod_test",
+        "prodSourceLabel": "test",
         "vo": "atlas",
         "userName": "panda",
         "taskPriority": 250,
@@ -568,7 +568,7 @@
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586_a934_s4370_r16083_r15970",
         "taskType": "prod",
-        "prodSourceLabel": "prod_test",
+        "prodSourceLabel": "test",
         "vo": "atlas",
         "userName": "panda",
         "taskPriority": 885,
@@ -656,7 +656,7 @@
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.e8590_e8586_a934_s4370_r16083_r15970_p5667",
         "taskType": "prod",
-        "prodSourceLabel": "prod_test",
+        "prodSourceLabel": "test",
         "vo": "atlas",
         "userName": "panda",
         "taskPriority": 885,
@@ -731,7 +731,7 @@
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_a934_r16083_p5667_p5669",
         "taskType": "prod",
-        "prodSourceLabel": "prod_test",
+        "prodSourceLabel": "test",
         "vo": "atlas",
         "userName": "panda",
         "taskPriority": 885,
@@ -799,7 +799,7 @@
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.e8590_e8586_a934_s4370_r16083_r15970_p7017",
         "taskType": "prod",
-        "prodSourceLabel": "prod_test",
+        "prodSourceLabel": "test",
         "vo": "atlas",
         "userName": "panda",
         "taskPriority": 560,

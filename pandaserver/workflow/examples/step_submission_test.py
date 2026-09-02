@@ -214,8 +214,8 @@ def main():
     failures += not check("workflowHoldup set", tbif.inserted[0].get("workflowHoldup") is True)
 
     print("\n=== a production label without the role is refused ===")
-    # every label JobUtils.prod_sources treats as production must be guarded, not just "managed"
-    for label in ["managed", "prod_test"]:
+    # only the task-level production label is guarded; see PRODUCTION_SOURCE_LABELS
+    for label in ["managed"]:
         params = copy.deepcopy(simul_params)
         params["prodSourceLabel"] = label
         tbif = make_tbif()
@@ -229,13 +229,16 @@ def main():
         handler = PandaTaskStepHandler(tbif)
         res = handler.submit_target(make_step(prod_role=True, params=params))
         failures += not check(f"{label} accepted with the role", res.success is True, res.message)
-    # a non-production label needs no role
-    params = copy.deepcopy(simul_params)
-    params["prodSourceLabel"] = "user"
-    tbif = make_tbif()
-    handler = PandaTaskStepHandler(tbif)
-    res = handler.submit_target(make_step(prod_role=False, params=params))
-    failures += not check("a non-production label needs no role", res.success is True, res.message)
+    # non-production task labels need no role. "test" is included deliberately: a JEDI instance may
+    # route it to the production refiner, but which task labels it accepts is its own configuration,
+    # so the server does not gate it. "prod_test" is a job-level label and never reaches here.
+    for label in ["user", "test", "ptest"]:
+        params = copy.deepcopy(simul_params)
+        params["prodSourceLabel"] = label
+        tbif = make_tbif()
+        handler = PandaTaskStepHandler(tbif)
+        res = handler.submit_target(make_step(prod_role=False, params=params))
+        failures += not check(f"{label} needs no production role", res.success is True, res.message)
 
     print("\n=== an unresolved upstream output blocks submission ===")
     tbif = make_tbif()

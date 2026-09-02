@@ -21,12 +21,13 @@ from pandaserver.workflow.workflow_native_utils import (
     extract_dataset_reference,
 )
 
-# Task source labels which may only be used by a submitter holding a production role. These are the
-# labels JobUtils.prod_sources treats as production, i.e. the ones that map to PROD_PS: a task
-# submitted under either of them is production work and needs the role. Listed explicitly rather
-# than derived from JobUtils.prod_sources, so that an authorisation decision stays visible here and
-# cannot change as a side effect of editing a job-typing list.
-PRODUCTION_SOURCE_LABELS = ("managed", "prod_test")
+# Task source labels which may only be used by a submitter holding a production role.
+# Note that PanDA has two separate prodSourceLabel taxonomies and only the task-level one matters
+# here: JobUtils.prod_sources ("managed", "prod_test") describes *job* labels, used for pilot job
+# dispatch and brokerage, and "prod_test" never appears as a task label. Which task labels a JEDI
+# instance accepts is set by its own procConfig, so gating anything beyond "managed" would bake one
+# deployment's configuration into the server.
+PRODUCTION_SOURCE_LABELS = ("managed",)
 
 # main logger
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
