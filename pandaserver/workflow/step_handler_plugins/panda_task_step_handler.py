@@ -131,8 +131,12 @@ class PandaTaskStepHandler(BaseStepHandler):
         submit_result = WFStepTargetSubmitResult()
         # Check step flavor
         if step_spec.flavor != self.plugin_flavor:
-            tmp_log.warning(f"flavor={step_spec.flavor} not {self.plugin_flavor}; skipped")
-            submit_result.message = f"flavor not {self.plugin_flavor}; skipped"
+            # A flavor mismatch means the plugin map routed this step to the wrong handler, which is
+            # a configuration or programming error rather than any runtime condition, so it is
+            # reported loudly and as a failure instead of being skipped quietly.
+            submit_result.success = False
+            submit_result.message = f"flavor={step_spec.flavor} is not {self.plugin_flavor}; wrong step handler for this step"
+            tmp_log.error(f"{submit_result.message}")
             return submit_result
         try:
             # Get step definition
@@ -208,8 +212,12 @@ class PandaTaskStepHandler(BaseStepHandler):
                 tmp_log.warning(f"status={step_spec.status} not in status to check; skipped")
                 return check_result
             if step_spec.flavor != self.plugin_flavor:
-                check_result.message = f"flavor not {self.plugin_flavor}; skipped"
-                tmp_log.warning(f"flavor={step_spec.flavor} not {self.plugin_flavor}; skipped")
+                # A flavor mismatch means the plugin map routed this step to the wrong handler, which is a
+                # configuration or programming error rather than any runtime condition, so it is reported
+                # loudly and as a failure instead of being skipped quietly.
+                check_result.success = False
+                check_result.message = f"flavor={step_spec.flavor} is not {self.plugin_flavor}; wrong step handler for this step"
+                tmp_log.error(f"{check_result.message}")
                 return check_result
             if step_spec.target_id is None:
                 check_result.message = f"target_id is None; skipped"
@@ -225,9 +233,12 @@ class PandaTaskStepHandler(BaseStepHandler):
                 # missing, and report it as a warning rather than an error.
                 deft_status = self.tbif.get_deft_task_status(task_id)
                 if deft_status is not None:
+                    # success stays None: not checkable yet, so the caller keeps the step and retries
                     check_result.message = f"task_id={task_id} is queued in DEFT table (status={deft_status}) but not yet refined into JEDI; will retry"
                     tmp_log.warning(f"{check_result.message}")
                 else:
+                    # gone from both: a real failure, so the caller reports it
+                    check_result.success = False
                     check_result.message = f"task_id={task_id} not found in JEDI or DEFT table"
                     tmp_log.error(f"{check_result.message}")
                 return check_result
@@ -290,7 +301,10 @@ class PandaTaskStepHandler(BaseStepHandler):
         try:
             # Check step flavor
             if step_spec.flavor != self.plugin_flavor:
-                tmp_log.warning(f"flavor={step_spec.flavor} not {self.plugin_flavor}; skipped")
+                # A flavor mismatch means the plugin map routed this step to the wrong handler, which is a
+                # configuration or programming error rather than any runtime condition, so it is reported
+                # loudly and as a failure instead of being skipped quietly.
+                tmp_log.error(f"flavor={step_spec.flavor} is not {self.plugin_flavor}; wrong step handler for this step")
                 return
             if step_spec.target_id is None:
                 tmp_log.warning(f"target_id is None; skipped")
@@ -343,8 +357,12 @@ class PandaTaskStepHandler(BaseStepHandler):
         try:
             # Check step flavor
             if step_spec.flavor != self.plugin_flavor:
-                cancel_result.message = f"flavor not {self.plugin_flavor}; skipped"
-                tmp_log.warning(f"flavor={step_spec.flavor} not {self.plugin_flavor}; skipped")
+                # A flavor mismatch means the plugin map routed this step to the wrong handler, which is a
+                # configuration or programming error rather than any runtime condition, so it is reported
+                # loudly and as a failure instead of being skipped quietly.
+                cancel_result.success = False
+                cancel_result.message = f"flavor={step_spec.flavor} is not {self.plugin_flavor}; wrong step handler for this step"
+                tmp_log.error(f"{cancel_result.message}")
                 return cancel_result
             if step_spec.target_id is None:
                 # If target_id is None, consider it as already cancelled since there is no task to cancel

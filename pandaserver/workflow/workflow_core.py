@@ -934,6 +934,8 @@ class WorkflowInterface(object):
         child_workflow_id = int(step_spec.target_id)
         child_workflow = self.tbif.get_workflow(child_workflow_id)
         if child_workflow is None:
+            # a real failure, not a wait: False so the caller reports it instead of retrying forever
+            result.success = False
             result.message = f"Child workflow {child_workflow_id} not found"
             tmp_log.error(result.message)
             return result
@@ -1850,6 +1852,15 @@ class WorkflowInterface(object):
                 if all_inputs_stats["all_inputs_complete"]:
                     step_spec.set_parameter("all_inputs_complete", True)
                     step_handler.on_all_inputs_done(step_spec)
+            if check_result.success is None:
+                # The target could not be checked yet rather than the check having failed; the step
+                # keeps its status and is retried on the next cycle. Handlers signal this by leaving
+                # success unset and reserve False for a real failure.
+                step_spec.check_time = naive_utcnow()
+                self.tbif.update_workflow_step(step_spec)
+                process_result.success = True
+                tmp_log.info(f"Target not checkable yet; {check_result.message}")
+                return process_result
             if not check_result.success or check_result.step_status is None:
                 process_result.message = f"Failed to check step; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")
@@ -1938,6 +1949,15 @@ class WorkflowInterface(object):
                 if all_inputs_stats["all_inputs_complete"]:
                     step_spec.set_parameter("all_inputs_complete", True)
                     step_handler.on_all_inputs_done(step_spec)
+            if check_result.success is None:
+                # The target could not be checked yet rather than the check having failed; the step
+                # keeps its status and is retried on the next cycle. Handlers signal this by leaving
+                # success unset and reserve False for a real failure.
+                step_spec.check_time = naive_utcnow()
+                self.tbif.update_workflow_step(step_spec)
+                process_result.success = True
+                tmp_log.info(f"Target not checkable yet; {check_result.message}")
+                return process_result
             if not check_result.success or check_result.step_status is None:
                 process_result.message = f"Failed to check step; {check_result.message}"
                 tmp_log.error(f"{process_result.message}")

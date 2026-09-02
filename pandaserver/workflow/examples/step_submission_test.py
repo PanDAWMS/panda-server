@@ -303,6 +303,8 @@ def main():
     step.target_id = "49900001"
     result = handler.check_target(step)
     failures += not check("check_target does not advance the step", not result.success)
+    # the tri-state contract: None means "not checkable yet", which the caller treats as a wait
+    failures += not check("success is None, not False", result.success is None, result.success)
     failures += not check("logged as a warning, not an error", LOGGED["warning"] and not LOGGED["error"], (LOGGED["warning"], LOGGED["error"]))
     failures += not check("message explains it is queued in DEFT", "queued in DEFT" in result.message and "not yet refined" in result.message, result.message)
 
@@ -321,6 +323,41 @@ def main():
     result = handler.check_target(step)
     failures += not check("logged as an error", LOGGED["error"] and not LOGGED["warning"], (LOGGED["warning"], LOGGED["error"]))
     failures += not check("message says neither JEDI nor DEFT", "not found in JEDI or DEFT" in result.message, result.message)
+    failures += not check("success is False, so the caller reports a failure", result.success is False, result.success)
+
+    print("\n=== the tri-state is honoured by every check_target return path ===")
+    # None for the cases that are waits or skips, False only for genuine failures
+    for label, setup, expected in [
+        ("step not in a checkable status", lambda st, tb: setattr(st, "status", WFStepStatus.pending), None),
+        # a flavor mismatch is a routing bug, not a wait: False so the caller reports it
+        ("wrong flavor for this handler", lambda st, tb: setattr(st, "flavor", "something_else"), False),
+        ("target not submitted yet", lambda st, tb: setattr(st, "target_id", None), None),
+        ("unrecognised native status", lambda st, tb: tb.set_status("nonsense_status"), False),
+    ]:
+        tbif = make_tbif(deft_status="waiting")
+        tbif.set_status("running")
+        step = make_step()
+        step.status = WFStepStatus.running
+        step.target_id = "49900001"
+        setup(step, tbif)
+        got = PandaTaskStepHandler(tbif).check_target(step).success
+        failures += not check(f"{label} -> success {expected}", got is expected, f"got {got}")
+
+    print("\n=== a flavor mismatch fails loudly on every entry point ===")
+    for name in ("submit_target", "check_target", "cancel_target", "on_all_inputs_done"):
+        del LOGGED["warning"][:], LOGGED["error"][:]
+        tbif = make_tbif()
+        tbif.set_status("running")
+        step = make_step()
+        step.status = WFStepStatus.running
+        step.target_id = "49900001"
+        step.flavor = "something_else"
+        result = getattr(PandaTaskStepHandler(tbif), name)(step)
+        failures += not check(f"{name} logs an error, not a warning", LOGGED["error"] and not LOGGED["warning"], (LOGGED["warning"], LOGGED["error"]))
+        failures += not check(f"{name} names the wrong handler", any("wrong step handler" in m for m in LOGGED["error"]), LOGGED["error"])
+        if result is not None:
+            failures += not check(f"{name} reports success False", result.success is False, result.success)
+        failures += not check(f"{name} did nothing", tbif.inserted == [] and tbif.updated_data == [])
 
     print("\n=== check_target status mapping ===")
     expectations = {

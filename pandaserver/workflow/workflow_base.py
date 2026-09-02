@@ -532,7 +532,12 @@ class WFStepTargetCheckResult:
     Result of checking the status of a submitted target.
 
     Fields:
-        success (bool | None): Indicates if the status check was successful.
+        success (bool | None): Three-valued on purpose. True means the target was checked and
+            step_status says where the step should move. False means the check genuinely failed,
+            e.g. an unrecognised native status or an exception. None means the target could not be
+            checked yet rather than the check having failed, e.g. a step whose target is not
+            submitted, or a task queued in DEFT but not yet refined into JEDI: the step keeps its
+            status and is retried, and the caller reports it as an expected wait, not an error.
         status (WFStepStatus | None): The status of the step to move to.
         native_status (str | None): The native status string from the target system.
         message (str): A message providing additional information about the status check result.
