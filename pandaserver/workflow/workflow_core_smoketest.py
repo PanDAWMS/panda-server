@@ -32,7 +32,16 @@ def parse_args():
     parser.add_argument("workflow_id", nargs="?", help="Workflow ID the action applies to; not used by submit_description")
     parser.add_argument("--force", action="store_true", help="Force into cancelled status")
     parser.add_argument("--wfd-file", help="Path to a JSON workflow description, for submit_description")
-    parser.add_argument("--user-dn", default="/CN=smoketest", help="DN recorded as the submitter, for submit_description")
+    parser.add_argument(
+        "--user-dn",
+        default="panda",
+        help=(
+            "DN recorded as the submitter, for submit_description. Note that this is passed to "
+            "checkBanUser with jediCheck on, which creates the user if the name is unknown and "
+            "otherwise overwrites its stored DN, so use the name of a user that already exists. "
+            "It does not set the tasks' userName, which comes from each step's task_params."
+        ),
+    )
     parser.add_argument("--prod-role", action="store_true", help="Record the submitter as holding a production role, for submit_description")
     parser.add_argument("--repeat", type=int, default=1, help="How many times process should advance the workflow")
     args = parser.parse_args()
