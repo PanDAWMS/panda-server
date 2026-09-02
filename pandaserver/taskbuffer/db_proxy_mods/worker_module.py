@@ -1434,14 +1434,30 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return {}
 
-    def get_worker_node_metrics(self, site, host, key, days):
+    def get_worker_node_metrics(self, site=None, panda_queue=None, host=None, key=None, days=1):
         comment = " /* DBProxy.get_worker_node_metrics */"
         tmp_log = self.create_tagged_logger(comment, f"site={site} host={host} key={key} days={days}")
         tmp_log.debug("Start")
 
+        if not panda_queue and not site:
+            tmp_log.error("No panda_queue or site provided")
+            return {}
+
+        if panda_queue and site:
+            tmp_log.debug("Both panda_queue and site were provided, so querying by panda_queue")
+
         try:
-            var_map = {":site": site, ":time_limit": naive_utcnow() - datetime.timedelta(days=days)}
-            sql = "SELECT site, host_name, timestamp, key, statistics FROM ATLAS_PANDA.WORKER_NODE_METRICS WHERE SITE = :site AND timestamp > :time_limit"
+            # A PanDA queue was specified
+            if panda_queue:
+                var_map = {":panda_queue": panda_queue, ":time_limit": naive_utcnow() - datetime.timedelta(days=days)}
+                sql = (
+                    "SELECT panda_queue, host_name, timestamp, key, statistics "
+                    "FROM ATLAS_PANDA.WORKER_NODE_METRICS_BY_QUEUE WHERE PANDA_QUEUE = :panda_queue AND timestamp > :time_limit"
+                )
+            # A site was specified
+            else:
+                var_map = {":site": site, ":time_limit": naive_utcnow() - datetime.timedelta(days=days)}
+                sql = "SELECT site, host_name, timestamp, key, statistics FROM ATLAS_PANDA.WORKER_NODE_METRICS WHERE SITE = :site AND timestamp > :time_limit"
 
             # Host and key are optional
             if host:

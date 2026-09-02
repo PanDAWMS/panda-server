@@ -778,10 +778,10 @@ class TaskBuffer:
             ret = proxy.get_worker_node_gpu_map()
         return ret
 
-    def get_worker_node_metrics(self, site, host, key, days):
+    def get_worker_node_metrics(self, site=None, panda_queue=None, host=None, key=None, days=1):
         # get DB proxy
         with self.proxyPool.get() as proxy:
-            ret = proxy.get_worker_node_metrics(site, host, key, days)
+            ret = proxy.get_worker_node_metrics(site, panda_queue, host, key, days)
         return ret
 
     # finalize pending analysis jobs

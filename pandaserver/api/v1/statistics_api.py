@@ -240,7 +240,48 @@ def get_wn_metrics_by_site(req: PandaRequest, site: str, host: str = None, key: 
         tmp_logger.error("Invalid key parameter")
         return generate_response(False, f'Parameter "key" needs to be "jobs", "workers" or left empty for all keys.', {})
 
-    data = global_task_buffer.get_worker_node_metrics(site, host, key, days)
+    data = global_task_buffer.get_worker_node_metrics(site=site, host=host, key=key, days=days)
+    success = data != {}
+    message = "" if success else "Database failure getting the worker node statistics"
+    tmp_logger.debug(f"Done. {message}")
+
+    return generate_response(success, message, data)
+
+
+@request_validation(_logger, secure=False, request_method="GET")
+def get_wn_metrics_by_queue(req: PandaRequest, panda_queue: str, host: str = None, key: str = None, days: int = 1) -> Dict[str, Any]:
+    """
+    Worker node statistics for a PanDA queue
+
+    Get the worker node statistics for a PanDA queue and a certain amount of days. There will be a separate entry for each day.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/statistics/get_wn_stats_by_queue
+
+    Args:
+        req(PandaRequest): internally generated request object
+        panda_queue(str): PanDA queue for which the statistics should be returned
+        host(str, optional): Host for which the statistics should be returned. Leave empty for all hosts in the queue.
+        key(str, optional): Key ('jobs' or 'workers') for which the statistics should be returned. Leave empty for all.
+        days(int, optional): Number of days for which the statistics should be returned. Limits are 1 to 7.
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the worker node statistics. When unsuccessful, the message field contains the error message.
+    """
+    tmp_logger = LogWrapper(_logger, f"get_wn_metrics_by_queue < panda_queue={panda_queue} host={host} key={key} days={days} >")
+
+    tmp_logger.debug("Start")
+    MAX_DAYS = 7
+    if not isinstance(days, int) or days < 0 or days > MAX_DAYS:
+        tmp_logger.error("Invalid time_window parameter")
+        return generate_response(False, f'Parameter "days" needs to be a positive integer smaller than {MAX_DAYS}', {})
+
+    if key is not None and key not in ("jobs", "workers"):
+        tmp_logger.error("Invalid key parameter")
+        return generate_response(False, f'Parameter "key" needs to be "jobs", "workers" or left empty for all keys.', {})
+
+    data = global_task_buffer.get_worker_node_metrics(panda_queue=panda_queue, host=host, key=key, days=days)
     success = data != {}
     message = "" if success else "Database failure getting the worker node statistics"
     tmp_logger.debug(f"Done. {message}")
