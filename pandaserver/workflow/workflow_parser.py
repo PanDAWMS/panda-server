@@ -14,11 +14,14 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from ruamel.yaml import YAML
 
 # from pandaserver.srvcore.CoreUtils import clean_user_id
-from pandaserver.workflow import pcwl_utils, workflow_native_utils
-from pandaserver.workflow.snakeparser import Parser as SnakeParser
+from pandaserver.workflow import workflow_native_utils
 from pandaserver.workflow.workflow_base import WFID_PLACEHOLDER, substitute_placeholder
 
-# supported workflow description languages
+# Supported workflow description languages. "yaml" is the native language and the only one being
+# extended; "cwl" and "snakemake" are legacy and kept for existing descriptions only. Their parsers
+# are imported lazily in the branches below, because each drags in a heavy third-party dependency
+# (idds via pcwl_utils, snakemake via snakeparser) that the native path never needs -- importing
+# snakemake alone reconfigures logging and emits a line on every invocation.
 SUPPORTED_WORKFLOW_LANGUAGES = ["yaml", "cwl", "snakemake"]
 
 # Raw request key holding a workflow description supplied inline instead of in a sandbox. A
@@ -258,12 +261,18 @@ def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict, workf
                         workflow_name = raw_request_dict.get("workflow_name")
                         workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
                         workflow_input_file = os.path.join(tmp_dirname, raw_request_dict["workflowInputFile"])
+                        from pandaserver.workflow import pcwl_utils
+
                         nodes, root_in = pcwl_utils.parse_workflow_file(workflow_spec_file, tmp_log)
                         with open(workflow_input_file) as workflow_input:
                             yaml = YAML(typ="safe", pure=True)
                             data = yaml.load(workflow_input)
                     elif wf_lang == "snakemake":
                         workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
+                        from pandaserver.workflow.snakeparser import (
+                            Parser as SnakeParser,
+                        )
+
                         parser = SnakeParser(workflow_spec_file, logger=tmp_log)
                         nodes, root_in = parser.parse_nodes()
                         data = dict()
