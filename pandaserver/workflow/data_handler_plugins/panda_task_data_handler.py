@@ -163,7 +163,9 @@ class PandaTaskDataHandler(BaseDataHandler):
                 tmp_log.debug(f"Collection {collection} does not exist")
                 continue
             none_exist = False
-            n_files = collection_meta.get("length", 0)
+            # A collection with no files reports length as None rather than 0, and dict.get only
+            # falls back to its default when the key is absent, so the default must not be relied on
+            n_files = collection_meta.get("length") or 0
             total_n_files += n_files
             if collection_state != DDMCollectionState.closed or collection_content_state == DDMCollectionState.open:
                 all_existing_closed = False

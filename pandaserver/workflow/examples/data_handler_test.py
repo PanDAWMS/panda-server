@@ -106,6 +106,10 @@ class FakeTaskBuffer:
 
 CLOSED = {"state": "closed", "content_state": "closed", "length": 42}
 MISSING = {"state": "missing"}
+# Rucio reports a collection with no files as length None, not 0 -- the shape that crashed
+# check_target in production the first time a freshly created output dataset was checked
+EMPTY_OPEN = {"state": "open", "content_state": "open", "length": None}
+EMPTY_CLOSED = {"state": "closed", "content_state": "closed", "length": None}
 UNRESOLVED = f"mc23_13p6TeV.526140.x.evgen.EVNT.e8590_wfid10_tid{TASKID_PLACEHOLDER}_00"
 RESOLVED = "mc23_13p6TeV.526140.x.evgen.EVNT.e8590_wfid10_tid49900001_00"
 
@@ -151,6 +155,22 @@ def main():
     handler = PandaTaskDataHandler(FakeTaskBuffer(), ddm)
     failures += not check("missing -> nonexist", handler.check_target(FakeData(RESOLVED, [])).check_status == WFDataTargetCheckStatus.nonexist)
 
+    print("\n=== a collection reporting length None (no files yet) ===")
+    ddm = FakeDDM(EMPTY_OPEN)
+    handler = PandaTaskDataHandler(FakeTaskBuffer(), ddm)
+    result = handler.check_target(FakeData(RESOLVED, []))
+    failures += not check("does not raise on a None length", result.success is True, result.message)
+    failures += not check("an open empty collection is not complete", result.check_status != WFDataTargetCheckStatus.complete, result.check_status)
+    ddm = FakeDDM(EMPTY_CLOSED)
+    handler = PandaTaskDataHandler(FakeTaskBuffer(), ddm)
+    result = handler.check_target(FakeData(RESOLVED, []))
+    failures += not check("does not raise when closed but empty", result.success is True, result.message)
+    failures += not check(
+        "a closed but empty collection is not complete",
+        result.check_status != WFDataTargetCheckStatus.complete,
+        result.check_status,
+    )
+
     print("\n=== an analysis output with output types is unaffected ===")
     ddm = FakeDDM(CLOSED)
     handler = PandaTaskDataHandler(FakeTaskBuffer(), ddm)
@@ -166,6 +186,36 @@ def main():
     handler = PandaTaskDataHandler(FakeTaskBuffer(step=FakeStep(WFStepStatus.done)), FakeDDM(MISSING))
     result = handler.check_target(FakeData(RESOLVED, [], source_step_id=27))
     failures += not check("complete regardless of DDM", result.check_status == WFDataTargetCheckStatus.complete)
+
+    print("\n=== ddm_collection handler: an empty input collection ===")
+    from pandaserver.workflow.data_handler_plugins.ddm_collection_data_handler import (
+        DDMCollectionDataHandler,
+    )
+
+    class InputData(FakeData):
+        def __init__(self, target_id):
+            super().__init__(target_id, [])
+            self.flavor = "ddm_collection"
+
+    # An open collection with no files must be insufficient, not sufficient: reporting suffice would
+    # let a step start with zero input files.
+    handler = DDMCollectionDataHandler(FakeTaskBuffer(), FakeDDM(EMPTY_OPEN))
+    result = handler.check_target(InputData("mc23_13p6TeV.some.input"))
+    failures += not check("open and empty -> insuffi", result.check_status == WFDataTargetCheckStatus.insuffi, result.check_status)
+    handler = DDMCollectionDataHandler(FakeTaskBuffer(), FakeDDM({"state": "open", "length": 0}))
+    failures += not check(
+        "open with an explicit zero length -> insuffi",
+        handler.check_target(InputData("mc23_13p6TeV.some.input")).check_status == WFDataTargetCheckStatus.insuffi,
+    )
+    handler = DDMCollectionDataHandler(FakeTaskBuffer(), FakeDDM({"state": "open", "length": 7}))
+    failures += not check(
+        "open with files -> suffice",
+        handler.check_target(InputData("mc23_13p6TeV.some.input")).check_status == WFDataTargetCheckStatus.suffice,
+    )
+    handler = DDMCollectionDataHandler(FakeTaskBuffer(), FakeDDM(CLOSED))
+    failures += not check("closed -> complete", handler.check_target(InputData("mc23_13p6TeV.some.input")).check_status == WFDataTargetCheckStatus.complete)
+    handler = DDMCollectionDataHandler(FakeTaskBuffer(), FakeDDM(MISSING))
+    failures += not check("missing -> nonexist", handler.check_target(InputData("mc23_13p6TeV.some.input")).check_status == WFDataTargetCheckStatus.nonexist)
 
     print(f"\n{'ALL CHECKS PASSED' if not failures else f'{failures} CHECK(S) FAILED'}")
     return 1 if failures else 0

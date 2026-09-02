@@ -88,7 +88,11 @@ class DDMCollectionDataHandler(BaseDataHandler):
             case DDMCollectionState.missing:
                 check_result.check_status = WFDataTargetCheckStatus.nonexist
             case DDMCollectionState.open:
-                if collection_meta.get("length", 0) == 0:
+                # An empty collection reports length as None rather than 0, and dict.get only falls
+                # back to its default when the key is absent. Comparing the raw value against 0
+                # therefore treated an empty collection as sufficient, letting a step start with no
+                # input files at all.
+                if not collection_meta.get("length"):
                     check_result.check_status = WFDataTargetCheckStatus.insuffi
                 else:
                     check_result.check_status = WFDataTargetCheckStatus.suffice
