@@ -2717,6 +2717,21 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.getTaskWithID_JEDI(jediTaskID, fullFlag, lockTask, pid, lockInterval, clearError)
 
+    # update a task
+    def updateTask_JEDI(self, taskSpec, criteria, oldStatus=None, updateDEFT=True, insertUnknown=None, setFrozenTime=True, setOldModTime=False):
+        with self.proxyPool.get() as proxy:
+            return proxy.updateTask_JEDI(taskSpec, criteria, oldStatus, updateDEFT, insertUnknown, setFrozenTime, setOldModTime)
+
+    # release a task from hold, restoring its old status
+    def release_task_on_hold(self, jedi_task_id, target_status=None):
+        with self.proxyPool.get() as proxy:
+            return proxy.release_task_on_hold(jedi_task_id, target_status)
+
+    # push a task trigger message to the message queue
+    def push_task_trigger_message(self, msg_type, jedi_task_id, data_dict=None, priority=None, task_spec=None):
+        with self.proxyPool.get() as proxy:
+            return proxy.push_task_trigger_message(msg_type, jedi_task_id, data_dict, priority, task_spec)
+
     # update input files stage-in done (according to message from iDDS, called by other methods, etc.)
     def updateInputFilesStaged_JEDI(self, jeditaskid, scope, filenames_dict, chunk_size=500, by=None, check_scope=True):
         with self.proxyPool.get() as proxy:
