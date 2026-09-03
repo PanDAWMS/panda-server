@@ -2,6 +2,15 @@ import re
 
 from pandaserver.taskbuffer import JobUtils
 
+# Job-level values taken from the executor metaData in job reports, mapped from the job
+# report key to the file metadata key they are registered under in DDM. This is the only
+# place to extend when another value is picked up: the adder reads the job report through
+# it and the DDM registration derives its metadata keys from it.
+EXECUTOR_METADATA_KEYS = {"cross-section (nb)": "xsec", "GenFiltEff": "gen_filt_eff"}
+
+# file metadata keys those job-level values are registered under
+JOB_LEVEL_METADATA_KEYS = list(EXECUTOR_METADATA_KEYS.values())
+
 
 def isCachedFile(dataset_name, site_spec):
     """
