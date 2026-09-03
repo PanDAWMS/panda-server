@@ -1,7 +1,6 @@
 import datetime
 import json
 import re
-import sys
 import time
 import traceback
 from contextlib import contextmanager
@@ -112,8 +111,7 @@ class TaskBuffer:
         serNum = 0
         weight = None
         prio_reduction = True
-        # get boosted users and groups
-        boost_dict = {}
+
         # get DB proxy
         with self.proxyPool.get() as proxy:
             # check production role
@@ -273,7 +271,7 @@ class TaskBuffer:
             if not userStatus:
                 tmpLog.debug(f"end 2 since {user} DN is blocked")
                 if getEsJobsetMap:
-                    return ([], None, unprocessedMap)
+                    return [], None, unprocessedMap
                 return []
             # extract VO
             for tmpFQAN in fqans:
@@ -536,13 +534,13 @@ class TaskBuffer:
             # return jobIDs
             tmpLog.debug("end successfully")
             if getEsJobsetMap:
-                return (ret, esJobsetMap, unprocessedMap)
+                return ret, esJobsetMap, unprocessedMap
             return ret
         except Exception as e:
             tmpLog.error(f"{str(e)} {traceback.format_exc()}")
             errStr = "ERROR: ServerError with storeJobs"
             if getEsJobsetMap:
-                return (errStr, None, unprocessedMap)
+                return errStr, None, unprocessedMap
             return errStr
 
     # lock jobs for reassign
@@ -778,6 +776,12 @@ class TaskBuffer:
         # get DB proxy
         with self.proxyPool.get() as proxy:
             ret = proxy.get_worker_node_gpu_map()
+        return ret
+
+    def get_worker_node_metrics(self, site=None, panda_queue=None, host=None, key=None, days=1):
+        # get DB proxy
+        with self.proxyPool.get() as proxy:
+            ret = proxy.get_worker_node_metrics(site, panda_queue, host, key, days)
         return ret
 
     # finalize pending analysis jobs
@@ -1632,7 +1636,7 @@ class TaskBuffer:
         if dn in ["NULL", "", "None", None]:
             return {}
         # check timeRange
-        match = re.match("^(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)$", timeRangeStr)
+        match = re.match(r"^(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)$", timeRangeStr)
         if match is None:
             return {}
         timeRange = datetime.datetime(
