@@ -17,7 +17,7 @@ from pandacommon.pandautils.PandaUtils import naive_utcnow
 import pandaserver.dataservice.ErrorCode
 import pandaserver.taskbuffer.ErrorCode
 from pandaserver.config import panda_config
-from pandaserver.dataservice import closer
+from pandaserver.dataservice import DataServiceUtils, closer
 from pandaserver.srvcore.CoreUtils import normalize_cpu_model
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils, retryModule
 
@@ -65,6 +65,7 @@ class AdderGen:
             "lbnr": {},
             "endpoint": {},
             "guid": {},
+            **{key: None for key in DataServiceUtils.JOB_LEVEL_METADATA_KEYS},
         }
         self.attempt_nr = attempt_nr
         self.pid = pid
@@ -671,6 +672,32 @@ class AdderGen:
         except Exception:
             self.logger.error(f"update_worker_node_gpu: issue with updating worker node GPU specs: {traceback.format_exc()}")
 
+    def extract_executor_metadata(self, json_dict: dict) -> None:
+        """
+        Extract values from the executor metaData in the job report and set them in extra_info.
+
+        :param json_dict: The job report as a dictionary.
+        """
+        try:
+            executors = json_dict.get("executor", [])
+            for executor in executors:
+                meta_data = executor.get("metaData", {})
+                if not isinstance(meta_data, dict):
+                    continue
+                for report_key, info_key in DataServiceUtils.EXECUTOR_METADATA_KEYS.items():
+                    if self.extra_info[info_key] is not None or report_key not in meta_data:
+                        continue
+                    # one unusable value must not discard the others
+                    try:
+                        self.extra_info[info_key] = float(meta_data[report_key])
+                    except (TypeError, ValueError) as e:
+                        self.logger.warning(f"extract_executor_metadata: ignored {report_key}={meta_data[report_key]}: {e}")
+                # stop once every value is filled
+                if all(self.extra_info[info_key] is not None for info_key in DataServiceUtils.JOB_LEVEL_METADATA_KEYS):
+                    return
+        except Exception as e:
+            self.logger.warning(f"extract_executor_metadata: failed to extract metadata from job report: {e}")
+
     # parse JSON
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
     def parse_job_output_report(self):
@@ -798,10 +825,11 @@ class AdderGen:
             self.logger.warning("Issue with parsing JSON for nEvents")
             pass
 
-        # parse metadata to get worker node specs and GPU specs
+        # parse metadata to get worker node specs, GPU specs, and executor metadata
         if isinstance(json_dict, dict):
             self.update_worker_node(json_dict)
             self.update_worker_node_gpu(json_dict)
+            self.extract_executor_metadata(json_dict)
 
         # use nEvents and GUIDs reported by the pilot if no job report
         if self.job.metadata == "NULL" and self.job_status == "finished" and self.job.nEvents > 0 and self.job.prodSourceLabel in ["managed"]:

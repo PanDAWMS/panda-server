@@ -425,6 +425,11 @@ class AdderAtlasPlugin(AdderPluginBase):
                 file_attrs["panda_id"] = file.PandaID
                 if campaign not in ["", None]:
                     file_attrs["campaign"] = campaign
+                # values from the job report that are job-level, so they apply to every output file
+                if file.type == "output":
+                    for info_key in DataServiceUtils.JOB_LEVEL_METADATA_KEYS:
+                        if self.extra_info.get(info_key) is not None:
+                            file_attrs[info_key] = self.extra_info[info_key]
 
                 # For files uploaded to alternative RSEs
                 has_normal_url = True
