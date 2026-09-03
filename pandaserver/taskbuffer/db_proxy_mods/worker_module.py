@@ -1116,9 +1116,8 @@ class WorkerModule(BaseModule):
         total_local_disk,
     ):
         comment = " /* DBProxy.update_worker_node */"
-        method_name = comment.split(" ")[-2].split(".")[-1]
 
-        tmp_logger = self.create_tagged_logger(comment, f"{method_name} < site={site} panda_queue={panda_queue} host_name={host_name} cpu_model={cpu_model} >")
+        tmp_logger = self.create_tagged_logger(comment, f"site={site} panda_queue={panda_queue} host_name={host_name} cpu_model={cpu_model}")
         tmp_logger.debug("Start")
 
         timestamp_utc = naive_utcnow()
@@ -1274,9 +1273,7 @@ class WorkerModule(BaseModule):
         driver_version: str,
     ):
         comment = " /* DBProxy.update_worker_node_gpu */"
-        method_name = comment.split(" ")[-2].split(".")[-1]
-
-        tmp_logger = self.create_tagged_logger(comment, f"{method_name} < site={site} host_name={host_name} vendor={vendor} model={model} >")
+        tmp_logger = self.create_tagged_logger(comment, f"site={site} host_name={host_name} vendor={vendor} model={model}")
         tmp_logger.debug("Start")
 
         timestamp_utc = naive_utcnow()
@@ -1432,6 +1429,50 @@ class WorkerModule(BaseModule):
 
             tmp_log.debug("Done")
             return gpu_map
+
+        except Exception:
+            self.dump_error_message(tmp_log)
+            return {}
+
+    def get_worker_node_metrics(self, site=None, panda_queue=None, host=None, key=None, days=1):
+        comment = " /* DBProxy.get_worker_node_metrics */"
+        tmp_log = self.create_tagged_logger(comment, f"site={site} host={host} key={key} days={days}")
+        tmp_log.debug("Start")
+
+        if not panda_queue and not site:
+            tmp_log.error("No panda_queue or site provided")
+            return {}
+
+        if panda_queue and site:
+            tmp_log.debug("Both panda_queue and site were provided, so querying by panda_queue")
+
+        try:
+            # A PanDA queue was specified
+            if panda_queue:
+                var_map = {":panda_queue": panda_queue, ":time_limit": naive_utcnow() - datetime.timedelta(days=days)}
+                sql = (
+                    "SELECT panda_queue, host_name, timestamp, key, statistics "
+                    "FROM ATLAS_PANDA.WORKER_NODE_METRICS_BY_QUEUE WHERE PANDA_QUEUE = :panda_queue AND timestamp > :time_limit"
+                )
+            # A site was specified
+            else:
+                var_map = {":site": site, ":time_limit": naive_utcnow() - datetime.timedelta(days=days)}
+                sql = "SELECT site, host_name, timestamp, key, statistics FROM ATLAS_PANDA.WORKER_NODE_METRICS WHERE SITE = :site AND timestamp > :time_limit"
+
+            # Host and key are optional
+            if host:
+                sql = f"{sql} AND host_name LIKE :host_name"
+                var_map[":host_name"] = host
+            if key:
+                sql = f"{sql} AND key LIKE :key"
+                var_map[":key"] = key
+
+            self.cur.execute(sql + comment, var_map)
+            results = self.cur.fetchall()
+
+            tmp_log.debug(f"Got {len(results)} entries from WORKER_NODE_METRICS")
+            tmp_log.debug("Done")
+            return results
 
         except Exception:
             self.dump_error_message(tmp_log)
