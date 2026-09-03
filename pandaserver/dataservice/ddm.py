@@ -37,6 +37,7 @@ from rucio.common.exception import (
     UnsupportedOperation,
 )
 
+from pandaserver.dataservice import DataServiceUtils
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.exceptions import DatasetLocationError, FileRegistrationError, SubscriptionRegistrationError
 
@@ -384,7 +385,7 @@ class RucioAPI:
         lfn = tmp_file.get("name", tmp_file.get("lfn"))
         file_scope, lfn = lfn.split(":") if ":" in lfn else (scope, lfn)
         # set metadata
-        meta_keys = ["guid", "events", "lumiblocknr", "panda_id", "campaign", "task_id", "xsec"]
+        meta_keys = ["guid", "events", "lumiblocknr", "panda_id", "campaign", "task_id"] + DataServiceUtils.JOB_LEVEL_METADATA_KEYS
         meta = {key: tmp_file[key] for key in meta_keys if key in tmp_file}
         file_size = tmp_file.get("bytes", tmp_file.get("size"))
         file = {"scope": file_scope, "name": lfn, "bytes": file_size, "meta": meta}
