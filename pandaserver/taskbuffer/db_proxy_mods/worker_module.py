@@ -1472,7 +1472,7 @@ class WorkerModule(BaseModule):
             results_dict = {}
             for entry in results:
                 host_name, timestamp, key, statistics = entry
-                results_dict.setdefault(host_name, []).append((timestamp, key, statistics))
+                results_dict.setdefault(host_name, {}).setdefault(key, []).append((timestamp, statistics))
 
             tmp_log.debug(f"Got {len(results)} entries from WORKER_NODE_METRICS")
             tmp_log.debug("Done")
