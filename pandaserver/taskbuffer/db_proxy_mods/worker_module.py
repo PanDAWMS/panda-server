@@ -1451,13 +1451,13 @@ class WorkerModule(BaseModule):
             if panda_queue:
                 var_map = {":panda_queue": panda_queue, ":time_limit": naive_utcnow() - datetime.timedelta(days=days)}
                 sql = (
-                    "SELECT panda_queue, host_name, timestamp, key, statistics "
+                    "SELECT host_name, timestamp, key, statistics "
                     "FROM ATLAS_PANDA.WORKER_NODE_METRICS_BY_QUEUE WHERE PANDA_QUEUE = :panda_queue AND timestamp > :time_limit"
                 )
             # A site was specified
             else:
                 var_map = {":site": site, ":time_limit": naive_utcnow() - datetime.timedelta(days=days)}
-                sql = "SELECT site, host_name, timestamp, key, statistics FROM ATLAS_PANDA.WORKER_NODE_METRICS WHERE SITE = :site AND timestamp > :time_limit"
+                sql = "SELECT host_name, timestamp, key, statistics FROM ATLAS_PANDA.WORKER_NODE_METRICS WHERE SITE = :site AND timestamp > :time_limit"
 
             # Host and key are optional
             if host:
@@ -1469,10 +1469,14 @@ class WorkerModule(BaseModule):
 
             self.cur.execute(sql + comment, var_map)
             results = self.cur.fetchall()
+            results_dict = {}
+            for entry in results:
+                host_name, timestamp, key, statistics = entry
+                results_dict.setdefault(host_name, []).append(timestamp, key, statistics)
 
             tmp_log.debug(f"Got {len(results)} entries from WORKER_NODE_METRICS")
             tmp_log.debug("Done")
-            return results
+            return results_dict
 
         except Exception:
             self.dump_error_message(tmp_log)
