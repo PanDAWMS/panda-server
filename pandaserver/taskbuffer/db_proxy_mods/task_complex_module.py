@@ -1738,11 +1738,11 @@ class TaskComplexModule(BaseModule):
         time_limit: datetime.datetime,
         min_priority: int | None,
         simulation_with_file_stat: bool | None,
-        target_datasets: list | None,
+        target_datasets: list[int] | None,
         merge_un_throttled: bool | None,
         resource_name: str | None,
-        target_tasks: list | None,
-    ) -> list:
+        target_tasks: list[int] | None,
+    ) -> list[tuple[Any, ...]]:
         """
         Get tasks and datasets with unprocessed inputs.
 
@@ -1875,7 +1875,7 @@ class TaskComplexModule(BaseModule):
     @overload
     def _make_dicts_tasks_datasets_with_unprocessed_inputs(
         self,
-        res_list: list,
+        res_list: list[tuple[Any, ...]],
         tmp_log: LogWrapper,
         work_queue: WorkQueue,
         is_peeking: Literal[True],
@@ -1886,17 +1886,23 @@ class TaskComplexModule(BaseModule):
     @overload
     def _make_dicts_tasks_datasets_with_unprocessed_inputs(
         self,
-        res_list: list,
+        res_list: list[tuple[Any, ...]],
         tmp_log: LogWrapper,
         work_queue: WorkQueue,
         is_peeking: Literal[False],
         super_high_prio_task_ratio: int,
         set_group_by_attr: bool,
-    ) -> tuple[dict, dict, list, dict, dict, dict]: ...
+    ) -> tuple[dict[int, list[Any]], dict[int, str], list[int], dict[int, int], dict[int, Any], dict[int, str]]: ...
 
     def _make_dicts_tasks_datasets_with_unprocessed_inputs(
-        self, res_list: list, tmp_log: LogWrapper, work_queue: WorkQueue, is_peeking: bool, super_high_prio_task_ratio: int, set_group_by_attr: bool
-    ) -> tuple[dict, dict, list, dict, dict, dict] | int:
+        self,
+        res_list: list[tuple[Any, ...]],
+        tmp_log: LogWrapper,
+        work_queue: WorkQueue,
+        is_peeking: bool,
+        super_high_prio_task_ratio: int,
+        set_group_by_attr: bool,
+    ) -> tuple[dict[int, list[Any]], dict[int, str], list[int], dict[int, int], dict[int, Any], dict[int, str]] | int:
         """
         Make dictionaries for tasks and datasets with unprocessed inputs
 
@@ -1909,7 +1915,7 @@ class TaskComplexModule(BaseModule):
         :return: The highest priority in peeking mode, otherwise various dictionaries of tasks and datasets for later processing.
         """
         # make return
-        task_dataset_map: dict[str, Any] = {}
+        task_dataset_map: dict[int, list[Any]] = {}
         task_status_map = {}
         jedi_task_id_list = []
         task_user_prio_map: dict[str, Any] = {}
@@ -2033,20 +2039,20 @@ class TaskComplexModule(BaseModule):
     def _read_task_with_unprocessed_inputs(
         self,
         jedi_task_id: int,
-        task_status_map: dict,
-        locked_tasks: list,
+        task_status_map: dict[int, str],
+        locked_tasks: list[int],
         tmp_log: LogWrapper,
         comment: str,
         pid: str,
-        locked_by_another: list,
+        locked_by_another: list[int],
         is_dry_run: bool,
         ignore_lock: bool,
-        task_dataset_map: dict,
+        task_dataset_map: dict[int, list[Any]],
         contain_merging: bool,
-        ds_with_fake_co_jumbo: set,
+        ds_with_fake_co_jumbo: set[int],
         time_limit: datetime.datetime,
-        target_tasks: list | None,
-    ) -> tuple[bool, JediTaskSpec | None, list, list]:
+        target_tasks: list[int] | None,
+    ) -> tuple[bool, JediTaskSpec | None, list[int], list[int]]:
         """
         Read a task with unprocessed inputs
 
@@ -2179,7 +2185,7 @@ class TaskComplexModule(BaseModule):
     # check a task with unprocessed inputs
     def _check_task_with_unprocessed_inputs(
         self, jedi_task_id: int, comment: str, tmp_log: LogWrapper, original_task_spec: JediTaskSpec, is_dry_run: bool
-    ) -> tuple[bool, int | None, dict | None]:
+    ) -> tuple[bool, int | None, dict[str, Any] | None]:
         """
         Check a task with unprocessed inputs. Count the number of available files when the task avalanches. Change userName for user tasks. Get the number of HPO workers and finish the task if enough workers have been done.
 
@@ -2378,8 +2384,8 @@ class TaskComplexModule(BaseModule):
         simulation_with_file_stat: bool | None,
         orig_n_files_unprocessed: int,
         use_jumbo: bool,
-        datasets_with_fake_co_jumbo: set,
-    ) -> tuple[bool, list]:
+        datasets_with_fake_co_jumbo: set[int],
+    ) -> tuple[bool, list[int | None]]:
         """
         Get memory requirements of unprocessed inputs and fix file counts of the dataset if necessary
 
@@ -2531,12 +2537,12 @@ class TaskComplexModule(BaseModule):
         jedi_task_id: int,
         dataset_id: int,
         dataset_type: str,
-        dataset_id_list: list,
+        dataset_id_list: list[int],
         is_dry_run: bool,
         simulation_with_file_stat: bool | None,
         num_avalanche: int | None,
         read_min_files: bool,
-    ) -> tuple[bool, list, list]:
+    ) -> tuple[bool, list[int], list[InputChunk]]:
         """
         Add datasets to input chunks, append secondary dataset IDs, and return updated input chunks and dataset IDs.
 
@@ -2635,10 +2641,10 @@ class TaskComplexModule(BaseModule):
         input_chunk_list: list,
         task_spec: JediTaskSpec,
         jedi_task_id: int,
-        dataset_id_list: list,
+        dataset_id_list: list[int],
         total_input_files: int,
         total_input_events: int,
-        typical_num_files_map: dict | None,
+        typical_num_files_map: dict[str, int] | None,
         max_num_jobs: int | None,
         is_dry_run: bool,
         read_min_files: bool,
@@ -2648,8 +2654,8 @@ class TaskComplexModule(BaseModule):
         primary_dataset_id: int,
         use_jumbo: bool,
         orig_n_files_unprocessed: int,
-        ds_with_fake_co_jumbo: set,
-    ) -> tuple[list, int]:
+        ds_with_fake_co_jumbo: set[int],
+    ) -> tuple[list[InputChunk], int]:
         """
         Read unprocessed input files, duplicate secondary files if necessary, and update file counts in the dataset.
 
@@ -2825,8 +2831,8 @@ class TaskComplexModule(BaseModule):
             read_block = True
 
         # read files
-        total_already_read_files_map: dict[str, Any] = {}
-        total_events_map: dict[str, Any] = {}
+        total_already_read_files_map: dict[int, int] = {}
+        total_events_map: dict[int, list[int]] = {}
         max_secondary_files_to_read_with_event_ratio = 10000
         # loop over all input chunks
         for input_chunk in input_chunk_list:
@@ -2886,7 +2892,9 @@ class TaskComplexModule(BaseModule):
                         f"with ramCount={input_chunk.ramCount} orderBy={order_by_policy} isSEQ={tmp_dataset_spec.isSeqNumber()} "
                         f"same_master={to_be_used_with_same_master}"
                     )
-                    var_map = {}
+                    # bind variables: ids here, statuses and counts further down, and mypy 2.x
+                    # takes the type of a name from its first assignment in the function
+                    var_map: dict[str, Any] = {}
                     var_map[":datasetID"] = dataset_id
                     var_map[":jediTaskID"] = jedi_task_id
                     var_map.update(constituent_var_map)
@@ -3149,20 +3157,20 @@ class TaskComplexModule(BaseModule):
         nTasks: int = 50,
         nFiles: int = 100,
         isPeeking: bool = False,
-        simTasks: list | None = None,
+        simTasks: list[int] | None = None,
         minPriority: int | None = None,
         maxNumJobs: int | None = None,
-        typicalNumFilesMap: dict | None = None,
+        typicalNumFilesMap: dict[str, int] | None = None,
         fullSimulation: bool | None = False,
-        simDatasets: list | None = None,
+        simDatasets: list[int] | None = None,
         mergeUnThrottled: bool | None = None,
         readMinFiles: bool = False,
         numNewTaskWithJumbo: int = 0,
         resource_name: str | None = None,
         ignore_lock: bool = False,
-        target_tasks: list | None = None,
+        target_tasks: list[int] | None = None,
         is_dry_run: bool = False,
-    ) -> list | int | None:
+    ) -> list[tuple[int, list[tuple[JediTaskSpec, str, InputChunk]]]] | int | None:
         """
         Get tasks to generate jobs.
         This method is also used for task brokerage and job throttler.
@@ -3271,7 +3279,7 @@ class TaskComplexModule(BaseModule):
             locked_tasks_list: list[Any] = []
             locked_tasks_by_another_list: list[Any] = []
             memory_exceed = False
-            return_map: dict[str, Any] = {}
+            return_map: dict[int, list[tuple[JediTaskSpec, str, InputChunk]]] = {}
             for tmpIdxTask, jediTaskID in enumerate(jedi_task_id_list):
                 # process only merging if enough jobs are already generated
                 dataset_with_fake_co_jumbo = set()
