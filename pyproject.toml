@@ -153,6 +153,7 @@ module = [
     "pandaserver.asyncprocess.*",
     "pandaserver.config.*",
     "pandaserver.proxycache.*",
+    "pandaserver.server.*",
     "pandaserver.test.*",
 ]
 disallow_untyped_defs = true
