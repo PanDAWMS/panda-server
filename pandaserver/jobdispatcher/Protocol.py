@@ -396,9 +396,10 @@ class Response:
 
     # get ddm endpoint
     def getDdmEndpoint(self, siteSpec, spaceToken, mode, prodSourceLabel, job_label):
-        scope_input, scope_output = DataServiceUtils.select_scope(siteSpec, prodSourceLabel, job_label)
         if siteSpec is None or mode not in ["input", "output"]:
             return ""
+
+        scope_input, scope_output = DataServiceUtils.select_scope(siteSpec, prodSourceLabel, job_label)
 
         if mode == "input":
             connected_endpoints = siteSpec.ddm_endpoints_input.get(scope_input)
