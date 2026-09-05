@@ -141,7 +141,7 @@ class WorkflowBaseSpec(SpecBase):
     """
 
     @property
-    def parameter_map(self) -> dict:
+    def parameter_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by the parameters attribute in JSON
         Possible parameters:
@@ -156,7 +156,7 @@ class WorkflowBaseSpec(SpecBase):
             return json.loads(self.parameters)
 
     @parameter_map.setter
-    def parameter_map(self, value_map: dict):
+    def parameter_map(self, value_map: dict[str, Any]):
         """
         Set the dictionary and store in parameters attribute in JSON
 
@@ -190,7 +190,7 @@ class WorkflowBaseSpec(SpecBase):
         tmp_dict[param] = value
         self.parameter_map = tmp_dict
 
-    def update_parameters(self, params: dict):
+    def update_parameters(self, params: dict[str, Any]):
         """
         Update values of parameters with a dict and store in parameters attribute in JSON
 
@@ -237,7 +237,7 @@ class WorkflowSpec(WorkflowBaseSpec):
     _seqAttrMap = {"workflow_id": f"{panda_config.schemaJEDI}.WORKFLOW_ID_SEQ.nextval"}
 
     @property
-    def raw_request_json_map(self) -> dict:
+    def raw_request_json_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by raw_request_json attribute in JSON
 
@@ -250,7 +250,7 @@ class WorkflowSpec(WorkflowBaseSpec):
             return json.loads(self.raw_request_json)
 
     @raw_request_json_map.setter
-    def raw_request_json_map(self, value_map: dict):
+    def raw_request_json_map(self, value_map: dict[str, Any]):
         """
         Set the dictionary and store in raw_request_json attribute in JSON
 
@@ -260,7 +260,7 @@ class WorkflowSpec(WorkflowBaseSpec):
         self.raw_request_json = json.dumps(value_map)
 
     @property
-    def definition_json_map(self) -> dict:
+    def definition_json_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by definition_json attribute in JSON
 
@@ -273,7 +273,7 @@ class WorkflowSpec(WorkflowBaseSpec):
             return json.loads(self.definition_json)
 
     @definition_json_map.setter
-    def definition_json_map(self, value_map: dict):
+    def definition_json_map(self, value_map: dict[str, Any]):
         """
         Set the dictionary and store in definition_json attribute in JSON
 
@@ -318,7 +318,7 @@ class WFStepSpec(WorkflowBaseSpec):
     _seqAttrMap = {"step_id": f"{panda_config.schemaJEDI}.WORKFLOW_STEP_ID_SEQ.nextval"}
 
     @property
-    def definition_json_map(self) -> dict:
+    def definition_json_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by definition_json attribute in JSON
 
@@ -331,7 +331,7 @@ class WFStepSpec(WorkflowBaseSpec):
             return json.loads(self.definition_json)
 
     @definition_json_map.setter
-    def definition_json_map(self, value_map: dict):
+    def definition_json_map(self, value_map: dict[str, Any]):
         """
         Set the dictionary and store in definition_json attribute in JSON
 
@@ -376,7 +376,7 @@ class WFDataSpec(WorkflowBaseSpec):
     _seqAttrMap = {"data_id": f"{panda_config.schemaJEDI}.WORKFLOW_DATA_ID_SEQ.nextval"}
 
     @property
-    def metadata_map(self) -> dict:
+    def metadata_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by metadata attribute in JSON
 
@@ -389,7 +389,7 @@ class WFDataSpec(WorkflowBaseSpec):
             return json.loads(self.metadata)
 
     @metadata_map.setter
-    def metadata_map(self, value_map: dict):
+    def metadata_map(self, value_map: dict[str, Any]):
         """
         Set the dictionary and store in metadata attribute in JSON
 
@@ -493,7 +493,7 @@ class WFStepTargetCheckResult:
     step_status: str | None = None
     native_status: str | None = None
     message: str = ""
-    output_ids: dict = field(default_factory=dict)
+    output_ids: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -541,7 +541,7 @@ class WFDataTargetCheckResult:
 
     success: bool | None = None
     check_status: str | None = None
-    metadata: dict | None = None
+    metadata: dict[str, Any] | None = None
     message: str = ""
 
 

@@ -937,7 +937,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
     return serial_id, tail_nodes, all_nodes
 
 
-def extract_child_workflow_definition(workflow_node: dict, all_nodes: list) -> dict:
+def extract_child_workflow_definition(workflow_node: dict[str, Any], all_nodes: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Build a child workflow definition dict from a workflow-type node and its sub-nodes.
 

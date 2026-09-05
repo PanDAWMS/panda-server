@@ -341,8 +341,8 @@ class WorkflowInterface(object):
         prodsourcelabel: str,
         user_dn: str,
         workflow_name: str | None = None,
-        workflow_definition: dict | None = None,
-        raw_request_params: dict | None = None,
+        workflow_definition: dict[str, Any] | None = None,
+        raw_request_params: dict[str, Any] | None = None,
         *args,
         **kwargs,
     ) -> int | None:
@@ -654,7 +654,7 @@ class WorkflowInterface(object):
         tmp_log.info(f"Submitted child workflow {child_workflow_id}")
         return result
 
-    def instantiate_scatter_workflow(self, workflow_spec: WorkflowSpec, scatter_definition: dict) -> WorkflowProcessResult:
+    def instantiate_scatter_workflow(self, workflow_spec: WorkflowSpec, scatter_definition: dict[str, Any]) -> WorkflowProcessResult:
         """
         Expand a scatter definition into N parallel sub-workflow steps, one per scatter item.
 
@@ -760,7 +760,7 @@ class WorkflowInterface(object):
         return process_result
 
     @staticmethod
-    def _expand_output_data_to_ddm_names(data_spec: WFDataSpec) -> list:
+    def _expand_output_data_to_ddm_names(data_spec: WFDataSpec) -> list[str]:
         """
         Expand an output data spec's base target_id into the actual DDM dataset names.
 
@@ -781,7 +781,7 @@ class WorkflowInterface(object):
             return [f"{data_spec.target_id}_{ot}" for ot in output_types]
         return [data_spec.target_id]
 
-    def resolve_sub_workflow_outputs(self, step_spec: WFStepSpec, child_workflow_id: int) -> dict:
+    def resolve_sub_workflow_outputs(self, step_spec: WFStepSpec, child_workflow_id: int) -> dict[str, list[str]]:
         """
         Collect output target_ids from a completed sub-workflow (scatter or regular) for aggregation.
 
@@ -855,7 +855,7 @@ class WorkflowInterface(object):
         self,
         tmp_log: LogWrapper,
         step_spec: WFStepSpec,
-        output_ids: dict,
+        output_ids: dict[str, list[str]],
         data_spec_map: Dict[str, WFDataSpec],
         now_time,
     ) -> None:
@@ -1379,7 +1379,7 @@ class WorkflowInterface(object):
                 tmp_log.debug(f"Data status {data_spec.status} is not handled in this context; skipped")
         return tmp_res, data_spec
 
-    def process_datas(self, data_specs: List[WFDataSpec], by: str = "dog") -> Dict:
+    def process_datas(self, data_specs: List[WFDataSpec], by: str = "dog") -> Dict[str, Any]:
         """
         Process a list of workflow data specifications
 
@@ -2015,7 +2015,7 @@ class WorkflowInterface(object):
                 tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
         return tmp_res, step_spec
 
-    def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> Dict:
+    def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> Dict[str, Any]:
         """
         Process a list of workflow steps
 
@@ -2695,7 +2695,7 @@ class WorkflowInterface(object):
 
     # ---- Process all workflows -------------------------------------
 
-    def process_active_workflows(self) -> Dict:
+    def process_active_workflows(self) -> Dict[str, Any]:
         """
         Process all active workflows in the system
 

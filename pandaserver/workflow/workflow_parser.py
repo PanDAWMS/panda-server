@@ -7,6 +7,7 @@ import sys
 import tarfile
 import tempfile
 import traceback
+from typing import Any
 
 import requests
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -47,7 +48,7 @@ def json_serialize_default(obj):
     return obj
 
 
-def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tuple[bool, bool, dict]:
+def parse_raw_request(sandbox_url, log_token, user_name, raw_request_dict) -> tuple[bool, bool, dict[str, Any]]:
     """
     Parse raw request with files in sandbox into workflow definition
 
