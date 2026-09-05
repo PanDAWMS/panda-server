@@ -362,15 +362,16 @@ class Node(object):
                         dict_inputs["opt_args"] = re.sub(tmp_src, tmp_dst, dict_inputs["opt_args"])
             com += ["--exec", dict_inputs["opt_exec"]]
             com += ["--outDS", task_name]
-            # argv-shaped, but the branch below puts a None where the image name would be,
-            # hence the bare list type
-            parse_com: list
+            # argv-shaped, and the else branch puts a None where the image name would be.
+            # Built with list() rather than copy.copy() so the element type comes from the
+            # declaration: com[1:] is already a fresh list, so this also drops a second copy.
+            parse_com: list[str | None]
             if container_image:
                 com += ["--containerImage", container_image]
-                parse_com = copy.copy(com[1:])
+                parse_com = list(com[1:])
             else:
                 # add dummy container to keep build step consistent
-                parse_com = copy.copy(com[1:])
+                parse_com = list(com[1:])
                 parse_com += ["--containerImage", None]
             # force a writable temp base for dry parsing regardless of process cwd
             parse_com += ["--tmpDir", tempfile.gettempdir()]
