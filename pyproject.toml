@@ -150,8 +150,10 @@ module = [
     "pandajedi.jediexec.*",
     "pandajedi.jedigen.*",
     "pandajedi.jedisetup.*",
+    "pandaserver.asyncprocess.*",
     "pandaserver.config.*",
     "pandaserver.proxycache.*",
+    "pandaserver.test.*",
 ]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true

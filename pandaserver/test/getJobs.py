@@ -34,10 +34,10 @@ rdata = urlencode(node)
 
 
 class Thr(threading.Thread):
-    def __init__(self):
+    def __init__(self) -> None:
         threading.Thread.__init__(self)
 
-    def run(self):
+    def run(self) -> None:
         print(naive_utcnow().isoformat(" "))
         conn = HTTPSConnection(host, key_file=certKey, cert_file=certKey)
         conn.request("POST", path, rdata)
