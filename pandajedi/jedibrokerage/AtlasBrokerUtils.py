@@ -113,7 +113,7 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
 
 # get sites where data is available and check if complete replica is available at online RSE
 def get_sites_with_data(
-    site_list: list,
+    site_list: list[str],
     site_mapper: SiteMapper,
     ddm_if: AtlasDDMClient,
     dataset_name: str,
@@ -211,9 +211,6 @@ def get_sites_with_data(
     can_be_local_source = False
     can_be_remote_source = False
     return_map: dict[str, Any] = {}
-    if not site_list:
-        # make sure at least one loop to set the flags
-        site_list = [None]
     for tmp_site_name in site_list:
         if not site_mapper.checkSite(tmp_site_name):
             continue
