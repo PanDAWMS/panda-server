@@ -11,6 +11,7 @@ async request daemon. Keeping the bodies here is what makes the two paths interc
 
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -27,7 +28,7 @@ from pandaserver.taskbuffer.DataCarousel import (
 _logger = PandaLogger().getLogger("api_data_carousel")
 
 # (success, message, data) returned by every operation
-OperationResult = tuple[bool, str, dict | None]
+OperationResult = tuple[bool, str, dict[str, Any] | None]
 
 # cap on the threads submitting iDDS requests in parallel, so a request with many related tasks
 # can't spawn an unbounded number of threads in the API or daemon process

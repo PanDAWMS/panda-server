@@ -1,9 +1,14 @@
 import json
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandaserver.srvcore.CoreUtils import NonJsonObjectEncoder, as_python_object
 from pandaserver.taskbuffer.JobSpec import JobSpec
+
+if TYPE_CHECKING:
+    # imported for the annotation only: ResourceSpec imports this module, so a runtime
+    # import here would close the cycle
+    from pandaserver.taskbuffer.ResourceSpec import ResourceSpec
 
 # list of prod source label for pilot tests
 list_ptest_prod_sources = ["ptest", "rc_test", "rc_test2", "rc_alrb"]
@@ -202,12 +207,13 @@ def load_jobs_json(state):
 
 
 # get resource type for a job
-def get_resource_type_job(resource_map: list, job_spec: JobSpec) -> str:
+def get_resource_type_job(resource_map: list["ResourceSpec"], job_spec: JobSpec) -> str | None:
     """
     Get the resource type for a job based on the job's resource type and the list of resource types.
     :param resource_map: The list of resource types.
     :param job_spec: The job.
-    :return: The resource type.
+    :return: The resource type, or None when the matching spec has no resource_name --
+        that column is nullable, and every caller assigns the result to a nullable column.
     """
     for resource_spec in resource_map:
         if resource_spec.match_job(job_spec):

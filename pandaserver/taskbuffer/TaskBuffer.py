@@ -1228,7 +1228,7 @@ class TaskBuffer:
         return retList
 
     # update input files for jobs at certain sites and return corresponding PandaIDs
-    def update_input_files_at_sites_and_get_panda_ids(self, filename: str, sites: list) -> list:
+    def update_input_files_at_sites_and_get_panda_ids(self, filename: str, sites: list[str]) -> list[int]:
         with self.proxyPool.get() as proxy:
             ret = proxy.update_input_files_at_sites_and_get_panda_ids(filename, sites)
         return ret

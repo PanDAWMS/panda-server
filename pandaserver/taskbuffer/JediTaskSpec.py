@@ -858,7 +858,7 @@ class JediTaskSpec(object):
         disable_staging_mode: bool = False,
         keep_gshare_priority: bool = False,
         ignore_hard_exhausted: bool = False,
-    ) -> list:
+    ) -> list[str]:
         """
         Get the list of qualifiers for the retry command.
         :param no_child_retry: If True, retry will not be attempted on child tasks.

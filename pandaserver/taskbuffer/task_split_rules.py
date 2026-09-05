@@ -172,7 +172,7 @@ changeable_split_rule_tags = [split_rule_dict[tmp_name] for tmp_name in changeab
 
 
 # extract rules
-def extract_rule_values(split_rules: str | None, rule_names: list, is_sub_rule: bool = False) -> dict:
+def extract_rule_values(split_rules: str | None, rule_names: list[str], is_sub_rule: bool = False) -> dict[str, Any]:
     """
     Extract rule values from split rule string
 

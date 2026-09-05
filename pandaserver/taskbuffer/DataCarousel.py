@@ -20,6 +20,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 import polars as pl  # isort:skip
 
@@ -51,6 +52,11 @@ _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
 # DDM rule activity map for data carousel
+# One dataset to prestage, as get_input_datasets_to_prestage() produces it and
+# submit_data_carousel_requests() consumes it:
+# (dataset, source_rse, ddm_rule_id, to_pin, suggested_destination_rses)
+PrestagingItem = tuple[str, str | None, str | None, bool, list[str] | None]
+
 DDM_RULE_ACTIVITY_MAP = {"anal": "Data Carousel Analysis", "prod": "Data Carousel Production"}
 
 # template strings
@@ -139,7 +145,7 @@ class DataCarouselRequestSpec(SpecBase):
     _seqAttrMap = {"request_id": f"{panda_config.schemaJEDI}.JEDI_DATA_CAROUSEL_REQUEST_ID_SEQ.nextval"}
 
     @property
-    def parameter_map(self) -> dict:
+    def parameter_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by the parameters attribute in JSON
         Possible parameters:
@@ -168,7 +174,7 @@ class DataCarouselRequestSpec(SpecBase):
             return json.loads(self.parameters)
 
     @parameter_map.setter
-    def parameter_map(self, value_map: dict):
+    def parameter_map(self, value_map: dict[str, Any]):
         """
         Set the dictionary and store in parameters attribute in JSON
 
@@ -202,7 +208,7 @@ class DataCarouselRequestSpec(SpecBase):
         tmp_dict[param] = value
         self.parameter_map = tmp_dict
 
-    def update_parameters(self, params: dict):
+    def update_parameters(self, params: dict[str, Any]):
         """
         Update values of parameters with a dict and store in parameters attribute in JSON
 
@@ -872,7 +878,7 @@ class DataCarouselInterface(object):
         else:
             return None
 
-    def _get_input_ds_from_task_params(self, task_params_map: dict) -> dict:
+    def _get_input_ds_from_task_params(self, task_params_map: dict[str, Any]) -> dict[str, dict[str, Any]]:
         """
         Get input datasets from tasks parameters
 
@@ -894,7 +900,7 @@ class DataCarouselInterface(object):
                     ret_map[dataset] = job_param
         return ret_map
 
-    def _get_full_replicas_per_type(self, dataset: str) -> dict:
+    def _get_full_replicas_per_type(self, dataset: str) -> dict[str, list[str]]:
         """
         Get full replicas per type of a dataset
 
@@ -921,7 +927,7 @@ class DataCarouselInterface(object):
         # tmp_log.debug(f"{ret}")
         return ret
 
-    def _get_filtered_replicas(self, dataset: str) -> tuple[dict[str, list], (dict | None), bool, dict]:
+    def _get_filtered_replicas(self, dataset: str) -> tuple[dict[str, list[str]], (dict[str, Any] | None), bool, dict[str, list[str]]]:
         """
         Get filtered replicas of a dataset and the staging rule and whether all replicas are without rules
 
@@ -945,7 +951,7 @@ class DataCarouselInterface(object):
                     staging_rule = rule
                 else:
                     rse_expression_list.append(rule["rse_expression"])
-        filtered_replicas_map: dict[str, list] = {"tape": [], "datadisk": []}
+        filtered_replicas_map: dict[str, list[str]] = {"tape": [], "datadisk": []}
         has_datadisk_replica = len(replicas_map["datadisk"]) > 0
         has_disk_replica = len(replicas_map["disk"]) > 0
         for replica in replicas_map["tape"]:
@@ -1054,7 +1060,9 @@ class DataCarouselInterface(object):
         else:
             return active_source_rses_set
 
-    def _get_source_type_of_dataset(self, dataset: str, active_source_rses_set: set | None = None) -> tuple[(str | None), set, (dict | None), bool, list]:
+    def _get_source_type_of_dataset(
+        self, dataset: str, active_source_rses_set: set[str] | None = None
+    ) -> tuple[(str | None), set[str], (dict[str, Any] | None), bool, list[str]]:
         """
         Get source type and permanent (tape or datadisk) RSEs of a dataset
 
@@ -1117,7 +1125,9 @@ class DataCarouselInterface(object):
             # other unexpected errors
             raise e
 
-    def _choose_tape_source_rse(self, dataset: str, rse_set: set, staging_rule: dict | None, no_cern: bool = True) -> tuple[str, (str | None), (str | None)]:
+    def _choose_tape_source_rse(
+        self, dataset: str, rse_set: set[str], staging_rule: dict[str, Any] | None, no_cern: bool = True
+    ) -> tuple[str, (str | None), (str | None)]:
         """
         Choose a TAPE source RSE
         If with existing staging rule, then get source RSE from it
@@ -1220,7 +1230,9 @@ class DataCarouselInterface(object):
         return source_tape
 
     @refresh
-    def get_input_datasets_to_prestage(self, task_id: int, task_params_map: dict, dsname_list: list | None = None) -> tuple[list, dict]:
+    def get_input_datasets_to_prestage(
+        self, task_id: int, task_params_map: dict[str, Any], dsname_list: list[str] | None = None
+    ) -> tuple[list[PrestagingItem], dict[str, list[Any]]]:
         """
         Get the input datasets, their source RSEs (tape) of the task which need pre-staging from tapes, and DDM rule ID of existing DDM rule
 
@@ -1242,12 +1254,12 @@ class DataCarouselInterface(object):
             raw_coll_list = []
             raw_coll_did_list = []
             coll_on_tape_set = set()
-            ret_prestaging_list = []
+            ret_prestaging_list: list[PrestagingItem] = []
             expanded_dsname_set = set()
             # set of required dataset names for fast membership tests
             dsname_set = set(dsname_list) if dsname_list is not None else None
             num_given_dsnames = len(dsname_list) if dsname_list is not None else 0
-            ret_map: dict[str, list] = {
+            ret_map: dict[str, list[Any]] = {
                 "pseudo_coll_list": [],
                 "unfound_coll_list": [],
                 "empty_coll_list": [],
@@ -1322,8 +1334,8 @@ class DataCarouselInterface(object):
                 source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
                 if staging_rule:
                     # reuse existing DDM rule
-                    if collection := jobparam_ds_coll_map.get(dataset):
-                        coll_on_tape_set.add(collection)
+                    if dataset_collection := jobparam_ds_coll_map.get(dataset):
+                        coll_on_tape_set.add(dataset_collection)
                     _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
                     tmp_log.debug(f"dataset={dataset} has existing ddm_rule_id={ddm_rule_id} ; to reuse it")
                     prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
@@ -1348,8 +1360,8 @@ class DataCarouselInterface(object):
                     # replicas only on tape
                     ret_map["tape_ds_list"].append(dataset)
                     tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
-                    if collection := jobparam_ds_coll_map.get(dataset):
-                        coll_on_tape_set.add(collection)
+                    if dataset_collection := jobparam_ds_coll_map.get(dataset):
+                        coll_on_tape_set.add(dataset_collection)
                     # choose source RSE
                     _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
                     prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
@@ -1441,8 +1453,8 @@ class DataCarouselInterface(object):
     def submit_data_carousel_requests(
         self,
         task_id: int,
-        prestaging_list: list[tuple[str, str | None, str | None, bool, list | None]],
-        options: dict | None = None,
+        prestaging_list: list[PrestagingItem],
+        options: dict[str, Any] | None = None,
         submit_idds_request: bool = True,
     ) -> bool | None:
         """
@@ -1639,7 +1651,7 @@ class DataCarouselInterface(object):
         # return final dataframes
         return source_tape_stats_df, source_rse_gshare_stats_df
 
-    def _get_gshare_stats(self) -> dict:
+    def _get_gshare_stats(self) -> dict[str, Any]:
         """
         Get current gshare stats
 
@@ -1666,7 +1678,7 @@ class DataCarouselInterface(object):
         # return
         return gshare_dict
 
-    def _queued_requests_tasks_to_dataframe(self, queued_requests: list) -> pl.DataFrame:
+    def _queued_requests_tasks_to_dataframe(self, queued_requests: list[tuple[DataCarouselRequestSpec, list[JediTaskSpec]]]) -> pl.DataFrame:
         """
         Transfrom Data Carousel queue requests and their tasks into dataframe
 
@@ -1680,7 +1692,9 @@ class DataCarouselInterface(object):
         # source_rses_config_df = self._get_source_rses_config_dataframe()
         # get current gshare rank
         gshare_dict = self._get_gshare_stats()
-        gshare_rank_dict = {k: v["rank"] for k, v in gshare_dict.items()}
+        # probed below with JediTaskSpec.gshare, which is nullable; a task without a gshare
+        # is meant to miss and take the default rank
+        gshare_rank_dict: dict[str | None, Any] = {k: v["rank"] for k, v in gshare_dict.items()}
         # make dataframe of queued requests and their tasks
         tmp_list = []
         for dc_req_spec, task_specs in queued_requests:
@@ -1734,7 +1748,7 @@ class DataCarouselInterface(object):
         return queued_requests_tasks_df
 
     @refresh
-    def get_requests_to_stage(self, *args, **kwargs) -> list[tuple[DataCarouselRequestSpec, dict]]:
+    def get_requests_to_stage(self, *args, **kwargs) -> list[tuple[DataCarouselRequestSpec, dict[str, Any]]]:
         """
         Get the queued requests which should proceed to get staging
 
@@ -1921,7 +1935,7 @@ class DataCarouselInterface(object):
         # return
         return ret_list
 
-    def _choose_destination_rse(self, expression: str, suggested_dst_list: list | None = None, excluded_dst_list: list | None = None) -> str | None:
+    def _choose_destination_rse(self, expression: str, suggested_dst_list: list[str] | None = None, excluded_dst_list: list[str] | None = None) -> str | None:
         """
         Choose a destination (datadisk) RSE based on the destination RSE expression
 
@@ -2129,7 +2143,7 @@ class DataCarouselInterface(object):
 
     @refresh
     def stage_request(
-        self, dc_req_spec: DataCarouselRequestSpec, extra_params: dict | None = None, destination_rse: str | None = None, submit_idds_request=True
+        self, dc_req_spec: DataCarouselRequestSpec, extra_params: dict[str, Any] | None = None, destination_rse: str | None = None, submit_idds_request=True
     ) -> tuple[bool, str | None, DataCarouselRequestSpec]:
         """
         Stage the dataset of the request and update request status to staging
@@ -2325,7 +2339,7 @@ class DataCarouselInterface(object):
         # return
         return ret
 
-    def _check_ddm_rule_of_request(self, dc_req_spec: DataCarouselRequestSpec, by: str = "unknown") -> tuple[bool, str | None, dict | None]:
+    def _check_ddm_rule_of_request(self, dc_req_spec: DataCarouselRequestSpec, by: str = "unknown") -> tuple[bool, str | None, dict[str, Any] | None]:
         """
         Check if the DDM rule of the request is valid.
         If rule not found, update the request and try to cancel or retire it.

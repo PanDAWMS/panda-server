@@ -83,7 +83,7 @@ print("INFO: generated PoolFileCatalog.xml for {0} input file(s)".format(len(did
 """
 
 
-def _get_file_name_pattern(*name_str_list: str) -> re.Pattern:
+def _get_file_name_pattern(*name_str_list: str) -> re.Pattern[str]:
     """
     Compile a regex to match one of the strings in trf parameters as an entire file name or list of
     file names
@@ -152,7 +152,7 @@ def _replace_input_file_list_in_params(param_str: str, ordered_lfns: list[str]) 
 
     # python list style. other lists are kept intact, e.g. the secondary input stream of
     # --inMap "{'IN': [...], 'IN2': [...]}" and the output map of -o "{'X': [('a', 'b')]}"
-    def replace_list(match: re.Match) -> str:
+    def replace_list(match: re.Match[str]) -> str:
         try:
             if ast.literal_eval(match.group(0)) == ordered_lfns:
                 return "[${input_list}]"
