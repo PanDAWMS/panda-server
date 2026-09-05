@@ -26,6 +26,7 @@ from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.dataservice.setupper_plugin_base import SetupperPluginBase
+from pandaserver.srvcore.exceptions import SubscriptionRegistrationError
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
@@ -1033,47 +1034,53 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # use input RSE with read_lan/0 as destination
                 scope_dst_input, _ = select_scope(site_spec, job.prodSourceLabel, job.job_label)
                 ddm_id = site_spec.ddm_input[scope_dst_input]
-
-                # set share and activity
-                option_activity = "Production Input"
-                if job.prodSourceLabel in ["user", "panda"]:
-                    option_activity = "Analysis Input"
-                elif job.processingType == "urgent" or job.currentPriority > 1000:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
-                    option_activity = "Express"
-
-                # taskID
-                option_comment = None
-                if job.jediTaskID not in ["NULL", 0]:
-                    option_comment = f"task_id:{job.jediTaskID}"
-
-                option_owner = None
-
-                tmp_logger.debug(
-                    f"register_dataset_subscription {job.dispatchDBlock, ddm_id} "
-                    f"{{'activity': {option_activity}, 'lifetime': 7, 'dn': {option_owner}, 'comment': {option_comment}}}"
-                )
-                for _ in range(3):
-                    try:
-                        status = rucioAPI.register_dataset_subscription(
-                            job.dispatchDBlock,
-                            [ddm_id],
-                            activity=option_activity,
-                            lifetime=7,
-                            distinguished_name=option_owner,
-                            comment=option_comment,
-                        )
-                        out = "register_dataset_subscription finished correctly"
-                        break
-                    except Exception as error:
-                        status = False
-                        out = f"register_dataset_subscription failed with {str(error)} {traceback.format_exc()}"
-                        time.sleep(10)
-
-                if not status:
-                    tmp_logger.error(out)
-                    disp_error[disp] = "setupper.subscribe_dispatch_data_block() could not register subscription"
+                if ddm_id is None:
+                    # no default read endpoint for this scope, so there is nothing to subscribe
+                    # to; passing None on would fail inside Rucio without naming the queue
+                    err_msg = f"no default read RSE for computingSite={job.computingSite} scope={scope_dst_input}"
+                    tmp_logger.error(err_msg)
+                    disp_error[disp] = f"setupper.subscribe_dispatch_data_block() {err_msg}"
                 else:
-                    tmp_logger.debug(out)
+                    # set share and activity
+                    option_activity = "Production Input"
+                    if job.prodSourceLabel in ["user", "panda"]:
+                        option_activity = "Analysis Input"
+                    elif job.processingType == "urgent" or job.currentPriority > 1000:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
+                        option_activity = "Express"
+
+                    # taskID
+                    option_comment = None
+                    if job.jediTaskID not in ["NULL", 0]:
+                        option_comment = f"task_id:{job.jediTaskID}"
+
+                    option_owner = None
+
+                    tmp_logger.debug(
+                        f"register_dataset_subscription {job.dispatchDBlock, ddm_id} "
+                        f"{{'activity': {option_activity}, 'lifetime': 7, 'dn': {option_owner}, 'comment': {option_comment}}}"
+                    )
+                    for _ in range(3):
+                        try:
+                            status = rucioAPI.register_dataset_subscription(
+                                job.dispatchDBlock,
+                                [ddm_id],
+                                activity=option_activity,
+                                lifetime=7,
+                                distinguished_name=option_owner,
+                                comment=option_comment,
+                            )
+                            out = "register_dataset_subscription finished correctly"
+                            break
+                        except Exception as error:
+                            status = False
+                            out = f"register_dataset_subscription failed with {str(error)} {traceback.format_exc()}"
+                            time.sleep(10)
+
+                    if not status:
+                        tmp_logger.error(out)
+                        disp_error[disp] = "setupper.subscribe_dispatch_data_block() could not register subscription"
+                    else:
+                        tmp_logger.debug(out)
 
             # failed jobs
             if disp_error[disp] != "":
@@ -2035,6 +2042,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         jumbo_job_spec.job_label,
                     )
                     end_point = tmp_site_spec.ddm_input[scope_input]
+                    if end_point is None:
+                        # no default read endpoint for this scope; raising here reports the queue
+                        # through the except below, which is where a Rucio rejection would land too
+                        raise SubscriptionRegistrationError(f"no default read RSE for computingSite={jumbo_job_spec.computingSite} scope={scope_input}")
                     tmp_logger.debug(f"register_dataset_subscription {dispatch_data_block} to {end_point}")
                     rucioAPI.register_dataset_subscription(
                         dispatch_data_block,

@@ -663,6 +663,11 @@ def main(tbuf=None, **kwargs):
                         # using --destSE for analysis job to transfer output
                         seList = [job.destinationSE]
                     elif tmpNucleus is not None:
+                        if tmpNucleus.default_ddm_endpoint_out is None:
+                            # there is nothing to look replicas up against; this used to reach
+                            # Rucio as [None] and come back as a bare "failed to get file replicas"
+                            _logger.error(f"{job.PandaID} nucleus {job.nucleus} has no default output endpoint")
+                            continue
                         seList = [tmpNucleus.default_ddm_endpoint_out]
 
                     # get LFN list

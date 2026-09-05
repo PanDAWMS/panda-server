@@ -408,7 +408,9 @@ class AdderAtlasPlugin(AdderPluginBase):
                             tmp_se_tokens = src_site_spec.setokens_output[scope_src_site_spec_output]
                             for tmp_dest_token in file.destinationDBlockToken.split(","):
                                 if tmp_dest_token in tmp_se_tokens:
-                                    tmp_dest = tmp_se_tokens[tmp_dest_token]
+                                    # None when the queue has no default write endpoint for the
+                                    # scope, which the three branches above can produce as well
+                                    tmp_dest: str | None = tmp_se_tokens[tmp_dest_token]
                                 else:
                                     tmp_dest = src_site_spec.ddm_output[scope_src_site_spec_output]
                                 if tmp_dest not in tmp_dest_list:
