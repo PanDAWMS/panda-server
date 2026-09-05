@@ -12,11 +12,13 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice.closer import Closer
 from pandaserver.jobdispatcher import ErrorCode
 from pandaserver.taskbuffer import EventServiceUtils, retryModule
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.SupErrors import SupErrors
+from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("Watcher")
@@ -24,7 +26,14 @@ _logger = PandaLogger().getLogger("Watcher")
 
 class Watcher(threading.Thread):
     # constructor
-    def __init__(self, taskBuffer, pandaID, single=False, sleepTime=360, sitemapper=None):
+    def __init__(
+        self,
+        taskBuffer: TaskBuffer,
+        pandaID: int,
+        single: bool = False,
+        sleepTime: int = 360,
+        sitemapper: SiteMapper | None = None,
+    ) -> None:
         threading.Thread.__init__(self)
         self.pandaID = pandaID
         self.taskBuffer = taskBuffer
@@ -34,7 +43,7 @@ class Watcher(threading.Thread):
         self.logger = LogWrapper(_logger, str(pandaID))
 
     # main
-    def run(self):
+    def run(self) -> None:
         try:
             while True:
                 self.logger.debug("start")

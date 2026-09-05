@@ -1,11 +1,19 @@
 import base64
 import json
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlencode
 
 from pandaserver.dataservice import DataServiceUtils
+from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.SiteSpec import SiteSpec
+
+if TYPE_CHECKING:
+    # imported for the annotations only: panda_request reads panda_server.cfg through
+    # panda_config at import time, and this module is importable without one today
+    from pandaserver.srvcore.panda_request import PandaRequest
 
 # constants
 TimeOutToken = "TimeOut"
@@ -34,30 +42,34 @@ SC_ProxyError = 90
 # response
 class Response:
     # constructor
-    def __init__(self, statusCode, errorDialog=None):
+    def __init__(self, statusCode: int, errorDialog: str | None = None) -> None:
         # create data object
-        self.data = {"StatusCode": statusCode}
+        self.data: dict[str, Any] = {"StatusCode": statusCode}
         if errorDialog is not None:
             self.data["errorDialog"] = errorDialog
 
     # URL encode
-    def encode(self, acceptJson=False):
+    def encode(self, acceptJson: bool = False) -> str | dict[str, str]:
         if not acceptJson:
             return urlencode(self.data)
         else:
             return {"type": "json", "content": json.dumps(self.data)}
 
     # append Node
-    def appendNode(self, name, value):
+    def appendNode(self, name: str, value: Any) -> None:
         self.data[name] = value
 
     # append job
-    def appendJob(self, job, siteMapperCache=None):
+    def appendJob(self, job: JobSpec, siteMapperCache: CoreUtils.CachedObject | None = None) -> None:
         # event service merge
         if EventServiceUtils.isEventServiceMerge(job):
             isEventServiceMerge = True
         else:
             isEventServiceMerge = False
+        # An ES merge job carries a two-element list here, not a string -- JobSpec.setEventServiceMerge
+        # puts it there. The column reads back as its type or the "NULL" sentinel, so the sentinel's
+        # str half is what makes the subscripts below unrepresentable; taken as Any once, here
+        jobMetadata: Any = job.metadata
         # PandaID
         self.data["PandaID"] = job.PandaID
         # prodSourceLabel
@@ -132,7 +144,7 @@ class Response:
                     if not isEventServiceMerge:
                         strProdToken += f"{file.prodDBlockToken},"
                     else:
-                        strProdToken += f"{job.metadata[1][file.lfn]},"
+                        strProdToken += f"{jobMetadata[1][file.lfn]},"
                     if strGUID != "":
                         strGUID += ","
                     strGUID += file.GUID
@@ -307,8 +319,8 @@ class Response:
             # write to file for ES merge
             writeToFileStr = ""
             try:
-                for outputName in job.metadata[0]:
-                    inputList = job.metadata[0][outputName]
+                for outputName in jobMetadata[0]:
+                    inputList = jobMetadata[0][outputName]
                     writeToFileStr += f"inputFor_{outputName}:"
                     for tmpInput in inputList:
                         writeToFileStr += f"{tmpInput},"
@@ -382,7 +394,7 @@ class Response:
             self.data["onSiteMerging"] = "True"
 
     # set proxy key
-    def setProxyKey(self, proxyKey):
+    def setProxyKey(self, proxyKey: dict[str, str]) -> None:
         names = ["credname", "myproxy"]
         for name in names:
             if name in proxyKey:
@@ -391,11 +403,11 @@ class Response:
                 self.data[name] = ""
 
     # set secret key for panda proxy
-    def setPandaProxySecretKey(self, secretKey):
+    def setPandaProxySecretKey(self, secretKey: str) -> None:
         self.data["pandaProxySecretKey"] = secretKey
 
     # get ddm endpoint
-    def getDdmEndpoint(self, siteSpec, spaceToken, mode, prodSourceLabel, job_label):
+    def getDdmEndpoint(self, siteSpec: SiteSpec | None, spaceToken: str, mode: str, prodSourceLabel: str, job_label: str) -> str:
         if siteSpec is None or mode not in ["input", "output"]:
             return ""
 
@@ -415,10 +427,10 @@ class Response:
             return endPoint
 
         if mode == "input":
-            setokens = siteSpec.setokens_input.get(scope_input, [])
+            setokens = siteSpec.setokens_input.get(scope_input, {})
             ddm = siteSpec.ddm_input.get(scope_input)
         elif mode == "output":
-            setokens = siteSpec.setokens_output.get(scope_output, [])
+            setokens = siteSpec.setokens_output.get(scope_output, {})
             ddm = siteSpec.ddm_output.get(scope_output)
         if spaceToken in setokens:
             return setokens[spaceToken]
@@ -431,14 +443,14 @@ class Response:
 
 
 # check if secure connection
-def isSecure(req):
+def isSecure(req: "PandaRequest") -> bool:
     if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return False
     return True
 
 
 # get user DN
-def getUserDN(req):
+def getUserDN(req: "PandaRequest") -> str:
     try:
         return req.subprocess_env["SSL_CLIENT_S_DN"]
     except Exception:

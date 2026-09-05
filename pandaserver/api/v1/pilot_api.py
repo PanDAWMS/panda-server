@@ -245,7 +245,7 @@ def acquire_jobs(
     jobs: list[Any] = []
     # only read below when jobs is non-empty, which happens only in the branch that sets them
     secrets_map: dict[str, Any] = {}
-    proxy_key = None
+    proxy_key: dict[str, str] = {}
     n_sent = None
     if isinstance(timed_method.result, list):
         result = timed_method.result
