@@ -32,7 +32,7 @@ try:
 except Exception:
     pass
 
-testClouds: list
+testClouds: list[str] | list[None]
 try:
     testClouds = sys.argv[4].split(",")
 except Exception:

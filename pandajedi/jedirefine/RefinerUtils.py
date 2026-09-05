@@ -1,5 +1,6 @@
 import json
 import re
+from typing import Any
 
 
 # convert UTF-8 to ASCII in json dumps
@@ -133,7 +134,7 @@ def get_initial_global_share(task_buffer, task_id, task_spec=None, task_param_ma
 
 
 # get sandbox name
-def get_sandbox_name(task_param_map: dict) -> str | None:
+def get_sandbox_name(task_param_map: dict[str, Any]) -> str | None:
     """
     Get the sandbox name from the task parameters
     :param task_param_map: dictionary of task parameters

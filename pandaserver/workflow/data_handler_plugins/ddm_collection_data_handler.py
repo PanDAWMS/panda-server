@@ -99,7 +99,7 @@ class DDMCollectionDataHandler(BaseDataHandler):
         tmp_log.info(f"Got collection {collection} check_status={check_result.check_status}")
         return check_result
 
-    def combine_targets(self, target_ids: list, combined_name: str | None = None) -> str:
+    def combine_targets(self, target_ids: list[str], combined_name: str | None = None) -> str:
         """
         Combine multiple DDM collection target IDs into a single Rucio container.
 

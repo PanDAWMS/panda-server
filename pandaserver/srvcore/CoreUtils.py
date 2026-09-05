@@ -6,9 +6,12 @@ import os
 import re
 import subprocess
 from threading import Lock
-from typing import Any, Generator
+from typing import Any, Generator, TypedDict, TypeVar
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
+
+# create_shards passes its elements straight through, so the shard type follows the input
+_ShardElement = TypeVar("_ShardElement")
 
 
 # replacement for commands
@@ -94,7 +97,7 @@ def get_id_from_dn(dn, keep_proxy=False, keep_digits=True):
     return get_bare_dn(dn, keep_proxy, keep_digits)
 
 
-def get_distinguished_name_list(distinguished_name: str) -> list:
+def get_distinguished_name_list(distinguished_name: str) -> list[str]:
     """
     Get a list of possible distinguished names from a string, including legacy and RFC formats.
 
@@ -555,8 +558,22 @@ def make_reassign_comment(site: str | None = None, cloud: str | None = None, nuc
     return comment
 
 
+class ReassignInstructions(TypedDict):
+    """What parse_reassign_comment() reads out of a task reassignment comment.
+
+    A per-key type rather than a dict[str, ...] union: the callers assign "value" to
+    spec columns typed str, and a union wide enough to also cover the bool would make
+    every one of those a type error for a value the parser never puts there.
+    """
+
+    target: str
+    value: str | None
+    back_to_old_status: bool
+    mode: str | None
+
+
 # parse execution comment to get task reassignment instructions
-def parse_reassign_comment(comment: str) -> dict:
+def parse_reassign_comment(comment: str) -> ReassignInstructions:
     """
     Parse execution comment to get task reassignment instructions, including target site/cloud/nucleus, whether to go back to old status and additional modes.
 
@@ -564,7 +581,7 @@ def parse_reassign_comment(comment: str) -> dict:
 
     :return: a dictionary with keys "target", "value", "back_to_old_status" and "mode" (if any)
     """
-    info = {"target": "site", "value": None, "back_to_old_status": False, "mode": None}
+    info: ReassignInstructions = {"target": "site", "value": None, "back_to_old_status": False, "mode": None}
     try:
         items = comment.split(":")
         if len(items) >= 3:
@@ -578,7 +595,7 @@ def parse_reassign_comment(comment: str) -> dict:
     return info
 
 
-def create_shards(input_list: list, size: int) -> Generator:
+def create_shards(input_list: list[_ShardElement], size: int) -> Generator[list[_ShardElement], None, None]:
     """
     Partitions input into shards of a given size for bulk operations.
     @author: Miguel Branco in DQ2 Site Services code

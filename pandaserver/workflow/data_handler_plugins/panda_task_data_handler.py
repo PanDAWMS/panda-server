@@ -157,7 +157,7 @@ class PandaTaskDataHandler(BaseDataHandler):
         tmp_log.info(f"Got total_n_files={total_n_files} all_existing_closed={all_existing_closed}; check_status={check_result.check_status}")
         return check_result
 
-    def combine_targets(self, target_ids: list, combined_name: str | None = None) -> str:
+    def combine_targets(self, target_ids: list[str], combined_name: str | None = None) -> str:
         """
         Combine multiple PanDA task output target IDs into a single Rucio container.
 

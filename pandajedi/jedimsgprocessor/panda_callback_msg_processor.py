@@ -73,7 +73,7 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
             tmp_log.error(err_str)
             raise
 
-    def process_dataset_callback(self, event_type: str, message_ids: str, message_dict: dict, tmp_log: LogWrapper.LogWrapper) -> None:
+    def process_dataset_callback(self, event_type: str, message_ids: str, message_dict: dict[str, Any], tmp_log: LogWrapper.LogWrapper) -> None:
         """
         Process a dataset callback
 
@@ -101,7 +101,7 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
         tmp_log.debug(f"done {dsn}")
         return
 
-    def process_file_callback(self, event_type: str, message_ids: str, message_dict: dict, tmp_log: LogWrapper.LogWrapper) -> None:
+    def process_file_callback(self, event_type: str, message_ids: str, message_dict: dict[str, Any], tmp_log: LogWrapper.LogWrapper) -> None:
         """
         Process a file callback
 
@@ -129,7 +129,7 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
         tmp_log.debug(f"done")
         return
 
-    def trigger_component_action(self, event_type: str, message_ids: str, message_dict: dict, tmp_log: LogWrapper.LogWrapper) -> None:
+    def trigger_component_action(self, event_type: str, message_ids: str, message_dict: dict[str, Any], tmp_log: LogWrapper.LogWrapper) -> None:
         """
         Trigger component action based on the event type
         Args:

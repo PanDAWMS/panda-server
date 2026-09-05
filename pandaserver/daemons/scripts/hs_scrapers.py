@@ -48,7 +48,7 @@ class BaseHS06Scraper:
         df = self._parse_html_to_polars(html)
         self._insert(df)
 
-    def _insert_cpu_perf_rows(self, rows: list[dict], source_url: str) -> None:
+    def _insert_cpu_perf_rows(self, rows: list[dict[str, Any]], source_url: str) -> None:
         sql = (
             "INSERT INTO ATLAS_PANDA.cpu_benchmarks "
             "(cpu_type, cpu_type_normalized, smt_enabled, ncores, site, score_per_core, source) "

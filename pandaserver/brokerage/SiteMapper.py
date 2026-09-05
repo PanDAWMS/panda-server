@@ -393,7 +393,7 @@ class SiteMapper:
                     if site_name not in self.endpoint_to_sites_map["output"][endpoint]:
                         self.endpoint_to_sites_map["output"][endpoint].append(site_name)
 
-    def get_sites_for_endpoint(self, endpoint_name: str, direction: str) -> list:
+    def get_sites_for_endpoint(self, endpoint_name: str, direction: str) -> list[str]:
         """Get the set of sites associated with a given endpoint
         Args:
             endpoint_name (str): Name of the endpoint

@@ -26,8 +26,8 @@ class JobSplitter:
     # split
     def doSplit(self, taskSpec, inputChunk, siteMapper, allow_chunk_size_limit=False):
         # return for failure
-        retFatal: tuple[Any, list] = self.SC_FATAL, []
-        retTmpError: tuple[Any, list] = self.SC_FAILED, []
+        retFatal: tuple[Any, list[dict[str, Any]]] = self.SC_FATAL, []
+        retTmpError: tuple[Any, list[dict[str, Any]]] = self.SC_FAILED, []
         # make logger
         tmpLog = MsgWrapper(logger, f"< jediTaskID={taskSpec.jediTaskID} datasetID={inputChunk.masterIndexName} >")
         tmpLog.debug(f"--- start chunk_size_limit={allow_chunk_size_limit}")

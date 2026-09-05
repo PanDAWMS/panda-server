@@ -272,7 +272,7 @@ class CommandSendInterface(object):
     def __init__(self, vo, maxChild, moduleName, className):
         self.vo = vo
         self.maxChild = maxChild
-        self.connectionQueue: multiprocessing.Queue = multiprocessing.Queue(maxChild)
+        self.connectionQueue: multiprocessing.Queue[ProcessClass] = multiprocessing.Queue(maxChild)
         self.moduleName = moduleName
         self.className = className
 

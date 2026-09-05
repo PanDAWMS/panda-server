@@ -1477,7 +1477,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, (is_quota_ok, is_near_limit, err_msg)
 
     # get endpoints over local quota for a user
-    def get_endpoints_over_local_quota(self, user_name: str) -> tuple[StatusCode, tuple[bool, set]]:
+    def get_endpoints_over_local_quota(self, user_name: str) -> tuple[StatusCode, tuple[bool, set[str]]]:
         """
         Get a list of endpoints where the user exceeds local quota.
 

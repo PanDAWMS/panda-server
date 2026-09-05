@@ -1,5 +1,6 @@
 import re
 import sys
+from typing import Any
 
 from pandacommon.liveconfigparser.LiveConfigParser import (
     LiveConfigParser,
@@ -38,7 +39,7 @@ if "enable" not in tmpSelf.__dict__:
 
 # the daemon table, either the JSON text from the cfg or an already parsed dict
 # from the config map. DaemonMaster._parse_config() accepts both
-config: str | dict
+config: str | dict[str, Any]
 
 # whether the daemon master is allowed to run at all
 enable: bool

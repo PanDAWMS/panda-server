@@ -47,7 +47,7 @@ class BaseDataHandler:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def combine_targets(self, target_ids: list, combined_name: str | None = None) -> str:
+    def combine_targets(self, target_ids: list[str], combined_name: str | None = None) -> str:
         """
         Combine multiple target IDs into a single new target via the plugin's functionality.
 

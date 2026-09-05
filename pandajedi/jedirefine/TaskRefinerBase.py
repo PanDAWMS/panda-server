@@ -69,7 +69,7 @@ class TaskRefinerBase(object):
         self.jobParamsTemplate = jobParamsTemplate
 
     # create a unique identifier of the payload based on the task parameters
-    def create_payload_identifier(self, task_param_map: dict) -> str:
+    def create_payload_identifier(self, task_param_map: dict[str, Any]) -> str:
         """
         Create a unique identifier of the payload based on the task parameters
         :param task_param_map: dictionary of task parameters

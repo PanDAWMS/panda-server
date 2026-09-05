@@ -116,9 +116,9 @@ record_statuschange: bool
 useJEDI: bool
 usedbtimeout: bool
 
-auth_config: dict
-auth_policies: dict
-auth_vo_dict: dict
+auth_config: dict[str, dict[str, str]]
+auth_policies: dict[str, list[tuple[str, dict[str, str]]]]
+auth_vo_dict: dict[str, dict[str, Any]]
 
 # set to None when the cfg leaves it empty, see below
 legacy_token_issuers: list[str] | None

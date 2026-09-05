@@ -211,7 +211,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                 ret = True
         return ret
 
-    def get_list_of_fat_container_names(self, site) -> list | None:
+    def get_list_of_fat_container_names(self, site) -> list[str] | None:
         """
         Get the list of fat container names for a site if it is a fat container site.
 
@@ -245,7 +245,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         if site_trr_map is None:
             return available_sites_dict
         # record for excluded site reasons
-        excluded_sites_dict: dict[str, set] = {
+        excluded_sites_dict: dict[str, set[str]] = {
             "not_online": set(),
             "has_minrss": set(),
             "es_jobseed": set(),
@@ -365,7 +365,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         # threshold of time duration in second that the queue keeps empty to trigger preassigning
         empty_duration_threshold = 1800
         # return map
-        ret_map: dict[str, dict] = {
+        ret_map: dict[str, dict[int, dict[str, str | int]]] = {
             "to_reassign": {},
         }
         # loop
