@@ -270,7 +270,7 @@ class WorkflowModule(BaseModule):
             return []
 
     def query_workflows_old(
-        self, status_filter_list: list | None = None, status_exclusion_list: list | None = None, check_interval_sec: int = 300
+        self, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None, check_interval_sec: int = 300
     ) -> list[WorkflowSpec]:
         """
         Retrieve list of workflows with optional status filtering
@@ -321,7 +321,7 @@ class WorkflowModule(BaseModule):
             return []
 
     def query_workflows(
-        self, status_filter_list: list | None = None, status_exclusion_list: list | None = None, check_interval_sec: int = 300
+        self, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None, check_interval_sec: int = 300
     ) -> list[WorkflowSpec]:
         """
         Retrieve list of workflows with optional status filtering, ordered for efficient

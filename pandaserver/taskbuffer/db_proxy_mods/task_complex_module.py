@@ -2532,7 +2532,7 @@ class TaskComplexModule(BaseModule):
         self,
         comment: str,
         tmp_log: LogWrapper,
-        input_chunk_list: list,
+        input_chunk_list: list[InputChunk],
         task_spec: JediTaskSpec,
         jedi_task_id: int,
         dataset_id: int,
@@ -2638,7 +2638,7 @@ class TaskComplexModule(BaseModule):
         self,
         comment: str,
         tmp_log: LogWrapper,
-        input_chunk_list: list,
+        input_chunk_list: list[InputChunk],
         task_spec: JediTaskSpec,
         jedi_task_id: int,
         dataset_id_list: list[int],
@@ -3058,7 +3058,11 @@ class TaskComplexModule(BaseModule):
                     secondary_has_enough_events = False
                     if tmp_dataset_spec.getEventRatio() is not None:
                         secondary_has_enough_events = True
-                        for n_events_in_a_master_file in total_events_map[input_chunk.masterDataset.datasetID]:
+                        # the master of this chunk is the primary dataset: dataset_id_list starts
+                        # with it, the query that produced it filters on masterID IS NULL, and the
+                        # secondaries are read with masterID=:masterID bound to the same id, so it
+                        # is the only one addMasterDS() is called for
+                        for n_events_in_a_master_file in total_events_map[primary_dataset_id]:
                             target_n_events = n_events_in_a_master_file * tmp_dataset_spec.getEventRatio()
                             target_n_events = int(math.ceil(target_n_events))
                             if target_n_events <= 0:
@@ -3087,7 +3091,7 @@ class TaskComplexModule(BaseModule):
                     tmp_str += f"since only {tmp_num_already_read_files}/{num_files_to_read_for_the_chunk} files were read "
                     if tmp_dataset_spec.getEventRatio() is not None:
                         tmp_str += "or {0} events is less than {1}*{2} ".format(
-                            total_secondary_events, tmp_dataset_spec.getEventRatio(), sum(total_events_map[input_chunk.masterDataset.datasetID])
+                            total_secondary_events, tmp_dataset_spec.getEventRatio(), sum(total_events_map[primary_dataset_id])
                         )
                     tmp_log.debug(tmp_str)
                     if not tmp_dataset_spec.isSeqNumber():
