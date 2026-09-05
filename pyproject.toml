@@ -133,3 +133,21 @@ check_untyped_defs = true
 # recover it. Filling the parameters in is what makes an annotation worth having,
 # so it is required rather than left to whoever writes the line.
 disallow_any_generics = true
+
+# disallow_untyped_defs and disallow_incomplete_defs are being turned on a subpackage at a
+# time. Tree-wide they report ~2869 findings, far too many for one change, and unlike the
+# flags above they cannot be satisfied by a mechanical edit: every function needs its
+# parameter and return types read out of the code.
+#
+# Each name below is a subpackage that is already clean under both flags, so the gate holds
+# it there. The list grows one PR at a time; when it covers the whole tree the two settings
+# move up into [tool.mypy] and this block is deleted. Order is by risk, not by count:
+# taskbuffer is last because __slots__, the column declarations and TYPE_CHECKING all
+# concentrate there, not because it is the largest.
+[[tool.mypy.overrides]]
+module = [
+    "pandajedi.jediconfig.*",
+    "pandajedi.jediexec.*",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
