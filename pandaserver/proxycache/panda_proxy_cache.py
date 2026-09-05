@@ -49,7 +49,8 @@ class MyProxyInterface(object):
         production=False,
         server_name="myproxy.cern.ch",
         role=None,
-        log_stream=None,
+        *,
+        log_stream,
     ):
         log_stream.info("store proxy")
 
@@ -161,7 +162,7 @@ class MyProxyInterface(object):
                 hashlib.sha1(user_dn.encode("utf-8")).hexdigest(),
             )
 
-    def checkProxy(self, user_dn, production=False, role=None, name=None):
+    def checkProxy(self, user_dn, production=False, role=None, *, name):
         log_stream = LogWrapper(_logger, f'< name="{name}" role={role} >')
         log_stream.info(f"check proxy for {user_dn}")
 
