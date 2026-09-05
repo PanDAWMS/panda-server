@@ -6,6 +6,7 @@ from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.workflow.workflow_base import WFDataType
 
 
 def parse_args():
@@ -53,341 +54,56 @@ def parse_args():
     return args
 
 
+# Data is listed in the order it flows through the workflow: what comes in, what is passed between
+# steps, and what comes out. Anything unrecognised sorts last rather than being dropped.
+DATA_TYPE_ORDER = (WFDataType.input, WFDataType.mid, WFDataType.output)
+
+
+def data_sort_key(data_spec):
+    try:
+        type_rank = DATA_TYPE_ORDER.index(data_spec.type)
+    except ValueError:
+        type_rank = len(DATA_TYPE_ORDER)
+    return type_rank, data_spec.name or ""
+
+
+def step_source_label(step_spec):
+    """The prodSourceLabel the step's own task parameters carry, which is not the workflow's"""
+    try:
+        return step_spec.definition_json_map.get("task_params", {}).get("prodSourceLabel") or "-"
+    except Exception:
+        return "-"
+
+
 def show_workflow(task_buffer, workflow_id):
     """Print what the engine currently holds for a workflow, its steps and its data"""
     workflow_spec = task_buffer.get_workflow(workflow_id=workflow_id)
     if workflow_spec is None:
         print(f"workflow_id={workflow_id} not found")
         return
+    # submitted_as is the workflow-level label, which records only whether the submitter held a
+    # production role. Each step carries its own prodSourceLabel, shown as pslabel below, and that
+    # is the one JEDI's agents filter on.
     print(
         f"workflow_id={workflow_spec.workflow_id} name={workflow_spec.name} status={workflow_spec.status} "
-        f"prodsourcelabel={workflow_spec.prodsourcelabel} user={workflow_spec.username}"
+        f"submitted_as={workflow_spec.prodsourcelabel} user={workflow_spec.username}"
     )
+
     step_specs = task_buffer.get_steps_of_workflow(workflow_id=workflow_id) or []
     print(f"  steps ({len(step_specs)}):")
+    print(f"    {'#':>3}  {'name':<24} {'status':<12} {'pslabel':<9} {'flavor':<13} target_id")
     for step_spec in sorted(step_specs, key=lambda s: s.member_id or 0):
-        print(f"    [{step_spec.member_id}] {step_spec.name:<24} {step_spec.status:<12} flavor={step_spec.flavor:<12} target_id={step_spec.target_id}")
+        print(
+            f"    {step_spec.member_id!s:>3}  {step_spec.name:<24} {step_spec.status:<12} "
+            f"{step_source_label(step_spec):<9} {step_spec.flavor:<13} {step_spec.target_id}"
+        )
+
     data_specs = task_buffer.get_data_of_workflow(workflow_id=workflow_id) or []
     print(f"  data ({len(data_specs)}):")
-    for data_spec in sorted(data_specs, key=lambda d: d.name or ""):
+    print(f"    {'name':<28} {'status':<20} {'type':<7} target_id")
+    for data_spec in sorted(data_specs, key=data_sort_key):
         # target_id still holding ${TASKID} means the producing task has not been queued yet
-        print(f"    {data_spec.name:<28} {data_spec.status:<20} type={data_spec.type:<7} target_id={data_spec.target_id}")
-
-
-# parameters for the workflow
-# prodsourcelabel = "user"
-# username = "testuser"
-# workflow_name = "test_workflow_bg_comb_00"
-
-# workflow definition json
-# wfd_json = json.dumps(
-#     json.loads(
-#         """
-# {
-#     "root_inputs": {
-#             "sig_bg_comb.cwl#background": "mc16_5TeV.361238.Pythia8EvtGen_A3NNPDF23LO_minbias_inelastic_low.merge.HITS.e6446_s3238_s3250/",
-#             "sig_bg_comb.cwl#signal": "mc16_valid:mc16_valid.900248.PG_singlepion_flatPt2to50.simul.HITS.e8312_s3238_tid26378578_00"
-#         },
-#     "root_outputs": {"sig_bg_comb.cwl#combine/outDS": {"value": "user.me.my_outDS_005_combine"}},
-#     "nodes": [
-#         {
-#             "condition": null,
-#             "data": null,
-#             "id": 1,
-#             "in_loop": false,
-#             "inputs": {
-#                 "sig_bg_comb.cwl#make_signal/opt_args": {
-#                     "default": "--outputs abc.dat,def.zip --nFilesPerJob 5",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#make_signal/opt_containerImage": {
-#                     "default": "docker://busybox",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#make_signal/opt_exec": {
-#                     "default": "echo %IN > abc.dat; echo 123 > def.zip",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#make_signal/opt_inDS": {
-#                     "default": null,
-#                     "source": "sig_bg_comb.cwl#signal"
-#                 }
-#             },
-#             "is_head": false,
-#             "is_leaf": true,
-#             "is_tail": false,
-#             "is_workflow_output": false,
-#             "loop": false,
-#             "name": "make_signal",
-#             "output_types": [],
-#             "outputs": {
-#                 "sig_bg_comb.cwl#make_signal/outDS": {}
-#             },
-#             "parents": [],
-#             "root_inputs": null,
-#             "scatter": null,
-#             "sub_nodes": [],
-#             "task_params": null,
-#             "type": "prun",
-#             "upper_root_inputs": null
-#         },
-#         {
-#             "condition": null,
-#             "data": null,
-#             "id": 2,
-#             "in_loop": false,
-#             "inputs": {
-#                 "sig_bg_comb.cwl#make_background_1/opt_args": {
-#                     "default": "--outputs opq.root,xyz.pool --nGBPerJob 10",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#make_background_1/opt_exec": {
-#                     "default": "echo %IN > opq.root; echo %IN > xyz.pool",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#make_background_1/opt_inDS": {
-#                     "default": null,
-#                     "source": "sig_bg_comb.cwl#background"
-#                 }
-#             },
-#             "is_head": false,
-#             "is_leaf": true,
-#             "is_tail": false,
-#             "is_workflow_output": false,
-#             "loop": false,
-#             "name": "make_background_1",
-#             "output_types": [],
-#             "outputs": {
-#                 "sig_bg_comb.cwl#make_background_1/outDS": {}
-#             },
-#             "parents": [],
-#             "root_inputs": null,
-#             "scatter": null,
-#             "sub_nodes": [],
-#             "task_params": null,
-#             "type": "prun",
-#             "upper_root_inputs": null
-#         },
-#         {
-#             "condition": null,
-#             "data": null,
-#             "id": 3,
-#             "in_loop": false,
-#             "inputs": {
-#                 "sig_bg_comb.cwl#premix/opt_args": {
-#                     "default": "--outputs klm.root --secondaryDSs IN2:2:%{SECDS1}",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#premix/opt_exec": {
-#                     "default": "echo %IN %IN2 > klm.root",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#premix/opt_inDS": {
-#                     "default": null,
-#                     "parent_id": 1,
-#                     "source": "sig_bg_comb.cwl#make_signal/outDS"
-#                 },
-#                 "sig_bg_comb.cwl#premix/opt_inDsType": {
-#                     "default": "def.zip",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#premix/opt_secondaryDSs": {
-#                     "default": null,
-#                     "parent_id": [
-#                         2
-#                     ],
-#                     "source": [
-#                         "sig_bg_comb.cwl#make_background_1/outDS"
-#                     ]
-#                 },
-#                 "sig_bg_comb.cwl#premix/opt_secondaryDsTypes": {
-#                     "default": [
-#                         "xyz.pool"
-#                     ],
-#                     "source": null
-#                 }
-#             },
-#             "is_head": false,
-#             "is_leaf": true,
-#             "is_tail": false,
-#             "is_workflow_output": false,
-#             "loop": false,
-#             "name": "premix",
-#             "output_types": [],
-#             "outputs": {
-#                 "sig_bg_comb.cwl#premix/outDS": {}
-#             },
-#             "parents": [
-#                 1,
-#                 2
-#             ],
-#             "root_inputs": null,
-#             "scatter": null,
-#             "sub_nodes": [],
-#             "task_params": null,
-#             "type": "prun",
-#             "upper_root_inputs": null
-#         },
-#         {
-#             "condition": null,
-#             "data": null,
-#             "id": 4,
-#             "in_loop": false,
-#             "inputs": {
-#                 "sig_bg_comb.cwl#generate_some/opt_args": {
-#                     "default": "--outputs gen.root --nJobs 10",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#generate_some/opt_exec": {
-#                     "default": "echo %RNDM:10 > gen.root",
-#                     "source": null
-#                 }
-#             },
-#             "is_head": false,
-#             "is_leaf": true,
-#             "is_tail": false,
-#             "is_workflow_output": false,
-#             "loop": false,
-#             "name": "generate_some",
-#             "output_types": [],
-#             "outputs": {
-#                 "sig_bg_comb.cwl#generate_some/outDS": {}
-#             },
-#             "parents": [],
-#             "root_inputs": null,
-#             "scatter": null,
-#             "sub_nodes": [],
-#             "task_params": null,
-#             "type": "prun",
-#             "upper_root_inputs": null
-#         },
-#         {
-#             "condition": null,
-#             "data": null,
-#             "id": 5,
-#             "in_loop": false,
-#             "inputs": {
-#                 "sig_bg_comb.cwl#make_background_2/opt_args": {
-#                     "default": "--outputs ooo.root,jjj.txt --secondaryDSs IN2:2:%{SECDS1}",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#make_background_2/opt_containerImage": {
-#                     "default": "docker://alpine",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#make_background_2/opt_exec": {
-#                     "default": "echo %IN > ooo.root; echo %IN2 > jjj.txt",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#make_background_2/opt_inDS": {
-#                     "default": null,
-#                     "source": "sig_bg_comb.cwl#background"
-#                 },
-#                 "sig_bg_comb.cwl#make_background_2/opt_secondaryDSs": {
-#                     "default": null,
-#                     "parent_id": [
-#                         4
-#                     ],
-#                     "source": [
-#                         "sig_bg_comb.cwl#generate_some/outDS"
-#                     ]
-#                 },
-#                 "sig_bg_comb.cwl#make_background_2/opt_secondaryDsTypes": {
-#                     "default": [
-#                         "gen.root"
-#                     ],
-#                     "source": null
-#                 }
-#             },
-#             "is_head": false,
-#             "is_leaf": true,
-#             "is_tail": false,
-#             "is_workflow_output": false,
-#             "loop": false,
-#             "name": "make_background_2",
-#             "output_types": [],
-#             "outputs": {
-#                 "sig_bg_comb.cwl#make_background_2/outDS": {}
-#             },
-#             "parents": [
-#                 4
-#             ],
-#             "root_inputs": null,
-#             "scatter": null,
-#             "sub_nodes": [],
-#             "task_params": null,
-#             "type": "prun",
-#             "upper_root_inputs": null
-#         },
-#         {
-#             "condition": null,
-#             "data": null,
-#             "id": 6,
-#             "in_loop": false,
-#             "inputs": {
-#                 "sig_bg_comb.cwl#combine/opt_args": {
-#                     "default": "--outputs aaa.root --secondaryDSs IN2:2:%{SECDS1},IN3:5:%{SECDS2}",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#combine/opt_exec": {
-#                     "default": "echo %IN %IN2 %IN3 > aaa.root",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#combine/opt_inDS": {
-#                     "default": null,
-#                     "parent_id": 1,
-#                     "source": "sig_bg_comb.cwl#make_signal/outDS"
-#                 },
-#                 "sig_bg_comb.cwl#combine/opt_inDsType": {
-#                     "default": "abc.dat",
-#                     "source": null
-#                 },
-#                 "sig_bg_comb.cwl#combine/opt_secondaryDSs": {
-#                     "default": null,
-#                     "parent_id": [
-#                         3,
-#                         5
-#                     ],
-#                     "source": [
-#                         "sig_bg_comb.cwl#premix/outDS",
-#                         "sig_bg_comb.cwl#make_background_2/outDS"
-#                     ]
-#                 },
-#                 "sig_bg_comb.cwl#combine/opt_secondaryDsTypes": {
-#                     "default": [
-#                         "klm.root",
-#                         "ooo.root"
-#                     ],
-#                     "source": null
-#                 }
-#             },
-#             "is_head": false,
-#             "is_leaf": true,
-#             "is_tail": true,
-#             "is_workflow_output": false,
-#             "loop": false,
-#             "name": "combine",
-#             "output_types": [],
-#             "outputs": {
-#                 "sig_bg_comb.cwl#combine/outDS": {}
-#             },
-#             "parents": [
-#                 1,
-#                 3,
-#                 5
-#             ],
-#             "root_inputs": null,
-#             "scatter": null,
-#             "sub_nodes": [],
-#             "task_params": null,
-#             "type": "prun",
-#             "upper_root_inputs": null
-#         }
-#     ]
-# }
-# """
-#     )
-# )
+        print(f"    {data_spec.name:<28} {data_spec.status:<20} {data_spec.type:<7} {data_spec.target_id}")
 
 
 def main():
