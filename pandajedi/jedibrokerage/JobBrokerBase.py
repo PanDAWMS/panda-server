@@ -22,7 +22,7 @@ class JobBrokerBase(object):
         self.refresh()
         # replaced by set_task_common_dict() with the dict shared across the brokers of
         # one task; empty until then, so a write before that is not lost to an exception
-        self.task_common: dict = {}
+        self.task_common: dict[str, Any] = {}
         self.summaryList: list[str] = []
 
     # set task common dictionary
@@ -121,7 +121,7 @@ class JobBrokerBase(object):
         tmp_log.info("")
 
     # add summary entry and show intermediate message
-    def add_summary_message(self, old_list: list, new_list: list, message: str, tmp_log: Any, msg_map: dict):
+    def add_summary_message(self, old_list: list[str], new_list: list[str], message: str, tmp_log: Any, msg_map: dict[str, str]):
         # consolidate lists to emit messages only for unified sites
         old_list = self.get_unified_sites(old_list)
         new_list = self.get_unified_sites(new_list)

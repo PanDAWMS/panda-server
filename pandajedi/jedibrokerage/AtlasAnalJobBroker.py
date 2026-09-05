@@ -532,7 +532,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
         scanSiteWoVP: list[Any] = []
         summaryList = []
         # the sites that had the data in the first loop pass, kept for the ranking below
-        site_list_with_data: set = set()
+        site_list_with_data: set[str] = set()
         overall_site_list = set()
         for i_loop, (scanSiteList, checkDataLocality) in enumerate(scan_site_list_loops):
             useUnionLocality = False
@@ -566,10 +566,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 # the lists and the rest intersect with them, which is what the flag marks;
                 # with no dataset at all they stay empty and the checks below find nothing
                 scanSiteList = []
-                scanSiteListOnDisk: set = set()
-                scanSiteListUnion: set = set()
-                scanSiteListOnDiskUnion: set = set()
-                scanSiteWoVpUnion: set = set()
+                scanSiteListOnDisk: set[str] = set()
+                scanSiteListUnion: set[str] = set()
+                scanSiteListOnDiskUnion: set[str] = set()
+                scanSiteWoVpUnion: set[str] = set()
                 is_first_dataset = True
 
                 for datasetName, tmpDataSite in self.dataSiteMap.items():

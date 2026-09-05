@@ -117,10 +117,10 @@ def get_sites_with_data(
     site_mapper: SiteMapper,
     ddm_if: AtlasDDMClient,
     dataset_name: str,
-    element_list: list | None,
+    element_list: list[str] | None,
     max_missing_input_files: int,
     min_input_completeness: int,
-) -> tuple[Any, dict | str, bool | None, bool | None, bool | None, bool | None, bool | None, list]:
+) -> tuple[Any, dict[str, Any] | str, bool | None, bool | None, bool | None, bool | None, bool | None, list[str]]:
     """
     Get sites where data is available and check if complete replica is available at online RSE
     1) regarded_as_complete_disk: True if a replica is regarded as complete at disk (missing files within threshold)
@@ -1131,7 +1131,7 @@ ARCH_ALTERNATION_IN_CMT_CONFIG = re.compile(r"^\(([A-Za-z0-9_.+-]+(?:\|[A-Za-z0-
 
 
 # get CPU architectures of a queue
-def get_queue_cpu_architectures(queue_name: str, sw_map: dict) -> list:
+def get_queue_cpu_architectures(queue_name: str, sw_map: dict[str, dict[str, Any]]) -> list[str]:
     """
     get CPU architectures of a queue
     :param queue_name: queue name
@@ -1146,7 +1146,7 @@ def get_queue_cpu_architectures(queue_name: str, sw_map: dict) -> list:
 
 
 # resolve the architecture of cmt_config
-def resolve_arch_in_cmt_config(queue_name: str, cmt_config: str, sw_map: dict) -> str | None:
+def resolve_arch_in_cmt_config(queue_name: str, cmt_config: str, sw_map: dict[str, dict[str, Any]]) -> str | None:
     """
     resolve the architecture alternation of a cmt_config with the queue's CPU architectures,
     e.g. (x86_64|aarch64)-el9-gcc15-opt to x86_64-el9-gcc15-opt at an x86_64 queue.
@@ -1173,7 +1173,7 @@ def resolve_arch_in_cmt_config(queue_name: str, cmt_config: str, sw_map: dict) -
 
 
 # resolve cmt_config
-def resolve_cmt_config(queue_name: str, cmt_config: str, base_platform, sw_map: dict) -> str | None:
+def resolve_cmt_config(queue_name: str, cmt_config: str, base_platform, sw_map: dict[str, dict[str, Any]]) -> str | None:
     """
     resolve cmt config at a given queue_name
     :param queue_name: queue name
@@ -1215,10 +1215,10 @@ def check_endpoints_with_blacklist(
     site_spec: SiteSpec.SiteSpec,
     scope_input: str,
     scope_output: str,
-    sites_in_nucleus: list,
+    sites_in_nucleus: list[str],
     remote_source_available: bool,
     storage_type: str | None = None,
-    complete_replica_locations: set | None = None,
+    complete_replica_locations: set[str] | None = None,
 ) -> str | None:
     """
     Check if site's endpoints are in the blacklist
