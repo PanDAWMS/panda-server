@@ -1,3 +1,5 @@
+from typing import Any
+
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -29,7 +31,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_banned_users(req: PandaRequest) -> dict:
+def get_banned_users(req: PandaRequest) -> dict[str, Any]:
     """
     Get banned users
 
@@ -55,7 +57,7 @@ def get_banned_users(req: PandaRequest) -> dict:
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict:
+def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict[str, Any]:
     """
     Get site specs
 

@@ -61,7 +61,7 @@ def get_attributes(req: PandaRequest, **kwargs: Any) -> Dict[str, Any]:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_voms_attributes(req: PandaRequest) -> Dict:
+def get_voms_attributes(req: PandaRequest) -> Dict[str, Any]:
     """
     Get VOMS attributes
 
@@ -95,7 +95,7 @@ def get_voms_attributes(req: PandaRequest) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_user_attributes(req: PandaRequest) -> Dict:
+def get_user_attributes(req: PandaRequest) -> Dict[str, Any]:
     """
     Get user attributes
 
@@ -163,7 +163,7 @@ def get_user_attributes(req: PandaRequest) -> Dict:
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def is_alive(req: PandaRequest) -> Dict:
+def is_alive(req: PandaRequest) -> Dict[str, Any]:
     """
     Is alive
 

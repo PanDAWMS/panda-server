@@ -109,7 +109,7 @@ def _submit_request(req: PandaRequest, operation: str, parameters: dict[str, Any
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def change_staging_destination(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+def change_staging_destination(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
     Change destination of staging
 
@@ -142,7 +142,7 @@ def change_staging_source(
     cancel_fts: bool = False,
     change_src_expr: bool = False,
     source_rse: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """
     Change source of staging
 
@@ -173,7 +173,7 @@ def change_staging_source(
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
     Force to staging
 
@@ -200,7 +200,7 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+def retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
     Retire unused staging request
 

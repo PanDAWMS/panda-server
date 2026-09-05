@@ -656,7 +656,7 @@ def upload_file_recovery_request(
     force: bool = False,
     reproduce_parent: bool = False,
     reproduce_upto_nth_gen: int = 0,
-) -> Dict:
+) -> Dict[str, Any]:
     """
     Upload file recovery request
 

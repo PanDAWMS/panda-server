@@ -38,7 +38,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict:
+def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict[str, Any]:
     """
     Get status of a job.
 
@@ -121,7 +121,7 @@ def get_description(req: PandaRequest, job_ids: List[int]) -> Dict[str, Any]:
 
 
 @request_validation(_logger, secure=True)
-def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
+def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict[str, Any]:
     """
     Get description of a job.
 
@@ -162,7 +162,7 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int | None = None) -> Dict:
+def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int | None = None) -> Dict[str, Any]:
     """
     Get execution script for a job.
 
@@ -195,7 +195,7 @@ def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int 
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:
+def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict[str, Any]:
     """
     Get metadata for analysis jobs
 

@@ -45,7 +45,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 def retry(
     req: PandaRequest,
     task_id: int,
-    new_parameters: Dict | str | None = None,
+    new_parameters: Dict[str, Any] | str | None = None,
     no_child_retry: bool = False,
     discard_events: bool = False,
     disable_staging_mode: bool = False,
@@ -692,7 +692,7 @@ def enable_jumbo_jobs(req: PandaRequest, task_id: int, jumbo_jobs_total: int, ju
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_jumbo_job_datasets(req: PandaRequest, from_offset: int, to_offset: int = 0) -> Dict:
+def get_jumbo_job_datasets(req: PandaRequest, from_offset: int, to_offset: int = 0) -> Dict[str, Any]:
     """
     Get jumbo job datasets
 
@@ -1333,7 +1333,7 @@ def get_job_ids(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def submit(req: PandaRequest, task_parameters: Dict, parent_tid: int | None = None) -> Dict[str, Any]:
+def submit(req: PandaRequest, task_parameters: Dict[str, Any], parent_tid: int | None = None) -> Dict[str, Any]:
     """
     Register task
 
@@ -1527,7 +1527,7 @@ def get_parent_detailed_info(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_job_descriptions(req: PandaRequest, task_id: int, unsuccessful_only: bool = False) -> Dict:
+def get_job_descriptions(req: PandaRequest, task_id: int, unsuccessful_only: bool = False) -> Dict[str, Any]:
     """
     Get job descriptions for a task.
 
