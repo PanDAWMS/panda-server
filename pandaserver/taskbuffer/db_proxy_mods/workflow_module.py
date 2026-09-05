@@ -60,7 +60,7 @@ class WorkflowModule(BaseModule):
         # no branch above produced a value, which the return type covers as None
         return None
 
-    def get_child_workflows(self, parent_id: int) -> list:
+    def get_child_workflows(self, parent_id: int) -> list[WorkflowSpec]:
         """
         Retrieve all child workflows of a given parent workflow
 
@@ -180,7 +180,9 @@ class WorkflowModule(BaseModule):
         # no branch above produced a value, which the return type covers as None
         return None
 
-    def get_steps_of_workflow(self, workflow_id: int, status_filter_list: list | None = None, status_exclusion_list: list | None = None) -> list[WFStepSpec]:
+    def get_steps_of_workflow(
+        self, workflow_id: int, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None
+    ) -> list[WFStepSpec]:
         """
         Retrieve all workflow steps for a given workflow ID
 
@@ -219,7 +221,11 @@ class WorkflowModule(BaseModule):
             return []
 
     def get_data_of_workflow(
-        self, workflow_id: int, status_filter_list: list | None = None, status_exclusion_list: list | None = None, type_filter_list: list | None = None
+        self,
+        workflow_id: int,
+        status_filter_list: list[str] | None = None,
+        status_exclusion_list: list[str] | None = None,
+        type_filter_list: list[str] | None = None,
     ) -> list[WFDataSpec]:
         """
         Retrieve all workflow data for a given workflow ID
@@ -820,11 +826,11 @@ class WorkflowModule(BaseModule):
     def upsert_workflow_entities(
         self,
         workflow_id: int | None,
-        actions_dict: dict | None = None,
+        actions_dict: dict[str, str | None] | None = None,
         workflow_spec: WorkflowSpec | None = None,
         step_specs: list[WFStepSpec] | None = None,
         data_specs: list[WFDataSpec] | None = None,
-    ) -> dict | None:
+    ) -> dict[str, int | None] | None:
         """
         Update or insert (if not existing) steps and data associated with a workflow within a transaction
 

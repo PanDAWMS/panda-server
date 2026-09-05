@@ -1086,7 +1086,7 @@ class MiscStandaloneModule(BaseModule):
             sqlLock += ",version=:version"
         sqlLock += " WHERE vuid=:vuid AND transferStatus=:transferStatus"
         # the rows, with the version appended when it was asked for
-        retList: list[tuple] = []
+        retList: list[tuple[Any, ...]] = []
         try:
             # begin transaction
             self.conn.begin()
@@ -1404,7 +1404,7 @@ class MiscStandaloneModule(BaseModule):
         return []
 
     # update input files for jobs at certain sites and return corresponding PandaIDs
-    def update_input_files_at_sites_and_get_panda_ids(self, filename: str, sites: list) -> list:
+    def update_input_files_at_sites_and_get_panda_ids(self, filename: str, sites: list[str]) -> list[int]:
         """
         Update input files with a LFN for jobs at certain sites and return corresponding PandaIDs
 
@@ -3471,7 +3471,7 @@ class MiscStandaloneModule(BaseModule):
             return retVal
 
     # get dataset locality for a task and dataset
-    def get_dataset_locality(self, jedi_taskid: int, datasetid: int) -> list | None:
+    def get_dataset_locality(self, jedi_taskid: int, datasetid: int) -> list[str] | None:
         """
         Get the list of RSEs where the dataset is available for the given task and dataset ID.
         Args:
@@ -4064,7 +4064,7 @@ class MiscStandaloneModule(BaseModule):
             return failedRet
 
     # get jediTaskIDs with dataset attributes
-    def get_task_ids_with_dataset_attributes(self, dataset_attributes: dict, only_active_tasks: bool = True) -> tuple[bool, list[int] | None]:
+    def get_task_ids_with_dataset_attributes(self, dataset_attributes: dict[str, Any], only_active_tasks: bool = True) -> tuple[bool, list[int] | None]:
         """Get jediTaskIDs with dataset attributes.
         Args:
             dataset_attributes (dict): A dictionary of dataset attributes to filter on.

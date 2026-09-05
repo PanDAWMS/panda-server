@@ -44,7 +44,7 @@ class EntityModule(BaseModule):
     # reload is a bug, not a case to handle. The timestamps beside them are what those
     # reloads test to decide whether they are due, so those stay Optional.
     tree: GlobalShares.Share
-    leave_shares: list
+    leave_shares: list[GlobalShares.Share]
     __hs_distribution: dict[str, Any]
     __t_update_shares: datetime.datetime | None
     __t_update_distribution: datetime.datetime | None

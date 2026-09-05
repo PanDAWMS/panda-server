@@ -1,5 +1,6 @@
 import datetime
 import json
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -158,7 +159,7 @@ class AsyncRequestModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def get_async_request(self, request_id: str) -> dict | None:
+    def get_async_request(self, request_id: str) -> dict[str, Any] | None:
         """
         Return a single async_requests row as a dict.
 
@@ -192,7 +193,7 @@ class AsyncRequestModule(BaseModule):
             self.dump_error_message(tmp_log)
             return None
 
-    def get_pending_requests_for_machine(self, my_hostname: str, my_service: str, known_types: list[str]) -> list[dict]:
+    def get_pending_requests_for_machine(self, my_hostname: str, my_service: str, known_types: list[str]) -> list[dict[str, Any]]:
         """
         Return async_requests rows that this machine should process (not yet claimed or pending retry).
 
@@ -463,7 +464,7 @@ class AsyncRequestModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def get_async_results(self, request_id: str) -> list[dict]:
+    def get_async_results(self, request_id: str) -> list[dict[str, Any]]:
         """
         Return all async_results rows for a request as a list of dicts.
 

@@ -240,7 +240,7 @@ class WorkerModule(BaseModule):
                 return "Queue not served by any harvester ID"
 
             # check CEs
-            ce_list_des_sanitized: str | list
+            ce_list_des_sanitized: str | list[str]
             if ce_list_des == "ALL":
                 ce_list_des_sanitized = "ALL"
             else:

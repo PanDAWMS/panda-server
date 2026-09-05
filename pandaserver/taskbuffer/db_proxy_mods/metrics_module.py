@@ -20,7 +20,7 @@ class MetricsModule(BaseModule):
         super().__init__(log_stream)
 
     # set job or task metrics
-    def set_workload_metrics(self, jedi_task_id: int, panda_id: int | None, metrics: dict, use_commit: bool = True) -> bool:
+    def set_workload_metrics(self, jedi_task_id: int, panda_id: int | None, metrics: dict[str, Any], use_commit: bool = True) -> bool:
         """
         Set job or task metrics
 
@@ -96,7 +96,7 @@ class MetricsModule(BaseModule):
             return False
 
     # get job or task metrics
-    def get_workload_metrics(self, jedi_task_id: int, panda_id: int | None = None) -> tuple[bool, dict | None]:
+    def get_workload_metrics(self, jedi_task_id: int, panda_id: int | None = None) -> tuple[bool, dict[str, Any] | None]:
         """
         Get job metrics or task metrics
 
@@ -142,7 +142,7 @@ class MetricsModule(BaseModule):
             return False, None
 
     # get jobs' metrics in a task
-    def get_jobs_metrics_in_task(self, jedi_task_id: int) -> tuple[bool, list | None]:
+    def get_jobs_metrics_in_task(self, jedi_task_id: int) -> tuple[bool, list[list[Any]] | None]:
         """
         Get metrics of jobs in a task
 
@@ -634,7 +634,7 @@ class MetricsModule(BaseModule):
             return False, {}
 
     # get core statistics with VO and prodSourceLabel
-    def get_core_statistics(self, vo: str, prod_source_label: str) -> tuple[bool, dict]:
+    def get_core_statistics(self, vo: str, prod_source_label: str) -> tuple[bool, dict[str, dict[str, int]]]:
         comment = " /* DBProxy.get_core_statistics */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prod_source_label}")
         tmpLog.debug("start")
@@ -642,7 +642,7 @@ class MetricsModule(BaseModule):
         sql0 += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel "
         sql0 += "GROUP BY computingSite,cloud,prodSourceLabel,jobStatus "
         var_map = {":vo": vo, ":prodSourceLabel": prod_source_label}
-        return_map: dict[str, Any] = {}
+        return_map: dict[str, dict[str, int]] = {}
         try:
             self.conn.begin()
             # select

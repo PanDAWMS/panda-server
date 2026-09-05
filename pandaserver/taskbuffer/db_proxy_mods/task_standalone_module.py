@@ -219,7 +219,7 @@ class TaskStandaloneModule(BaseModule):
             return failedRet
 
     # get JEDI tasks with selection criteria
-    def getTaskIDsWithCriteria_JEDI(self, criteria: dict, since: str | None = None, nTasks: int = 50) -> list[int] | None:
+    def getTaskIDsWithCriteria_JEDI(self, criteria: dict[str, Any], since: str | None = None, nTasks: int = 50) -> list[int] | None:
         """Get JEDI task IDs matching equality criteria and an optional time window.
 
         Args:
@@ -1988,7 +1988,7 @@ class TaskStandaloneModule(BaseModule):
 
     # get file spec of lib.tgz
     def get_previous_build_file_spec(
-        self, jedi_task_id: int, site_name: str, associated_sites: list
+        self, jedi_task_id: int, site_name: str, associated_sites: list[str]
     ) -> tuple[bool, JediFileSpec | None, JediDatasetSpec | None]:
         """
         Get the file and dataset specs of lib.tgz for a given task ID and site name which was generated in a previous submission cycle.
@@ -3089,7 +3089,7 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # get throttled users and their tasks
-    def getThrottledUsersTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None) -> dict:
+    def getThrottledUsersTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None) -> dict[str, dict[str, dict[int, int]]]:
         """
         Get throttled users and their tasks.
 
@@ -3754,7 +3754,7 @@ class TaskStandaloneModule(BaseModule):
             return {}
 
     # count the number of jobs and cores per user or working group in VO and production source label
-    def count_jobs_per_uid_JEDI(self, vo: str, prod_source_label: str) -> dict[str, dict]:
+    def count_jobs_per_uid_JEDI(self, vo: str, prod_source_label: str) -> dict[str, dict[str, int]]:
         """Count the number of jobs and cores per user or working group in VO and production source label.
         Args:
             vo: VO name to filter jobs.
@@ -5040,7 +5040,7 @@ class TaskStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} {dataset_name} n_files={len(lfns)}")
         tmp_log.debug("start")
         try:
-            dataset_names: list | None = []
+            dataset_names: list[str] | None = []
             known_lfns = set()
             # sql to get dataset
             sql_d = (
