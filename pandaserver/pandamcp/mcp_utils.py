@@ -1,6 +1,7 @@
 import inspect
 import os.path
 from collections.abc import Callable
+from typing import Any
 
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.tools.tool import Tool
@@ -12,7 +13,7 @@ from pandaserver.srvcore.panda_request import PandaRequest
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
-def create_tool(func: Callable, name: str | None = None) -> Tool:
+def create_tool(func: Callable[..., Any], name: str | None = None) -> Tool:
     """
     Create an MCP tool that wraps the API call.
 

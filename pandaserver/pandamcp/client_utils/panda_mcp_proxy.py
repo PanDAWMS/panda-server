@@ -47,6 +47,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import Any
 
 try:
     import httpx
@@ -114,14 +115,14 @@ class TokenManager:
             return 0.0
 
     @staticmethod
-    def _load_file() -> dict:
+    def _load_file() -> dict[str, Any]:
         try:
             return json.loads(TOKEN_FILE.read_text())
         except Exception:
             return {}
 
     @staticmethod
-    def _save_file(data: dict) -> None:
+    def _save_file(data: dict[str, Any]) -> None:
         try:
             TOKEN_FILE.write_text(json.dumps(data))
         except Exception as exc:
@@ -129,13 +130,13 @@ class TokenManager:
 
     # urllib is used here (no httpx) so this can be called without an async client
     @staticmethod
-    def _http_get_json(url: str, ssl_ctx: ssl.SSLContext) -> dict:
+    def _http_get_json(url: str, ssl_ctx: ssl.SSLContext) -> dict[str, Any]:
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req, context=ssl_ctx, timeout=15) as r:
             return json.load(r)
 
     @staticmethod
-    def _http_post_form(url: str, data: dict, ssl_ctx: ssl.SSLContext) -> dict:
+    def _http_post_form(url: str, data: dict[str, str], ssl_ctx: ssl.SSLContext) -> dict[str, Any]:
         encoded = urllib.parse.urlencode(data).encode()
         req = urllib.request.Request(url, data=encoded, method="POST")
         req.add_header("Content-Type", "application/x-www-form-urlencoded")
@@ -226,7 +227,7 @@ def _parse_sse(lines: list[str]) -> tuple[str, str]:
 # ── Stdio helpers (cross-platform) ────────────────────────────────────────────
 
 
-async def _read_stdin_lines(queue: asyncio.Queue) -> None:
+async def _read_stdin_lines(queue: asyncio.Queue[str]) -> None:
     """Read newline-delimited JSON from stdin and push to queue. Runs in a thread."""
     loop = asyncio.get_event_loop()
 
@@ -243,7 +244,7 @@ async def _read_stdin_lines(queue: asyncio.Queue) -> None:
             await queue.put(line)
 
 
-async def _write_stdout_lines(queue: asyncio.Queue) -> None:
+async def _write_stdout_lines(queue: asyncio.Queue[str]) -> None:
     """Write newline-delimited JSON from queue to stdout."""
     loop = asyncio.get_event_loop()
 
@@ -270,10 +271,10 @@ class MCPProxy:
     def __init__(self):
         self.tokens = TokenManager()
         self._session_id: str | None = None
-        self._outbound: asyncio.Queue = asyncio.Queue()  # stdin  → remote
-        self._inbound: asyncio.Queue = asyncio.Queue()  # remote → stdout
+        self._outbound: asyncio.Queue[str] = asyncio.Queue()  # stdin  → remote
+        self._inbound: asyncio.Queue[str] = asyncio.Queue()  # remote → stdout
 
-    async def _headers(self, extra: dict | None = None) -> dict:
+    async def _headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         token = await self.tokens.get()
         h = {
             "Authorization": f"Bearer {token}",
