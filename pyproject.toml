@@ -149,6 +149,7 @@ module = [
     "pandajedi.jediconfig.*",
     "pandajedi.jediexec.*",
     "pandajedi.jedigen.*",
+    "pandajedi.jedisetup.*",
     "pandaserver.config.*",
 ]
 disallow_untyped_defs = true

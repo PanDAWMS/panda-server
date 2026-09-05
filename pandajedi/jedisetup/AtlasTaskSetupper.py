@@ -1,10 +1,17 @@
 import traceback
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.spec_column import Null
 
 from .TaskSetupperBase import TaskSetupperBase
 
@@ -14,14 +21,14 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # task setup for ATLAS
 class AtlasTaskSetupper(TaskSetupperBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         TaskSetupperBase.__init__(self, taskBufferIF, ddmIF)
         self.user_container_lifetime = taskBufferIF.getConfigValue("user_output", "OUTPUT_CONTAINER_LIFETIME", "jedi")
         if not self.user_container_lifetime:
             self.user_container_lifetime = 14
 
     # main to setup task
-    def doSetup(self, taskSpec, datasetToRegister, pandaJobs):
+    def doSetup(self, taskSpec: JediTaskSpec, datasetToRegister: list[int | Null], pandaJobs: list[JobSpec]) -> Interaction.StatusCode:
         # make logger
         tmpLog = MsgWrapper(logger, f"< jediTaskID={taskSpec.jediTaskID} >")
         tmpLog.info(f"start label={taskSpec.prodSourceLabel} taskType={taskSpec.taskType}")
@@ -114,6 +121,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                 if locForRule is None:
                                     locForRule = location
                                 # set metadata
+                                metaData: dict[str, Any] | None
                                 if taskSpec.prodSourceLabel in ["managed", "test"] and targetName == datasetSpec.datasetName:
                                     metaData = {}
                                     metaData["task_id"] = taskSpec.jediTaskID
@@ -145,7 +153,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                     tmpToRegister = False
                                     if userSetup and targetName == datasetSpec.datasetName and datasetSpec.site not in ["", None]:
                                         if taskSpec.workingGroup:
-                                            userName = taskSpec.workingGroup
+                                            userName: str | None = taskSpec.workingGroup
                                         else:
                                             userName = taskSpec.userName
                                         grouping = None
