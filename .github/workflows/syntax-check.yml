@@ -64,3 +64,29 @@ jobs:
       run: |
         pip install 'mypy==2.3.1' 'types-requests==2.33.0.20260712' 'types-PyYAML==6.0.12.20260815'
         mypy
+
+    # None of the gates above executes a class body, so a class that cannot be created
+    # passes all three and fails at import time instead -- in a daemon, an outage rather
+    # than a failed check. The case this tree can actually reach is a class attribute that
+    # carries a value while its name is in __slots__, which raises ValueError when the class
+    # is built. Annotating the spec classes is exactly the work that invites it, since the
+    # obvious way to write one is `status: str = ""`, so the gate goes in before that work
+    # rather than after the first outage.
+    #
+    # These four are the spec classes that assign __slots__ and import without a config
+    # file. The fifth, daemons/utils.py's DaemonWorker, is left out on purpose: it pulls in
+    # pandaserver.config.panda_config, which reads panda_server.cfg at import time and does
+    # not swallow the failure, so covering it would mean shipping a config to CI.
+    #
+    # Last, after mypy: panda-common ships py.typed, so installing it changes what mypy
+    # resolves. It produces no findings today -- measured, identical counts with and
+    # without -- but the ordering keeps this step from quietly moving the gate above it.
+    - name: Import the classes that build __slots__
+      run: |
+        pip install 'panda-common>=0.1.9'
+        python -c "
+        import pandaserver.taskbuffer.JobSpec
+        import pandaserver.taskbuffer.FileSpec
+        import pandaserver.taskbuffer.WorkerSpec
+        import pandaserver.taskbuffer.HarvesterMetricsSpec
+        "
