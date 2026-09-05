@@ -15,6 +15,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.PickleJobSpec import PickleJobSpec
 
 _logger = PandaLogger().getLogger("setupper")
@@ -75,8 +76,10 @@ class Setupper(threading.Thread):
             # run main procedure in the same process
             tmp_log.debug("start")
             tmp_log.debug(f"first_submission={self.first_submission}")
-            # make Specs pickleable
-            p_job_list = []
+            # make Specs pickleable. Declared as the base type: the plugins below take
+            # List[JobSpec], and an inferred list[PickleJobSpec] would not be assignable
+            # to it, list being invariant
+            p_job_list: List[JobSpec] = []
             for job_spec in self.jobs:
                 p_job = PickleJobSpec()
                 p_job.update(job_spec)
