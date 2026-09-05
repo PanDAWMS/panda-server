@@ -1,11 +1,15 @@
 import json
 import re
 import uuid
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jediddm.DDMInterface import DDMInterface
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from .TaskGeneratorBase import TaskGeneratorBase
 
@@ -15,11 +19,11 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # task generator for ATLAS
 class AtlasTaskGenerator(TaskGeneratorBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         TaskGeneratorBase.__init__(self, taskBufferIF, ddmIF)
 
     # main to generate task
-    def doGenerate(self, taskSpec, taskParamMap, **varMap):
+    def doGenerate(self, taskSpec: JediTaskSpec, taskParamMap: dict[str, Any], **varMap: Any) -> Interaction.StatusCode:
         # make logger
         tmpLog = MsgWrapper(logger, f"<jediTaskID={taskSpec.jediTaskID}>")
         tmpLog.info(f"start taskType={taskSpec.taskType}")

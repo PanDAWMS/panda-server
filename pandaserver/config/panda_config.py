@@ -279,7 +279,7 @@ g_pluginMap: dict[str, Any] = {}
 
 
 # parser for plugin setup
-def parsePluginConf(modConfigName):
+def parsePluginConf(modConfigName: str) -> None:
     global tmpSelf
     global g_pluginMap
     g_pluginMap.setdefault(modConfigName, {})
@@ -312,7 +312,7 @@ def parsePluginConf(modConfigName):
 
 
 # accessor for plugin
-def getPlugin(modConfigName, vo, group=None):
+def getPlugin(modConfigName: str, vo: str, group: str | None = None) -> type[Any] | None:
     if modConfigName not in g_pluginMap:
         return None
     if group:
@@ -331,6 +331,6 @@ def getPlugin(modConfigName, vo, group=None):
 
 
 # plug-ins
-def setupPlugin():
+def setupPlugin() -> None:
     parsePluginConf("adder_plugins")
     parsePluginConf("setupper_plugins")
