@@ -47,7 +47,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, production=False, request_method="POST")
-def submit_workflow_raw_request(req: PandaRequest, params: dict | str) -> dict:
+def submit_workflow_raw_request(req: PandaRequest, params: dict[str, Any] | str) -> dict[str, Any]:
     """
     Submit raw request of PanDA native workflow.
 
@@ -100,7 +100,7 @@ def submit_workflow_raw_request(req: PandaRequest, params: dict | str) -> dict:
 
 
 @request_validation(_logger, secure=True, production=False, request_method="POST")
-def submit_workflow(req: PandaRequest, workflow_definition: dict) -> dict:
+def submit_workflow(req: PandaRequest, workflow_definition: dict[str, Any]) -> dict[str, Any]:
     """
     Submit a PanDA native workflow.
 

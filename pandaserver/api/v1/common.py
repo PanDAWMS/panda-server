@@ -46,7 +46,7 @@ def get_endpoint(protocol):
     return True, endpoint
 
 
-def extract_allowed_methods(module: ModuleType) -> list:
+def extract_allowed_methods(module: ModuleType) -> list[str]:
     """
     Generate the allowed methods dynamically with all function names present in the API module, excluding
     functions imported from other modules or the init_task_buffer function
@@ -151,7 +151,7 @@ def has_production_role(req):
 ACCESS_LEVELS = ("owner", "production", "anyone")
 
 
-def set_owner_info(parameters: dict, req, access: str = "owner", structured_result: bool = False) -> dict:
+def set_owner_info(parameters: dict[str, Any], req, access: str = "owner", structured_result: bool = False) -> dict[str, Any]:
     """
     Embed the requester, access level and result format into an async request's parameters dict.
     Used by the endpoints submitting async requests when building parameters_json.

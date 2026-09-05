@@ -9,7 +9,7 @@ import traceback
 import uuid
 import zlib
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -89,7 +89,7 @@ def _get_content_length(req: PandaRequest, tmp_logger: LogWrapper) -> int:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
+def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
     """
     Upload a JEDI log file
 
@@ -160,7 +160,7 @@ def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
+def update_jedi_log(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
     """
     Update a JEDI log file
 
@@ -244,7 +244,7 @@ def download_jedi_log(req: PandaRequest, log_name: str, offset: int = 0) -> str:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
+def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
     """
     Upload a cache file
 
@@ -401,7 +401,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def touch_cache_file(req: PandaRequest, file_name: str) -> Dict:
+def touch_cache_file(req: PandaRequest, file_name: str) -> Dict[str, Any]:
     """
     Touch file in the cache directory.
 
@@ -433,7 +433,7 @@ def touch_cache_file(req: PandaRequest, file_name: str) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def delete_cache_file(req: PandaRequest, file_name: str) -> Dict:
+def delete_cache_file(req: PandaRequest, file_name: str) -> Dict[str, Any]:
     """
     Delete cache file
 
@@ -463,7 +463,7 @@ def delete_cache_file(req: PandaRequest, file_name: str) -> Dict:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_size: int, checksum: str) -> Dict:
+def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_size: int, checksum: str) -> Dict[str, Any]:
     """
     Register cache file
 
@@ -504,7 +504,7 @@ def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def validate_cache_file(req: PandaRequest, file_size: int, checksum: int | str) -> Dict:
+def validate_cache_file(req: PandaRequest, file_size: int, checksum: int | str) -> Dict[str, Any]:
     """
     Validate cache file
 
@@ -549,7 +549,7 @@ def _get_checkpoint_filename(task_id: str, sub_id: str) -> str:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
+def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
     """
     Upload a HPO checkpoint file
 
@@ -610,7 +610,7 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def delete_hpo_checkpoint(req: PandaRequest, task_id: str, sub_id: str) -> Dict:
+def delete_hpo_checkpoint(req: PandaRequest, task_id: str, sub_id: str) -> Dict[str, Any]:
     """
     Delete a HPO checkpoint file.
 
@@ -751,7 +751,7 @@ def upload_file_recovery_request(
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_workflow_request(req: PandaRequest, data: str, dry_run: bool = False, sync: bool = False) -> Dict:
+def upload_workflow_request(req: PandaRequest, data: str, dry_run: bool = False, sync: bool = False) -> Dict[str, Any]:
     """
     Upload workflow request to the server.
 
@@ -839,7 +839,7 @@ def upload_event_picking_request(
     user_task_name: str = "",
     ei_api: str = "",
     include_guids: bool = False,
-) -> Dict:
+) -> Dict[str, Any]:
     """
     Upload event picking request to the server.
 

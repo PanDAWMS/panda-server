@@ -1,3 +1,5 @@
+from typing import Any
+
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -31,7 +33,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="GET")
-def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: int, task_id: int, timeout=60) -> dict:
+def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: int, task_id: int, timeout=60) -> dict[str, Any]:
     """
     Get available event range count
 
@@ -77,7 +79,7 @@ def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: i
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_event_range_statuses(req: PandaRequest, job_task_ids: str) -> dict:
+def get_event_range_statuses(req: PandaRequest, job_task_ids: str) -> dict[str, Any]:
     """
     Get event range statuses
 
@@ -119,7 +121,7 @@ def acquire_event_ranges(
     timeout: int = 60,
     scattered: bool = False,
     segment_id: int | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """
     Acquire event ranges
 

@@ -79,7 +79,7 @@ MAX_MATCH_LIMIT = 200000  # ceiling on max_matches
 MAX_TAIL_BYTES = 1 << 30  # 1 GiB; a window this wide is already generous
 
 
-def _structured_result_response(req_row: Dict[str, Any], results: list) -> Dict[str, Any]:
+def _structured_result_response(req_row: Dict[str, Any], results: list[dict[str, Any]]) -> Dict[str, Any]:
     """
     Build the response of a request whose handler stores a {"success", "message", "data"} payload.
 

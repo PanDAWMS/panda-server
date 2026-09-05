@@ -76,8 +76,8 @@ def acquire_jobs(
     job_type: str | None = None,
     via_topic: bool | None = None,
     remaining_time=None,
-    target_architecture: dict | str | None = None,
-) -> dict:
+    target_architecture: dict[str, Any] | str | None = None,
+) -> dict[str, Any]:
     """
     Acquire jobs
 
@@ -309,7 +309,7 @@ def acquire_jobs(
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> dict:
+def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> dict[str, Any]:
     """
     Get job status
 
@@ -674,7 +674,7 @@ def update_job(
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_jobs_bulk(req, job_list: List, harvester_id: str | None = None):
+def update_jobs_bulk(req, job_list: List[dict[str, Any]], harvester_id: str | None = None):
     """
     Update jobs in bulk
 

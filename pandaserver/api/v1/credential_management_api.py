@@ -2,7 +2,7 @@ import json
 import os
 import socket
 from threading import Lock
-from typing import List
+from typing import Any, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -31,7 +31,7 @@ global_token_cache = token_cache.TokenCache()
 
 # Read by init_task_buffer() from the token cacher config, and empty until then. It was
 # only ever created inside that function, so every handler raised NameError before it ran
-global_token_cache_config: dict = {}
+global_token_cache_config: dict[str, dict[str, Any]] = {}
 
 global_lock = Lock()
 
@@ -88,7 +88,7 @@ def _validate_user_permissions(compact_name, tokenized=False) -> tuple[bool, str
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def set_user_secrets(req: PandaRequest, key: str | None = None, value: str | None = None) -> dict:
+def set_user_secrets(req: PandaRequest, key: str | None = None, value: str | None = None) -> dict[str, Any]:
     """
     Set user secrets
 
@@ -118,7 +118,7 @@ def set_user_secrets(req: PandaRequest, key: str | None = None, value: str | Non
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_user_secrets(req: PandaRequest, keys: List[str] | None = None) -> dict:
+def get_user_secrets(req: PandaRequest, keys: List[str] | None = None) -> dict[str, Any]:
     """
     Get user secrets
 
@@ -163,7 +163,7 @@ def get_user_secrets(req: PandaRequest, keys: List[str] | None = None) -> dict:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str) -> dict:
+def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str) -> dict[str, Any]:
     """
     Get key pair
 
@@ -219,7 +219,7 @@ def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str)
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_proxy(req: PandaRequest, role: str | None = None, dn: str | None = None) -> dict:
+def get_proxy(req: PandaRequest, role: str | None = None, dn: str | None = None) -> dict[str, Any]:
     """
     Get proxy
 
@@ -273,7 +273,7 @@ def get_proxy(req: PandaRequest, role: str | None = None, dn: str | None = None)
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_access_token(req: PandaRequest, client_name: str, token_key: str | None = None) -> dict:
+def get_access_token(req: PandaRequest, client_name: str, token_key: str | None = None) -> dict[str, Any]:
     """
     Get access token
 
@@ -336,7 +336,7 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str | None 
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_token_key(req: PandaRequest, client_name: str) -> dict:
+def get_token_key(req: PandaRequest, client_name: str) -> dict[str, Any]:
     """
     Get token key
 

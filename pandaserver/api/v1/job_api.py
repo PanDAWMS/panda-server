@@ -1,6 +1,6 @@
 import sys
 import traceback
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -81,7 +81,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
 
 
 @request_validation(_logger, secure=True)
-def get_description(req: PandaRequest, job_ids: List[int]) -> Dict:
+def get_description(req: PandaRequest, job_ids: List[int]) -> Dict[str, Any]:
     """
     Get description of a job.
 

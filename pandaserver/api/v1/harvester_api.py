@@ -33,7 +33,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
+def update_workers(req: PandaRequest, harvester_id: str, workers: List[dict[str, Any]]) -> dict[str, Any]:
     """
     Update workers.
 
@@ -80,7 +80,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list) -> Dict[str, Any]:
+def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list[list[str]]) -> Dict[str, Any]:
     """
     Update harvester service metrics.
 
@@ -93,7 +93,9 @@ def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list) 
     Args:
         req(PandaRequest): internally generated request object
         harvester_id(str): harvester id, e.g. `harvester_central_A`
-        metrics(list): list of triplets `[[host, timestamp, metric_dict],[host, timestamp, metric_dict]...]`. The metric dictionary is json encoded, as it is stored in the database like that.
+        metrics(list): list of triplets `[[timestamp, host, metrics_json],[timestamp, host, metrics_json]...]`, all three of them strings.
+            The metrics are json encoded, as they are stored in the database like that. The order is the one
+            DBProxy.updateServiceMetrics reads and the one the example below builds.
             ```
             harvester_host = "harvester_host.cern.ch"
             creation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -138,7 +140,7 @@ def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list) 
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def add_dialogs(req: PandaRequest, harvester_id: str, dialogs: list) -> Dict[str, Any]:
+def add_dialogs(req: PandaRequest, harvester_id: str, dialogs: list[dict[str, Any]]) -> Dict[str, Any]:
     """
     Add harvester dialog messages.
 
@@ -179,7 +181,7 @@ def add_dialogs(req: PandaRequest, harvester_id: str, dialogs: list) -> Dict[str
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def heartbeat(req: PandaRequest, harvester_id: str, data: dict | None = None) -> Dict[str, Any]:
+def heartbeat(req: PandaRequest, harvester_id: str, data: dict[str, Any] | None = None) -> Dict[str, Any]:
     """
     Heartbeat for harvester.
 
@@ -340,7 +342,7 @@ def acquire_commands(req: PandaRequest, harvester_id: str, n_commands: int, time
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def acknowledge_commands(req: PandaRequest, command_ids: List, timeout: int = 30) -> Dict[str, Any]:
+def acknowledge_commands(req: PandaRequest, command_ids: List[int], timeout: int = 30) -> Dict[str, Any]:
     """
     Acknowledge harvester commands.
 
