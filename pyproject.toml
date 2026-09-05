@@ -128,3 +128,8 @@ ignore_missing_imports = true
 # which is most of this tree, so the gate would only cover the code that needs it
 # least. New code goes through the gate whether or not its author annotates it.
 check_untyped_defs = true
+# A bare `dict` or `list` in an annotation says nothing about what is in it, and
+# nothing outside mypy -- the code map, an MCP tool schema, the next reader -- can
+# recover it. Filling the parameters in is what makes an annotation worth having,
+# so it is required rather than left to whoever writes the line.
+disallow_any_generics = true
