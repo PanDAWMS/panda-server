@@ -111,7 +111,7 @@ class Closer:
         # set status to 'tobeclosed' to trigger Rucio closing
         return "tobeclosed"
 
-    def perform_vo_actions(self, final_status_dataset: list) -> None:
+    def perform_vo_actions(self, final_status_dataset: list[DatasetSpec]) -> None:
         """
         Perform special actions for vo.
 

@@ -28,6 +28,7 @@ from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.dataservice.setupper_plugin_base import SetupperPluginBase
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
 
 
 class SetupperAtlasPlugin(SetupperPluginBase):
@@ -42,7 +43,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
     site_mapper: SiteMapper
 
     # constructor
-    def __init__(self, taskBuffer, jobs: List, logger, **params: Dict) -> None:
+    def __init__(self, taskBuffer, jobs: List[JobSpec], logger, **params: Any) -> None:
         """
         Constructor for the SetupperAtlasPlugin class.
 

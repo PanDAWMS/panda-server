@@ -3,9 +3,10 @@ This class is a dummy plugin. It inherits from the SetupperPluginBase class.
 """
 
 import uuid
-from typing import Any, Dict, List
+from typing import Any, List
 
 from pandaserver.dataservice.setupper_plugin_base import SetupperPluginBase
+from pandaserver.taskbuffer.JobSpec import JobSpec
 
 
 class SetupperDummyPlugin(SetupperPluginBase):
@@ -14,7 +15,7 @@ class SetupperDummyPlugin(SetupperPluginBase):
     """
 
     # constructor
-    def __init__(self, taskBuffer, jobs: List, logger, **params: Dict) -> None:
+    def __init__(self, taskBuffer, jobs: List[JobSpec], logger, **params: Any) -> None:
         """
         Constructor for the SetupperDummyPlugin class.
 

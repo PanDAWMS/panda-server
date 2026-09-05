@@ -10,7 +10,7 @@ import re
 import threading
 import time
 import traceback
-from typing import Any, Dict, List, NoReturn
+from typing import Any, Dict, List, NoReturn, TypedDict
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -62,6 +62,19 @@ _FATAL_REGISTRATION_ERRORS = (
 
 
 # rucio
+class RegisteredDataset(TypedDict):
+    """What register_dataset() reports about the dataset it registered.
+
+    A per-key type rather than dict[str, str | int]: callers assign vuid straight to
+    DatasetSpec.vuid, which is a string column, and a union covering version as well
+    would make every one of those assignments a type error.
+    """
+
+    duid: str
+    version: int
+    vuid: str
+
+
 class RucioAPI:
     """
     A class to interact with Rucio API
@@ -147,14 +160,14 @@ class RucioAPI:
     def register_dataset(
         self,
         dataset_name: str,
-        lfns: list | None = None,
-        guids: list | None = None,
-        sizes: list | None = None,
-        checksums: list | None = None,
+        lfns: list[str] | None = None,
+        guids: list[str] | None = None,
+        sizes: list[int] | None = None,
+        checksums: list[str] | None = None,
         lifetime: int | None = None,
         scope: str | None = None,
-        metadata: dict | None = None,
-    ) -> dict:
+        metadata: dict[str, Any] | None = None,
+    ) -> "RegisteredDataset":
         """
         Register a dataset in Rucio
 
@@ -181,6 +194,9 @@ class RucioAPI:
             checksums = []
         preset_scope = scope
         files = []
+        # still the argument at this point: extract_scope() does not run until after this loop,
+        # so an unscoped lfn with no scope argument leaves this None
+        file_scope: str | None
         for lfn, guid, size, checksum in zip(lfns, guids, sizes, checksums):
             if lfn.find(":") > -1:
                 file_scope, lfn = lfn.split(":")[0], lfn.split(":")[1]
@@ -233,7 +249,7 @@ class RucioAPI:
     def register_dataset_location(
         self,
         dataset_name: str,
-        rses: list,
+        rses: list[str],
         lifetime: int | None = None,
         owner: str | None = None,
         activity: str | None = None,
@@ -317,7 +333,7 @@ class RucioAPI:
     def register_dataset_subscription(
         self,
         dataset_name: str,
-        rses: list,
+        rses: list[str],
         lifetime: int | None = None,
         owner: str | None = None,
         activity: str | None = None,
@@ -382,7 +398,7 @@ class RucioAPI:
         return True
 
     # convert file attribute
-    def convert_file_attributes(self, tmp_file: dict, scope: str) -> dict:
+    def convert_file_attributes(self, tmp_file: dict[str, Any], scope: str) -> dict[str, Any]:
         """
         Convert file attribute to a dictionary
 
@@ -429,9 +445,9 @@ class RucioAPI:
     # register files in dataset
     def register_files_in_dataset(
         self,
-        id_map: dict,
-        files_without_rses: list | dict | None = None,
-        files_to_skip_validation: list | None = None,
+        id_map: dict[str | None, Any],
+        files_without_rses: list[str] | dict[str, Any] | None = None,
+        files_to_skip_validation: list[str] | None = None,
         ignore_missing_data_identifier: bool = False,
     ) -> bool:
         """
@@ -478,7 +494,7 @@ class RucioAPI:
                         n_files = 100
                         i_files = 0
                         while i_files < len(files_with_rse):
-                            attachment = {
+                            attachment: dict[str, Any] = {
                                 "scope": scope,
                                 "name": given_dataset_name,
                                 "dids": files_with_rse[i_files : i_files + n_files],
@@ -532,7 +548,7 @@ class RucioAPI:
             self._raise_fatal_registration_error(e)
 
     # register zip files
-    def register_zip_files(self, zip_map: dict) -> None:
+    def register_zip_files(self, zip_map: dict[str, Any]) -> None:
         """
         Register zip files in Rucio.
 
@@ -1048,7 +1064,7 @@ class RucioAPI:
             client = self._get_rucio_client()
             # the user record, or the error message when the lookup fails, which is what the
             # second element of the returned pair means
-            user_info: dict | str | None = None
+            user_info: dict[str, Any] | str | None = None
             return_value = False
             x509_user_name = CoreUtils.get_bare_dn(distinguished_name)
             oidc_user_name = CoreUtils.get_id_from_dn(distinguished_name)

@@ -1,7 +1,9 @@
 """
 Base class for setupper plugins. It separates normal and jumbo jobs and sets parameters.
 """
-from typing import List, Dict
+
+from typing import Any, Dict, List
+
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
@@ -17,7 +19,7 @@ class SetupperPluginBase(object):
     first_submission: bool
     resubmit: bool
 
-    def __init__(self, taskBuffer, jobs: List[JobSpec], logger, params: Dict, default_map: Dict) -> None:
+    def __init__(self, taskBuffer, jobs: List[JobSpec], logger, params: Dict[str, Any], default_map: Dict[str, Any]) -> None:
         """
         Constructor for the SetupperPluginBase class.
 

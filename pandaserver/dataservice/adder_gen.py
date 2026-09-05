@@ -686,7 +686,7 @@ class AdderGen:
         except Exception:
             self.logger.error(f"update_worker_node_gpu: issue with updating worker node GPU specs: {traceback.format_exc()}")
 
-    def extract_executor_metadata(self, json_dict: dict) -> None:
+    def extract_executor_metadata(self, json_dict: dict[str, Any]) -> None:
         """
         Extract values from the executor metaData in the job report and set them in extra_info.
 

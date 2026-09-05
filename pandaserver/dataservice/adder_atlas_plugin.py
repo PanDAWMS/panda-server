@@ -650,7 +650,7 @@ class AdderAtlasPlugin(AdderPluginBase):
 
         # decompose idMap
         if self.add_to_top_only:
-            dest_id_map = {None: id_map}
+            dest_id_map: dict[str | None, Any] = {None: id_map}
         else:
             dest_id_map = self.decompose_id_map(id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_ds_map, alt_staged_files)
 
@@ -696,7 +696,14 @@ class AdderAtlasPlugin(AdderPluginBase):
         self.logger.debug("addFiles end")
         return 0
 
-    def register_files(self, reg_num_files: int, zip_files: dict, dest_id_map: dict, cont_zip_map: dict, log_files: list | None = None) -> int | None:
+    def register_files(
+        self,
+        reg_num_files: int,
+        zip_files: dict[str, Any],
+        dest_id_map: dict[str | None, Any],
+        cont_zip_map: dict[str, Any],
+        log_files: list[str] | None = None,
+    ) -> int | None:
         """
         Register files with Rucio.
 
@@ -1044,7 +1051,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             # get ES dataset name
             event_service_dataset = EventServiceUtils.getEsDatasetName(self.job.jediTaskID)
             # collect files
-            id_map: dict[str, Any] = {}
+            id_map: dict[str | None, Any] = {}
             file_set = set()
             for file_spec in self.job.Files:
                 if file_spec.type != "zipoutput":

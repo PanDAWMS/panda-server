@@ -120,7 +120,7 @@ class EventPicker:
             return f'<a href="{output}">log</a>'
         return output
 
-    def get_options_from_file(self) -> dict:
+    def get_options_from_file(self) -> dict[str, Any]:
         """
         Gets options from the event picking file.
 
@@ -177,7 +177,7 @@ class EventPicker:
                             options[key] += "_ref"
         return options
 
-    def get_jedi_task_id(self, options: dict) -> int:
+    def get_jedi_task_id(self, options: dict[str, Any]) -> int:
         """
         Gets the jediTaskID.
 
