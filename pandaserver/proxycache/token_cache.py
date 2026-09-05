@@ -14,6 +14,7 @@ from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore.oidc_utils import get_access_token
+from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("token_cache")
@@ -26,7 +27,9 @@ class TokenCache:
     """
 
     # constructor
-    def __init__(self, target_path: str | None = None, file_prefix: str | None = None, refresh_interval: int = 60, task_buffer=None):
+    def __init__(
+        self, target_path: str | None = None, file_prefix: str | None = None, refresh_interval: int = 60, task_buffer: TaskBuffer | None = None
+    ) -> None:
         """
         Constructs all the necessary attributes for the TokenCache object.
 
@@ -61,7 +64,7 @@ class TokenCache:
         return os.path.join(self.target_path, f"{self.file_prefix}{client_name}")
 
     # main
-    def run(self):
+    def run(self) -> None:
         """ "
         Main function to download access tokens
         """

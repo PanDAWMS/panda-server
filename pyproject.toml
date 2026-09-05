@@ -151,6 +151,7 @@ module = [
     "pandajedi.jedigen.*",
     "pandajedi.jedisetup.*",
     "pandaserver.config.*",
+    "pandaserver.proxycache.*",
 ]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
