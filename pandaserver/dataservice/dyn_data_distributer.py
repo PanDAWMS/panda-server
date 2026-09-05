@@ -692,8 +692,14 @@ class DynDataDistributer:
         return True, ret_map
 
     def convert_evt_run_to_datasets(
-        self, event_run_list: List, dataset_type: str, stream_name: str, dataset_filters: List, ami_tag: str, run_evt_guid_map: Dict
-    ) -> Tuple[bool, Dict, List]:
+        self,
+        event_run_list: List[List[str]],
+        dataset_type: str,
+        stream_name: str,
+        dataset_filters: List[str],
+        ami_tag: str,
+        run_evt_guid_map: Dict[tuple[int, int], List[str]],
+    ) -> Tuple[bool, Dict[str, Any], List[Dict[str, Any]]]:
         """
         Convert event/run list to datasets.
 
@@ -712,8 +718,10 @@ class DynDataDistributer:
         tmp_logger.debug(f"convert_evt_run_to_datasets type={dataset_type} stream={stream_name} dsPatt={str(dataset_filters)} amitag={ami_tag}")
 
         # check data type
-        failed_ret: Tuple[bool, Dict, List] = False, {}, []
-        fatal_ret: Tuple[bool, Dict, List] = False, {"isFatal": True}, []
+        # the second slot is either the locations map or the {"isFatal": True} marker the
+        # caller tests for, so it is Any rather than the locations type
+        failed_ret: Tuple[bool, Dict[str, Any], List[Dict[str, Any]]] = False, {}, []
+        fatal_ret: Tuple[bool, Dict[str, Any], List[Dict[str, Any]]] = False, {"isFatal": True}, []
         stream_ref = "Stream" + dataset_type
         # import event lookup client
         if run_evt_guid_map == {}:
@@ -771,7 +779,7 @@ class DynDataDistributer:
         all_locations = {}
         for tmp_idx in run_evt_guid_map:
             tmp_guids = run_evt_guid_map[tmp_idx]
-            run_nr, evt_nr = tmp_idx
+            key_run_nr, key_evt_nr = tmp_idx
             tmp_ds_ret, tmp_dataset_map = self.list_datasets_by_guids(tmp_guids, dataset_filters)
             # failed
             if not tmp_ds_ret:
@@ -783,11 +791,11 @@ class DynDataDistributer:
                 return failed_ret
             # empty
             if not tmp_dataset_map:
-                tmp_logger.error(f"there is no dataset for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}")
+                tmp_logger.error(f"there is no dataset for Run:{key_run_nr} Evt:{key_evt_nr} GUIDs:{str(tmp_guids)}")
                 tmp_logger.debug("end")
                 return fatal_ret
             if len(tmp_dataset_map) != 1:
-                tmp_logger.error(f"there are multiple datasets {str(tmp_dataset_map)} for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}")
+                tmp_logger.error(f"there are multiple datasets {str(tmp_dataset_map)} for Run:{key_run_nr} Evt:{key_evt_nr} GUIDs:{str(tmp_guids)}")
                 tmp_logger.debug("end")
                 return fatal_ret
 
@@ -815,8 +823,9 @@ class DynDataDistributer:
 
                 # get file info
                 tmp_file_ret, tmp_file_info = self.get_file_from_dataset(tmp_dataset_name, tmp_guid)
-                # failed
-                if not tmp_file_ret:
+                # failed. get_file_from_dataset returns (False, None) together, so the second
+                # test never fires on its own -- it is what lets the append below see a dict
+                if not tmp_file_ret or tmp_file_info is None:
                     tmp_logger.error(f"failed to get fileinfo for GUID:{tmp_guid} DS:{tmp_dataset_name}")
                     tmp_logger.debug("end")
                     return failed_ret
