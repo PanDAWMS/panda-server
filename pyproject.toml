@@ -152,6 +152,7 @@ module = [
     "pandajedi.jedisetup.*",
     "pandajedi.jedithrottle.*",
     "pandaserver.asyncprocess.*",
+    "pandaserver.brokerage.*",
     "pandaserver.config.*",
     "pandaserver.jobdispatcher.*",
     "pandaserver.proxycache.*",

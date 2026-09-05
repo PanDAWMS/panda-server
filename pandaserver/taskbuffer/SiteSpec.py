@@ -141,8 +141,10 @@ class SiteSpec(object):
     # scope -> endpoints of that scope
     ddm_endpoints_input: dict[str, DdmSpec]
     ddm_endpoints_output: dict[str, DdmSpec]
-    maxrss: int | None
-    minrss: int | None
+    # CRIC gives these as integers, but SiteMapper.get_child_site_spec scales them by a core
+    # ratio when it derives a child queue, so a spec in the map can hold either
+    maxrss: float | None
+    minrss: float | None
     direct_access_lan: bool
     direct_access_wan: bool
     tier: str | None

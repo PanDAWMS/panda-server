@@ -6,6 +6,7 @@ import socket
 import sys
 import time
 import traceback
+from collections.abc import Collection
 from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -217,6 +218,7 @@ def get_sites_with_data(
         # get associated DDM endpoints
         tmp_site_spec = site_mapper.getSite(tmp_site_name)
         scope_input, scope_output = select_scope(tmp_site_spec, JobUtils.ANALY_PS, JobUtils.ANALY_PS)
+        input_endpoints: Collection[str]
         try:
             input_endpoints = tmp_site_spec.ddm_endpoints_input[scope_input].all.keys()
         except Exception:

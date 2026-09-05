@@ -9,7 +9,9 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
 from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
+from pandaserver.taskbuffer.ResourceSpec import ResourceSpec
 from pandaserver.taskbuffer.SiteSpec import SiteSpec
+from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("SiteMapper")
 
@@ -31,14 +33,14 @@ NUCLEUS_TAG = "nucleus:"
 
 
 class SiteMapper:
-    def __init__(self, taskBuffer, verbose=False):
+    def __init__(self, taskBuffer: TaskBuffer, verbose: bool = False) -> None:
         _logger.debug("__init__ SiteMapper")
         try:
             self.siteSpecList: dict[str, Any] = {}
             self.cloudSpec: dict[str, Any] = {}  # in reality this is a dictionary of clouds, not a "spec" object
             self.worldCloudSpec: dict[str, Any] = {}
-            self.nuclei = {}
-            self.satellites = {}
+            self.nuclei: dict[str, NucleusSpec] = {}
+            self.satellites: dict[str, NucleusSpec] = {}
             self.endpoint_to_sites_map: dict[str, dict[str, list[str]]] = {"input": {}, "output": {}}
 
             # get resource types
@@ -150,24 +152,35 @@ class SiteMapper:
 
         _logger.debug("__init__ SiteMapper done")
 
-    def get_child_site_spec(self, site_spec, resource_spec):
+    def get_child_site_spec(self, site_spec: SiteSpec, resource_spec: ResourceSpec) -> SiteSpec | None:
         core_count = max(1, site_spec.coreCount)
 
         # make sure our queue is compatible with the resource type
         if resource_spec.mincore is not None and core_count < resource_spec.mincore:
             return None
 
+        # Both memory bounds are scaled below, so a queue missing either cannot produce a child.
+        # Returning None skips just this queue: the loop in __init__ that calls this only logs the
+        # exceptions it catches, so raising here would take every child queue of every queue with it.
+        if site_spec.minrss is None or site_spec.maxrss is None:
+            _logger.warning(f"cannot derive child queues for {site_spec.sitename}: minrss={site_spec.minrss} maxrss={site_spec.maxrss}")
+            return None
+
         # copy the site spec for the child site and later overwrite relevant fields
         child_site_spec = copy.copy(site_spec)
         child_site_spec.sitename = f"{site_spec.sitename}/{resource_spec.resource_name}"
 
+        # an unset mincore is no lower bound -- the check above is the only place the resource type
+        # requires one -- and core_count is already at least 1, so 1 leaves every bound below alone
+        min_core = resource_spec.mincore if resource_spec.mincore is not None else 1
+
         # calculate the core count for the child queue
         if resource_spec.maxcore is None:
-            child_site_spec.coreCount = max(core_count, resource_spec.mincore)
+            child_site_spec.coreCount = max(core_count, min_core)
         else:
             child_site_spec.coreCount = max(
                 min(core_count, resource_spec.maxcore),
-                resource_spec.mincore,
+                min_core,
             )
 
         # calculate the minRSS for the child queue
@@ -200,7 +213,7 @@ class SiteMapper:
         return child_site_spec
 
     # collect nuclei and satellites
-    def collect_nuclei_and_satellites(self, ret):
+    def collect_nuclei_and_satellites(self, ret: SiteSpec) -> None:
         # only consider production sites
         if not ret.runs_production():
             return
@@ -243,7 +256,7 @@ class SiteMapper:
         # add the site name and ddm endpoints
         target[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output, ret.ddm_endpoints_input)
 
-    def clean_site_name(self, site_name):
+    def clean_site_name(self, site_name: str) -> str:
         try:
             if site_name.startswith(NUCLEUS_TAG):
                 tmp_name = site_name.split(":")[-1]
@@ -257,7 +270,7 @@ class SiteMapper:
         return site_name
 
     # accessor for site
-    def getSite(self, site_name):
+    def getSite(self, site_name: str) -> SiteSpec:
         site_name = self.clean_site_name(site_name)
 
         # Return the site spec if it exists
@@ -268,19 +281,19 @@ class SiteMapper:
         return DEFAULT_SITE
 
     # check if site exists
-    def checkSite(self, site_name):
+    def checkSite(self, site_name: str) -> bool:
         site_name = self.clean_site_name(site_name)
         return site_name in self.siteSpecList
 
     # resolve nucleus
-    def resolveNucleus(self, site_name):
-        site_name = self.clean_site_name(site_name)
-        if site_name == "NULL":
-            site_name = None
-        return site_name
+    def resolveNucleus(self, site_name: str) -> str | None:
+        resolved: str | None = self.clean_site_name(site_name)
+        if resolved == "NULL":
+            resolved = None
+        return resolved
 
     # accessor for cloud
-    def getCloud(self, cloud):
+    def getCloud(self, cloud: str) -> dict[str, Any]:
         if cloud in self.cloudSpec:
             return self.cloudSpec[cloud]
 
@@ -291,7 +304,7 @@ class SiteMapper:
         return self.worldCloudSpec
 
     # accessor for cloud
-    def checkCloud(self, cloud):
+    def checkCloud(self, cloud: str) -> bool:
         if cloud in self.cloudSpec:
             return True
 
@@ -301,11 +314,11 @@ class SiteMapper:
         return False
 
     # accessor for cloud list
-    def getCloudList(self):
+    def getCloudList(self) -> list[str]:
         return list(self.cloudSpec)
 
     # get DDM endpoint
-    def getDdmEndpoint(self, site_name, storage_token, prod_source_label, job_label):
+    def getDdmEndpoint(self, site_name: str, storage_token: str, prod_source_label: str, job_label: str) -> str | None:
         # Skip if site doesn't exist
         if not self.checkSite(site_name):
             return None
@@ -320,19 +333,19 @@ class SiteMapper:
         return site_spec.ddm_output[scope_output]
 
     # get nucleus
-    def getNucleus(self, site_name):
+    def getNucleus(self, site_name: str) -> NucleusSpec | None:
         if site_name in self.nuclei:
             return self.nuclei[site_name]
         if site_name in self.satellites:
             return self.satellites[site_name]
         return None
 
-    def dump_site_information(self):
+    def dump_site_information(self) -> None:
         _logger.debug("========= site dump =========")
         for tmp_site_spec in self.siteSpecList.values():
             _logger.debug(f"Site->{str(tmp_site_spec)}")
 
-    def dump_cloud_information(self):
+    def dump_cloud_information(self) -> None:
         for cloud_name_tmp, cloud_spec_tmp in self.cloudSpec.items():
             # Generate lists of sites with special cases (offline or not existing)
             sites_with_issues = []
