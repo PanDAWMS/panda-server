@@ -2,10 +2,14 @@ import datetime
 import smtplib
 import time
 import uuid
+from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
@@ -16,10 +20,10 @@ smtpPortList = [25, 587]
 
 # wrapper to patch smtplib.stderr to send debug info to logger
 class StderrLogger(object):
-    def __init__(self, tmpLog):
+    def __init__(self, tmpLog: MsgWrapper) -> None:
         self.tmpLog = tmpLog
 
-    def write(self, message):
+    def write(self, message: str) -> None:
         message = message.strip()
         if message != "":
             self.tmpLog.debug(message)
@@ -27,7 +31,7 @@ class StderrLogger(object):
 
 # wrapper of SMTP to redirect messages
 class MySMTP(smtplib.SMTP):
-    def set_log(self, tmp_log):
+    def set_log(self, tmp_log: StderrLogger) -> None:
         self.tmpLog = tmp_log
         try:
             self.org_stderr = getattr(smtplib, "stderr")
@@ -35,10 +39,10 @@ class MySMTP(smtplib.SMTP):
         except Exception:
             self.org_stderr = None
 
-    def _print_debug(self, *args):
+    def _print_debug(self, *args: Any) -> None:
         self.tmpLog.write(" ".join(map(str, args)))
 
-    def reset_log(self):
+    def reset_log(self) -> None:
         if self.org_stderr is not None:
             setattr(smtplib, "stderr", self.org_stderr)
 
@@ -51,7 +55,7 @@ class PostProcessorBase(object):
     SC_FATAL: Interaction.StatusCode
 
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         self.ddmIF = ddmIF
         self.taskBufferIF = taskBufferIF
         self.msgType = "postprocessor"
@@ -59,11 +63,11 @@ class PostProcessorBase(object):
         self.refresh()
 
     # refresh
-    def refresh(self):
+    def refresh(self) -> None:
         self.siteMapper = self.taskBufferIF.get_site_mapper()
 
     # basic post procedure
-    def doBasicPostProcess(self, taskSpec, tmpLog):
+    def doBasicPostProcess(self, taskSpec: JediTaskSpec, tmpLog: MsgWrapper) -> None:
         # update task status
         taskSpec.lockedBy = None
         taskSpec.status = self.getFinalTaskStatus(taskSpec, update_error_dialog=True)
@@ -115,11 +119,11 @@ class PostProcessorBase(object):
         return
 
     # final procedure
-    def doFinalProcedure(self, taskSpec, tmpLog):
+    def doFinalProcedure(self, taskSpec: JediTaskSpec, tmpLog: MsgWrapper) -> Interaction.StatusCode:
         return self.SC_SUCCEEDED
 
     # send mail
-    def sendMail(self, jediTaskID, fromAdd, toAdd, msgBody, nTry, fileBackUp, tmpLog):
+    def sendMail(self, jediTaskID: int, fromAdd: str, toAdd: str, msgBody: str, nTry: int, fileBackUp: bool, tmpLog: MsgWrapper) -> None:
         tmpLog.debug(f"sending notification to {toAdd}\n{msgBody}")
         for iTry in range(nTry):
             try:
@@ -154,11 +158,11 @@ class PostProcessorBase(object):
             pass
 
     # return email sender
-    def senderAddress(self):
+    def senderAddress(self) -> str:
         return panda_config.emailSender
 
     # get task completeness
-    def getTaskCompleteness(self, taskSpec):
+    def getTaskCompleteness(self, taskSpec: JediTaskSpec) -> tuple[int, int, int, int, float]:
         nFiles = 0
         nFilesFinished = 0
         totalInputEvents = 0
@@ -275,7 +279,7 @@ class PostProcessorBase(object):
         return status
 
     # pre-check
-    def doPreCheck(self, taskSpec: JediTaskSpec, tmpLog):
+    def doPreCheck(self, taskSpec: JediTaskSpec, tmpLog: MsgWrapper) -> bool:
         # send task to exhausted
         if (
             taskSpec.useExhausted()

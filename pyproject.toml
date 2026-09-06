@@ -149,6 +149,7 @@ module = [
     "pandajedi.jediconfig.*",
     "pandajedi.jediexec.*",
     "pandajedi.jedigen.*",
+    "pandajedi.jedipprocess.*",
     "pandajedi.jedirefine.*",
     "pandajedi.jedisetup.*",
     "pandajedi.jedithrottle.*",

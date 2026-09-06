@@ -12,17 +12,23 @@ import time
 import traceback
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
+from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandajedi.jedirefine import RefinerUtils
 from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from .MailTemplates import html_head, jedi_task_html_body, jedi_task_plain
 from .PostProcessorBase import PostProcessorBase
 
 
-def format_weight(weight):
+def format_weight(weight: float) -> str:
     """Convert a CO2 weight in grams to a human-readable string with the appropriate unit."""
     power = 1000
     n = 0
@@ -37,15 +43,15 @@ def format_weight(weight):
 class AtlasAnalPostProcessor(PostProcessorBase):
     """Post-processor for ATLAS analysis tasks."""
 
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         PostProcessorBase.__init__(self, taskBufferIF, ddmIF)
-        self.taskParamMap = None
+        self.taskParamMap: dict[str, Any] | None = None
         self.user_container_lifetime = taskBufferIF.getConfigValue("user_output", "OUTPUT_CONTAINER_LIFETIME", "jedi")
         if not self.user_container_lifetime:
             self.user_container_lifetime = 14
         self.user_container_lifetime *= 24 * 60 * 60
 
-    def doPostProcess(self, taskSpec, tmp_logger):
+    def doPostProcess(self, taskSpec: JediTaskSpec, tmp_logger: MsgWrapper) -> Interaction.StatusCode:
         """
         Run post-processing steps for a finished ATLAS analysis task.
 
@@ -184,7 +190,7 @@ class AtlasAnalPostProcessor(PostProcessorBase):
 
         return ret_val
 
-    def doFinalProcedure(self, taskSpec, tmp_logger):
+    def doFinalProcedure(self, taskSpec: JediTaskSpec, tmp_logger: MsgWrapper) -> Interaction.StatusCode:
         """
         Send an email notification to the task owner with a task summary.
 
@@ -249,7 +255,7 @@ class AtlasAnalPostProcessor(PostProcessorBase):
 
         return self.SC_SUCCEEDED
 
-    def compose_message(self, taskSpec, carbon_footprint):
+    def compose_message(self, taskSpec: JediTaskSpec, carbon_footprint: dict[str, str]) -> tuple[str, str, str]:
         """
         Build HTML and plain-text email bodies summarising the task outcome.
 
@@ -371,7 +377,7 @@ class AtlasAnalPostProcessor(PostProcessorBase):
 
         return message_html, message_plain, subject
 
-    def getEmail(self, user_name, vo, tmp_logger):
+    def getEmail(self, user_name: str, vo: str, tmp_logger: MsgWrapper) -> str | None:
         """
         Resolve the email address for user_name, using a 1-hour DB cache.
 
@@ -430,7 +436,7 @@ class AtlasAnalPostProcessor(PostProcessorBase):
 
         return ret_suppressed
 
-    def removeTags(self, tmp_str):
+    def removeTags(self, tmp_str: str | None) -> str | None:
         """Strip HTML tags from tmp_str, returning the cleaned string."""
         try:
             if tmp_str is not None:

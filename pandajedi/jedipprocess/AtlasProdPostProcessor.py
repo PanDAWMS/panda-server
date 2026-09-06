@@ -2,8 +2,13 @@
 Post-processor implementation for ATLAS production tasks.
 """
 
+from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from . import AtlasPostProcessorUtils
 from .PostProcessorBase import PostProcessorBase
@@ -12,10 +17,10 @@ from .PostProcessorBase import PostProcessorBase
 class AtlasProdPostProcessor(PostProcessorBase):
     """Post-processor for ATLAS production tasks."""
 
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         PostProcessorBase.__init__(self, taskBufferIF, ddmIF)
 
-    def doPostProcess(self, taskSpec, tmpLog):
+    def doPostProcess(self, taskSpec: JediTaskSpec, tmpLog: MsgWrapper) -> Interaction.StatusCode:
         """
         Run post-processing steps for a finished ATLAS production task.
 
@@ -124,7 +129,7 @@ class AtlasProdPostProcessor(PostProcessorBase):
 
         return self.SC_SUCCEEDED
 
-    def doFinalProcedure(self, taskSpec, tmpLog):
+    def doFinalProcedure(self, taskSpec: JediTaskSpec, tmpLog: MsgWrapper) -> Interaction.StatusCode:
         """
         Apply final DDM metadata updates after post-processing completes.
 
