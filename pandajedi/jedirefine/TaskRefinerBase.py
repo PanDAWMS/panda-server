@@ -8,10 +8,14 @@ from typing import Any, List
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction, JediException
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.taskbuffer import EventServiceUtils, task_split_rules
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
 from pandaserver.taskbuffer.JediFileSpec import JediFileSpec
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 
 from . import RefinerUtils
 
@@ -35,37 +39,43 @@ class TaskRefinerBase(object):
     # reads the task spec before one is installed is a bug either way.
     taskSpec: JediTaskSpec
 
+    # Installed by initializeRefiner() before any of the refine methods run, for the same
+    # reason as taskSpec: the only two callers pass a real logger, and __init__ passes None
+    # solely to create the attribute.
+    tmpLog: MsgWrapper
+
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         self.ddmIF = ddmIF
         self.taskBufferIF = taskBufferIF
         self.initializeRefiner(None)
         self.refresh()
 
     # refresh
-    def refresh(self):
+    def refresh(self) -> None:
         self.siteMapper = self.taskBufferIF.get_site_mapper()
 
     # initialize
-    def initializeRefiner(self, tmpLog):
+    def initializeRefiner(self, tmpLog: MsgWrapper | None) -> None:
         self.taskSpec = None  # type: ignore[assignment]
-        self.inMasterDatasetSpec = []
-        self.inSecDatasetSpecList = []
+        self.inMasterDatasetSpec: list[JediDatasetSpec] = []
+        self.inSecDatasetSpecList: list[JediDatasetSpec] = []
         self.outDatasetSpecList: List[JediDatasetSpec] = []
-        self.outputTemplateMap = {}
-        self.jobParamsTemplate = None
-        self.cloudName = None
-        self.siteName = None
-        self.tmpLog = tmpLog
-        self.updatedTaskParams = None
-        self.unmergeMasterDatasetSpec = {}
-        self.unmergeDatasetSpecMap = {}
-        self.oldTaskStatus = None
-        self.unknownDatasetList = []
-        self.in_content_dataset_specs = []
+        # keyed by JediDatasetSpec.outputMapKey(); one entry per file associated to the dataset
+        self.outputTemplateMap: dict[str, list[dict[str, Any]]] = {}
+        self.jobParamsTemplate: str | None = None
+        self.cloudName: str | None = None
+        self.siteName: str | None = None
+        self.tmpLog = tmpLog  # type: ignore[assignment]
+        self.updatedTaskParams: dict[str, Any] | None = None
+        self.unmergeMasterDatasetSpec: dict[str, JediDatasetSpec] = {}
+        self.unmergeDatasetSpecMap: dict[str, JediDatasetSpec] = {}
+        self.oldTaskStatus: str | None = None
+        self.unknownDatasetList: list[str] = []
+        self.in_content_dataset_specs: list[JediDatasetSpec] = []
 
     # set jobParamsTemplate
-    def setJobParamsTemplate(self, jobParamsTemplate):
+    def setJobParamsTemplate(self, jobParamsTemplate: str) -> None:
         self.jobParamsTemplate = jobParamsTemplate
 
     # create a unique identifier of the payload based on the task parameters
@@ -94,7 +104,13 @@ class TaskRefinerBase(object):
         return uuid.uuid5(uuid.NAMESPACE_DNS, base_str).hex
 
     # extract common parameters
-    def extractCommon(self, jediTaskID, taskParamMap, workQueueMapper, splitRule):
+    def extractCommon(
+        self,
+        jediTaskID: int,
+        taskParamMap: dict[str, Any],
+        workQueueMapper: WorkQueueMapper,
+        splitRule: str | None,
+    ) -> None:
         # remove irrelevant
         if "maxAttempt" in taskParamMap and not taskParamMap["maxAttempt"]:
             del taskParamMap["maxAttempt"]
@@ -488,7 +504,7 @@ class TaskRefinerBase(object):
         return
 
     # basic refinement procedure
-    def doBasicRefine(self, taskParamMap):
+    def doBasicRefine(self, taskParamMap: dict[str, Any]) -> None:
         # get input/output/log dataset specs
         nIn = 0
         nOutMap = {}
@@ -888,7 +904,7 @@ class TaskRefinerBase(object):
         return
 
     # replace placeholder with dict provided by prepro job
-    def replacePlaceHolders(self, paramItem, placeHolderName, newValue):
+    def replacePlaceHolders(self, paramItem: Any, placeHolderName: str, newValue: Any) -> None:
         if isinstance(paramItem, dict):
             # loop over all dict params
             for tmpParName, tmpParVal in paramItem.items():
@@ -904,7 +920,7 @@ class TaskRefinerBase(object):
                 self.replacePlaceHolders(tmpItem, placeHolderName, newValue)
 
     # refinement procedure for preprocessing
-    def doPreProRefine(self, taskParamMap):
+    def doPreProRefine(self, taskParamMap: dict[str, Any]) -> tuple[bool | None, dict[str, Any]]:
         # no preprocessing
         if "preproSpec" not in taskParamMap:
             return None, taskParamMap
@@ -981,7 +997,7 @@ class TaskRefinerBase(object):
         return True, taskParamMap
 
     # set split rule
-    def setSplitRule(self, taskParamMap, key_or_value, rule_token):
+    def setSplitRule(self, taskParamMap: dict[str, Any] | None, key_or_value: str | int | None, rule_token: str) -> None:
         if taskParamMap is not None:
             if key_or_value not in taskParamMap:
                 self.taskSpec.splitRule = task_split_rules.remove_rule(self.taskSpec.splitRule, rule_token)
@@ -1005,7 +1021,7 @@ class TaskRefinerBase(object):
         return
 
     # get parameters for event service merging
-    def getParamsForEventServiceMerging(self, taskParamMap):
+    def getParamsForEventServiceMerging(self, taskParamMap: dict[str, Any]) -> str | None:
         # no event service
         if not self.taskSpec.useEventService() or self.taskSpec.on_site_merging():
             return None

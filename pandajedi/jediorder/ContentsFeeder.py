@@ -281,9 +281,9 @@ class ContentsFeederThread(WorkerThread):
                             continue
                         # get file list specified in task parameters
                         if taskSpec.is_work_segmented() and not datasetSpec.isPseudo() and not datasetSpec.isMaster():
-                            fileList = []
-                            includePatt = []
-                            excludePatt = []
+                            fileList: list[str] = []
+                            includePatt: list[str] = []
+                            excludePatt: list[str] = []
                             try:
                                 segment_id = int(id_to_container[datasetSpec.masterID].split("/")[-1])
                                 for item in taskParamMap["segmentSpecs"]:

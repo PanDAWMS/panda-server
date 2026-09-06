@@ -3,11 +3,15 @@ import json
 import random
 import re
 import traceback
+from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
-from pandajedi.jedicore import JediException
+from pandajedi.jedicore import Interaction, JediException
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.dataservice import DataServiceUtils
+from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 
 from .TaskRefinerBase import TaskRefinerBase
 
@@ -15,11 +19,17 @@ from .TaskRefinerBase import TaskRefinerBase
 # brokerage for ATLAS production
 class AtlasProdTaskRefiner(TaskRefinerBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         TaskRefinerBase.__init__(self, taskBufferIF, ddmIF)
 
     # extract common parameters
-    def extractCommon(self, jediTaskID, taskParamMap, workQueueMapper, splitRule):
+    def extractCommon(
+        self,
+        jediTaskID: int,
+        taskParamMap: dict[str, Any],
+        workQueueMapper: WorkQueueMapper,
+        splitRule: str | None,
+    ) -> None:
         tmpLog = self.tmpLog
         # set ddmBackEnd
         if "ddmBackEnd" not in taskParamMap:
@@ -91,7 +101,7 @@ class AtlasProdTaskRefiner(TaskRefinerBase):
         TaskRefinerBase.extractCommon(self, jediTaskID, taskParamMap, workQueueMapper, splitRule)
 
     # main
-    def doRefine(self, jediTaskID, taskParamMap):
+    def doRefine(self, jediTaskID: int, taskParamMap: dict[str, Any]) -> Interaction.StatusCode:
         # make logger
         tmpLog = self.tmpLog
         tmpLog.debug(f"start taskType={self.taskSpec.taskType}")
