@@ -364,13 +364,13 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
 
     # action for high priority pending tasks
     def doActionForHighPrioPending(self, gTmpLog, minPriority, timeoutVal):
-        timeoutForPending = None
+        config_timeout: str | int | None = None
         # try to get the timeout from the config files
         if hasattr(jedi_config.watchdog, "timeoutForPendingVoLabel"):
-            timeoutForPending = CoreUtils.getConfigParam(jedi_config.watchdog.timeoutForPendingVoLabel, self.vo, self.prodSourceLabel)
-        if timeoutForPending is None:
-            timeoutForPending = jedi_config.watchdog.timeoutForPending
-        timeoutForPending = int(timeoutForPending) * 24
+            config_timeout = CoreUtils.getConfigParam(jedi_config.watchdog.timeoutForPendingVoLabel, self.vo, self.prodSourceLabel)
+        if config_timeout is None:
+            config_timeout = jedi_config.watchdog.timeoutForPending
+        timeoutForPending = int(config_timeout) * 24
         tmpRet, _ = self.taskBufferIF.reactivatePendingTasks_JEDI(self.vo, self.prodSourceLabel, timeoutVal, timeoutForPending, minPriority=minPriority)
         if tmpRet is None:
             # failed

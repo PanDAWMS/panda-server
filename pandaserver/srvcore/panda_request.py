@@ -11,6 +11,7 @@ else:
     token_decoder = TokenDecoder()
 
 import traceback
+from typing import Any
 
 import jwt
 
@@ -18,12 +19,15 @@ cache_dict = CacheDict()
 
 
 # decode token
-def decode_token(serialized_token, env, tmp_log):
+def decode_token(serialized_token: str, env: dict[str, Any], tmp_log: Any) -> dict[str, Any]:
     authenticated = False
     message_str = None
     # every entry becomes an environment variable for the subprocess, so the values are
     # strings even where the name they came from could have been None
     subprocess_env: dict[str, str] = {}
+    # either an OIDC claim map or a scitokens SciToken, depending on which decoder the
+    # configuration selected at import time
+    token: Any
     try:
         vo = None
         role = None
@@ -165,15 +169,15 @@ def decode_token(serialized_token, env, tmp_log):
 
 # PanDA request object
 class PandaRequest:
-    def __init__(self, env, tmp_log):
+    def __init__(self, env: dict[str, Any], tmp_log: Any) -> None:
         # environment
         self.subprocess_env = env
         # header
-        self.headers_in = {}
+        self.headers_in: dict[str, Any] = {}
         # authentication
         self.authenticated = True
         # message
-        self.message = None
+        self.message: str | None = None
 
         # content-length
         if "CONTENT_LENGTH" in self.subprocess_env:
@@ -197,13 +201,13 @@ class PandaRequest:
             )
 
     # get remote host
-    def get_remote_host(self):
+    def get_remote_host(self) -> str:
         if "REMOTE_HOST" in self.subprocess_env:
             return self.subprocess_env["REMOTE_HOST"]
         return ""
 
     # accept json
-    def acceptJson(self):
+    def acceptJson(self) -> bool:
         try:
             if "HTTP_ACCEPT" in self.subprocess_env:
                 return "application/json" in self.subprocess_env["HTTP_ACCEPT"]

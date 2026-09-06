@@ -5,17 +5,26 @@ import math
 import os
 import re
 import subprocess
+from collections.abc import Callable, Sequence
 from threading import Lock
-from typing import Any, Generator, TypedDict, TypeVar
+from typing import TYPE_CHECKING, Any, Generator, TypedDict, TypeVar
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
+
+if TYPE_CHECKING:
+    # Importing these for real makes this module read a configuration file at import time,
+    # and it has no other reason to need one. Annotations are evaluated at runtime in this
+    # tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+    from pandaserver.taskbuffer.JobSpec import JobSpec
+    from pandaserver.taskbuffer.SiteSpec import SiteSpec
 
 # create_shards passes its elements straight through, so the shard type follows the input
 _ShardElement = TypeVar("_ShardElement")
 
 
 # replacement for commands
-def commands_get_status_output(com):
+def commands_get_status_output(com: str) -> tuple[int, str]:
     data = ""
     try:
         p = subprocess.Popen(
@@ -39,7 +48,11 @@ def commands_get_status_output(com):
 
 
 # extract name from DN
-def clean_user_id(id):
+def clean_user_id(id: str | None) -> str | None:
+    if id is None:
+        # the bare except below already returned the argument unchanged for anything the
+        # regexes could not be applied to; saying so up front is the same answer
+        return None
     try:
         up = re.compile("/(DC|O|OU|C|L)=[^\/]+")
         username = up.sub("", id)
@@ -78,7 +91,7 @@ def clean_user_id(id):
 
 
 # extract bare string from DN
-def get_bare_dn(dn, keep_proxy=False, keep_digits=True):
+def get_bare_dn(dn: str, keep_proxy: bool = False, keep_digits: bool = True) -> str:
     dn = re.sub("/CN=limited proxy", "", dn)
     if keep_proxy:
         dn = re.sub("/CN=proxy(/CN=proxy)+", "/CN=proxy", dn)
@@ -90,7 +103,7 @@ def get_bare_dn(dn, keep_proxy=False, keep_digits=True):
 
 
 # extract id string from DN
-def get_id_from_dn(dn, keep_proxy=False, keep_digits=True):
+def get_id_from_dn(dn: str, keep_proxy: bool = False, keep_digits: bool = True) -> str:
     m = re.search("/CN=nickname:([^/]+)", dn)
     if m:
         return m.group(1)
@@ -119,7 +132,7 @@ def get_distinguished_name_list(distinguished_name: str) -> list[str]:
     return name_list
 
 
-def normalize_cpu_model(cpu_model):
+def normalize_cpu_model(cpu_model: str) -> str:
     cpu_model = cpu_model.upper()
     # Remove GHz, cache sizes, and redundant words
     cpu_model = re.sub(r"@\s*\d+(\.\d+)?\s*GHZ", "", cpu_model)
@@ -132,7 +145,7 @@ def normalize_cpu_model(cpu_model):
     return cpu_model
 
 
-def clean_host_name(host_name):
+def clean_host_name(host_name: str) -> str:
     # If the worker node comes in the slot1@worker1.example.com format, we remove the slot1@ part
     match = re.search(r"@(.+)", host_name)
     host_name = match.group(1) if match else host_name
@@ -146,7 +159,7 @@ def clean_host_name(host_name):
 
 
 # resolve string bool
-def resolve_bool(param):
+def resolve_bool(param: Any) -> Any:
     if isinstance(param, bool):
         return param
     if param == "True":
@@ -163,7 +176,7 @@ class CachedObject:
     cachedObj: Any
 
     # constructor
-    def __init__(self, name, time_interval, update_func, log_stream):
+    def __init__(self, name: str, time_interval: int, update_func: Callable[[], tuple[Any, Any]], log_stream: Any) -> None:
         # name
         self.name = name
         # cached object
@@ -180,7 +193,7 @@ class CachedObject:
         self.log_stream = log_stream
 
     # update obj
-    def update(self):
+    def update(self) -> None:
         # lock
         self.lock.acquire()
         # get current datetime
@@ -202,7 +215,7 @@ class CachedObject:
         return
 
     # contains
-    def __contains__(self, item):
+    def __contains__(self, item: Any) -> bool:
         self.update()
         contains = False
         try:
@@ -212,21 +225,21 @@ class CachedObject:
         return contains
 
     # get item
-    def __getitem__(self, name):
+    def __getitem__(self, name: Any) -> Any:
         self.update()
         return self.cachedObj[name]
 
     # get method
-    def get(self, *var):
+    def get(self, *var: Any) -> Any:
         return self.cachedObj.get(*var)
 
     # get object
-    def get_object(self):
+    def get_object(self) -> Any:
         self.lock.acquire()
         return self.cachedObj
 
     # release object
-    def release_object(self):
+    def release_object(self) -> None:
         self.lock.release()
 
 
@@ -237,15 +250,15 @@ class CacheDict:
     """
 
     # constructor
-    def __init__(self, update_interval=10, cleanup_interval=60):
+    def __init__(self, update_interval: int = 10, cleanup_interval: int = 60) -> None:
         self.idx = 0
         self.lock = Lock()
-        self.cache_dict = {}
+        self.cache_dict: dict[Any, dict[str, Any]] = {}
         self.update_interval = datetime.timedelta(minutes=update_interval)
         self.cleanup_interval = datetime.timedelta(minutes=cleanup_interval)
         self.last_cleanup = naive_utcnow()
 
-    def cleanup(self, tmp_log):
+    def cleanup(self, tmp_log: Any) -> None:
         """
         Cleanup caches
         :param tmp_log: logger
@@ -260,7 +273,7 @@ class CacheDict:
                         del self.cache_dict[name]
                 self.last_cleanup = current
 
-    def get(self, name, tmp_log, update_func, *update_args, **update_kwargs):
+    def get(self, name: Any, tmp_log: Any, update_func: Callable[..., Any], *update_args: Any, **update_kwargs: Any) -> Any:
         """
         Get updated object
         :param name: name of cache
@@ -300,21 +313,21 @@ class CacheDict:
 
 # convert datetime to string
 class NonJsonObjectEncoder(json.JSONEncoder):
-    def default(self, obj):
+    def default(self, obj: Any) -> Any:
         if isinstance(obj, datetime.datetime):
             return {"_datetime_object": obj.strftime("%Y-%m-%d %H:%M:%S.%f")}
         return json.JSONEncoder.default(self, obj)
 
 
 # hook for json decoder
-def as_python_object(dct):
+def as_python_object(dct: dict[str, Any]) -> Any:
     if "_datetime_object" in dct:
         return datetime.datetime.strptime(str(dct["_datetime_object"]), "%Y-%m-%d %H:%M:%S.%f")
     return dct
 
 
 # get effective file size
-def getEffectiveFileSize(fsize, startEvent, endEvent, nEvents):
+def getEffectiveFileSize(fsize: int | None, startEvent: int | None, endEvent: int | None, nEvents: int | None) -> float:
     inMB = 1024 * 1024
     if fsize in [None, 0]:
         # use dummy size for pseudo input
@@ -334,7 +347,7 @@ def getEffectiveFileSize(fsize, startEvent, endEvent, nEvents):
 
 
 # get effective number of events
-def getEffectiveNumEvents(startEvent, endEvent, nEvents):
+def getEffectiveNumEvents(startEvent: int | None, endEvent: int | None, nEvents: int | None) -> int:
     if endEvent is not None and startEvent is not None:
         evtCounts = endEvent - startEvent + 1
         if evtCounts > 0:
@@ -346,7 +359,7 @@ def getEffectiveNumEvents(startEvent, endEvent, nEvents):
 
 
 # get memory usage
-def getMemoryUsage():
+def getMemoryUsage() -> int | None:
     try:
         t = open(f"/proc/{os.getpid()}/status")
         v = t.read()
@@ -367,7 +380,7 @@ def getMemoryUsage():
 
 
 # check process
-def checkProcess(pid):
+def checkProcess(pid: int) -> bool:
     return os.path.exists(f"/proc/{pid}/status")
 
 
@@ -376,7 +389,7 @@ wallTimeOffset = 10 * 60
 
 
 # convert config parameters
-def convert_config_params(itemStr):
+def convert_config_params(itemStr: str) -> list[Any]:
     items = itemStr.split(":")
     newItems: list[Any] = []
     for item in items:
@@ -393,7 +406,7 @@ def convert_config_params(itemStr):
 
 
 # parse init params
-def parse_init_params(par):
+def parse_init_params(par: Any) -> list[Any]:
     if isinstance(par, list):
         return par
     try:
@@ -403,7 +416,7 @@ def parse_init_params(par):
 
 
 # get config param for vo and prodSourceLabel
-def getConfigParam(configStr, vo, sourceLabel):
+def getConfigParam(configStr: str, vo: str | None, sourceLabel: str | None) -> str | None:
     try:
         for _ in configStr.split(","):
             items = configStr.split(":")
@@ -426,7 +439,7 @@ def getConfigParam(configStr, vo, sourceLabel):
 
 
 # get percentile until numpy 1.5.X becomes available
-def percentile(inList, percent, idMap):
+def percentile(inList: Sequence[float], percent: float, idMap: dict[Any, Any]) -> tuple[float, list[float]]:
     inList = sorted(copy.copy(inList))
     k = (len(inList) - 1) * float(percent) / 100
     f = math.floor(k)
@@ -443,25 +456,27 @@ def percentile(inList, percent, idMap):
 
 
 # get max walltime and cpu count
-def getJobMaxWalltime(taskSpec, inputChunk, totalMasterEvents, jobSpec, siteSpec):
+def getJobMaxWalltime(taskSpec: "JediTaskSpec", inputChunk: Any, totalMasterEvents: int, jobSpec: "JobSpec", siteSpec: "SiteSpec") -> None:
     try:
         if taskSpec.getCpuTime() is None:
             # use PQ maxtime when CPU time is not defined
             jobSpec.maxWalltime = siteSpec.maxtime
             jobSpec.maxCpuCount = siteSpec.maxtime
         else:
-            jobSpec.maxWalltime = taskSpec.getCpuTime()
-            if jobSpec.maxWalltime is not None and jobSpec.maxWalltime > 0:
-                jobSpec.maxWalltime *= totalMasterEvents
+            # the walltime is built up in a local: the column it lands in reads back as the
+            # string "NULL" when unset, which none of the arithmetic below can take
+            max_walltime = taskSpec.getCpuTime()
+            if max_walltime is not None and max_walltime > 0:
+                max_walltime *= totalMasterEvents
                 if siteSpec.coreCount > 0:
-                    jobSpec.maxWalltime /= float(siteSpec.coreCount)
+                    max_walltime /= float(siteSpec.coreCount)
                 if siteSpec.corepower not in [0, None]:
-                    jobSpec.maxWalltime /= siteSpec.corepower
+                    max_walltime /= siteSpec.corepower
             if taskSpec.cpuEfficiency not in [None, 0]:
-                jobSpec.maxWalltime /= float(taskSpec.cpuEfficiency) / 100.0
+                max_walltime /= float(taskSpec.cpuEfficiency) / 100.0
             if taskSpec.baseWalltime is not None:
-                jobSpec.maxWalltime += taskSpec.baseWalltime
-            jobSpec.maxWalltime = int(jobSpec.maxWalltime)
+                max_walltime += taskSpec.baseWalltime
+            jobSpec.maxWalltime = int(max_walltime)
             if taskSpec.useHS06():
                 jobSpec.maxCpuCount = jobSpec.maxWalltime
     except Exception:
@@ -469,7 +484,7 @@ def getJobMaxWalltime(taskSpec, inputChunk, totalMasterEvents, jobSpec, siteSpec
 
 
 # use direct IO for job
-def use_direct_io_for_job(task_spec, site_spec, input_chunk):
+def use_direct_io_for_job(task_spec: "JediTaskSpec", site_spec: "SiteSpec", input_chunk: Any) -> bool:
     # not for merging
     if input_chunk and input_chunk.isMerging:
         return False
@@ -496,7 +511,7 @@ class StopWatch:
         self.step_name: str | None = None
         self.identifier = identifier
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the stopwatch."""
         self.start_time = datetime.datetime.now()
         self.checkpoint = self.start_time

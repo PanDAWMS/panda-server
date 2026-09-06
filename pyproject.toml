@@ -163,6 +163,7 @@ module = [
     "pandaserver.jobdispatcher.*",
     "pandaserver.proxycache.*",
     "pandaserver.server.*",
+    "pandaserver.srvcore.*",
     "pandaserver.test.*",
     "pandaserver.userinterface.*",
 ]

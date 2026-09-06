@@ -252,7 +252,7 @@ class TaskUtilsModule(BaseModule):
             if nJumbo > maxJumbo:
                 tmpLog.debug(f"False since nJumbo={nJumbo} > maxJumbo={maxJumbo}")
                 return False
-            tmpLog.debug("True since nJumbo={0} < maxJumbo={1} and nEvents={2} > minEventsJumbo={3}".format(nJumbo, maxJumbo, nEvents, minEvents))
+            tmpLog.debug(f"True since nJumbo={nJumbo} < maxJumbo={maxJumbo} and nEvents={nEvents} > minEventsJumbo={minEvents}")
             return True
         except Exception:
             # roll back
@@ -573,7 +573,7 @@ class TaskUtilsModule(BaseModule):
         for pandaID, fsize, startEvent, endEvent, nEvents, fType in resList:
             pandaIDList.add(pandaID)
             if pandaID not in inFSizeMap:
-                inFSizeMap[pandaID] = 0
+                inFSizeMap[pandaID] = 0.0
             # get effective file size
             effectiveFsize = CoreUtils.getEffectiveFileSize(fsize, startEvent, endEvent, nEvents)
             inFSizeMap[pandaID] += effectiveFsize

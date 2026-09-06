@@ -1066,8 +1066,9 @@ class RucioAPI:
             # second element of the returned pair means
             user_info: dict[str, Any] | str | None = None
             return_value = False
-            x509_user_name = CoreUtils.get_bare_dn(distinguished_name)
-            oidc_user_name = CoreUtils.get_id_from_dn(distinguished_name)
+            user_name: str | None
+            x509_user_name: str | None = CoreUtils.get_bare_dn(distinguished_name)
+            oidc_user_name: str | None = CoreUtils.get_id_from_dn(distinguished_name)
             if oidc_user_name == x509_user_name:
                 oidc_user_name = None
             else:

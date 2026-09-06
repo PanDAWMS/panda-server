@@ -10,11 +10,12 @@ worker node, when dispatching jobs to a pilot.
 """
 
 import re
+from typing import Any
 
 from packaging import version
 
 
-def compare_version_string(version_string, comparison_string):
+def compare_version_string(version_string: str, comparison_string: str) -> bool | None:
     """
     Compares a version string with another string composed of a comparison operator and a version string.
 
@@ -57,7 +58,7 @@ def compare_version_string(version_string, comparison_string):
         return None
 
 
-def match_gpu_spec(required_gpu_spec, gpus):
+def match_gpu_spec(required_gpu_spec: dict[str, Any], gpus: list[dict[str, Any]]) -> bool:
     """
     Checks whether GPUs satisfy the GPU requirement of a task.
 

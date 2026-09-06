@@ -57,6 +57,9 @@ def main(tbuf=None, **kwargs):
             continue
         realDN = CoreUtils.get_bare_dn(realDN, keep_digits=False)
         name = CoreUtils.clean_user_id(realDN)
+        if name is None:
+            tmpLog.debug(f"skip {realDN} which has no user name")
+            continue
         # check proxy
         tmpLog.debug(f"check proxy cache for {name}")
         for role in roles:

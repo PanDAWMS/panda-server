@@ -460,7 +460,7 @@ class JobGenerator(JediKnight):
                 memLimit = 1.5 * 1024
                 memNow = CoreUtils.getMemoryUsage()
                 tmpLog.debug(f"memUsage now {memNow} MB pid={os.getpid()}")
-                if memNow > memLimit:
+                if memNow is not None and memNow > memLimit:
                     tmpLog.warning(f"memory limit exceeds {memNow} > {memLimit} MB pid={os.getpid()}")
                 tmpLog.debug("trigger garbage collection")
                 gc.collect()
@@ -924,7 +924,7 @@ class JobGeneratorThread(WorkerThread):
                         tmpLog.debug(main_stop_watch.get_elapsed_time(""))
                         tmpLog.info(f"done. took cycle_t={regTime.seconds} sec")
             except Exception as e:
-                logger.error("{}.runImpl() failed with {} lastJediTaskID={} {}".format(self.__class__.__name__, str(e), lastJediTaskID, traceback.format_exc()))
+                logger.error(f"{self.__class__.__name__}.runImpl() failed with {str(e)} lastJediTaskID={lastJediTaskID} {traceback.format_exc()}")
 
     # read task parameters
     def readTaskParams(self, taskSpec, taskParamMap, tmpLog):
@@ -1269,7 +1269,7 @@ class JobGeneratorThread(WorkerThread):
                         tmpLog.debug(stop_watch.get_elapsed_time("inputs"))
                     prodDBlock = None
                     setProdDBlock = False
-                    totalMasterSize = 0
+                    totalMasterSize: float = 0
                     totalMasterEvents = 0
                     totalFileSize = 0
                     lumiBlockNr = None
@@ -1556,7 +1556,7 @@ class JobGeneratorThread(WorkerThread):
                     # multiply maxCpuCount by total master size
                     try:
                         if jobSpec.maxCpuCount > 0:  # type: ignore[operator]  # unset spec column reads back as the "NULL" sentinel; see spec_column.py
-                            jobSpec.maxCpuCount *= totalMasterSize  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
+                            jobSpec.maxCpuCount *= totalMasterSize  # type: ignore[assignment,operator]  # "NULL" sentinel, see spec_column.py
                             jobSpec.maxCpuCount = int(jobSpec.maxCpuCount)
                         else:
                             # negative cpu count to suppress looping job detection
@@ -1571,7 +1571,7 @@ class JobGeneratorThread(WorkerThread):
                         if inputChunk.isMerging:
                             jobSpec.maxDiskCount *= totalFileSize  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                         elif not taskSpec.outputScaleWithEvents():
-                            jobSpec.maxDiskCount *= totalMasterSize  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
+                            jobSpec.maxDiskCount *= totalMasterSize  # type: ignore[assignment,operator]  # "NULL" sentinel, see spec_column.py
                         else:
                             jobSpec.maxDiskCount *= totalMasterEvents  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                     except Exception:
@@ -2017,7 +2017,7 @@ class JobGeneratorThread(WorkerThread):
             tmpStat, fileIdMap = self.taskBufferIF.insertBuildFileSpec_JEDI(jobSpec, reusedDatasetID, simul)
             # failed
             if not tmpStat:
-                tmpLog.error("failed to insert libDS for jediTaskID={0} siteName={1}".format(taskSpec.jediTaskID, siteName))
+                tmpLog.error(f"failed to insert libDS for jediTaskID={taskSpec.jediTaskID} siteName={siteName}")
                 return failedRet
             # set attributes
             for tmpFile in jobSpec.Files:

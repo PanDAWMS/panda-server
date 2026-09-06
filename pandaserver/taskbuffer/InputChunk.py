@@ -344,7 +344,7 @@ class InputChunk:
         useBoundary = self.taskSpec.useGroupWithBoundaryID()
         # LB
         respectLB = self.taskSpec.respectLumiblock()
-        maxAtomSize = 0
+        maxAtomSize: float = 0
         while True:
             if not self.isMerging:
                 maxNumFiles = self.taskSpec.getMaxNumFilesPerJob()
@@ -357,7 +357,7 @@ class InputChunk:
             if subChunk is None:
                 break
             # get size
-            tmpAtomSize = 0
+            tmpAtomSize: float = 0
             lfn_set = set()
             for tmpDatasetSpec, tmpFileSpecList in subChunk:
                 if (effectiveSize or getNumEvents) and not tmpDatasetSpec.isMaster():

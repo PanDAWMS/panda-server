@@ -21,6 +21,9 @@ class ProcessWrapper(multiprocessing.Process):
             proc = multiprocessing.Process(target=self.target, args=self.args)
             proc.start()
             pid = proc.pid
+            if pid is None:
+                print(f"{str(naive_utcnow())} {self.__class__.__name__}: ERROR   failed to start the child process")
+                break
             while True:
                 try:
                     proc.join(20)

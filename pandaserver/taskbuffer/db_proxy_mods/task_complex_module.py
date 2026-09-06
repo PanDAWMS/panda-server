@@ -3494,7 +3494,7 @@ class TaskComplexModule(BaseModule):
                             mem_limit = 1 * 1024
                             mem_now = CoreUtils.getMemoryUsage()
                             tmp_log.debug(f"memUsage now {mem_now} MB pid={os.getpid()}")
-                            if mem_now - mem_start > mem_limit:
+                            if mem_now is not None and mem_start is not None and mem_now - mem_start > mem_limit:
                                 tmp_log.warning(f"memory limit exceeds {mem_now}-{mem_start} > {mem_limit} MB : jediTaskID={jediTaskID}")
                                 memory_exceed = True
                                 break

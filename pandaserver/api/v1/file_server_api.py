@@ -284,6 +284,10 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
     # user name
     user_name = CoreUtils.clean_user_id(req.subprocess_env["SSL_CLIENT_S_DN"])
     tmp_logger.debug(f"user_name={user_name} file_path={file.filename}")
+    if user_name is None:
+        error_message = "SSL_CLIENT_S_DN is missing in the request"
+        tmp_logger.error(error_message)
+        return generate_response(False, message=error_message)
 
     # get file size limit
     # log file

@@ -2889,7 +2889,7 @@ class JobComplexModule(BaseModule):
                 if via_topic and job.is_push_job():
                     tmp_log.debug("delete job message")
                     mb_proxy_queue = self.get_mb_proxy("panda_pilot_queue")
-                    srv_msg_utils.delete_job_message(mb_proxy_queue, job.PandaID)
+                    srv_msg_utils.delete_job_message(mb_proxy_queue, job.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             return retJobs, nSent
         except Exception as e:
             self.dump_error_message(tmp_log)
