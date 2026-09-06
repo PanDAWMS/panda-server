@@ -46,6 +46,10 @@ class AtlasProdPostProcessor(PostProcessorBase):
 
         # get DDM I/F
         ddmIF = self.ddmIF.getInterface(taskSpec.vo)
+        if ddmIF is None:
+            # the same answer the dataset loop below gives when DDM cannot be reached
+            tmpLog.error(f"no DDM interface for vo={taskSpec.vo}")
+            return self.SC_FAILED
 
         # loop over all datasets
         for datasetSpec in taskSpec.datasetSpecList:
@@ -150,6 +154,9 @@ class AtlasProdPostProcessor(PostProcessorBase):
             trnLifeTime = 14 * 24 * 60 * 60
             trnLifeTimeMerge = 40 * 24 * 60 * 60
             ddmIF = self.ddmIF.getInterface(taskSpec.vo)
+            if ddmIF is None:
+                tmpLog.error(f"no DDM interface for vo={taskSpec.vo} to set lifetimes")
+                return self.SC_FAILED
 
             metaData = {"lifetime": trnLifeTime}
             datasetTypeListI = set()
@@ -200,6 +207,9 @@ class AtlasProdPostProcessor(PostProcessorBase):
         if taskSpec.status in ["failed", "broken", "aborted"]:
             trnLifeTime = 30 * 24 * 60 * 60
             ddmIF = self.ddmIF.getInterface(taskSpec.vo)
+            if ddmIF is None:
+                tmpLog.error(f"no DDM interface for vo={taskSpec.vo} to set the log lifetime")
+                return self.SC_FAILED
             metaData = {"lifetime": trnLifeTime}
             for datasetSpec in taskSpec.datasetSpecList:
                 if datasetSpec.type in ["log"]:

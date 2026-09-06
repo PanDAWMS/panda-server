@@ -66,6 +66,10 @@ class AtlasAnalPostProcessor(PostProcessorBase):
         # freeze datasets
         try:
             ddmIF = self.ddmIF.getInterface(taskSpec.vo)
+            if ddmIF is None:
+                # the same answer this file already gives when the DDM lookup below fails
+                tmp_logger.error(f"no DDM interface for vo={taskSpec.vo}")
+                return self.SC_FAILED
 
             # shuffle to avoid always processing in the same order under partial failures
             random.shuffle(taskSpec.datasetSpecList)
@@ -409,7 +413,11 @@ class AtlasAnalPostProcessor(PostProcessorBase):
                 n_tries = 3
                 for iDDMTry in range(n_tries):
                     try:
-                        user_info = self.ddmIF.getInterface(vo).finger(dn)
+                        ddm_interface = self.ddmIF.getInterface(vo)
+                        if ddm_interface is None:
+                            tmp_logger.error(f"no DDM interface for vo={vo}")
+                            return ret_suppressed
+                        user_info = ddm_interface.finger(dn)
                         mail_address = user_info["email"]
                         tmp_logger.debug(f"email from Rucio : {mail_address}")
                         if mail_address is None:

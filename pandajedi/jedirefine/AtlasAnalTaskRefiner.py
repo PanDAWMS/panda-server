@@ -220,7 +220,13 @@ class AtlasAnalTaskRefiner(TaskRefinerBase):
                 # get the latest version of DBR
                 if datasetSpec.datasetName == "DBR_LATEST":
                     tmpLog.debug(f"resolving real name for {datasetSpec.datasetName}")
-                    datasetSpec.datasetName = self.ddmIF.getInterface(self.taskSpec.vo).getLatestDBRelease(useResultCache=3600)
+                    dbr_ddm_if = self.ddmIF.getInterface(self.taskSpec.vo)
+                    if dbr_ddm_if is None:
+                        errStr = f"no DDM interface for vo={self.taskSpec.vo} to resolve {datasetSpec.datasetName}"
+                        tmpLog.error(errStr)
+                        self.taskSpec.setErrDiag(errStr, None)
+                        return self.SC_FATAL
+                    datasetSpec.datasetName = dbr_ddm_if.getLatestDBRelease(useResultCache=3600)
                     datasetSpec.containerName = datasetSpec.datasetName
                 # set attributes to DBR
                 if DataServiceUtils.isDBR(datasetSpec.datasetName):

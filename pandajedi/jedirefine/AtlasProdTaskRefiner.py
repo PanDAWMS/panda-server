@@ -156,8 +156,11 @@ class AtlasProdTaskRefiner(TaskRefinerBase):
                                         str(metaData), self.taskSpec.parent_tid, datasetSpec.datasetID, datasetSpec.datasetName
                                     )
                                 )
+                                parent_ddm_if = self.ddmIF.getInterface(self.taskSpec.vo)
+                                if parent_ddm_if is None:
+                                    raise RuntimeError(f"no DDM interface for vo={self.taskSpec.vo}")
                                 for metadataName, metadaValue in metaData.items():
-                                    self.ddmIF.getInterface(self.taskSpec.vo).setDatasetMetadata(datasetSpec.datasetName, metadataName, metadaValue)
+                                    parent_ddm_if.setDatasetMetadata(datasetSpec.datasetName, metadataName, metadaValue)
             # input prestaging
             if self.taskSpec.inputPreStaging():
                 # set first contents feed flag

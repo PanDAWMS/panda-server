@@ -40,6 +40,11 @@ class AtlasTaskSetupper(TaskSetupperBase):
         try:
             # get DDM I/F
             ddmIF = self.ddmIF.getInterface(taskSpec.vo)
+            if ddmIF is None:
+                # nothing below can run without one, and the AttributeError this replaces
+                # reached the same return through the except at the bottom
+                tmpLog.error(f"no DDM interface for vo={taskSpec.vo}")
+                return retFatal
             # register datasets
             if datasetToRegister != [] or taskSpec.prodSourceLabel in ["user"]:
                 # prod vs anal
