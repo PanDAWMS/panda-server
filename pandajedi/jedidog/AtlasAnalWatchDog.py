@@ -467,7 +467,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                         # the number of boosted jobs at the site
                         numBoostedJobsSite = int(numBoostedJobs * weight / quotaFactor)
                         tmpLog.debug(f"nSite:{numBoostedJobsSite} nAll:{numBoostedJobs} W:{weight} Q:{quotaFactor} at {computingSite}")
-                        if numBoostedJobsSite / nJobsPerPrioUnit == 0:
+                        if numBoostedJobsSite // nJobsPerPrioUnit == 0:
                             tmpLog.debug(f"too small number of jobs {numBoostedJobsSite} to be boosted at {computingSite}")
                             continue
                         # get the highest prio of activated jobs at the site
@@ -502,7 +502,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                             tmpLog.debug(f"already boosted (prio={maxPrio}) at {computingSite}")
                             continue
                         # lower limit
-                        minPrio = maxPrio - numBoostedJobsSite / nJobsPerPrioUnit
+                        minPrio = maxPrio - numBoostedJobsSite // nJobsPerPrioUnit
                         # SQL for priority boost
                         varMap = {}
                         varMap[":jobStatus"] = "activated"
