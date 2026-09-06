@@ -162,6 +162,7 @@ module = [
     "pandaserver.proxycache.*",
     "pandaserver.server.*",
     "pandaserver.test.*",
+    "pandaserver.userinterface.*",
 ]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
