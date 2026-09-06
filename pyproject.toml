@@ -147,6 +147,7 @@ disallow_any_generics = true
 [[tool.mypy.overrides]]
 module = [
     "pandajedi.jediconfig.*",
+    "pandajedi.jediddm.*",
     "pandajedi.jediexec.*",
     "pandajedi.jedigen.*",
     "pandajedi.jedimsgprocessor.*",

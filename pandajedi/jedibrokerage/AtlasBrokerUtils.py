@@ -12,7 +12,6 @@ from typing import Any
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction
-from pandajedi.jediddm.AtlasDDMClient import AtlasDDMClient
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
@@ -116,7 +115,7 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
 def get_sites_with_data(
     site_list: list[str],
     site_mapper: SiteMapper,
-    ddm_if: AtlasDDMClient,
+    ddm_if: Interaction.CommandSendInterface,
     dataset_name: str,
     element_list: list[str] | None,
     max_missing_input_files: int,
@@ -134,7 +133,9 @@ def get_sites_with_data(
 
     :param site_list: list of site names to be checked
     :param site_mapper: SiteMapper object
-    :param ddm_if: the VO's DDM client, as DDMInterface.getInterface() returns it
+    :param ddm_if: the VO's DDM client, as DDMInterface.getInterface() returns it. It is the
+        proxy, not the plugin class: it forwards each call to the plugin in a child process and
+        hands back only the payload, with the status code already turned into an exception
     :param dataset_name: dataset name
     :param element_list: list of constituent datasets, or None when the dataset has none
     :param max_missing_input_files: maximum number of missing files to be regarded as complete
