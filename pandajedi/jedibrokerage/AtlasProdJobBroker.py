@@ -7,6 +7,8 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.InputChunk import InputChunk
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandaserver.dataservice import DataServiceUtils
@@ -14,6 +16,7 @@ from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from . import AtlasBrokerUtils
 from .JobBrokerBase import JobBrokerBase
@@ -46,9 +49,9 @@ WORLD_NUCLEUS_WEIGHT = 4
 # brokerage for ATLAS production
 class AtlasProdJobBroker(JobBrokerBase):
     # constructor
-    def __init__(self, ddmIF, taskBufferIF):
+    def __init__(self, ddmIF: Interaction.CommandSendInterface, taskBufferIF: JediTaskBufferInterface) -> None:
         JobBrokerBase.__init__(self, ddmIF, taskBufferIF)
-        self.dataSiteMap = {}
+        self.dataSiteMap: dict[str, Any] = {}
         self.suppressLogSending = False
 
         self.nwActive = taskBufferIF.getConfigValue(COMPONENT, "NW_ACTIVE", APP, VO)
@@ -105,7 +108,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             logger.error("Failed to load the WN GPU map!!!")
             self.wn_gpu_map = {}
 
-    def convertMBpsToWeight(self, mbps):
+    def convertMBpsToWeight(self, mbps: float) -> float:
         """
         Takes MBps value and converts to a weight between 1 and 2
         """
@@ -118,7 +121,16 @@ class AtlasProdJobBroker(JobBrokerBase):
         return 1
 
     # main
-    def doBrokerage(self, taskSpec, cloudName, inputChunk, taskParamMap, hintForTB=False, siteListForTB=None, glLog=None):
+    def doBrokerage(
+        self,
+        taskSpec: JediTaskSpec,
+        cloudName: str | None,
+        inputChunk: InputChunk,
+        taskParamMap: dict[str, Any] | None,
+        hintForTB: bool = False,
+        siteListForTB: list[str] | None = None,
+        glLog: MsgWrapper | None = None,
+    ) -> tuple[Interaction.StatusCode, Any]:
         # suppress sending log
         if hintForTB:
             self.suppressLogSending = True
@@ -144,6 +156,15 @@ class AtlasProdJobBroker(JobBrokerBase):
 
         # return for failure
         retTmpError = self.SC_FAILED, inputChunk
+
+        # the brokerage arithmetic below cannot run on a NULL column; a task read from the DB
+        # always carries these, so one that does not is reported rather than crashing mid-scan
+        if taskSpec.currentPriority is None or taskSpec.cpuEfficiency is None or taskSpec.prodSourceLabel is None:
+            tmpLog.error(
+                f"cannot broker with currentPriority={taskSpec.currentPriority} "
+                f"cpuEfficiency={taskSpec.cpuEfficiency} prodSourceLabel={taskSpec.prodSourceLabel}"
+            )
+            return retTmpError
 
         # new maxwdir
         newMaxwdir = {}
@@ -283,6 +304,7 @@ class AtlasProdJobBroker(JobBrokerBase):
             sites_sharing_output_storages_in_nucleus = []
 
         # core count
+        taskCoreCount: int | None
         if inputChunk.isMerging and taskSpec.mergeCoreCount is not None:
             taskCoreCount = taskSpec.mergeCoreCount
         else:
@@ -771,7 +793,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 is_regexp_cmt_config = True
         base_platform = taskSpec.get_base_platform()
         resolved_platforms = {}
-        preference_weight_map = {}
+        preference_weight_map: dict[str, Any] = {}
         if taskSpec.transHome is not None:
             jsonCheck = AtlasBrokerUtils.JsonSoftwareCheck(self.siteMapper, self.sw_map, self.architecture_level_map, self.wn_gpu_map)
             unified_site_list = self.get_unified_sites(scanSiteList)

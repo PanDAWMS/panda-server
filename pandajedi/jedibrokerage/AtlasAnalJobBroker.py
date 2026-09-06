@@ -10,11 +10,14 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.InputChunk import InputChunk
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import JobUtils
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from . import AtlasBrokerUtils
 from .JobBrokerBase import JobBrokerBase
@@ -30,9 +33,9 @@ VO = "atlas"
 # brokerage for ATLAS analysis
 class AtlasAnalJobBroker(JobBrokerBase):
     # constructor
-    def __init__(self, ddmIF, taskBufferIF):
+    def __init__(self, ddmIF: Interaction.CommandSendInterface, taskBufferIF: JediTaskBufferInterface) -> None:
         JobBrokerBase.__init__(self, ddmIF, taskBufferIF)
-        self.dataSiteMap = {}
+        self.dataSiteMap: dict[str, Any] = {}
 
         # load the SW availability map
         try:
@@ -56,7 +59,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
             self.wn_gpu_map = {}
 
     # main
-    def doBrokerage(self, taskSpec, cloudName, inputChunk, taskParamMap):
+    def doBrokerage(
+        self, taskSpec: JediTaskSpec, cloudName: str | None, inputChunk: InputChunk, taskParamMap: dict[str, Any]
+    ) -> tuple[Interaction.StatusCode, InputChunk]:
         # make logger
         if inputChunk.masterDataset:
             msg_tag = f"<jediTaskID={taskSpec.jediTaskID} datasetID={inputChunk.masterDataset.datasetID}>"
@@ -71,6 +76,14 @@ class AtlasAnalJobBroker(JobBrokerBase):
         # without a value, which binds nothing at runtime, so that the first assignment
         # further down does not fix retVal to the tuple type alone.
         retVal: tuple[Interaction.StatusCode, Any] | None
+        # the brokerage arithmetic below cannot run on a NULL column; a task read from the DB
+        # always carries these, so one that does not is reported rather than crashing mid-scan
+        if taskSpec.currentPriority is None or taskSpec.cpuEfficiency is None or taskSpec.prodSourceLabel is None or taskSpec.taskPriority is None:
+            tmpLog.error(
+                f"cannot broker with currentPriority={taskSpec.currentPriority} cpuEfficiency={taskSpec.cpuEfficiency} "
+                f"prodSourceLabel={taskSpec.prodSourceLabel} taskPriority={taskSpec.taskPriority}"
+            )
+            return retTmpError
         # new maxwdir
         newMaxwdir = {}
         # get primary site candidates
@@ -530,10 +543,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
         retVal = None
         checkDataLocality = False
         scanSiteWoVP: list[Any] = []
-        summaryList = []
+        summaryList: list[str] = []
         # the sites that had the data in the first loop pass, kept for the ranking below
         site_list_with_data: set[str] = set()
-        overall_site_list = set()
+        overall_site_list: set[str] = set()
         for i_loop, (scanSiteList, checkDataLocality) in enumerate(scan_site_list_loops):
             useUnionLocality = False
             self.init_summary_list("Job brokerage summary", f"data locality check: {checkDataLocality}", self.get_unified_sites(scanSiteList))
@@ -1583,7 +1596,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     for jobStatus in ["defined", "assigned", "activated", "starting"]:
                         nQueue += AtlasBrokerUtils.getNumJobs(jobStatPrioMap, tmpSiteName, jobStatus, workQueue_tag=taskSpec.gshare)
                     # skip if overloaded
-                    if nQueue > minQueue and (nRunning == 0 or float(nQueue) / float(nRunning) > grandRatio * ratioOffset):
+                    # grandRatio is None only when nothing is running in the share at all, in
+                    # which case every site takes the nRunning == 0 branch before the ratio is used
+                    if nQueue > minQueue and (nRunning == 0 or (grandRatio is not None and float(nQueue) / float(nRunning) > grandRatio * ratioOffset)):
                         tmpMsg = f"  skip site={tmpSiteName} "
                         tmpMsg += f"nQueue>minQueue({minQueue}) and "
                         if nRunning == 0:

@@ -5,11 +5,14 @@ from typing import Any
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.InputChunk import InputChunk
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandajedi.jedirefine import RefinerUtils
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from . import AtlasBrokerUtils
 from .JobBrokerBase import JobBrokerBase
@@ -20,11 +23,13 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # brokerage for general purpose
 class GenJobBroker(JobBrokerBase):
     # constructor
-    def __init__(self, ddmIF, taskBufferIF):
+    def __init__(self, ddmIF: Interaction.CommandSendInterface, taskBufferIF: JediTaskBufferInterface) -> None:
         JobBrokerBase.__init__(self, ddmIF, taskBufferIF)
 
     # main
-    def doBrokerage(self, taskSpec, cloudName, inputChunk, taskParamMap):
+    def doBrokerage(
+        self, taskSpec: JediTaskSpec, cloudName: str | None, inputChunk: InputChunk, taskParamMap: dict[str, Any]
+    ) -> tuple[Interaction.StatusCode, InputChunk]:
         # make logger
         tmpLog = MsgWrapper(logger, f"<jediTaskID={taskSpec.jediTaskID}>")
         tmpLog.debug("start")

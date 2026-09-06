@@ -146,6 +146,7 @@ disallow_any_generics = true
 # concentrate there, not because it is the largest.
 [[tool.mypy.overrides]]
 module = [
+    "pandajedi.jedibrokerage.*",
     "pandajedi.jediconfig.*",
     "pandajedi.jediddm.*",
     "pandajedi.jediexec.*",
