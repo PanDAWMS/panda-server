@@ -76,24 +76,28 @@ class PostProcessorBase(object):
         tmpLog.sendMsg(f"set task_status={taskSpec.status}", self.msgType)
         # update dataset
         for datasetSpec in taskSpec.datasetSpecList:
+            # the type column is declared Optional because a freshly constructed spec has it
+            # unset; one read back with the task always carries a type, and a spec without one
+            # matches none of the branches below
+            datasetType = datasetSpec.type or ""
             if taskSpec.status in ["failed", "broken", "aborted"]:
                 datasetSpec.status = "failed"
             else:
                 # set dataset status
-                if datasetSpec.type in ["output", "log", "lib"]:
+                if datasetType in ["output", "log", "lib"]:
                     # normal output datasets
                     if datasetSpec.nFiles and datasetSpec.nFilesFinished and datasetSpec.nFiles > datasetSpec.nFilesFinished:
                         datasetSpec.status = "finished"
                     else:
                         datasetSpec.status = "done"
-                elif datasetSpec.type.startswith("trn_") or datasetSpec.type.startswith("tmpl_"):
+                elif datasetType.startswith("trn_") or datasetType.startswith("tmpl_"):
                     # set done for template or transient datasets
                     datasetSpec.status = "done"
                 else:
                     # not for input
                     continue
             # set nFiles
-            if datasetSpec.type in ["output", "log", "lib"]:
+            if datasetType in ["output", "log", "lib"]:
                 datasetSpec.nFiles = datasetSpec.nFilesFinished
             self.taskBufferIF.updateDataset_JEDI(datasetSpec, {"datasetID": datasetSpec.datasetID, "jediTaskID": datasetSpec.jediTaskID})
         # trigger internal dataset cleanup
@@ -163,16 +167,13 @@ class PostProcessorBase(object):
             if datasetSpec.isMasterInput():
                 if datasetSpec.status == "removed":
                     continue
-                nFiles += datasetSpec.nFiles
-                nFilesFinished += datasetSpec.nFilesFinished
-                try:
-                    totalInputEvents += datasetSpec.nEvents
-                except Exception:
-                    pass
-                try:
-                    totalOkEvents += datasetSpec.nEventsUsed
-                except Exception:
-                    pass
+                # the counters are set to 0 when the dataset is created, so a NULL is a row
+                # that was never counted and contributes nothing. The event counters used to
+                # get the same result from a bare try/except around the addition.
+                nFiles += datasetSpec.nFiles or 0
+                nFilesFinished += datasetSpec.nFilesFinished or 0
+                totalInputEvents += datasetSpec.nEvents or 0
+                totalOkEvents += datasetSpec.nEventsUsed or 0
         # completeness
         if totalInputEvents != 0:
             taskCompleteness = float(totalOkEvents) / float(totalInputEvents) * 1000.0
@@ -182,15 +183,29 @@ class PostProcessorBase(object):
             taskCompleteness = 0
         return nFiles, nFilesFinished, totalInputEvents, totalOkEvents, taskCompleteness
 
+    # check if the task reached its goal
+    def isTaskGoalReached(self, taskSpec: JediTaskSpec) -> bool:
+        """
+        Check whether the task completeness reached the goal set on the task.
+
+        Args:
+        - taskSpec: the task specification object
+
+        A task without a goal never reaches one.
+        """
+        if taskSpec.goal is None:
+            return False
+        taskCompleteness = self.getTaskCompleteness(taskSpec)[-1]
+        return taskCompleteness >= taskSpec.goal
+
     # get final task status
-    def getFinalTaskStatus(self, taskSpec: JediTaskSpec, checkParent: bool = True, checkGoal: bool = False, update_error_dialog: bool = False):
+    def getFinalTaskStatus(self, taskSpec: JediTaskSpec, checkParent: bool = True, update_error_dialog: bool = False) -> str:
         """
         Get final task status based on the number of files and events, and the status of parent task if needed.
 
         Args:
         - taskSpec: the task specification object
         - checkParent: if True, check the status of parent task and set failed if the parent task is failed, broken, or aborted. If False, ignore the parent status.
-        - checkGoal: if True, return True if the goal is reached and False otherwise. If False, return the final task status.
         - update_error_dialog: if True, update error dialog for failed tasks
 
         """
@@ -256,12 +271,6 @@ class PostProcessorBase(object):
             event_stat = self.taskBufferIF.get_event_statistics(taskSpec.jediTaskID)
             if event_stat is not None and event_stat.get(EventServiceUtils.ST_finished):
                 status = "finished"
-        # check goal only
-        if checkGoal:
-            # no goal
-            if taskSpec.goal is not None and taskCompleteness >= taskGoal:
-                return True
-            return False
         # return status
         return status
 
@@ -272,7 +281,7 @@ class PostProcessorBase(object):
             taskSpec.useExhausted()
             and taskSpec.status not in ["passed"]
             and self.getFinalTaskStatus(taskSpec) in ["finished"]
-            and not self.getFinalTaskStatus(taskSpec, checkGoal=True)
+            and not self.isTaskGoalReached(taskSpec)
         ):
             taskSpec.status = "exhausted"
             if self.getFinalTaskStatus(taskSpec, checkParent=False) == "done":

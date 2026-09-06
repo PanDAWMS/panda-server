@@ -70,6 +70,12 @@ class AtlasAnalPostProcessor(PostProcessorBase):
             done_containers = set()
 
             for datasetSpec in taskSpec.datasetSpecList:
+                # both columns are declared Optional because a freshly constructed spec has them
+                # unset; one read back with the task always carries them, so a spec that does not
+                # is reported and skipped rather than dereferenced below
+                if datasetSpec.type is None or datasetSpec.datasetName is None:
+                    tmp_logger.warning(f"skip datasetID={datasetSpec.datasetID} with type={datasetSpec.type} name={datasetSpec.datasetName}")
+                    continue
                 # ignore template datasets
                 if datasetSpec.type.startswith("tmpl_"):
                     continue
@@ -189,21 +195,26 @@ class AtlasAnalPostProcessor(PostProcessorBase):
 
         Returns SC_SUCCEEDED.
         """
+        # a notification needs all three, and none of them is optional on a task read from the DB
+        if taskSpec.jediTaskID is None or taskSpec.userName is None or taskSpec.vo is None:
+            tmp_logger.error(f"cannot notify for jediTaskID={taskSpec.jediTaskID} userName={taskSpec.userName} vo={taskSpec.vo}")
+            return self.SC_FAILED
+
         # resolve the recipient email address
         to_add = self.getEmail(taskSpec.userName, taskSpec.vo, tmp_logger)
 
-        # calculate carbon footprint
+        # calculate carbon footprint. compose_message() indexes all four keys unconditionally,
+        # so they are filled in before the lookup that can fail: leaving the map empty on an
+        # exception turned a footprint failure into a KeyError that suppressed the whole
+        # notification.
+        zero = "0 gCO2"
+        carbon_footprint_redacted = {job_status: zero for job_status in ["finished", "failed", "cancelled", "total"]}
         try:
             carbon_footprint = self.taskBufferIF.get_task_carbon_footprint(taskSpec.jediTaskID, level="global")
-            carbon_footprint_redacted = {}
-            zero = "0 gCO2"
-            for job_status in ["finished", "failed", "cancelled", "total"]:
+            for job_status in list(carbon_footprint_redacted):
                 if carbon_footprint and job_status in carbon_footprint:
                     carbon_footprint_redacted[job_status] = format_weight(carbon_footprint[job_status])
-                else:
-                    carbon_footprint_redacted[job_status] = zero
         except Exception as e:
-            carbon_footprint_redacted = {}
             tmp_logger.error(f"failed to calculate task carbon footprint {type(e).__name__}:{e}")
 
         # read task parameters
@@ -272,12 +283,11 @@ class AtlasAnalPostProcessor(PostProcessorBase):
                 if datasetSpec.isMasterInput():
                     if datasetSpec.status == "removed":
                         continue
-                    try:
-                        n_total_jobs += datasetSpec.nFiles
-                        n_succeeded_jobs += datasetSpec.nFilesFinished
-                        n_failed_jobs += datasetSpec.nFilesFailed
-                    except Exception:
-                        pass
+                    # a NULL counter is a dataset that was never counted and adds nothing;
+                    # the bare try/except this replaces got the same result
+                    n_total_jobs += datasetSpec.nFiles or 0
+                    n_succeeded_jobs += datasetSpec.nFilesFinished or 0
+                    n_failed_jobs += datasetSpec.nFilesFailed or 0
         else:
             input_str = "Points"
             cancelled_str = "Unprocessed"
