@@ -1,6 +1,7 @@
 import json
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
@@ -15,14 +16,14 @@ class JediContentsFeederMsgProcPlugin(BaseMsgProcPlugin):
     Message-driven Contents Feeder
     """
 
-    def initialize(self, in_collective=False):
+    def initialize(self, in_collective: bool = False) -> None:
         BaseMsgProcPlugin.initialize(self, in_collective)
         ddmIF = DDMInterface()
         ddmIF.setupInterface()
         the_pid = self.get_pid()
         self.contents_feeder_thread_obj = ContentsFeederThread(taskDsList=None, threadPool=None, taskbufferIF=self.tbIF, ddmIF=ddmIF, pid=the_pid)
 
-    def process(self, msg_obj):
+    def process(self, msg_obj: MsgObj) -> None:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         # start
         tmp_log.info("start")

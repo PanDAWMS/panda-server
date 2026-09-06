@@ -2,6 +2,7 @@ import json
 from typing import Any
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
 
@@ -10,7 +11,7 @@ base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
 
 # Tape carousel message processing plugin
 class TapeCarouselMsgProcPlugin(BaseMsgProcPlugin):
-    def process(self, msg_obj, decoded_data=None):
+    def process(self, msg_obj: MsgObj, decoded_data: dict[str, Any] | None = None) -> None:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         # start
         tmp_log.info("start")

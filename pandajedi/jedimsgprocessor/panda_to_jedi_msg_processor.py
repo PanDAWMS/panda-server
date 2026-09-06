@@ -1,8 +1,10 @@
 import json
 import os
 import socket
+from typing import Any
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool
 from pandajedi.jediddm.DDMInterface import DDMInterface
@@ -15,13 +17,13 @@ base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
 
 # plugin to process messages from Panda to JEDI
 class PandaToJediMsgProcPlugin(BaseMsgProcPlugin):
-    def initialize(self, in_collective=False):
+    def initialize(self, in_collective: bool = False) -> None:
         BaseMsgProcPlugin.initialize(self, in_collective)
         self.ddmIF = DDMInterface()
         self.ddmIF.setupInterface()
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}_{os.getpgrp()}-pjmsg"
 
-    def process(self, msg_obj, decoded_data=None):
+    def process(self, msg_obj: MsgObj, decoded_data: dict[str, Any] | None = None) -> None:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         # start
         tmp_log.info("start")

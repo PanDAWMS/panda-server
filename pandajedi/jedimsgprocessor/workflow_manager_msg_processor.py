@@ -1,6 +1,7 @@
 import json
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
 from pandaserver.workflow.workflow_core import WorkflowInterface
@@ -14,14 +15,14 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
     Message-driven workflow manager
     """
 
-    def initialize(self, in_collective=False):
+    def initialize(self, in_collective: bool = False) -> None:
         """
         Initialize the plugin
         """
         BaseMsgProcPlugin.initialize(self, in_collective)
         self.workflow_interface = WorkflowInterface(self.tbIF)
 
-    def process(self, msg_obj):
+    def process(self, msg_obj: MsgObj) -> None:
         """
         Process the message
         Typical message data looks like:

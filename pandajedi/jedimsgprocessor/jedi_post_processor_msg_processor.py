@@ -1,6 +1,7 @@
 import json
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore.FactoryBase import FactoryBase
@@ -18,7 +19,7 @@ class JediPostProcessorMsgProcPlugin(BaseMsgProcPlugin):
     Message-driven Post-Processor
     """
 
-    def initialize(self, in_collective=False):
+    def initialize(self, in_collective: bool = False) -> None:
         BaseMsgProcPlugin.initialize(self, in_collective)
         # DDM interface
         ddmIF = DDMInterface()
@@ -37,7 +38,7 @@ class JediPostProcessorMsgProcPlugin(BaseMsgProcPlugin):
                 for prodsourcelabel in prodsourcelabels:
                     self.post_processor_thread_dict[(vo, prodsourcelabel)] = tmp_post_processor_thread_obj
 
-    def process(self, msg_obj):
+    def process(self, msg_obj: MsgObj) -> None:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         # start
         tmp_log.info("start")

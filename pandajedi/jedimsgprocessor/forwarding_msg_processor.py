@@ -1,4 +1,5 @@
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
 
@@ -11,7 +12,7 @@ class ForwardingMsgProcPlugin(BaseMsgProcPlugin):
     Simply forward the message from one queue to another
     """
 
-    def process(self, msg_obj):
+    def process(self, msg_obj: MsgObj) -> str:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         # start
         # tmp_log.info('start')

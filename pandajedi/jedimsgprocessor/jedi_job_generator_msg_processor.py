@@ -3,6 +3,7 @@ import json
 import time
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 from pandacommon.pandautils.PandaUtils import try_malloc_trim
 
 from pandajedi.jedicore.ThreadUtils import ListWithLock
@@ -10,7 +11,10 @@ from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
 from pandajedi.jediorder.JobGenerator import JobGeneratorThread, get_params_to_get_tasks
 from pandajedi.jediorder.TaskSetupper import TaskSetupper
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.srvcore import CoreUtils
+from pandaserver.taskbuffer.ResourceSpec import ResourceSpec
+from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 
 base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
 
@@ -21,21 +25,21 @@ class JediJobGeneratorMsgProcPlugin(BaseMsgProcPlugin):
     Message-driven Job Generator
     """
 
-    def initialize(self, in_collective=False):
+    def initialize(self, in_collective: bool = False) -> None:
         BaseMsgProcPlugin.initialize(self, in_collective)
         # DDM interface
         self.ddmIF = DDMInterface()
         self.ddmIF.setupInterface()
-        self.task_setupper_map = {}
+        self.task_setupper_map: dict[tuple[str, str], TaskSetupper] = {}
         # cache heavy metadata objects with short TTL to reduce allocation churn
         self._cache_ttl_sec = 300
-        self._site_mapper = None
+        self._site_mapper: SiteMapper | None = None
         self._site_mapper_ts: float = 0
-        self._work_queue_mapper = None
+        self._work_queue_mapper: WorkQueueMapper | None = None
         self._work_queue_mapper_ts: float = 0
-        self._resource_types = None
+        self._resource_types: list[ResourceSpec] | None = None
         self._resource_types_ts: float = 0
-        self._params_to_get_tasks = {}
+        self._params_to_get_tasks: dict[str, dict[str, dict[str, dict[str, dict[str, int]]]]] = {}
         # memory limit to trigger early cleanup to avoid OOM killer. This is not a hard limit, just a threshold to trigger early cleanup.
         self._mem_usage_threshold_mb = 1500
         # get SiteMapper
@@ -47,28 +51,28 @@ class JediJobGeneratorMsgProcPlugin(BaseMsgProcPlugin):
         # taskSetupper.initializeMods(self.tbIF, self.ddmIF)
         self.pid = self.get_pid()
 
-    def _is_cache_valid(self, ts):
+    def _is_cache_valid(self, ts: float) -> bool:
         return (time.time() - ts) < self._cache_ttl_sec
 
-    def _get_site_mapper(self):
+    def _get_site_mapper(self) -> SiteMapper:
         if self._site_mapper is None or not self._is_cache_valid(self._site_mapper_ts):
             self._site_mapper = self.tbIF.get_site_mapper()
             self._site_mapper_ts = time.time()
         return self._site_mapper
 
-    def _get_work_queue_mapper(self):
+    def _get_work_queue_mapper(self) -> WorkQueueMapper:
         if self._work_queue_mapper is None or not self._is_cache_valid(self._work_queue_mapper_ts):
             self._work_queue_mapper = self.tbIF.getWorkQueueMap()
             self._work_queue_mapper_ts = time.time()
         return self._work_queue_mapper
 
-    def _get_resource_types(self):
+    def _get_resource_types(self) -> list[ResourceSpec]:
         if self._resource_types is None or not self._is_cache_valid(self._resource_types_ts):
             self._resource_types = self.tbIF.load_resource_types()
             self._resource_types_ts = time.time()
         return self._resource_types
 
-    def process(self, msg_obj):
+    def process(self, msg_obj: MsgObj) -> None:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         input_list = None
         gen_thr = None

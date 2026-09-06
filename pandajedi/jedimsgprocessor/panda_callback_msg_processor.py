@@ -4,6 +4,7 @@ from typing import Any
 
 import yaml
 from pandacommon.pandalogger import LogWrapper, logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
 from pandaserver.dataservice.ddm_handler import DDMHandler
@@ -14,15 +15,15 @@ base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
 # panda dataset callback message processing plugin
 class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
 
-    def __init__(self, **params):
+    def __init__(self, **params: Any) -> None:
         super().__init__(**params)
-        self.activities_with_file_callback = []
-        self.component_action_map = []
+        self.activities_with_file_callback: list[str] = []
+        self.component_action_map: list[dict[str, Any]] = []
         # installed by initialize() before any callback is processed
         self.site_mapper: Any = None
         self.verbose = False
 
-    def initialize(self, in_collective=False, **params):
+    def initialize(self, in_collective: bool = False, **params: Any) -> None:
         BaseMsgProcPlugin.initialize(self, in_collective, **params)
         # activity list to use file callback
         self.activities_with_file_callback = self.params.get("activities_with_file_callback", [])
@@ -34,7 +35,7 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
         # verbose logging
         self.verbose = self.params.get("verbose", False)
 
-    def process(self, msg_obj):
+    def process(self, msg_obj: MsgObj) -> None:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         # start
         # tmp_log.info('start')
