@@ -476,7 +476,7 @@ class TaskRefinerBase(object):
         self.taskSpec.workQueue_ID = workQueue.queue_id
 
         # Initialize the global share
-        self.taskSpec.gshare = RefinerUtils.get_initial_global_share(self.taskBufferIF, self.taskSpec.jediTaskID, taskSpec, taskParamMap)
+        self.taskSpec.gshare = RefinerUtils.get_initial_global_share(self.taskBufferIF, jediTaskID, taskSpec, taskParamMap)
 
         # Initialize the resource type
         try:
@@ -694,7 +694,10 @@ class TaskRefinerBase(object):
                     if inDatasetSpecList == [] and self.oldTaskStatus != "rerefine":
                         errStr = f'doBasicRefine : unknown input dataset "{datasetSpec.datasetName}"'
                         self.taskSpec.setErrDiag(errStr)
-                        if datasetSpec.datasetName not in self.unknownDatasetList:
+                        # the name is bound into an INSERT for JEDI_Datasets and into the SELECT that
+                        # guards it, so a NULL would insert a duplicate row on every refine instead of
+                        # matching. The error raised below carries the name either way.
+                        if datasetSpec.datasetName is not None and datasetSpec.datasetName not in self.unknownDatasetList:
                             self.unknownDatasetList.append(datasetSpec.datasetName)
                         raise JediException.UnknownDatasetError(errStr)
                     # set master flag
