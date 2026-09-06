@@ -7,6 +7,8 @@ from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer.InputChunk import InputChunk
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.SiteMapper import SiteMapper
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -19,15 +21,14 @@ class JobSplitter:
     SC_FATAL: Interaction.StatusCode
 
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         self.sizeGradientsPerInSizeForMerge = 1.2
         self.interceptsMerginForMerge = 500 * 1024 * 1024
 
     # split
-    def doSplit(self, taskSpec, inputChunk, siteMapper, allow_chunk_size_limit=False):
-        # return for failure
-        retFatal: tuple[Any, list[dict[str, Any]]] = self.SC_FATAL, []
-        retTmpError: tuple[Any, list[dict[str, Any]]] = self.SC_FAILED, []
+    def doSplit(
+        self, taskSpec: JediTaskSpec, inputChunk: InputChunk, siteMapper: SiteMapper, allow_chunk_size_limit: bool = False
+    ) -> tuple[Interaction.StatusCode, list[dict[str, Any]], bool]:
         # make logger
         tmpLog = MsgWrapper(logger, f"< jediTaskID={taskSpec.jediTaskID} datasetID={inputChunk.masterIndexName} >")
         tmpLog.debug(f"--- start chunk_size_limit={allow_chunk_size_limit}")
@@ -149,10 +150,9 @@ class JobSplitter:
                             "siteCandidate": siteCandidate,
                         }
                     )
-                    try:
-                        gshare = taskSpec.gshare.replace(" ", "_")
-                    except Exception:
-                        gshare = None
+                    # gshare is NULL until the task is assigned a share; the except this
+                    # replaces was catching the AttributeError that raised
+                    gshare = taskSpec.gshare.replace(" ", "_") if taskSpec.gshare is not None else None
                     tmpLog.info(f"split to nJobs={len(subChunks)} at site={siteName} gshare={gshare}")
                     # checkpoint
                     inputChunk.checkpoint_file_usage()
@@ -307,10 +307,9 @@ class JobSplitter:
                         "siteCandidate": siteCandidate,
                     }
                 )
-                try:
-                    gshare = taskSpec.gshare.replace(" ", "_")
-                except Exception:
-                    gshare = None
+                # gshare is NULL until the task is assigned a share; the except this
+                # replaces was catching the AttributeError that raised
+                gshare = taskSpec.gshare.replace(" ", "_") if taskSpec.gshare is not None else None
                 tmpLog.info(f"split to nJobs={len(subChunks)} at site={siteName} gshare={gshare}")
         # return
         tmpLog.debug("--- done")

@@ -2,6 +2,8 @@ import datetime
 import itertools
 import time
 import traceback
+from multiprocessing.connection import Connection
+from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -15,8 +17,13 @@ from pandajedi.jedirefine import RefinerUtils
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.taskbuffer.DataCarousel import DataCarouselInterface
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 
 from .JediKnight import JediKnight
+
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -24,23 +31,26 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # worker class to refine TASK_PARAM to fill JEDI tables
 class TaskRefiner(JediKnight, FactoryBase):
     # constructor
-    def __init__(self, commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels):
+    def __init__(
+        self,
+        commuChannel: Connection | None,
+        taskBufferIF: "JediTaskBufferInterface",
+        ddmIF: "DDMInterface",
+        vos: str | list[str] | None,
+        prodSourceLabels: str | list[str] | None,
+    ) -> None:
         self.vos = self.parseInit(vos)
         self.prodSourceLabels = self.parseInit(prodSourceLabels)
         JediKnight.__init__(self, commuChannel, taskBufferIF, ddmIF, logger)
         FactoryBase.__init__(self, self.vos, self.prodSourceLabels, logger, jedi_config.taskrefine.modConfig)
 
     # main
-    def start(self):
+    def start(self) -> None:
         # start base classes
         JediKnight.start(self)
         FactoryBase.initializeMods(self, self.taskBufferIF, self.ddmIF)
         # get data carousel interface
         data_carousel_interface = DataCarouselInterface(self.taskBufferIF)
-        if data_carousel_interface is None:
-            # data carousel interface is undefined
-            logger.error(f"data carousel interface is undefined; skipped")
-            return
         # go into main loop
         while True:
             startTime = naive_utcnow()
@@ -88,7 +98,18 @@ class TaskRefiner(JediKnight, FactoryBase):
 # thread for real worker
 class TaskRefinerThread(WorkerThread):
     # constructor
-    def __init__(self, taskList, threadPool, taskbufferIF, ddmIF, implFactory, workQueueMapper, data_carousel_interface=None):
+    def __init__(
+        self,
+        taskList: ListWithLock,
+        threadPool: ThreadPool,
+        taskbufferIF: "JediTaskBufferInterface",
+        ddmIF: "DDMInterface",
+        implFactory: FactoryBase,
+        workQueueMapper: WorkQueueMapper,
+        # the one construction site always passes this, and every use in runImpl()
+        # dereferences it without a check, so the old None default was never viable
+        data_carousel_interface: DataCarouselInterface,
+    ) -> None:
         # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributes
@@ -101,7 +122,7 @@ class TaskRefinerThread(WorkerThread):
         self.msgType = "taskrefiner"
 
     # main
-    def runImpl(self):
+    def runImpl(self) -> None:
         while True:
             try:
                 # get a part of list
@@ -626,6 +647,12 @@ class TaskRefinerThread(WorkerThread):
                 logger.error(f"{self.__class__.__name__} failed in runImpl() with {type(e).__name__}:{e}")
 
 
-def launcher(commuChannel, taskBufferIF, ddmIF, vos=None, prodSourceLabels=None):
+def launcher(
+    commuChannel: Connection,
+    taskBufferIF: "JediTaskBufferInterface",
+    ddmIF: "DDMInterface",
+    vos: str | list[str] | None = None,
+    prodSourceLabels: str | list[str] | None = None,
+) -> None:
     p = TaskRefiner(commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels)
     p.start()

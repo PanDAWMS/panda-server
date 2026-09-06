@@ -10,6 +10,8 @@ Each worker calls the VO/label-specific post-processor implementation
 import os
 import socket
 import time
+from multiprocessing.connection import Connection
+from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -19,8 +21,14 @@ from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.FactoryBase import FactoryBase
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from .JediKnight import JediKnight
+
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBuffer import JediTaskBuffer
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -35,14 +43,21 @@ class PostProcessor(JediKnight, FactoryBase):
     off to a pool of PostProcessorThread workers.
     """
 
-    def __init__(self, commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels):
+    def __init__(
+        self,
+        commuChannel: Connection | None,
+        taskBufferIF: "JediTaskBufferInterface",
+        ddmIF: "DDMInterface",
+        vos: str | list[str] | None,
+        prodSourceLabels: str | list[str] | None,
+    ) -> None:
         self.vos = self.parseInit(vos)
         self.prodSourceLabels = self.parseInit(prodSourceLabels)
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-post"
         JediKnight.__init__(self, commuChannel, taskBufferIF, ddmIF, logger)
         FactoryBase.__init__(self, self.vos, self.prodSourceLabels, logger, jedi_config.postprocessor.modConfig)
 
-    def start(self):
+    def start(self) -> None:
         """Run the main post-processing loop, cycling every 60 seconds."""
         JediKnight.start(self)
         FactoryBase.initializeMods(self, self.taskBufferIF, self.ddmIF)
@@ -97,14 +112,23 @@ class PostProcessorThread(WorkerThread):
     exhausted.
     """
 
-    def __init__(self, taskList, threadPool, taskbufferIF, ddmIF, implFactory):
+    # the message-driven post processor builds one of these with no list and no pool,
+    # calls post_process_tasks() directly, and passes a bare FactoryBase
+    def __init__(
+        self,
+        taskList: ListWithLock | None,
+        threadPool: ThreadPool | None,
+        taskbufferIF: "JediTaskBufferInterface | JediTaskBuffer",
+        ddmIF: "DDMInterface",
+        implFactory: FactoryBase,
+    ) -> None:
         WorkerThread.__init__(self, None, threadPool, logger)
         self.taskList = taskList
         self.taskBufferIF = taskbufferIF
         self.ddmIF = ddmIF
         self.implFactory = implFactory
 
-    def post_process_tasks(self, task_list):
+    def post_process_tasks(self, task_list: list[JediTaskSpec]) -> None:
         """
         Run post-processing and final-procedure for each task in task_list.
 
@@ -160,8 +184,13 @@ class PostProcessorThread(WorkerThread):
 
             tmp_log.info("done")
 
-    def runImpl(self):
+    def runImpl(self) -> None:
         """Pull batches of tasks from the shared list and post-process them."""
+        if self.taskList is None:
+            # only the message-driven post processor builds one of these without a list,
+            # and it calls post_process_tasks() directly rather than starting the thread
+            self.logger.error(f"{self.__class__.__name__} has no task list to work on")
+            return
         while True:
             try:
                 task_list = self.taskList.get(10)
@@ -173,7 +202,13 @@ class PostProcessorThread(WorkerThread):
                 logger.error(f"{self.__class__.__name__} failed in runImpl() with {type(e).__name__}:{e}")
 
 
-def launcher(commuChannel, taskBufferIF, ddmIF, vos=None, prodSourceLabels=None):
+def launcher(
+    commuChannel: Connection,
+    taskBufferIF: "JediTaskBufferInterface",
+    ddmIF: "DDMInterface",
+    vos: str | list[str] | None = None,
+    prodSourceLabels: str | list[str] | None = None,
+) -> None:
     """Entry point used by the JEDI daemon infrastructure to start the PostProcessor."""
     p = PostProcessor(commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels)
     p.start()

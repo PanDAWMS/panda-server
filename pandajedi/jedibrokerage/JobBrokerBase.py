@@ -59,7 +59,8 @@ class JobBrokerBase(object):
             return 0
         return self.liveCounter.get(siteName)
 
-    def setLockID(self, pid: int, tid: int) -> None:
+    # only interpolated into the lock ID below, and the callers pass both a str and an int
+    def setLockID(self, pid: str | int, tid: int) -> None:
         self.baseLockID = f"{pid}-jbr"
         self.lockID = f"{self.baseLockID}-{tid}"
 

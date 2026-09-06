@@ -1,5 +1,7 @@
 import datetime
 import time
+from multiprocessing.connection import Connection
+from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -9,8 +11,13 @@ from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.FactoryBase import FactoryBase
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
+from pandaserver.taskbuffer.WorkQueue import WorkQueue
 
 from .JediKnight import JediKnight
+
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -18,14 +25,23 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # worker class to refine TASK_PARAM to fill JEDI tables
 class TaskBroker(JediKnight, FactoryBase):
     # constructor
-    def __init__(self, commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels):
+    # commuChannel is None in the jeditest drivers, which build the knight to call one
+    # of its methods directly and never reach start()
+    def __init__(
+        self,
+        commuChannel: Connection | None,
+        taskBufferIF: "JediTaskBufferInterface",
+        ddmIF: "DDMInterface",
+        vos: str | list[str] | None,
+        prodSourceLabels: str | list[str] | None,
+    ) -> None:
         self.vos = self.parseInit(vos)
         self.prodSourceLabels = self.parseInit(prodSourceLabels)
         JediKnight.__init__(self, commuChannel, taskBufferIF, ddmIF, logger)
         FactoryBase.__init__(self, self.vos, self.prodSourceLabels, logger, jedi_config.taskbroker.modConfig)
 
     # main
-    def start(self):
+    def start(self) -> None:
         # start base classes
         JediKnight.start(self)
         FactoryBase.initializeMods(self, self.taskBufferIF, self.ddmIF)
@@ -113,7 +129,16 @@ class TaskBroker(JediKnight, FactoryBase):
 # thread for real worker
 class TaskCheckerThread(WorkerThread):
     # constructor
-    def __init__(self, taskList, threadPool, taskbufferIF, ddmIF, implFactory, vo, prodSourceLabel):
+    def __init__(
+        self,
+        taskList: ListWithLock,
+        threadPool: ThreadPool,
+        taskbufferIF: "JediTaskBufferInterface",
+        ddmIF: "DDMInterface",
+        implFactory: FactoryBase,
+        vo: str,
+        prodSourceLabel: str,
+    ) -> None:
         # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributres
@@ -125,7 +150,7 @@ class TaskCheckerThread(WorkerThread):
         self.prodSourceLabel = prodSourceLabel
 
     # main
-    def runImpl(self):
+    def runImpl(self) -> None:
         while True:
             try:
                 # get a part of list
@@ -182,7 +207,18 @@ class TaskCheckerThread(WorkerThread):
 # thread for real worker
 class TaskBrokerThread(WorkerThread):
     # constructor
-    def __init__(self, taskList, threadPool, taskbufferIF, ddmIF, implFactory, vo, prodSourceLabel, workQueue, resource_name):
+    def __init__(
+        self,
+        taskList: ListWithLock,
+        threadPool: ThreadPool,
+        taskbufferIF: "JediTaskBufferInterface",
+        ddmIF: "DDMInterface",
+        implFactory: FactoryBase,
+        vo: str,
+        prodSourceLabel: str,
+        workQueue: WorkQueue,
+        resource_name: str,
+    ) -> None:
         # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributres
@@ -196,7 +232,7 @@ class TaskBrokerThread(WorkerThread):
         self.resource_name = resource_name
 
     # main
-    def runImpl(self):
+    def runImpl(self) -> None:
         while True:
             try:
                 # get a part of list
@@ -255,6 +291,12 @@ class TaskBrokerThread(WorkerThread):
 # launch
 
 
-def launcher(commuChannel, taskBufferIF, ddmIF, vos=None, prodSourceLabels=None):
+def launcher(
+    commuChannel: Connection,
+    taskBufferIF: "JediTaskBufferInterface",
+    ddmIF: "DDMInterface",
+    vos: str | list[str] | None = None,
+    prodSourceLabels: str | list[str] | None = None,
+) -> None:
     p = TaskBroker(commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels)
     p.start()

@@ -60,7 +60,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
 
     # main
     def doBrokerage(
-        self, taskSpec: JediTaskSpec, cloudName: str | None, inputChunk: InputChunk, taskParamMap: dict[str, Any]
+        self, taskSpec: JediTaskSpec, cloudName: str | None, inputChunk: InputChunk, taskParamMap: dict[str, Any] | None
     ) -> tuple[Interaction.StatusCode, InputChunk]:
         # make logger
         if inputChunk.masterDataset:
@@ -106,8 +106,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
         # get workQueue
         workQueue = self.taskBufferIF.getWorkQueueMap().getQueueWithIDGshare(taskSpec.workQueue_ID, taskSpec.gshare)
 
-        # site limitation
-        if taskSpec.useLimitedSites():
+        # site limitation. JobGenerator fills taskParamMap in exactly when the task uses
+        # limited sites and leaves it None otherwise, so this branch is the only place
+        # here that may read it
+        if taskSpec.useLimitedSites() and taskParamMap is not None:
             if "excludedSite" in taskParamMap:
                 excludeList = taskParamMap["excludedSite"]
                 # str to list for task retry

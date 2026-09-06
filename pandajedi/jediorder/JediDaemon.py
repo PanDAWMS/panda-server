@@ -1,13 +1,19 @@
+from typing import TYPE_CHECKING
+
 from pandacommon.pandalogger import logger_utils
 
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedidaemons.utils import DaemonMaster
 
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
+
 base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
 
 
 # launch
-def launcher(taskBufferIF, ddmIF):
+def launcher(taskBufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface") -> None:
     tmp_log = logger_utils.make_logger(base_logger, method_name="launcher")
     tmp_log.debug("start")
     try:

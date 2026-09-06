@@ -28,7 +28,7 @@ class GenJobBroker(JobBrokerBase):
 
     # main
     def doBrokerage(
-        self, taskSpec: JediTaskSpec, cloudName: str | None, inputChunk: InputChunk, taskParamMap: dict[str, Any]
+        self, taskSpec: JediTaskSpec, cloudName: str | None, inputChunk: InputChunk, taskParamMap: dict[str, Any] | None
     ) -> tuple[Interaction.StatusCode, InputChunk]:
         # make logger
         tmpLog = MsgWrapper(logger, f"<jediTaskID={taskSpec.jediTaskID}>")
@@ -45,6 +45,13 @@ class GenJobBroker(JobBrokerBase):
                 taskSpec.cloud = taskParamMap["cloud"]
         except Exception:
             pass
+        if taskParamMap is None:
+            # the decode above failed and the except swallowed it. The PandaSite check
+            # further down cannot run without the map, and the TypeError it raised into
+            # JobGenerator's handler named neither the task nor what was missing
+            tmpLog.error(f"failed to read task params for jediTaskID={taskSpec.jediTaskID}")
+            taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
+            return retTmpError
         # get sites in the cloud
         site_preassigned = True
         if taskSpec.site not in ["", None]:
