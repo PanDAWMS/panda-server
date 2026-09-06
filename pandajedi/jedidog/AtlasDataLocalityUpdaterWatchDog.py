@@ -4,15 +4,20 @@ import re
 import socket
 import sys
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
+from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
 
 from .WatchDogBase import WatchDogBase
+
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -20,7 +25,7 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # data locality updater for ATLAS
 class AtlasDataLocalityUpdaterWatchDog(WatchDogBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface") -> None:
         WatchDogBase.__init__(self, taskBufferIF, ddmIF)
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-dog"
         self.vo = "atlas"
@@ -30,14 +35,14 @@ class AtlasDataLocalityUpdaterWatchDog(WatchDogBase):
         self.atlas_ddm_if = ddmIF.getInterface(self.vo)
 
     # get list-with-lock of datasets to update
-    def get_datasets_list(self):
+    def get_datasets_list(self) -> ListWithLock:
         datasets_list = self.taskBufferIF.get_tasks_inputdatasets_JEDI(self.vo)
         datasets_list = ListWithLock(datasets_list)
         # return
         return datasets_list
 
     # update data locality records to DB table
-    def doUpdateDataLocality(self):
+    def doUpdateDataLocality(self) -> None:
         tmpLog = MsgWrapper(logger, " #ATM #KV doUpdateDataLocality")
         tmpLog.debug("start")
         try:
@@ -83,7 +88,7 @@ class AtlasDataLocalityUpdaterWatchDog(WatchDogBase):
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # clean up old data locality records in DB table
-    def doCleanDataLocality(self):
+    def doCleanDataLocality(self) -> None:
         tmpLog = MsgWrapper(logger, " #ATM #KV doCleanDataLocality")
         tmpLog.debug("start")
         try:
@@ -116,7 +121,7 @@ class AtlasDataLocalityUpdaterWatchDog(WatchDogBase):
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # main
-    def doAction(self):
+    def doAction(self) -> Interaction.StatusCode:
         try:
             # get logger
             origTmpLog = MsgWrapper(logger)
@@ -136,7 +141,15 @@ class AtlasDataLocalityUpdaterWatchDog(WatchDogBase):
 # thread for data locality update
 class DataLocalityUpdaterThread(WorkerThread):
     # constructor
-    def __init__(self, taskDsList, threadPool, taskbufferIF, ddmIF, pid, loggerObj):
+    def __init__(
+        self,
+        taskDsList: ListWithLock,
+        threadPool: ThreadPool,
+        taskbufferIF: "JediTaskBufferInterface",
+        ddmIF: Interaction.CommandSendInterface,
+        pid: str,
+        loggerObj: MsgWrapper,
+    ) -> None:
         # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, loggerObj)
         # attributes
@@ -148,7 +161,7 @@ class DataLocalityUpdaterThread(WorkerThread):
         self.logger = loggerObj
 
     # main
-    def runImpl(self):
+    def runImpl(self) -> None:
         # initialize
         n_updated_ds = 0
         n_skipped_ds = 0

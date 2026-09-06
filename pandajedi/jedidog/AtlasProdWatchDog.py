@@ -2,11 +2,13 @@ import copy
 import os
 import socket
 import traceback
+from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jedibrokerage import AtlasBrokerUtils
 from pandajedi.jediconfig import jedi_config
+from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.srvcore import CoreUtils
@@ -15,18 +17,22 @@ from pandaserver.taskbuffer import JediTaskSpec, JobUtils
 from .JumboWatchDog import JumboWatchDog
 from .TypicalWatchDogBase import TypicalWatchDogBase
 
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
+
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 # watchdog for ATLAS production
 class AtlasProdWatchDog(TypicalWatchDogBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface") -> None:
         TypicalWatchDogBase.__init__(self, taskBufferIF, ddmIF)
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-dog"
 
     # main
-    def doAction(self):
+    def doAction(self) -> Interaction.StatusCode:
         try:
             # get logger
             tmpLog = MsgWrapper(logger)
@@ -275,7 +281,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                     break
 
     # action for reassignment
-    def doActionForReassign(self, gTmpLog):
+    def doActionForReassign(self, gTmpLog: MsgWrapper) -> None:
         # get DDM I/F
         ddmIF = self.ddmIF.getInterface(self.vo)
         if ddmIF is None:
@@ -357,7 +363,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                 tmpLog.debug("finished to reassign")
 
     # action for throttled tasks
-    def doActionForThrottled(self, gTmpLog):
+    def doActionForThrottled(self, gTmpLog: MsgWrapper) -> None:
         # release tasks
         nTasks = self.taskBufferIF.releaseThrottledTasks_JEDI(self.vo, self.prodSourceLabel)
         gTmpLog.debug(f"released {nTasks} tasks")
@@ -367,7 +373,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
         gTmpLog.debug(f"throttled {nTasks} tasks")
 
     # action for high priority pending tasks
-    def doActionForHighPrioPending(self, gTmpLog, minPriority, timeoutVal):
+    def doActionForHighPrioPending(self, gTmpLog: MsgWrapper, minPriority: int, timeoutVal: int) -> None:
         config_timeout: str | int | None = None
         # try to get the timeout from the config files
         if hasattr(jedi_config.watchdog, "timeoutForPendingVoLabel"):
@@ -383,7 +389,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
             gTmpLog.info(f"reactivated high priority (>{minPriority}) {tmpRet} tasks")
 
     # action to throttle jobs in paused tasks
-    def doActionToThrottleJobInPausedTasks(self, gTmpLog):
+    def doActionToThrottleJobInPausedTasks(self, gTmpLog: MsgWrapper) -> None:
         tmpRet = self.taskBufferIF.throttleJobsInPausedTasks_JEDI(self.vo, self.prodSourceLabel)
         if tmpRet is None:
             # failed
@@ -395,7 +401,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                 gTmpLog.info(f"reassigned {len(pandaIDs)} jobs in paused jediTaskID={jediTaskID} with {tmpRet}")
 
     # action to provoke (mark files ready) data carousel tasks to start if DDM rules of input DS are done
-    def doActionToProvokeDCTasks(self, gTmpLog):
+    def doActionToProvokeDCTasks(self, gTmpLog: MsgWrapper) -> None:
         # lock
         got_lock = self.taskBufferIF.lockProcess_JEDI(
             vo=self.vo,

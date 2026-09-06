@@ -2,16 +2,21 @@ import os
 import socket
 import sys
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jedibrokerage import AtlasBrokerUtils
 from pandajedi.jediconfig import jedi_config
+from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.dataservice import DataServiceUtils
 
 from .WatchDogBase import WatchDogBase
+
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -19,7 +24,7 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # task withholder watchdog for ATLAS
 class AtlasTaskWithholderWatchDog(WatchDogBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface") -> None:
         WatchDogBase.__init__(self, taskBufferIF, ddmIF)
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-dog"
         # self.cronActions = {'forPrestage': 'atlas_prs'}
@@ -29,7 +34,7 @@ class AtlasTaskWithholderWatchDog(WatchDogBase):
         self.refresh()
 
     # get process lock
-    def _get_lock(self):
+    def _get_lock(self) -> bool:
         return self.taskBufferIF.lockProcess_JEDI(
             vo=self.vo,
             prodSourceLabel="managed",
@@ -42,7 +47,7 @@ class AtlasTaskWithholderWatchDog(WatchDogBase):
         )
 
     # refresh information stored in the instance
-    def refresh(self):
+    def refresh(self) -> None:
         # work queue mapper
         self.workQueueMapper = self.taskBufferIF.getWorkQueueMap()
         # site mapper
@@ -55,7 +60,7 @@ class AtlasTaskWithholderWatchDog(WatchDogBase):
         self.allSiteList = allSiteList
 
     # get map of site to list of RSEs and blacklisted RSEs
-    def get_site_rse_map_and_blacklisted_rse_set(self, prod_source_label):
+    def get_site_rse_map_and_blacklisted_rse_set(self, prod_source_label: str) -> tuple[dict[str, list[str]], set[str]]:
         site_rse_map = {}
         blacklisted_rse_set = set()
         for tmpPseudoSiteName in self.allSiteList:
@@ -79,8 +84,8 @@ class AtlasTaskWithholderWatchDog(WatchDogBase):
         return site_rse_map, blacklisted_rse_set
 
     # get busy sites
-    def get_busy_sites(self, gshare, cutoff):
-        busy_sites_list: list[Any] = []
+    def get_busy_sites(self, gshare: str, cutoff: int) -> list[str]:
+        busy_sites_list: list[str] = []
         # get global share
         tmpSt, jobStatPrioMap = self.taskBufferIF.getJobStatisticsByGlobalShare(self.vo)
         if not tmpSt:
@@ -113,7 +118,7 @@ class AtlasTaskWithholderWatchDog(WatchDogBase):
     #         tmpLog.debug('done with {0}'.format(retVal))
 
     # set tasks to be pending due to condition of data locality
-    def do_for_data_locality(self):
+    def do_for_data_locality(self) -> None:
         tmp_log = MsgWrapper(logger)
         # refresh
         self.refresh()
@@ -224,7 +229,7 @@ class AtlasTaskWithholderWatchDog(WatchDogBase):
                         tmp_log.info(f'gshare: {gshare:<16} {str(n_tasks):>5} tasks got pending ; reason="{reason}" ')
 
     # main
-    def doAction(self):
+    def doAction(self) -> Interaction.StatusCode:
         try:
             # get logger
             origTmpLog = MsgWrapper(logger)

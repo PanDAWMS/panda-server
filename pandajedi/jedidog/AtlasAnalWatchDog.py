@@ -3,15 +3,20 @@ import re
 import socket
 import sys
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.dataservice.activator import Activator
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
 
 from .TypicalWatchDogBase import TypicalWatchDogBase
+
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -19,12 +24,12 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # watchdog for ATLAS analysis
 class AtlasAnalWatchDog(TypicalWatchDogBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface") -> None:
         TypicalWatchDogBase.__init__(self, taskBufferIF, ddmIF)
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-dog"
 
     # main
-    def doAction(self):
+    def doAction(self) -> Interaction.StatusCode:
         # get logger
         orig_tmp_log = MsgWrapper(logger)
         try:
@@ -52,7 +57,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
         return self.SC_SUCCEEDED
 
     # handle waiting jobs
-    def doForWaitingJobs(self):
+    def doForWaitingJobs(self) -> None:
         try:
             tmpLog = MsgWrapper(logger, "doForWaitingJobs label=user")
             # lock
@@ -121,7 +126,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # throttle tasks if so many prestaging requests
-    def doForPreStaging(self):
+    def doForPreStaging(self) -> None:
         try:
             tmpLog = MsgWrapper(logger, " #ATM #KV doForPreStaging label=user")
             tmpLog.debug("start")
@@ -287,7 +292,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # priority massage
-    def doForPriorityMassage(self):
+    def doForPriorityMassage(self) -> None:
         tmpLog = MsgWrapper(logger, " #ATM #KV doForPriorityMassage label=user")
         tmpLog.debug("start")
         # lock
@@ -527,7 +532,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # redo stalled analysis jobs
-    def doForRedoStalledJobs(self):
+    def doForRedoStalledJobs(self) -> None:
         tmpLog = MsgWrapper(logger, " #ATM #KV doForRedoStalledJobs label=user")
         tmpLog.debug("start")
         # lock
@@ -664,7 +669,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             tmpLog.error(f"failed to redo stalled jobs with {errtype} {errvalue} {traceback.format_exc()}")
 
     # task share and priority boost
-    def doForTaskBoost(self):
+    def doForTaskBoost(self) -> None:
         tmpLog = MsgWrapper(logger, " #ATM #KV doForTaskBoost label=user")
         tmpLog.debug("start")
         # lock
@@ -721,7 +726,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # periodic task action
-    def do_periodic_action(self):
+    def do_periodic_action(self) -> None:
         """
         Perform periodic action on tasks
           * extend lifetime of output containers for analysis tasks

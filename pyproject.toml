@@ -149,6 +149,7 @@ module = [
     "pandajedi.jedibrokerage.*",
     "pandajedi.jediconfig.*",
     "pandajedi.jediddm.*",
+    "pandajedi.jedidog.*",
     "pandajedi.jediexec.*",
     "pandajedi.jedigen.*",
     "pandajedi.jedimsgprocessor.*",

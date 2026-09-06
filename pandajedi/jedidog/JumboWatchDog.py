@@ -1,14 +1,23 @@
 import os
 import socket
 import traceback
+from typing import TYPE_CHECKING
 
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+
+if TYPE_CHECKING:
+    # Importing any of these for real makes this module read a configuration file at import
+    # time, and it has no other reason to need one. Annotations are evaluated at runtime in
+    # this tree, so the uses below are quoted.
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jedicore.MsgWrapper import MsgWrapper
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 
 # watchdog to take actions for jumbo jobs
 class JumboWatchDog:
     # constructor
-    def __init__(self, taskBufferIF, ddmIF, log, vo, prodSourceLabel):
+    def __init__(self, taskBufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface", log: "MsgWrapper", vo: str, prodSourceLabel: str) -> None:
         self.taskBufferIF = taskBufferIF
         self.ddmIF = ddmIF
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}_{os.getpgrp()}-jumbo"
@@ -19,7 +28,7 @@ class JumboWatchDog:
         self.dryRun = True
 
     # main
-    def run(self):
+    def run(self) -> None:
         try:
             # get process lock
             locked = self.taskBufferIF.lockProcess_JEDI(
