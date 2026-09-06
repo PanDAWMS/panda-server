@@ -180,7 +180,7 @@ class Setupper(threading.Thread):
             # allOkEvents() returns True if all events in the job are okay (no errors or issues)
             if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
                 # If all conditions are met, update the job in the task buffer
-                self.task_buffer.updateJobs([job])
+                self.task_buffer.activateJobs([job])
                 # Change the job status to "finished"
                 job.jobStatus = "finished"
                 # Update the job in the task buffer again with the new status

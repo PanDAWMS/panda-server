@@ -675,7 +675,8 @@ class AdderAtlasPlugin(AdderPluginBase):
             sub_activity = "Production Output"
 
         # register dataset subscription
-        self.process_subscriptions(sub_map, sub_to_ds_map, dist_datasets, sub_activity)
+        if self.process_subscriptions(sub_map, sub_to_ds_map, dist_datasets, sub_activity) is not None:
+            return 1
 
         # collect list of merging files
         if self.go_to_merging and self.job_status not in ["failed", "cancelled", "closed"]:

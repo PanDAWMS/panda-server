@@ -61,7 +61,7 @@ class Closer:
         if self.all_subscription_finished is not None:
             return self.all_subscription_finished
         # get consumers in the jobset
-        jobs = self.task_buffer.getOriginalConsumers(self.job.jediTaskID, self.job.jobsetID, self.job.panda_id)
+        jobs = self.task_buffer.getOriginalConsumers(self.job.jediTaskID, self.job.jobsetID, self.job.PandaID)
         checked_dataset = set()
         for job_spec in jobs:
             # collect all sub datasets
