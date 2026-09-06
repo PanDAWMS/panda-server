@@ -239,11 +239,11 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         tmpSt, jobStatPrioMap = self.taskBufferIF.getJobStatisticsByGlobalShare(self.vo)
         if not tmpSt:
             # got nothing...
-            return available_sites_dict
+            return []
         # get to-running rate of sites
         site_trr_map = self.get_site_trr_map()
         if site_trr_map is None:
-            return available_sites_dict
+            return []
         # record for excluded site reasons
         excluded_sites_dict: dict[str, set[str]] = {
             "not_online": set(),

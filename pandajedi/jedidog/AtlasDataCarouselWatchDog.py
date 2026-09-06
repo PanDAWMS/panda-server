@@ -43,8 +43,10 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
     def __init__(self, taskBufferIF, ddmIF):
         WatchDogBase.__init__(self, taskBufferIF, ddmIF)
         self.vo = "atlas"
-        self.ddmIF = ddmIF.getInterface(self.vo)
-        self.data_carousel_interface = DataCarouselInterface(taskBufferIF, self.ddmIF)
+        # DataCarouselInterface talks to Rucio through the module-level rucioAPI and takes
+        # no DDM interface, so the ATLAS plugin this used to build and pass was discarded
+        # unread by its *args; every other caller passes the task buffer alone
+        self.data_carousel_interface = DataCarouselInterface(taskBufferIF)
 
     def doStageDCRequests(self):
         """

@@ -252,7 +252,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                             for other_task_param, _ in tasks_with_same_request_type:
                                 other_jedi_task_id = other_task_param["jediTaskID"]
                                 # auto pause disabled
-                                if JediTaskSpec.is_auto_pause_disabled(other_jedi_task_id):
+                                if JediTaskSpec.is_auto_pause_disabled(other_task_param["splitRule"]):
                                     continue
                                 if other_jedi_task_id != jediTaskID:
                                     g_tmp_log.info(
@@ -278,6 +278,10 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
     def doActionForReassign(self, gTmpLog):
         # get DDM I/F
         ddmIF = self.ddmIF.getInterface(self.vo)
+        if ddmIF is None:
+            # nothing below can move a replication rule without it
+            gTmpLog.error(f"no DDM interface for vo={self.vo}")
+            return
         # get site mapper
         siteMapper = self.taskBufferIF.get_site_mapper()
         # get tasks to get reassigned
@@ -417,6 +421,10 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
         else:
             gTmpLog.debug(f"got {len(res_dict)} DC tasks to provoke")
             ddm_if = self.ddmIF.getInterface(self.vo)
+            if ddm_if is None:
+                # the rule states below cannot be read without it
+                gTmpLog.error(f"no DDM interface for vo={self.vo}")
+                return
             # loop over pending DC tasks
             for task_id, ds_name_list in res_dict.items():
                 if not ds_name_list:

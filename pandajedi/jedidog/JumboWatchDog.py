@@ -140,6 +140,6 @@ class JumboWatchDog:
         except Exception as e:
             # error
             errStr = f": {type(e).__name__} {e}"
-            errStr.strip()
+            errStr = errStr.strip()
             errStr += traceback.format_exc()
             self.log.error(errStr)

@@ -381,7 +381,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                                     tmpLog.sendMsg(msg, "userCap")
             except Exception as e:
                 errStr = f"cap failed for {prodUserName} : {str(e)}"
-                errStr.strip()
+                errStr = errStr.strip()
                 errStr += traceback.format_exc()
                 tmpLog.error(errStr)
             # to boost
@@ -617,7 +617,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                                     libGUID = guid
                                     libDSName = tmpLibDsName
                                 elif filetype in ["log", "output"]:
-                                    if destinationDBlock is not None and re.search("_sub\d+$", destinationDBlock) is not None:
+                                    if destinationDBlock is not None and re.search(r"_sub\d+$", destinationDBlock) is not None:
                                         destReady = True
                             break
                     tmpLog.debug(f"  useLib:{useLib} libStatus:{libStatus} libDsName:{libDSName} libLFN:{libLFN} libGUID:{libGUID} destReady:{destReady}")
@@ -737,6 +737,10 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             lifetime *= 24 * 60 * 60
             # get DDM interface
             ddm_if = self.ddmIF.getInterface(self.vo)
+            if ddm_if is None:
+                # the container lifetimes below cannot be extended without it
+                tmp_log.error(f"no DDM interface for vo={self.vo}")
+                return
             # get tasks
             task_list = self.taskBufferIF.get_tasks_for_periodic_action(self.vo, self.prodSourceLabel)
             for task_id in task_list:
