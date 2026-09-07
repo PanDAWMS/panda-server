@@ -3,7 +3,16 @@ from typing import TYPE_CHECKING
 from pandacommon.pandalogger import logger_utils
 
 from pandajedi.jediconfig import jedi_config
-from pandajedi.jedidaemons.utils import DaemonMaster
+
+# pandajedi/jedidaemons was not brought over when jedi was copied into this repo, so this
+# module does not exist here and importing it raises. It is not a wrong path for
+# pandaserver.daemons.utils.DaemonMaster either: that one takes no tbuf or ddmif, which is
+# what launcher() below passes. Reaching this needs a [daemon] section with enable set, and
+# panda_jedi.cfg.rpmnew.template has no [daemon] section at all, so nothing does today --
+# but JediMaster launches this knight when one appears and SIGKILLs the whole process group
+# when a knight dies in initialization. The ignore keeps mypy able to report the next
+# first-party path that names a module which is not there.
+from pandajedi.jedidaemons.utils import DaemonMaster  # type: ignore[import-not-found]
 
 if TYPE_CHECKING:
     from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface

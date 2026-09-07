@@ -60,6 +60,11 @@ jobs:
     # mypy and the stub packages are pinned together: the stubs are part of what the
     # run sees, so an unpinned upgrade would produce findings without a code change.
     # When upgrading either, fix what the new version reports in the same PR.
+    #
+    # Nothing else is installed on purpose. Third-party imports are unresolvable here and
+    # ignore_missing_imports silences them; the overrides block that turns it back off for
+    # pandaserver and pandajedi is what makes this step also catch an import naming a
+    # module that is not there, which ruff F821 cannot see and py_compile does not execute.
     - name: Type check
       run: |
         pip install 'mypy==2.3.1' 'types-requests==2.33.0.20260712' 'types-PyYAML==6.0.12.20260815'
