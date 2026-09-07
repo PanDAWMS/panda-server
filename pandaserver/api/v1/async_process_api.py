@@ -136,6 +136,8 @@ def submit_grep_request(
     tail_bytes: int = None,
 ) -> Dict[str, Any]:
     """
+    Submit a grep request
+
     Submit a grep request to be processed asynchronously on the target service or machine.
 
     API details:
@@ -245,6 +247,8 @@ def submit_sleep_echo_request(
     seconds: int = 10,
 ) -> Dict[str, Any]:
     """
+    Submit sleep+echo request
+
     Submit a sleep+echo request, run on any one machine in the target service.
     Results are readable by the requester or any production-role caller (access="production").
 
@@ -309,11 +313,14 @@ def submit_sleep_echo_request(
 @request_validation(_logger, secure=True, request_method="GET")
 def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
     """
+    Get async request result
+
     Poll for the results of an async request, of any type and from any submitting module.
 
     The response has two shapes, depending on what the request's handler stores.
 
     Handlers writing raw output (grep, sleep_echo) report one entry per machine:
+    ```
         {
             "success": bool,        # whether this poll succeeded
             "message": str,
@@ -326,10 +333,12 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
                               "stderr": str, "return_code": int}, ...]
             }
         }
+        ```
         overall_status is "complete" when all expected machines have a terminal result (done/failed).
 
     Handlers writing a structured payload (e.g. the Data Carousel operations submitted by
     pandaserver.api.v1.data_carousel_api) report that payload at the top level instead:
+    ```
         {
             "success": bool,        # whether the OPERATION succeeded
             "message": str,         # the operation's message
@@ -338,6 +347,7 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
                            "attempts": int, "started_at": str, "finished_at": str,
                            "error_msg": str}
         }
+        ```
         Poll on async_meta.status, not on success: success is False while the request is still
         pending or running, and False again when the handler crashed (status "failed", reason in
         async_meta.error_msg), so it only tells the operation's outcome once status is "done".
