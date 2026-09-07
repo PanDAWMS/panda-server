@@ -601,6 +601,8 @@ class JobGeneratorThread(WorkerThread):
                         goForward = True
                         taskParamMap = None
                         oldStatus = taskSpec.status
+                        # set when brokerage says the task is only waiting for something it cannot control
+                        noFrozenTime = False
                         # extend sandbox lifetime
                         if goForward:
                             if not inputChunk.isMerging and not (hasattr(jedi_config.jobgen, "touchSandbox") and not jedi_config.jobgen.touchSandbox):
@@ -664,6 +666,7 @@ class JobGeneratorThread(WorkerThread):
                                     tmpLog.error(f"{tmpErrStr} {taskSpec.get_original_error_dialog()}")
                                     if nSubmitSucceeded == 0:
                                         taskSpec.setOnHold()
+                                        noFrozenTime = tmpStat == Interaction.SC_WAITING
                                     taskSpec.setErrDiag(tmpErrStr, True)
                                 goForward = False
                             else:
@@ -920,6 +923,7 @@ class JobGeneratorThread(WorkerThread):
                             {"jediTaskID": taskSpec.jediTaskID},
                             oldStatus=JediTaskSpec.statusForJobGenerator() + ["pending"],
                             setOldModTime=setOldModTime,
+                            setFrozenTime=not noFrozenTime,
                         )
                         tmpMsg = f"set task_status={taskSpec.status} oldTask={setOldModTime} with {str(retDB)}"
                         if taskSpec.errorDialog not in ["", None]:

@@ -4947,7 +4947,10 @@ class TaskComplexModule(BaseModule):
                         and task_attempt_number >= task_max_attempt > 0
                     ):
                         # too many attempts
-                        msg_str = f"exhausted upon retry since too many task attempts more than {task_max_attempt} are forbidden"
+                        msg_str = (
+                            f"This task can no longer continue following the retry attempt because too many task attempts "
+                            f"more than {task_max_attempt} are forbidden. No further retries are accepted."
+                        )
                         tmpLog.debug(msg_str)
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
@@ -4960,7 +4963,10 @@ class TaskComplexModule(BaseModule):
                     ):
                         # failed HEP score hours are too large
                         msg_val = str(failure_metrics["failed_hep_score_hour"])
-                        msg_str = f"exhausted upon retry since HEP score hours used by failed jobs ({msg_val} hours) exceed {max_failed_hep_score_hours} hours"
+                        msg_str = (
+                            f"This task can no longer continue following the retry attempt because HEP score hours used by failed jobs "
+                            f"({msg_val} hours) exceed {max_failed_hep_score_hours} hours. No further retries are accepted."
+                        )
                         tmpLog.debug(msg_str)
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
@@ -4973,7 +4979,10 @@ class TaskComplexModule(BaseModule):
                     ):
                         # failed HEP score hours are too large
                         msg_val = str(failure_metrics["failed_hep_score_ratio"])
-                        msg_str = f"exhausted upon retry since failed/total HEP score rate ({msg_val}) exceeds {max_failed_hep_score_rate}"
+                        msg_str = (
+                            f"This task can no longer continue following the retry attempt because failed/total HEP score rate "
+                            f"({msg_val}) exceeds {max_failed_hep_score_rate}. No further retries are accepted."
+                        )
                         tmpLog.debug(msg_str)
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
@@ -4986,7 +4995,10 @@ class TaskComplexModule(BaseModule):
                     ):
                         # high failure rate
                         msg_val = str(failure_metrics["single_failure_rate"])
-                        msg_str = f"exhausted upon retry since single job failure rate ({msg_val}) is higher than {max_job_failure_rate}"
+                        msg_str = (
+                            f"This task can no longer continue following the retry attempt because single job failure rate "
+                            f"({msg_val}) is higher than {max_job_failure_rate}. No further retries are accepted."
+                        )
                         tmpLog.debug(msg_str)
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
@@ -5011,7 +5023,10 @@ class TaskComplexModule(BaseModule):
                     ):
                         # inefficient CPU usage
                         msg_val = scout_metrics_extra.get("minCpuEfficiency")
-                        msg_str = f"exhausted upon retry since average CPU efficiency across finished jobs ({msg_val}%) is less than {min_cpu_efficiency}%"
+                        msg_str = (
+                            f"This task can no longer continue following the retry attempt because average CPU efficiency across finished jobs "
+                            f"({msg_val}%) is less than {min_cpu_efficiency}%. No further retries are accepted."
+                        )
                         tmpLog.debug(msg_str)
                         newTaskStatus = "exhausted"
                         newErrorDialog = msg_str
