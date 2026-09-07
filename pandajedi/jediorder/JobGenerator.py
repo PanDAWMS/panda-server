@@ -24,6 +24,7 @@ from pandajedi.jedicore.ThreadUtils import (
     WorkerThread,
 )
 from pandajedi.jedirefine import RefinerUtils
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.srvcore import CoreUtils
@@ -34,7 +35,6 @@ from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.ResourceSpec import ResourceSpec
-from pandaserver.taskbuffer.SiteMapper import SiteMapper
 from pandaserver.taskbuffer.SiteSpec import SiteSpec
 from pandaserver.taskbuffer.WorkQueue import WorkQueue
 from pandaserver.userinterface import Client as PandaClient
@@ -1285,7 +1285,10 @@ class JobGeneratorThread(WorkerThread):
                     jobSpec.minRamCount, jobSpec.minRamUnit = JobUtils.getJobMinRamCount(taskSpec, inputChunk, siteSpec, jobSpec.coreCount)
                     # calculate the hs06 occupied by the job
                     if siteSpec.corepower:
-                        jobSpec.hs06 = (jobSpec.coreCount or 1) * siteSpec.corepower  # default 0 and None corecount to 1
+                        # coreCount was set just above, so the "NULL" the operator ignore
+                        # covers cannot reach the multiplication. hs06 is an integer column
+                        # taking a float, which is a pre-existing mismatch left as it is
+                        jobSpec.hs06 = (jobSpec.coreCount or 1) * siteSpec.corepower  # type: ignore[assignment,operator]  # default 0 and None corecount to 1
                     jobSpec.diskIO = taskSpec.diskIO
                     jobSpec.ipConnectivity = "yes"
                     jobSpec.metadata = ""
@@ -2690,7 +2693,8 @@ class JobGeneratorThread(WorkerThread):
             newPandaJob.coreCount = siteSpec.coreCount
         if taskSpec is not None and inputChunk is not None:
             newPandaJob.minRamCount, newPandaJob.minRamUnit = JobUtils.getJobMinRamCount(taskSpec, inputChunk, siteSpec, newPandaJob.coreCount)
-            newPandaJob.hs06 = (newPandaJob.coreCount or 1) * siteSpec.corepower
+            # hs06 is an integer column taking a float, as above
+            newPandaJob.hs06 = (newPandaJob.coreCount or 1) * siteSpec.corepower  # type: ignore[assignment]
             if totalMasterEvents is not None:
                 CoreUtils.getJobMaxWalltime(taskSpec, inputChunk, totalMasterEvents, newPandaJob, siteSpec)
         try:

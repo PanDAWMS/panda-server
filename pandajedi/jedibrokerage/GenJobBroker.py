@@ -5,13 +5,13 @@ from typing import Any
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jedicore import Interaction
-from pandajedi.jedicore.InputChunk import InputChunk
 from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandajedi.jedirefine import RefinerUtils
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
+from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from . import AtlasBrokerUtils

@@ -6,8 +6,7 @@ import os
 import sys
 from typing import Any
 
-from snakeparser import Parser
-
+from pandaserver.workflow.snakeparser import Parser
 from pandaserver.workflow.workflow_utils import (
     convert_nodes_to_workflow,
     dump_nodes,

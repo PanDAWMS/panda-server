@@ -40,7 +40,7 @@ if __name__ == "__main__":
     print(f"Share {share_name} is valid: {proxyS.is_valid_share(share_name)}")
 
     try:
-        from pandajedi.jedicore.JediTaskSpec import JediTaskSpec
+        from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
     except ImportError:
         print("Skipped task tests since JEDI module depency not satisfied")
         sys.exit(0)

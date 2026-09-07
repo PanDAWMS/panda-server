@@ -5,10 +5,10 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
-from pandaserver.taskbuffer.SiteMapper import SiteMapper
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 

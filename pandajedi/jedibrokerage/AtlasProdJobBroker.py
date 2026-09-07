@@ -7,7 +7,6 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction
-from pandajedi.jedicore.InputChunk import InputChunk
 from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.SiteCandidate import SiteCandidate
@@ -16,6 +15,7 @@ from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
+from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from . import AtlasBrokerUtils
@@ -223,7 +223,10 @@ class AtlasProdJobBroker(JobBrokerBase):
 
         elif inputChunk.getPreassignedSite() is not None:
             if (
-                inputChunk.masterDataset.creationTime is not None
+                # a chunk with no master dataset has no times to compare, which is how
+                # every other reader of masterDataset in the tree spells this
+                inputChunk.masterDataset is not None
+                and inputChunk.masterDataset.creationTime is not None
                 and inputChunk.masterDataset.modificationTime is not None
                 and inputChunk.masterDataset.modificationTime != inputChunk.masterDataset.creationTime
                 and timeNow - inputChunk.masterDataset.modificationTime > datetime.timedelta(hours=24)

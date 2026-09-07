@@ -2,7 +2,10 @@ import json
 import os
 import sys
 
-from liveconfigparser.LiveConfigParser import LiveConfigParser, expand_values
+from pandacommon.liveconfigparser.LiveConfigParser import (
+    LiveConfigParser,
+    expand_values,
+)
 
 # get ConfigParser
 tmp_conf = LiveConfigParser()

@@ -1,7 +1,7 @@
 import copy
 import sys
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -11,7 +11,12 @@ from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
 from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
 from pandaserver.taskbuffer.ResourceSpec import ResourceSpec
 from pandaserver.taskbuffer.SiteSpec import SiteSpec
-from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this module, so naming it for real here closes the cycle and
+    # neither module can be imported. Annotations are evaluated at runtime in this tree,
+    # so the use below is quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("SiteMapper")
 
@@ -33,7 +38,7 @@ NUCLEUS_TAG = "nucleus:"
 
 
 class SiteMapper:
-    def __init__(self, taskBuffer: TaskBuffer, verbose: bool = False) -> None:
+    def __init__(self, taskBuffer: "TaskBuffer", verbose: bool = False) -> None:
         _logger.debug("__init__ SiteMapper")
         try:
             self.siteSpecList: dict[str, Any] = {}
