@@ -229,7 +229,9 @@ def release(req: PandaRequest, task_id: int) -> Dict[str, Any]:
 
 # reassign task to site/cloud
 @request_validation(_logger, secure=True, request_method="POST")
-def reassign(req: PandaRequest, task_id: int, site: str | None = None, cloud: str | None = None, nucleus: str | None = None, mode: str | None = None):
+def reassign(
+    req: PandaRequest, task_id: int, site: str | None = None, cloud: str | None = None, nucleus: str | None = None, mode: str | None = None
+) -> dict[str, Any]:
     """
     Task reassign
 
@@ -372,7 +374,7 @@ def kill(req: PandaRequest, task_id: int, broadcast: bool = False) -> Dict[str, 
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def kill_unfinished_jobs(req: PandaRequest, task_id: int, code: int | None = None, use_email_as_id: bool = False):
+def kill_unfinished_jobs(req: PandaRequest, task_id: int, code: int | None = None, use_email_as_id: bool = False) -> dict[str, Any]:
     """
     Kill all unfinished jobs in a task
 
@@ -654,7 +656,7 @@ def reassign_global_share(req: PandaRequest, task_id_list: List[int], share: str
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def enable_jumbo_jobs(req: PandaRequest, task_id: int, jumbo_jobs_total: int, jumbo_jobs_per_site: int | None = None):
+def enable_jumbo_jobs(req: PandaRequest, task_id: int, jumbo_jobs_total: int, jumbo_jobs_per_site: int | None = None) -> dict[str, Any]:
     """
     Enable Jumbo jobs
 
@@ -830,7 +832,7 @@ def increase_attempts(req: PandaRequest, task_id: int, increase: int) -> Dict[st
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_status(req, task_id):
+def get_status(req: PandaRequest, task_id: int) -> dict[str, Any]:
     """
     Get task status
 
@@ -869,7 +871,7 @@ def get_status(req, task_id):
 
 
 @request_validation(_logger, request_method="GET", secure=True)
-def get_details(req: PandaRequest, task_id: int, include_parameters: bool = False, include_status: bool = False):
+def get_details(req: PandaRequest, task_id: int, include_parameters: bool = False, include_status: bool = False) -> dict[str, Any]:
     """
     Get task details
 
@@ -997,7 +999,7 @@ def change_modification_time(req: PandaRequest, task_id: int, hour_offset: int) 
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def change_priority(req: PandaRequest, task_id: int, priority: int):
+def change_priority(req: PandaRequest, task_id: int, priority: int) -> dict[str, Any]:
     """
     Change priority
 
@@ -1102,7 +1104,7 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
 
 @request_validation(_logger, secure=True, request_method="GET")
 def get_tasks_modified_since(
-    req, since: str, dn: str | None = None, full: bool = False, min_task_id: int | None = None, prod_source_label: str = "user"
+    req: PandaRequest, since: str, dn: str | None = None, full: bool = False, min_task_id: int | None = None, prod_source_label: str = "user"
 ) -> Dict[str, Any]:
     """
     Get tasks modified since
@@ -1140,7 +1142,7 @@ def get_tasks_modified_since(
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_tasks_detailed_info_since(req, since: str | None = None, filters: str | None = None, n_tasks: int = 500) -> Dict[str, Any]:
+def get_tasks_detailed_info_since(req: PandaRequest, since: str | None = None, filters: str | None = None, n_tasks: int = 500) -> Dict[str, Any]:
     """
     Get detailed task info for tasks, optionally restricted to those modified since a given time.
 
@@ -1184,7 +1186,7 @@ def get_tasks_detailed_info_since(req, since: str | None = None, filters: str | 
 
     REGEX_META = r"^$*+?\|()"
 
-    def looks_like_regex(s):
+    def looks_like_regex(s: str) -> bool:
         # A simple heuristic to determine if a filter value looks like a regex pattern
         # (contains regex metacharacters except for . and {} that are used json fields).
         return any(c in s for c in REGEX_META)
@@ -1241,7 +1243,9 @@ def get_tasks_detailed_info_since(req, since: str | None = None, filters: str | 
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_datasets_and_files(req, task_id, dataset_types: Sequence[str] = ("input", "pseudo_input"), dataset_only: bool = False) -> Dict[str, Any]:
+def get_datasets_and_files(
+    req: PandaRequest, task_id: int, dataset_types: Sequence[str] = ("input", "pseudo_input"), dataset_only: bool = False
+) -> Dict[str, Any]:
     """
     Get datasets and files
 

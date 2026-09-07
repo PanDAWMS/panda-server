@@ -33,7 +33,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="GET")
-def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: int, task_id: int, timeout=60) -> dict[str, Any]:
+def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: int, task_id: int, timeout: int = 60) -> dict[str, Any]:
     """
     Get available event range count
 
@@ -182,7 +182,7 @@ def update_single_event_range(
     cpu_consumption_time: float | None = None,
     object_store_id: int | None = None,
     timeout: int = 60,
-):
+) -> dict[str, Any]:
     """
     Update single event range
 
@@ -231,7 +231,7 @@ def update_single_event_range(
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120, version: int = 0):
+def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120, version: int = 0) -> dict[str, Any]:
     """
     Update event ranges
 

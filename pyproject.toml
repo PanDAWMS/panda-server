@@ -177,6 +177,7 @@ module = [
     "pandajedi.jedirefine.*",
     "pandajedi.jedisetup.*",
     "pandajedi.jedithrottle.*",
+    "pandaserver.api.*",
     "pandaserver.asyncprocess.*",
     "pandaserver.brokerage.*",
     "pandaserver.config.*",

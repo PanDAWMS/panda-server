@@ -2,11 +2,13 @@ import ast
 import collections.abc
 import inspect
 import json
+import logging
 import re
 import sys
 import threading
 import time
 import typing
+from collections.abc import Callable
 from functools import wraps
 from types import ModuleType, UnionType
 from typing import Any, Union, get_args, get_origin
@@ -18,6 +20,7 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
     STRUCTURED_RESULT_KEY,
 )
@@ -32,7 +35,7 @@ MESSAGE_DATABASE = "database error in the PanDA server"
 MESSAGE_JSON = "failed to load JSON"
 
 
-def get_endpoint(protocol):
+def get_endpoint(protocol: str) -> tuple[bool, str]:
     if protocol not in ["http", "https"]:
         return False, "Protocol must be either 'http' or 'https'"
 
@@ -62,13 +65,13 @@ def extract_allowed_methods(module: ModuleType) -> list[str]:
     ]
 
 
-def generate_response(success, message="", data=None):
+def generate_response(success: bool, message: str = "", data: Any = None) -> dict[str, Any]:
     response = {"success": success, "message": message, "data": data}
     return response
 
 
 # get FQANs
-def get_fqan(req):
+def get_fqan(req: PandaRequest) -> list[str]:
     fqans = []
     for tmp_key in req.subprocess_env:
         tmp_value = req.subprocess_env[tmp_key]
@@ -87,7 +90,15 @@ def get_fqan(req):
     return fqans
 
 
-def get_email_address(user, tmp_logger):
+# the address rucio has on file for the user, or None when the lookup did not answer.
+# clean_user_id, which is where every caller's user comes from, can hand back None; the
+# except below is what turns that into the same answer
+def get_email_address(user: str | None, tmp_logger: LogWrapper) -> str | None:
+    if user is None:
+        # clean_user_id answers None for a DN it could not read, and there is nothing to
+        # ask rucio about; the callers already treat a missing address as no address
+        tmp_logger.debug("No user to get a mail address for")
+        return None
     tmp_logger.debug(f"Getting mail address for {user}")
     n_tries = 3
     email = None
@@ -108,7 +119,7 @@ def get_email_address(user, tmp_logger):
     return email
 
 
-def get_request_method(req):
+def get_request_method(req: PandaRequest) -> str | None:
     # Extract the http method like GET, POST, ... from the request environment
     environ = req.subprocess_env
     request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
@@ -116,7 +127,7 @@ def get_request_method(req):
 
 
 # get DN
-def get_dn(req):
+def get_dn(req: PandaRequest) -> str:
     real_dn = ""
     if "SSL_CLIENT_S_DN" in req.subprocess_env:
         # remove redundant CN
@@ -125,7 +136,7 @@ def get_dn(req):
 
 
 # check role
-def has_production_role(req):
+def has_production_role(req: PandaRequest) -> bool:
     # check DN
     user = get_dn(req)
     for sdn in panda_config.production_dns:
@@ -157,7 +168,7 @@ ACCESS_LEVELS = ("owner", "production", "anyone")
 SEQUENCE_ORIGINS = (list, tuple, set, frozenset, collections.abc.Sequence)
 
 
-def set_owner_info(parameters: dict[str, Any], req, access: str = "owner", structured_result: bool = False) -> dict[str, Any]:
+def set_owner_info(parameters: dict[str, Any], req: PandaRequest, access: str = "owner", structured_result: bool = False) -> dict[str, Any]:
     """
     Embed the requester, access level and result format into an async request's parameters dict.
     Used by the endpoints submitting async requests when building parameters_json.
@@ -182,7 +193,7 @@ def set_owner_info(parameters: dict[str, Any], req, access: str = "owner", struc
     return parameters
 
 
-def is_authorized_to_read(req, req_row) -> tuple[bool, str]:
+def is_authorized_to_read(req: PandaRequest, req_row: dict[str, Any]) -> tuple[bool, str]:
     """
     Authorize the caller to read an async request's results based on its access level.
 
@@ -213,9 +224,9 @@ def is_authorized_to_read(req, req_row) -> tuple[bool, str]:
     return True, f"'{caller}' is authorized (access='{access}')"
 
 
-def extract_production_working_groups(fqans):
+def extract_production_working_groups(fqans: list[str]) -> list[str]:
     # Extract working groups with production role from FQANs
-    wg_prod_roles: list[Any] = []
+    wg_prod_roles: list[str] = []
     for fqan in fqans:
         # Match FQANs with 'Role=production' and extract the working group
         match = re.search(r"/atlas/([^/]+)/Role=production", fqan)
@@ -228,7 +239,7 @@ def extract_production_working_groups(fqans):
     return wg_prod_roles
 
 
-def extract_primary_production_working_group(fqans):
+def extract_primary_production_working_group(fqans: list[str]) -> str | None:
     working_group = None
     for fqan in fqans:
         match = re.search("/[^/]+/([^/]+)/Role=production", fqan)
@@ -242,7 +253,7 @@ def extract_primary_production_working_group(fqans):
 
 
 # security check
-def is_secure(req, logger=None):
+def is_secure(req: PandaRequest, logger: LogWrapper | None = None) -> bool:
     # check security
     if not Protocol.isSecure(req):
         return False
@@ -256,8 +267,8 @@ def is_secure(req, logger=None):
     return True
 
 
-def normalize_type(t):
-    mapping = {
+def normalize_type(t: Any) -> Any:
+    mapping: dict[Any, Any] = {
         typing.List: list,
         typing.Dict: dict,
         typing.Set: set,
@@ -266,7 +277,7 @@ def normalize_type(t):
     return mapping.get(t, t)
 
 
-def type_name(expected_type):
+def type_name(expected_type: Any) -> str:
     """
     Name of an annotation, for a log line or an error message.
 
@@ -278,7 +289,7 @@ def type_name(expected_type):
     return getattr(expected_type, "__name__", None) or str(expected_type)
 
 
-def isinstance_types(expected_type):
+def isinstance_types(expected_type: Any) -> tuple[Any, ...]:
     """
     The classes isinstance can be called with for an annotation.
 
@@ -295,7 +306,15 @@ def isinstance_types(expected_type):
     return (origin or expected_type,)
 
 
-def request_validation(logger, secure=True, production=False, request_method=None, task_owner=False, task_buffer=None, task_id_param="task_id"):
+def request_validation(
+    logger: logging.Logger,
+    secure: bool = True,
+    production: bool = False,
+    request_method: str | None = None,
+    task_owner: bool = False,
+    task_buffer: Any = None,
+    task_id_param: str = "task_id",
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Decorator that validates an incoming API request before the handler runs.
 
@@ -314,9 +333,11 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                           Defaults to "task_id". Override to "jedi_task_id" for endpoints that use that name.
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
-        def wrapper(req, *args, **kwargs):
+        # answers whatever the wrapped endpoint answers, or the response saying why the
+        # request was refused before it ran
+        def wrapper(req: PandaRequest, *args: Any, **kwargs: Any) -> Any:
             # Generate a logger with the underlying function name
             tmp_logger = LogWrapper(logger, func.__name__)
             tmp_logger_context = LogWrapper(logger, f"{func.__name__} args:{args} kwargs:{kwargs}")
@@ -470,17 +491,21 @@ class TimedMethod:
     # whatever the wrapped method returns, or the TIME_OUT token while it has not returned
     result: typing.Any
 
-    def __init__(self, method, timeout):
+    def __init__(self, method: Callable[..., Any], timeout: int | None) -> None:
         self.method = method
+        # kept for the callers that pass one, but not read: run() below joins without a
+        # timeout. 27f8bc38 made that change on purpose in 2009, moving the timeout to the
+        # DB proxy in the same commit. None is what pilot update_job passes for a job going
+        # to holding, which it documents as being updated without a timeout
         self.timeout = timeout
         self.result = TIME_OUT
 
     # method emulation
-    def __call__(self, *var, **kwargs):
+    def __call__(self, *var: Any, **kwargs: Any) -> None:
         self.result = self.method(*var, **kwargs)
 
     # run
-    def run(self, *var, **kwargs):
+    def run(self, *var: Any, **kwargs: Any) -> None:
         thr = threading.Thread(target=self, args=var, kwargs=kwargs)
         thr.start()
         thr.join()

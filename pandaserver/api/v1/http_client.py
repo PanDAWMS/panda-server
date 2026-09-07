@@ -19,13 +19,13 @@ api_url_ssl = os.environ.get("PANDA_API_URL_SSL", "https://pandaserver.cern.ch:2
 EC_Failed = 255
 
 
-def is_https(url):
+def is_https(url: str) -> bool:
     # check if https is used
     return url.startswith("https://")
 
 
 class HttpClient:
-    def __init__(self):
+    def __init__(self) -> None:
         # verification of the host certificate
         if "PANDA_VERIFY_HOST" in os.environ and os.environ["PANDA_VERIFY_HOST"] == "off":
             self.verifyHost = False
@@ -47,7 +47,8 @@ class HttpClient:
         self.ssl_certificate = self._x509() if not self.oidc else None
         self.ssl_key = self._x509() if not self.oidc else None
 
-    def _x509(self):
+    # the proxy path, or "" when none was found -- which requests reads as no client cert
+    def _x509(self) -> str:
         # retrieve the X509_USER_PROXY from the environment variables
         try:
             return os.environ["X509_USER_PROXY"]
@@ -63,7 +64,7 @@ class HttpClient:
         print("No valid grid proxy certificate found")
         return ""
 
-    def _prepare_url(self, url):
+    def _prepare_url(self, url: str) -> tuple[str, bool]:
         """Modify URL with HTTPS check and hostname replacement."""
         use_https = is_https(url)
         if "PANDA_BEHIND_REAL_LB" in os.environ:
@@ -72,7 +73,7 @@ class HttpClient:
             modified_url = replace_hostname_in_url_randomly(url)
         return modified_url, use_https
 
-    def _prepare_headers(self, accept_json=True, content_type_json=True, encoding=None):
+    def _prepare_headers(self, accept_json: bool = True, content_type_json: bool = True, encoding: str | None = None) -> dict[str, Any]:
         """Prepare headers based on authentication and JSON settings."""
         headers: dict[str, Any] = {}
         if accept_json:
@@ -89,12 +90,14 @@ class HttpClient:
 
         return headers
 
-    def _prepare_ssl(self, use_https):
+    def _prepare_ssl(self, use_https: bool) -> tuple[tuple[str, str] | None, bool | str]:
         """Prepare SSL configuration based on HTTPS usage and verification settings."""
         cert = None
         verify: bool | str = True
         if use_https:
-            if not self.oidc and self.ssl_certificate and os.path.isfile(self.ssl_certificate):
+            # the key is tested as well as the cert: requests wants both halves, and
+            # __init__ sets them from the same _x509() call so they are set together
+            if not self.oidc and self.ssl_certificate and self.ssl_key and os.path.isfile(self.ssl_certificate):
                 cert = (self.ssl_certificate, self.ssl_key)
 
             if not self.verifyHost:
@@ -105,7 +108,8 @@ class HttpClient:
                 verify = "/etc/grid-security/certificates"
         return cert, verify
 
-    def get(self, url, data):
+    # (0, the decoded response) or (EC_Failed, the error text)
+    def get(self, url: str, data: dict[str, Any]) -> tuple[int, Any]:
         url, use_https = self._prepare_url(url)
         headers = self._prepare_headers()
         cert, verify = self._prepare_ssl(use_https)
@@ -117,7 +121,7 @@ class HttpClient:
         except requests.RequestException as e:
             return 255, str(e)
 
-    def post(self, url, data):
+    def post(self, url: str, data: dict[str, Any]) -> tuple[int, Any]:
         url, use_https = self._prepare_url(url)
         headers = self._prepare_headers()
         cert, verify = self._prepare_ssl(use_https)
@@ -129,7 +133,7 @@ class HttpClient:
         except requests.RequestException as e:
             return 255, str(e)
 
-    def post_files(self, url, data, encoding=None):
+    def post_files(self, url: str, data: dict[str, Any], encoding: str | None = None) -> tuple[int, Any]:
         url, use_https = self._prepare_url(url)
         headers = self._prepare_headers(content_type_json=False, encoding=encoding)
         cert, verify = self._prepare_ssl(use_https)
@@ -157,7 +161,7 @@ class HttpClient:
                     file_handler = file
                 file_handler.close()
 
-    def override_oidc(self, oidc, id_token, auth_vo):
+    def override_oidc(self, oidc: bool, id_token: str | None, auth_vo: str | None) -> None:
         """
         Override OIDC settings.
         """

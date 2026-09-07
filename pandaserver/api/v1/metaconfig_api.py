@@ -94,7 +94,7 @@ def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict[str, Any]:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_resource_types(req: PandaRequest):
+def get_resource_types(req: PandaRequest) -> dict[str, Any]:
     """
     Get resource types
 

@@ -53,7 +53,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
         global_token_cache_config = _read_token_cache_configuration()
 
 
-def _read_token_cache_configuration():
+def _read_token_cache_configuration() -> dict[str, Any]:
     # config of token cacher
     try:
         with open(panda_config.token_cache_config) as f:
@@ -62,7 +62,7 @@ def _read_token_cache_configuration():
         return {}
 
 
-def _get_dispatch_parameters():
+def _get_dispatch_parameters() -> tuple[bool, dict[str, Any]]:
     """
     Wrapper function around taskBuffer.get_special_dispatch_params to convert list to set since task buffer cannot return set
     """
@@ -73,7 +73,7 @@ def _get_dispatch_parameters():
     return True, parameters
 
 
-def _validate_user_permissions(compact_name, tokenized=False) -> tuple[bool, str]:
+def _validate_user_permissions(compact_name: str | None, tokenized: bool = False) -> tuple[bool, str]:
     allowed_names = global_dispatch_parameter_cache.get("allowProxy", [])
 
     # The user is allowed to get a proxy or token

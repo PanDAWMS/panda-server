@@ -7,10 +7,10 @@ from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 
 
 class TestIDDSAPI(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.http_client = HttpClient()
 
-    def test_relay_idds_command(self):
+    def test_relay_idds_command(self) -> None:
         url = f"{api_url_ssl}/idds/relay_idds_command"
         print(f"Testing URL: {url}")
         data: dict[str, Any] = {}
@@ -25,7 +25,7 @@ class TestIDDSAPI(unittest.TestCase):
 
         self.assertEqual(output, expected_response)
 
-    def test_execute_idds_workflow_command(self):
+    def test_execute_idds_workflow_command(self) -> None:
         url = f"{api_url_ssl}/statistics/execute_idds_workflow_command"
         print(f"Testing URL: {url}")
         data: dict[str, Any] = {}

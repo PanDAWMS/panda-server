@@ -1,6 +1,7 @@
 import datetime
 import json
 import traceback
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -8,6 +9,7 @@ from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.api.v1.common import generate_response, request_validation
 from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.srvcore.panda_request import PandaRequest
 
 try:
     import idds.common.constants
@@ -20,8 +22,9 @@ except ImportError:
 _logger = PandaLogger().getLogger("api_idds")
 
 
-# json decoder for idds constants
-def decode_idds_enum(d):
+# json decoder for idds constants. Answers the idds constant the object named, or the
+# object itself when it named none, which is what json's object_hook expects
+def decode_idds_enum(d: dict[str, Any]) -> Any:
     if "__idds_const__" in d:
         items = d["__idds_const__"].split(".")
         obj = idds.common.constants
@@ -33,7 +36,9 @@ def decode_idds_enum(d):
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def relay_idds_command(req, command_name: str, args: str | None = None, kwargs: str | None = None, manager: bool = False, json_outputs: bool = False):
+def relay_idds_command(
+    req: PandaRequest, command_name: str, args: str | None = None, kwargs: str | None = None, manager: bool = False, json_outputs: bool = False
+) -> dict[str, Any]:
     tmp_log = LogWrapper(
         _logger,
         f"relay_idds_command-{naive_utcnow().isoformat('/')}",
@@ -102,7 +107,7 @@ def relay_idds_command(req, command_name: str, args: str | None = None, kwargs: 
 
 # relay iDDS workflow command with ownership check
 @request_validation(_logger, secure=True, request_method="POST")
-def execute_idds_workflow_command(req, command_name: str, kwargs: str | None = None, json_outputs: bool = False):
+def execute_idds_workflow_command(req: PandaRequest, command_name: str, kwargs: str | None = None, json_outputs: bool = False) -> dict[str, Any]:
     tmp_log = LogWrapper(
         _logger,
         f"execute_idds_workflow_command-{naive_utcnow().isoformat('/')}",

@@ -226,7 +226,7 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict[str,
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def kill(req, job_ids: List[int], code: int | None = None, use_email_as_id: bool = False, kill_options: List[str] = []):
+def kill(req: PandaRequest, job_ids: List[int], code: int | None = None, use_email_as_id: bool = False, kill_options: List[str] = []) -> dict[str, Any]:
     """
     Kill the jobs
 
@@ -288,7 +288,7 @@ def kill(req, job_ids: List[int], code: int | None = None, use_email_as_id: bool
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def reassign(req: PandaRequest, job_ids: List[int]):
+def reassign(req: PandaRequest, job_ids: List[int]) -> dict[str, Any]:
     """
     Reassign a list of jobs
 
@@ -315,7 +315,7 @@ def reassign(req: PandaRequest, job_ids: List[int]):
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def set_command(req: PandaRequest, job_id: int, command: str):
+def set_command(req: PandaRequest, job_id: int, command: str) -> dict[str, Any]:
     """
     Set a pilot command
 
@@ -341,7 +341,7 @@ def set_command(req: PandaRequest, job_id: int, command: str):
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def set_debug_mode(req: PandaRequest, job_id: int, mode: bool):
+def set_debug_mode(req: PandaRequest, job_id: int, mode: bool) -> dict[str, Any]:
     """
     Set the debug mode
 
@@ -381,7 +381,7 @@ def set_debug_mode(req: PandaRequest, job_id: int, mode: bool):
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def submit(req: PandaRequest, jobs: str):
+def submit(req: PandaRequest, jobs: str) -> dict[str, Any]:
     """
     Submit jobs
 

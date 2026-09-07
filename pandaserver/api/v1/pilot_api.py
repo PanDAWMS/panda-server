@@ -50,7 +50,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_site_mapper_cache = CoreUtils.CachedObject("site_mapper", 60 * 10, _get_site_mapper, _logger)
 
 
-def _get_site_mapper():
+def _get_site_mapper() -> tuple[bool, SiteMapper]:
     return True, SiteMapper(global_task_buffer)
 
 
@@ -75,7 +75,7 @@ def acquire_jobs(
     scheduler_id: str | None = None,
     job_type: str | None = None,
     via_topic: bool | None = None,
-    remaining_time=None,
+    remaining_time: int | None = None,
     target_architecture: dict[str, Any] | str | None = None,
 ) -> dict[str, Any]:
     """
@@ -159,7 +159,7 @@ def acquire_jobs(
 
     # convert remaining time
     try:
-        remaining_time = max(0, remaining_time)
+        remaining_time = max(0, remaining_time or 0)
     except (ValueError, TypeError):
         remaining_time = 0
 
@@ -415,7 +415,7 @@ def update_job(
     source_site: str | None = None,
     destination_site: str | None = None,
     timeout: int = 60,
-):
+) -> dict[str, Any]:
     """
     Update job
 
@@ -674,7 +674,7 @@ def update_job(
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_jobs_bulk(req, job_list: List[dict[str, Any]], harvester_id: str | None = None):
+def update_jobs_bulk(req: PandaRequest, job_list: List[dict[str, Any]], harvester_id: str | None = None) -> dict[str, Any]:
     """
     Update jobs in bulk
 
@@ -729,7 +729,13 @@ def update_jobs_bulk(req, job_list: List[dict[str, Any]], harvester_id: str | No
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_worker_status(req: PandaRequest, worker_id, harvester_id, status, timeout=60, node_id=None):
+# worker_id takes both spellings: harvester_workers.workerID is an integer column and
+# acquire_jobs declares int, while this endpoint's docstring says str and nothing in the
+# tree shows which the pilot sends. Both work today, so both are accepted rather than
+# guessing and starting to refuse the other
+def update_worker_status(
+    req: PandaRequest, worker_id: int | str, harvester_id: str, status: str, timeout: int = 60, node_id: str | None = None
+) -> dict[str, Any]:
     """
     Update worker status
 
@@ -798,7 +804,7 @@ def update_worker_node(
     total_memory: int | None = None,
     total_local_disk: int | None = None,
     timeout: int = 60,
-):
+) -> dict[str, Any]:
     """
     Update worker node
 
@@ -877,7 +883,7 @@ def update_worker_node_gpu(
     framework_version: str | None = None,
     driver_version: str | None = None,
     timeout: int = 60,
-):
+) -> dict[str, Any]:
     """
     Update GPUs for a worker node
 

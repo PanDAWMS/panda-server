@@ -50,7 +50,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
         global_dispatch_parameter_cache = CoreUtils.CachedObject("dispatcher_params", 60 * 10, task_buffer.get_special_dispatch_params, _logger)
 
 
-def _is_authorized_with_allowlist(req):
+def _is_authorized_with_allowlist(req: PandaRequest) -> tuple[bool, str]:
     """Check whether the caller's DN is in the allowAsyncRequest list."""
     compact_dn = clean_user_id(get_dn(req))
     global global_dispatch_parameter_cache
