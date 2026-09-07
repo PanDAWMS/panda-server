@@ -36,23 +36,26 @@ class TaskEvaluationDB(object):
     Proxy to access the task_evaluation table in DB
     """
 
-    def __init__(self, tbuf):
+    def __init__(self, tbuf: Any) -> None:
         self.tbuf = tbuf
 
-    def _decor(method):
-        def _decorator(_method, *args, **kwargs):
+    # Nothing applies @_decor, here or anywhere else in the tree. Annotated rather than
+    # deleted, but note what it does before using it: the wrapper discards the wrapped
+    # method's return value and swallows every exception without logging it.
+    def _decor(method: Any) -> Any:
+        def _decorator(_method: Any, *args: Any, **kwargs: Any) -> Any:
             @functools.wraps(_method)
-            def _wrapped_method(self, *args, **kwargs):
+            def _wrapped_method(self: Any, *args: Any, **kwargs: Any) -> None:
                 try:
                     _method(self, *args, **kwargs)
-                except Exception as exc:
+                except Exception:
                     pass
 
             return _wrapped_method
 
         return _decorator(method)
 
-    def update(self, metric, entity_dict):
+    def update(self, metric: str, entity_dict: dict[Any, Any]) -> None:
         tmp_log = logger_utils.make_logger(main_logger, "TaskEvaluationDB.update")
         tmp_log.debug(f"start metric={metric}")
         # sql
@@ -119,7 +122,7 @@ class TaskEvaluationDB(object):
         # done
         tmp_log.debug(f"done metric={metric}")
 
-    def get_metrics(self, metric, fresher_than_minutes_ago=120):
+    def get_metrics(self, metric: str, fresher_than_minutes_ago: int = 120) -> dict[Any, Any] | None:
         tmp_log = logger_utils.make_logger(main_logger, "TaskEvaluationDB.update")
         tmp_log.debug(f"start metric={metric}")
         # sql
@@ -137,7 +140,7 @@ class TaskEvaluationDB(object):
         res = self.tbuf.querySQL(sql_query, varMap)
         if res is None:
             tmp_log.warning(f"failed to query metric={metric}")
-            return
+            return None
         # return map
         ret_map = {}
         for taskID, value_json in res:
@@ -150,7 +153,7 @@ class TaskEvaluationDB(object):
         # return
         return ret_map
 
-    def clean_up(self, metric, fresher_than_minutes_ago=120):
+    def clean_up(self, metric: str, fresher_than_minutes_ago: int = 120) -> None:
         tmp_log = logger_utils.make_logger(main_logger, "TaskEvaluationDB.clean_up")
         tmp_log.debug(f"start metric={metric}")
         # sql
@@ -183,12 +186,12 @@ class FetchData(object):
     methods to fetch or evaluate data values to store
     """
 
-    def __init__(self, tbuf):
+    def __init__(self, tbuf: Any) -> None:
         self.tbuf = tbuf
         # initialize stored data
         self.gshare_status = None
 
-    def analy_task_eval(self):
+    def analy_task_eval(self) -> dict[Any, Any] | None:
         tmp_log = logger_utils.make_logger(main_logger, "FetchData")
         # sql
         sql_get_active_tasks = (
@@ -227,6 +230,11 @@ class FetchData(object):
             mdb = MetricsDB(self.tbuf)
             # get user evaluation
             ue_dict = mdb.get_metrics("analy_user_eval", "neither", fresher_than_minutes_ago=20)
+            if ue_dict is None:
+                # get_metrics answers None when the query failed, and every task below is
+                # classified from this map. main() reports a None back as "got no valid data"
+                tmp_log.warning("failed to get analy_user_eval from DB; skipped")
+                return None
             # get active tasks
             varMap: dict[str, Any] = {}
             active_tasks_list = self.tbuf.querySQL(sql_get_active_tasks, varMap)
@@ -333,10 +341,12 @@ class FetchData(object):
             return task_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
+            # main() reads a None back as "got no valid data"
+            return None
 
 
 # main
-def main(tbuf=None, **kwargs):
+def main(tbuf: Any = None, **kwargs: Any) -> None:
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer

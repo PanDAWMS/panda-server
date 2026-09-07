@@ -38,7 +38,7 @@ class BaseHS06Scraper:
         "Site",
     ]
 
-    def __init__(self, task_buffer, url: str):
+    def __init__(self, task_buffer: Any, url: str):
         self.url = url
         self.session = requests.Session()
         self.task_buffer = task_buffer
@@ -106,12 +106,12 @@ class BaseHS06Scraper:
 
 
 class HS06ScraperSL6(BaseHS06Scraper):
-    def __init__(self, task_buffer, url: str = DEFAULT_URL_SL6):
+    def __init__(self, task_buffer: Any, url: str = DEFAULT_URL_SL6):
         super().__init__(task_buffer, url)
 
 
 class HS06ScraperSL7(BaseHS06Scraper):
-    def __init__(self, task_buffer, url: str = DEFAULT_URL_SL7):
+    def __init__(self, task_buffer: Any, url: str = DEFAULT_URL_SL7):
         super().__init__(task_buffer, url)
 
     # SL7 table provides <th> headers; reuse logic but rebuild schema from them.
@@ -154,7 +154,7 @@ class HS06ScraperSL7(BaseHS06Scraper):
 
 # ---------------------- HS23 CSV ingestor (Polars) ----------------------
 class HS23Ingestor:
-    def __init__(self, task_buffer, url: str = DEFAULT_URL_HS23):
+    def __init__(self, task_buffer: Any, url: str = DEFAULT_URL_HS23):
         self.url = url
         self.logger = logger_utils.make_logger(main_logger, "HS23Ingestor")
         self.task_buffer = task_buffer
@@ -169,7 +169,7 @@ class HS23Ingestor:
         df = pl.read_csv(self.url, ignore_errors=True)
         return df
 
-    def _transform(self, df: pl.DataFrame, max_timestamp) -> pl.DataFrame:
+    def _transform(self, df: pl.DataFrame, max_timestamp: Any) -> pl.DataFrame:
         out = (
             df.select(
                 pl.col("CPU").alias("cpu_type"),
@@ -225,7 +225,7 @@ class HS23Ingestor:
             _, _ = self.task_buffer.querySQLS(sql, row)
 
 
-def main(tbuf=None, **kwargs):
+def main(tbuf: Any = None, **kwargs: Any) -> None:
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     # instantiate TB

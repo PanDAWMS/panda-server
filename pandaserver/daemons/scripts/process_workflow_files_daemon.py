@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 import traceback
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -18,7 +19,7 @@ _logger = PandaLogger().getLogger("process_workflow_files")
 
 
 # main
-def main(tbuf=None, **kwargs):
+def main(tbuf: Any = None, **kwargs: Any) -> None:
     _logger.debug("===================== start =====================")
 
     # overall timeout value
@@ -47,21 +48,21 @@ def main(tbuf=None, **kwargs):
 
     # thread pool
     class ThreadPool:
-        def __init__(self):
+        def __init__(self) -> None:
             self.lock = threading.Lock()
-            self.list = []
+            self.list: list[threading.Thread] = []
 
-        def add(self, obj):
+        def add(self, obj: threading.Thread) -> None:
             self.lock.acquire()
             self.list.append(obj)
             self.lock.release()
 
-        def remove(self, obj):
+        def remove(self, obj: threading.Thread) -> None:
             self.lock.acquire()
             self.list.remove(obj)
             self.lock.release()
 
-        def join(self):
+        def join(self) -> None:
             self.lock.acquire()
             thrlist = tuple(self.list)
             self.lock.release()
@@ -70,7 +71,7 @@ def main(tbuf=None, **kwargs):
 
     # thread
     class EvpThr(threading.Thread):
-        def __init__(self, task_buffer, lock, pool, file_name, to_delete, get_log):
+        def __init__(self, task_buffer: Any, lock: threading.Semaphore, pool: "ThreadPool", file_name: str, to_delete: bool, get_log: bool) -> None:
             threading.Thread.__init__(self)
             self.lock = lock
             self.pool = pool
@@ -80,7 +81,7 @@ def main(tbuf=None, **kwargs):
             self.pool.add(self)
             self.processor = WorkflowProcessor(task_buffer=task_buffer, log_stream=_logger)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 self.processor.process(

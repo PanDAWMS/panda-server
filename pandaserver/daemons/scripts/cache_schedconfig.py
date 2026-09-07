@@ -10,6 +10,7 @@ import shutil
 import sys
 import traceback
 from argparse import ArgumentParser
+from collections.abc import Collection, Sequence
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -31,7 +32,7 @@ class cacheSchedConfig:
     Class to dump schedconfig on a per-queue basis into cache files
     """
 
-    def __init__(self, tbuf):
+    def __init__(self, tbuf: Any) -> None:
         self.tbuf = tbuf
         # the queue rows, read by getQueueData() before anything dumps them
         self.queueData: Any = None
@@ -113,7 +114,7 @@ class cacheSchedConfig:
             "all": None,
         }
 
-    def query_column_sql(self, sql, varMap=None, arraySize=100):
+    def query_column_sql(self, sql: str, varMap: dict[str, Any] | None = None, arraySize: int = 100) -> list[Any]:
         res = self.tbuf.querySQL(sql, varMap, arraySize=arraySize)
         retList = []
         for (
@@ -130,7 +131,7 @@ class cacheSchedConfig:
             retList.append(dictData)
         return retList
 
-    def getQueueData(self, site=None, queue=None):
+    def getQueueData(self, site: str | None = None, queue: str | None = None) -> None:
         # Dump schedconfig in a single query (it's not very big)
         varDict = {}
         sql = f"SELECT panda_queue, data from {panda_config.schemaPANDA}.SCHEDCONFIG_JSON"
@@ -145,13 +146,13 @@ class cacheSchedConfig:
         else:
             self.queueData = self.query_column_sql(sql)
 
-    def dumpSingleQueue(self, queueDict, dest="/tmp", outputSet="all", format="txt"):
+    def dumpSingleQueue(self, queueDict: dict[str, Any], dest: str = "/tmp", outputSet: str = "all", format: str = "txt") -> None:
         try:
             file = os.path.join(dest, queueDict["nickname"] + "." + outputSet + "." + format)
             output = open(file, "w")
-            outputFields = self.queueDataFields[outputSet]
-            if outputFields is None:
-                outputFields = queueDict.keys()
+            # None in the map means "every field of the queue"
+            named_fields = self.queueDataFields[outputSet]
+            outputFields: Collection[str] = queueDict.keys() if named_fields is None else named_fields
             if format == "txt":
                 for outputField in outputFields:
                     output.write(outputField + "=" + str(queueDict[outputField]))
@@ -180,7 +181,7 @@ class cacheSchedConfig:
         except Exception:
             raise
 
-    def queueDictPythonise(self, queueDict, deepCopy=True):
+    def queueDictPythonise(self, queueDict: dict[str, Any], deepCopy: bool = True) -> dict[str, Any]:
         """Turn queue dictionary with SQL text fields into a more stuctured python representation"""
         if deepCopy:
             structDict = deepcopy(queueDict)
@@ -196,7 +197,7 @@ class cacheSchedConfig:
                 structDict[timeKey] = structDict[timeKey].isoformat()
         return structDict
 
-    def dumpAllSchedConfig(self, queueArray=None, dest="/tmp"):
+    def dumpAllSchedConfig(self, queueArray: list[Any] | None = None, dest: str = "/tmp") -> None:
         """Dumps all of schedconfig into a single json file - allows clients to retrieve a
         machine readable version of schedconfig efficiently"""
         file = os.path.join(dest, "schedconfig.all.json")
@@ -213,7 +214,7 @@ class cacheSchedConfig:
         json.dump(dumpMe, output, sort_keys=True, indent=4)
         self.dump_pilot_gdp_config(dest)
 
-    def dump_pilot_gdp_config(self, dest="/tmp"):
+    def dump_pilot_gdp_config(self, dest: str = "/tmp") -> None:
         app = "pilot"
         dump_me: dict[str, Any] = {}
         sql = f"SELECT key, component, vo from {panda_config.schemaPANDA}.config where app=:app"
@@ -228,7 +229,7 @@ class cacheSchedConfig:
             json.dump(dump_me, f, sort_keys=True, indent=4)
 
 
-def main(argv=tuple(), tbuf=None, **kwargs):
+def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     _logger.debug("start")
     try:
         # parse arguments

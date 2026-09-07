@@ -2,13 +2,14 @@ import logging
 import os
 import signal
 import sys
+from types import FrameType
 
 from pandaserver.config import daemon_config
 from pandaserver.daemons.utils import END_SIGNALS, DaemonMaster
 
 
 # get the logger
-def get_logger():
+def get_logger() -> logging.Logger:
     my_logger = logging.getLogger("PanDA-Daemon-Master")
     # remove existing handlers
     while my_logger.hasHandlers():
@@ -26,12 +27,12 @@ def get_logger():
 
 
 # kill the whole process group
-def kill_whole():
+def kill_whole() -> None:
     os.killpg(os.getpgrp(), signal.SIGKILL)
 
 
 # main function
-def main():
+def main() -> None:
     # whether to run daemons
     if not getattr(daemon_config, "enable", False):
         return
@@ -59,7 +60,7 @@ def main():
     )
 
     # function to end master when end signal caught
-    def end_master(sig, frame):
+    def end_master(sig: int, frame: FrameType | None) -> None:
         tmp_log.info(f"got end signal: {sig}")
         master.stop()
         kill_whole()

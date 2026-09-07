@@ -162,6 +162,7 @@ module = [
     "pandaserver.brokerage.*",
     "pandaserver.config.*",
     "pandaserver.configurator.*",
+    "pandaserver.daemons.*",
     "pandaserver.dataservice.*",
     "pandaserver.jobdispatcher.*",
     "pandaserver.proxycache.*",

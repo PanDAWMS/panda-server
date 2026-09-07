@@ -27,11 +27,11 @@ TRANSFER_TIMEOUT_HI_PRIORITY = 2
 TRANSFER_TIMEOUT_LO_PRIORITY = 6
 
 
-def main(tbuf=None, **kwargs):
+def main(tbuf: Any = None, **kwargs: Any) -> None:
     _logger.debug("===================== start =====================")
 
     # memory checker
-    def _memoryCheck(str):
+    def _memoryCheck(str: str) -> None:
         try:
             proc_status = f"/proc/{os.getpid()}/status"
             procfile = open(proc_status)
@@ -81,17 +81,17 @@ def main(tbuf=None, **kwargs):
 
     # list with lock
     class ListWithLock:
-        def __init__(self):
+        def __init__(self) -> None:
             self.lock = threading.Lock()
-            self.list = []
+            self.list: list[Any] = []
 
-        def __contains__(self, item):
+        def __contains__(self, item: Any) -> bool:
             self.lock.acquire()
             ret = self.list.__contains__(item)
             self.lock.release()
             return ret
 
-        def append(self, item):
+        def append(self, item: Any) -> bool:
             appended = False
             self.lock.acquire()
             if item not in self.list:
@@ -104,7 +104,7 @@ def main(tbuf=None, **kwargs):
     deletedDisList = ListWithLock()
 
     # set tobedeleted to dis dataset
-    def setTobeDeletedToDis(subDsName):
+    def setTobeDeletedToDis(subDsName: str) -> None:
         try:
             # only production sub datasets
             if subDsName.startswith("user") or subDsName.startswith("group") or re.search("_sub\d+$", subDsName) is None:
@@ -154,21 +154,21 @@ def main(tbuf=None, **kwargs):
 
     # thread pool
     class ThreadPool:
-        def __init__(self):
+        def __init__(self) -> None:
             self.lock = threading.Lock()
-            self.list = []
+            self.list: list[threading.Thread] = []
 
-        def add(self, obj):
+        def add(self, obj: threading.Thread) -> None:
             self.lock.acquire()
             self.list.append(obj)
             self.lock.release()
 
-        def remove(self, obj):
+        def remove(self, obj: threading.Thread) -> None:
             self.lock.acquire()
             self.list.remove(obj)
             self.lock.release()
 
-        def join(self):
+        def join(self) -> None:
             self.lock.acquire()
             thrlist = tuple(self.list)
             self.lock.release()
@@ -177,7 +177,7 @@ def main(tbuf=None, **kwargs):
 
     # thread to close dataset
     class CloserThr(threading.Thread):
-        def __init__(self, lock, proxyLock, datasets, pool):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, datasets: list[Any], pool: "ThreadPool") -> None:
             threading.Thread.__init__(self)
             self.datasets = datasets
             self.lock = lock
@@ -185,7 +185,7 @@ def main(tbuf=None, **kwargs):
             self.pool = pool
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 # loop over all datasets
@@ -295,7 +295,7 @@ def main(tbuf=None, **kwargs):
 
     # thread to freeze dataset
     class Freezer(threading.Thread):
-        def __init__(self, lock, proxyLock, datasets, pool):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, datasets: list[Any], pool: "ThreadPool") -> None:
             threading.Thread.__init__(self)
             self.datasets = datasets
             self.lock = lock
@@ -303,7 +303,7 @@ def main(tbuf=None, **kwargs):
             self.pool = pool
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 for vuid, name, modDate in self.datasets:
@@ -537,7 +537,7 @@ def main(tbuf=None, **kwargs):
 
     # delete dis datasets
     class EraserThr(threading.Thread):
-        def __init__(self, lock, proxyLock, datasets, pool, operationType):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, datasets: list[Any], pool: "ThreadPool", operationType: str) -> None:
             threading.Thread.__init__(self)
             self.datasets = datasets
             self.lock = lock
@@ -546,7 +546,7 @@ def main(tbuf=None, **kwargs):
             self.pool.add(self)
             self.operationType = operationType
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 # loop over all datasets
@@ -634,7 +634,7 @@ def main(tbuf=None, **kwargs):
 
     # finisher thread
     class FinisherThr(threading.Thread):
-        def __init__(self, lock, proxyLock, ids, pool, timeNow):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, ids: list[Any], pool: "ThreadPool", timeNow: datetime.datetime) -> None:
             threading.Thread.__init__(self)
             self.ids = ids
             self.lock = lock
@@ -643,7 +643,7 @@ def main(tbuf=None, **kwargs):
             self.timeNow = timeNow
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 # get jobs from DB
@@ -801,7 +801,7 @@ def main(tbuf=None, **kwargs):
 
     # activator thread
     class ActivatorThr(threading.Thread):
-        def __init__(self, lock, proxyLock, ids, pool):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, ids: list[Any], pool: "ThreadPool") -> None:
             threading.Thread.__init__(self)
             self.ids = ids
             self.lock = lock
@@ -809,7 +809,7 @@ def main(tbuf=None, **kwargs):
             self.pool = pool
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 # get jobs from DB
@@ -823,7 +823,6 @@ def main(tbuf=None, **kwargs):
                         continue
                     # get LFN list
                     lfns = []
-                    guids = []
                     scopes = []
                     for tmpFile in tmpJob.Files:
                         # only input files are checked
@@ -905,7 +904,7 @@ def main(tbuf=None, **kwargs):
 
     # activator thread with rule
     class ActivatorWithRuleThr(threading.Thread):
-        def __init__(self, lock, proxyLock, ids, pool):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, ids: list[Any], pool: "ThreadPool") -> None:
             threading.Thread.__init__(self)
             self.ids = ids
             self.lock = lock
@@ -913,7 +912,7 @@ def main(tbuf=None, **kwargs):
             self.pool = pool
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 # get jobs from DB
@@ -1004,7 +1003,7 @@ def main(tbuf=None, **kwargs):
 
     # thread to delete sub datasets
     class SubDeleter(threading.Thread):
-        def __init__(self, lock, proxyLock, datasets, pool):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, datasets: list[Any], pool: "ThreadPool") -> None:
             threading.Thread.__init__(self)
             self.datasets = datasets
             self.lock = lock
@@ -1012,7 +1011,7 @@ def main(tbuf=None, **kwargs):
             self.pool = pool
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 for vuid, name, modDate in self.datasets:

@@ -5,6 +5,7 @@ import re
 import sys
 import time
 import traceback
+from collections.abc import Sequence
 from typing import Any
 
 import requests
@@ -26,7 +27,7 @@ _logger = PandaLogger().getLogger("copyArchive")
 
 
 # main
-def main(argv=tuple(), tbuf=None, **kwargs):
+def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     # password
@@ -35,7 +36,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     _logger.debug("===================== start =====================")
 
     # memory checker
-    def _memoryCheck(str):
+    def _memoryCheck(str: str) -> None:
         try:
             proc_status = "/proc/%d/status" % os.getpid()
             procfile = open(proc_status)
@@ -494,7 +495,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         {":creationTime": timeLimit},
     )
     jobs = []
-    dashFileMap = {}
     if res is not None:
         for pandaID, cloud, prodSourceLabel in res:
             # collect PandaIDs

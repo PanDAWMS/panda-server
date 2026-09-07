@@ -6,6 +6,7 @@ import sys
 import threading
 import time
 import traceback
+from collections.abc import Sequence
 from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -24,7 +25,7 @@ _logger = PandaLogger().getLogger("add_sub")
 
 
 # main
-def main(argv=tuple(), tbuf=None, **kwargs):
+def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     tmp_log = LogWrapper(_logger, None)
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 

@@ -37,7 +37,7 @@ metric_list = [
 class_value_rank_map = {1: "A_sites", 0: "B_sites", -1: "C_sites"}
 
 
-def get_now_time_str():
+def get_now_time_str() -> str:
     """
     Return string of nowtime that can be stored in DB
     """
@@ -46,7 +46,7 @@ def get_now_time_str():
     return ts_str
 
 
-def conf_interval_upper(n, mean, stdev, cl=0.95):
+def conf_interval_upper(n: int, mean: float, stdev: float, cl: float = 0.95) -> float:
     """
     Get estimated confidence level
     """
@@ -56,7 +56,7 @@ def conf_interval_upper(n, mean, stdev, cl=0.95):
     return ciu
 
 
-def weighted_stats(values, weights):
+def weighted_stats(values: Any, weights: Any) -> tuple[Any, Any, Any]:
     """
     Return sum of weights, weighted mean and standard deviation
     """
@@ -68,7 +68,7 @@ def weighted_stats(values, weights):
 
 
 # get site slot to-running rate statistics
-def get_site_strr_stats(tbuf, time_window=21600, cutoff=300):
+def get_site_strr_stats(tbuf: Any, time_window: int = 21600, cutoff: int = 300) -> tuple[bool, dict[str, Any]]:
     """
     :param time_window: float, time window in hours to compute slot to-running rate
     """
@@ -127,7 +127,7 @@ def get_site_strr_stats(tbuf, time_window=21600, cutoff=300):
 
 
 # get each share and its leaf share
-def fill_leaf_shares(key, val, the_list):
+def fill_leaf_shares(key: str, val: dict[str, Any] | None, the_list: list[str]) -> None:
     if val is None:
         the_list.append(key)
     else:
@@ -140,23 +140,26 @@ class MetricsDB(object):
     Proxy to access the metrics table in DB
     """
 
-    def __init__(self, tbuf):
+    def __init__(self, tbuf: Any) -> None:
         self.tbuf = tbuf
 
-    def _decor(method):
-        def _decorator(_method, *args, **kwargs):
+    # Nothing applies @_decor, here or anywhere else in the tree. Annotated rather than
+    # deleted, but note what it does before using it: the wrapper discards the wrapped
+    # method's return value and swallows every exception without logging it.
+    def _decor(method: Any) -> Any:
+        def _decorator(_method: Any, *args: Any, **kwargs: Any) -> Any:
             @functools.wraps(_method)
-            def _wrapped_method(self, *args, **kwargs):
+            def _wrapped_method(self: Any, *args: Any, **kwargs: Any) -> None:
                 try:
                     _method(self, *args, **kwargs)
-                except Exception as exc:
+                except Exception:
                     pass
 
             return _wrapped_method
 
         return _decorator(method)
 
-    def update(self, metric, key_type, entity_dict):
+    def update(self, metric: str, key_type: str, entity_dict: dict[Any, Any]) -> None:
         tmp_log = logger_utils.make_logger(main_logger, "MetricsDB.update")
         # tmp_log.debug('start key={0} site={1}, gshare={2}'.format(key, site, gshare))
         # sql
@@ -254,7 +257,7 @@ class MetricsDB(object):
         # done
         # tmp_log.debug('done key={0} site={1}, gshare={2}'.format(key, site, gshare))
 
-    def get_metrics(self, metric, key_type=None, fresher_than_minutes_ago=120):
+    def get_metrics(self, metric: str, key_type: str | None = None, fresher_than_minutes_ago: int = 120) -> dict[Any, Any] | None:
         tmp_log = logger_utils.make_logger(main_logger, "MetricsDB.get_metrics")
         # tmp_log.debug('start key={0} site={1}, gshare={2}'.format(key, site, gshare))
         # sql
@@ -272,7 +275,7 @@ class MetricsDB(object):
         res = self.tbuf.querySQL(sql_query, varMap)
         if res is None:
             tmp_log.warning(f"failed to query metric={metric}")
-            return
+            return None
         # key type default
         if key_type is None:
             key_type = {x[0]: x[1] for x in metric_list}.get(metric, "both")
@@ -309,12 +312,12 @@ class FetchData(object):
     methods to fetch or evaluate data values to store
     """
 
-    def __init__(self, tbuf):
+    def __init__(self, tbuf: Any) -> None:
         self.tbuf = tbuf
         # initialize stored data
-        self.gshare_status = None
+        self.gshare_status: list[dict[str, Any]] | None = None
 
-    def analy_pmerge_jobs_wait_time(self):
+    def analy_pmerge_jobs_wait_time(self) -> dict[Any, Any] | None:
         tmp_log = logger_utils.make_logger(main_logger, "FetchData")
         # sql
         sql_get_jobs_archived4 = (
@@ -474,8 +477,10 @@ class FetchData(object):
             return site_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
+            # main() reads a None back as "got no valid data"
+            return None
 
-    def gshare_preference(self):
+    def gshare_preference(self) -> dict[Any, Any] | None:
         tmp_log = logger_utils.make_logger(main_logger, "FetchData")
         try:
             # get share and hs info
@@ -571,8 +576,10 @@ class FetchData(object):
             return gshare_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
+            # main() reads a None back as "got no valid data"
+            return None
 
-    def analy_site_eval(self):
+    def analy_site_eval(self) -> dict[Any, Any] | None:
         tmp_log = logger_utils.make_logger(main_logger, "FetchData")
         try:
             # initialize
@@ -590,6 +597,11 @@ class FetchData(object):
             mdb = MetricsDB(self.tbuf)
             # get analysis jobs wait time stats
             apjwt_dict = mdb.get_metrics("analy_pmerge_jobs_wait_time", "site")
+            if apjwt_dict is None:
+                # get_metrics answers None when the query failed, and every site below is
+                # evaluated from this map. main() reports a None back as "got no valid data"
+                tmp_log.warning("failed to get analy_pmerge_jobs_wait_time from DB; skipped")
+                return None
             # evaluate derived values from stats
             # max of w_cl95upp and long_q_mean for ranking. Only consider GRID sites
             ranking_wait_time_list = []
@@ -684,8 +696,10 @@ class FetchData(object):
             return site_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
+            # main() reads a None back as "got no valid data"
+            return None
 
-    def users_jobs_stats(self):
+    def users_jobs_stats(self) -> dict[Any, Any] | None:
         prod_source_label = "user"
         tmp_log = logger_utils.make_logger(main_logger, "FetchData")
         tmp_log.debug("start")
@@ -780,8 +794,10 @@ class FetchData(object):
             return site_gshare_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
+            # main() reads a None back as "got no valid data"
+            return None
 
-    def analy_user_eval(self):
+    def analy_user_eval(self) -> dict[Any, Any] | None:
         tmp_log = logger_utils.make_logger(main_logger, "FetchData")
         try:
             # initialize
@@ -792,6 +808,9 @@ class FetchData(object):
             ase_dict = mdb.get_metrics("analy_site_eval", "site", fresher_than_minutes_ago=120)
             # get users jobs stats
             ujs_dict = mdb.get_metrics("users_jobs_stats", fresher_than_minutes_ago=15)
+            if ase_dict is None or ujs_dict is None:
+                tmp_log.warning("failed to get analy_site_eval or users_jobs_stats from DB; skipped")
+                return None
             # for each site x gshare
             for (site, gshare), usage_dict in ujs_dict.items():
                 # count only User Analysis & Express Analysis
@@ -858,10 +877,12 @@ class FetchData(object):
             return user_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
+            # main() reads a None back as "got no valid data"
+            return None
 
 
 # main
-def main(tbuf=None, **kwargs):
+def main(tbuf: Any = None, **kwargs: Any) -> None:
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     # instantiate TB
