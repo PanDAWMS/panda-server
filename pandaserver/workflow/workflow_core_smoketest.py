@@ -82,8 +82,9 @@ def show_workflow(task_buffer, workflow_id):
         print(f"workflow_id={workflow_id} not found")
         return
     # submitted_as is the workflow-level label, which records only whether the submitter held a
-    # production role. Each step carries its own prodSourceLabel, shown as pslabel below, and that
-    # is the one JEDI's agents filter on.
+    # production role. A panda_task step carries its own prodSourceLabel, shown as pslabel after
+    # the flavor it belongs to, and that is the one JEDI's agents filter on; a flavor that maps to
+    # something other than a PanDA task has no such label and shows '-'.
     print(
         f"workflow_id={workflow_spec.workflow_id} name={workflow_spec.name} status={workflow_spec.status} "
         f"submitted_as={workflow_spec.prodsourcelabel} user={workflow_spec.username}"
@@ -91,11 +92,11 @@ def show_workflow(task_buffer, workflow_id):
 
     step_specs = task_buffer.get_steps_of_workflow(workflow_id=workflow_id) or []
     print(f"  steps ({len(step_specs)}):")
-    print(f"    {'#':>3}  {'name':<24} {'status':<12} {'pslabel':<9} {'flavor':<13} target_id")
+    print(f"    {'#':>3}  {'name':<24} {'status':<12} {'flavor':<13} {'pslabel':<9} target_id")
     for step_spec in sorted(step_specs, key=lambda s: s.member_id or 0):
         print(
             f"    {step_spec.member_id!s:>3}  {step_spec.name:<24} {step_spec.status:<12} "
-            f"{step_source_label(step_spec):<9} {step_spec.flavor:<13} {step_spec.target_id}"
+            f"{step_spec.flavor:<13} {step_source_label(step_spec):<9} {step_spec.target_id}"
         )
 
     data_specs = task_buffer.get_data_of_workflow(workflow_id=workflow_id) or []
