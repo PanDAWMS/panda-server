@@ -1,8 +1,7 @@
 import sys
 
-from taskbuffer.Initializer import initializer
-
 from pandajedi.jedicore import JediTaskBuffer
+from pandaserver.taskbuffer.Initializer import initializer
 
 jediTaskID = sys.argv[1]
 

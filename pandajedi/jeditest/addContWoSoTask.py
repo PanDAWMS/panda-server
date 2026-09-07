@@ -2,7 +2,7 @@ import sys
 import uuid
 from typing import Any
 
-from userinterface import Client
+from pandaclient import Client
 
 inFileList = ["file1", "file2", "file3"]
 

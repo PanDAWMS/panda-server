@@ -2,7 +2,7 @@ import uuid
 from typing import Any
 from urllib.parse import quote
 
-from userinterface import Client
+from pandaclient import Client
 
 taskParamMap: dict[str, Any] = {}
 
