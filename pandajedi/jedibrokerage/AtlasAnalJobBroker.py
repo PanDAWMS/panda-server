@@ -467,10 +467,6 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     if not taskSpec.allow_incomplete_input():
                         tmpLog.error(err_msg)
                         taskSpec.setErrDiag(err_msg)
-                        if list_of_complete_replica_locations[datasetName]:
-                            # the data is intact but every location is in downtime, so the task
-                            # is only waiting for the storage to come back
-                            return retWaiting
                         retVal = retTmpError
                         return retVal
                     else:
