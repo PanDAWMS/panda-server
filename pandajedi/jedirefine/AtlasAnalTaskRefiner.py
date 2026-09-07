@@ -229,12 +229,14 @@ class AtlasAnalTaskRefiner(TaskRefinerBase):
                     datasetSpec.datasetName = dbr_ddm_if.getLatestDBRelease(useResultCache=3600)
                     datasetSpec.containerName = datasetSpec.datasetName
                 # set attributes to DBR
-                if DataServiceUtils.isDBR(datasetSpec.datasetName):
+                if datasetSpec.datasetName is not None and DataServiceUtils.isDBR(datasetSpec.datasetName):
                     datasetSpec.attributes = "repeat,nosplit"
             # check invalid characters
             for datasetSpec in self.outDatasetSpecList:
-                if not DataServiceUtils.checkInvalidCharacters(datasetSpec.datasetName):
-                    errStr = f"invalid characters in {datasetSpec.datasetName}"
+                # a dataset with no name cannot pass the name check either, and this is
+                # the error path that already reports a name the task cannot use
+                if datasetSpec.datasetName is None or not DataServiceUtils.checkInvalidCharacters(datasetSpec.datasetName):
+                    errStr = f"invalid dataset name {datasetSpec.datasetName}"
                     tmpLog.error(errStr)
                     self.taskSpec.setErrDiag(errStr, None)
                     return self.SC_FATAL

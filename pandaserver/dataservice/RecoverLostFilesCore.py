@@ -15,7 +15,10 @@ from pandaserver.userinterface import Client
 
 
 # get files form rucio
-def get_files_from_rucio(ds_name):
+# the second element is the set of file names when the first is True and an error message
+# otherwise, which no annotation can express without pushing an isinstance() check onto
+# every caller, hence Any
+def get_files_from_rucio(ds_name: str) -> tuple[bool | None, Any]:
     # get files from rucio
     try:
         rc = RucioClient()
@@ -34,7 +37,7 @@ def get_files_from_rucio(ds_name):
 
 
 # print a message
-def print_msg(message: str, log_stream: LogWrapper | None, is_error: bool = False, put_log: str | None = None):
+def print_msg(message: str, log_stream: LogWrapper | None, is_error: bool = False, put_log: str | None = None) -> None:
     """
     Print a message to log stream or stdout.
 
@@ -62,7 +65,12 @@ def print_msg(message: str, log_stream: LogWrapper | None, is_error: bool = Fals
 # main
 # taskBuffer is a TaskBuffer, which cannot be named here since the module is imported inside
 # the function on purpose, hence Any
-def main(taskBuffer: Any = None, exec_options=None, log_stream=None, args_list=None):
+def main(
+    taskBuffer: Any = None,
+    exec_options: dict[str, Any] | None = None,
+    log_stream: LogWrapper | None = None,
+    args_list: list[str] | None = None,
+) -> tuple[bool | None, str]:
     # options
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -186,7 +194,7 @@ def main(taskBuffer: Any = None, exec_options=None, log_stream=None, args_list=N
         print_msg(msg_str, log_stream, is_error=True, put_log=log_filename)
         return False, msg_str
 
-    ds_files = {}
+    ds_files: dict[str, list[str]] = {}
     if options.files is not None:
         files = options.files.split(",")
         ds_files[options.ds] = files

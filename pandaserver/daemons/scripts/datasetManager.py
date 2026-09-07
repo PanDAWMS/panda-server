@@ -231,9 +231,9 @@ def main(tbuf=None, **kwargs):
                         if not dsExists:
                             continue
                         # count # of files
-                        status, out = rucioAPI.get_number_of_files(name)
-                        if status is not True:
-                            if status is False:
+                        n_files_status, out = rucioAPI.get_number_of_files(name)
+                        if n_files_status is not True:
+                            if n_files_status is False:
                                 _logger.error(out)
                         else:
                             _logger.debug(out)
@@ -426,9 +426,9 @@ def main(tbuf=None, **kwargs):
                                 # set tobedeleted to dis
                                 setTobeDeletedToDis(name)
                                 # count # of files
-                                status, out = rucioAPI.get_number_of_files(name)
-                                if status is not True:
-                                    if status is False:
+                                n_files_status, out = rucioAPI.get_number_of_files(name)
+                                if n_files_status is not True:
+                                    if n_files_status is False:
                                         _logger.error(out)
                                 else:
                                     _logger.debug(out)

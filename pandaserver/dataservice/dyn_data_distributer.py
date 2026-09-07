@@ -14,9 +14,11 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.taskbuffer import JobUtils
+from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.SiteSpec import SiteSpec
 
 _logger = PandaLogger().getLogger("dyn_data_distributer")
@@ -31,7 +33,7 @@ class DynDataDistributer:
     Find candidate site to distribute input datasets.
     """
 
-    def __init__(self, jobs, siteMapper, simul=False, token=None, dataset_lifetime=14):
+    def __init__(self, jobs: List[JobSpec], siteMapper: SiteMapper, simul: bool = False, token: str | None = None, dataset_lifetime: int = 14) -> None:
         self.jobs = jobs
         self.site_mapper = siteMapper
         if token is None:

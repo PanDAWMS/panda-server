@@ -8,14 +8,20 @@ import os
 import re
 import sys
 import traceback
-from typing import Any, TextIO
+from typing import TYPE_CHECKING, Any, TextIO
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import dyn_data_distributer
 from pandaserver.srvcore import CoreUtils
 from pandaserver.userinterface import Client
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("event_picker")
@@ -27,7 +33,7 @@ class EventPicker:
     """
 
     # constructor
-    def __init__(self, taskBuffer, siteMapper, evpFileName: str, ignoreError: bool):
+    def __init__(self, taskBuffer: "TaskBuffer", siteMapper: SiteMapper, evpFileName: str, ignoreError: bool) -> None:
         """
         Constructs all the necessary attributes for the EventPicker object.
 
@@ -63,7 +69,7 @@ class EventPicker:
         self.jedi_task_id: int | None = None
 
     # end with error
-    def end_with_error(self, message: str):
+    def end_with_error(self, message: str) -> None:
         """
         Ends the event picker with an error.
 

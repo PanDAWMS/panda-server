@@ -8,7 +8,7 @@ This module uses the PandaLogger for logging and the panda_config for configurat
 import sys
 import threading
 import traceback
-from typing import Any, List
+from typing import TYPE_CHECKING, Any, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -17,6 +17,11 @@ from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.PickleJobSpec import PickleJobSpec
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("setupper")
 
@@ -36,11 +41,11 @@ class Setupper(threading.Thread):
     # constructor
     def __init__(
         self,
-        taskBuffer,
+        taskBuffer: "TaskBuffer",
         jobs: List[Any],
         resubmit: bool = False,
         first_submission: bool = True,
-    ):
+    ) -> None:
         """
         Constructor for the Setupper class.
 
@@ -149,10 +154,10 @@ class Setupper(threading.Thread):
         :param tmp_log: The logger to be used for logging.
         :return: None
         """
-        update_jobs = []
-        failed_jobs = []
-        activate_jobs = []
-        waiting_jobs = []
+        update_jobs: List[Any] = []
+        failed_jobs: List[Any] = []
+        activate_jobs: List[Any] = []
+        waiting_jobs: List[Any] = []
         # sort jobs by status
         for job in job_list:
             # failed jobs

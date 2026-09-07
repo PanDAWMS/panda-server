@@ -14,7 +14,19 @@ import sys
 import time
 import traceback
 import uuid
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union, cast, overload
+from collections.abc import Container
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+    overload,
+)
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -31,6 +43,11 @@ from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 
 class SetupperAtlasPlugin(SetupperPluginBase):
     """
@@ -44,7 +61,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
     site_mapper: SiteMapper
 
     # constructor
-    def __init__(self, taskBuffer, jobs: List[JobSpec], logger, **params: Any) -> None:
+    def __init__(self, taskBuffer: "TaskBuffer", jobs: List[JobSpec], logger: LogWrapper, **params: Any) -> None:
         """
         Constructor for the SetupperAtlasPlugin class.
 
@@ -374,7 +391,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     job.cloud = chosen_panda_queue.cloud
 
                 # set destinationSE
-                dest_se = job.destinationSE
+                # checkJobDestinationSE below answers None when no file names one
+                dest_se: str | None = job.destinationSE
                 if self.site_mapper.checkCloud(job.getCloud()):
                     # use cloud dest for non-existing sites
                     if job.prodSourceLabel != "user" and job.destinationSE not in self.site_mapper.siteSpecList and job.destinationSE != "local":
@@ -1093,9 +1111,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # update failed jobs only. succeeded jobs should be activated by DDM callback
         self.update_failed_jobs(failed_jobs)
 
-    def collect_input_lfns(self):
+    def collect_input_lfns(self) -> set[str]:
         # collect input LFNs
-        input_lfns = set()
+        input_lfns: set[str] = set()
         for tmp_job in self.jobs:
             for tmp_file in tmp_job.Files:
                 if tmp_file.type == "input":
@@ -1427,7 +1445,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
 
     # get list of files in dataset
     def get_list_files_in_dataset(
-        self, dataset: str, file_list: Optional[List[str]] = None, use_cache: bool = True
+        self, dataset: str, file_list: Container[str] | None = None, use_cache: bool = True
     ) -> Tuple[Optional[int], Union[Dict[str, Any], str]]:
         """
         Get list files in dataset method for running the setup process.
@@ -1650,7 +1668,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return
         return
 
-    def collect_existing_files(self):
+    def collect_existing_files(self) -> dict[Any, Any]:
         """
         Collects existing files to avoid deletion when jobs are queued.
         This method iterates over all jobs and collects files that should not be deleted,
@@ -1734,7 +1752,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 dataset_file_map[map_key][real_dest_ddm_id]["files"][tmp_file.lfn]["fileSpecs"].append(tmp_file)
         return dataset_file_map
 
-    def create_dispatch_datasets(self, dataset_file_map):
+    def create_dispatch_datasets(self, dataset_file_map: dict[Any, Any]) -> list[DatasetSpec]:
         """
         Creates dispatch datasets for the collected files.
         Returns a list of datasets to be inserted into the database.
@@ -1743,7 +1761,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         tmp_logger = LogWrapper(self.logger, "<create_dispatch_datasets>")
 
         # loop over all locations
-        disp_list = []
+        disp_list: list[DatasetSpec] = []
         for _, tmp_dum_val in dataset_file_map.items():
             for tmp_location_list in tmp_dum_val:
                 tmp_val = tmp_dum_val[tmp_location_list]
@@ -1765,7 +1783,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         guids = []
                         fsizes = []
                         chksums = []
-                        tmp_zip_out = {}
+                        tmp_zip_out: dict[str, Any] = {}
                         if tmp_val["useZipToPin"]:
                             dids = [tmp_file_list[tmp_sub_file_name]["lfn"] for tmp_sub_file_name in sub_file_names]
                             tmp_zip_stat, tmp_zip_out = rucioAPI.get_zip_files(dids, [tmp_location])

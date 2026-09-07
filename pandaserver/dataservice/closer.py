@@ -5,7 +5,7 @@ update dataset DB, and then close dataset and start Activator if needed
 
 import datetime
 import sys
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -16,6 +16,12 @@ from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.activator import Activator
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("closer")
@@ -31,7 +37,7 @@ class Closer:
     """
 
     # constructor
-    def __init__(self, taskBuffer, destination_data_blocks: List[str], job, dataset_map: Dict[str, DatasetSpec] | None = None) -> None:
+    def __init__(self, taskBuffer: "TaskBuffer", destination_data_blocks: List[str], job: JobSpec, dataset_map: Dict[str, DatasetSpec] | None = None) -> None:
         """
         Constructor
 
@@ -62,10 +68,10 @@ class Closer:
             return self.all_subscription_finished
         # get consumers in the jobset
         jobs = self.task_buffer.getOriginalConsumers(self.job.jediTaskID, self.job.jobsetID, self.job.PandaID)
-        checked_dataset = set()
+        checked_dataset: set[str] = set()
         for job_spec in jobs:
             # collect all sub datasets
-            sub_dataset_set = set()
+            sub_dataset_set: set[str] = set()
             for file_spec in job_spec.Files:
                 if file_spec.type == "output":
                     sub_dataset_set.add(file_spec.destinationDBlock)
@@ -128,7 +134,7 @@ class Closer:
             closer_plugin = closer_plugin_class(self.job, final_status_dataset, _logger)
             closer_plugin.execute()
 
-    def start_activator(self, dataset):
+    def start_activator(self, dataset: DatasetSpec) -> None:
         """
         Start the activator
 
@@ -146,7 +152,7 @@ class Closer:
             activator_thread.run()
 
     # main
-    def run(self):
+    def run(self) -> None:
         """
         Main method to run the Closer class. It processes each destination dispatch block,
         updates the dataset status and finalizes pending jobs if necessary.
@@ -155,10 +161,10 @@ class Closer:
             tmp_log = LogWrapper(_logger, f"run-{naive_utcnow().isoformat('/')}-{self.panda_id}")
             tmp_log.debug(f"Start with job status: {self.job.jobStatus}")
             flag_complete = True
-            final_status_dataset = []
+            final_status_dataset: list[DatasetSpec] = []
 
             for destination_data_block in self.destination_data_blocks:
-                dataset_list = []
+                dataset_list: list[DatasetSpec] = []
                 tmp_log.debug(f"start with destination dispatch block: {destination_data_block}")
 
                 # ignore task output datasets (tid) datasets

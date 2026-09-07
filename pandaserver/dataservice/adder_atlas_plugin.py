@@ -26,6 +26,7 @@ from pandaserver.srvcore.exceptions import (
 from pandaserver.srvcore.MailUtils import MailUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
 
 
 class AdderAtlasPlugin(AdderPluginBase):
@@ -35,7 +36,7 @@ class AdderAtlasPlugin(AdderPluginBase):
     """
 
     # constructor
-    def __init__(self, job, **params):
+    def __init__(self, job: JobSpec, **params: Any) -> None:
         """
         Constructor for AdderAtlasPlugin.
 
@@ -50,7 +51,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         self.add_to_top_only = False
         self.go_to_transferring = False
         self.log_transferring = False
-        self.subscription_map = {}
+        self.subscription_map: dict[str, Any] = {}
         self.go_to_merging = False
 
     # main
@@ -73,6 +74,9 @@ class AdderAtlasPlugin(AdderPluginBase):
             src_site_spec = self.siteMapper.getSite(self.job.computingSite)
             _, scope_src_site_spec_output = select_scope(src_site_spec, self.job.prodSourceLabel, self.job.job_label)
             tmp_src_ddm = src_site_spec.ddm_output[scope_src_site_spec_output]
+            # ddm_output carries None for a scope the site has no output endpoint in,
+            # and this is only compared and logged below
+            tmp_dst_ddm: str | None
             if self.job.prodSourceLabel == "user" and self.job.destinationSE not in self.siteMapper.siteSpecList:
                 # DQ2 ID was set by using --destSE for analysis job to transfer output
                 tmp_dst_ddm = self.job.destinationSE
@@ -169,7 +173,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         return
 
     # check output file metadata
-    def check_output_file_metadata(self):
+    def check_output_file_metadata(self) -> None:
         """
         Check the metadata of output files for consistency and change the job status if inconsistencies are found.
         """
@@ -208,7 +212,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     return
 
     # update output files
-    def update_outputs(self):
+    def update_outputs(self) -> int:
         """
         Update output files for the job.
         Handles the logic for adding files to datasets and registering them with Rucio.
@@ -257,14 +261,14 @@ class AdderAtlasPlugin(AdderPluginBase):
         id_map: dict[str, Any] = {}
         # fileList = []
         sub_map: dict[str, Any] = {}
-        dataset_destination_map = {}
+        dataset_destination_map: dict[str, list[str | None]] = {}
         dist_datasets = set()
-        map_for_alt_stage_out: dict[str, Any] = {}
-        alt_staged_files = set()
+        map_for_alt_stage_out: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        alt_staged_files: set[str] = set()
         zip_files: dict[str, Any] = {}
         log_files = []
         cont_zip_map = {}
-        sub_to_ds_map = {}
+        sub_to_ds_map: dict[str, str] = {}
         ds_id_to_ds_map = self.taskBuffer.getOutputDatasetsJEDI(self.job.PandaID)
         self.logger.debug(f"dsInJEDI={str(ds_id_to_ds_map)}")
 
@@ -492,6 +496,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                             else:
                                 # get DDM IDs
                                 tmp_src_ddm = src_site_spec.ddm_output[scope_src_site_spec_output]
+                                tmp_dst_ddm: str | None
                                 if self.job.prodSourceLabel == "user" and file.destinationSE not in self.siteMapper.siteSpecList:
                                     # DDM ID was set by using --destSE for analysis job to transfer output
                                     tmp_dst_ddm = file.destinationSE
@@ -500,6 +505,13 @@ class AdderAtlasPlugin(AdderPluginBase):
                                         tmp_dst_ddm = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                                     else:
                                         tmp_dst_ddm = destination_se_site_spec.ddm_output[scope_dst_se_site_spec_output]
+                                if tmp_dst_ddm is None:
+                                    # no default write endpoint for that scope. The block
+                                    # below would otherwise send None to Rucio as a
+                                    # destination, so report it as the fatal it is
+                                    raise SubscriptionRegistrationError(
+                                        f"{destination_se_site_spec.sitename} has no output endpoint in scope {scope_dst_se_site_spec_output}"
+                                    )
                                 # if src != dest or multi-token
                                 if (tmp_src_ddm != tmp_dst_ddm) or (tmp_src_ddm == tmp_dst_ddm and file.destinationDBlockToken.count(",") != 0):
                                     opt_sub = {
@@ -536,7 +548,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                             "NULL",
                                             "",
                                         ]:
-                                            tmp_ddm_id_list = []
+                                            tmp_ddm_id_list: list[str | None] = []
                                             tmp_dst_tokens = file.destinationDBlockToken.split(",")
                                             # remove the first one because it is already used as a location
                                             if tmp_src_ddm == tmp_dst_ddm:
@@ -669,7 +681,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         del cont_zip_map
         gc.collect()
 
-        if self.job.processingType == "urgent" or self.job.currentPriority > 1000:
+        if self.job.processingType == "urgent" or self.job.currentPriority > 1000:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
             sub_activity = "Express"
         else:
             sub_activity = "Production Output"
@@ -782,7 +794,9 @@ class AdderAtlasPlugin(AdderPluginBase):
         # no branch above produced a value, which the return type covers as None
         return None
 
-    def process_subscriptions(self, sub_map: Dict[str, List[Tuple[str, Any, Any]]], sub_to_ds_map: Dict[str, str], dist_datasets: Set[str], sub_activity: str):
+    def process_subscriptions(
+        self, sub_map: Dict[str, List[Tuple[str, Any, Any]]], sub_to_ds_map: Dict[str, str], dist_datasets: Set[str], sub_activity: str
+    ) -> int | None:
         """
         Process the subscriptions for the job.
 
@@ -968,7 +982,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                         if to_adder is None or to_adder.startswith("notsend"):
                             self.logger.debug("skip to send warning since suppressed")
                         else:
-                            tmp_sm = self.send_email(to_adder, tmp_msg, self.job.jediTaskID)
+                            tmp_sm = self.send_email(to_adder, tmp_msg, self.job.jediTaskID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                             self.logger.debug(f"sent warning with {tmp_sm}")
                 except Exception as e:
                     tmp_msg = f"registerDatasetLocation failed with {type(e)} {e}"
@@ -976,8 +990,18 @@ class AdderAtlasPlugin(AdderPluginBase):
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = f"Rucio failed with {type(e)} {e}"
 
+        # every subscription registered, which the return type covers as None
+        return None
+
     # decompose idMap
-    def decompose_id_map(self, id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_dataset_map, alt_staged_files):
+    def decompose_id_map(
+        self,
+        id_map: dict[str, list[dict[str, Any]]],
+        dataset_destination_map: dict[str, list[str | None]],
+        map_for_alt_stage_out: dict[str, dict[str, list[dict[str, Any]]]],
+        sub_to_dataset_map: dict[str, str],
+        alt_staged_files: set[str],
+    ) -> dict[str | None, Any]:
         """
         Decompose the idMap into a structure suitable for file registration.
 
@@ -997,7 +1021,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             if tmp_top_dataset != tmp_dataset:
                 dataset_destination_map[tmp_top_dataset] = dataset_destination_map[tmp_dataset]
 
-        destination_id_map: dict[str, Any] = {}
+        destination_id_map: dict[str | None, Any] = {}
         for tmp_dataset in id_map:
             # exclude files uploaded with alternative stage-out
             tmp_files = [f for f in id_map[tmp_dataset] if f["lfn"] not in alt_staged_files]
@@ -1019,7 +1043,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         return destination_id_map
 
     # send email notification
-    def send_email(self, to_adder, message, jedi_task_id):
+    def send_email(self, to_adder: str, message: str, jedi_task_id: int) -> bool:
         """
         Send an email notification.
 

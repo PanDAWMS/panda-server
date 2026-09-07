@@ -2,10 +2,19 @@
 Base class for setupper plugins. It separates normal and jumbo jobs and sets parameters.
 """
 
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer.JobSpec import JobSpec
+
+if TYPE_CHECKING:
+    # LogWrapper reads a configuration file at import time and TaskBuffer imports this
+    # package, so naming either for real here would cost this module its standalone
+    # import. Annotations are evaluated at runtime in this tree, so the uses below are
+    # quoted.
+    from pandacommon.pandalogger.LogWrapper import LogWrapper
+
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 
 class SetupperPluginBase(object):
@@ -19,7 +28,7 @@ class SetupperPluginBase(object):
     first_submission: bool
     resubmit: bool
 
-    def __init__(self, taskBuffer, jobs: List[JobSpec], logger, params: Dict[str, Any], default_map: Dict[str, Any]) -> None:
+    def __init__(self, taskBuffer: "TaskBuffer", jobs: List[JobSpec], logger: "LogWrapper", params: Dict[str, Any], default_map: Dict[str, Any]) -> None:
         """
         Constructor for the SetupperPluginBase class.
 

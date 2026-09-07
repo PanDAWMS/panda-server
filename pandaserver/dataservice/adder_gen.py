@@ -13,15 +13,20 @@ from typing import TYPE_CHECKING, Any
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
+from pandacommon.pandautils.thread_utils import LockPool
 
 import pandaserver.dataservice.ErrorCode
 import pandaserver.taskbuffer.ErrorCode
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, closer
 from pandaserver.srvcore.CoreUtils import normalize_cpu_model
 
 if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
     from pandaserver.taskbuffer.JobSpec import JobSpec
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils, retryModule
 
@@ -43,16 +48,16 @@ class AdderGen:
 
     def __init__(
         self,
-        taskBuffer,
-        job_id,
-        job_status,
-        attempt_nr,
-        ignore_tmp_error=True,
-        siteMapper=None,
-        pid=None,
-        prelock_pid=None,
-        lock_offset=10,
-        lock_pool=None,
+        taskBuffer: "TaskBuffer",
+        job_id: int,
+        job_status: str,
+        attempt_nr: int | None,
+        ignore_tmp_error: bool = True,
+        siteMapper: SiteMapper | None = None,
+        pid: str | None = None,
+        prelock_pid: str | None = None,
+        lock_offset: int = 10,
+        lock_pool: LockPool | None = None,
     ) -> None:
         """
         Initialize the AdderGen.
@@ -91,7 +96,7 @@ class AdderGen:
         self.logger = LogWrapper(_logger, str(self.job_id))
 
     # main
-    def run(self):
+    def run(self) -> None:
         """
         Run the AdderGen plugin.
         """
@@ -132,7 +137,7 @@ class AdderGen:
             )
 
     # dump file report
-    def dump_file_report(self, file_catalog, attempt_nr):
+    def dump_file_report(self, file_catalog: str, attempt_nr: int | None) -> None:
         """
         Dump the file report.
 
@@ -154,7 +159,7 @@ class AdderGen:
             )
 
     # get plugin class
-    def get_plugin_class(self, tmp_vo, tmp_group):
+    def get_plugin_class(self, tmp_vo: str, tmp_group: str) -> Any:
         """
         Get the plugin class for the given VO and group.
 
@@ -609,7 +614,7 @@ class AdderGen:
                         del closer_thread
                         self.logger.debug(f"end Closer for PandaID={associate_job_id}")
 
-    def update_worker_node(self, json_dict):
+    def update_worker_node(self, json_dict: dict[str, Any]) -> None:
         try:
             self.logger.debug(f"update_worker_node: start")
             wn_specs = json_dict.get("worker_node", {})
@@ -657,7 +662,7 @@ class AdderGen:
         except Exception:
             self.logger.error(f"update_worker_node: issue with updating worker node specs: {traceback.format_exc()}")
 
-    def update_worker_node_gpu(self, json_dict):
+    def update_worker_node_gpu(self, json_dict: dict[str, Any]) -> None:
         try:
             self.logger.debug(f"update_worker_node_gpu: start")
             wn_gpu_specs = json_dict.get("worker_node_gpus", {})
@@ -714,7 +719,7 @@ class AdderGen:
 
     # parse JSON
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
-    def parse_job_output_report(self):
+    def parse_job_output_report(self) -> int:
         """
         Parse the JSON data associated with the job to extract file information.
 
@@ -955,7 +960,7 @@ class AdderGen:
         return 0
 
     # copy files for variable number of outputs
-    def copy_files_for_variable_num_outputs(self, lfns):
+    def copy_files_for_variable_num_outputs(self, lfns: list[str]) -> bool:
         """
         Copy files for variable number of outputs.
 

@@ -112,7 +112,11 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                     dataset = self.taskBufferIF.queryDatasetWithMap({"name": datasetName})
                     if dataset is not None:
                         # activate jobs
-                        aThr = Activator(self.taskBufferIF, dataset)
+                        # JediTaskBufferInterface forwards every method to JediTaskBuffer
+                        # through CommandSendInterface, so it stands in for the TaskBuffer
+                        # Activator declares. __getattr__ is invisible to a type checker,
+                        # and panda-server cannot name a JEDI class to widen the parameter
+                        aThr = Activator(self.taskBufferIF, dataset)  # type: ignore[arg-type]
                         aThr.run()
                         tmpLog.debug(f'  action=activated_downstream_jobs for user="{prodUserName}" with libDS={datasetName}')
                     else:

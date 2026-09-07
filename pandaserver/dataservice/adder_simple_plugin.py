@@ -14,6 +14,7 @@ from pandacommon.pandautils.PandaUtils import naive_utcnow
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore.exceptions import FileRegistrationError
+from pandaserver.taskbuffer.JobSpec import JobSpec
 
 from .adder_plugin_base import AdderPluginBase
 
@@ -24,7 +25,7 @@ class AdderSimplePlugin(AdderPluginBase):
     """
 
     # constructor
-    def __init__(self, job, **params) -> None:
+    def __init__(self, job: JobSpec, **params: Any) -> None:
         """
         Initialize the AdderSimplePlugin.
 

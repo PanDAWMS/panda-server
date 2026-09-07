@@ -110,7 +110,7 @@ class AtlasProdTaskRefiner(TaskRefinerBase):
             self.doBasicRefine(taskParamMap)
             # set nosplit+repeat for DBR
             for datasetSpec in self.inSecDatasetSpecList:
-                if DataServiceUtils.isDBR(datasetSpec.datasetName):
+                if datasetSpec.datasetName is not None and DataServiceUtils.isDBR(datasetSpec.datasetName):
                     datasetSpec.attributes = "repeat,nosplit"
             # enable consistency check
             if self.taskSpec.parent_tid not in [None, self.taskSpec.jediTaskID]:

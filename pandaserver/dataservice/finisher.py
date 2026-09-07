@@ -8,7 +8,7 @@ import json
 import re
 import sys
 import threading
-from typing import List
+from typing import TYPE_CHECKING, Any, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -16,6 +16,11 @@ from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("finisher")
@@ -43,7 +48,7 @@ class Finisher(threading.Thread):
     """
 
     # constructor
-    def __init__(self, taskBuffer, dataset: DatasetSpec | None, job: JobSpec | None = None, site: str | None = None):
+    def __init__(self, taskBuffer: "TaskBuffer", dataset: DatasetSpec | None, job: JobSpec | None = None, site: str | None = None) -> None:
         """
         Constructs all the necessary attributes for the Finisher object.
 
@@ -64,7 +69,7 @@ class Finisher(threading.Thread):
         self.job = job
         self.site = site
 
-    def create_json_doc(self, job, failed_files: List[str], no_out_files: List[str]):
+    def create_json_doc(self, job: JobSpec, failed_files: List[str], no_out_files: List[str]) -> str:
         """
         This function creates a JSON document for the jobs.
 
@@ -76,7 +81,7 @@ class Finisher(threading.Thread):
         Returns:
         str: The created JSON document as a string.
         """
-        json_dict = {}
+        json_dict: dict[str, dict[str, Any]] = {}
         for file in job.Files:
             if file.type in ["output", "log"]:
                 # skip failed or no-output files
@@ -94,7 +99,7 @@ class Finisher(threading.Thread):
                 json_dict[file.lfn] = file_dict
         return json.dumps(json_dict)
 
-    def update_job_output_report(self, job, failed_files: List[str], no_out_files: List[str]):
+    def update_job_output_report(self, job: JobSpec, failed_files: List[str], no_out_files: List[str]) -> None:
         """
         This function updates the job output report.
 
@@ -119,7 +124,7 @@ class Finisher(threading.Thread):
                 data=json_data,
             )
 
-    def check_file_status(self, job):
+    def check_file_status(self, job: JobSpec) -> tuple[bool, list[str], list[str]]:
         """
         This function checks the status of the files for the job.
 
@@ -133,8 +138,8 @@ class Finisher(threading.Thread):
             - list: A list of files with no output.
         """
         tmp_log = LogWrapper(_logger, f"check_file_status-{naive_utcnow().isoformat('/')}")
-        failed_files = []
-        no_out_files = []
+        failed_files: list[str] = []
+        no_out_files: list[str] = []
         for file in job.Files:
             if file.type in ("output", "log"):
                 if file.status == "failed":
@@ -147,7 +152,7 @@ class Finisher(threading.Thread):
         return True, failed_files, no_out_files
 
     # main
-    def run(self):
+    def run(self) -> None:
         """
         Starts the thread to finish transferring jobs
         """

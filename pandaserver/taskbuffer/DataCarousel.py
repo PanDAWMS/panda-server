@@ -11,7 +11,7 @@ from collections import namedtuple
 from contextlib import contextmanager
 from dataclasses import MISSING, InitVar, asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Callable, Concatenate, Dict, List, ParamSpec, TypeVar
+from typing import Any, Callable, Concatenate, Dict, List, Literal, ParamSpec, TypeVar
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -957,7 +957,7 @@ class DataCarouselInterface(object):
         for replica in replicas_map["tape"]:
             if replica in rse_expression_list:
                 filtered_replicas_map["tape"].append(replica)
-        if len(replicas_map["tape"]) >= 1 and len(filtered_replicas_map["tape"]) == 0 and len(rules) == 0:
+        if len(replicas_map["tape"]) >= 1 and len(filtered_replicas_map["tape"]) == 0 and not rules:
             filtered_replicas_map["tape"] = replicas_map["tape"]
         for replica in replicas_map["datadisk"]:
             if staging_rule is not None or replica in rse_expression_list:
@@ -1404,6 +1404,9 @@ class DataCarouselInterface(object):
             tmp_log = LogWrapper(logger, f"_fill_total_files_and_size request_id={dc_req_spec.request_id}")
             # get dataset metadata
             dataset_meta = self.ddmIF.get_dataset_metadata(dc_req_spec.dataset)
+            if dataset_meta is None:
+                tmp_log.error(f"failed to get metadata from DDM for dataset {dc_req_spec.dataset}")
+                return False
             # fill
             dc_req_spec.total_files = dataset_meta["length"]
             dc_req_spec.dataset_size = dataset_meta["bytes"]
@@ -1430,6 +1433,9 @@ class DataCarouselInterface(object):
             tmp_log = LogWrapper(logger, f"_update_total_files_and_size request_id={dc_req_spec.request_id}")
             # get dataset metadata
             dataset_meta = self.ddmIF.get_dataset_metadata(dc_req_spec.dataset)
+            if dataset_meta is None:
+                tmp_log.warning(f"failed to get metadata from DDM for dataset {dc_req_spec.dataset} ; skipped")
+                return None
             if dataset_meta["length"] is None or dataset_meta["bytes"] is None:
                 tmp_log.warning(f"got None for length or bytes from DDM for dataset {dc_req_spec.dataset} ; skipped")
                 return None
@@ -2275,7 +2281,7 @@ class DataCarouselInterface(object):
         """
         set_map = {"lifetime": lifetime}
         ret = self.ddmIF.update_rule_by_id(rule_id, set_map)
-        return ret
+        return bool(ret)
 
     def cancel_request(self, dc_req_spec: DataCarouselRequestSpec, by: str = "manual", reason: str | None = None) -> bool | None:
         """
@@ -2339,7 +2345,9 @@ class DataCarouselInterface(object):
         # return
         return ret
 
-    def _check_ddm_rule_of_request(self, dc_req_spec: DataCarouselRequestSpec, by: str = "unknown") -> tuple[bool, str | None, dict[str, Any] | None]:
+    def _check_ddm_rule_of_request(
+        self, dc_req_spec: DataCarouselRequestSpec, by: str = "unknown"
+    ) -> tuple[bool, str | None, dict[str, Any] | Literal[False] | None]:
         """
         Check if the DDM rule of the request is valid.
         If rule not found, update the request and try to cancel or retire it.
@@ -2408,7 +2416,7 @@ class DataCarouselInterface(object):
         ret = False
         # check if the rule is valid
         is_valid, ddm_rule_id, the_rule = self._check_ddm_rule_of_request(dc_req_spec, by=by)
-        if not is_valid or ddm_rule_id is None or the_rule is None:
+        if not is_valid or ddm_rule_id is None or the_rule is None or the_rule is False:
             # rule not valid; skipped
             tmp_log.error(f"ddm_rule_id={ddm_rule_id} rule not valid; skipped")
             return ret
@@ -2498,6 +2506,9 @@ class DataCarouselInterface(object):
             scope, dsname = self.ddmIF.extract_scope(dataset)
             # get lfn of files in the dataset from DDM
             lfn_set = self.ddmIF.get_files_in_dataset(dataset, ignore_unknown=True, lfn_only=True)
+            if lfn_set is None:
+                tmp_log.warning(f"failed to get files in dataset {dataset} from DDM ; skipped")
+                return None
             # make filenames_dict for updateInputFilesStaged_JEDI
             filenames_dict = {}
             dummy_value_tuple = (None, None)
@@ -2583,7 +2594,7 @@ class DataCarouselInterface(object):
                     if dc_req_spec.destination_rse is None:
                         the_replica_locks = self.ddmIF.list_replica_locks_by_id(ddm_rule_id)
                         try:
-                            the_first_file = the_replica_locks[0]
+                            the_first_file = the_replica_locks[0]  # type: ignore[index]  # None here is what the TypeError below catches
                         except IndexError:
                             tmp_log.warning(
                                 f"request_id={dc_req_spec.request_id} no file from replica lock of ddm_rule_id={ddm_rule_id} ; destination_rse not updated"

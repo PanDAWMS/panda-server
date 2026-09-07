@@ -4,7 +4,9 @@ Those post-processing procedures are experiment-dependent so that the Adder also
 
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from pandaserver.taskbuffer.JobSpec import JobSpec
 
 from .adder_result import AdderResult
 
@@ -31,7 +33,7 @@ class AdderPluginBase:
     taskBuffer: "TaskBuffer"
     siteMapper: "SiteMapper"
 
-    def __init__(self, job, params):
+    def __init__(self, job: JobSpec, params: dict[str, Any]) -> None:
         """
         Initialize the AdderPluginBase.
 
@@ -41,6 +43,6 @@ class AdderPluginBase:
         self.job = job
         self.logger = None  # type: ignore[assignment]
         self.result = AdderResult()
-        self.extra_info = {}
+        self.extra_info: dict[str, Any] = {}
         for key, value in params.items():
             setattr(self, key, value)

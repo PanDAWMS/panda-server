@@ -4,12 +4,18 @@ A class used to handle DDM (Distributed Data Management) operations.
 
 import re
 import threading
+from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.dataservice.activator import Activator
 from pandaserver.dataservice.finisher import Finisher
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("ddm_handler")
@@ -39,7 +45,7 @@ class DDMHandler(threading.Thread):
     """
 
     # constructor
-    def __init__(self, task_buffer, vuid: str | None, site: str | None = None, dataset: str | None = None, scope: str | None = None):
+    def __init__(self, task_buffer: "TaskBuffer", vuid: str | None, site: str | None = None, dataset: str | None = None, scope: str | None = None) -> None:
         """
         Constructs all the necessary attributes for the DDMHandler object.
 
@@ -64,7 +70,7 @@ class DDMHandler(threading.Thread):
         self.dataset = dataset
 
     # main
-    def run(self):
+    def run(self) -> None:
         """
         Starts the thread to handle DDM operations.
         """
