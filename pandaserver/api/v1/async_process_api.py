@@ -320,7 +320,7 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
     The response has two shapes, depending on what the request's handler stores.
 
     Handlers writing raw output (grep, sleep_echo) report one entry per machine:
-    ```
+        ```
         {
             "success": bool,        # whether this poll succeeded
             "message": str,
@@ -338,7 +338,7 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
 
     Handlers writing a structured payload (e.g. the Data Carousel operations submitted by
     pandaserver.api.v1.data_carousel_api) report that payload at the top level instead:
-    ```
+        ```
         {
             "success": bool,        # whether the OPERATION succeeded
             "message": str,         # the operation's message
