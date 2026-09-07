@@ -1,3 +1,7 @@
+import logging
+from collections.abc import Sequence
+from typing import Any
+
 from .MsgWrapper import MsgWrapper
 
 _factoryModuleName = __name__.split(".")[-1]
@@ -6,29 +10,36 @@ _factoryModuleName = __name__.split(".")[-1]
 # base class for factory
 class FactoryBase:
     # constructor
-    def __init__(self, vos, sourceLabels, logger, modConfig):
+    def __init__(self, vos: str | None | Sequence[str | None], sourceLabels: str | None | Sequence[str | None], logger: logging.Logger, modConfig: str) -> None:
+        # A None vo or source label lands in the list as itself -- the .split() below
+        # raises on it -- which is what the "None not in" tests further down look for.
+        # Both are read-only after this, so a covariant Sequence is enough
+        self.vos: Sequence[str | None]
+        self.sourceLabels: Sequence[str | None]
         if isinstance(vos, list):
             self.vos = vos
         else:
             try:
-                self.vos = vos.split("|")
+                self.vos = vos.split("|")  # type: ignore[union-attr]  # None is what the except is for
             except Exception:
-                self.vos = [vos]
+                self.vos = [vos]  # type: ignore[list-item]  # narrowed to str | None by the line above
         if isinstance(sourceLabels, list):
             self.sourceLabels = sourceLabels
         else:
             try:
-                self.sourceLabels = sourceLabels.split("|")
+                self.sourceLabels = sourceLabels.split("|")  # type: ignore[union-attr]  # None is what the except is for
             except Exception:
-                self.sourceLabels = [sourceLabels]
+                self.sourceLabels = [sourceLabels]  # type: ignore[list-item]  # narrowed to str | None by the line above
         self.modConfig = modConfig
         self.logger = MsgWrapper(logger, _factoryModuleName)
-        self.implMap = {}
-        self.className = None
-        self.classMap = {}
+        # vo -> source label -> sub type -> the plugin named in modConfig. Which class that
+        # is comes from the config at runtime, so nothing narrower than Any can be said here
+        self.implMap: dict[str, dict[str, dict[str, Any]]] = {}
+        self.classMap: dict[str, dict[str, dict[str, type[Any]]]] = {}
 
-    # initialize all modules
-    def initializeMods(self, *args):
+    # initialize all modules. Returns True, or does not return at all: a plugin that fails
+    # to import raises rather than being skipped
+    def initializeMods(self, *args: Any) -> bool:
         # parse config
         for configStr in self.modConfig.split(","):
             configStr = configStr.strip()
@@ -100,7 +111,7 @@ class FactoryBase:
         return True
 
     # get implementation for vo and sourceLabel. Only work with initializeMods()
-    def getImpl(self, vo, sourceLabel, subType="any", doRefresh=True):
+    def getImpl(self, vo: str | None, sourceLabel: str | None, subType: str | None = "any", doRefresh: bool = True) -> Any:
         # check VO
         if vo in self.implMap:
             # match VO
@@ -136,7 +147,7 @@ class FactoryBase:
             return None
 
     # instantiate implementation for vo and sourceLabel. Only work with initializeMods()
-    def instantiateImpl(self, vo, sourceLabel, subType, *args):
+    def instantiateImpl(self, vo: str | None, sourceLabel: str | None, subType: str | None, *args: Any) -> Any:
         # check VO
         if vo in self.classMap:
             # match VO
@@ -172,7 +183,7 @@ class FactoryBase:
             return None
 
     # get class name of impl
-    def getClassName(self, vo=None, sourceLabel=None):
+    def getClassName(self, vo: str | None = None, sourceLabel: str | None = None) -> str | None:
         impl = self.getImpl(vo, sourceLabel, doRefresh=False)
         if impl is None:
             return None

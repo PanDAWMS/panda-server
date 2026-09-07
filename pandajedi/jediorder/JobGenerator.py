@@ -643,8 +643,10 @@ class JobGeneratorThread(WorkerThread):
                         # initialize brokerage
                         if goForward:
                             jobBroker = JobBroker(taskSpec.vo, taskSpec.prodSourceLabel)
-                            tmpStat = jobBroker.initializeMods(self.ddmIF.getInterface(taskSpec.vo, taskSpec.cloud), self.taskBufferIF)
-                            if not tmpStat:
+                            # its own name: initializeMods answers a bool, while tmpStat
+                            # carries a StatusCode everywhere else in this loop
+                            initStat = jobBroker.initializeMods(self.ddmIF.getInterface(taskSpec.vo, taskSpec.cloud), self.taskBufferIF)
+                            if not initStat:
                                 tmpErrStr = "failed to initialize JobBroker"
                                 tmpLog.error(tmpErrStr)
                                 taskSpec.setOnHold()

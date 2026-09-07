@@ -136,8 +136,10 @@ class TaskCheckerThread(WorkerThread):
         taskbufferIF: "JediTaskBufferInterface",
         ddmIF: "DDMInterface",
         implFactory: FactoryBase,
-        vo: str,
-        prodSourceLabel: str,
+        # a config entry with an empty vo or label field parses to None, which is what
+        # FactoryBase tests for and what the knight hands down here
+        vo: str | None,
+        prodSourceLabel: str | None,
     ) -> None:
         # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
@@ -214,8 +216,10 @@ class TaskBrokerThread(WorkerThread):
         taskbufferIF: "JediTaskBufferInterface",
         ddmIF: "DDMInterface",
         implFactory: FactoryBase,
-        vo: str,
-        prodSourceLabel: str,
+        # a config entry with an empty vo or label field parses to None, which is what
+        # FactoryBase tests for and what the knight hands down here
+        vo: str | None,
+        prodSourceLabel: str | None,
         workQueue: WorkQueue,
         resource_name: str,
     ) -> None:

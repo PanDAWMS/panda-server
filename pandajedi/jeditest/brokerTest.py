@@ -66,7 +66,8 @@ taskSetupper.initializeMods(tbIF, ddmIF)
 for dummyID, tmpList in tmpListList:
     for taskSpec, cloudName, inputChunk in tmpList:
         jobBroker = JobBroker(taskSpec.vo, taskSpec.prodSourceLabel)
-        tmpStat = jobBroker.initializeMods(ddmIF.getInterface(vo), tbIF)
+        # its own name: initializeMods answers a bool, tmpStat below is a StatusCode
+        initStat = jobBroker.initializeMods(ddmIF.getInterface(vo), tbIF)
         splitter = JobSplitter()
         gen = JobGeneratorThread(
             None, threadPool, tbIF, ddmIF, siteMapper, False, taskSetupper, None, None, "dummy", None, None, None, False, tbIF.load_resource_types()
@@ -74,7 +75,8 @@ for dummyID, tmpList in tmpListList:
 
         taskParamMap = None
         if taskSpec.useLimitedSites():
-            tmpStat, taskParamMap = gen.readTaskParams(taskSpec, taskParamMap, tmpLog)
+            # its own name too: readTaskParams answers a bool as well
+            readStat, taskParamMap = gen.readTaskParams(taskSpec, taskParamMap, tmpLog)
 
         tmpStat, inputChunk = jobBroker.doBrokerage(taskSpec, cloudName, inputChunk, taskParamMap)
 

@@ -75,7 +75,8 @@ for dummyID, tmpList in tmpListList:
     task_common: dict[str, Any] = {}
     for taskSpec, cloudName, inputChunk in tmpList:
         jobBroker = JobBroker(taskSpec.vo, taskSpec.prodSourceLabel)
-        tmpStat = jobBroker.initializeMods(ddmIF.getInterface(vo), tbIF)
+        # its own name: initializeMods answers a bool, tmpStat below is a StatusCode
+        initStat = jobBroker.initializeMods(ddmIF.getInterface(vo), tbIF)
         jobBrokerCore = jobBroker.getImpl(taskSpec.vo, taskSpec.prodSourceLabel)
         jobBrokerCore.setTestMode()
         jobBrokerCore.set_task_common_dict(task_common)
@@ -87,7 +88,8 @@ for dummyID, tmpList in tmpListList:
 
         taskParamMap = None
         if taskSpec.useLimitedSites():
-            tmpStat, taskParamMap = gen.readTaskParams(taskSpec, taskParamMap, tmpLog)
+            # its own name too: readTaskParams answers a bool as well
+            readStat, taskParamMap = gen.readTaskParams(taskSpec, taskParamMap, tmpLog)
         jobBroker.setLockID(taskSpec.vo, taskSpec.prodSourceLabel, 123, 0)
         tmpStat, inputChunk = jobBroker.doBrokerage(taskSpec, cloudName, inputChunk, taskParamMap)
         brokerageLockID = jobBroker.getBaseLockID(taskSpec.vo, taskSpec.prodSourceLabel)

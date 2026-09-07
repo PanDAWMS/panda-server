@@ -148,6 +148,7 @@ disallow_any_generics = true
 module = [
     "pandajedi.jedibrokerage.*",
     "pandajedi.jediconfig.*",
+    "pandajedi.jedicore.*",
     "pandajedi.jediddm.*",
     "pandajedi.jedidog.*",
     "pandajedi.jediexec.*",
@@ -174,3 +175,14 @@ module = [
 ]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
+
+# The one module held back from the list above. Of its 152 methods, 146 are a single
+# `return proxy.<the same name>(...)`, so their parameter and return types are the
+# taskbuffer DB proxy's and are only readable out of the proxy's own bodies -- which the
+# taskbuffer pass is going to annotate. Writing them here first would mean reading those
+# bodies twice, with two answers that can disagree; they get derived from the proxy
+# signatures instead, in the change that writes them. Delete this block then.
+[[tool.mypy.overrides]]
+module = ["pandajedi.jedicore.JediTaskBuffer"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
