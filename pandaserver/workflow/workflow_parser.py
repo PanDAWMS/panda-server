@@ -15,7 +15,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from ruamel.yaml import YAML
 
 # from pandaserver.srvcore.CoreUtils import clean_user_id
-from pandaserver.workflow import pcwl_utils, workflow_native_utils
+from pandaserver.workflow import pcwl_utils, workflow_native_utils, workflow_utils
 from pandaserver.workflow.snakeparser import Parser as SnakeParser
 
 # supported workflow description languages
@@ -43,7 +43,13 @@ def json_serialize_default(obj: Any) -> Any:
     # convert set to list
     if isinstance(obj, set):
         return list(obj)
-    elif isinstance(obj, workflow_native_utils.Node):
+    # Both Node classes appear here: the yaml parser builds workflow_native_utils.Node and
+    # pcwl_utils/SnakeParser build workflow_utils.Node, and a sub-workflow node carries its
+    # children as Node objects in sub_nodes. Naming only one of them left json.dumps to
+    # re-encode the object this function handed back, which raises "Circular reference
+    # detected" rather than anything that points here. Their ids are what workflow_core
+    # reads back out of sub_nodes.
+    elif isinstance(obj, (workflow_native_utils.Node, workflow_utils.Node)):
         return obj.id
     return obj
 
@@ -152,11 +158,15 @@ def parse_raw_request(sandbox_url: str, log_token: str, user_name: str, raw_requ
                     workflow_options = None
                     # The branches below produce two different Node classes: the yaml one
                     # builds workflow_native_utils.Node, while pcwl_utils and SnakeParser
-                    # both build workflow_utils.Node. resolve_nodes below is the native one
-                    # either way, and _sub_nodes_are_objects' isinstance() names only the
-                    # native class -- so it never recurses into a CWL or snakemake
-                    # sub-workflow, which is what its own comment says it is there for
+                    # both build workflow_utils.Node. Each module's helpers recognise only
+                    # their own class -- _sub_nodes_are_objects tests isinstance, and the
+                    # native Node carries fields the other does not -- so the resolve step
+                    # below picks the module that matches the parser that ran.
+                    # These hold whichever Node class the branch that ran produced
                     nodes: list[Any]
+                    node: Any
+                    t_nodes: list[Any]
+                    id_node_map: dict[int, Any]
                     if (wf_lang := raw_request_dict["language"]) in SUPPORTED_WORKFLOW_LANGUAGES:
                         if wf_lang == "yaml":
                             workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
@@ -247,38 +257,50 @@ def parse_raw_request(sandbox_url: str, log_token: str, user_name: str, raw_requ
                             nodes, root_in = parser.parse_nodes()
                             data = dict()
                         # resolve nodes
-                        s_id, t_nodes, nodes = workflow_native_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log)
-                        workflow_native_utils.set_workflow_outputs(nodes)
-                        id_node_map = workflow_native_utils.get_node_id_map(nodes)
-                        for node in nodes:
-                            node.resolve_params(raw_request_dict["taskParams"], id_node_map)
-                        # Resolve child_root_outputs_raw now that resolve_nodes has set output values
-                        # and resolve_params has set output_types on all nodes.
-                        # Build a map from step-output-name (e.g. "combine/outDS") to resolved output dict.
-                        node_out_map = {}
-                        for _n in nodes:
-                            for _out_name, _out_data in (_n.outputs or {}).items():
-                                node_out_map[_out_name] = _out_data
-                        for _n in nodes:
-                            if _n.child_root_outputs_raw:
-                                _resolved = {}
-                                for _rout_name, _rout_spec in _n.child_root_outputs_raw.items():
-                                    if isinstance(_rout_spec, dict):
-                                        _from_key = _rout_spec.get("from")
-                                        _from_data = node_out_map.get(_from_key, {}) if _from_key else {}
-                                        _resolved[_rout_name] = {
-                                            "value": _from_data.get("value") if isinstance(_from_data, dict) else None,
-                                            "output_types": _rout_spec.get("output_types") or [],
-                                        }
-                                _n.child_root_outputs = _resolved
-                        dump_str = "the description was internally converted as follows\n" + workflow_native_utils.dump_nodes(nodes)
+                        scatter_template_ids: set[int] = set()
+                        if wf_lang == "yaml":
+                            s_id, t_nodes, nodes = workflow_native_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log)
+                            workflow_native_utils.set_workflow_outputs(nodes)
+                            id_node_map = workflow_native_utils.get_node_id_map(nodes)
+                            for node in nodes:
+                                node.resolve_params(raw_request_dict["taskParams"], id_node_map)
+                            # Resolve child_root_outputs_raw now that resolve_nodes has set output values
+                            # and resolve_params has set output_types on all nodes.
+                            # Build a map from step-output-name (e.g. "combine/outDS") to resolved output dict.
+                            node_out_map = {}
+                            for _n in nodes:
+                                for _out_name, _out_data in (_n.outputs or {}).items():
+                                    node_out_map[_out_name] = _out_data
+                            for _n in nodes:
+                                if _n.child_root_outputs_raw:
+                                    _resolved = {}
+                                    for _rout_name, _rout_spec in _n.child_root_outputs_raw.items():
+                                        if isinstance(_rout_spec, dict):
+                                            _from_key = _rout_spec.get("from")
+                                            _from_data = node_out_map.get(_from_key, {}) if _from_key else {}
+                                            _resolved[_rout_name] = {
+                                                "value": _from_data.get("value") if isinstance(_from_data, dict) else None,
+                                                "output_types": _rout_spec.get("output_types") or [],
+                                            }
+                                    _n.child_root_outputs = _resolved
+                            dump_body = workflow_native_utils.dump_nodes(nodes)
+                            # scatter template child nodes have unresolved scatter-parameter inputs
+                            # (e.g. {signal}, {background}) that are filled in at runtime — skip them
+                            for node in nodes:
+                                if node.scatter_inputs is not None:
+                                    scatter_template_ids |= node.sub_nodes
+                        else:
+                            # CWL and snakemake nodes are workflow_utils.Node. Sub-workflows,
+                            # scatter and the child root outputs above are all native-only
+                            # concepts, so nothing here stands in for them.
+                            s_id, t_nodes, nodes = workflow_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log)
+                            workflow_utils.set_workflow_outputs(nodes)
+                            id_node_map = workflow_utils.get_node_id_map(nodes)
+                            for node in nodes:
+                                node.resolve_params(raw_request_dict["taskParams"], id_node_map)
+                            dump_body = workflow_utils.dump_nodes(nodes)
+                        dump_str = "the description was internally converted as follows\n" + dump_body
                         tmp_log.info(dump_str)
-                        # scatter template child nodes have unresolved scatter-parameter inputs
-                        # (e.g. {signal}, {background}) that are filled in at runtime — skip them
-                        scatter_template_ids = set()
-                        for node in nodes:
-                            if node.scatter_inputs is not None:
-                                scatter_template_ids |= node.sub_nodes
                         for node in nodes:
                             if node.id in scatter_template_ids:
                                 continue
