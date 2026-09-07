@@ -1,6 +1,7 @@
 import json
 import traceback
 import uuid
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -55,7 +56,7 @@ class PandaTaskDataHandler(BaseDataHandler):
     Thus, the handler not only checks the status of the DDM collection to determine if there are files available, but also verifies the step status of source workflow steps to ensure that the data generation process has been completed successfully.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the data handler with necessary parameters.
         """
@@ -63,7 +64,7 @@ class PandaTaskDataHandler(BaseDataHandler):
         super().__init__(*args, **kwargs)
         self.plugin_flavor = "panda_task"
 
-    def check_target(self, data_spec: WFDataSpec, **kwargs) -> WFDataTargetCheckResult:
+    def check_target(self, data_spec: WFDataSpec, **kwargs: Any) -> WFDataTargetCheckResult:
         """
         Check the status of the PanDA task data target.
         This method should be implemented to handle the specifics of PanDA task data status checking.

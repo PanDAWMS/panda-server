@@ -100,7 +100,7 @@ class WorkflowProcessor(object):
                                 mailBody = f"Hello,\n\nWorkflow:{ops['data']['outDS']} has been accepted with RequestID:{request_id}\n\n"
                             else:
                                 mailSubject = f"PANDA WARNING for Workflow={ops['data']['outDS']}"
-                                mailBody = "Hello,\n\nWorkflow {} was not accepted\n\n".format(ops["data"]["outDS"])
+                                mailBody = f"Hello,\n\nWorkflow {ops['data']['outDS']} was not accepted\n\n"
                                 mailBody += f"Reason : {dump_str}\n"
                             # send
                             tmpSM = MailUtils().send(toAdder, mailSubject, mailBody)
@@ -188,7 +188,8 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                         s_id, t_nodes, nodes = workflow_utils.resolve_nodes(nodes, root_in, data, 0, set(), ops["data"]["outDS"], tmpLog)
                         workflow_utils.set_workflow_outputs(nodes)
                         id_node_map = workflow_utils.get_node_id_map(nodes)
-                        [node.resolve_params(ops["data"]["taskParams"], id_node_map) for node in nodes]
+                        for node in nodes:
+                            node.resolve_params(ops["data"]["taskParams"], id_node_map)
                         dump_str = "the description was internally converted as follows\n" + workflow_utils.dump_nodes(nodes)
                         tmpLog.info(dump_str)
                         for node in nodes:

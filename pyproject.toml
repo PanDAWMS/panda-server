@@ -169,6 +169,7 @@ module = [
     "pandaserver.srvcore.*",
     "pandaserver.test.*",
     "pandaserver.userinterface.*",
+    "pandaserver.workflow.*",
 ]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true

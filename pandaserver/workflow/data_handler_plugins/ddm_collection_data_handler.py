@@ -1,6 +1,7 @@
 import json
 import traceback
 import uuid
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -48,7 +49,7 @@ class DDMCollectionDataHandler(BaseDataHandler):
     This class is responsible for managing the DDM collection data within a workflow.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the data handler with necessary parameters.
         """
@@ -56,7 +57,7 @@ class DDMCollectionDataHandler(BaseDataHandler):
         super().__init__(*args, **kwargs)
         self.plugin_flavor = "ddm_collection"
 
-    def check_target(self, data_spec: WFDataSpec, **kwargs) -> WFDataTargetCheckResult:
+    def check_target(self, data_spec: WFDataSpec, **kwargs: Any) -> WFDataTargetCheckResult:
         """
         Check the status of the DDM collection data target.
         This method should be implemented to handle the specifics of DDM collection data status checking.

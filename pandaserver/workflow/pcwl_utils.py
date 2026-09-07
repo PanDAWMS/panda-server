@@ -1,6 +1,7 @@
 import copy
 import os.path
 import re
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -11,7 +12,10 @@ WORKFLOW_NAMES = ["prun", "phpo", "junction", "reana", "gitlab"]
 
 
 # extract id
-def extract_id(id_str):
+# Takes a URI string, a list of them, or the falsy value handed in, and answers the same
+# shape. Its inputs come off cwl_utils objects, which carry no types of their own, so
+# nothing narrower than Any describes either end.
+def extract_id(id_str: Any) -> Any:
     if not id_str:
         return id_str
     if not isinstance(id_str, list):
@@ -32,7 +36,7 @@ def extract_id(id_str):
 
 
 # topological sorting
-def top_sort(list_data, visited):
+def top_sort(list_data: list[Node], visited: set[int]) -> list[Node]:
     if not list_data:
         return []
     new_list = []
@@ -52,7 +56,7 @@ def top_sort(list_data, visited):
 
 
 # parse CWL file
-def parse_workflow_file(workflow_file, log_stream, in_loop=False):
+def parse_workflow_file(workflow_file: str, log_stream: Any, in_loop: bool = False) -> tuple[list[Node], dict[str, Any]]:
     # read the file from yaml
     cwl_file = Path(os.path.abspath(workflow_file))
     cwl_dir = cwl_file.parent
@@ -82,7 +86,7 @@ def parse_workflow_file(workflow_file, log_stream, in_loop=False):
         # check cwl command
         if not cwl_name.endswith(".cwl") and cwl_name not in WORKFLOW_NAMES:
             log_stream.error(f"Unknown workflow {step.run}")
-            return False, None
+            raise ValueError(f"unknown workflow {step.run}")
         serial_id += 1
         workflow_name = step.id.split("#")[-1]
         # leaf workflow and sub-workflow
@@ -106,7 +110,8 @@ def parse_workflow_file(workflow_file, log_stream, in_loop=False):
             # parse condition
             node.condition = parse_condition_string(step.when)
             # suppress inputs based on condition
-            suppress_inputs_based_on_condition(node.condition, node.inputs)
+            if node.condition is not None:
+                suppress_inputs_based_on_condition(node.condition, node.inputs)
         if step.hints and "loop" in step.hints:
             node.loop = True
         if node.loop or in_loop:
@@ -147,14 +152,22 @@ def parse_workflow_file(workflow_file, log_stream, in_loop=False):
 
 
 # resolve nodes
-def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_name, log_stream):
+def resolve_nodes(
+    node_list: Iterable[Node],
+    root_inputs: dict[str, Any],
+    data: dict[str, Any],
+    serial_id: int,
+    parent_ids: set[int],
+    out_ds_name: str,
+    log_stream: Any,
+) -> tuple[int, list[Node], list[Node]]:
     for k in root_inputs:
         kk = k.split("#")[-1]
         if kk in data:
             root_inputs[k] = data[kk]
-    tmp_to_real_id_map: dict[str, Any] = {}
-    resolved_map: dict[str, Any] = {}
-    all_nodes = []
+    tmp_to_real_id_map: dict[int, set[int]] = {}
+    resolved_map: dict[int, list[Node]] = {}
+    all_nodes: list[Node] = []
     for node in node_list:
         # resolve input
         for tmp_name, tmp_data in node.inputs.items():
@@ -213,9 +226,9 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                 else:
                     [i.update({item: v}) for i, v in zip(scatters, node.inputs[item]["value"])]
             # scatters is filled by the loop above, which runs since node.scatter is not empty
-            for idx, item in enumerate(scatters or []):
+            for idx, scatter_item in enumerate(scatters or []):
                 sc_node = copy.deepcopy(node)
-                for k, v in item.items():
+                for k, v in scatter_item.items():
                     sc_node.inputs[k]["value"] = v
                 for tmp_node in sc_node.sub_nodes:
                     tmp_node.scatter_index = idx
@@ -244,7 +257,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             else:
                 serial_id, sub_tail_nodes, sc_node.sub_nodes = resolve_nodes(
                     sc_node.sub_nodes,
-                    sc_node.root_inputs,
+                    sc_node.root_inputs or {},
                     sc_node.convert_dict_inputs(),
                     serial_id,
                     sc_node.parents,
@@ -277,7 +290,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
 
 
 # parse condition string
-def parse_condition_string(cond_string):
+def parse_condition_string(cond_string: str) -> ConditionItem | None:
     # remove $()
     cond_string = re.sub(r"\$\((?P<aaa>.+)\)", r"\g<aaa>", cond_string)
     cond_map: dict[str, Any] = {}
@@ -297,7 +310,7 @@ def parse_condition_string(cond_string):
 
 
 # extract parameter from token
-def extract_parameter(token):
+def extract_parameter(token: str) -> str:
     # the caller only gets here for a token starting with self. or !self., so the
     # search fails only when nothing usable follows the dot
     m = re.search(r"self\.([^!=]+)", token)
@@ -307,7 +320,7 @@ def extract_parameter(token):
 
 
 # convert plain condition string
-def convert_plain_condition_string(cond_string, cond_map):
+def convert_plain_condition_string(cond_string: str, cond_map: dict[str, Any]) -> ConditionItem | None:
     cond_string = re.sub(r" *! *", r"!", cond_string)
     cond_string = re.sub(r"\|\|", r" || ", cond_string)
     cond_string = re.sub(r"&&", r" && ", cond_string)
@@ -353,7 +366,9 @@ def convert_plain_condition_string(cond_string, cond_map):
 
 
 # convert parameter names to parent IDs
-def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map):
+# id_map here is resolve_nodes' tmp_to_real_id_map: a temporary node ID to the set of
+# real node IDs it resolved to
+def convert_params_in_condition_to_parent_ids(condition_item: ConditionItem, input_data: dict[str, Any], id_map: dict[int, set[int]]) -> None:
     for item in ["left", "right"]:
         param = getattr(condition_item, item)
         if isinstance(param, str):
@@ -371,7 +386,10 @@ def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map
                         if idx is not None:
                             setattr(condition_item, item, id_map[tmp_data["parent_id"][idx]])
                         else:
-                            setattr(condition_item, item, id_map[tmp_data["parent_id"]])
+                            resolved_parent_ids: set[int] = set()
+                            for parent_id in tmp_data["parent_id"]:
+                                resolved_parent_ids |= id_map[parent_id]
+                            setattr(condition_item, item, list(resolved_parent_ids))
                     else:
                         setattr(condition_item, item, id_map[tmp_data["parent_id"]])
                     break
@@ -382,7 +400,7 @@ def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map
 
 
 # suppress inputs based on condition
-def suppress_inputs_based_on_condition(condition_item, input_data):
+def suppress_inputs_based_on_condition(condition_item: ConditionItem, input_data: dict[str, Any]) -> None:
     if condition_item.right is None and condition_item.operator == "not" and isinstance(condition_item.left, str):
         for tmp_name, tmp_data in input_data.items():
             if condition_item.left == tmp_name.split("/")[-1]:

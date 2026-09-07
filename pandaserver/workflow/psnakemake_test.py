@@ -19,14 +19,14 @@ from pandaserver.workflow.workflow_utils import (
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG)
 
 
-def verify_node(node):
+def verify_node(node: Any) -> None:
     result, error = node.verify()
     if not result:
         logging.info(f"Verification error in ID {node.id}: {error}")
 
 
 # noinspection PyBroadException
-def main():
+def main() -> None:
     try:
         workflow_file = sys.argv[1]
         data: dict[str, Any] = dict()

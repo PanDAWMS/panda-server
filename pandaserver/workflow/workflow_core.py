@@ -110,7 +110,7 @@ def _get_flavor_plugin_class_map() -> Dict[str, Dict[str, Any]]:
 # ==== Functions ===============================================
 
 
-def get_plugin_class(plugin_type: str, flavor: str):
+def get_plugin_class(plugin_type: str, flavor: str) -> Any:
     """
     Get the plugin class for the given type and flavor
 
@@ -133,7 +133,7 @@ class WorkflowInterface(object):
     Interface for workflow management methods
     """
 
-    def __init__(self, task_buffer, *args, **kwargs):
+    def __init__(self, task_buffer: Any, *args: Any, **kwargs: Any) -> None:
         """
         Constructor
 
@@ -142,14 +142,18 @@ class WorkflowInterface(object):
             *args: Additional arguments
             **kwargs: Additional keyword arguments
         """
+        # A TaskBuffer when the API server builds this, or JEDI's JediTaskBufferInterface,
+        # which forwards every method to JediTaskBuffer through CommandSendInterface.
+        # panda-server cannot name the JEDI class and __getattr__ is invisible to a type
+        # checker, so Any is as close as this gets.
         self.tbif = task_buffer
         self.ddm_if = rucioAPI
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
-        self.plugin_map = {}
-        self.mb_proxy = None
+        self.plugin_map: dict[str, dict[str, Any]] = {}
+        self.mb_proxy: Any = None
         self.set_mb_proxy()
 
-    def get_plugin(self, plugin_type: str, flavor: str):
+    def get_plugin(self, plugin_type: str, flavor: str) -> Any:
         """
         Get the plugin instance for the given type and flavor
 
@@ -171,7 +175,7 @@ class WorkflowInterface(object):
                 plugin = self.plugin_map[plugin_type][flavor]
         return plugin
 
-    def set_mb_proxy(self):
+    def set_mb_proxy(self) -> None:
         """
         Set the message broker proxy for workflow manager messaging
         """
@@ -200,7 +204,7 @@ class WorkflowInterface(object):
             logger.warning(f"Failed to set mb_proxy about queue {MESSAGE_QUEUE_NAME}; skipped workflow manager messaging: {traceback.format_exc()}")
             return None
 
-    def _send_message(self, tmp_log, msg_type: str, data_dict: Dict[str, Any] | None = None):
+    def _send_message(self, tmp_log: LogWrapper, msg_type: str, data_dict: Dict[str, Any] | None = None) -> None:
         """
         Send a message to the workflow manager message queue
 
@@ -215,7 +219,7 @@ class WorkflowInterface(object):
             now_time = naive_utcnow()
             now_ts = int(now_time.timestamp())
             # get mbproxy
-            msg_dict = {}
+            msg_dict: dict[str, Any] = {}
             if data_dict:
                 msg_dict.update(data_dict)
             msg_dict.update(
@@ -230,7 +234,7 @@ class WorkflowInterface(object):
         except Exception:
             tmp_log.error(f"Failed to send message to workflow manager queue {MESSAGE_QUEUE_NAME}: {traceback.format_exc()}")
 
-    def send_workflow_message(self, workflow_id: int):
+    def send_workflow_message(self, workflow_id: int) -> None:
         """
         Send a message about the workflow to the workflow manager message queue
 
@@ -240,7 +244,7 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, f"send_workflow_message <workflow_id={workflow_id}>")
         self._send_message(tmp_log, "workflow", {"workflow_id": workflow_id})
 
-    def send_step_message(self, step_id: int):
+    def send_step_message(self, step_id: int) -> None:
         """
         Send a message about the workflow step to the workflow manager message queue
 
@@ -250,7 +254,7 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, f"send_step_message <step_id={step_id}>")
         self._send_message(tmp_log, "wfstep", {"step_id": step_id})
 
-    def send_data_message(self, data_id: int):
+    def send_data_message(self, data_id: int) -> None:
         """
         Send a message about the workflow data to the workflow manager message queue
 
@@ -343,8 +347,8 @@ class WorkflowInterface(object):
         workflow_name: str | None = None,
         workflow_definition: dict[str, Any] | None = None,
         raw_request_params: dict[str, Any] | None = None,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ) -> int | None:
         """
         Register a new workflow
@@ -857,7 +861,7 @@ class WorkflowInterface(object):
         step_spec: WFStepSpec,
         output_ids: dict[str, list[str]],
         data_spec_map: Dict[str, WFDataSpec],
-        now_time,
+        now_time: datetime,
     ) -> None:
         """
         Write aggregated sub-workflow output target_ids into the parent workflow's data specs.

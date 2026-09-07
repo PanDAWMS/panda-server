@@ -156,7 +156,7 @@ class WorkflowBaseSpec(SpecBase):
             return json.loads(self.parameters)
 
     @parameter_map.setter
-    def parameter_map(self, value_map: dict[str, Any]):
+    def parameter_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in parameters attribute in JSON
 
@@ -178,7 +178,7 @@ class WorkflowBaseSpec(SpecBase):
         tmp_dict = self.parameter_map
         return tmp_dict.get(param)
 
-    def set_parameter(self, param: str, value):
+    def set_parameter(self, param: str, value: Any) -> None:
         """
         Set the value of one parameter and store in parameters attribute in JSON
 
@@ -190,7 +190,7 @@ class WorkflowBaseSpec(SpecBase):
         tmp_dict[param] = value
         self.parameter_map = tmp_dict
 
-    def update_parameters(self, params: dict[str, Any]):
+    def update_parameters(self, params: dict[str, Any]) -> None:
         """
         Update values of parameters with a dict and store in parameters attribute in JSON
 
@@ -250,7 +250,7 @@ class WorkflowSpec(WorkflowBaseSpec):
             return json.loads(self.raw_request_json)
 
     @raw_request_json_map.setter
-    def raw_request_json_map(self, value_map: dict[str, Any]):
+    def raw_request_json_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in raw_request_json attribute in JSON
 
@@ -273,7 +273,7 @@ class WorkflowSpec(WorkflowBaseSpec):
             return json.loads(self.definition_json)
 
     @definition_json_map.setter
-    def definition_json_map(self, value_map: dict[str, Any]):
+    def definition_json_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in definition_json attribute in JSON
 
@@ -331,7 +331,7 @@ class WFStepSpec(WorkflowBaseSpec):
             return json.loads(self.definition_json)
 
     @definition_json_map.setter
-    def definition_json_map(self, value_map: dict[str, Any]):
+    def definition_json_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in definition_json attribute in JSON
 
@@ -389,7 +389,7 @@ class WFDataSpec(WorkflowBaseSpec):
             return json.loads(self.metadata)
 
     @metadata_map.setter
-    def metadata_map(self, value_map: dict[str, Any]):
+    def metadata_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in metadata attribute in JSON
 
