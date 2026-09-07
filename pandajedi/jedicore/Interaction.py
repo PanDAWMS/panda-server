@@ -50,6 +50,9 @@ statusCodeMap = {
     "SC_SUCCEEDED": StatusCode(0),
     "SC_FAILED": StatusCode(1),
     "SC_FATAL": StatusCode(2),
+    # the action didn't go through, but only because it is waiting for something outside
+    # of the task's control, so the caller must not penalize the task for the wait
+    "SC_WAITING": StatusCode(3),
 }
 
 
@@ -193,6 +196,9 @@ class MethodClass(object):
                 # set exception type based on error
                 stepIdx = 6
                 if ret.statusCode == SC_FAILED:
+                    retException = JEDITemporaryError
+                elif ret.statusCode == SC_WAITING:
+                    # a caller over IPC has no use for the distinction, so treat it as temporary
                     retException = JEDITemporaryError
                 elif ret.statusCode == SC_FATAL:
                     retException = JEDIFatalError
