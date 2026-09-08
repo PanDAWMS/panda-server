@@ -11,7 +11,17 @@ from collections import namedtuple
 from contextlib import contextmanager
 from dataclasses import MISSING, InitVar, asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Callable, Concatenate, Dict, List, Literal, ParamSpec, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Concatenate,
+    Dict,
+    Iterator,
+    List,
+    Literal,
+    ParamSpec,
+    TypeVar,
+)
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -174,7 +184,7 @@ class DataCarouselRequestSpec(SpecBase):
             return json.loads(self.parameters)
 
     @parameter_map.setter
-    def parameter_map(self, value_map: dict[str, Any]):
+    def parameter_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in parameters attribute in JSON
 
@@ -196,7 +206,7 @@ class DataCarouselRequestSpec(SpecBase):
         tmp_dict = self.parameter_map
         return tmp_dict.get(param)
 
-    def set_parameter(self, param: str, value):
+    def set_parameter(self, param: str, value: Any) -> None:
         """
         Set the value of one parameter and store in parameters attribute in JSON
 
@@ -208,7 +218,7 @@ class DataCarouselRequestSpec(SpecBase):
         tmp_dict[param] = value
         self.parameter_map = tmp_dict
 
-    def update_parameters(self, params: dict[str, Any]):
+    def update_parameters(self, params: dict[str, Any]) -> None:
         """
         Update values of parameters with a dict and store in parameters attribute in JSON
 
@@ -226,7 +236,7 @@ class DataCarouselRequestTransaction(object):
     This is a wrapper for DataCarouselRequestSpec to provide additional methods about DB transaction
     """
 
-    def __init__(self, dc_req_spec: DataCarouselRequestSpec, db_cur, db_log):
+    def __init__(self, dc_req_spec: DataCarouselRequestSpec, db_cur: Any, db_log: Any) -> None:
         """
         Constructor
 
@@ -332,7 +342,7 @@ class DataCarouselMainConfig:
     excluded_destinations: List[str] = field(default_factory=list)
     early_access_users: List[str] = field(default_factory=list)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # map of the attributes with nested dict and corresponding dataclasses
         converting_attr_type_map = {
             "source_tapes_config": SourceTapeConfig,
@@ -415,23 +425,23 @@ class DataCarouselInterface(object):
     """
 
     # constructor
-    def __init__(self, taskbufferIF, *args, **kwargs):
+    def __init__(self, taskbufferIF: Any, *args: Any, **kwargs: Any) -> None:
         # attributes
         self.taskBufferIF = taskbufferIF
         self.ddmIF = rucioAPI
-        self.tape_rses = []
-        self.datadisk_rses = []
-        self.disk_rses = []
+        self.tape_rses: list[str] = []
+        self.datadisk_rses: list[str] = []
+        self.disk_rses: list[str] = []
         # every field of the config defaults to empty, so an unread or unreadable config
         # reads back as "nothing configured" rather than raising on every access
         self.dc_config_map = DataCarouselMainConfig()
-        self._last_update_ts_dict = {}
+        self._last_update_ts_dict: dict[str, datetime | None] = {}
         # full pid
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
         # refresh
         self._refresh_all_attributes()
 
-    def _refresh_all_attributes(self):
+    def _refresh_all_attributes(self) -> None:
         """
         Refresh by calling all update methods
         """
@@ -487,7 +497,7 @@ class DataCarouselInterface(object):
         tmp_log.debug(f"timed out; skipped")
         return None
 
-    def _release_global_dc_lock(self, full_pid: str | None):
+    def _release_global_dc_lock(self, full_pid: str | None) -> bool:
         """
         Release global Data Carousel lock in DB
 
@@ -512,7 +522,7 @@ class DataCarouselInterface(object):
         return ret
 
     @contextmanager
-    def global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30):
+    def global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30) -> Iterator[str | None]:
         """
         Context manager for global Data Carousel lock in DB
 
@@ -710,7 +720,7 @@ class DataCarouselInterface(object):
     #                 db_log.debug(f"{self.full_pid} released lock for request_id={request_id}")
 
     @contextmanager
-    def request_lock(self, request_id: int, lock_expiration_sec: int = 120):
+    def request_lock(self, request_id: int, lock_expiration_sec: int = 120) -> Iterator[DataCarouselRequestSpec | None]:
         """
         Context manager to lock and unlock the Data Carousel request for update into DB
 
@@ -781,7 +791,7 @@ class DataCarouselInterface(object):
                 else:
                     tmp_log.debug(f"released lock")
 
-    def _update_rses(self, time_limit_minutes: int | float = 30):
+    def _update_rses(self, time_limit_minutes: int | float = 30) -> None:
         """
         Update RSEs per TAPE and DATADISK cached in this object
         Run if cache outdated; else do nothing
@@ -815,7 +825,7 @@ class DataCarouselInterface(object):
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
 
-    def _update_dc_config(self, time_limit_minutes: int | float = 5):
+    def _update_dc_config(self, time_limit_minutes: int | float = 5) -> None:
         """
         Update Data Carousel configuration from DB
         Run if cache outdated; else do nothing
@@ -1754,7 +1764,7 @@ class DataCarouselInterface(object):
         return queued_requests_tasks_df
 
     @refresh
-    def get_requests_to_stage(self, *args, **kwargs) -> list[tuple[DataCarouselRequestSpec, dict[str, Any]]]:
+    def get_requests_to_stage(self, *args: Any, **kwargs: Any) -> list[tuple[DataCarouselRequestSpec, dict[str, Any]]]:
         """
         Get the queued requests which should proceed to get staging
 
@@ -2149,7 +2159,11 @@ class DataCarouselInterface(object):
 
     @refresh
     def stage_request(
-        self, dc_req_spec: DataCarouselRequestSpec, extra_params: dict[str, Any] | None = None, destination_rse: str | None = None, submit_idds_request=True
+        self,
+        dc_req_spec: DataCarouselRequestSpec,
+        extra_params: dict[str, Any] | None = None,
+        destination_rse: str | None = None,
+        submit_idds_request: bool = True,
     ) -> tuple[bool, str | None, DataCarouselRequestSpec]:
         """
         Stage the dataset of the request and update request status to staging
@@ -2442,7 +2456,7 @@ class DataCarouselInterface(object):
         # return
         return ret
 
-    def keep_alive_ddm_rules(self, by: str = "watchdog"):
+    def keep_alive_ddm_rules(self, by: str = "watchdog") -> None:
         """
         Keep alive DDM rules of requests of active tasks; also check all requests if their DDM rules are valid
 
@@ -2679,7 +2693,7 @@ class DataCarouselInterface(object):
             tmp_log.warning(f"task_id={task_id} failed to resume the task: error_code={ret_val} {ret_str}")
             return False
 
-    def resume_tasks_from_staging(self):
+    def resume_tasks_from_staging(self) -> None:
         """
         Get tasks with enough staged files and resume them
         """
@@ -2763,7 +2777,7 @@ class DataCarouselInterface(object):
 
     def clean_up_requests(
         self, done_age_limit_days: int | float = DONE_LIFETIME_DAYS, outdated_age_limit_days: int | float = DONE_LIFETIME_DAYS, by: str = "watchdog"
-    ):
+    ) -> None:
         """
         Clean up terminated and outdated requests
 
@@ -2877,7 +2891,7 @@ class DataCarouselInterface(object):
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
 
-    def rescue_pending_tasks_with_done_requests(self):
+    def rescue_pending_tasks_with_done_requests(self) -> None:
         """
         Rescue pending tasks which have data carousel requests in done status by updating staged files in DB
         Usually these tasks reuse data carousel requests done previously
@@ -2906,7 +2920,12 @@ class DataCarouselInterface(object):
                 tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
 
     def resubmit_request(
-        self, orig_dc_req_spec: DataCarouselRequestSpec, submit_idds_request=True, exclude_prev_dst: bool = False, by: str = "manual", reason: str | None = None
+        self,
+        orig_dc_req_spec: DataCarouselRequestSpec,
+        submit_idds_request: bool = True,
+        exclude_prev_dst: bool = False,
+        by: str = "manual",
+        reason: str | None = None,
     ) -> tuple[DataCarouselRequestSpec | None, str | None]:
         """
         Resubmit a request by ending the old request and submitting a new request

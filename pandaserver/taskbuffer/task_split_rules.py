@@ -202,7 +202,7 @@ def extract_rule_values(split_rules: str | None, rule_names: list[str], is_sub_r
 
 
 # replace a rule
-def replace_rule(split_rules: str | None, rule_name: str, rule_value: int | str, is_sub_rule=False):
+def replace_rule(split_rules: str | None, rule_name: str, rule_value: int | str, is_sub_rule: bool = False) -> str | None:
     """
     Replace a rule in the split rule string
 
@@ -210,7 +210,8 @@ def replace_rule(split_rules: str | None, rule_name: str, rule_value: int | str,
     :param rule_name: rule name
     :param rule_value: rule value
     :param is_sub_rule: True to indicate the rule is a subrule
-    :return: string of split rules
+    :return: string of split rules, or the input unchanged -- which can be None -- when the
+             rule name is not a known one
     """
     if rule_name not in split_rule_dict:
         return split_rules
@@ -236,7 +237,7 @@ def replace_rule(split_rules: str | None, rule_name: str, rule_value: int | str,
 
 
 # remove a rule
-def remove_rule(split_rules: str | None, rule_token: str, is_sub_rule: bool = False):
+def remove_rule(split_rules: str | None, rule_token: str, is_sub_rule: bool = False) -> str:
     """
     Remove a rule from the split rule string
 

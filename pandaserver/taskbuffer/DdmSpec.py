@@ -12,14 +12,16 @@ DOWNTIME_STATUSES = ("OFF", "TEST")
 
 class DdmSpec(object):
     # constructor
-    def __init__(self):
-        self.all = {}
-        self.local = set()
-        self.default_read = None
-        self.default_write = None
-        self.tape = set()
+    def __init__(self) -> None:
+        # endpoint name -> the endpoint's properties merged with those of its relation, so the
+        # values are whatever those two dicts hold
+        self.all: dict[str, dict[str, Any]] = {}
+        self.local: set[str] = set()
+        self.default_read: str | None = None
+        self.default_write: str | None = None
+        self.tape: set[str] = set()
 
-    def add(self, relation, endpoint_dictionary):
+    def add(self, relation: dict[str, Any], endpoint_dictionary: dict[str, dict[str, Any]]) -> None:
         """
         Add an endpoint to the DDM specification.
 
@@ -60,7 +62,7 @@ class DdmSpec(object):
         if relation["is_tape"] == "Y":
             self.tape.add(name)
 
-    def getAllEndPoints(self):
+    def getAllEndPoints(self) -> list[str]:
         """
         Get all DDM endpoints. This method returns a list of all DDM endpoints.
 
@@ -69,7 +71,7 @@ class DdmSpec(object):
         """
         return list(self.all)
 
-    def getEndPoint(self, endpoint_name):
+    def getEndPoint(self, endpoint_name: str) -> dict[str, Any] | None:
         """
         Get a specific DDM endpoint.
 
@@ -84,7 +86,7 @@ class DdmSpec(object):
             return self.all[endpoint_name]
         return None
 
-    def getLocalEndPoints(self):
+    def getLocalEndPoints(self) -> list[str]:
         """
         This method returns a sorted list of local DDM endpoints.
 
@@ -94,7 +96,7 @@ class DdmSpec(object):
         sorted_endpoints = sorted(self.local)
         return sorted_endpoints
 
-    def getDefaultWrite(self):
+    def getDefaultWrite(self) -> str | None:
         """
         This method returns the default write DDM endpoint.
 
@@ -103,7 +105,7 @@ class DdmSpec(object):
         """
         return self.default_write
 
-    def getDefaultRead(self):
+    def getDefaultRead(self) -> str | None:
         """
         This method returns the default read DDM endpoint.
 
@@ -112,7 +114,7 @@ class DdmSpec(object):
         """
         return self.default_read
 
-    def getTapeEndPoints(self):
+    def getTapeEndPoints(self) -> tuple[str, ...]:
         """
         This method returns a tuple of tape DDM endpoints.
 
@@ -121,7 +123,7 @@ class DdmSpec(object):
         """
         return tuple(self.tape)
 
-    def isAssociated(self, endpoint_name):
+    def isAssociated(self, endpoint_name: str) -> bool:
         """
         This method checks if a given endpoint name is associated with any DDM endpoint.
 
@@ -133,7 +135,7 @@ class DdmSpec(object):
         """
         return endpoint_name in self.all
 
-    def getAssociatedEndpoint(self, patt, mode="output"):
+    def getAssociatedEndpoint(self, patt: str, mode: str = "output") -> dict[str, Any] | None:
         """
         This method returns the DDM endpoint associated with a given pattern and of the lowest order.
 
@@ -173,7 +175,7 @@ class DdmSpec(object):
 
         return endpoint
 
-    def getTokenMap(self, mode):
+    def getTokenMap(self, mode: str) -> dict[str, str]:
         """
         This method returns a mapping between space tokens and endpoint names based on the mode.
 

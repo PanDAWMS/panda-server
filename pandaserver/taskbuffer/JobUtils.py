@@ -1,14 +1,19 @@
+import datetime
 import json
 import re
 from typing import TYPE_CHECKING, Any
 
 from pandaserver.srvcore.CoreUtils import NonJsonObjectEncoder, as_python_object
 from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.spec_column import Null
 
 if TYPE_CHECKING:
     # imported for the annotation only: ResourceSpec imports this module, so a runtime
     # import here would close the cycle
+    from pandaserver.taskbuffer.InputChunk import InputChunk
+    from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
     from pandaserver.taskbuffer.ResourceSpec import ResourceSpec
+    from pandaserver.taskbuffer.SiteSpec import SiteSpec
 
 # list of prod source label for pilot tests
 list_ptest_prod_sources = ["ptest", "rc_test", "rc_test2", "rc_alrb"]
@@ -32,7 +37,7 @@ job_labels = [ANALY_PS, PROD_PS]
 priorityTasksToJumpOver = 1500
 
 
-def translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel):
+def translate_prodsourcelabel_to_jobtype(queue_type: str | None, prodsourcelabel: str | None) -> str | None:
     if prodsourcelabel in analy_sources:
         return ANALY_PS
 
@@ -49,7 +54,7 @@ def translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel):
     return prodsourcelabel
 
 
-def translate_tasktype_to_jobtype(task_type):
+def translate_tasktype_to_jobtype(task_type: str | None) -> str:
     # any unrecognized tasktype will be defaulted to production
     if task_type == ANALY_TASKTYPE:
         return ANALY_PS
@@ -58,7 +63,7 @@ def translate_tasktype_to_jobtype(task_type):
 
 
 # get core count
-def getCoreCount(actualCoreCount, defCoreCount, jobMetrics):
+def getCoreCount(actualCoreCount: int | None, defCoreCount: int | None, jobMetrics: str | None) -> int:
     coreCount = 1
     try:
         if actualCoreCount is not None:
@@ -80,7 +85,14 @@ def getCoreCount(actualCoreCount, defCoreCount, jobMetrics):
 
 
 # get HS06sec
-def getHS06sec(startTime, endTime, corePower, coreCount, baseWalltime=0, cpuEfficiency=100):
+def getHS06sec(
+    startTime: datetime.datetime,
+    endTime: datetime.datetime,
+    corePower: float,
+    coreCount: int,
+    baseWalltime: int = 0,
+    cpuEfficiency: int = 100,
+) -> float | None:
     try:
         # no scaling
         if cpuEfficiency == 0:
@@ -96,7 +108,13 @@ def getHS06sec(startTime, endTime, corePower, coreCount, baseWalltime=0, cpuEffi
         return None
 
 
-def get_job_co2(start_time, end_time, core_count, energy_emissions, watts_per_core):
+def get_job_co2(
+    start_time: datetime.datetime,
+    end_time: datetime.datetime,
+    core_count: int,
+    energy_emissions: list[tuple[Any, ...]],
+    watts_per_core: float,
+) -> float | None:
     energy_emissions_by_ts = {}
     for entry in energy_emissions:
         aux_timestamp, region, value = entry
@@ -145,8 +163,8 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions, watts_per_co
 
 
 # parse string for number of standby jobs
-def parseNumStandby(catchall):
-    retMap: dict[str, Any] = {}
+def parseNumStandby(catchall: str | None) -> dict[int | str, dict[str, int]]:
+    retMap: dict[int | str, dict[str, int]] = {}
     if catchall is not None:
         for tmpItem in catchall.split(","):
             tmpMatch = re.search("^nStandby=(.+)", tmpItem)
@@ -155,40 +173,42 @@ def parseNumStandby(catchall):
             for tmpSubStr in tmpMatch.group(1).split("|"):
                 if len(tmpSubStr.split(":")) != 3:
                     continue
-                sw_id, resource_type, num = tmpSubStr.split(":")
+                sw_id_str, resource_type, num_str = tmpSubStr.split(":")
+                # a work queue is identified by a number and a global share by its name
+                sw_id: int | str
                 try:
-                    sw_id = int(sw_id)
+                    sw_id = int(sw_id_str)
                 except Exception:
-                    pass
+                    sw_id = sw_id_str
                 if sw_id not in retMap:
                     retMap[sw_id] = {}
-                if num == "":
+                if num_str == "":
                     num = 0
                 else:
-                    num = int(num)
+                    num = int(num_str)
                 retMap[sw_id][resource_type] = num
             break
     return retMap
 
 
 # compensate memory count to prevent jobs with ramCount close to the HIMEM border from going to HIMEM PQs
-def compensate_ram_count(ram_count):
-    if ram_count in ("NULL", None):
+def compensate_ram_count(ram_count: float | Null | None) -> int | None:
+    if ram_count is None or isinstance(ram_count, str):
         return None
     ram_count = int(ram_count * MEMORY_COMPENSATION)
     return ram_count
 
 
 # undo the memory count compensation
-def decompensate_ram_count(ram_count):
-    if ram_count in ("NULL", None):
+def decompensate_ram_count(ram_count: float | Null | None) -> int | None:
+    if ram_count is None or isinstance(ram_count, str):
         return None
     ram_count = int(ram_count / MEMORY_COMPENSATION)
     return ram_count
 
 
 # dump jobs to serialized json
-def dump_jobs_json(jobs):
+def dump_jobs_json(jobs: list[JobSpec]) -> str:
     state_objects = []
     for job_spec in jobs:
         state_objects.append(job_spec.dump_to_json_serializable())
@@ -196,7 +216,7 @@ def dump_jobs_json(jobs):
 
 
 # load serialized json to jobs
-def load_jobs_json(state):
+def load_jobs_json(state: str) -> list[JobSpec]:
     state_objects = json.loads(state, object_hook=as_python_object)
     jobs = []
     for job_state in state_objects:
@@ -222,18 +242,19 @@ def get_resource_type_job(resource_map: list["ResourceSpec"], job_spec: JobSpec)
 
 
 # get min ram count for job
-def getJobMinRamCount(taskSpec, inputChunk, siteSpec, coreCount):
+def getJobMinRamCount(taskSpec: "JediTaskSpec", inputChunk: "InputChunk", siteSpec: "SiteSpec", coreCount: int) -> tuple[int | None, str]:
     minRamCount = inputChunk.getMaxRamCount()
     if inputChunk.isMerging:
         minRamUnit = "MB"
     else:
-        minRamUnit = taskSpec.ramUnit
-        if minRamUnit in [None, "", "NULL"]:
+        minRamUnit = taskSpec.ramUnit or "MB"
+        if minRamUnit == "NULL":
             minRamUnit = "MB"
         if taskSpec.ramPerCore():
             minRamCount *= coreCount
-            minRamCount += taskSpec.baseRamCount
+            # an unset base adds nothing, which is the reading CoreUtils.getJobMaxWalltime takes
+            if taskSpec.baseRamCount is not None:
+                minRamCount += taskSpec.baseRamCount
             minRamUnit = re.sub("PerCore.*$", "", minRamUnit)
     # round up with chunks
-    minRamCount = compensate_ram_count(minRamCount)
-    return minRamCount, minRamUnit
+    return compensate_ram_count(minRamCount), minRamUnit

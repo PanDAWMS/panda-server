@@ -4,7 +4,7 @@ worker specification
 """
 
 import datetime
-from typing import Any
+from typing import Any, Sequence
 
 
 class HarvesterMetricsSpec(object):
@@ -31,7 +31,7 @@ class HarvesterMetricsSpec(object):
     _changedAttrs: dict[str, Any]
 
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         # install attributes
         for attr in self._attributes:
             object.__setattr__(self, attr, None)
@@ -39,7 +39,7 @@ class HarvesterMetricsSpec(object):
         object.__setattr__(self, "_changedAttrs", {})
 
     # override __setattr__ to collecte the changed attributes
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         oldVal = getattr(self, name)
         # convert string to datetime
         if isinstance(value, str) and value.startswith("datetime/"):
@@ -50,11 +50,11 @@ class HarvesterMetricsSpec(object):
             self._changedAttrs[name] = value
 
     # reset changed attribute list
-    def resetChangedList(self):
+    def resetChangedList(self) -> None:
         object.__setattr__(self, "_changedAttrs", {})
 
     # return map of values
-    def valuesMap(self, onlyChanged=False):
+    def valuesMap(self, onlyChanged: bool = False) -> dict[str, Any]:
         ret = {}
         for attr in self._attributes:
             if onlyChanged and attr not in self._changedAttrs:
@@ -67,7 +67,7 @@ class HarvesterMetricsSpec(object):
         return ret
 
     # pack tuple into FileSpec
-    def pack(self, values):
+    def pack(self, values: Sequence[Any]) -> None:
         for i in range(len(self._attributes)):
             attr = self._attributes[i]
             val = values[i]
@@ -75,7 +75,7 @@ class HarvesterMetricsSpec(object):
 
     # return column names for INSERT
     @classmethod
-    def columnNames(cls):
+    def columnNames(cls) -> str:
         ret = ""
         for attr in cls._attributes:
             ret += f"{attr},"
@@ -84,7 +84,7 @@ class HarvesterMetricsSpec(object):
 
     # return expression of bind variables for INSERT
     @classmethod
-    def bindValuesExpression(cls):
+    def bindValuesExpression(cls) -> str:
         from pandaserver.config import panda_config
 
         ret = "VALUES("
@@ -95,7 +95,7 @@ class HarvesterMetricsSpec(object):
         return ret
 
     # return an expression of bind variables for UPDATE to update only changed attributes
-    def bindUpdateChangesExpression(self):
+    def bindUpdateChangesExpression(self) -> str:
         ret = ""
         for attr in self._attributes:
             if attr not in self._changedAttrs:

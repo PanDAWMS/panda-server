@@ -207,7 +207,11 @@ def heartbeat(req: PandaRequest, harvester_id: str, data: dict[str, Any] | None 
     user = get_dn(req)
     host = req.get_remote_host()
 
-    ret_message = global_task_buffer.harvesterIsAlive(user, host, harvester_id, data)
+    # data is documented as optional here, but the proxy iterates it twice without a test,
+    # so a heartbeat that sends none fails inside the proxy's own except and comes back as
+    # a database error rather than just refreshing lastUpdate. Reported, not changed here:
+    # making it work changes what a data-less heartbeat does.
+    ret_message = global_task_buffer.harvesterIsAlive(user, host, harvester_id, data)  # type: ignore[arg-type]
     if not ret_message or ret_message != "succeeded":
         tmp_logger.error(f"Error updating database: {data}")
         return generate_response(False, message=MESSAGE_DATABASE)

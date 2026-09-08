@@ -4,7 +4,7 @@ worker specification
 """
 
 import datetime
-from typing import Any
+from typing import Any, Sequence
 
 
 class WorkerSpec(object):
@@ -84,7 +84,7 @@ class WorkerSpec(object):
     _changedAttrs: dict[str, Any]
 
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         # install attributes
         for attr in self._attributes:
             object.__setattr__(self, attr, None)
@@ -92,7 +92,7 @@ class WorkerSpec(object):
         object.__setattr__(self, "_changedAttrs", {})
 
     # override __setattr__ to collect the changed attributes
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         oldVal = getattr(self, name)
         # convert string to datetime
         if isinstance(value, str) and value.startswith("datetime/"):
@@ -103,11 +103,11 @@ class WorkerSpec(object):
             self._changedAttrs[name] = value
 
     # reset changed attribute list
-    def resetChangedList(self):
+    def resetChangedList(self) -> None:
         object.__setattr__(self, "_changedAttrs", {})
 
     # return map of values
-    def valuesMap(self, onlyChanged=False):
+    def valuesMap(self, onlyChanged: bool = False) -> dict[str, Any]:
         ret = {}
         for attr in self._attributes:
             if onlyChanged and attr not in self._changedAttrs:
@@ -120,7 +120,7 @@ class WorkerSpec(object):
         return ret
 
     # pack tuple into FileSpec
-    def pack(self, values):
+    def pack(self, values: Sequence[Any]) -> None:
         for i in range(len(self._attributes)):
             attr = self._attributes[i]
             val = values[i]
@@ -128,7 +128,7 @@ class WorkerSpec(object):
 
     # return column names for INSERT
     @classmethod
-    def columnNames(cls, prefix=None):
+    def columnNames(cls, prefix: str | None = None) -> str:
         ret = ""
         for attr in cls._attributes:
             if prefix is not None:
@@ -139,7 +139,7 @@ class WorkerSpec(object):
 
     # return expression of bind variables for INSERT
     @classmethod
-    def bindValuesExpression(cls):
+    def bindValuesExpression(cls) -> str:
         from pandaserver.config import panda_config
 
         ret = "VALUES("
@@ -150,7 +150,7 @@ class WorkerSpec(object):
         return ret
 
     # return an expression of bind variables for UPDATE to update only changed attributes
-    def bindUpdateChangesExpression(self):
+    def bindUpdateChangesExpression(self) -> str:
         ret = ""
         for attr in self._attributes:
             if attr not in self._changedAttrs:
@@ -160,7 +160,7 @@ class WorkerSpec(object):
         return ret
 
     # return state values to be pickled
-    def __getstate__(self):
+    def __getstate__(self) -> list[Any]:
         state = []
         for attr in self._attributes:
             val = getattr(self, attr)
@@ -169,7 +169,7 @@ class WorkerSpec(object):
         return state
 
     # restore state from the unpickled state values
-    def __setstate__(self, state):
+    def __setstate__(self, state: list[Any]) -> None:
         i = 0
         for attr in self._attributes:
             if i >= len(state) - 1:

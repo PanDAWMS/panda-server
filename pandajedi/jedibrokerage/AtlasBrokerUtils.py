@@ -89,11 +89,13 @@ def getNucleiWithData(
                     if siteMapper.is_readable_remotely(tmpLoc):
                         can_be_remote_source = True
                     # sum
+                    # is_associated_for_input above is the same test getEndpoint makes, so
+                    # this is set whenever that one passed
                     tmpEndpoint = tmpNucleusSpec.getEndpoint(tmpLoc)
                     tmpAvaNum = locData[0]["found"]
                     tmpAvaSize = locData[0]["asize"]
                     # disk
-                    if tmpEndpoint["is_tape"] != "Y":
+                    if tmpEndpoint is not None and tmpEndpoint["is_tape"] != "Y":
                         # complete replica is available at DISK
                         if tmpTotalNum == tmpAvaNum and tmpTotalNum > 0:
                             tmpAvaNumDisk = tmpAvaNum
@@ -516,7 +518,7 @@ def isMatched(siteName: str, nameList: Collection[str]) -> bool:
 # get dict to set nucleus
 def getDictToSetNucleus(nucleusSpec: NucleusSpec, tmpDatasetSpecs: Collection[JediDatasetSpec]) -> dict[str, Any]:
     # get destinations
-    return_map = {"datasets": [], "nucleus": nucleusSpec.name}
+    return_map: dict[str, Any] = {"datasets": [], "nucleus": nucleusSpec.name}
     for datasetSpec in tmpDatasetSpecs:
         # skip distributed datasets
         if DataServiceUtils.getDistributedDestination(datasetSpec.storageToken) is not None:

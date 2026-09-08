@@ -21,7 +21,7 @@ class DataCarouselModule(BaseModule):
         super().__init__(log_stream)
 
     # query data carousel request ID by dataset
-    def get_data_carousel_request_id_by_dataset_JEDI(self, dataset):
+    def get_data_carousel_request_id_by_dataset_JEDI(self, dataset: str) -> int | None:
         comment = " /* JediDBProxy.get_data_carousel_request_id_by_dataset_JEDI */"
         tmp_log = self.create_tagged_logger(comment, f"dataset={dataset}")
         tmp_log.debug("start")
@@ -54,7 +54,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # insert data carousel requests
-    def insert_data_carousel_requests_JEDI(self, task_id, dc_req_specs):
+    def insert_data_carousel_requests_JEDI(self, task_id: int, dc_req_specs: list[DataCarouselRequestSpec]) -> int | None:
         comment = " /* JediDBProxy.insert_data_carousel_requests_JEDI */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
         tmp_log.debug("start")
@@ -137,7 +137,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # update a data carousel request
-    def update_data_carousel_request_JEDI(self, dc_req_spec):
+    def update_data_carousel_request_JEDI(self, dc_req_spec: DataCarouselRequestSpec) -> DataCarouselRequestSpec | None:
         comment = " /* JediDBProxy.update_data_carousel_request_JEDI */"
         tmp_log = self.create_tagged_logger(comment, f"request_id={dc_req_spec.request_id}")
         tmp_log.debug("start")
@@ -166,7 +166,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # insert data carousel relations
-    def insert_data_carousel_relations_JEDI(self, task_id, request_ids):
+    def insert_data_carousel_relations_JEDI(self, task_id: int, request_ids: list[int]) -> int | None:
         comment = " /* JediDBProxy.insert_data_carousel_relations_JEDI */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
         tmp_log.debug("start")
@@ -210,7 +210,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # get data carousel queued requests and info of their related tasks
-    def get_data_carousel_queued_requests_JEDI(self):
+    def get_data_carousel_queued_requests_JEDI(self) -> list[tuple[DataCarouselRequestSpec, list[JediTaskSpec]]] | None:
         comment = " /* JediDBProxy.get_data_carousel_queued_requests_JEDI */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -268,7 +268,9 @@ class DataCarouselModule(BaseModule):
             return None
 
     # get data carousel requests of tasks by task status
-    def get_data_carousel_requests_by_task_status_JEDI(self, status_filter_list=None, status_exclusion_list=None):
+    def get_data_carousel_requests_by_task_status_JEDI(
+        self, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None
+    ) -> tuple[dict[Any, DataCarouselRequestSpec], dict[Any, list[Any]]] | None:
         comment = " /* JediDBProxy.get_data_carousel_requests_by_task_status_JEDI */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -284,7 +286,7 @@ class DataCarouselModule(BaseModule):
                 f"FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.JEDI_Tasks t "
                 f"WHERE rel.task_id=t.jediTaskID "
             )
-            var_map = {}
+            var_map: dict[str, Any] = {}
             if status_filter_list:
                 status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
                 sql_query_id += f"AND t.status IN ({status_var_names_str}) "
@@ -338,7 +340,9 @@ class DataCarouselModule(BaseModule):
             return None
 
     # get related tasks and their info of a data carousel request
-    def get_related_tasks_of_data_carousel_request_JEDI(self, request_id, status_filter_list=None, status_exclusion_list=None):
+    def get_related_tasks_of_data_carousel_request_JEDI(
+        self, request_id: int, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None
+    ) -> dict[int, Any] | None:
         comment = " /* JediDBProxy.get_related_tasks_of_data_carousel_request_JEDI */"
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id}")
         tmp_log.debug("start")
@@ -386,7 +390,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # get data carousel staging requests
-    def get_data_carousel_staging_requests_JEDI(self, time_limit_minutes=5):
+    def get_data_carousel_staging_requests_JEDI(self, time_limit_minutes: int = 5) -> list[DataCarouselRequestSpec] | None:
         comment = " /* JediDBProxy.get_data_carousel_staging_requests_JEDI */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -434,7 +438,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # delete data carousel requests
-    def delete_data_carousel_requests_JEDI(self, request_id_list):
+    def delete_data_carousel_requests_JEDI(self, request_id_list: list[int]) -> int | None:
         comment = " /* JediDBProxy.delete_data_carousel_requests_JEDI */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -448,7 +452,7 @@ class DataCarouselModule(BaseModule):
             )
             var_map_base = {}
             var_map_base.update(status_var_map)
-            var_map_list = []
+            var_map_list: list[dict[str, Any]] = []
             for request_id in request_id_list:
                 var_map = var_map_base.copy()
                 var_map[":request_id"] = request_id
@@ -477,7 +481,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # clean up data carousel requests
-    def clean_up_data_carousel_requests_JEDI(self, time_limit_days=30):
+    def clean_up_data_carousel_requests_JEDI(self, time_limit_days: int = 30) -> int | None:
         comment = " /* JediDBProxy.clean_up_data_carousel_requests_JEDI */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -516,7 +520,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # cancel a data carousel request
-    def cancel_data_carousel_request_JEDI(self, request_id):
+    def cancel_data_carousel_request_JEDI(self, request_id: int) -> int | None:
         comment = " /* JediDBProxy.cancel_data_carousel_request_JEDI */"
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id}")
         tmp_log.debug("start")
@@ -557,7 +561,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # retire a data carousel request
-    def retire_data_carousel_request_JEDI(self, request_id):
+    def retire_data_carousel_request_JEDI(self, request_id: int) -> int | None:
         comment = " /* JediDBProxy.retire_data_carousel_request_JEDI */"
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id}")
         tmp_log.debug("start")
@@ -597,7 +601,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # resubmit a data carousel request
-    def resubmit_data_carousel_request_JEDI(self, request_id, exclude_prev_dst=False):
+    def resubmit_data_carousel_request_JEDI(self, request_id: int, exclude_prev_dst: bool = False) -> DataCarouselRequestSpec | bool | None:
         comment = " /* JediDBProxy.resubmit_data_carousel_request_JEDI */"
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id} exclude_prev_dst={exclude_prev_dst}")
         tmp_log.debug("start")
@@ -613,7 +617,7 @@ class DataCarouselModule(BaseModule):
                 f"WHERE request_id=:request_id "
                 f"AND status IN ({status_var_names_str}) "
             )
-            var_map = {":request_id": request_id}
+            var_map: dict[str, Any] = {":request_id": request_id}
             var_map.update(status_var_map)
             self.cur.execute(sql_query_req + comment, var_map)
             res_list = self.cur.fetchall()
@@ -718,7 +722,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # get pending data carousel tasks and their input datasets
-    def get_pending_dc_tasks_JEDI(self, task_type="prod", time_limit_minutes=60):
+    def get_pending_dc_tasks_JEDI(self, task_type: str = "prod", time_limit_minutes: int = 60) -> dict[str, list[int]] | None:
         comment = " /* JediDBProxy.get_pending_dc_tasks_JEDI */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")

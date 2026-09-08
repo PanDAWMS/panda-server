@@ -5,12 +5,15 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.taskbuffer import FileSpec, JobSpec
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 JobSpec.reserveChangedState = True
 FileSpec.reserveChangedState = True
@@ -21,14 +24,16 @@ _logger = PandaLogger().getLogger("TaskBufferInterface")
 
 # method class
 class TaskBufferMethod:
-    def __init__(self, methodName, commDict, childlock, comLock, resLock):
+    def __init__(
+        self, methodName: str, commDict: dict[int, Any], childlock: "multiprocessing.Queue[int]", comLock: dict[int, Any], resLock: dict[int, Any]
+    ) -> None:
         self.methodName = methodName
         self.childlock = childlock
         self.commDict = commDict
         self.comLock = comLock
         self.resLock = resLock
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         log = LogWrapper(
             _logger,
             f"pid={os.getpid()} thr={threading.current_thread().ident} {self.methodName}",
@@ -64,14 +69,14 @@ class TaskBufferMethod:
 # child class
 class TaskBufferInterfaceChild:
     # constructor
-    def __init__(self, commDict, childlock, comLock, resLock):
+    def __init__(self, commDict: dict[int, Any], childlock: "multiprocessing.Queue[int]", comLock: dict[int, Any], resLock: dict[int, Any]) -> None:
         self.childlock = childlock
         self.commDict = commDict
         self.comLock = comLock
         self.resLock = resLock
 
     # method emulation
-    def __getattr__(self, attrName):
+    def __getattr__(self, attrName: str) -> TaskBufferMethod:
         return TaskBufferMethod(attrName, self.commDict, self.childlock, self.comLock, self.resLock)
 
 
@@ -82,13 +87,13 @@ class TaskBufferInterface:
     taskBuffer: Any
 
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         # make manager to create shared objects
         self.manager = multiprocessing.Manager()
         self.taskBuffer = None
 
     # main loop
-    def run(self, taskBuffer, commDict, comLock, resLock, to_stop):
+    def run(self, taskBuffer: "TaskBuffer", commDict: dict[int, Any], comLock: dict[int, Any], resLock: dict[int, Any], to_stop: Any) -> None:
         with ThreadPoolExecutor(max_workers=taskBuffer.get_num_connections()) as pool:
             [
                 pool.submit(
@@ -103,7 +108,7 @@ class TaskBufferInterface:
             ]
 
     # main loop
-    def thread_run(self, taskBuffer, commDict, comLock, resLock, to_stop):
+    def thread_run(self, taskBuffer: "TaskBuffer", commDict: Any, comLock: Any, resLock: Any, to_stop: Any) -> None:
         # main loop
         while True:
             # stop sign
@@ -131,13 +136,13 @@ class TaskBufferInterface:
             resLock.release()
 
     # launcher
-    def launch(self, taskBuffer):
+    def launch(self, taskBuffer: "TaskBuffer") -> None:
         # shared objects
         # the queue holds the index of each free child, handed out one at a time
         self.childlock: multiprocessing.Queue[int] = multiprocessing.Queue()
-        self.commDict = dict()
-        self.comLock = dict()
-        self.resLock = dict()
+        self.commDict: dict[int, Any] = {}
+        self.comLock: dict[int, Any] = {}
+        self.resLock: dict[int, Any] = {}
         self.taskBuffer = taskBuffer
         self.to_stop = multiprocessing.Value("i", 0)
         for i in range(taskBuffer.get_num_connections()):
@@ -154,11 +159,11 @@ class TaskBufferInterface:
         self.process.start()
 
     # get interface for child
-    def getInterface(self):
+    def getInterface(self) -> "TaskBufferInterfaceChild":
         return TaskBufferInterfaceChild(self.commDict, self.childlock, self.comLock, self.resLock)
 
     # stop the loop
-    def stop(self, requester=None):
+    def stop(self, requester: str | None = None) -> None:
         with self.to_stop.get_lock():
             self.to_stop.value = 1
         while self.process.is_alive():
@@ -166,5 +171,5 @@ class TaskBufferInterface:
         self.taskBuffer.cleanup(requester=requester)
 
     # kill
-    def terminate(self):
+    def terminate(self) -> None:
         self.process.terminate()

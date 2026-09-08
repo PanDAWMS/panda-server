@@ -67,7 +67,7 @@ class Closer:
         if self.all_subscription_finished is not None:
             return self.all_subscription_finished
         # get consumers in the jobset
-        jobs = self.task_buffer.getOriginalConsumers(self.job.jediTaskID, self.job.jobsetID, self.job.PandaID)
+        jobs = self.task_buffer.getOriginalConsumers(self.job.jediTaskID, self.job.jobsetID, self.job.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
         checked_dataset: set[str] = set()
         for job_spec in jobs:
             # collect all sub datasets
@@ -179,6 +179,7 @@ class Closer:
                         continue
 
                 # query dataset
+                dataset: DatasetSpec | None
                 if destination_data_block in self.dataset_map:
                     dataset = self.dataset_map[destination_data_block]
                 else:

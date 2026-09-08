@@ -6,7 +6,7 @@ dataset specification for JEDI
 import datetime
 import math
 import re
-from typing import Any
+from typing import Any, Sequence
 
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables
 
@@ -21,7 +21,7 @@ class JediDatasetSpec(object):
     # but the class it belongs to tells the two apart
     Files: list[JediFileSpec]
 
-    def __str__(self):
+    def __str__(self) -> str:
         sb = []
         for key in self.__dict__:
             if key == "Files":
@@ -30,7 +30,7 @@ class JediDatasetSpec(object):
                 sb.append(f"{key}='{self.__dict__[key]}'")
         return ", ".join(sb)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
     # attributes
@@ -143,7 +143,7 @@ class JediDatasetSpec(object):
     _changedAttrs: dict[str, Any]
 
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         # install attributes
         for attr in self._attributes:
             object.__setattr__(self, attr, None)
@@ -155,7 +155,7 @@ class JediDatasetSpec(object):
         object.__setattr__(self, "distributed", False)
 
     # override __setattr__ to collecte the changed attributes
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         oldVal = getattr(self, name)
         object.__setattr__(self, name, value)
         newVal = getattr(self, name)
@@ -164,21 +164,21 @@ class JediDatasetSpec(object):
             self._changedAttrs[name] = value
 
     # add File to files list
-    def addFile(self, fileSpec):
+    def addFile(self, fileSpec: JediFileSpec) -> None:
         # append
         self.Files.append(fileSpec)
 
     # reset changed attribute list
-    def resetChangedList(self):
+    def resetChangedList(self) -> None:
         object.__setattr__(self, "_changedAttrs", {})
 
     # force update
-    def forceUpdate(self, name):
+    def forceUpdate(self, name: str) -> None:
         if name in self._attributes:
             self._changedAttrs[name] = getattr(self, name)
 
     # return map of values
-    def valuesMap(self, useSeq=False, onlyChanged=False):
+    def valuesMap(self, useSeq: bool = False, onlyChanged: bool = False) -> dict[str, Any]:
         ret = {}
         for attr in self._attributes:
             # use sequence
@@ -198,7 +198,7 @@ class JediDatasetSpec(object):
         return ret
 
     # pack tuple into FileSpec
-    def pack(self, values):
+    def pack(self, values: Sequence[Any]) -> None:
         for i in range(len(self._attributes)):
             attr = self._attributes[i]
             val = values[i]
@@ -206,7 +206,7 @@ class JediDatasetSpec(object):
 
     # return column names for INSERT
     @classmethod
-    def columnNames(cls, prefix=None):
+    def columnNames(cls, prefix: str | None = None) -> str:
         ret = ""
         for attr in cls._attributes:
             if prefix is not None:
@@ -217,7 +217,7 @@ class JediDatasetSpec(object):
 
     # return expression of bind variables for INSERT
     @classmethod
-    def bindValuesExpression(cls, useSeq=True):
+    def bindValuesExpression(cls, useSeq: bool = True) -> str:
         ret = "VALUES("
         for attr in cls._attributes:
             if useSeq and attr in cls._seqAttrMap:
@@ -229,7 +229,7 @@ class JediDatasetSpec(object):
         return ret
 
     # return an expression of bind variables for UPDATE to update only changed attributes
-    def bindUpdateChangesExpression(self):
+    def bindUpdateChangesExpression(self) -> str:
         ret = ""
         for attr in self._attributes:
             if attr in self._changedAttrs:
@@ -239,7 +239,7 @@ class JediDatasetSpec(object):
         return ret
 
     # set dataset attribute
-    def setDatasetAttribute(self, attr):
+    def setDatasetAttribute(self, attr: str) -> None:
         if self.attributes is None:
             self.attributes = ""
         else:
@@ -247,7 +247,7 @@ class JediDatasetSpec(object):
         self.attributes += attr
 
     # set dataset attribute with label
-    def setDatasetAttributeWithLabel(self, label):
+    def setDatasetAttributeWithLabel(self, label: str) -> None:
         if label not in self.attrToken:
             return
         attr = self.attrToken[label]
@@ -259,36 +259,36 @@ class JediDatasetSpec(object):
 
     # return list of status to update contents
     @classmethod
-    def statusToUpdateContents(cls):
+    def statusToUpdateContents(cls) -> list[str]:
         return ["defined", "toupdate"]
 
     # return list of types for input
     @classmethod
-    def getInputTypes(cls):
+    def getInputTypes(cls) -> list[str]:
         return ["input", "pseudo_input"]
 
     # return list of types to generate jobs
     @classmethod
-    def getProcessTypes(cls):
+    def getProcessTypes(cls) -> list[str]:
         return cls.getInputTypes() + ["pp_input"] + cls.getMergeProcessTypes()
 
     # return list of types for merging
     @classmethod
-    def getMergeProcessTypes(cls):
+    def getMergeProcessTypes(cls) -> list[str]:
         return ["trn_log", "trn_output"]
 
     # get type of unknown input
     @classmethod
-    def getUnknownInputType(cls):
+    def getUnknownInputType(cls) -> str:
         return "trn_unknown"
 
     # get type of constituent input
     @classmethod
-    def get_constituent_input_type(cls):
+    def get_constituent_input_type(cls) -> str:
         return "in_constituent"
 
     # check if JEDI needs to keep track of file usage
-    def toKeepTrack(self):
+    def toKeepTrack(self) -> bool:
         if self.isNoSplit() and self.isRepeated():
             return False
         elif self.isReusable():
@@ -297,49 +297,49 @@ class JediDatasetSpec(object):
             return True
 
     # check if it is not split
-    def isNoSplit(self):
+    def isNoSplit(self) -> bool:
         if self.attributes is not None and "nosplit" in self.attributes:
             return True
         else:
             return False
 
     # check if it is repeatedly used
-    def isRepeated(self):
+    def isRepeated(self) -> bool:
         if self.attributes is not None and "repeat" in self.attributes:
             return True
         else:
             return False
 
     # check if it is randomly used
-    def isRandom(self):
+    def isRandom(self) -> bool:
         if self.attributes is not None and "rd" in self.attributes.split(","):
             return True
         else:
             return False
 
     # check if it is reusable
-    def isReusable(self):
+    def isReusable(self) -> bool:
         if self.attributes is not None and "ru" in self.attributes.split(","):
             return True
         else:
             return False
 
     # check if consistency is checked
-    def checkConsistency(self):
+    def checkConsistency(self) -> bool:
         if self.attributes is not None and "cc" in self.attributes.split(","):
             return True
         else:
             return False
 
     # set consistency is checked
-    def enableCheckConsistency(self):
+    def enableCheckConsistency(self) -> None:
         if not self.attributes:
             self.attributes = "cc"
         elif "cc" not in self.attributes.split(","):
             self.attributes += ",cc"
 
     # check if it is pseudo
-    def isPseudo(self):
+    def isPseudo(self) -> bool:
         if self.datasetName in ["pseudo_dataset", "seq_number"] or self.type in ["pp_input"]:
             return True
         if self.attributes is not None and self.attrToken["pseudo"] in self.attributes.split(","):
@@ -347,42 +347,42 @@ class JediDatasetSpec(object):
         return False
 
     # check if it is a many-time dataset which is treated as long-standing at T2s
-    def isManyTime(self):
+    def isManyTime(self) -> bool:
         if self.attributes is not None and "manytime" in self.attributes:
             return True
         else:
             return False
 
     # check if it is seq number
-    def isSeqNumber(self):
+    def isSeqNumber(self) -> bool:
         if self.datasetName in ["seq_number"]:
             return True
         else:
             return False
 
     # check if duplicated files are used
-    def useDuplicatedFiles(self):
+    def useDuplicatedFiles(self) -> bool:
         if self.attributes is not None and ("usedup" in self.attributes or "ud" in self.attributes.split(",")):
             return True
         else:
             return False
 
     # check if it is a master dataset
-    def isMaster(self):
+    def isMaster(self) -> bool:
         if self.masterID is None and self.type in self.getProcessTypes():
             return True
         else:
             return False
 
     # check if it is a master input dataset
-    def isMasterInput(self):
+    def isMasterInput(self) -> bool:
         if self.masterID is None and self.type in self.getInputTypes():
             return True
         else:
             return False
 
     # remove nosplit attribute
-    def remAttribute(self, attrName):
+    def remAttribute(self, attrName: str) -> None:
         if self.attributes is not None:
             self.attributes = re.sub(attrName, "", self.attributes)
             self.attributes = re.sub(",,", ",", self.attributes)
@@ -392,15 +392,15 @@ class JediDatasetSpec(object):
                 self.attributes = None
 
     # remove nosplit attribute
-    def remNoSplit(self):
+    def remNoSplit(self) -> None:
         self.remAttribute("nosplit")
 
     # remove repeat attribute
-    def remRepeat(self):
+    def remRepeat(self) -> None:
         self.remAttribute("repeat")
 
     # get the ratio to master
-    def getRatioToMaster(self):
+    def getRatioToMaster(self) -> int | float:
         try:
             tmpMatch = re.search("ratio=(\d+(\.\d+)*)", self.attributes or "")
             if tmpMatch is not None:
@@ -420,7 +420,7 @@ class JediDatasetSpec(object):
         return 1
 
     # get N multiplied by ratio
-    def getNumMultByRatio(self, num):
+    def getNumMultByRatio(self, num: int) -> int | None:
         # no split
         if self.isNoSplit():
             return None
@@ -430,26 +430,26 @@ class JediDatasetSpec(object):
         if isinstance(ratioVal, int):
             retVal = num * ratioVal
         else:
-            retVal = float(num) * ratioVal
-            retVal = int(math.ceil(retVal))
+            scaled = float(num) * ratioVal
+            retVal = int(math.ceil(scaled))
         return retVal
 
     # unique map key for output
-    def outputMapKey(self):
+    def outputMapKey(self) -> str:
         mapKey = f"{self.datasetName}#{self.provenanceID}"
         return mapKey
 
     # unique map key
-    def uniqueMapKey(self):
+    def uniqueMapKey(self) -> str:
         mapKey = f"{self.datasetName}#{self.datasetID}"
         return mapKey
 
     # set offset
-    def setOffset(self, offset):
+    def setOffset(self, offset: int) -> None:
         self.setDatasetAttribute(f"{self.attrToken['offset']}={offset}")
 
     # get offset
-    def getOffset(self):
+    def getOffset(self) -> int:
         if self.attributes is not None:
             tmpMatch = re.search(self.attrToken["offset"] + "=(\d+)", self.attributes)
             if tmpMatch is not None:
@@ -458,11 +458,11 @@ class JediDatasetSpec(object):
         return 0
 
     # set number of records
-    def setNumRecords(self, n):
+    def setNumRecords(self, n: int) -> None:
         self.setDatasetAttribute(f"{self.attrToken['num_records']}={n}")
 
     # get number of records
-    def getNumRecords(self):
+    def getNumRecords(self) -> int | None:
         if self.attributes is not None:
             for item in self.attributes.split(","):
                 tmpMatch = re.search(self.attrToken["num_records"] + "=(\d+)", item)
@@ -472,11 +472,11 @@ class JediDatasetSpec(object):
         return None
 
     # set object store
-    def setObjectStore(self, objectStore):
+    def setObjectStore(self, objectStore: str) -> None:
         self.setDatasetAttribute(f"{self.attrToken['objectStore']}={objectStore}")
 
     # get object store
-    def getObjectStore(self):
+    def getObjectStore(self) -> str | None:
         if self.attributes is not None:
             tmpMatch = re.search(self.attrToken["objectStore"] + "=([^,]+)", self.attributes)
             if tmpMatch is not None:
@@ -484,11 +484,11 @@ class JediDatasetSpec(object):
         return None
 
     # set the number of files per job
-    def setNumFilesPerJob(self, num):
+    def setNumFilesPerJob(self, num: int) -> None:
         self.setDatasetAttribute(f"{self.attrToken['nFilesPerJob']}={num}")
 
     # get the number of files per job
-    def getNumFilesPerJob(self):
+    def getNumFilesPerJob(self) -> int | None:
         if self.attributes is not None:
             tmpMatch = re.search(self.attrToken["nFilesPerJob"] + "=(\d+)", self.attributes)
             if tmpMatch is not None:
@@ -500,21 +500,18 @@ class JediDatasetSpec(object):
         return None
 
     # check if unmerged dataset
-    def toMerge(self):
+    def toMerge(self) -> bool:
         if self.type is not None and self.type.startswith("trn_"):
             return True
         return False
 
     # set transient
-    def setTransient(self, val):
-        if val is True:
-            val = 1
-        else:
-            val = 0
-        self.setDatasetAttribute(f"{self.attrToken['transient']}={val}")
+    def setTransient(self, val: bool) -> None:
+        num_repr = 1 if val is True else 0
+        self.setDatasetAttribute(f"{self.attrToken['transient']}={num_repr}")
 
     # get transient
-    def getTransient(self):
+    def getTransient(self) -> bool | None:
         if self.attributes is not None:
             for item in self.attributes.split(","):
                 tmpMatch = re.search(self.attrToken["transient"] + "=(\d+)", item)
@@ -527,14 +524,14 @@ class JediDatasetSpec(object):
         return None
 
     # check if no output is allowed
-    def isAllowedNoOutput(self):
+    def isAllowedNoOutput(self) -> bool:
         if self.attributes is not None and self.attrToken["allowNoOutput"] in self.attributes.split(","):
             return True
         else:
             return False
 
     # allow no output
-    def allowNoOutput(self):
+    def allowNoOutput(self) -> None:
         if not self.attributes:
             items: list[Any] = []
         else:
@@ -544,30 +541,30 @@ class JediDatasetSpec(object):
             self.attributes = ",".join(items)
 
     # check if index consistency is required
-    def indexConsistent(self):
+    def indexConsistent(self) -> bool:
         if self.attributes is not None and self.attrToken["indexConsistent"] in self.attributes.split(","):
             return True
         else:
             return False
 
     # set distributed
-    def setDistributed(self):
+    def setDistributed(self) -> None:
         self.distributed = True
 
     # reset distributed
-    def reset_distributed(self):
+    def reset_distributed(self) -> None:
         self.distributed = False
 
     # check if distributed
-    def isDistributed(self):
+    def isDistributed(self) -> bool:
         return self.distributed
 
     # set event ratio
-    def setEventRatio(self, num):
+    def setEventRatio(self, num: int | float) -> None:
         self.setDatasetAttribute(f"{self.attrToken['eventRatio']}={num}")
 
     # get event ratio
-    def getEventRatio(self):
+    def getEventRatio(self) -> int | float | None:
         if self.attributes is not None:
             for item in self.attributes.split(","):
                 tmpMatch = re.search(self.attrToken["eventRatio"] + "=(\d+(\.\d+)*)", item)
@@ -586,7 +583,7 @@ class JediDatasetSpec(object):
         return None
 
     # set pseudo
-    def setPseudo(self):
+    def setPseudo(self) -> None:
         if not self.attributes:
             items: list[Any] = []
         else:
@@ -596,19 +593,19 @@ class JediDatasetSpec(object):
             self.attributes = ",".join(items)
 
     # merge only
-    def is_merge_only(self):
+    def is_merge_only(self) -> bool:
         try:
             return self.attrToken["mergeOnly"] in (self.attributes or "").split(",")
         except Exception:
             return False
 
     # sort files by old PandaIDs and move files with no PandaIDs to the end
-    def sort_files_by_panda_ids(self):
+    def sort_files_by_panda_ids(self) -> None:
         # files with no PandaID sort last, and keep the order they came in
         self.Files = sorted(self.Files, key=lambda x: (x.PandaID is None, x.PandaID or 0))
 
     # set no staging
-    def set_no_staging(self, value: bool):
+    def set_no_staging(self, value: bool) -> None:
         """
         Set no_staging (ns) attribute for dataset
 

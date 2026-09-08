@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
@@ -92,36 +93,40 @@ PEC_corruptedInputFilesTmp = [1099]
 
 # encode file info
 def encodeFileInfo(
-    lfn,
-    startEvent,
-    endEvent,
-    nEventsPerWorker,
-    maxAttempt=None,
-    firstOffset=None,
-    firstEvent=None,
-):
+    lfn: str,
+    startEvent: int,
+    endEvent: int,
+    nEventsPerWorker: int,
+    maxAttempt: int | None = None,
+    firstOffset: int | None = None,
+    firstEvent: int | None = None,
+) -> str:
     if maxAttempt is None:
         maxAttempt = 10
     if firstOffset is None:
         return f"{lfn}/{startEvent}/{endEvent}/{nEventsPerWorker}/{maxAttempt}^"
     else:
-        try:
-            totalOffset = firstEvent - firstOffset
-        except Exception:
+        if firstEvent is None:
+            # no event to take the offset from; the arithmetic below used to reach the except
             totalOffset = 0
+        else:
+            try:
+                totalOffset = firstEvent - firstOffset
+            except Exception:
+                totalOffset = 0
         return f"{lfn}/{startEvent}/{endEvent}/{nEventsPerWorker}/{maxAttempt}/{totalOffset}^"
 
 
 # get header for specialHandling
-def getHeaderForES(esIndex):
+def getHeaderForES(esIndex: int) -> str:
     return f"{esHeader}{esIndex}:"
 
 
 # decode file info
-def decodeFileInfo(specialHandling):
-    eventServiceInfo = {}
+def decodeFileInfo(specialHandling: str) -> tuple[dict[str, dict[str, int]], str, str | None]:
+    eventServiceInfo: dict[str, dict[str, int]] = {}
     newSpecialHandling = ""
-    esIndex = None
+    esIndex: str | None = None
     try:
         for tmpItem in specialHandling.split(","):
             if tmpItem.startswith(esHeader):
@@ -178,7 +183,7 @@ def decodeFileInfo(specialHandling):
 
 
 # check if event service job
-def isEventServiceJob(job):
+def isEventServiceJob(job: JobSpec) -> bool:
     # fine-grained job
     if is_fine_grained_job(job):
         return False
@@ -186,12 +191,12 @@ def isEventServiceJob(job):
 
 
 # check if event service merge job
-def isEventServiceMerge(job):
+def isEventServiceMerge(job: JobSpec) -> bool:
     return isEventServiceMergeSH(job.specialHandling)
 
 
 # check if specialHandling for event service
-def isEventServiceSH(specialHandling):
+def isEventServiceSH(specialHandling: str | None) -> bool:
     try:
         if specialHandling is not None and esToken in specialHandling.split(","):
             return True
@@ -201,7 +206,7 @@ def isEventServiceSH(specialHandling):
 
 
 # check if specialHandling for event service merge
-def isEventServiceMergeSH(specialHandling):
+def isEventServiceMergeSH(specialHandling: str | None) -> bool:
     try:
         if specialHandling is not None and esMergeToken in specialHandling.split(","):
             return True
@@ -211,7 +216,7 @@ def isEventServiceMergeSH(specialHandling):
 
 
 # set event service merge
-def setEventServiceMerge(job):
+def setEventServiceMerge(job: JobSpec) -> None:
     try:
         # set ES flag
         job.eventService = esMergeJobFlagNumber
@@ -237,7 +242,7 @@ def setEventServiceMerge(job):
 
 
 # check if specialHandling for job cloning
-def isJobCloningSH(specialHandling):
+def isJobCloningSH(specialHandling: str | None) -> bool:
     try:
         if specialHandling is not None:
             for token in specialHandling.split(","):
@@ -249,12 +254,12 @@ def isJobCloningSH(specialHandling):
 
 
 # check if event service job
-def isJobCloningJob(job):
+def isJobCloningJob(job: JobSpec) -> bool:
     return isJobCloningSH(job.specialHandling)
 
 
 # set header for job cloning
-def setHeaderForJobCloning(specialHandling, scType):
+def setHeaderForJobCloning(specialHandling: str | None, scType: str) -> str:
     if specialHandling is None:
         specialHandling = ""
     tokens = specialHandling.split(",")
@@ -269,7 +274,7 @@ def setHeaderForJobCloning(specialHandling, scType):
 
 
 # get consumer type
-def getJobCloningType(job):
+def getJobCloningType(job: JobSpec) -> str:
     if job.specialHandling is not None:
         for token in job.specialHandling.split(","):
             if singleToken == token.split(":")[0]:
@@ -281,14 +286,14 @@ def getJobCloningType(job):
 
 
 # get consumer value
-def getJobCloningValue(scType):
+def getJobCloningValue(scType: str) -> str:
     if scType in singleConsumerType:
         return singleConsumerType[scType]
     return ""
 
 
 # set header for dynamic number of events
-def setHeaderForDynNumEvents(specialHandling):
+def setHeaderForDynNumEvents(specialHandling: str | None) -> str:
     if specialHandling is None:
         specialHandling = ""
     tokens = specialHandling.split(",")
@@ -302,7 +307,7 @@ def setHeaderForDynNumEvents(specialHandling):
 
 
 # check if specialHandling for dynamic number of events
-def isDynNumEventsSH(specialHandling):
+def isDynNumEventsSH(specialHandling: str | None) -> bool:
     try:
         if specialHandling is not None:
             if dynamicNumEventsToken in specialHandling.split(","):
@@ -313,7 +318,7 @@ def isDynNumEventsSH(specialHandling):
 
 
 # remove event service header
-def removeHeaderForES(job):
+def removeHeaderForES(job: JobSpec) -> None:
     if job.specialHandling is not None:
         items = job.specialHandling.split(",")
         newItems = []
@@ -324,17 +329,17 @@ def removeHeaderForES(job):
 
 
 # check if jumbo job
-def isJumboJob(job):
+def isJumboJob(job: JobSpec) -> bool:
     return job.eventService == jumboJobFlagNumber
 
 
 # check if cooperative with jumbo job
-def isCoJumboJob(job):
+def isCoJumboJob(job: JobSpec) -> bool:
     return job.eventService == coJumboJobFlagNumber
 
 
 # set header for merge at OS
-def setHeaderForMergeAtOS(specialHandling):
+def setHeaderForMergeAtOS(specialHandling: str | None) -> str:
     if specialHandling is None:
         specialHandling = ""
     tokens = specialHandling.split(",")
@@ -349,7 +354,7 @@ def setHeaderForMergeAtOS(specialHandling):
 
 
 # check if specialHandling for merge at OS
-def isMergeAtOS(specialHandling):
+def isMergeAtOS(specialHandling: str | None) -> bool:
     try:
         if specialHandling is not None:
             if mergeAtOsToken in specialHandling.split(","):
@@ -360,13 +365,13 @@ def isMergeAtOS(specialHandling):
 
 
 # get dataset name for event service
-def getEsDatasetName(taskID):
+def getEsDatasetName(taskID: int | str | None) -> str:
     esDataset = f"{esScopeDDM}:{taskID}{esSuffixDDM}"
     return esDataset
 
 
 # set header to resurrect consumers
-def setHeaderToResurrectConsumers(specialHandling):
+def setHeaderToResurrectConsumers(specialHandling: str | None) -> str:
     if specialHandling is None:
         specialHandling = ""
     tokens = specialHandling.split(",")
@@ -381,7 +386,7 @@ def setHeaderToResurrectConsumers(specialHandling):
 
 
 # check if specialHandling to resurrect consumers
-def isResurrectConsumers(specialHandling):
+def isResurrectConsumers(specialHandling: str | None) -> bool:
     try:
         if specialHandling is not None:
             if resurrectConsumersToken in specialHandling.split(","):
@@ -392,10 +397,10 @@ def isResurrectConsumers(specialHandling):
 
 
 # check if fine-grained job
-def is_fine_grained_job(job):
+def is_fine_grained_job(job: JobSpec) -> bool:
     return job.eventService == fineGrainedFlagNumber
 
 
 # set fine-grained
-def set_fine_grained(job: JobSpec):
+def set_fine_grained(job: JobSpec) -> None:
     job.eventService = fineGrainedFlagNumber

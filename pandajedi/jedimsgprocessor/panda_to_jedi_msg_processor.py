@@ -51,11 +51,13 @@ class PandaToJediMsgProcPlugin(BaseMsgProcPlugin):
                     # get WQ
                     vo = taskSpec.vo
                     prodSourceLabel = taskSpec.prodSourceLabel
-                    workQueue = self.tbIF.getWorkQueueMap().getQueueWithIDGshare(taskSpec.workQueue_ID, taskSpec.gshare)
+                    # the map is built on first use, so it is there by the time this asks
+                    workQueue = self.tbIF.getWorkQueueMap().getQueueWithIDGshare(taskSpec.workQueue_ID, taskSpec.gshare)  # type: ignore[union-attr]
                     # get inputs
                     tmpList = self.tbIF.getTasksToBeProcessed_JEDI(self.pid, None, workQueue, None, None, nFiles=1000, target_tasks=[jediTaskID])
                     if tmpList:
-                        inputList = ListWithLock(tmpList)
+                        # a number comes back only with isPeeking, which this does not ask for
+                        inputList = ListWithLock(tmpList)  # type: ignore[arg-type]
                         # create thread
                         threadPool = ThreadPool()
                         siteMapper = self.tbIF.get_site_mapper()

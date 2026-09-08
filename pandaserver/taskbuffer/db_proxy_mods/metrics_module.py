@@ -2,7 +2,7 @@ import datetime
 import json
 import re
 import sys
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -11,6 +11,9 @@ from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 from pandaserver.taskbuffer.JobSpec import JobSpec, get_task_queued_time
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.WorkQueue import WorkQueue
 
 
 # Module class to define metrics related methods
@@ -374,7 +377,7 @@ class MetricsModule(BaseModule):
         return True
 
     # check failure count due to corrupted files
-    def checkFailureCountWithCorruptedFiles(self, jediTaskID, pandaID):
+    def checkFailureCountWithCorruptedFiles(self, jediTaskID: int, pandaID: int) -> bool:
         comment = " /* DBProxy.checkFailureCountWithCorruptedFiles */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} pandaID={pandaID}")
         # sql to failure counts
@@ -382,7 +385,7 @@ class MetricsModule(BaseModule):
         sqlBD += "WHERE f1.PandaID=:PandaID AND f1.type=:type AND f1.status=:status "
         sqlBD += "AND f2.lfn=f1.lfn AND f2.type=:type AND f2.status=:status AND f2.jediTaskID=:jediTaskID "
         sqlBD += "GROUP BY f2.lfn "
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":jediTaskID"] = jediTaskID
         varMap[":PandaID"] = pandaID
         varMap[":status"] = "corrupted"
@@ -398,7 +401,7 @@ class MetricsModule(BaseModule):
         return tooMany
 
     # calculate failure metrics, such as single failure rate and failed HEPScore, for a task
-    def get_task_failure_metrics(self, task_id, use_commit=True):
+    def get_task_failure_metrics(self, task_id: int, use_commit: bool = True) -> dict[str, Any] | None:
         comment = " /* JediDBProxy.get_task_failure_metrics */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
         tmp_log.debug("start")
@@ -458,7 +461,7 @@ class MetricsModule(BaseModule):
             return None
 
     # get averaged disk IO
-    def getAvgDiskIO_JEDI(self):
+    def getAvgDiskIO_JEDI(self) -> dict[str, Any]:
         comment = " /* JediDBProxy.getAvgDiskIO_JEDI */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -466,7 +469,7 @@ class MetricsModule(BaseModule):
             # sql
             sql = f"SELECT sum(prorated_diskio_avg * njobs) / sum(njobs), computingSite FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
             sql += "WHERE jobStatus=:jobStatus GROUP BY computingSite "
-            var_map = dict()
+            var_map: dict[str, Any] = dict()
             var_map[":jobStatus"] = "running"
             # begin transaction
             self.conn.begin()
@@ -490,7 +493,7 @@ class MetricsModule(BaseModule):
             return {}
 
     # get carbon footprint for a task, the level has to be 'regional' or 'global'. If misspelled, it defaults to 'global'
-    def get_task_carbon_footprint(self, jedi_task_id, level):
+    def get_task_carbon_footprint(self, jedi_task_id: int, level: str) -> dict[str, Any] | None:
         comment = " /* JediDBProxy.get_task_carbon_footprint */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} n_files={level}")
         tmp_log.debug("start")
@@ -547,7 +550,9 @@ class MetricsModule(BaseModule):
             return None
 
     # get job statistics with work queue
-    def getJobStatisticsWithWorkQueue_JEDI(self, vo, prodSourceLabel, minPriority=None, cloud=None):
+    def getJobStatisticsWithWorkQueue_JEDI(
+        self, vo: str, prodSourceLabel: str, minPriority: int | None = None, cloud: str | None = None
+    ) -> tuple[bool, dict[str, Any]]:
         comment = " /* DBProxy.getJobStatisticsWithWorkQueue_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} cloud={cloud}")
         tmpLog.debug(f"start minPriority={minPriority}")
@@ -568,7 +573,7 @@ class MetricsModule(BaseModule):
             # read the number of running jobs with prio<=MIN
             tables.append(f"{panda_config.schemaPANDA}.jobsActive4")
             sqlMVforRun = re.sub("currentPriority>=", "currentPriority<=", sqlMV)
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":vo"] = vo
         varMap[":prodSourceLabel"] = prodSourceLabel
         if cloud is not None:
@@ -671,7 +676,7 @@ class MetricsModule(BaseModule):
             return False, {}
 
     # get job statistics by global share
-    def getJobStatisticsByGlobalShare(self, vo, exclude_rwq):
+    def getJobStatisticsByGlobalShare(self, vo: str, exclude_rwq: bool) -> tuple[bool, dict[str, Any]]:
         """
         :param vo: Virtual Organization
         :param exclude_rwq: True/False. Indicates whether we want to indicate special workqueues from the statistics
@@ -726,7 +731,7 @@ class MetricsModule(BaseModule):
             self.dump_error_message(tmpLog)
             return False, {}
 
-    def getJobStatisticsByResourceType(self, workqueue):
+    def getJobStatisticsByResourceType(self, workqueue: "WorkQueue") -> tuple[bool, dict[str, Any]]:
         """
         This function will return the job statistics for a particular workqueue, broken down by resource type
         (SCORE, MCORE, etc.)
@@ -737,7 +742,7 @@ class MetricsModule(BaseModule):
         tmpLog.debug("start")
 
         # define the var map of query parameters
-        var_map = {":vo": workqueue.VO}
+        var_map: dict[str, Any] = {":vo": workqueue.VO}
 
         # sql to query on pre-cached job statistics tables (JOBS_SHARE_STATS and JOBSDEFINED_SHARE_STATS)
         sql_jt = "SELECT /*+ RESULT_CACHE */ jobstatus, resource_type, SUM(njobs) FROM %s WHERE vo=:vo "
@@ -773,7 +778,7 @@ class MetricsModule(BaseModule):
             self.dump_error_message(tmpLog)
             return False, {}
 
-    def getJobStatisticsByResourceTypeSite(self, workqueue):
+    def getJobStatisticsByResourceTypeSite(self, workqueue: "WorkQueue") -> tuple[bool, dict[str, Any]]:
         """
         This function will return the job statistics per site for a particular workqueue, broken down by resource type
         (SCORE, MCORE, etc.)
@@ -784,7 +789,7 @@ class MetricsModule(BaseModule):
         tmpLog.debug("start")
 
         # define the var map of query parameters
-        var_map = {":vo": workqueue.VO}
+        var_map: dict[str, Any] = {":vo": workqueue.VO}
 
         # sql to query on pre-cached job statistics tables (JOBS_SHARE_STATS and JOBSDEFINED_SHARE_STATS)
         sql_jt = "SELECT /*+ RESULT_CACHE */ jobstatus, resource_type, computingSite, SUM(njobs) FROM %s WHERE vo=:vo "
@@ -822,7 +827,7 @@ class MetricsModule(BaseModule):
             return False, {}
 
     # gets statistics on the number of jobs with a specific status for each nucleus at each site
-    def get_num_jobs_with_status_by_nucleus(self, vo: str, job_status: str) -> tuple[bool, Dict[str, Dict[str, int]]]:
+    def get_num_jobs_with_status_by_nucleus(self, vo: str, job_status: str) -> tuple[bool, dict[str, dict[str, int]]]:
         """
         This function will return the number of jobs with a specific status for each nucleus at each site.
 
@@ -870,5 +875,5 @@ class MetricsModule(BaseModule):
 
 
 # get metrics module
-def get_metrics_module(base_mod) -> MetricsModule:
+def get_metrics_module(base_mod: BaseModule) -> MetricsModule:
     return base_mod.get_composite_module("metrics")

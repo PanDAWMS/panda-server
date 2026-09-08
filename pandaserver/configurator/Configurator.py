@@ -886,7 +886,7 @@ class SchedconfigJsonDumper(threading.Thread):
     # daemon constructs one and calls run() directly, then reports on what it returns. The
     # base class is vestigial and dropping it is the real fix, which is a decision about the
     # public class rather than a typing one.
-    def run(self) -> bool:  # type: ignore[override]
+    def run(self) -> bool | str | None:  # type: ignore[override]
         """
         Principal function
         """
@@ -927,7 +927,7 @@ class SWTagsDumper(threading.Thread):
     # daemon constructs one and calls run() directly, then reports on what it returns. The
     # base class is vestigial and dropping it is the real fix, which is a decision about the
     # public class rather than a typing one.
-    def run(self) -> bool:  # type: ignore[override]
+    def run(self) -> bool | str | None:  # type: ignore[override]
         """
         Principal function
         """

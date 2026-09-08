@@ -111,16 +111,16 @@ class Finisher(threading.Thread):
         json_data = self.create_json_doc(job, failed_files, no_out_files)
         record_status = "finished" if not failed_files else "failed"
         tmp_ret = self.task_buffer.updateJobOutputReport(
-            panda_id=job.PandaID,
-            attempt_nr=job.attemptNr,
+            panda_id=job.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+            attempt_nr=job.attemptNr,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             data=json_data,
         )
         if not tmp_ret:
             self.task_buffer.insertJobOutputReport(
-                panda_id=job.PandaID,
+                panda_id=job.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 prod_source_label=job.prodSourceLabel,
                 job_status=record_status,
-                attempt_nr=job.attemptNr,
+                attempt_nr=job.attemptNr,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 data=json_data,
             )
 
@@ -172,7 +172,7 @@ class Finisher(threading.Thread):
                 by_call_back = True
                 label = dataset.name
                 tmp_log.debug(f"start: {label}")
-                panda_ids = self.task_buffer.updateOutFilesReturnPandaIDs(dataset.name)
+                panda_ids = self.task_buffer.updateOutFilesReturnPandaIDs(dataset.name)  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                 # set flag for T2 cleanup
                 dataset.status = "cleanup"
                 self.task_buffer.updateDatasets([dataset])

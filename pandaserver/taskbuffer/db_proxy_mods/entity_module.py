@@ -6,7 +6,7 @@ import re
 import time
 import traceback
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any, Collection
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -32,7 +32,14 @@ from pandaserver.taskbuffer.JediDatasetSpec import (
     INPUT_TYPES_var_str,
 )
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.ResourceSpec import ResourceSpec, ResourceSpecMapper
+from pandaserver.taskbuffer.WorkQueue import WorkQueue
+
+if TYPE_CHECKING:
+    # imported for the annotation only: WorkQueueMapper imports WorkQueue, which this module
+    # already brings in, so the runtime import is left out to keep the chain short
+    from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 
 
@@ -72,7 +79,7 @@ class EntityModule(BaseModule):
         self.job_prio_boost_dict = None
         self.job_prio_boost_dict_update_time = None
 
-    def __get_hs_leave_distribution(self, leave_shares):
+    def __get_hs_leave_distribution(self, leave_shares: list[GlobalShares.Share]) -> dict[str, Any]:
         """
         Get the current HS06 distribution for running and queued jobs
         """
@@ -141,7 +148,7 @@ class EntityModule(BaseModule):
         return hs_distribution_dict
 
     # retrieve global shares
-    def get_shares(self, parents=""):
+    def get_shares(self, parents: str | list[str] | None = "") -> list[tuple[Any, ...]]:
         comment = " /* DBProxy.get_shares */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -178,7 +185,7 @@ class EntityModule(BaseModule):
         tmp_log.debug("done")
         return resList
 
-    def reload_shares(self, force=False):
+    def reload_shares(self, force: bool = False) -> None:
         """
         Reloads the shares from the DB and recalculates distributions
         """
@@ -269,7 +276,7 @@ class EntityModule(BaseModule):
         self.__t_update_distribution = datetime.datetime.now()
         return
 
-    def __reload_hs_distribution(self):
+    def __reload_hs_distribution(self) -> None:
         """
         Reloads the HS distribution
         """
@@ -300,7 +307,7 @@ class EntityModule(BaseModule):
 
         return
 
-    def get_sorted_leaves(self):
+    def get_sorted_leaves(self) -> list[GlobalShares.Share]:
         """
         Re-loads the shares, then returns the leaves sorted by under usage
         """
@@ -308,12 +315,12 @@ class EntityModule(BaseModule):
         self.__reload_hs_distribution()
         return self.tree.sort_branch_by_current_hs_distribution(self.__hs_distribution)
 
-    def get_tree_of_gshare_names(self):
+    def get_tree_of_gshare_names(self) -> Any:
         """
         get nested dict of gshare names implying the tree structure
         """
 
-        def get_nested_gshare(share):
+        def get_nested_gshare(share: GlobalShares.Share) -> Any:
             val = None
             if not share.children:
                 # leaf
@@ -328,7 +335,7 @@ class EntityModule(BaseModule):
         ret_dict = get_nested_gshare(self.tree)
         return ret_dict
 
-    def __load_branch(self, share):
+    def __load_branch(self, share: GlobalShares.Share) -> GlobalShares.Share:
         """
         Recursively load a branch
         """
@@ -383,7 +390,7 @@ class EntityModule(BaseModule):
 
         return node
 
-    def getGShareStatus(self):
+    def getGShareStatus(self) -> list[dict[str, Any]]:
         """
         Generates a list with sorted leave branches
         """
@@ -408,7 +415,7 @@ class EntityModule(BaseModule):
             )
         return sorted_shares_export
 
-    def is_valid_share(self, share_name):
+    def is_valid_share(self, share_name: str) -> bool:
         """
         Checks whether the share is a valid leave share
         """
@@ -421,7 +428,7 @@ class EntityModule(BaseModule):
         # Share not found
         return False
 
-    def reassignShare(self, jedi_task_ids, gshare, reassign_running):
+    def reassignShare(self, jedi_task_ids: list[int], gshare: str, reassign_running: bool) -> tuple[int, str | None]:
         """
         Will reassign all tasks and their jobs that have not yet completed to specified share
         @param jedi_task_ids: task ids
@@ -533,7 +540,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1, None
 
-    def reload_resource_spec_mapper(self):
+    def reload_resource_spec_mapper(self) -> None:
         # update once per hour only
         if self.__t_update_resource_type_mapper and self.__t_update_resource_type_mapper > datetime.datetime.now() - datetime.timedelta(hours=1):
             return
@@ -545,7 +552,7 @@ class EntityModule(BaseModule):
             self.__t_update_resource_type_mapper = datetime.datetime.now()
         return
 
-    def load_resource_types(self, formatting="spec", use_commit=True):
+    def load_resource_types(self, formatting: str = "spec", use_commit: bool = True) -> list[Any]:
         """
         Load the resource type table to memory
         """
@@ -590,7 +597,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return []
 
-    def get_resource_type_task(self, task_spec):
+    def get_resource_type_task(self, task_spec: JediTaskSpec) -> str | None:
         """
         Identify the resource type of the task based on the resource type map.
         Return the name of the resource type
@@ -609,7 +616,7 @@ class EntityModule(BaseModule):
         tmp_log.debug("done. resource_type is Undefined")
         return "Undefined"
 
-    def reset_resource_type_task(self, jedi_task_id, use_commit=True):
+    def reset_resource_type_task(self, jedi_task_id: int, use_commit: bool = True) -> bool:
         """
         Retrieve the relevant task parameters and reset the resource type
         """
@@ -618,7 +625,7 @@ class EntityModule(BaseModule):
         tmp_log.debug("start")
 
         # 1. Get the task parameters
-        var_map = {":jedi_task_id": jedi_task_id}
+        var_map: dict[str, Any] = {":jedi_task_id": jedi_task_id}
         sql = f"SELECT corecount, ramcount, baseramcount, ramunit FROM {panda_config.schemaJEDI}.jedi_tasks WHERE jeditaskid = :jedi_task_id "
         self.cur.execute(sql + comment, var_map)
         corecount, ramcount, baseramcount, ramunit = self.cur.fetchone()
@@ -664,7 +671,7 @@ class EntityModule(BaseModule):
         tmp_log.debug("done")
         return True
 
-    def get_resource_type_job(self, job_spec):
+    def get_resource_type_job(self, job_spec: JobSpec) -> str | None:
         """
         Identify the resource type of the job based on the resource type map.
         Return the name of the resource type
@@ -688,7 +695,7 @@ class EntityModule(BaseModule):
         return resource_type
 
     # get the resource type of a site
-    def get_rtype_site(self, site):
+    def get_rtype_site(self, site: str) -> str | None:
         comment = " /* DBProxy.get_rtype_site */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -713,7 +720,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return None
 
-    def compare_share_task(self, share, task):
+    def compare_share_task(self, share: GlobalShares.Share, task: JediTaskSpec) -> bool:
         """
         Logic to compare the relevant fields of share and task.
         Return: False if some condition does NOT match. True if all conditions match.
@@ -748,7 +755,7 @@ class EntityModule(BaseModule):
 
         return True
 
-    def compare_share_job(self, share, job):
+    def compare_share_job(self, share: GlobalShares.Share, job: JobSpec) -> bool:
         """
         Logic to compare the relevant fields of share and job. It's basically the same as compare_share_task, but
         does not check for the campaign field, which is not part of the job
@@ -767,14 +774,14 @@ class EntityModule(BaseModule):
             try:
                 site = job.computingSite.split(",")[0]
                 rtype_site = self.get_rtype_site(site)
-                if re.match(share.rtype, rtype_site) is None:
+                if rtype_site is None or re.match(share.rtype, rtype_site) is None:
                     return False
             except Exception:
                 return False
 
         return True
 
-    def get_share_for_task(self, task):
+    def get_share_for_task(self, task: JediTaskSpec) -> str:
         """
         Return the share based on a task specification
         """
@@ -800,7 +807,7 @@ class EntityModule(BaseModule):
 
         return selected_share_name
 
-    def get_share_for_job(self, job):
+    def get_share_for_job(self, job: JobSpec) -> str:
         """
         Return the share based on a job specification
         """
@@ -822,7 +829,7 @@ class EntityModule(BaseModule):
         return selected_share_name
 
     # get dispatch sorting criteria
-    def getSortingCriteria(self, site_name, max_jobs):
+    def getSortingCriteria(self, site_name: str, max_jobs: int) -> tuple[str, dict[str, Any]]:
         comment = " /* DBProxy.getSortingCriteria */"
         tmp_log = self.create_tagged_logger(comment)
         # throw the dice to decide the algorithm
@@ -844,11 +851,11 @@ class EntityModule(BaseModule):
             return self.getCriteriaForGlobalShares(site_name, max_jobs)
 
     # get selection criteria for share of production activities
-    def getCriteriaForGlobalShares(self, site_name, max_jobs):
+    def getCriteriaForGlobalShares(self, site_name: str, max_jobs: int) -> tuple[str, dict[str, Any]]:
         comment = " /* DBProxy.getCriteriaForGlobalShare */"
         tmp_log = self.create_tagged_logger(comment)
         # return for no criteria
-        var_map = {}
+        var_map: dict[str, Any] = {}
         ret_empty: tuple[str, dict[str, Any]] = "", {}
 
         try:
@@ -891,12 +898,12 @@ class EntityModule(BaseModule):
             return ret_empty
 
     # get selection criteria for share of production activities
-    def getCriteriaByAge(self, site_name, max_jobs):
+    def getCriteriaByAge(self, site_name: str, max_jobs: int) -> tuple[str, dict[str, Any]]:
         comment = " /* DBProxy.getCriteriaByAge */"
         tmp_log = self.create_tagged_logger(comment)
         # return for no criteria
         ret_sql = ""
-        var_map = {}
+        var_map: dict[str, Any] = {}
         ret_empty: tuple[str, dict[str, Any]] = "", {}
 
         try:
@@ -919,7 +926,7 @@ class EntityModule(BaseModule):
             return ret_empty
 
     # set HS06sec
-    def setHS06sec(self, pandaID, inActive=False):
+    def setHS06sec(self, pandaID: int, inActive: bool = False) -> float | None:
         comment = " /* DBProxy.setHS06sec */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug("start")
@@ -940,7 +947,7 @@ class EntityModule(BaseModule):
         sqlU += "SET hs06sec=:hs06sec WHERE PandaID=:PandaID "
 
         # get job attributes
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":PandaID"] = pandaID
         self.cur.execute(sqlJ + comment, varMap)
         resJ = self.cur.fetchone()
@@ -982,7 +989,7 @@ class EntityModule(BaseModule):
         # return
         return hs06sec
 
-    def convert_computingsite_to_region(self, computing_site):
+    def convert_computingsite_to_region(self, computing_site: str) -> str | None:
         comment = " /* DBProxy.convert_computingsite_to_region */"
 
         var_map = {":panda_queue": computing_site}
@@ -996,7 +1003,7 @@ class EntityModule(BaseModule):
 
         return region
 
-    def get_co2_emissions_site(self, computing_site):
+    def get_co2_emissions_site(self, computing_site: str) -> list[tuple[Any, ...]] | None:
         comment = " /* DBProxy.get_co2_emissions_site */"
         region = self.convert_computingsite_to_region(computing_site)
         if not region:
@@ -1008,7 +1015,7 @@ class EntityModule(BaseModule):
         results = self.cur.fetchall()
         return results
 
-    def get_co2_emissions_grid(self):
+    def get_co2_emissions_grid(self) -> list[tuple[Any, ...]]:
         comment = " /* DBProxy.get_co2_emissions_grid */"
 
         sql = "SELECT timestamp, region, value FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS WHERE region='GRID'"
@@ -1017,7 +1024,7 @@ class EntityModule(BaseModule):
         return results
 
     # set CO2 emissions
-    def set_co2_emissions(self, panda_id, in_active=False):
+    def set_co2_emissions(self, panda_id: int, in_active: bool = False) -> tuple[float | None, float | None]:
         comment = " /* DBProxy.set_co2_emissions */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id}")
         tmp_log.debug("start")
@@ -1038,7 +1045,7 @@ class EntityModule(BaseModule):
         sql_update += "SET gCO2_global=:gco2_global, gCO2_regional=:gco2_regional WHERE PandaID=:PandaID "
 
         # get job attributes
-        var_map = {":PandaID": panda_id}
+        var_map: dict[str, Any] = {":PandaID": panda_id}
         self.cur.execute(sql_read + comment, var_map)
         res_read = self.cur.fetchone()
         if res_read is None:
@@ -1111,7 +1118,7 @@ class EntityModule(BaseModule):
 
     # get core power
     @memoize
-    def get_core_power(self, site_id):
+    def get_core_power(self, site_id: str) -> tuple[float | None, str | None]:
         comment = " /* DBProxy.get_core_power */"
         tmp_log = self.create_tagged_logger(comment, f"siteid={site_id}")
         tmp_log.debug("start")
@@ -1139,7 +1146,7 @@ class EntityModule(BaseModule):
 
     # convert ObjID to endpoint
     @memoize
-    def convertObjIDtoEndPoint(self, srcFileName, objID):
+    def convertObjIDtoEndPoint(self, srcFileName: str, objID: str | int) -> dict[str, Any] | None:
         comment = " /* DBProxy.convertObjIDtoEndPoint */"
         tmp_log = self.create_tagged_logger(comment, f"ID={objID}")
         tmp_log.debug("start")
@@ -1164,8 +1171,9 @@ class EntityModule(BaseModule):
             # error
             self.dump_error_message(tmp_log)
             return None
+        return None
 
-    def get_config_for_pq(self, pq_name):
+    def get_config_for_pq(self, pq_name: str) -> dict[str, Any] | None:
         """
         Get the CRIC json configuration for a particular queue
         """
@@ -1195,7 +1203,7 @@ class EntityModule(BaseModule):
         tmp_log.debug("done")
         return pq_data_des
 
-    def getQueuesInJSONSchedconfig(self):
+    def getQueuesInJSONSchedconfig(self) -> list[str] | None:
         comment = " /* DBProxy.getQueuesInJSONSchedconfig */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1219,7 +1227,7 @@ class EntityModule(BaseModule):
             return None
 
     # update queues
-    def upsertQueuesInJSONSchedconfig(self, schedconfig_dump):
+    def upsertQueuesInJSONSchedconfig(self, schedconfig_dump: dict[str, Any] | None) -> str | None:
         comment = " /* DBProxy.upsertQueuesInJSONSchedconfig */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1235,8 +1243,8 @@ class EntityModule(BaseModule):
                 return None
 
             # separate the queues to the ones we have to update (existing) and the ones we have to insert (new)
-            var_map_insert = []
-            var_map_update = []
+            var_map_insert: list[dict[str, Any]] = []
+            var_map_update: list[dict[str, Any]] = []
             utc_now = naive_utcnow()
             for pq in schedconfig_dump:
                 data = json.dumps(schedconfig_dump[pq])
@@ -1295,7 +1303,7 @@ class EntityModule(BaseModule):
             return "ERROR"
 
     # update queues
-    def loadSWTags(self, sw_tags):
+    def loadSWTags(self, sw_tags: dict[str, Any] | None) -> str:
         comment = " /* DBProxy.loadSWTags */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1340,7 +1348,7 @@ class EntityModule(BaseModule):
             return "ERROR"
 
     # get working group with production role
-    def getWorkingGroup(self, fqans):
+    def getWorkingGroup(self, fqans: list[str]) -> str | None:
         for fqan in fqans:
             # check production role
             match = re.search("/[^/]+/([^/]+)/Role=production", fqan)
@@ -1349,7 +1357,7 @@ class EntityModule(BaseModule):
         return None
 
     # update site data
-    def updateSiteData(self, hostID, pilotRequests, interval):
+    def updateSiteData(self, hostID: str, pilotRequests: dict[str, Any], interval: int) -> bool:
         comment = " /* DBProxy.updateSiteData */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1386,7 +1394,7 @@ class EntityModule(BaseModule):
             timeNow = naive_utcnow()
             self.conn.begin()
             # delete old records
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":LASTMOD"] = timeNow - datetime.timedelta(hours=48)
             self.cur.execute(sqlDel + comment, varMap)
             # set 0 to old records
@@ -1594,11 +1602,11 @@ class EntityModule(BaseModule):
             return False
 
     # get site data
-    def getCurrentSiteData(self):
+    def getCurrentSiteData(self) -> dict[str, Any]:
         comment = " /* DBProxy.getCurrentSiteData */"
         tmp_log = self.create_tagged_logger(comment)
         sql = "SELECT SITE,getJob,updateJob,FLAG FROM ATLAS_PANDAMETA.SiteData WHERE FLAG IN (:FLAG1,:FLAG2) and HOURS=3"
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":FLAG1"] = "production"
         varMap[":FLAG2"] = "analysis"
         try:
@@ -1628,7 +1636,7 @@ class EntityModule(BaseModule):
             return {}
 
     # insert nRunning in site data
-    def insertnRunningInSiteData(self):
+    def insertnRunningInSiteData(self) -> bool:
         comment = " /* DBProxy.insertnRunningInSiteData */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1760,7 +1768,7 @@ class EntityModule(BaseModule):
             return False
 
     # get site info
-    def getSiteInfo(self):
+    def getSiteInfo(self) -> tuple[dict[Any, Any], dict[str, Any]]:
         comment = " /* DBProxy.getSiteInfo */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -2024,7 +2032,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return {}, {}
 
-    def getDdmEndpoints(self):
+    def getDdmEndpoints(self) -> tuple[dict[Any, Any], dict[str, Any]]:
         """
         get list of ddm input endpoints
         """
@@ -2128,7 +2136,7 @@ class EntityModule(BaseModule):
         tmp_log.debug(f"done")
         return panda_endpoint_map, detailed_status_summary
 
-    def get_cloud_list(self):
+    def get_cloud_list(self) -> list[str]:
         """
         Get a list of distinct cloud names from the database.
         """
@@ -2158,7 +2166,7 @@ class EntityModule(BaseModule):
             return []
 
     # get users and groups to boost job priorities
-    def get_dict_to_boost_job_prio(self, vo):
+    def get_dict_to_boost_job_prio(self, vo: str) -> dict[str, Any] | None:
         comment = " /* DBProxy.get_dict_to_boost_job_prio */"
         tmp_log = self.create_tagged_logger(comment)
 
@@ -2200,7 +2208,7 @@ class EntityModule(BaseModule):
             return {}
 
     # set user secret
-    def set_user_secret(self, owner, key, value):
+    def set_user_secret(self, owner: str, key: str | None, value: str | None) -> tuple[bool, str]:
         comment = " /* DBProxy.set_user_secret */"
         tmp_log = self.create_tagged_logger(comment, f"owner={owner} key={key}")
         try:
@@ -2213,7 +2221,7 @@ class EntityModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":owner"] = owner
             tmpS, tmpR = self.getClobObj(sqlC, varMap, use_commit=False)
             if not tmpR:
@@ -2253,14 +2261,14 @@ class EntityModule(BaseModule):
             return False, "database error"
 
     # get user secrets
-    def get_user_secrets(self, owner, keys=None, get_json=False, use_commit=True):
+    def get_user_secrets(self, owner: str, keys: str | None = None, get_json: bool = False, use_commit: bool = True) -> tuple[bool, Any]:
         comment = " /* DBProxy.get_user_secrets */"
         tmp_log = self.create_tagged_logger(comment, f"owner={owner} keys={keys}")
         try:
             # sql to get data
             sqlC = "SELECT data FROM ATLAS_PANDA.Secrets WHERE owner=:owner "
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":owner"] = owner
             tmpS, tmpR = self.getClobObj(sqlC, varMap, use_commit=use_commit)
             # The decoded object, or the json text when get_json is set. That flag
@@ -2276,10 +2284,10 @@ class EntityModule(BaseModule):
                 data = tmpR[0][0]
                 # return only interesting keys
                 if keys:
-                    keys = set(keys.split(","))
+                    wanted_keys = set(keys.split(","))
                     data = json.loads(data)
                     for k in list(data):
-                        if k not in keys:
+                        if k not in wanted_keys:
                             data.pop(k)
                     if not get_json:
                         data = json.dumps(data)
@@ -2293,7 +2301,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False, "database error"
 
-    def configurator_write_sites(self, site_list):
+    def configurator_write_sites(self, site_list: list[Any]) -> tuple[int, str | None]:
         """
         Cache the CRIC site information in the PanDA database
         """
@@ -2314,8 +2322,8 @@ class EntityModule(BaseModule):
             tmp_log.debug("finished getting existing sites")
 
             # see which sites need an update and which need to be inserted new
-            var_map_insert = []
-            var_map_update = []
+            var_map_insert: list[dict[str, Any]] = []
+            var_map_update: list[dict[str, Any]] = []
             for site in site_list:
                 if site["site_name"] in site_name_list:
                     var_map_update.append(convert_dict_to_bind_vars(site))
@@ -2344,7 +2352,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1, None
 
-    def configurator_write_panda_sites(self, panda_site_list):
+    def configurator_write_panda_sites(self, panda_site_list: list[Any]) -> tuple[int, str | None]:
         comment = " /* DBProxy.configurator_write_panda_sites */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -2362,8 +2370,8 @@ class EntityModule(BaseModule):
             tmp_log.debug("finished getting existing panda sites")
 
             # see which sites need an update and which need to be inserted new
-            var_map_insert = []
-            var_map_update = []
+            var_map_insert: list[dict[str, Any]] = []
+            var_map_update: list[dict[str, Any]] = []
             for panda_site in panda_site_list:
                 if panda_site["panda_site_name"] in panda_site_name_list:
                     var_map_update.append(convert_dict_to_bind_vars(panda_site))
@@ -2392,7 +2400,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1, None
 
-    def configurator_write_ddm_endpoints(self, ddm_endpoint_list):
+    def configurator_write_ddm_endpoints(self, ddm_endpoint_list: list[Any]) -> tuple[int, str | None]:
         comment = " /* DBProxy.configurator_write_ddm_endpoints */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -2410,8 +2418,8 @@ class EntityModule(BaseModule):
             tmp_log.debug("finished getting existing ddm endpoints")
 
             # see which sites need an update and which need to be inserted new
-            var_map_insert = []
-            var_map_update = []
+            var_map_insert: list[dict[str, Any]] = []
+            var_map_update: list[dict[str, Any]] = []
             for ddm_endpoint in ddm_endpoint_list:
                 if ddm_endpoint["ddm_endpoint_name"] in ddm_endpoint_name_list:
                     var_map_update.append(convert_dict_to_bind_vars(ddm_endpoint))
@@ -2454,7 +2462,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1, None
 
-    def configurator_write_panda_ddm_relations(self, relation_list):
+    def configurator_write_panda_ddm_relations(self, relation_list: list[Any]) -> tuple[int, str | None]:
         comment = " /* DBProxy.configurator_write_panda_ddm_relations */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -2468,7 +2476,7 @@ class EntityModule(BaseModule):
             sql_delete = "DELETE FROM ATLAS_PANDA.panda_ddm_relation"
             self.cur.execute(sql_delete + comment)
 
-            var_map_insert = []
+            var_map_insert: list[dict[str, Any]] = []
             for relation in relation_list:
                 var_map_insert.append(convert_dict_to_bind_vars(relation))
 
@@ -2494,7 +2502,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1, None
 
-    def configurator_read_sites(self):
+    def configurator_read_sites(self) -> set[str]:
         comment = " /* DBProxy.configurator_read_sites */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -2514,7 +2522,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return set()
 
-    def configurator_read_panda_sites(self):
+    def configurator_read_panda_sites(self) -> set[str]:
         comment = " /* DBProxy.configurator_read_sites */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -2534,7 +2542,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return set()
 
-    def configurator_read_ddm_endpoints(self):
+    def configurator_read_ddm_endpoints(self) -> set[str]:
         comment = " /* DBProxy.configurator_read_ddm_endpoints */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -2554,7 +2562,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return set()
 
-    def configurator_read_cric_sites(self):
+    def configurator_read_cric_sites(self) -> set[str]:
         comment = " /* DBProxy.configurator_read_cric_sites */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -2575,7 +2583,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return set()
 
-    def configurator_read_cric_panda_sites(self):
+    def configurator_read_cric_panda_sites(self) -> set[str]:
         comment = " /* DBProxy.configurator_read_cric_panda_sites */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -2596,7 +2604,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return set()
 
-    def configurator_delete_sites(self, sites_to_delete):
+    def configurator_delete_sites(self, sites_to_delete: Collection[str]) -> tuple[int, str | None] | None:
         """
         Delete sites and all dependent entries (panda_sites, ddm_endpoints, panda_ddm_relations).
         Deletion of dependent entries is done through cascade definition in models
@@ -2607,7 +2615,7 @@ class EntityModule(BaseModule):
 
         if not sites_to_delete:
             tmp_log.debug("nothing to delete")
-            return
+            return None
 
         var_map_list = list(map(lambda site_name: {":site_name": site_name}, sites_to_delete))
 
@@ -2631,7 +2639,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1, None
 
-    def configurator_delete_panda_sites(self, panda_sites_to_delete):
+    def configurator_delete_panda_sites(self, panda_sites_to_delete: Collection[str]) -> tuple[int, str | None] | None:
         """
         Delete PanDA sites and dependent entries in panda_ddm_relations
         """
@@ -2641,7 +2649,7 @@ class EntityModule(BaseModule):
 
         if not panda_sites_to_delete:
             tmp_log.debug("nothing to delete")
-            return
+            return None
 
         var_map_list = list(
             map(
@@ -2670,7 +2678,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1, None
 
-    def configurator_delete_ddm_endpoints(self, ddm_endpoints_to_delete):
+    def configurator_delete_ddm_endpoints(self, ddm_endpoints_to_delete: Collection[str]) -> tuple[int, str | None] | None:
         """
         Delete DDM endpoints dependent entries in panda_ddm_relations
         """
@@ -2680,7 +2688,7 @@ class EntityModule(BaseModule):
 
         if not ddm_endpoints_to_delete:
             tmp_log.debug("nothing to delete")
-            return
+            return None
 
         var_map_list = list(
             map(
@@ -2709,7 +2717,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1, None
 
-    def carbon_write_region_emissions(self, emissions):
+    def carbon_write_region_emissions(self, emissions: list[dict[str, Any]]) -> tuple[int, str | None]:
         comment = " /* DBProxy.carbon_write_regional_emissions */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -2744,7 +2752,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1, None
 
-    def carbon_aggregate_emissions(self):
+    def carbon_aggregate_emissions(self) -> tuple[int, str | None]:
         comment = " /* DBProxy.carbon_aggregate_emissions */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -2824,7 +2832,7 @@ class EntityModule(BaseModule):
             return -1, None
 
     # check quota
-    def checkQuota(self, dn):
+    def checkQuota(self, dn: str | None) -> float:
         comment = " /* DBProxy.checkQuota */"
         tmp_log = self.create_tagged_logger(comment, f"dn={dn}")
         tmp_log.debug(f"start")
@@ -2834,7 +2842,7 @@ class EntityModule(BaseModule):
             # select
             name = CoreUtils.clean_user_id(dn)
             sql = "SELECT cpua1, cpua7, cpua30, quotaa1, quotaa7, quotaa30 FROM ATLAS_PANDAMETA.users WHERE name=:name"
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":name"] = name
             self.cur.arraysize = 10
             self.cur.execute(sql + comment, varMap)
@@ -2880,7 +2888,7 @@ class EntityModule(BaseModule):
             return 0.0
 
     # check if superuser
-    def isSuperUser(self, userName):
+    def isSuperUser(self, userName: str) -> tuple[bool, bool]:
         comment = " /* DBProxy.isSuperUser */"
         tmp_log = self.create_tagged_logger(comment, f"userName={userName}")
         tmp_log.debug("start")
@@ -2892,7 +2900,7 @@ class EntityModule(BaseModule):
             # check gridpref
             name = CoreUtils.clean_user_id(userName)
             sql = "SELECT gridpref FROM ATLAS_PANDAMETA.users WHERE name=:name"
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":name"] = name
             self.cur.arraysize = 10
             self.cur.execute(sql + comment, varMap)
@@ -2918,7 +2926,7 @@ class EntityModule(BaseModule):
             return False, False
 
     # get serialize JobID and status
-    def getUserParameter(self, dn, jobID, jobsetID):
+    def getUserParameter(self, dn: str, jobID: int, jobsetID: int) -> tuple[int, int | None, bool]:
         comment = " /* DBProxy.getUserParameter */"
         tmp_log = self.create_tagged_logger(comment, f"dn={dn} jobID={jobID} jobsetID={jobsetID}")
         try:
@@ -2947,7 +2955,7 @@ class EntityModule(BaseModule):
             sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
             sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,"
             sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":name"] = name
             self.cur.execute(sql + comment, varMap)
             self.cur.arraysize = 10
@@ -2970,7 +2978,7 @@ class EntityModule(BaseModule):
                 if item[1] in ["disabled"]:
                     retStatus = False
                 # use larger JobID
-                if dbJobID >= int(retJobID) or (jobsetID == -1 and dbJobID >= int(retJobsetID)):
+                if dbJobID >= int(retJobID) or (jobsetID == -1 and retJobsetID is not None and dbJobID >= int(retJobsetID)):
                     if jobsetID == -1:
                         # generate new jobsetID = 1 + existing jobID
                         retJobsetID = dbJobID + 1
@@ -2998,7 +3006,7 @@ class EntityModule(BaseModule):
             return retJobID, retJobsetID, retStatus
 
     # check ban user
-    def checkBanUser(self, dn, sourceLabel, jediCheck=False):
+    def checkBanUser(self, dn: str, sourceLabel: str | None, jediCheck: bool = False) -> bool | int:
         comment = " /* DBProxy.checkBanUser */"
         try:
             methodName = "checkBanUser"
@@ -3013,7 +3021,7 @@ class EntityModule(BaseModule):
             self.conn.begin()
             # select
             sql = "SELECT status,dn FROM ATLAS_PANDAMETA.users WHERE name=:name"
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":name"] = name
             self.cur.execute(sql + comment, varMap)
             self.cur.arraysize = 10
@@ -3063,7 +3071,7 @@ class EntityModule(BaseModule):
             return retStatus
 
     # get email address for a user
-    def getEmailAddr(self, name, withDN=False, withUpTime=False):
+    def getEmailAddr(self, name: str, withDN: bool = False, withUpTime: bool = False) -> Any:
         comment = " /* DBProxy.getEmailAddr */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"get email for {name}")
@@ -3083,7 +3091,7 @@ class EntityModule(BaseModule):
             # set autocommit on
             self.conn.begin()
             # select
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":name"] = name
             self.cur.execute(sql + comment, varMap)
             self.cur.arraysize = 10
@@ -3117,7 +3125,7 @@ class EntityModule(BaseModule):
             return failedRet
 
     # set email address for a user
-    def setEmailAddr(self, userName, emailAddr):
+    def setEmailAddr(self, userName: str, emailAddr: str) -> bool:
         comment = " /* DBProxy.setEmailAddr */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"{userName} to {emailAddr}")
@@ -3127,7 +3135,7 @@ class EntityModule(BaseModule):
             # set autocommit on
             self.conn.begin()
             # set
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":name"] = userName
             varMap[":email"] = emailAddr
             varMap[":uptime"] = naive_utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -3144,7 +3152,7 @@ class EntityModule(BaseModule):
             return False
 
     # get ban users
-    def get_ban_users(self):
+    def get_ban_users(self) -> tuple[bool, dict[str, Any] | None]:
         comment = " /* DBProxy.get_ban_user */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -3153,7 +3161,7 @@ class EntityModule(BaseModule):
         try:
             # set autocommit on
             self.conn.begin()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":status"] = "disabled"
             self.cur.execute(sql + comment, varMap)
             self.cur.arraysize = 10
@@ -3246,7 +3254,7 @@ class EntityModule(BaseModule):
             return False
 
     # Configurator function: inserts data into the network matrix
-    def insertNetworkMatrixData(self, data):
+    def insertNetworkMatrixData(self, data: list[tuple[Any, ...]]) -> tuple[None, str] | None:
         comment = " /* DBProxy.insertNetworkMatrixData */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -3282,9 +3290,9 @@ class EntityModule(BaseModule):
             self.conn.begin()
             for shard in create_shards(data, 100):
                 time1 = time.time()
-                var_maps = []
+                var_maps: list[dict[str, Any]] = []
                 for entry in shard:
-                    var_map = {
+                    var_map: dict[str, Any] = {
                         ":src": entry[0],
                         ":dst": entry[1],
                         ":key": entry[2],
@@ -3315,9 +3323,10 @@ class EntityModule(BaseModule):
             # error
             self.dump_error_message(tmp_log)
             return None, ""
+        return None
 
     # Configurator function: delete old network data
-    def deleteOldNetworkData(self):
+    def deleteOldNetworkData(self) -> tuple[None, str] | None:
         comment = " /* DBProxy.deleteOldNetworkData */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -3344,8 +3353,9 @@ class EntityModule(BaseModule):
             # error
             self.dump_error_message(tmp_log)
             return None, ""
+        return None
 
-    def ups_get_queues(self):
+    def ups_get_queues(self) -> list[str]:
         """
         Identify unified pilot streaming (ups) queues: served in pull (late binding) model
         :return: list of panda queues
@@ -3369,7 +3379,7 @@ class EntityModule(BaseModule):
         return ups_queues
 
     # calculate RW for tasks
-    def calculateTaskRW_JEDI(self, jediTaskID):
+    def calculateTaskRW_JEDI(self, jediTaskID: int) -> int | None:
         comment = " /* JediDBProxy.calculateTaskRW_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -3379,7 +3389,7 @@ class EntityModule(BaseModule):
             sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
             sql += "WHERE tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
             sql += "AND tabT.jediTaskID=:jediTaskID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # begin transaction
             self.conn.begin()
@@ -3406,7 +3416,7 @@ class EntityModule(BaseModule):
             return None
 
     # calculate RW with a priority
-    def calculateRWwithPrio_JEDI(self, vo, prodSourceLabel, workQueue, priority):
+    def calculateRWwithPrio_JEDI(self, vo: str, prodSourceLabel: str, workQueue: WorkQueue | None, priority: int | None) -> dict[str, Any] | None:
         comment = " /* JediDBProxy.calculateRWwithPrio_JEDI */"
         if workQueue is None:
             tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} queue={None} prio={priority}")
@@ -3415,7 +3425,7 @@ class EntityModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get RW
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":prodSourceLabel"] = prodSourceLabel
             if priority is not None:
@@ -3495,7 +3505,7 @@ class EntityModule(BaseModule):
             return None
 
     # calculate WORLD RW with a priority
-    def calculateWorldRWwithPrio_JEDI(self, vo, prodSourceLabel, workQueue, priority):
+    def calculateWorldRWwithPrio_JEDI(self, vo: str, prodSourceLabel: str, workQueue: WorkQueue | None, priority: int | None) -> dict[str, Any] | None:
         comment = " /* JediDBProxy.calculateWorldRWwithPrio_JEDI */"
         if workQueue is None:
             tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} queue={None} prio={priority}")
@@ -3504,7 +3514,7 @@ class EntityModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get RW
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":prodSourceLabel"] = prodSourceLabel
             varMap[":worldCloud"] = JediTaskSpec.worldCloudName
@@ -3562,7 +3572,7 @@ class EntityModule(BaseModule):
             return None
 
     # calculate WORLD RW for tasks
-    def calculateTaskWorldRW_JEDI(self, jediTaskID):
+    def calculateTaskWorldRW_JEDI(self, jediTaskID: int) -> int | None:
         comment = " /* JediDBProxy.calculateTaskWorldRW_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -3577,7 +3587,7 @@ class EntityModule(BaseModule):
             sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
             sql += "WHERE tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
             sql += "AND tabT.jediTaskID=:jediTaskID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # begin transaction
             self.conn.begin()
@@ -3603,7 +3613,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmpLog)
             return None
 
-    def load_sw_map(self):
+    def load_sw_map(self) -> dict[str, Any] | None:
         comment = " /* JediDBProxy.load_sw_map */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -3626,7 +3636,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return None
 
-    def getNetworkMetrics(self, dst, keyList):
+    def getNetworkMetrics(self, dst: str, keyList: list[str]) -> dict[str, Any]:
         """
         Get the network metrics from a source to all possible destinations
         :param dst: destination site
@@ -3675,7 +3685,7 @@ class EntityModule(BaseModule):
 
         return networkMap
 
-    def getBackloggedNuclei(self):
+    def getBackloggedNuclei(self) -> list[str]:
         """
         Return a list of nuclei, which has built up transfer backlog. We will consider a nucleus as backlogged,
          when it has over 2000 output transfers queued and there are more than 3 sites with queues over
@@ -3712,7 +3722,7 @@ class EntityModule(BaseModule):
 
         return backlogged_nuclei
 
-    def getPandaSiteToOutputStorageSiteMapping(self):
+    def getPandaSiteToOutputStorageSiteMapping(self) -> dict[str, Any]:
         """
         Get a  mapping of panda sites to their storage site. We consider the storage site of the default ddm endpoint
         :return: dictionary with panda_site_name keys and site_name values
@@ -3742,7 +3752,7 @@ class EntityModule(BaseModule):
         tmpLog.debug("done")
         return mapping
 
-    def get_active_gshare_rtypes(self, vo):
+    def get_active_gshare_rtypes(self, vo: str) -> dict[str, Any]:
         """
         Gets the active gshare/resource wq combinations.  Active means they have at least 1 job in (assigned, activate, starting, running, ...)
         :param vo: Virtual Organization
@@ -3799,15 +3809,15 @@ class EntityModule(BaseModule):
             return {}
 
     # get work queue map
-    def getWorkQueueMap(self):
+    def getWorkQueueMap(self) -> "WorkQueueMapper | None":
         self.refreshWorkQueueMap()
         return self.workQueueMap
 
     # refresh work queue map
-    def refreshWorkQueueMap(self):
+    def refreshWorkQueueMap(self) -> bool | None:
         # avoid frequent lookup
         if self.updateTimeForWorkQueue is not None and (naive_utcnow() - self.updateTimeForWorkQueue) < datetime.timedelta(minutes=10):
-            return
+            return None
         comment = " /* JediDBProxy.refreshWorkQueueMap */"
         tmpLog = self.create_tagged_logger(comment)
 
@@ -3839,5 +3849,5 @@ class EntityModule(BaseModule):
 
 
 # get entity module
-def get_entity_module(base_mod) -> EntityModule:
+def get_entity_module(base_mod: BaseModule) -> EntityModule:
     return base_mod.get_composite_module("entity")

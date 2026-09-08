@@ -65,7 +65,7 @@ def extract_allowed_methods(module: ModuleType) -> list[str]:
     ]
 
 
-def generate_response(success: bool, message: str = "", data: Any = None) -> dict[str, Any]:
+def generate_response(success: bool, message: str | None = "", data: Any = None) -> dict[str, Any]:
     response = {"success": success, "message": message, "data": data}
     return response
 

@@ -233,7 +233,7 @@ class AdderGen:
             if EventServiceUtils.isJobCloningJob(self.job) and self.job_status == "finished":
                 # get semaphore for storeonce
                 if EventServiceUtils.getJobCloningType(self.job) == "storeonce":
-                    self.taskBuffer.getEventRanges(self.job.PandaID, self.job.jobsetID, self.job.jediTaskID, 1, False, False, None)
+                    self.taskBuffer.getEventRanges(self.job.PandaID, self.job.jobsetID, self.job.jediTaskID, 1, False, False, None)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # check semaphore
                 check_jc = self.taskBuffer.checkClonedJob(self.job)
                 if check_jc is None:
@@ -363,9 +363,9 @@ class AdderGen:
                 self.logger.debug("AdderGen.run will call job_failure_postprocessing")
                 retryModule.job_failure_postprocessing(
                     self.taskBuffer,
-                    self.job.PandaID,
+                    self.job.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     errors,
-                    self.job.attemptNr,
+                    self.job.attemptNr,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 )
                 self.logger.debug("job_failure_postprocessing is back")
             except Exception as e:
@@ -594,7 +594,7 @@ class AdderGen:
             # run closer for associate parallel jobs
             if EventServiceUtils.isJobCloningJob(self.job):
                 associate_dispatch_block_map = self.taskBuffer.getDestDBlocksWithSingleConsumer(
-                    self.job.jediTaskID, self.job.PandaID, destination_dispatch_block_list
+                    self.job.jediTaskID, self.job.PandaID, destination_dispatch_block_list  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 )
                 for associate_job_id in associate_dispatch_block_map:
                     associate_dispatch_blocks = associate_dispatch_block_map[associate_job_id]

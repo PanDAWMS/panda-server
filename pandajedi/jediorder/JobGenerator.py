@@ -756,8 +756,8 @@ class JobGeneratorThread(WorkerThread):
                         # lock task
                         if goForward:
                             tmpLog.debug(main_stop_watch.get_elapsed_time("lock task"))
-                            tmpStat = self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)
-                            if tmpStat is False:
+                            lock_ok = self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                            if lock_ok is False:
                                 tmpLog.debug("skip due to lock failure")
                                 continue
                         # generate jobs
@@ -787,8 +787,8 @@ class JobGeneratorThread(WorkerThread):
                         # lock task
                         if goForward:
                             tmpLog.debug(main_stop_watch.get_elapsed_time("lock task"))
-                            tmpStat = self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)
-                            if tmpStat is False:
+                            lock_ok = self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                            if lock_ok is False:
                                 tmpLog.debug("skip due to lock failure")
                                 continue
                         # setup task
@@ -817,8 +817,8 @@ class JobGeneratorThread(WorkerThread):
                         # lock task
                         if goForward:
                             tmpLog.debug(main_stop_watch.get_elapsed_time("lock task"))
-                            tmpStat = self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)
-                            if tmpStat is False:
+                            lock_ok = self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                            if lock_ok is False:
                                 tmpLog.debug("skip due to lock failure")
                                 continue
                         # submit
@@ -860,7 +860,7 @@ class JobGeneratorThread(WorkerThread):
                                     tmpLog.error(f"failed to store jobs with {tmpResSubmit}")
                                     break
                                 resSubmit += tmpResSubmit
-                                self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)
+                                self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                                 iJobs += nJobsInBunch
                             pandaIDs = []
                             nSkipJumbo = 0
@@ -918,8 +918,8 @@ class JobGeneratorThread(WorkerThread):
                             self.numGenJobs += len(pandaIDs)
                         # lock task
                         tmpLog.debug(main_stop_watch.get_elapsed_time("lock task"))
-                        tmpStat = self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)
-                        if tmpStat is False:
+                        lock_ok = self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                        if lock_ok is False:
                             tmpLog.debug("skip due to lock failure")
                             continue
                         # reset unused files
@@ -971,8 +971,8 @@ class JobGeneratorThread(WorkerThread):
             return True, taskParamMap
         try:
             # read task parameters
-            taskParam = self.taskBufferIF.getTaskParamsWithID_JEDI(taskSpec.jediTaskID)
-            taskParamMap = RefinerUtils.decodeJSON(taskParam)
+            taskParam = self.taskBufferIF.getTaskParamsWithID_JEDI(taskSpec.jediTaskID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
+            taskParamMap = RefinerUtils.decodeJSON(taskParam)  # type: ignore[arg-type]
             return True, taskParamMap
         except Exception as e:
             tmpLog.error(f"task param conversion from json failed with {type(e).__name__}:{e}")
@@ -1057,13 +1057,13 @@ class JobGeneratorThread(WorkerThread):
                     output_dataset_types = ["tmpl_output", "tmpl_log"]
                 else:
                     output_dataset_types = ["output", "log"]
-                tmp_stat, tmp_dataset_specs = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(taskSpec.jediTaskID, output_dataset_types)
+                tmp_stat, tmp_dataset_specs = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(taskSpec.jediTaskID, output_dataset_types)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                 if not tmp_stat:
                     tmpLog.error("cannot get output/log datasets")
                     return failedRet
-                num_outputs_per_job = len(tmp_dataset_specs)
+                num_outputs_per_job = len(tmp_dataset_specs)  # type: ignore[arg-type]
                 if not simul and num_outputs_per_job > 0:
-                    fileIDPool = self.taskBufferIF.bulkFetchFileIDs_JEDI(taskSpec.jediTaskID, num_outputs_per_job * totalNormalJobs)
+                    fileIDPool = self.taskBufferIF.bulkFetchFileIDs_JEDI(taskSpec.jediTaskID, num_outputs_per_job * totalNormalJobs)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                 else:
                     fileIDPool = range(num_outputs_per_job * totalNormalJobs)
             else:
@@ -1073,7 +1073,7 @@ class JobGeneratorThread(WorkerThread):
             random_seed_list = None
             random_seed_dataset = None
             if taskSpec.useRandomSeed() and not inputChunk.isMerging:
-                tmp_stat, (random_seed_list, random_seed_dataset) = self.taskBufferIF.getRandomSeed_JEDI(taskSpec.jediTaskID, simul, totalNormalJobs)
+                tmp_stat, (random_seed_list, random_seed_dataset) = self.taskBufferIF.getRandomSeed_JEDI(taskSpec.jediTaskID, simul, totalNormalJobs)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                 if not tmp_stat:
                     tmpLog.error("failed to get random seeds")
                     return failedRet
@@ -1116,7 +1116,7 @@ class JobGeneratorThread(WorkerThread):
                         siteDsMap,
                         fetched_parallel_out_map[site_name],
                     ) = self.taskBufferIF.getOutputFiles_JEDI(
-                        taskSpec.jediTaskID,
+                        taskSpec.jediTaskID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
                         None,
                         simul,
                         instantiate_template_dataset,
@@ -1214,10 +1214,11 @@ class JobGeneratorThread(WorkerThread):
                         jobSpec.maxAttempt = -1
                     elif taskSpec.useEventService(siteSpec) and not inputChunk.isMerging:
                         # set max attempt for event service
-                        if taskSpec.getMaxAttemptEsJob() is None:
+                        max_attempt_es_job = taskSpec.getMaxAttemptEsJob()
+                        if max_attempt_es_job is None:
                             jobSpec.maxAttempt = jobSpec.attemptNr + EventServiceUtils.defMaxAttemptEsJob  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                         else:
-                            jobSpec.maxAttempt = jobSpec.attemptNr + taskSpec.getMaxAttemptEsJob()
+                            jobSpec.maxAttempt = jobSpec.attemptNr + max_attempt_es_job  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                     else:
                         jobSpec.maxAttempt = jobSpec.attemptNr
                     jobSpec.jobName = taskSpec.taskName + ".$ORIGINPANDAID"
@@ -1284,7 +1285,7 @@ class JobGeneratorThread(WorkerThread):
                             jobSpec.coreCount = taskSpec.coreCount
                         else:
                             jobSpec.coreCount = siteSpec.coreCount
-                    jobSpec.minRamCount, jobSpec.minRamUnit = JobUtils.getJobMinRamCount(taskSpec, inputChunk, siteSpec, jobSpec.coreCount)
+                    jobSpec.minRamCount, jobSpec.minRamUnit = JobUtils.getJobMinRamCount(taskSpec, inputChunk, siteSpec, jobSpec.coreCount)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     # calculate the hs06 occupied by the job
                     if siteSpec.corepower:
                         # coreCount was set just above, so the "NULL" the operator ignore
@@ -1503,8 +1504,10 @@ class JobGeneratorThread(WorkerThread):
                     if taskSpec.mergeOutput() and not inputChunk.isMerging:
                         # disable alternative stage-out for pre-merge jobs
                         jobSpec.setAltStgOut("off")
-                    elif taskSpec.getAltStageOut() is not None:
-                        jobSpec.setAltStgOut(taskSpec.getAltStageOut())
+                    else:
+                        alt_stage_out = taskSpec.getAltStageOut()
+                        if alt_stage_out is not None:
+                            jobSpec.setAltStgOut(alt_stage_out)
                     # log to OS
                     if taskSpec.putLogToOS():
                         jobSpec.setToPutLogToOS()
@@ -1580,13 +1583,15 @@ class JobGeneratorThread(WorkerThread):
                     jobSpec.set_task_queued_time(task_queued_time)
                     # extract middle name
                     middleName = ""
-                    if taskSpec.getFieldNumToLFN() is not None and jobSpec.prodDBlock not in [None, "NULL", ""]:
+                    # read once: the guard is on this value and the three uses below need it
+                    field_num_to_lfn = taskSpec.getFieldNumToLFN()
+                    if field_num_to_lfn is not None and jobSpec.prodDBlock not in [None, "NULL", ""]:
                         if inputChunk.isMerging:
                             # extract from LFN of unmerged files
                             for tmpDatasetSpec, tmpFileSpecList in inSubChunk:
                                 if not tmpDatasetSpec.isMaster():
                                     try:
-                                        middleName = "." + ".".join(tmpFileSpecList[0].lfn.split(".")[4 : 4 + len(taskSpec.getFieldNumToLFN())])
+                                        middleName = "." + ".".join(tmpFileSpecList[0].lfn.split(".")[4 : 4 + len(field_num_to_lfn)])
                                     except Exception:
                                         pass
                                     break
@@ -1595,14 +1600,14 @@ class JobGeneratorThread(WorkerThread):
                             if taskSpec.useFileAsSourceLFN():
                                 for tmpDatasetSpec, tmpFileSpecList in inSubChunk:
                                     if tmpDatasetSpec.isMaster():
-                                        middleName = tmpFileSpecList[0].extractFieldsStr(taskSpec.getFieldNumToLFN())
+                                        middleName = tmpFileSpecList[0].extractFieldsStr(field_num_to_lfn)
                                         break
                             else:
                                 tmpMidStr = jobSpec.prodDBlock.split(":")[-1]
                                 tmpMidStrList = re.split("\.|_tid\d+", tmpMidStr)
-                                if len(tmpMidStrList) >= max(taskSpec.getFieldNumToLFN()):
+                                if len(tmpMidStrList) >= max(field_num_to_lfn):
                                     middleName = ""
-                                    for tmpFieldNum in taskSpec.getFieldNumToLFN():
+                                    for tmpFieldNum in field_num_to_lfn:
                                         middleName += "." + tmpMidStrList[tmpFieldNum - 1]
                     # append segment name to middle name
                     if segmentName is not None:
@@ -1651,9 +1656,9 @@ class JobGeneratorThread(WorkerThread):
                     # add offset to maxDiskCount
                     try:
                         if inputChunk.isMerging and splitter is not None:
-                            jobSpec.maxDiskCount += max(taskSpec.getWorkDiskSize(), splitter.interceptsMerginForMerge)
+                            jobSpec.maxDiskCount += max(taskSpec.getWorkDiskSize(), splitter.interceptsMerginForMerge)  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                         else:
-                            jobSpec.maxDiskCount += taskSpec.getWorkDiskSize()
+                            jobSpec.maxDiskCount += taskSpec.getWorkDiskSize()  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                     except Exception:
                         pass
                     # add input size
@@ -1683,7 +1688,7 @@ class JobGeneratorThread(WorkerThread):
                     # set retry RAM count
                     if self.time_profile_level >= TIME_PROFILE_ON:
                         tmpLog.debug(stop_watch.get_elapsed_time("resource_type"))
-                    retry_ram = taskSpec.get_ram_for_retry(jobSpec.minRamCount)
+                    retry_ram = taskSpec.get_ram_for_retry(jobSpec.minRamCount)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     if retry_ram:
                         jobSpec.set_ram_for_retry(retry_ram)
                     try:
@@ -1725,7 +1730,7 @@ class JobGeneratorThread(WorkerThread):
                         tmpParOutMap = fetched_parallel_out_map[siteName].pop(0)
                     else:
                         outSubChunk, serialNr, tmpToRegister, siteDsMap, tmpParOutMap = self.taskBufferIF.getOutputFiles_JEDI(
-                            taskSpec.jediTaskID,
+                            taskSpec.jediTaskID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
                             provenanceID,
                             simul,
                             instantiateTmpl,
@@ -1766,9 +1771,9 @@ class JobGeneratorThread(WorkerThread):
                     for tmpFileSpec in outSubChunk.values():
                         # get dataset
                         if tmpFileSpec.datasetID not in outDsMap:
-                            tmpStat, tmpDataset = self.taskBufferIF.getDatasetWithID_JEDI(taskSpec.jediTaskID, tmpFileSpec.datasetID)
+                            ds_ok, tmpDataset = self.taskBufferIF.getDatasetWithID_JEDI(taskSpec.jediTaskID, tmpFileSpec.datasetID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                             # not found
-                            if not tmpStat:
+                            if not ds_ok:
                                 tmpLog.error(f"failed to get DS with datasetID={tmpFileSpec.datasetID}")
                                 return failedRet
                             outDsMap[tmpFileSpec.datasetID] = tmpDataset
@@ -1785,9 +1790,10 @@ class JobGeneratorThread(WorkerThread):
                             tmpDddKey = (siteName, tmpDistributedDestination)
                             if tmpDddKey not in dddMap:
                                 dddMap[tmpDddKey] = siteSpec.ddm_endpoints_output[scope_output].getAssociatedEndpoint(tmpDistributedDestination)
-                            if dddMap[tmpDddKey] is not None:
+                            ddd_endpoint = dddMap[tmpDddKey]
+                            if ddd_endpoint is not None:
                                 tmpOutFileSpec.destinationSE = siteName
-                                tmpOutFileSpec.destinationDBlockToken = f"ddd:{dddMap[tmpDddKey]['ddm_endpoint_name']}"
+                                tmpOutFileSpec.destinationDBlockToken = f"ddd:{ddd_endpoint['ddm_endpoint_name']}"
                             else:
                                 tmpOutFileSpec.destinationDBlockToken = "ddd:"
                         jobSpec.addFile(tmpOutFileSpec)
@@ -1801,9 +1807,9 @@ class JobGeneratorThread(WorkerThread):
                     for tmpFileSpecList in parallelOutMap.values():
                         for tmpFileSpec in tmpFileSpecList:
                             if tmpFileSpec.datasetID not in outDsMap:
-                                tmpStat, tmpDataset = self.taskBufferIF.getDatasetWithID_JEDI(taskSpec.jediTaskID, tmpFileSpec.datasetID)
+                                ds_ok, tmpDataset = self.taskBufferIF.getDatasetWithID_JEDI(taskSpec.jediTaskID, tmpFileSpec.datasetID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                                 # not found
-                                if not tmpStat:
+                                if not ds_ok:
                                     tmpLog.error(f"failed to get DS with datasetID={tmpFileSpec.datasetID}")
                                     return failedRet
                                 outDsMap[tmpFileSpec.datasetID] = tmpDataset
@@ -1868,7 +1874,7 @@ class JobGeneratorThread(WorkerThread):
                     if self.time_profile_level >= TIME_PROFILE_ON:
                         tmpLog.debug(stop_watch.get_elapsed_time("lock task"))
                     if not simul and len(jobSpecList + tmpJobSpecList) % 50 == 0:
-                        self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)
+                        self.taskBufferIF.lockTask_JEDI(taskSpec.jediTaskID, self.pid)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                     if self.time_profile_level >= TIME_PROFILE_ON:
                         tmpLog.debug(stop_watch.get_elapsed_time(""))
                 # increase event service consumers
@@ -1944,7 +1950,7 @@ class JobGeneratorThread(WorkerThread):
                     fileSpec, datasetSpec = self.active_lib_specs_map[self.buildSpecMap[buildSpecMapKey]]
                 else:
                     reuseDatasetID, reuseFileID = self.buildSpecMap[buildSpecMapKey]
-                    tmpStat, fileSpec, datasetSpec = self.taskBufferIF.getOldBuildFileSpec_JEDI(taskSpec.jediTaskID, reuseDatasetID, reuseFileID)
+                    tmpStat, fileSpec, datasetSpec = self.taskBufferIF.getOldBuildFileSpec_JEDI(taskSpec.jediTaskID, reuseDatasetID, reuseFileID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                     if fileSpec is not None:
                         self.active_lib_specs_map[self.buildSpecMap[buildSpecMapKey]] = (fileSpec, datasetSpec)
             else:
@@ -1953,7 +1959,7 @@ class JobGeneratorThread(WorkerThread):
                     fileSpec, datasetSpec = self.finished_lib_specs_map[buildSpecMapKey]
                 else:
                     tmpStat, fileSpec, datasetSpec = self.taskBufferIF.get_previous_build_file_spec(
-                        taskSpec.jediTaskID, siteSpec.get_unified_name(), associated_sites
+                        taskSpec.jediTaskID, siteSpec.get_unified_name(), associated_sites  # type: ignore[arg-type]  # the id is a column, which is declared optional
                     )
                     if fileSpec is not None:
                         self.finished_lib_specs_map[buildSpecMapKey] = (fileSpec, datasetSpec)
@@ -2101,8 +2107,9 @@ class JobGeneratorThread(WorkerThread):
             jobSpec.addFile(logFileSpec)
             # insert lib.tgz file
             tmpStat, fileIdMap = self.taskBufferIF.insertBuildFileSpec_JEDI(jobSpec, reusedDatasetID, simul)
-            # failed
-            if not tmpStat:
+            # failed. The map comes back as None on exactly the same path, so testing it here
+            # says so once instead of at each of the five reads below
+            if not tmpStat or fileIdMap is None:
                 tmpLog.error(f"failed to insert libDS for jediTaskID={taskSpec.jediTaskID} siteName={siteName}")
                 return failedRet
             # set attributes
@@ -2199,22 +2206,22 @@ class JobGeneratorThread(WorkerThread):
                 jobSpec.hs06 = (jobSpec.coreCount or 1) * siteSpec.corepower  # type: ignore[assignment]
             # get log file
             outSubChunk, serialNr, datasetToRegister, siteDsMap, parallelOutMap = self.taskBufferIF.getOutputFiles_JEDI(
-                taskSpec.jediTaskID, None, simul, True, siteName, False, True
+                taskSpec.jediTaskID, None, simul, True, siteName, False, True  # type: ignore[arg-type]  # the id is a column, which is declared optional
             )
             if outSubChunk is None:
                 # failed
                 tmpLog.error("doGeneratePrePro failed to get OutputFiles")
                 return failedRet
-            outDsMap = {}
+            outDsMap: dict[Any, JediDatasetSpec] = {}
             for tmpFileSpec in outSubChunk.values():
                 # get dataset
                 if tmpFileSpec.datasetID not in outDsMap:
-                    tmpStat, tmpDataset = self.taskBufferIF.getDatasetWithID_JEDI(taskSpec.jediTaskID, tmpFileSpec.datasetID)
+                    ds_ok, tmpDataset = self.taskBufferIF.getDatasetWithID_JEDI(taskSpec.jediTaskID, tmpFileSpec.datasetID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                     # not found
-                    if not tmpStat:
+                    if not ds_ok:
                         tmpLog.error(f"doGeneratePrePro failed to get logDS with datasetID={tmpFileSpec.datasetID}")
                         return failedRet
-                    outDsMap[tmpFileSpec.datasetID] = tmpDataset
+                    outDsMap[tmpFileSpec.datasetID] = tmpDataset  # type: ignore[assignment]
                 # convert to job's FileSpec
                 tmpDatasetSpec = outDsMap[tmpFileSpec.datasetID]
                 tmpOutFileSpec = tmpFileSpec.convertToJobFileSpec(tmpDatasetSpec, setType="log")
@@ -2282,7 +2289,7 @@ class JobGeneratorThread(WorkerThread):
                 tmpRandomFileSpec = random_seed_list.pop(0)
                 tmpRandomDatasetSpec = random_seed_dataset
             else:
-                tmpStat, randomSpecList = self.taskBufferIF.getRandomSeed_JEDI(taskSpec.jediTaskID, simul, 1)
+                tmpStat, randomSpecList = self.taskBufferIF.getRandomSeed_JEDI(taskSpec.jediTaskID, simul, 1)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                 if tmpStat is True:
                     tmp_file_spec_list, tmpRandomDatasetSpec = randomSpecList
                     if tmp_file_spec_list:
@@ -2780,11 +2787,15 @@ class JobGeneratorThread(WorkerThread):
             return jumboJobs
         # get active jumbo jobs
         if not simul:
-            activeJumboJobs = self.taskBufferIF.getActiveJumboJobs_JEDI(taskSpec.jediTaskID)
+            activeJumboJobs = self.taskBufferIF.getActiveJumboJobs_JEDI(taskSpec.jediTaskID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
         else:
             activeJumboJobs = {}
-        # enough jobs
-        numNewJumboJobs = taskSpec.getNumJumboJobs() - len(activeJumboJobs)
+        # enough jobs. A task with jumbo enabled but no nJumboJobs rule has no number to work
+        # from, which asks for none; the subtraction below used to reach that case with a None
+        num_jumbo_jobs = taskSpec.getNumJumboJobs()
+        if num_jumbo_jobs is None:
+            return jumboJobs
+        numNewJumboJobs = num_jumbo_jobs - len(activeJumboJobs)
         if numNewJumboJobs <= 0:
             return jumboJobs
         # sites which already have jumbo jobs
@@ -2815,7 +2826,7 @@ class JobGeneratorThread(WorkerThread):
         newSites.sort()
         # get job parameter of the first job
         if nJumbo > 0:
-            jobParams, outFileMap = self.taskBufferIF.getJobParamsOfFirstJob_JEDI(taskSpec.jediTaskID)
+            jobParams, outFileMap = self.taskBufferIF.getJobParamsOfFirstJob_JEDI(taskSpec.jediTaskID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
             if jobParams is None:
                 tmpLog.error("cannot get first job for jumbo")
                 return jumboJobs
@@ -2827,7 +2838,7 @@ class JobGeneratorThread(WorkerThread):
             if jobParams != "":
                 newJumboJob.jobParameters = jobParams
                 # change output file name
-                for outDatasetID, outLFN in outFileMap.items():
+                for outDatasetID, outLFN in outFileMap.items():  # type: ignore[union-attr]
                     for fileSpec in newJumboJob.Files:
                         if fileSpec.type == "output" and fileSpec.datasetID == outDatasetID:
                             newJumboJob.jobParameters = newJumboJob.jobParameters.replace(outLFN, fileSpec.lfn)
@@ -2878,7 +2889,7 @@ class JobGeneratorThread(WorkerThread):
         # tarball is downloaded by pilot
         tarball_via_pilot = "tarBallViaDDM" in taskParamMap or ("buildSpec" in taskParamMap and "tarBallViaDDM" in taskParamMap["buildSpec"])
         if sandboxName is not None and not tarball_via_pilot:
-            tmpRes = self.taskBufferIF.extendSandboxLifetime_JEDI(task_spec.jediTaskID, sandboxName)
+            tmpRes = self.taskBufferIF.extendSandboxLifetime_JEDI(task_spec.jediTaskID, sandboxName)  # type: ignore[arg-type]  # the id is a column, which is declared optional
             tmp_log.debug(f"extend lifetime for {sandboxName} with {tmpRes}")
             if not tmpRes:
                 errMsg = "user sandbox file unavailable. resubmit the task with --useNewCode"

@@ -7,7 +7,7 @@ import re
 import subprocess
 from collections.abc import Callable, Sequence
 from threading import Lock
-from typing import TYPE_CHECKING, Any, Generator, TypedDict, TypeVar
+from typing import TYPE_CHECKING, Any, Generator, TypedDict, TypeVar, overload
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
@@ -48,6 +48,12 @@ def commands_get_status_output(com: str) -> tuple[int, str]:
 
 
 # extract name from DN
+@overload
+def clean_user_id(id: str) -> str: ...
+@overload
+def clean_user_id(id: None) -> None: ...
+@overload
+def clean_user_id(id: str | None) -> str | None: ...
 def clean_user_id(id: str | None) -> str | None:
     if id is None:
         # the bare except below already returned the argument unchanged for anything the
@@ -458,15 +464,18 @@ def percentile(inList: Sequence[float], percent: float, idMap: dict[Any, Any]) -
 # get max walltime and cpu count
 def getJobMaxWalltime(taskSpec: "JediTaskSpec", inputChunk: Any, totalMasterEvents: int, jobSpec: "JobSpec", siteSpec: "SiteSpec") -> None:
     try:
-        if taskSpec.getCpuTime() is None:
+        # read once: the guard below is on this value, and the arithmetic that follows it needs
+        # to be known to have a number rather than calling the getter a second time
+        cpu_time = taskSpec.getCpuTime()
+        if cpu_time is None:
             # use PQ maxtime when CPU time is not defined
             jobSpec.maxWalltime = siteSpec.maxtime
             jobSpec.maxCpuCount = siteSpec.maxtime
         else:
             # the walltime is built up in a local: the column it lands in reads back as the
             # string "NULL" when unset, which none of the arithmetic below can take
-            max_walltime = taskSpec.getCpuTime()
-            if max_walltime is not None and max_walltime > 0:
+            max_walltime = cpu_time
+            if max_walltime > 0:
                 max_walltime *= totalMasterEvents
                 if siteSpec.coreCount > 0:
                     max_walltime /= float(siteSpec.coreCount)

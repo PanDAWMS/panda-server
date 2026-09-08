@@ -7,7 +7,7 @@ import time
 import traceback
 from collections.abc import Callable
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable, Iterator
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -23,6 +23,8 @@ from pandaserver.taskbuffer.JobSpec import (
 if TYPE_CHECKING:
     # imported for annotations only. WrappedCursor imports panda_config, so
     # importing it at runtime here would close an import cycle
+    from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+    from pandaserver.taskbuffer.JobSpec import JobSpec
     from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
     from pandaserver.taskbuffer.wrapped_oracle_conn import WrappedOracleConn
     from pandaserver.taskbuffer.WrappedCursor import WrappedCursor
@@ -40,11 +42,11 @@ SQL_QUEUE_TOPIC_async_dataset_update = "async_dataset_update"
 
 
 # Internal caching of a result. Use only for information with low update frequency and low memory footprint
-def memoize(f):
+def memoize(f: Callable[..., Any]) -> Callable[..., Any]:
     memo: dict[Any, Any] = {}
     kwd_mark = object()
 
-    def helper(self, *args, **kwargs):
+    def helper(self: "BaseModule", *args: Any, **kwargs: Any) -> Any:
         now = datetime.datetime.now()
         key = args + (kwd_mark,) + tuple(sorted(kwargs.items()))
         if key not in memo or memo[key]["timestamp"] < now - datetime.timedelta(hours=1):
@@ -56,7 +58,7 @@ def memoize(f):
 
 
 # convert dict to bind variable dict
-def convert_dict_to_bind_vars(item):
+def convert_dict_to_bind_vars(item: dict[str, Any]) -> dict[str, Any]:
     ret = dict()
     for k in item:
         ret[f":{k}"] = item[k]
@@ -103,7 +105,7 @@ class BaseModule:
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
         # host name
-        self.hostname = None
+        self.hostname: str | None = None
         # composite modules
         self.composite_modules: dict[str, Any] = {}
 
@@ -123,20 +125,20 @@ class BaseModule:
         self.jedi_config = None
 
     # set JEDI attributes
-    def set_jedi_attributes(self, jedi_config, jedi_mb_proxy_dict_setter):
+    def set_jedi_attributes(self, jedi_config: Any, jedi_mb_proxy_dict_setter: Any) -> None:
         self.jedi_config = jedi_config
         self.jedi_mb_proxy_dict_setter = jedi_mb_proxy_dict_setter
 
     # abstract method to connect. *args/**kwargs because the concrete signature belongs
     # to the subclass, which is where the connection parameters and their defaults are
-    def connect(self, *args, **kwargs):
+    def connect(self, *args: Any, **kwargs: Any) -> Any:
         """
         Connect to the database
         """
         raise NotImplementedError("connect is not implemented")
 
     # commit
-    def _commit(self):
+    def _commit(self) -> bool:
         try:
             self.conn.commit()
             return True
@@ -145,7 +147,7 @@ class BaseModule:
             return False
 
     # rollback
-    def _rollback(self, useOtherError=False):
+    def _rollback(self, useOtherError: bool = False) -> bool:
         return_value = True
         # rollback
         err_code = None
@@ -236,15 +238,15 @@ class BaseModule:
         return return_value
 
     # add composite module
-    def add_composite_module(self, module_name, module):
+    def add_composite_module(self, module_name: str, module: "BaseModule") -> None:
         self.composite_modules[module_name] = module
 
     # get composite module
-    def get_composite_module(self, module_name):
+    def get_composite_module(self, module_name: str) -> Any:
         return self.composite_modules.get(module_name, None)
 
     # dump error message
-    def dump_error_message(self, tmp_log: LogWrapper):
+    def dump_error_message(self, tmp_log: LogWrapper) -> None:
         """
         Dump error message to the log
 
@@ -282,7 +284,7 @@ class BaseModule:
 
     # get configuration value. cached for an hour
     @memoize
-    def getConfigValue(self, component, key, app="pandaserver", vo=None):
+    def getConfigValue(self, component: str, key: str, app: str = "pandaserver", vo: str | None = None) -> Any:
         comment = " /* DBProxy.getConfigValue */"
         tmp_log = self.create_tagged_logger(comment)
         varMap = {":component": component, ":key": key, ":app": app}
@@ -333,7 +335,7 @@ class BaseModule:
             tmp_log.debug(f"Unexpected error: {str(e)}")
             raise e
 
-    def getvalue_corrector(self, value):
+    def getvalue_corrector(self, value: Any) -> Any:
         """
         Needed to support old and new versions of cx_Oracle
         :return:
@@ -344,7 +346,7 @@ class BaseModule:
             return value
 
     # get mb proxy
-    def get_mb_proxy(self, channel):
+    def get_mb_proxy(self, channel: str) -> Any:
         if self.mb_proxy_dict is None:
             try:
                 if hasattr(panda_config, "mq_configFile") and panda_config.mq_configFile:
@@ -373,7 +375,7 @@ class BaseModule:
         return self.mb_proxy_dict["out"][channel]
 
     # close connection
-    def close_connection(self):
+    def close_connection(self) -> None:
         if self.conn:
             try:
                 self.conn.close()
@@ -382,7 +384,7 @@ class BaseModule:
         return
 
     # cleanup
-    def cleanup(self):
+    def cleanup(self) -> None:
         comment = " /* DBProxy.cleanup */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -391,7 +393,7 @@ class BaseModule:
         tmp_log.debug("done")
 
     # query an SQL
-    def querySQL(self, sql, arraySize=1000):
+    def querySQL(self, sql: str, arraySize: int = 1000) -> Any:
         comment = " /* DBProxy.querySQL */"
         tmp_log = self.create_tagged_logger(comment)
         try:
@@ -412,7 +414,7 @@ class BaseModule:
             return None
 
     # query an SQL return Status
-    def querySQLS(self, sql, varMap, arraySize=1000):
+    def querySQLS(self, sql: str, varMap: dict[str, Any], arraySize: int = 1000) -> tuple[Any, Any]:
         comment = " /* DBProxy.querySQLS */"
         tmp_log = self.create_tagged_logger(comment)
         try:
@@ -438,13 +440,14 @@ class BaseModule:
             return -1, None
 
     # execute an SQL return with executemany
-    def executemanySQL(self, sql, varMaps, arraySize=1000):
+    def executemanySQL(self, sql: str, varMaps: list[dict[str, Any]], arraySize: int = 1000) -> Any:
         comment = " /* DBProxy.executemanySQL */"
         try:
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = arraySize
-            ret = self.cur.executemany(sql + comment, varMaps)
+            # the result is not read: the row count below is what this returns
+            self.cur.executemany(sql + comment, varMaps)
             if sql.startswith("INSERT") or sql.startswith("UPDATE") or sql.startswith("DELETE"):
                 res = self.cur.rowcount
             else:
@@ -462,7 +465,7 @@ class BaseModule:
             return None
 
     # get CLOB
-    def getClobObj(self, sql, varMap, arraySize=10000, use_commit=True):
+    def getClobObj(self, sql: str, varMap: dict[str, Any], arraySize: int = 10000, use_commit: bool = True) -> tuple[Any, Any]:
         comment = " /* DBProxy.getClobObj */"
         try:
             # begin transaction
@@ -499,7 +502,7 @@ class BaseModule:
             return -1, None
 
     # wake up connection
-    def wakeUp(self):
+    def wakeUp(self) -> None:
         comment = " /* DBProxy.wakeUp */"
         tmp_log = self.create_tagged_logger(comment)
         for iTry in range(5):
@@ -516,7 +519,7 @@ class BaseModule:
 
     # transaction as a context manager
     @contextmanager
-    def transaction(self, name: str | None = None, tmp_log=None):
+    def transaction(self, name: str | None = None, tmp_log: LogWrapper | None = None) -> Iterator[tuple[Any, LogWrapper]]:
         """
         Context manager for transaction
 
@@ -548,14 +551,23 @@ class BaseModule:
             raise e
 
     # record status change
-    def recordStatusChange(self, pandaID, jobStatus, jobInfo=None, infoMap={}, useCommit=True, no_late_bulk_exec=True, extracted_sqls=None):
+    def recordStatusChange(
+        self,
+        pandaID: int,
+        jobStatus: str,
+        jobInfo: "JobSpec | None" = None,
+        infoMap: dict[str, Any] = {},
+        useCommit: bool = True,
+        no_late_bulk_exec: bool = True,
+        extracted_sqls: dict[str, Any] | None = None,
+    ) -> None:
         comment = " /* DBProxy.recordStatusChange */"
         tmp_log = self.create_tagged_logger(comment)
         # check config
         if not hasattr(panda_config, "record_statuschange") or panda_config.record_statuschange is not True:
             return
         # get job info
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":PandaID"] = pandaID
         varMap[":jobStatus"] = jobStatus
         varMap[":modificationHost"] = self.myHostName
@@ -588,7 +600,7 @@ class BaseModule:
                 if useCommit:
                     if not self._commit():
                         raise RuntimeError("Commit error")
-            else:
+            elif extracted_sqls is not None:
                 extracted_sqls.setdefault("state_change", {"sql": sql + comment, "vars": []})
                 extracted_sqls["state_change"]["vars"].append(varMap)
         except Exception:
@@ -602,13 +614,13 @@ class BaseModule:
 
     def push_job_status_message(
         self,
-        job_spec,
-        panda_id,
-        status,
-        jedi_task_id=None,
-        special_handling=None,
-        extra_data=None,
-    ):
+        job_spec: "JobSpec | None",
+        panda_id: int,
+        status: str,
+        jedi_task_id: int | None = None,
+        special_handling: str | None = None,
+        extra_data: dict[str, Any] | None = None,
+    ) -> None:
         comment = " /* DBProxy.push_job_status_message */"
         if not (hasattr(panda_config, "mq_configFile") and panda_config.mq_configFile):
             # skip if not configured
@@ -637,12 +649,12 @@ class BaseModule:
                 # init
                 inputs = []
                 computingsite = None
-                error_tmp_dict = {}
+                error_tmp_dict: dict[str, Any] = {}
                 # info from job spec
                 if job_spec is not None:
                     # task id
                     if jedi_task_id is None:
-                        jedi_task_id = job_spec.jediTaskID
+                        jedi_task_id = job_spec.jediTaskID  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                     # inputs
                     if job_spec.Files is not None:
                         for file_spec in job_spec.Files:
@@ -667,22 +679,22 @@ class BaseModule:
                     error_tmp_dict["jobdispatchererrordiag"] = job_spec.jobDispatcherErrorDiag
                     error_tmp_dict["taskbuffererrordiag"] = job_spec.taskBufferErrorDiag
                 # message
-                orig_msg_dict = {
+                orig_msg_dict: dict[str, Any] = {
                     "msg_type": "job_status",
                     "jobid": panda_id,
                     "taskid": jedi_task_id,
                     "status": status,
                     "timestamp": now_ts,
                 }
-                update_msg_dict = {
+                update_msg_dict: dict[str, Any] = {
                     "computingsite": computingsite,
                     "inputs": inputs if inputs else None,
                 }
-                update_msg_dict.update(error_tmp_dict)
+                update_msg_dict.update(error_tmp_dict)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 msg_dict = update_msg_dict.copy()
                 if extra_data:
                     msg_dict.update(extra_data)
-                msg_dict.update(orig_msg_dict)
+                msg_dict.update(orig_msg_dict)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 msg = json.dumps(msg_dict)
                 if mb_proxy.got_disconnected:
                     mb_proxy.restart()
@@ -691,7 +703,7 @@ class BaseModule:
             except Exception:
                 self.dump_error_message(tmp_log)
 
-    def insert_to_query_pool(self, topic, panda_id, task_id, sql, var_map, exec_order):
+    def insert_to_query_pool(self, topic: str, panda_id: int, task_id: int | None, sql: str, var_map: dict[str, Any], exec_order: int) -> None:
         comment = " /* DBProxy.insert_to_query_pool */"
         sqlI = (
             "INSERT INTO {}.SQL_QUEUE (topic,PandaID,jediTaskID,creationTime,data,execution_order) "
@@ -772,17 +784,17 @@ class BaseModule:
         return False
 
     # set super status
-    def setSuperStatus_JEDI(self, jediTaskID, superStatus):
+    def setSuperStatus_JEDI(self, jediTaskID: int, superStatus: str) -> bool:
         comment = " /* JediDBProxy.setSuperStatus_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        retTasks = []
+        retTasks: list[Any] = []
         try:
             # sql to set super status
             sqlCT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlCT += "SET superStatus=:superStatus "
             sqlCT += "WHERE jediTaskID=:jediTaskID "
             # set super status
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":superStatus"] = superStatus
             self.cur.execute(sqlCT + comment, varMap)
@@ -793,14 +805,14 @@ class BaseModule:
             return False
 
     # set DEFT status
-    def setDeftStatus_JEDI(self, jediTaskID, taskStatus):
+    def setDeftStatus_JEDI(self, jediTaskID: int, taskStatus: str) -> bool:
         comment = " /* JediDBProxy.setDeftStatus_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         try:
             sqlD = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
             sqlD += "SET status=:status,timeStamp=CURRENT_DATE "
             sqlD += "WHERE taskID=:jediTaskID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":status"] = taskStatus
             varMap[":jediTaskID"] = jediTaskID
             tmpLog.debug(sqlD + comment + str(varMap))
@@ -812,11 +824,11 @@ class BaseModule:
             return False
 
     # task status logging
-    def record_task_status_change(self, jedi_task_id):
+    def record_task_status_change(self, jedi_task_id: int) -> None:
         comment = " /* JediDBProxy.record_task_status_change */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
         tmpLog.debug("start")
-        varMap = dict()
+        varMap: dict[str, Any] = dict()
         varMap[":jediTaskID"] = jedi_task_id
         varMap[":modificationHost"] = socket.getfqdn()
         # sql
@@ -831,7 +843,7 @@ class BaseModule:
         tmpLog.debug("done")
 
     # push task status message
-    def push_task_status_message(self, task_spec, jedi_task_id, status, split_rule=None):
+    def push_task_status_message(self, task_spec: "JediTaskSpec | None", jedi_task_id: int | None, status: str | None, split_rule: str | None = None) -> None:
         to_push = False
         if task_spec is not None:
             to_push = task_spec.push_status_changes()
@@ -879,7 +891,14 @@ class BaseModule:
         tmpLog.debug("done")
 
     # push message to message processors which triggers functions of agents
-    def push_task_trigger_message(self, msg_type, jedi_task_id, data_dict=None, priority=None, task_spec=None):
+    def push_task_trigger_message(
+        self,
+        msg_type: str,
+        jedi_task_id: int | None,
+        data_dict: dict[str, Any] | None = None,
+        priority: int | None = None,
+        task_spec: "JediTaskSpec | None" = None,
+    ) -> bool | None:
         comment = " /* JediDBProxy.push_task_trigger_message */"
         tmpLog = self.create_tagged_logger(comment, f"msg_type={msg_type} jediTaskID={jedi_task_id}")
         tmpLog.debug("start")
@@ -903,17 +922,17 @@ class BaseModule:
                 if self.jedi_mb_proxy_dict_setter is None:
                     # only a JediDBProxy installs the setter, see set_jedi_attributes()
                     tmpLog.debug("No mb_proxy setter for internal MQs. Skipped ")
-                    return
+                    return None
                 self.jedi_mb_proxy_dict = self.jedi_mb_proxy_dict_setter()
                 if self.jedi_mb_proxy_dict is None:
                     tmpLog.debug("Failed to get mb_proxy of internal MQs. Skipped ")
-                    return
+                    return None
             try:
                 mq_name = msg_type
                 mb_proxy = self.jedi_mb_proxy_dict["out"][mq_name]
             except KeyError as e:
                 tmpLog.warning(f"Skipped due to {e} ; jedi_mb_proxy_dict is {self.jedi_mb_proxy_dict}")
-                return
+                return None
             if mb_proxy.got_disconnected:
                 mb_proxy.restart()
             # message priority
@@ -936,6 +955,6 @@ class BaseModule:
                 mb_proxy.send(msg)
         except Exception:
             self.dump_error_message(tmpLog)
-            return
+            return None
         tmpLog.debug("done")
         return True

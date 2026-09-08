@@ -333,7 +333,8 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
                         # check sub datasets in the jobset for event service job
                         if allFinished:
                             self.proxyLock.acquire()
-                            tmpJobs = taskBuffer.getFullJobStatus([onePandaID])
+                            # None when the dataset had no files at all; the lookup then finds nothing
+                            tmpJobs = taskBuffer.getFullJobStatus([onePandaID])  # type: ignore[list-item]
                             self.proxyLock.release()
                             if len(tmpJobs) > 0 and tmpJobs[0] is not None:
                                 if EventServiceUtils.isEventServiceMerge(tmpJobs[0]):
@@ -845,10 +846,10 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
                                 # check RSEs
                                 if tmpFile.lfn in okFiles:
                                     for rse in okFiles[tmpFile.lfn]:
-                                        if (
-                                            siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse)
-                                            and siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)["is_tape"] == "N"
-                                        ):
+                                        # getEndPoint answers None for exactly the endpoints
+                                        # isAssociated rejects, so one call settles both
+                                        rse_endpoint = siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)
+                                        if rse_endpoint is not None and rse_endpoint["is_tape"] == "N":
                                             tmpFile.status = "ready"
                                             break
                                 # missing
@@ -941,9 +942,10 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
                             # check RSEs
                             for rse in replicaMap[tmpFile.dispatchDBlock]:
                                 repInfo = replicaMap[tmpFile.dispatchDBlock][rse]
+                                rse_endpoint = siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)
                                 if (
-                                    siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse)
-                                    and siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)["is_tape"] == "N"
+                                    rse_endpoint is not None
+                                    and rse_endpoint["is_tape"] == "N"
                                     and repInfo[0]["total"] == repInfo[0]["found"]
                                     and repInfo[0]["total"] is not None
                                     and repInfo[0]["total"] > 0

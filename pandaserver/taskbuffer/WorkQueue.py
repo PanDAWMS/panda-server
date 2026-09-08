@@ -4,7 +4,7 @@ work queue specification
 """
 
 import re
-from typing import Any
+from typing import Any, Sequence
 
 from pandaserver.taskbuffer.GlobalShares import Share
 
@@ -63,7 +63,7 @@ class WorkQueue(object):
         "processingtype": "processingType",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Constructor
         """
@@ -76,14 +76,14 @@ class WorkQueue(object):
         # throttled is set to True by default. Some Global Shares will overwrite it to False
         self.throttled = True
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         String representation of a workqueue
         :return: string with the representation of the work queue
         """
         return str(self.queue_name)
 
-    def dump(self):
+    def dump(self) -> str:
         """
         Creates a human-friendly string with the work queue information
         :return: string representation of the work queue
@@ -98,14 +98,14 @@ class WorkQueue(object):
 
         return dump_str
 
-    def getID(self):
+    def getID(self) -> int | None:
         """
         get ID
         :return: returns a list with the ID of the work queue
         """
         return self.queue_id
 
-    def pack(self, values):
+    def pack(self, values: Sequence[Any]) -> None:
         """
         Packs tuple into the object
         :param values: list with the values in the order declared in the attributes section
@@ -169,7 +169,7 @@ class WorkQueue(object):
             # assign
             self.evalString = tmp_eval_str
 
-    def pack_gs(self, gshare):
+    def pack_gs(self, gshare: Share) -> None:
         """
         Packs tuple into the object
         :param gshare: global share
@@ -203,7 +203,7 @@ class WorkQueue(object):
             pass
 
     # evaluate in python
-    def evaluate(self, param_map):
+    def evaluate(self, param_map: dict[str, Any]) -> tuple["WorkQueue", bool]:
         # only active queues are evaluated
         if self.isActive():
             # normal queue
@@ -219,20 +219,20 @@ class WorkQueue(object):
         return self, False
 
     # check if active
-    def isActive(self):
+    def isActive(self) -> bool:
         if self.status != "inactive":  # and self.queue_function in ACTIVE_FUNCTIONS:
             return True
         return False
 
     # check if its eligible after global share alignment
-    def isAligned(self):
+    def isAligned(self) -> bool:
         if self.queue_function == RESOURCE or self.is_global_share:
             return True
         return False
 
     # return column names for INSERT
     @classmethod
-    def column_names(cls):
+    def column_names(cls) -> str:
         ret = ""
         for attr in cls._attributes:
             if ret != "":

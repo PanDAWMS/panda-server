@@ -161,33 +161,33 @@ class SiteSpec(object):
     extra_queue_params: dict[str, Any]
 
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         # install attributes
         for attr in self._attributes:
             setattr(self, attr, None)
 
     # serialize
-    def __str__(self):
+    def __str__(self) -> str:
         str = ""
         for attr in self._attributes:
             str += f"{attr}:{getattr(self, attr)} "
         return str
 
     # check if direct IO is used when tasks allow it
-    def isDirectIO(self):
+    def isDirectIO(self) -> bool:
         if self.direct_access_lan is True:
             return True
         return False
 
     # check what type of jobs are allowed
-    def getJobSeed(self):
+    def getJobSeed(self) -> str:
         tmpVal = self.jobseed
         if tmpVal is None:
             return "std"
         return tmpVal
 
     # get value from catchall
-    def getValueFromCatchall(self, key):
+    def getValueFromCatchall(self, key: str) -> str | None:
         # check if the key is valid
         if key not in catchall_keys:
             return None
@@ -206,7 +206,7 @@ class SiteSpec(object):
         return None
 
     # has value in catchall
-    def hasValueInCatchall(self, key):
+    def hasValueInCatchall(self, key: str) -> bool:
         # check if the key is valid
         if key not in catchall_keys:
             return False
@@ -238,58 +238,58 @@ class SiteSpec(object):
         return True, self.extra_queue_params[name]
 
     # allow WAN input access
-    def allowWanInputAccess(self):
+    def allowWanInputAccess(self) -> bool:
         return self.direct_access_lan is True and self.direct_access_wan is True
 
     # use jumbo jobs
-    def useJumboJobs(self):
+    def useJumboJobs(self) -> bool:
         return self.hasValueInCatchall("useJumboJobs")
 
     # GPU
-    def isGPU(self):
+    def isGPU(self) -> bool:
         return self.hasValueInCatchall("gpu")
 
-    def is_grandly_unified(self):
+    def is_grandly_unified(self) -> bool:
         if self.hasValueInCatchall("grandly_unified") or self.type == "unified":
             return True
         return False
 
-    def runs_production(self):
+    def runs_production(self) -> bool:
         if self.type == "production" or self.is_grandly_unified():
             return True
         return False
 
-    def runs_analysis(self):
+    def runs_analysis(self) -> bool:
         if self.type == "analysis" or self.is_grandly_unified():
             return True
         return False
 
     # get unified name
-    def get_unified_name(self):
+    def get_unified_name(self) -> str:
         if self.unified_name is None:
             return self.sitename
         return self.unified_name
 
     # get number of simulated events for dynamic number of events
-    def get_n_sim_events(self):
+    def get_n_sim_events(self) -> int | None:
         tmpVal = self.getValueFromCatchall("nSimEvents")
         if tmpVal is None:
             return None
         return int(tmpVal)
 
     # get minimum of remaining events for jumbo jobs
-    def getMinEventsForJumbo(self):
+    def getMinEventsForJumbo(self) -> int | None:
         tmpVal = self.getValueFromCatchall("minEventsForJumbo")
         if tmpVal is None:
             return None
         return int(tmpVal)
 
     # check if opportunistic
-    def is_opportunistic(self):
+    def is_opportunistic(self) -> bool:
         return self.pledgedCPU == -1
 
     # get number of jobs for standby
-    def getNumStandby(self, sw_id, resource_type):
+    def getNumStandby(self, sw_id: str | None, resource_type: str | None) -> int | None:
         numMap = self.num_slots_map
         # neither gshare or workqueue is defined
         if sw_id not in numMap:
@@ -308,8 +308,10 @@ class SiteSpec(object):
         return None
 
     # get max disk per core
-    def get_max_disk_per_core(self):
+    def get_max_disk_per_core(self) -> int | None:
         tmpVal = self.getValueFromCatchall("maxDiskPerCore")
+        if tmpVal is None:
+            return None
         try:
             return int(tmpVal)
         except Exception:
@@ -317,11 +319,11 @@ class SiteSpec(object):
         return None
 
     # use local data only
-    def use_only_local_data(self):
+    def use_only_local_data(self) -> bool:
         return self.hasValueInCatchall("use_only_local_data")
 
     # check if use VP
-    def use_vp(self, scope):
+    def use_vp(self, scope: str) -> bool:
         # use default scope if missing
         if scope not in self.ddm_endpoints_input:
             scope = "default"
@@ -331,24 +333,27 @@ class SiteSpec(object):
         return False
 
     # check if always uses direct IO
-    def always_use_direct_io(self):
+    def always_use_direct_io(self) -> bool:
         return self.maxinputsize == -1
 
     # disable reassign
-    def disable_reassign(self):
+    def disable_reassign(self) -> bool:
         if self.hasValueInCatchall("disableReassign"):
             return True
         return self.status == "paused"
 
     # get job chunk size
-    def get_job_chunk_size(self):
+    def get_job_chunk_size(self) -> int | None:
+        value = self.getValueFromCatchall("jobChunkSize")
+        if value is None:
+            return None
         try:
-            return int(self.getValueFromCatchall("jobChunkSize"))
+            return int(value)
         except Exception:
             return None
 
     # get WN connectivity
-    def get_wn_connectivity(self):
+    def get_wn_connectivity(self) -> str | None:
         if self.wnconnectivity is None:
             return None
         items = self.wnconnectivity.split("#")
@@ -358,7 +363,7 @@ class SiteSpec(object):
             return items[0]
 
     # get IP stack
-    def get_ipstack(self):
+    def get_ipstack(self) -> str | None:
         if self.wnconnectivity is None:
             return None
         items = self.wnconnectivity.split("#")
@@ -368,21 +373,21 @@ class SiteSpec(object):
             return None
 
     # get bare nucleus mode
-    def bare_nucleus_mode(self):
+    def bare_nucleus_mode(self) -> str | None:
         mode = self.getValueFromCatchall("bareNucleus")
         if mode in ["only", "allow"]:
             return mode
         return None
 
     # get secondary nucleus
-    def secondary_nucleus(self):
+    def secondary_nucleus(self) -> str | None:
         n = self.getValueFromCatchall("secondaryNucleus")
         if n:
             return n
         return None
 
     # get allowed processing types
-    def get_allowed_processing_types(self):
+    def get_allowed_processing_types(self) -> list[str] | None:
         """
         Get allowed processing types for processing type-based job brokerage to access only tasks with specific processing types.
         They are defined in the catchall field as a pipe-separated list with the key "allowed_processing".
@@ -393,7 +398,7 @@ class SiteSpec(object):
         return None
 
     # get excluded process types
-    def get_excluded_processing_types(self):
+    def get_excluded_processing_types(self) -> list[str] | None:
         """
         Get excluded processing types for processing type-based job brokerage to exclude tasks with specific processing types.
         They are defined in the catchall field as a pipe-separated list with the key "excluded_processing".
@@ -404,11 +409,11 @@ class SiteSpec(object):
         return None
 
     # use per-core attributes
-    def use_per_core_attr(self):
+    def use_per_core_attr(self) -> bool:
         return self.hasValueInCatchall("per_core_attr")
 
     # max IO intensity
-    def get_max_io_intensity(self):
+    def get_max_io_intensity(self) -> Any:
         s, v = self.get_extra_queue_param("max_io_intensity")
         if s:
             return v

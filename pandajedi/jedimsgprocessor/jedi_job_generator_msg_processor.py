@@ -30,7 +30,8 @@ class JediJobGeneratorMsgProcPlugin(BaseMsgProcPlugin):
         # DDM interface
         self.ddmIF = DDMInterface()
         self.ddmIF.setupInterface()
-        self.task_setupper_map: dict[tuple[str, str], TaskSetupper] = {}
+        # keyed by (vo, prodSourceLabel), both columns and so declared optional
+        self.task_setupper_map: dict[tuple[str | None, str | None], TaskSetupper] = {}
         # cache heavy metadata objects with short TTL to reduce allocation churn
         self._cache_ttl_sec = 300
         self._site_mapper: SiteMapper | None = None
@@ -64,7 +65,8 @@ class JediJobGeneratorMsgProcPlugin(BaseMsgProcPlugin):
         if self._work_queue_mapper is None or not self._is_cache_valid(self._work_queue_mapper_ts):
             self._work_queue_mapper = self.tbIF.getWorkQueueMap()
             self._work_queue_mapper_ts = time.time()
-        return self._work_queue_mapper
+        # the map is built on first use, so getWorkQueueMap has one to hand back
+        return self._work_queue_mapper  # type: ignore[return-value]
 
     def _get_resource_types(self) -> list[ResourceSpec]:
         if self._resource_types is None or not self._is_cache_valid(self._resource_types_ts):
@@ -119,14 +121,16 @@ class JediJobGeneratorMsgProcPlugin(BaseMsgProcPlugin):
                 if not resource_types:
                     raise RuntimeError("failed to get resource types")
                 # nFiles from shared JobGenerator config resolver
-                tmp_params = get_params_to_get_tasks(
-                    self.tbIF, self._params_to_get_tasks, vo, prodSourceLabel, workQueue.queue_name if workQueue else "", taskSpec.cloud
-                )
+                # queue_name is a column and so declared optional. Having no name takes the
+                # same path as having no queue at all, which this already answers with ""
+                work_queue_name = workQueue.queue_name if workQueue and workQueue.queue_name else ""
+                tmp_params = get_params_to_get_tasks(self.tbIF, self._params_to_get_tasks, vo, prodSourceLabel, work_queue_name, taskSpec.cloud)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                 nFiles = tmp_params["nFiles"]
                 # get inputs
                 tmp_list = self.tbIF.getTasksToBeProcessed_JEDI(self.pid, None, workQueue, None, None, nFiles=nFiles, target_tasks=[task_id])
                 if tmp_list:
-                    input_list = ListWithLock(tmp_list)
+                    # a number comes back only with isPeeking, which this does not ask for
+                    input_list = ListWithLock(tmp_list)  # type: ignore[arg-type]
                     # run generator inline to avoid creating an extra worker thread.
                     siteMapper = self._get_site_mapper()
                     setupper_key = (vo, prodSourceLabel)

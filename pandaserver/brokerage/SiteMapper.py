@@ -265,10 +265,16 @@ class SiteMapper:
         try:
             if site_name.startswith(NUCLEUS_TAG):
                 tmp_name = site_name.split(":")[-1]
+                # a nucleus with no panda site has no name to clean to, so the one that
+                # came in is what goes back out -- this used to answer None, against the
+                # return type right above
+                one_panda_site = None
                 if tmp_name in self.nuclei:
-                    site_name = self.nuclei[tmp_name].getOnePandaSite()
+                    one_panda_site = self.nuclei[tmp_name].getOnePandaSite()
                 elif tmp_name in self.satellites:
-                    site_name = self.satellites[tmp_name].getOnePandaSite()
+                    one_panda_site = self.satellites[tmp_name].getOnePandaSite()
+                if one_panda_site is not None:
+                    site_name = one_panda_site
         except Exception:
             pass
 

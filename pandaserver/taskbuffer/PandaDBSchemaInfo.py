@@ -12,7 +12,7 @@ _logger = PandaLogger().getLogger("DBSchema")
 class PandaDBSchemaInfo:
     schema_version = None
 
-    def method(self):
+    def method(self) -> str:
         schema_version = "0.1.1"
         _logger.debug(f"PanDA schema version required for Server is : {schema_version}")
         return schema_version

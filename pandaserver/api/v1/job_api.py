@@ -188,10 +188,10 @@ def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int 
 
     if script.startswith("ERROR"):
         tmp_logger.debug(f"Failed to generate script: {script}")
-        return script
+        return script  # type: ignore[return-value]
 
     tmp_logger.debug("Done")
-    return script
+    return script  # type: ignore[return-value]
 
 
 @request_validation(_logger, secure=True, request_method="GET")

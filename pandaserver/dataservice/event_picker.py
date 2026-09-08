@@ -183,7 +183,7 @@ class EventPicker:
                             options[key] += "_ref"
         return options
 
-    def get_jedi_task_id(self, options: dict[str, Any]) -> int:
+    def get_jedi_task_id(self, options: dict[str, Any]) -> int | None:
         """
         Gets the jediTaskID.
 
@@ -193,7 +193,7 @@ class EventPicker:
             options (dict): A dictionary containing the options extracted from the event picking file.
 
         Returns:
-            int: The jediTaskID.
+            int | None: The jediTaskID, or None when no task has that name.
         """
         self.user_dn = options["userName"]
         self.user_task_name = options["userTaskName"]

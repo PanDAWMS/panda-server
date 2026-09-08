@@ -4,6 +4,7 @@ dataset specification
 """
 
 import datetime
+from typing import Any, Sequence
 
 from pandaserver.taskbuffer.spec_column import SpecColumn
 
@@ -51,20 +52,20 @@ class DatasetSpec(object):
     _zeroAttrs = ("MoverID", "transferStatus")
 
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         # install attributes
         for attr in self._attributes:
             setattr(self, attr, None)
 
     # override __getattribute__ for SQL
-    def __getattribute__(self, name):
+    def __getattribute__(self, name: str) -> Any:
         ret = object.__getattribute__(self, name)
         if ret is None:
             return "NULL"
         return ret
 
     # return a tuple of values
-    def values(self):
+    def values(self) -> tuple[Any, ...]:
         ret = []
         for attr in self._attributes:
             val = getattr(self, attr)
@@ -72,7 +73,7 @@ class DatasetSpec(object):
         return tuple(ret)
 
     # return map of values
-    def valuesMap(self):
+    def valuesMap(self) -> dict[str, Any]:
         ret = {}
         for attr in self._attributes:
             val = getattr(self, attr)
@@ -85,7 +86,7 @@ class DatasetSpec(object):
         return ret
 
     # pack tuple into DatasetSpec
-    def pack(self, values):
+    def pack(self, values: Sequence[Any]) -> None:
         for i in range(len(self._attributes)):
             attr = self._attributes[i]
             val = values[i]
@@ -93,7 +94,7 @@ class DatasetSpec(object):
 
     # return column names for INSERT
     @classmethod
-    def columnNames(cls):
+    def columnNames(cls) -> str:
         ret = ""
         for attr in cls._attributes:
             if ret != "":
@@ -103,7 +104,7 @@ class DatasetSpec(object):
 
     # return expression of values for INSERT
     @classmethod
-    def valuesExpression(cls):
+    def valuesExpression(cls) -> str:
         ret = "VALUES("
         for attr in cls._attributes:
             ret += "%s"
@@ -114,7 +115,7 @@ class DatasetSpec(object):
 
     # return expression of bind values for INSERT
     @classmethod
-    def bindValuesExpression(cls):
+    def bindValuesExpression(cls) -> str:
         ret = "VALUES("
         for attr in cls._attributes:
             ret += f":{attr},"
@@ -124,7 +125,7 @@ class DatasetSpec(object):
 
     # return an expression for UPDATE
     @classmethod
-    def updateExpression(cls):
+    def updateExpression(cls) -> str:
         ret = ""
         for attr in cls._attributes:
             ret = ret + attr + "=%s"
@@ -134,7 +135,7 @@ class DatasetSpec(object):
 
     # return an expression of bind variables for UPDATE
     @classmethod
-    def bindUpdateExpression(cls):
+    def bindUpdateExpression(cls) -> str:
         ret = ""
         for attr in cls._attributes:
             ret += f"{attr}=:{attr},"
@@ -142,7 +143,7 @@ class DatasetSpec(object):
         return ret
 
     # return state values to be pickled
-    def __getstate__(self):
+    def __getstate__(self) -> list[Any]:
         state = []
         for attr in self._attributes:
             val = getattr(self, attr)
@@ -150,7 +151,7 @@ class DatasetSpec(object):
         return state
 
     # restore state from the unpickled state values
-    def __setstate__(self, state):
+    def __setstate__(self, state: list[Any]) -> None:
         for i, attr in enumerate(self._attributes):
             if i < len(state):
                 setattr(self, attr, state[i])

@@ -29,6 +29,7 @@ from pandaserver.taskbuffer.JediDatasetSpec import (
 )
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.WorkQueue import WorkQueue
 
 try:
     import idds.common.constants
@@ -45,11 +46,13 @@ class TaskEventModule(BaseModule):
         super().__init__(log_stream)
 
     # make event range ID for event service
-    def makeEventRangeID(self, jediTaskID, pandaID, fileID, job_processID, attemptNr):
+    def makeEventRangeID(self, jediTaskID: int, pandaID: int, fileID: int, job_processID: int, attemptNr: int) -> str:
         return f"{jediTaskID}-{pandaID}-{fileID}-{job_processID}-{attemptNr}"
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self, pandaID, jobsetID, jediTaskID, nRanges, acceptJson, scattered, segment_id):
+    def getEventRanges(
+        self, pandaID: int, jobsetID: int, jediTaskID: int | None, nRanges: int, acceptJson: bool, scattered: bool, segment_id: int | None
+    ) -> Any:
         comment = " /* DBProxy.getEventRanges */"
         tmp_log = self.create_tagged_logger(comment, f"<PandaID={pandaID} jobsetID={jobsetID} jediTaskID={jediTaskID}")
         tmp_log.debug(f"start nRanges={nRanges} scattered={scattered} segment={segment_id}")
@@ -69,7 +72,7 @@ class TaskEventModule(BaseModule):
             except Exception:
                 pass
             try:
-                jediTaskID = int(jediTaskID)
+                jediTaskID = int(jediTaskID)  # type: ignore[arg-type]  # the except below is the answer for a None
             except Exception:
                 jediTaskID = None
             iRanges = 0
@@ -149,7 +152,7 @@ class TaskEventModule(BaseModule):
             self.conn.begin()
             self.cur.arraysize = 100000
             # get job
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":pandaID"] = pandaID
             self.cur.execute(sqlJ + comment, varMap)
             resJ = self.cur.fetchone()
@@ -322,7 +325,7 @@ class TaskEventModule(BaseModule):
             return None
 
     # update even ranges
-    def updateEventRanges(self, eventDictParam, version=0):
+    def updateEventRanges(self, eventDictParam: Any, version: int = 0) -> tuple[list[Any], dict[Any, Any]]:
         # version 0: normal event service
         # version 1: jumbo jobs with zip file support
         # version 2: fine-grained processing where events can be updated before being dispatched
@@ -670,17 +673,17 @@ class TaskEventModule(BaseModule):
             return retList, commandMap
 
     # get events status
-    def get_events_status(self, ids):
+    def get_events_status(self, ids: str) -> dict[str, Any] | None:
         comment = " /* DBProxy.get_events_status */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
         try:
-            ids = json.loads(ids)
+            id_list = json.loads(ids)
             # sql to get event stats
             sql = f"SELECT jediTaskID,fileID,attemptNr,job_processID,status,error_code,error_diag FROM {panda_config.schemaJEDI}.JEDI_Events "
             sql += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID "
-            ret_val = {}
-            for tmp_id in ids:
+            ret_val: dict[Any, Any] = {}
+            for tmp_id in id_list:
                 varMap = {
                     ":jediTaskID": tmp_id["task_id"],
                     ":PandaID": tmp_id["panda_id"],
@@ -709,7 +712,7 @@ class TaskEventModule(BaseModule):
             return None
 
     # kill active consumers related to an ES job
-    def killEventServiceConsumers(self, job, killedFlag, useCommit=True):
+    def killEventServiceConsumers(self, job: JobSpec, killedFlag: bool, useCommit: bool = True) -> bool:
         comment = " /* DBProxy.killEventServiceConsumers */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         tmp_log.debug(f"start")
@@ -741,7 +744,7 @@ class TaskEventModule(BaseModule):
                 if fileSpec.fileID in ["NULL", None]:
                     continue
                 # get PandaIDs
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = fileSpec.jediTaskID
                 varMap[":datasetID"] = fileSpec.datasetID
                 varMap[":fileID"] = fileSpec.fileID
@@ -880,7 +883,7 @@ class TaskEventModule(BaseModule):
             return False
 
     # kill unused consumers related to an ES job
-    def killUnusedEventServiceConsumers(self, job, useCommit=True, killAll=False, checkAttemptNr=False):
+    def killUnusedEventServiceConsumers(self, job: JobSpec, useCommit: bool = True, killAll: bool = False, checkAttemptNr: bool = False) -> bool:
         comment = " /* DBProxy.killUnusedEventServiceConsumers */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         tmp_log.debug(f"start")
@@ -893,7 +896,7 @@ class TaskEventModule(BaseModule):
             sqlPD = "SELECT f.datasetID,f.fileID FROM ATLAS_PANDA.JEDI_Datasets d,ATLAS_PANDA.filesTable4 f "
             sqlPD += "WHERE d.jediTaskID=:jediTaskID AND d.type IN (:type1,:type2) AND d.masterID IS NULL "
             sqlPD += "AND f.PandaID=:PandaID AND f.jeditaskID=f.jediTaskID AND f.datasetID=d.datasetID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = job.jediTaskID
             varMap[":PandaID"] = job.PandaID
             varMap[":type1"] = "input"
@@ -1013,7 +1016,7 @@ class TaskEventModule(BaseModule):
                 self.cur.execute(sqlPMod + comment, varMap)
                 nKilled += 1
                 # record status change
-                self.recordStatusChange(dJob.PandaID, dJob.jobStatus, jobInfo=dJob, useCommit=False)
+                self.recordStatusChange(dJob.PandaID, dJob.jobStatus, jobInfo=dJob, useCommit=False)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             # commit
             if useCommit:
                 if not self._commit():
@@ -1031,11 +1034,11 @@ class TaskEventModule(BaseModule):
             return False
 
     # kill unused event ranges
-    def killUnusedEventRanges(self, jediTaskID, jobsetID):
+    def killUnusedEventRanges(self, jediTaskID: int, jobsetID: int) -> None:
         comment = " /* DBProxy.killUnusedEventRanges */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} jobsetID={jobsetID}")
         # sql to kill event ranges
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":jediTaskID"] = jediTaskID
         varMap[":jobsetID"] = jobsetID
         varMap[":esReady"] = EventServiceUtils.ST_ready
@@ -1049,11 +1052,11 @@ class TaskEventModule(BaseModule):
         tmp_log.debug(f"cancelled {nRowsCan} events")
 
     # release unprocessed events
-    def release_unprocessed_events(self, jedi_task_id, panda_id):
+    def release_unprocessed_events(self, jedi_task_id: int, panda_id: int) -> None:
         comment = " /* DBProxy.release_unprocessed_events */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} PandaID={panda_id}")
         # look for hopeless events
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":jediTaskID"] = jedi_task_id
         varMap[":PandaID"] = panda_id
         varMap[":esReady"] = EventServiceUtils.ST_ready
@@ -1087,7 +1090,7 @@ class TaskEventModule(BaseModule):
         tmp_log.debug(f"released {nRowsCan} events")
 
     # kill used event ranges
-    def killUsedEventRanges(self, jediTaskID, pandaID, notDiscardEvents=False):
+    def killUsedEventRanges(self, jediTaskID: int, pandaID: int, notDiscardEvents: bool = False) -> None:
         comment = " /* DBProxy.killUsedEventRanges */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} pandaID={pandaID}")
         # sql to discard or cancel event ranges
@@ -1101,7 +1104,7 @@ class TaskEventModule(BaseModule):
         sqlCE += "SET status=:status "
         sqlCE += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID "
         sqlCE += "AND NOT status IN (:esFinished,:esDone,:esDiscarded,:esCancelled,:esFailed,:esFatal,:esCorrupted) "
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":jediTaskID"] = jediTaskID
         varMap[":PandaID"] = pandaID
         varMap[":status"] = EventServiceUtils.ST_discarded
@@ -1124,7 +1127,7 @@ class TaskEventModule(BaseModule):
         tmp_log.debug(f"cancelled {nRowsCan} events")
 
     # set corrupted events
-    def setCorruptedEventRanges(self, jediTaskID, pandaID):
+    def setCorruptedEventRanges(self, jediTaskID: int, pandaID: int) -> None:
         comment = " /* DBProxy.setCorruptedEventRanges */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} pandaID={pandaID}")
         # sql to get bad files
@@ -1156,7 +1159,7 @@ class TaskEventModule(BaseModule):
         sqlJE += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID "
         sqlJE += "AND datasetID=:datasetID AND fileID=:fileID AND status=:esDone "
         # get bad files
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":PandaID"] = pandaID
         varMap[":status"] = "corrupted"
         varMap[":type"] = "zipinput"
@@ -1231,10 +1234,10 @@ class TaskEventModule(BaseModule):
             tmp_log.debug(f"{nCor} corrupted events in {lfn}")
 
     # check if all events are done
-    def checkAllEventsDone(self, job, pandaID, useCommit=False, dumpLog=True, getProcStatus=False):
+    def checkAllEventsDone(self, job: JobSpec | None, pandaID: int, useCommit: bool = False, dumpLog: bool = True, getProcStatus: bool = False) -> Any:
         comment = " /* DBProxy.checkAllEventsDone */"
         if job is not None:
-            pandaID = job.PandaID
+            pandaID = job.PandaID  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         if dumpLog:
             tmp_log.debug("start")
@@ -1264,7 +1267,7 @@ class TaskEventModule(BaseModule):
             if job is not None:
                 fileList = job.Files
             else:
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":PandaID"] = pandaID
                 varMap[":type"] = "input"
                 self.cur.execute(sqlF + comment, varMap)
@@ -1281,7 +1284,7 @@ class TaskEventModule(BaseModule):
             allDone = True
             proc_status = None
             checkedPandaIDs = set()
-            jobStatusMap: dict[str, Any] = dict()
+            jobStatusMap: dict[Any, Any] = dict()
             for fileSpec in fileList:
                 if fileSpec.type == "input":
                     varMap = {}
@@ -1403,7 +1406,7 @@ class TaskEventModule(BaseModule):
             return None
 
     # get co-jumbo jobs to be finished
-    def getCoJumboJobsToBeFinished(self, timeLimit, minPriority, maxJobs):
+    def getCoJumboJobsToBeFinished(self, timeLimit: int, minPriority: int, maxJobs: int) -> list[Any] | None:
         comment = " /* DBProxy.getCoJumboJobsToBeFinished */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"start for minPriority={minPriority} timeLimit={timeLimit}")
@@ -1560,7 +1563,7 @@ class TaskEventModule(BaseModule):
             return None
 
     # check if there are done events
-    def hasDoneEvents(self, jediTaskID, pandaID, jobSpec, useCommit=True):
+    def hasDoneEvents(self, jediTaskID: int, pandaID: int, jobSpec: JobSpec, useCommit: bool = True) -> bool:
         comment = " /* DBProxy.hasDoneEvents */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} PandaID={pandaID}")
         tmp_log.debug("start")
@@ -1580,7 +1583,7 @@ class TaskEventModule(BaseModule):
             if useCommit:
                 self.conn.begin()
             # release events
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":pandaID"] = pandaID
             varMap[":jediTaskID"] = jediTaskID
             varMap[":esSent"] = EventServiceUtils.ST_sent
@@ -1619,7 +1622,7 @@ class TaskEventModule(BaseModule):
             return retVal
 
     # check if there are events to be processed
-    def hasReadyEvents(self, jediTaskID):
+    def hasReadyEvents(self, jediTaskID: int) -> bool | None:
         comment = " /* DBProxy.hasReadyEvents */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -1629,7 +1632,7 @@ class TaskEventModule(BaseModule):
             sqlF = f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Events "
             sqlF += "WHERE jediTaskID=:jediTaskID AND status=:esReady AND attemptNr>:minAttemptNr "
             # check event
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":esReady"] = EventServiceUtils.ST_ready
             varMap[":minAttemptNr"] = 0
@@ -1654,7 +1657,7 @@ class TaskEventModule(BaseModule):
             return None
 
     # get number of events to be processed
-    def getNumReadyEvents(self, jediTaskID):
+    def getNumReadyEvents(self, jediTaskID: int) -> int | None:
         comment = " /* DBProxy.getNumReadyEvents */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -1664,7 +1667,7 @@ class TaskEventModule(BaseModule):
             sqlF = f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Events "
             sqlF += "WHERE jediTaskID=:jediTaskID AND status=:esReady AND attemptNr>:minAttemptNr "
             # count event
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":esReady"] = EventServiceUtils.ST_ready
             varMap[":minAttemptNr"] = 0
@@ -1688,7 +1691,7 @@ class TaskEventModule(BaseModule):
             return None
 
     # update related ES jobs when ES-merge job is done
-    def updateRelatedEventServiceJobs(self, job, killEvents=False, forceFailed=False):
+    def updateRelatedEventServiceJobs(self, job: JobSpec, killEvents: bool = False, forceFailed: bool = False) -> bool:
         comment = " /* DBProxy.updateRelatedEventServiceJobs */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         if forceFailed:
@@ -1713,7 +1716,7 @@ class TaskEventModule(BaseModule):
                     # get ranges
                     if tmpFile.fileID in [None, "NULL"]:
                         continue
-                    varMap = {}
+                    varMap: dict[str, Any] = {}
                     varMap[":jediTaskID"] = tmpFile.jediTaskID
                     varMap[":datasetID"] = tmpFile.datasetID
                     varMap[":fileID"] = tmpFile.fileID
@@ -1764,7 +1767,7 @@ class TaskEventModule(BaseModule):
                         isUpdated = True
                 # kill processed events if necessary
                 if killEvents and isUpdated:
-                    self.killUsedEventRanges(job.jediTaskID, tmpPandaID, job.notDiscardEvents())
+                    self.killUsedEventRanges(job.jediTaskID, tmpPandaID, job.notDiscardEvents())  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             tmp_log.debug("done")
             return True
         except Exception:
@@ -1773,7 +1776,7 @@ class TaskEventModule(BaseModule):
             return False
 
     # disable further reattempt for pmerge
-    def disableFurtherReattempt(self, jobSpec):
+    def disableFurtherReattempt(self, jobSpec: JobSpec) -> None:
         comment = " /* JediDBProxy.disableFurtherReattempt */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
         # sql to update file
@@ -1790,7 +1793,7 @@ class TaskEventModule(BaseModule):
             if tmpFile.type not in ["input", "pseudo_input"]:
                 continue
             # update JEDI contents
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = tmpFile.jediTaskID
             varMap[":datasetID"] = tmpFile.datasetID
             varMap[":fileID"] = tmpFile.fileID
@@ -1803,7 +1806,7 @@ class TaskEventModule(BaseModule):
         return
 
     # get active consumers
-    def getActiveConsumers(self, jediTaskID, jobsetID, myPandaID):
+    def getActiveConsumers(self, jediTaskID: int, jobsetID: int, myPandaID: int) -> int:
         comment = " /* DBProxy.getActiveConsumers */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} jobsetID={jobsetID} PandaID={myPandaID}")
         tmp_log.debug("start")
@@ -1814,7 +1817,7 @@ class TaskEventModule(BaseModule):
             sqlA += "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
             # get IDs
             ids = set()
-            varMap = dict()
+            varMap: dict[str, Any] = dict()
             varMap[":jediTaskID"] = jediTaskID
             varMap[":jobsetID"] = jobsetID
             self.cur.execute(sqlA + comment, varMap)
@@ -1872,7 +1875,7 @@ class TaskEventModule(BaseModule):
             return 0
 
     # check event availability
-    def checkEventsAvailability(self, pandaID, jobsetID, jediTaskID):
+    def checkEventsAvailability(self, pandaID: int, jobsetID: int, jediTaskID: int) -> int | None:
         comment = " /* DBProxy.checkEventsAvailability */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID} jobsetID={jobsetID} jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -1882,7 +1885,7 @@ class TaskEventModule(BaseModule):
             self.conn.begin()
             # get job to check if a jumbo job
             isJumbo = False
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = pandaID
             self.cur.execute(sqlJ + comment, varMap)
             res = self.cur.fetchone()
@@ -1941,7 +1944,7 @@ class TaskEventModule(BaseModule):
             self.conn.begin()
             # get current split rule
             sql_check = f"SELECT splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
-            var_map = {":jediTaskID": jedi_task_id}
+            var_map: dict[str, Any] = {":jediTaskID": jedi_task_id}
             self.cur.execute(sql_check + comment, var_map)
             res = self.cur.fetchone()
             if not res:
@@ -2040,14 +2043,14 @@ class TaskEventModule(BaseModule):
             return False, "failed to disable job cloning"
 
     # check if task is active
-    def checkTaskStatusJEDI(self, jediTaskID, cur):
+    def checkTaskStatusJEDI(self, jediTaskID: int, cur: Any) -> bool:
         comment = " /* DBProxy.checkTaskStatusJEDI */"
         tmp_log = self.create_tagged_logger(comment, f" < jediTaskID={jediTaskID} >")
         retVal = False
         curStat = None
         if jediTaskID not in ["NULL", None]:
             sql = "SELECT status FROM ATLAS_PANDA.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             cur.execute(sql + comment, varMap)
             res = cur.fetchone()
@@ -2066,7 +2069,15 @@ class TaskEventModule(BaseModule):
         return retVal
 
     # update tasks's input status in JEDI
-    def updateInputStatusJedi(self, jediTaskID, pandaID, newStatus, checkOthers=False, no_late_bulk_exec=True, extracted_sqls=None):
+    def updateInputStatusJedi(
+        self,
+        jediTaskID: int,
+        pandaID: int,
+        newStatus: str,
+        checkOthers: bool = False,
+        no_late_bulk_exec: bool = True,
+        extracted_sqls: dict[str, Any] | None = None,
+    ) -> bool:
         comment = " /* DBProxy.updateInputStatusJedi */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} PandaID={pandaID}")
         tmp_log.debug(f"start newStatus={newStatus}")
@@ -2092,7 +2103,7 @@ class TaskEventModule(BaseModule):
             sqlF = f"SELECT f.datasetID,f.fileID,f.attemptNr FROM {panda_config.schemaJEDI}.JEDI_Datasets d,{panda_config.schemaPANDA}.filesTable4 f "
             sqlF += "WHERE d.jediTaskID=:jediTaskID AND d.type IN (:type1,:type2) AND d.masterID IS NULL "
             sqlF += "AND f.datasetID=d.datasetID AND f.PandaID=:PandaID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":PandaID"] = pandaID
             varMap[":type1"] = "input"
@@ -2174,7 +2185,7 @@ class TaskEventModule(BaseModule):
                     self.cur.execute(sqlU + comment, varMap)
                     nRow = self.cur.rowcount
                     tmp_log.debug(f"{oldStatus} -> {tmpNewStatus} for fileID={fileID} with {nRow}")
-                else:
+                elif extracted_sqls is not None:
                     extracted_sqls.setdefault("jedi_input", {"sql": sqlU + comment, "vars": []})
                     extracted_sqls["jedi_input"]["vars"].append(varMap)
             # return
@@ -2186,7 +2197,7 @@ class TaskEventModule(BaseModule):
             return False
 
     # change split rule for task
-    def changeTaskSplitRulePanda(self, jediTaskID, attrName, attrValue, useCommit=True, sendLog=True):
+    def changeTaskSplitRulePanda(self, jediTaskID: int, attrName: str, attrValue: Any, useCommit: bool = True, sendLog: bool = True) -> int | None:
         comment = " /* DBProxy.changeTaskSplitRulePanda */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug(f"changing {attrName}={attrValue}")
@@ -2202,7 +2213,7 @@ class TaskEventModule(BaseModule):
                 self.conn.begin()
             # select
             self.cur.arraysize = 10
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # get split rule
             self.cur.execute(sqlS + comment, varMap)
@@ -2251,7 +2262,7 @@ class TaskEventModule(BaseModule):
             return None
 
     # enable jumbo jobs
-    def enableJumboJobs(self, jediTaskID, nJumboJobs, nJumboPerSite, useCommit=True, sendLog=True):
+    def enableJumboJobs(self, jediTaskID: int, nJumboJobs: int, nJumboPerSite: int, useCommit: bool = True, sendLog: bool = True) -> tuple[int, str]:
         comment = " /* DBProxy.enableJumboJobs */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -2262,7 +2273,7 @@ class TaskEventModule(BaseModule):
             # start transaction
             if useCommit:
                 self.conn.begin()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             if nJumboJobs == 0:
                 varMap[":newJumbo"] = "D"
@@ -2293,7 +2304,7 @@ class TaskEventModule(BaseModule):
             return (1, "database error in the panda server")
 
     # enable event service
-    def enableEventService(self, jediTaskID):
+    def enableEventService(self, jediTaskID: int) -> tuple[int, str]:
         comment = " /* DBProxy.enableEventService */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -2305,7 +2316,7 @@ class TaskEventModule(BaseModule):
             nSitesPerJob = self.getConfigValue("taskrefiner", "AES_NSITESPERJOB", "jedi", "atlas")
             # get task params
             sqlTP = f"SELECT taskParams FROM {panda_config.schemaJEDI}.JEDI_TaskParams WHERE jediTaskID=:jediTaskID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             tmpV, taskParams = self.getClobObj(sqlTP, varMap)
             if taskParams is None:
@@ -2390,7 +2401,7 @@ class TaskEventModule(BaseModule):
             return (1, "database error in the panda server")
 
     # check if task is applicable for jumbo jobs
-    def isApplicableTaskForJumbo(self, jediTaskID):
+    def isApplicableTaskForJumbo(self, jediTaskID: int) -> bool:
         comment = " /* DBProxy.isApplicableTaskForJumbo */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -2411,7 +2422,7 @@ class TaskEventModule(BaseModule):
                 # threshold in % to stop jumbo jobs
                 threshold = 100
                 # check percentage
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jediTaskID
                 varMap[":type1"] = "input"
                 varMap[":type2"] = "pseudo_input"
@@ -2434,7 +2445,7 @@ class TaskEventModule(BaseModule):
             return retVal
 
     # increase memory limit
-    def increaseRamLimitJEDI(self, jediTaskID, jobRamCount, noLimits=False):
+    def increaseRamLimitJEDI(self, jediTaskID: int, jobRamCount: int | None, noLimits: bool = False) -> bool:
         comment = " /* DBProxy.increaseRamLimitJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug(f"start")
@@ -2444,7 +2455,7 @@ class TaskEventModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # get current limit
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             sqlUE = f"SELECT ramCount FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlUE += "WHERE jediTaskID=:jediTaskID "
@@ -2502,7 +2513,7 @@ class TaskEventModule(BaseModule):
             return False
 
     # increase memory limit
-    def increaseRamLimitJobJEDI(self, job, job_ram_count, jedi_task_id):
+    def increaseRamLimitJobJEDI(self, job: JobSpec, job_ram_count: int | None, jedi_task_id: int) -> bool:
         """Note that this function only increases the min RAM count for the job,
         not for the entire task (for the latter use increaseRamLimitJEDI)
         """
@@ -2604,14 +2615,14 @@ class TaskEventModule(BaseModule):
                 return True
 
             # update RAM limit
-            var_map = {":jediTaskID": job.jediTaskID, ":ramCount": next_limit}
+            var_map = {":jediTaskID": job.jediTaskID, ":ramCount": next_limit}  # type: ignore[dict-item]  # "NULL" sentinel, see spec_column.py
             input_files = filter(lambda panda_file: panda_file.type in input_types, job.Files)
             input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
 
             for entry in input_tuples:
                 dataset_id, file_id, attempt_nr = entry
-                var_map[":datasetID"] = dataset_id
-                var_map[":fileID"] = file_id
+                var_map[":datasetID"] = dataset_id  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
+                var_map[":fileID"] = file_id  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
 
                 sql_get_update_ram_job = (
                     f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET ramCount=:ramCount "
@@ -2635,7 +2646,7 @@ class TaskEventModule(BaseModule):
             return False
 
     # increase memory limit xtimes
-    def increaseRamLimitJobJEDI_xtimes(self, job, jobRamCount, jediTaskID, attemptNr):
+    def increaseRamLimitJobJEDI_xtimes(self, job: JobSpec, jobRamCount: int | None, jediTaskID: int, attemptNr: int | None) -> bool:
         """Note that this function only increases the min RAM count for the job,
         not for the entire task (for the latter use increaseRamLimitJEDI)
         """
@@ -2652,7 +2663,7 @@ class TaskEventModule(BaseModule):
                 tmp_log.debug(f"No task({job.jediTaskID}) associated to job({job.PandaID}). Skipping increase of RAM limit xtimes")
             else:
                 # get current task Ram info
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jediTaskID
                 sqlUE = f"SELECT ramCount, ramUnit, baseRamCount, splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks "
                 sqlUE += "WHERE jediTaskID=:jediTaskID "
@@ -2697,7 +2708,7 @@ class TaskEventModule(BaseModule):
                         "MBPerCore",
                         "MBPerCoreFixed",
                     ] and job.minRamUnit in ("MB", None, "NULL"):
-                        jobRamCount = jobRamCount / coreCount
+                        jobRamCount = jobRamCount / coreCount  # type: ignore[operator,assignment]  # "NULL" sentinel, see spec_column.py
                 except TypeError:
                     pass
 
@@ -2709,7 +2720,7 @@ class TaskEventModule(BaseModule):
                 tmp_log.debug(f"minimumRam {minimumRam} = jobRamCount {jobRamCount} * multiplier {multiplier}")
                 if retryRamMax:
                     try:
-                        retryRamMaxPerCore = retryRamMax / coreCount
+                        retryRamMaxPerCore = retryRamMax / coreCount  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                     except Exception:
                         retryRamMaxPerCore = retryRamMax
                     minimumRam = min(minimumRam, retryRamMaxPerCore)
@@ -2769,7 +2780,7 @@ class TaskEventModule(BaseModule):
                     input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
 
                     for entry in input_tuples:
-                        datasetID, fileId, attemptNr = entry
+                        datasetID, fileId, attemptNr = entry  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                         varMap[":datasetID"] = datasetID
                         varMap[":fileID"] = fileId
 
@@ -2796,16 +2807,19 @@ class TaskEventModule(BaseModule):
             return False
 
     # reduce input per job
-    def reduce_input_per_job(self, panda_id, jedi_task_id, attempt_nr, excluded_rules, steps, dry_mode):
+    def reduce_input_per_job(
+        self, panda_id: int | None, jedi_task_id: int | None, attempt_nr: int | None, excluded_rules: str | None, steps: int, dry_mode: bool
+    ) -> tuple[bool | None, str]:
         comment = " /* DBProxy.reduce_input_per_job */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id} jediTaskID={jedi_task_id} attemptNr={attempt_nr}")
         tmp_log.debug("start")
         try:
             # rules to skip action when they are set
+            excluded_rule_list: list[str]
             if not excluded_rules:
-                excluded_rules = ["nEventsPerJob", "nFilesPerJob"]
+                excluded_rule_list = ["nEventsPerJob", "nFilesPerJob"]
             else:
-                excluded_rules = excluded_rules.split(",")
+                excluded_rule_list = excluded_rules.split(",")
 
             # thresholds with attempt numbers to trigger actions
             if not steps:
@@ -2813,7 +2827,7 @@ class TaskEventModule(BaseModule):
                 threshold_middle = 4
                 threshold_high = 7
             else:
-                threshold_low, threshold_middle, threshold_high = [int(s) for s in steps.split(",")]
+                threshold_low, threshold_middle, threshold_high = [int(s) for s in str(steps).split(",")]
 
             # if no task associated to job don't take any action
             if jedi_task_id in [None, 0, "NULL"]:
@@ -2822,7 +2836,7 @@ class TaskEventModule(BaseModule):
                 return False, msg_str
 
             # check attempt number
-            if attempt_nr < threshold_low:
+            if attempt_nr is None or attempt_nr < threshold_low:
                 msg_str = f"skipping since not enough attempts ({attempt_nr} < {threshold_low}) have been made"
                 tmp_log.debug(msg_str)
                 return False, msg_str
@@ -2840,7 +2854,7 @@ class TaskEventModule(BaseModule):
             )
 
             # no action if num events or files per job is specified
-            for rule_name in excluded_rules:
+            for rule_name in excluded_rule_list:
                 if rule_values[rule_name]:
                     msg_str = f"skipping since task uses {rule_name}"
                     tmp_log.debug(msg_str)
@@ -2870,7 +2884,7 @@ class TaskEventModule(BaseModule):
                     init_gigabytes_per_job = current_gigabytes_per_job
                 else:
                     # use current job size as initial gigabytes per job for retry module
-                    var_map = {":PandaID": panda_id}
+                    var_map = {":PandaID": panda_id}  # type: ignore[dict-item]  # a bind map takes what each column takes
                     sql_fz = f"SELECT SUM(fsize) FROM {panda_config.schemaPANDA}.filesTable4 "
                     sql_fz += "WHERE PandaID=:PandaID "
                     self.cur.execute(sql_fz + comment, var_map)
@@ -2884,7 +2898,7 @@ class TaskEventModule(BaseModule):
                     init_max_files_per_job = current_max_files_per_job
                 else:
                     # use current job size as initial max number of files per job for retry module
-                    var_map = {":PandaID": panda_id, ":jediTaskID": jedi_task_id, ":type1": "input", ":type2": "pseudo_input"}
+                    var_map = {":PandaID": panda_id, ":jediTaskID": jedi_task_id, ":type1": "input", ":type2": "pseudo_input"}  # type: ignore[dict-item]  # a bind map takes what each column takes
                     sql_fc = f"SELECT COUNT(*) FROM {panda_config.schemaPANDA}.filesTable4 tabF, {panda_config.schemaJEDI}.JEDI_Datasets tabD "
                     sql_fc += (
                         "WHERE tabD.jediTaskID=:jediTaskID AND tabD.type IN (:type1, :type2) AND tabD.masterID IS NULL "
@@ -2954,7 +2968,7 @@ class TaskEventModule(BaseModule):
             self.dump_error_message(tmp_log)
             return None, "failed"
 
-    def create_pseudo_files_for_dyn_num_events(self, job_spec: JobSpec, tmp_log):
+    def create_pseudo_files_for_dyn_num_events(self, job_spec: JobSpec, tmp_log: LogWrapper) -> list[Any]:
         """
         create pseudo files for dynamic number of events
         param job_spec: JobSpec
@@ -2984,7 +2998,7 @@ class TaskEventModule(BaseModule):
         return pseudo_files
 
     # check input file status
-    def checkInputFileStatusInJEDI(self, jobSpec, useCommit=True, withLock=False):
+    def checkInputFileStatusInJEDI(self, jobSpec: JobSpec, useCommit: bool = True, withLock: bool = False) -> bool | None:
         comment = " /* DBProxy.checkInputFileStatusInJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
         tmp_log.debug("start")
@@ -3003,7 +3017,7 @@ class TaskEventModule(BaseModule):
             # get dataset
             sqlPD = "SELECT datasetID FROM ATLAS_PANDA.JEDI_Datasets "
             sqlPD += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) AND masterID IS NULL "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jobSpec.jediTaskID
             varMap[":type1"] = "input"
             varMap[":type2"] = "pseudo_input"
@@ -3097,7 +3111,7 @@ class TaskEventModule(BaseModule):
             return None
 
     # set site for ES merge
-    def setSiteForEsMerge(self, jobSpec, isFakeCJ, methodName, comment):
+    def setSiteForEsMerge(self, jobSpec: JobSpec, isFakeCJ: bool, methodName: str, comment: str) -> str | None:
         comment = " /* DBProxy.setSiteForEsMerge */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
         tmp_log.debug(f"looking for ES merge site")
@@ -3107,7 +3121,7 @@ class TaskEventModule(BaseModule):
         lookForMergeSite = True
         sqlWM = "SELECT /* use_json_type */ scj.data.catchall, scj.data.objectstores " "FROM ATLAS_PANDA.schedconfig_json scj " "WHERE scj.panda_queue=:siteid "
 
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":siteid"] = jobSpec.computingSite
         self.cur.execute(sqlWM + comment, varMap)
         resWM = self.cur.fetchone()
@@ -3340,10 +3354,10 @@ class TaskEventModule(BaseModule):
                     tmp_log.info(f"set merge site to {newSiteName}")
                     break
         # return
-        return
+        return None
 
     # set score site to ES job
-    def setScoreSiteToEs(self, jobSpec, methodName, comment):
+    def setScoreSiteToEs(self, jobSpec: JobSpec, methodName: str, comment: str) -> str | None:
         comment = " /* DBProxy.setScoreSiteToEs */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
         tmp_log.debug(f"looking for single-core site")
@@ -3355,7 +3369,7 @@ class TaskEventModule(BaseModule):
         sqlSN += "AND (sc.data.jobseed IS NULL OR sc.data.jobseed<>'std') "
         sqlSN += "AND sc.data.status=:siteStatus "
 
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":site"] = jobSpec.computingSite
         varMap[":siteStatus"] = "online"
         varMap[":capability"] = "ucore"
@@ -3407,10 +3421,10 @@ class TaskEventModule(BaseModule):
         else:
             tmp_log.info(f"{methodName} no single-core site for {jobSpec.computingSite}")
         # return
-        return
+        return None
 
     # get parent task id
-    def get_parent_task_id_with_name(self, user_name, parent_name):
+    def get_parent_task_id_with_name(self, user_name: str, parent_name: str) -> int | None:
         comment = " /* DBProxy.get_task_id_with_dataset */"
         tmp_log = self.create_tagged_logger(comment, f"userName={user_name}")
         try:
@@ -3419,7 +3433,7 @@ class TaskEventModule(BaseModule):
             sqlC = "SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Tasks " "WHERE userName=:userName AND taskName=:taskName " "ORDER BY jediTaskID DESC "
             # start transaction
             self.conn.begin()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":userName"] = user_name
             varMap[":taskName"] = parent_name
             self.cur.execute(sqlC + comment, varMap)
@@ -3439,7 +3453,17 @@ class TaskEventModule(BaseModule):
             return None
 
     # insert TaskParams
-    def insertTaskParamsPanda(self, taskParams, dn, prodRole, fqans, parent_tid, properErrorCode=False, allowActiveTask=False, decode=True):
+    def insertTaskParamsPanda(
+        self,
+        taskParams: Any,
+        dn: str,
+        prodRole: bool,
+        fqans: list[str],
+        parent_tid: int | None,
+        properErrorCode: bool = False,
+        allowActiveTask: bool = False,
+        decode: bool = True,
+    ) -> tuple[Any, Any]:
         comment = " /* JediDBProxy.insertTaskParamsPanda */"
         try:
             # get compact DN
@@ -3498,7 +3522,7 @@ class TaskEventModule(BaseModule):
             # sql to insert task parameters
             sqlT = f"INSERT INTO {schemaDEFT}.T_TASK "
             sqlT += "(taskid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) VALUES "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             if self.backend in ["oracle", "postgres"]:
                 sqlT += f"({schemaDEFT}.PRODSYS2_TASK_ID_SEQ.nextval,"
             else:
@@ -3883,16 +3907,16 @@ class TaskEventModule(BaseModule):
     # send command to task through DEFT
     def sendCommandTaskPanda(
         self,
-        jediTaskID,
-        dn,
-        prodRole,
-        comStr,
-        comComment=None,
-        useCommit=True,
-        properErrorCode=False,
-        comQualifier=None,
-        broadcast=False,
-    ):
+        jediTaskID: int,
+        dn: str,
+        prodRole: bool,
+        comStr: str,
+        comComment: str | None = None,
+        useCommit: bool = True,
+        properErrorCode: bool = False,
+        comQualifier: str | None = None,
+        broadcast: bool = False,
+    ) -> tuple[Any, str]:
         comment = " /* JediDBProxy.sendCommandTaskPanda */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         try:
@@ -3990,7 +4014,9 @@ class TaskEventModule(BaseModule):
                 return False, "failed to register command"
 
     # get active JediTasks in a time range
-    def getJediTasksInTimeRange(self, dn, timeRange, fullFlag=False, minTaskID=None, task_type="user"):
+    def getJediTasksInTimeRange(
+        self, dn: str, timeRange: datetime.datetime, fullFlag: bool = False, minTaskID: int | None = None, task_type: str = "user"
+    ) -> dict[Any, Any]:
         comment = " /* DBProxy.getJediTasksInTimeRange */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"DN={dn} range={timeRange.strftime('%Y-%m-%d %H:%M:%S')} full={fullFlag}")
@@ -4022,7 +4048,7 @@ class TaskEventModule(BaseModule):
             sql = sql[:-1]
             sql += f" FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sql += "WHERE userName=:userName AND modificationTime>=:modificationTime AND prodSourceLabel=:prodSourceLabel "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":userName"] = compact_dn
             varMap[":prodSourceLabel"] = task_type
             varMap[":modificationTime"] = timeRange
@@ -4064,7 +4090,7 @@ class TaskEventModule(BaseModule):
             return {}
 
     # get details of JediTask
-    def getJediTaskDetails(self, jediTaskID, fullFlag, withTaskInfo):
+    def getJediTaskDetails(self, jediTaskID: int, fullFlag: bool, withTaskInfo: bool) -> dict[str, Any]:
         comment = " /* DBProxy.getJediTaskDetails */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug(f"full={fullFlag}")
@@ -4093,7 +4119,7 @@ class TaskEventModule(BaseModule):
             sqlJS += "UNION "
             sqlJS = "SELECT PandaID,jobStatus,processingType FROM ATLAS_PANDA.jobsActive4 "
             sqlJS += "WHERE jediTaskID=:jediTaskID AND prodSourceLabel=:prodSourceLabel "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # start transaction
             self.conn.begin()
@@ -4265,7 +4291,7 @@ class TaskEventModule(BaseModule):
             return {}
 
     # get JediTask digest
-    def getJediTaskDigest(self, jediTaskID):
+    def getJediTaskDigest(self, jediTaskID: int) -> dict[str, Any]:
         comment = " /* DBProxy.getJediTaskDigest */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         try:
@@ -4297,7 +4323,7 @@ class TaskEventModule(BaseModule):
             # get datasets
             inDSs = set()
             outDSs = set()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":in1"] = "input"
             varMap[":in2"] = "pseudo_input"
@@ -4359,7 +4385,7 @@ class TaskEventModule(BaseModule):
             return {}
 
     # change task attribute
-    def changeTaskAttributePanda(self, jediTaskID, attrName, attrValue):
+    def changeTaskAttributePanda(self, jediTaskID: int, attrName: str, attrValue: Any) -> int | None:
         comment = " /* DBProxy.changeTaskAttributePanda */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug(f"name={attrName} value={attrValue}")
@@ -4371,7 +4397,7 @@ class TaskEventModule(BaseModule):
             self.conn.begin()
             # select
             self.cur.arraysize = 10
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             keyName = f":{attrName}"
             varMap[keyName] = attrValue
@@ -4393,7 +4419,7 @@ class TaskEventModule(BaseModule):
             return None
 
     # make fake co-jumbo
-    def makeFakeCoJumbo(self, oldJobSpec):
+    def makeFakeCoJumbo(self, oldJobSpec: JobSpec) -> int:
         comment = " /* DBProxy.self.makeFakeCoJumbo */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={oldJobSpec.PandaID}")
         tmp_log.debug("start")
@@ -4436,7 +4462,7 @@ class TaskEventModule(BaseModule):
                         setattr(jobSpec, attr, None)
                         break
             # read files
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = oldJobSpec.PandaID
             sqlFile = f"SELECT {FileSpec.columnNames()} FROM ATLAS_PANDA.filesTable4 "
             sqlFile += "WHERE PandaID=:PandaID "
@@ -4513,7 +4539,7 @@ class TaskEventModule(BaseModule):
             return 0
 
     # get active jumbo jobs for a task
-    def getActiveJumboJobs_JEDI(self, jediTaskID):
+    def getActiveJumboJobs_JEDI(self, jediTaskID: int) -> dict[Any, Any]:
         comment = " /* JediDBProxy.getActiveJumboJobs_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -4526,7 +4552,7 @@ class TaskEventModule(BaseModule):
             sql += "SELECT PandaID,jobStatus,computingSite "
             sql += f"FROM {panda_config.schemaPANDA}.jobsActive4 "
             sql += "WHERE jediTaskID=:jediTaskID AND eventService=:jumboJob "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":jumboJob"] = EventServiceUtils.jumboJobFlagNumber
             # start transaction
@@ -4551,7 +4577,7 @@ class TaskEventModule(BaseModule):
             return {}
 
     # set useJumbo flag
-    def setUseJumboFlag_JEDI(self, jediTaskID, statusStr):
+    def setUseJumboFlag_JEDI(self, jediTaskID: int, statusStr: str) -> bool:
         comment = " /* JediDBProxy.setUseJumboFlag_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} status={statusStr}")
         tmpLog.debug("start")
@@ -4559,7 +4585,7 @@ class TaskEventModule(BaseModule):
             # check current flag
             sqlCF = f"SELECT useJumbo FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlCF += "WHERE jediTaskID=:jediTaskID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # start transaction
             self.conn.begin()
@@ -4615,7 +4641,7 @@ class TaskEventModule(BaseModule):
             return False
 
     # get number of tasks with running jumbo jobs
-    def getNumTasksWithRunningJumbo_JEDI(self, vo, prodSourceLabel, cloudName, workqueue):
+    def getNumTasksWithRunningJumbo_JEDI(self, vo: str, prodSourceLabel: str, cloudName: str | None, workqueue: WorkQueue) -> int:
         comment = " /* JediDBProxy.getNumTasksWithRunningJumbo_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} cloud={cloudName} queue={workqueue.queue_name}")
         tmpLog.debug("start")
@@ -4624,7 +4650,7 @@ class TaskEventModule(BaseModule):
             sqlDJ = f"SELECT task_count FROM {panda_config.schemaJEDI}.MV_RUNNING_JUMBO_TASK_COUNT "
             sqlDJ += "WHERE vo=:vo AND prodSourceLabel=:label AND cloud=:cloud "
             sqlDJ += "AND useJumbo in (:useJumbo1,:useJumbo2) AND status IN (:st1,:st2,:st3) "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":label"] = prodSourceLabel
             varMap[":cloud"] = cloudName
@@ -4662,13 +4688,15 @@ class TaskEventModule(BaseModule):
             return 0
 
     # get number of unprocessed events
-    def getNumUnprocessedEvents_JEDI(self, vo, prodSourceLabel, criteria, neg_criteria):
+    def getNumUnprocessedEvents_JEDI(
+        self, vo: str, prodSourceLabel: str, criteria: dict[str, Any], neg_criteria: dict[str, Any]
+    ) -> tuple[int | None, Any, int | None]:
         comment = " /* JediDBProxy.getNumUnprocessedEvents_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug(f"start with criteria={str(criteria)} neg={str(neg_criteria)}")
         try:
             # get num events
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":label"] = prodSourceLabel
             varMap[":type"] = "input"
@@ -4732,7 +4760,7 @@ class TaskEventModule(BaseModule):
             return None, None, None
 
     # get tasks with jumbo jobs
-    def getTaskWithJumbo_JEDI(self, vo, prodSourceLabel):
+    def getTaskWithJumbo_JEDI(self, vo: str, prodSourceLabel: str) -> dict[Any, Any]:
         comment = " /* JediDBProxy.getTaskWithJumbo_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
@@ -4765,7 +4793,7 @@ class TaskEventModule(BaseModule):
             sqlUO += "AND modificationTime>CURRENT_DATE-1 "
             self.conn.begin()
             # get tasks
-            varMap = dict()
+            varMap: dict[str, Any] = dict()
             varMap[":vo"] = vo
             varMap[":prodSourceLabel"] = prodSourceLabel
             varMap[":s1"] = "running"
@@ -4835,7 +4863,7 @@ class TaskEventModule(BaseModule):
             return dict()
 
     # kick pending tasks with jumbo jobs
-    def kickPendingTasksWithJumbo_JEDI(self, jediTaskID):
+    def kickPendingTasksWithJumbo_JEDI(self, jediTaskID: int) -> int | None:
         comment = " /* JediDBProxy.kickPendingTasksWithJumbo_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -4847,7 +4875,7 @@ class TaskEventModule(BaseModule):
             sqlAV += "AND status IN (:statusR,:statusP) AND lockedBy IS NULL "
             self.conn.begin()
             # get tasks
-            varMap = dict()
+            varMap: dict[str, Any] = dict()
             varMap[":jediTaskID"] = jediTaskID
             varMap[":statusP"] = "pending"
             varMap[":statusR"] = "running"
@@ -4870,7 +4898,7 @@ class TaskEventModule(BaseModule):
             return None
 
     # reset input to re-generate co-jumbo jobs
-    def resetInputToReGenCoJumbo_JEDI(self, jediTaskID):
+    def resetInputToReGenCoJumbo_JEDI(self, jediTaskID: int) -> int | None:
         comment = " /* JediDBProxy.resetInputToReGenCoJumbo_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -4905,7 +4933,7 @@ class TaskEventModule(BaseModule):
             sqlUD += "SET nFilesUsed=nFilesUsed-1 WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             self.conn.begin()
             # get JEDI files
-            varMap = dict()
+            varMap: dict[str, Any] = dict()
             varMap[":jediTaskID"] = jediTaskID
             varMap[":status"] = "running"
             varMap.update(INPUT_TYPES_var_map)
@@ -4970,5 +4998,5 @@ class TaskEventModule(BaseModule):
 
 
 # get task event module
-def get_task_event_module(base_mod) -> TaskEventModule:
+def get_task_event_module(base_mod: BaseModule) -> TaskEventModule:
     return base_mod.get_composite_module("task_event")

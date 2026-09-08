@@ -31,13 +31,11 @@ extensionLevel_1 = 1
 
 
 # get corresponding group
-def getProcessGroup(valGroup):
-    tmpGroup = None
+def getProcessGroup(valGroup: str | None) -> str:
+    # the first entry is the default. Its own list is empty, so letting the loop below see it
+    # cannot match; the original spelling skipped it explicitly to install it as the default
+    tmpGroup = processGroups[0][0]
     for tmpKey, tmpList in processGroups:
-        # set default
-        if tmpGroup is None:
-            tmpGroup = tmpKey
-            continue
         if valGroup in tmpList:
             tmpGroup = tmpKey
             break
@@ -46,7 +44,7 @@ def getProcessGroup(valGroup):
 
 
 # convert cloud and processingType for extended PG
-def converCPTforEPG(cloud, processingType, coreCount, workingGroup=None):
+def converCPTforEPG(cloud: str, processingType: str, coreCount: int | None, workingGroup: str | None = None) -> tuple[str, str]:
     if coreCount in [0, 1, None]:
         # use group queue for GP jobs
         if workingGroup is not None and workingGroup.startswith("GP_"):
@@ -58,8 +56,11 @@ def converCPTforEPG(cloud, processingType, coreCount, workingGroup=None):
 
 
 # count the number of jobs per group
-def countJobsPerGroup(valMap):
-    ret: dict[str, Any] = {}
+def countJobsPerGroup(valMap: dict[str, dict[str, dict[str, dict[str, int]]]]) -> dict[str, dict[str, dict[str, dict[str, int]]]]:
+    # cloud -> site -> process group -> job status -> count. The process group replaces the
+    # processing type the input is keyed by, which is why the two shapes are the same but not
+    # interchangeable
+    ret: dict[str, dict[str, dict[str, dict[str, int]]]] = {}
     # loop over all clouds
     for cloud in valMap:
         cloudVal = valMap[cloud]
@@ -88,8 +89,9 @@ def countJobsPerGroup(valMap):
 
 
 # count the number of jobs per group for analysis
-def countJobsPerGroupForAnal(valMap):
-    ret: dict[str, Any] = {}
+def countJobsPerGroupForAnal(valMap: dict[str, dict[str, dict[str, int]]]) -> dict[str, dict[str, dict[str, int]]]:
+    # as countJobsPerGroup, without the cloud level: site -> process group -> job status -> count
+    ret: dict[str, dict[str, dict[str, int]]] = {}
     # loop over all sites
     for site in valMap:
         siteVal = valMap[site]

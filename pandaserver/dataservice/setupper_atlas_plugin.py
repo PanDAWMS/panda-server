@@ -1022,7 +1022,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             if DataServiceUtils.is_sub_dataset(dataset_name):
                 tmp_logger.debug(f"made sub:{dataset_name} for nFiles={dataset.numberfiles}")
         # insert datasets to DB
-        return self.task_buffer.insertDatasets(dataset_list.values())
+        self.task_buffer.insertDatasets(dataset_list.values())
 
     #  subscribe sites to dispatchDBlocks
     def subscribe_dispatch_data_block(self) -> None:
@@ -2010,7 +2010,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # default
                 tmp_data_type = "GEN"
             # files for jumbo job
-            lfns_for_jumbo = self.task_buffer.getLFNsForJumbo(jumbo_job_spec.jediTaskID)
+            lfns_for_jumbo = self.task_buffer.getLFNsForJumbo(jumbo_job_spec.jediTaskID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             # make dis dataset name
             dispatch_data_block = f"panda.{jumbo_job_spec.taskID}.{time.strftime('%m.%d.%H%M')}.{tmp_data_type}.jumbo_dis{jumbo_job_spec.PandaID}"
             # collect file attributes

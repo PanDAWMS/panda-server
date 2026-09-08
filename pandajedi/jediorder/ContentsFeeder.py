@@ -163,11 +163,11 @@ class ContentsFeederThread(WorkerThread):
             _, c_datasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(jediTaskID, [JediDatasetSpec.get_constituent_input_type()])
             if c_datasets:
                 for c_ds in c_datasets:
-                    constituent_by_master.setdefault(c_ds.masterID, []).append((c_ds.datasetID, c_ds.datasetName))
+                    constituent_by_master.setdefault(c_ds.masterID, []).append((c_ds.datasetID, c_ds.datasetName))  # type: ignore[arg-type]
 
             # make logger
             try:
-                gshare = "_".join(taskSpec.gshare.split(" "))
+                gshare = "_".join(taskSpec.gshare.split(" "))  # type: ignore[union-attr]
             except Exception:
                 gshare = "Undefined"
             tmpLog = MsgWrapper(self.logger, f"<jediTaskID={jediTaskID} gshare={gshare}>")
@@ -175,7 +175,7 @@ class ContentsFeederThread(WorkerThread):
             try:
                 # get task parameters
                 taskParam = self.taskBufferIF.getTaskParamsWithID_JEDI(jediTaskID)
-                taskParamMap = RefinerUtils.decodeJSON(taskParam)
+                taskParamMap = RefinerUtils.decodeJSON(taskParam)  # type: ignore[arg-type]
             except Exception as e:
                 tmpLog.error(f"task param conversion from json failed with {str(e)}")
                 # unlock
@@ -209,7 +209,7 @@ class ContentsFeederThread(WorkerThread):
                     # get output datasets from parent task
                     tmpParentStat, tmpParentOutDatasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(taskSpec.parent_tid, ["output", "log"])
                     # collect dataset names
-                    for tmpParentOutDataset in tmpParentOutDatasets:
+                    for tmpParentOutDataset in tmpParentOutDatasets:  # type: ignore[union-attr]
                         parentOutDatasets.add(tmpParentOutDataset.datasetName)
                         if tmpParentOutDataset.containerName:
                             if tmpParentOutDataset.containerName.endswith("/"):
@@ -262,7 +262,7 @@ class ContentsFeederThread(WorkerThread):
                         if datasetSpec.is_no_staging():
                             inputPreStaging = False
                         elif (
-                            (nStaging := self.taskBufferIF.getNumStagingFiles_JEDI(taskSpec.jediTaskID)) is not None
+                            (nStaging := self.taskBufferIF.getNumStagingFiles_JEDI(taskSpec.jediTaskID)) is not None  # type: ignore[arg-type]
                             and nStaging == 0
                             and (datasetSpec.nFiles or 0) > 0
                         ):
@@ -368,8 +368,9 @@ class ContentsFeederThread(WorkerThread):
                             else:
                                 if datasetSpec.isSeqNumber():
                                     # make dummy files for seq_number
-                                    if datasetSpec.getNumRecords() is not None:
-                                        nPFN = datasetSpec.getNumRecords()
+                                    num_records = datasetSpec.getNumRecords()
+                                    if num_records is not None:
+                                        nPFN = num_records
                                     elif origNumFiles is not None:
                                         nPFN = origNumFiles
                                         if "nEventsPerFile" in taskParamMap and taskSpec.get_min_granularity():
@@ -381,7 +382,7 @@ class ContentsFeederThread(WorkerThread):
                                         ):
                                             nPFN = nPFN * math.ceil(taskParamMap["nEventsPerFile"] / taskParamMap["nEventsPerJob"])
                                         elif "nEventsPerJob" in taskParamMap and "nEventsPerFile" not in taskParamMap:
-                                            max_events_in_file = self.taskBufferIF.get_max_events_in_dataset(jediTaskID, datasetSpec.masterID)
+                                            max_events_in_file = self.taskBufferIF.get_max_events_in_dataset(jediTaskID, datasetSpec.masterID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                                             if max_events_in_file and max_events_in_file > taskParamMap["nEventsPerJob"]:
                                                 nPFN = nPFN * math.ceil(max_events_in_file / taskParamMap["nEventsPerJob"])
                                     elif "nEvents" in taskParamMap and "nEventsPerJob" in taskParamMap:
@@ -392,7 +393,7 @@ class ContentsFeederThread(WorkerThread):
                                         # the default number of records for seq_number
                                         seqDefNumRecords = 10000
                                         # get nFiles of the master
-                                        tmpMasterAtt = self.taskBufferIF.getDatasetAttributes_JEDI(datasetSpec.jediTaskID, datasetSpec.masterID, ["nFiles"])
+                                        tmpMasterAtt = self.taskBufferIF.getDatasetAttributes_JEDI(datasetSpec.jediTaskID, datasetSpec.masterID, ["nFiles"])  # type: ignore[arg-type]  # the id is a column, which is declared optional
                                         # use nFiles of the master as the number of records if it is larger than the default
                                         if "nFiles" in tmpMasterAtt and tmpMasterAtt["nFiles"] > seqDefNumRecords:
                                             nPFN = tmpMasterAtt["nFiles"]
@@ -525,20 +526,21 @@ class ContentsFeederThread(WorkerThread):
                                     nMaxFiles = taskParamMap["nFiles"]
                                 else:
                                     # calculate for secondary
-                                    if not datasetSpec.isPseudo():
+                                    if not datasetSpec.isPseudo() and origNumFiles is not None:
                                         # check nFilesPerJob
                                         nFilesPerJobSec = datasetSpec.getNumFilesPerJob()
                                         if nFilesPerJobSec is not None:
                                             nMaxFiles = origNumFiles * nFilesPerJobSec
                                     # check ratio
-                                    if nMaxFiles is None:
+                                    if nMaxFiles is None and origNumFiles is not None:
                                         nMaxFiles = datasetSpec.getNumMultByRatio(origNumFiles)
                                     # multiplied by the number of jobs per file for event-level splitting
                                     if nMaxFiles is not None:
                                         if "nEventsPerFile" in taskParamMap:
-                                            if taskSpec.get_min_granularity():
-                                                if taskParamMap["nEventsPerFile"] > taskSpec.get_min_granularity():
-                                                    nMaxFiles *= float(taskParamMap["nEventsPerFile"]) / float(taskSpec.get_min_granularity())
+                                            min_granularity = taskSpec.get_min_granularity()
+                                            if min_granularity:
+                                                if taskParamMap["nEventsPerFile"] > min_granularity:
+                                                    nMaxFiles *= float(taskParamMap["nEventsPerFile"]) / float(min_granularity)
                                                     nMaxFiles = int(math.ceil(nMaxFiles))
                                             elif "nEventsPerJob" in taskParamMap:
                                                 if taskParamMap["nEventsPerFile"] > taskParamMap["nEventsPerJob"]:

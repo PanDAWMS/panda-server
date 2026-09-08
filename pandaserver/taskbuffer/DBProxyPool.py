@@ -13,6 +13,7 @@ import random
 import time
 from contextlib import contextmanager
 from threading import Lock
+from typing import Any, Iterator
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -25,14 +26,14 @@ _logger = PandaLogger().getLogger("DBProxyPool")
 
 
 class DBProxyPool:
-    def __init__(self, dbhost, dbpasswd, nConnection, useTimeout=False, dbProxyClass=None):
+    def __init__(self, dbhost: str, dbpasswd: str, nConnection: int, useTimeout: bool = False, dbProxyClass: type[Any] | None = None) -> None:
         # crate lock for callers
         self.lock = Lock()
-        self.callers = []
+        self.callers: list[Any] = []
         # create Proxies
         _logger.debug("init")
-        self.proxyList = Queue(nConnection)
-        self.connList = []
+        self.proxyList: Queue = Queue(nConnection)
+        self.connList: list[Any] = []
         for i in range(nConnection):
             _logger.debug(f"connect -> {i} ")
             if dbProxyClass is not None:
@@ -60,7 +61,7 @@ class DBProxyPool:
         _logger.debug("ready")
 
     # return a free proxy. this method blocks until a proxy is available
-    def getProxy(self):
+    def getProxy(self) -> Any:
         # time how long it took to get a proxy
         start_time = time.time()
 
@@ -76,12 +77,12 @@ class DBProxyPool:
         return proxy
 
     # put back a proxy
-    def putProxy(self, proxy):
+    def putProxy(self, proxy: Any) -> None:
         self.proxyList.put(proxy)
 
     # context manager for getting DBProxy
     @contextmanager
-    def get(self):
+    def get(self) -> Iterator[Any]:
         proxy = self.getProxy()
         try:
             yield proxy
@@ -89,7 +90,7 @@ class DBProxyPool:
             self.putProxy(proxy)
 
     # cleanup
-    def cleanup(self):
+    def cleanup(self) -> None:
         _logger.debug("cleanup start")
         [c.cleanup() for c in self.connList]
         _logger.debug("cleanup done")

@@ -28,14 +28,14 @@ class WorkerModule(BaseModule):
         super().__init__(log_stream)
 
     # update stat of workers with jobtype breakdown
-    def reportWorkerStats_jobtype(self, harvesterID, siteName, parameter_list):
+    def reportWorkerStats_jobtype(self, harvesterID: str, siteName: str, parameter_list: str) -> tuple[bool, str]:
         comment = " /* DBProxy.reportWorkerStats_jobtype */"
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvesterID} siteName={siteName}")
         tmp_log.debug("start")
         tmp_log.debug(f"params={str(parameter_list)}")
         try:
             # load new site data
-            parameter_list = json.loads(parameter_list)
+            parameter_map = json.loads(parameter_list)
             # set autocommit on
             self.conn.begin()
 
@@ -64,9 +64,9 @@ class WorkerModule(BaseModule):
                 "VALUES (:harvester_ID, :siteName, :jobType, :resourceType, :status, :n_workers, CURRENT_DATE) "
             )
 
-            var_map_list = []
-            for jobType in parameter_list:
-                jt_params = parameter_list[jobType]
+            var_map_list: list[dict[str, Any]] = []
+            for jobType in parameter_map:
+                jt_params = parameter_map[jobType]
                 for resourceType in jt_params:
                     params = jt_params[resourceType]
                     if resourceType == "Undefined":
@@ -96,7 +96,7 @@ class WorkerModule(BaseModule):
             return False, "database error"
 
     # get stat of workers
-    def getWorkerStats(self):
+    def getWorkerStats(self) -> dict[Any, Any]:
         comment = " /* DBProxy.getWorkerStats */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -139,15 +139,15 @@ class WorkerModule(BaseModule):
     # send command to harvester or lock command
     def commandToHarvester(
         self,
-        harvester_ID,
-        command,
-        ack_requested,
-        status,
-        lockInterval,
-        comInterval,
-        params,
-        useCommit=True,
-    ):
+        harvester_ID: str,
+        command: str,
+        ack_requested: bool,
+        status: str,
+        lockInterval: int | None,
+        comInterval: int | None,
+        params: dict[str, Any] | None,
+        useCommit: bool = True,
+    ) -> bool:
         comment = " /* DBProxy.commandToHarvester */"
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvester_ID} command={command}")
         tmp_log.debug("start")
@@ -157,7 +157,7 @@ class WorkerModule(BaseModule):
                 self.conn.begin()
             # check if command exists
             sql_check_command = "SELECT status,status_date FROM ATLAS_PANDA.HARVESTER_COMMANDS WHERE harvester_ID=:harvester_ID AND command=:command "
-            var_map = {
+            var_map: dict[str, Any] = {
                 ":harvester_ID": harvester_ID,
                 ":command": command,
             }
@@ -225,7 +225,7 @@ class WorkerModule(BaseModule):
             return False
 
     # send command to harvester to kill all workers
-    def sweepPQ(self, panda_queue_des, status_list_des, ce_list_des, submission_host_list_des):
+    def sweepPQ(self, panda_queue_des: str, status_list_des: list[str], ce_list_des: str | list[str], submission_host_list_des: list[str]) -> str:
         comment = " /* DBProxy.sweepPQ */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -279,7 +279,7 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return "Problem generating command. Check PanDA server logs"
 
-    def get_average_memory_workers(self, queue, harvester_id, target):
+    def get_average_memory_workers(self, queue: str, harvester_id: str, target: int) -> tuple[float, float]:
         """
         Calculates the average memory for running and queued workers at a particular panda queue
 
@@ -368,7 +368,7 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return 0, 0
 
-    def ups_new_worker_distribution(self, queue, worker_stats):
+    def ups_new_worker_distribution(self, queue: str, worker_stats: dict[str, Any]) -> dict[Any, Any]:
         """
         Assuming we want to have n_cores_queued >= n_cores_running * .5, calculate how many pilots need to be submitted
         and choose the number
@@ -422,7 +422,7 @@ class WorkerModule(BaseModule):
         # Retrieve the assigned harvester instance and submit UPS commands only to this instance. We have had multiple
         # cases of test instances submitting to large queues in classic pull mode and not following commands.
         try:
-            assigned_harvester_id = pq_data_des["harvester"]
+            assigned_harvester_id = pq_data_des["harvester"] if pq_data_des else None
         except KeyError:
             assigned_harvester_id = None
 
@@ -502,7 +502,7 @@ class WorkerModule(BaseModule):
         # For queues that need more pressure towards reaching a target
         n_cores_running_fake = 0
         try:
-            if pq_data_des["status"] in [
+            if pq_data_des and pq_data_des["status"] in [
                 "online",
                 "brokeroff",
             ]:  # don't flood test sites with workers
@@ -616,7 +616,7 @@ class WorkerModule(BaseModule):
         return new_workers_per_harvester
 
     # add command lock
-    def addCommandLockHarvester(self, harvester_ID, command, computingSite, resourceType, useCommit=True):
+    def addCommandLockHarvester(self, harvester_ID: str, command: str, computingSite: str, resourceType: str, useCommit: bool = True) -> bool:
         comment = " /* DBProxy.addCommandLockHarvester */"
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvester_ID} command={command} site={computingSite}> resource={resourceType}")
         tmp_log.debug("start")
@@ -661,7 +661,7 @@ class WorkerModule(BaseModule):
             return False
 
     # get command locks
-    def getCommandLocksHarvester(self, harvester_ID, command, lockedBy, lockInterval, commandInterval):
+    def getCommandLocksHarvester(self, harvester_ID: str, command: str, lockedBy: str, lockInterval: int, commandInterval: int) -> dict[Any, Any]:
         comment = " /* DBProxy.getCommandLocksHarvester */"
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvester_ID} command={command}")
         tmp_log.debug("start")
@@ -722,7 +722,7 @@ class WorkerModule(BaseModule):
             return {}
 
     # release command lock
-    def releaseCommandLockHarvester(self, harvester_ID, command, computingSite, resourceType, lockedBy):
+    def releaseCommandLockHarvester(self, harvester_ID: str, command: str, computingSite: str, resourceType: str, lockedBy: str) -> bool:
         comment = " /* DBProxy.releaseCommandLockHarvester */"
         tmp_log = self.create_tagged_logger(
             comment, f"harvesterID={harvester_ID} com={command} site={computingSite} resource={resourceType} lockedBy={lockedBy}"
@@ -760,7 +760,7 @@ class WorkerModule(BaseModule):
             return False
 
     # heartbeat for harvester
-    def harvesterIsAlive(self, user, host, harvesterID, data):
+    def harvesterIsAlive(self, user: str, host: str, harvesterID: str, data: dict[str, Any]) -> str | None:
         """
         update harvester instance information
         """
@@ -826,7 +826,7 @@ class WorkerModule(BaseModule):
             return None
 
     # update workers
-    def updateWorkers(self, harvesterID, data, useCommit=True):
+    def updateWorkers(self, harvesterID: str, data: list[dict[str, Any]], useCommit: bool = True) -> list[Any] | None:
         """
         Update workers
         """
@@ -1060,7 +1060,7 @@ class WorkerModule(BaseModule):
             return None
 
     # update the worker status as seen by the pilot
-    def updateWorkerPilotStatus(self, workerID, harvesterID, status, node_id):
+    def updateWorkerPilotStatus(self, workerID: int | str, harvesterID: str, status: str, node_id: str | None) -> bool:
         comment = " /* DBProxy.updateWorkerPilotStatus */"
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvesterID} workerID={workerID}")
 
@@ -1102,21 +1102,21 @@ class WorkerModule(BaseModule):
 
     def update_worker_node(
         self,
-        site,
-        panda_queue,
-        host_name,
-        cpu_model,
-        cpu_model_normalized,
-        n_logical_cpus,
-        n_sockets,
-        cores_per_socket,
-        threads_per_core,
-        cpu_architecture,
-        cpu_architecture_level,
-        clock_speed,
-        total_memory,
-        total_local_disk,
-    ):
+        site: str,
+        panda_queue: str,
+        host_name: str,
+        cpu_model: str | None,
+        cpu_model_normalized: str | None,
+        n_logical_cpus: int | None,
+        n_sockets: int | None,
+        cores_per_socket: int | None,
+        threads_per_core: int | None,
+        cpu_architecture: str | None,
+        cpu_architecture_level: str | None,
+        clock_speed: float | None,
+        total_memory: int | None,
+        total_local_disk: int | None,
+    ) -> tuple[bool, str]:
         comment = " /* DBProxy.update_worker_node */"
 
         tmp_logger = self.create_tagged_logger(comment, f"site={site} panda_queue={panda_queue} host_name={host_name} cpu_model={cpu_model}")
@@ -1135,7 +1135,7 @@ class WorkerModule(BaseModule):
             self.conn.begin()
 
             # Select the worker node to see if it exists in the database
-            var_map = {":site": site, ":host_name": host_name, ":cpu_model": cpu_model}
+            var_map: dict[str, Any] = {":site": site, ":host_name": host_name, ":cpu_model": cpu_model}
 
             sql = (
                 "SELECT site, host_name, cpu_model "
@@ -1273,7 +1273,7 @@ class WorkerModule(BaseModule):
         framework: str,
         framework_version: str,
         driver_version: str,
-    ):
+    ) -> tuple[bool, str]:
         comment = " /* DBProxy.update_worker_node_gpu */"
         tmp_logger = self.create_tagged_logger(comment, f"site={site} host_name={host_name} vendor={vendor} model={model}")
         tmp_logger.debug("Start")
@@ -1371,7 +1371,7 @@ class WorkerModule(BaseModule):
             return False, error_message
 
     @memoize
-    def get_architecture_level_map(self):
+    def get_architecture_level_map(self) -> dict[Any, Any]:
         comment = " /* DBProxy.get_architecture_level_map */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("Start")
@@ -1400,7 +1400,7 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return {}
 
-    def get_worker_node_gpu_map(self):
+    def get_worker_node_gpu_map(self) -> dict[Any, Any]:
         comment = " /* DBProxy.get_worker_node_gpu_map */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("Start")
@@ -1436,7 +1436,9 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return {}
 
-    def get_worker_node_metrics(self, site=None, panda_queue=None, host=None, key=None, days=1):
+    def get_worker_node_metrics(
+        self, site: str | None = None, panda_queue: str | None = None, host: str | None = None, key: str | None = None, days: int = 1
+    ) -> dict[Any, Any]:
         comment = " /* DBProxy.get_worker_node_metrics */"
         tmp_log = self.create_tagged_logger(comment, f"site={site} host={host} key={key} days={days}")
         tmp_log.debug("Start")
@@ -1485,7 +1487,7 @@ class WorkerModule(BaseModule):
             return {}
 
     # get workers for a job
-    def getWorkersForJob(self, PandaID):
+    def getWorkersForJob(self, PandaID: int) -> list[Any]:
         comment = " /* DBProxy.getWorkersForJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={PandaID}")
         tmp_log.debug("start")
@@ -1519,7 +1521,7 @@ class WorkerModule(BaseModule):
             return []
 
     # get workers with stale harvester states and newer pilot state
-    def get_workers_to_synchronize(self):
+    def get_workers_to_synchronize(self) -> list[Any] | dict[str, Any]:
         comment = " /* DBProxy.get_workers_to_synchronize */"
         tmp_log = self.create_tagged_logger(comment)
         try:
@@ -1558,7 +1560,7 @@ class WorkerModule(BaseModule):
 
             # prepare workers and separate by harvester instance and site
             workers_to_sync: dict[str, Any] = {}
-            var_maps = []
+            var_maps: list[dict[str, Any]] = []
             for harvester_id, worker_id, pilot_status in db_workers:
                 workers_to_sync.setdefault(harvester_id, {})
                 workers_to_sync[harvester_id].setdefault(pilot_status, [])
@@ -1590,7 +1592,7 @@ class WorkerModule(BaseModule):
             return []
 
     # get the max workerID
-    def get_max_worker_id(self, harvester_id):
+    def get_max_worker_id(self, harvester_id: str) -> int | None:
         comment = " /* DBProxy.get_max_worker_id */"
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvester_id}")
         tmp_log.debug("start")
@@ -1619,7 +1621,7 @@ class WorkerModule(BaseModule):
             return None
 
     # add harvester dialog messages
-    def addHarvesterDialogs(self, harvesterID, dialogs):
+    def addHarvesterDialogs(self, harvesterID: str, dialogs: list[dict[str, Any]]) -> bool:
         comment = " /* DBProxy.addHarvesterDialogs */"
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvesterID}")
         tmp_log.debug("start")
@@ -1667,7 +1669,9 @@ class WorkerModule(BaseModule):
             return False
 
     # set num slots for workload provisioning
-    def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
+    def setNumSlotsForWP(
+        self, pandaQueueName: str, numSlots: int, gshare: str | None, resourceType: str | None, validPeriod: int | str | None
+    ) -> tuple[int, str]:
         comment = " /* DBProxy.setNumSlotsForWP */"
         tmp_log = self.create_tagged_logger(comment, f"pq={pandaQueueName}")
         tmp_log.debug("start")
@@ -1706,7 +1710,7 @@ class WorkerModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            var_map = {
+            var_map: dict[str, Any] = {
                 ":pandaQueueName": pandaQueueName,
             }
             if gshare is not None:
@@ -1756,7 +1760,7 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return (1, "database error in the panda server")
 
-    def getCommands(self, harvester_id, n_commands):
+    def getCommands(self, harvester_id: str, n_commands: int) -> tuple[int, list[Any]]:
         """
         Gets n commands in status 'new' for a particular harvester instance and updates their status to 'retrieved'
         """
@@ -1841,7 +1845,7 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1, []
 
-    def ackCommands(self, command_ids):
+    def ackCommands(self, command_ids: list[int]) -> int:
         """
         Sets the commands to acknowledged
         """
@@ -1851,7 +1855,7 @@ class WorkerModule(BaseModule):
 
         try:
             # Prepare the bindings and var map
-            var_map = {":acknowledged": "acknowledged"}
+            var_map: dict[str, Any] = {":acknowledged": "acknowledged"}
             for i, command_id in enumerate(command_ids):
                 var_map[f":command_id{i}"] = command_id
             command_id_bindings = ",".join(f":command_id{i}" for i in range(len(command_ids)))
@@ -1873,7 +1877,7 @@ class WorkerModule(BaseModule):
             return -1
 
     # update workers
-    def updateServiceMetrics(self, harvesterID, data):
+    def updateServiceMetrics(self, harvesterID: str, data: list[Any]) -> list[bool] | None:
         """
         Update service metrics
         """
@@ -1885,7 +1889,7 @@ class WorkerModule(BaseModule):
             sql += HarvesterMetricsSpec.bindValuesExpression()
 
             # generate the entries for the DB
-            var_maps = []
+            var_maps: list[dict[str, Any]] = []
             for entry in data:
                 tmp_log.debug(f"entry {entry}")
                 metrics_spec = HarvesterMetricsSpec()
@@ -1908,7 +1912,7 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return None
 
-    def storePilotLog(self, panda_id, pilot_log):
+    def storePilotLog(self, panda_id: int, pilot_log: str) -> int:
         """
         Stores the pilotlog in the pandalog table
         """
@@ -1949,7 +1953,7 @@ class WorkerModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1
 
-    def ups_load_worker_stats(self):
+    def ups_load_worker_stats(self) -> dict[Any, Any]:
         """
         Load the harvester worker stats. Historically this would separate between prodsource labels due to different proxies for analysis and production,
         but all workers get submitted with production proxy and the pilot changes to analysis proxy if required. So we are not separating by prodsource label,
@@ -2023,5 +2027,5 @@ class WorkerModule(BaseModule):
 
 
 # get worker module
-def get_worker_module(base_mod) -> WorkerModule:
+def get_worker_module(base_mod: BaseModule) -> WorkerModule:
     return base_mod.get_composite_module("worker")

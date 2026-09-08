@@ -236,12 +236,12 @@ class AdderAtlasPlugin(AdderPluginBase):
         n_events_input = {}
 
         if self.job.jediTaskID not in [0, None, "NULL"]:
-            tmp_ret = self.taskBuffer.getTaskAttributesPanda(self.job.jediTaskID, ["campaign"])
+            tmp_ret = self.taskBuffer.getTaskAttributesPanda(self.job.jediTaskID, ["campaign"])  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             campaign = tmp_ret.get("campaign")
             for file_spec in self.job.Files:
                 if file_spec.type == "input":
                     tmp_dict = self.taskBuffer.getJediFileAttributes(
-                        file_spec.PandaID, file_spec.jediTaskID, file_spec.datasetID, file_spec.fileID, ["nEvents"]
+                        file_spec.PandaID, file_spec.jediTaskID, file_spec.datasetID, file_spec.fileID, ["nEvents"]  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     )
                     if "nEvents" in tmp_dict:
                         n_events_input[file_spec.lfn] = tmp_dict["nEvents"]
@@ -269,7 +269,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         log_files = []
         cont_zip_map = {}
         sub_to_ds_map: dict[str, str] = {}
-        ds_id_to_ds_map = self.taskBuffer.getOutputDatasetsJEDI(self.job.PandaID)
+        ds_id_to_ds_map = self.taskBuffer.getOutputDatasetsJEDI(self.job.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
         self.logger.debug(f"dsInJEDI={str(ds_id_to_ds_map)}")
 
         for file in self.job.Files:
@@ -483,7 +483,8 @@ class AdderAtlasPlugin(AdderPluginBase):
                         # get dataset spec
                         if file_destination_dispatch_block not in self.dataset_map:
                             tmp_dataset = self.taskBuffer.queryDatasetWithMap({"name": file_destination_dispatch_block})
-                            self.dataset_map[file_destination_dispatch_block] = tmp_dataset
+                            # the check below rejects a missing dataset before anything reads it
+                            self.dataset_map[file_destination_dispatch_block] = tmp_dataset  # type: ignore[assignment]
                         # check if valid dataset
                         if self.dataset_map[file_destination_dispatch_block] is None:
                             self.logger.error(f": cannot find {file_destination_dispatch_block} in DB")
@@ -974,7 +975,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     for tmp_name in sub_map:
                         self.dataset_map[tmp_name].status = "running"
                     # send warning
-                    tmp_st = self.taskBuffer.update_problematic_resource_info(self.job.prodUserName, self.job.jediTaskID, user_endpoints[0], "dest")
+                    tmp_st = self.taskBuffer.update_problematic_resource_info(self.job.prodUserName, self.job.jediTaskID, user_endpoints[0], "dest")  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     if not tmp_st:
                         self.logger.debug("skip to send warning since already done")
                     else:

@@ -7,7 +7,7 @@ import json
 import os
 import uuid
 from threading import Lock
-from typing import Any, Dict
+from typing import Any, Dict, Sequence
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -201,6 +201,7 @@ def submit_grep_request(
         return generate_response(False, msg)
 
     # determine expected machines from liveness snapshot
+    expected: Sequence[str | None]
     if service_name:
         expected = global_task_buffer.get_alive_machines(service_name)
         if not expected:

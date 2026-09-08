@@ -6,6 +6,7 @@ proxy for database connection
 import atexit
 import logging
 import warnings
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -79,7 +80,7 @@ class DBProxy(
     workflow_module.WorkflowModule,
 ):
     # constructor
-    def __init__(self, useOtherError=False):
+    def __init__(self, useOtherError: bool = False) -> None:
         # init modules. this also installs the connection and cursor placeholders
         super().__init__(_logger)
 
@@ -97,14 +98,14 @@ class DBProxy(
     # connect to DB
     def connect(
         self,
-        dbhost=panda_config.dbhost,
-        dbpasswd=panda_config.dbpasswd,
-        dbuser=panda_config.dbuser,
-        dbname=panda_config.dbname,
-        dbtimeout=panda_config.dbtimeout,
-        reconnect=False,
-        dbport=panda_config.dbport,
-    ):
+        dbhost: str = panda_config.dbhost,
+        dbpasswd: str = panda_config.dbpasswd,
+        dbuser: str = panda_config.dbuser,
+        dbname: str = panda_config.dbname,
+        dbtimeout: int | None = panda_config.dbtimeout,
+        reconnect: bool = False,
+        dbport: int = panda_config.dbport,
+    ) -> bool:
         _logger.debug(f"connect : re={reconnect}")
         # keep parameters for reconnect
         if not reconnect:
@@ -126,7 +127,7 @@ class DBProxy(
             if self.backend == "oracle":
                 conn = oracledb.connect(dsn=self.dbhost, user=self.dbuser, password=self.dbpasswd)
 
-                def OutputTypeHandler(cursor, name, defaultType, size, precision, scale):
+                def OutputTypeHandler(cursor: Any, name: str, defaultType: Any, size: int, precision: int, scale: int) -> Any:
                     if defaultType == oracledb.CLOB:
                         return cursor.var(oracledb.LONG_STRING, arraysize=cursor.arraysize)
 

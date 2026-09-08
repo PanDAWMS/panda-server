@@ -3,12 +3,14 @@ import enum
 import json
 import math
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Sequence
 
 from pandaserver.taskbuffer import task_split_rules
 
 if TYPE_CHECKING:
     from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
+    from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
+    from pandaserver.taskbuffer.SiteSpec import SiteSpec
 
 """
 task specification for JEDI
@@ -271,7 +273,7 @@ class JediTaskSpec(object):
     origUserName: str | None
 
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         # install attributes
         for attr in self.attributes:
             if attr in self._zeroAttrs:
@@ -290,7 +292,7 @@ class JediTaskSpec(object):
         object.__setattr__(self, "origUserName", None)
 
     # override __setattr__ to collect the changed attributes
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         oldVal = getattr(self, name)
         if name in self._limitLength and value is not None:
             # keep original dialog
@@ -304,7 +306,7 @@ class JediTaskSpec(object):
             self._changedAttrs[name] = value
 
     # copy old attributes
-    def copyAttributes(self, oldTaskSpec):
+    def copyAttributes(self, oldTaskSpec: "JediTaskSpec") -> None:
         for attr in self.attributes + ("jobParamsTemplate",):
             if "Time" in attr:
                 continue
@@ -315,28 +317,28 @@ class JediTaskSpec(object):
             self.__setattr__(attr, getattr(oldTaskSpec, attr))
 
     # reset changed attribute list
-    def resetChangedList(self):
+    def resetChangedList(self) -> None:
         object.__setattr__(self, "_changedAttrs", {})
 
     # reset changed attribute
-    def resetChangedAttr(self, name):
+    def resetChangedAttr(self, name: str) -> None:
         try:
             del self._changedAttrs[name]
         except Exception:
             pass
 
     # reserve old attributes
-    def reserve_old_attributes(self):
+    def reserve_old_attributes(self) -> None:
         for attName in ["ramCount", "walltime", "cpuTime", "startTime", "cpuTimeUnit", "outDiskCount", "workDiskCount", "ioIntensity", "diskIO"]:
             self.resetChangedAttr(attName)
 
     # force update
-    def forceUpdate(self, name):
+    def forceUpdate(self, name: str) -> None:
         if name in self.attributes:
             self._changedAttrs[name] = getattr(self, name)
 
     # return map of values
-    def valuesMap(self, useSeq=False, onlyChanged=False):
+    def valuesMap(self, useSeq: bool = False, onlyChanged: bool = False) -> dict[str, Any]:
         ret = {}
         for attr in self.attributes:
             # use sequence
@@ -360,7 +362,7 @@ class JediTaskSpec(object):
         return ret
 
     # pack tuple into TaskSpec
-    def pack(self, values):
+    def pack(self, values: Sequence[Any]) -> None:
         for i in range(len(self.attributes)):
             attr = self.attributes[i]
             val = values[i]
@@ -368,7 +370,7 @@ class JediTaskSpec(object):
 
     # return column names for INSERT
     @classmethod
-    def columnNames(cls, prefix=None):
+    def columnNames(cls, prefix: str | None = None) -> str:
         ret = ""
         for attr in cls.attributes:
             if prefix is not None:
@@ -379,7 +381,7 @@ class JediTaskSpec(object):
 
     # return expression of bind variables for INSERT
     @classmethod
-    def bindValuesExpression(cls, useSeq=True):
+    def bindValuesExpression(cls, useSeq: bool = True) -> str:
         ret = "VALUES("
         for attr in cls.attributes:
             if useSeq and attr in cls._seqAttrMap:
@@ -391,7 +393,7 @@ class JediTaskSpec(object):
         return ret
 
     # return an expression of bind variables for UPDATE to update only changed attributes
-    def bindUpdateChangesExpression(self):
+    def bindUpdateChangesExpression(self) -> str:
         ret = ""
         for attr in self.attributes:
             if attr in self._changedAttrs:
@@ -401,14 +403,14 @@ class JediTaskSpec(object):
         return ret
 
     # check split rule
-    def check_split_rule(self, key):
+    def check_split_rule(self, key: str) -> bool:
         if self.splitRule is not None:
             if re.search(self.splitRuleToken[key] + r"=(\d+)", self.splitRule):
                 return True
         return False
 
     # get the max size per job if defined
-    def getMaxSizePerJob(self):
+    def getMaxSizePerJob(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nGBPerJob"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -417,11 +419,11 @@ class JediTaskSpec(object):
         return None
 
     # remove nGBPerJob
-    def removeMaxSizePerJob(self):
+    def removeMaxSizePerJob(self) -> None:
         self.removeSplitRule(self.splitRuleToken["nGBPerJob"])
 
     # get the max size per merge job if defined
-    def getMaxSizePerMergeJob(self):
+    def getMaxSizePerMergeJob(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nGBPerMergeJob"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -430,7 +432,7 @@ class JediTaskSpec(object):
         return None
 
     # get the maxnumber of files per job if defined
-    def getMaxNumFilesPerJob(self):
+    def getMaxNumFilesPerJob(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nMaxFilesPerJob"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -438,11 +440,11 @@ class JediTaskSpec(object):
         return None
 
     # set MaxNumFilesPerJob
-    def setMaxNumFilesPerJob(self, value):
+    def setMaxNumFilesPerJob(self, value: str) -> None:
         self.setSplitRule("nMaxFilesPerJob", value)
 
     # get the maxnumber of files per merge job if defined
-    def getMaxNumFilesPerMergeJob(self):
+    def getMaxNumFilesPerMergeJob(self) -> int:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nMaxFilesPerMergeJob"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -450,7 +452,7 @@ class JediTaskSpec(object):
         return 50
 
     # get the number of events per merge job if defined
-    def getNumEventsPerMergeJob(self):
+    def getNumEventsPerMergeJob(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nEventsPerMergeJob"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -458,13 +460,13 @@ class JediTaskSpec(object):
         return None
 
     # check if using jumbo
-    def usingJumboJobs(self):
+    def usingJumboJobs(self) -> bool:
         if self.useJumbo in self.enum_useJumbo.values() and self.useJumbo != self.enum_useJumbo["disabled"]:
             return True
         return False
 
     # get the number of jumbo jobs if defined
-    def getNumJumboJobs(self):
+    def getNumJumboJobs(self) -> int | None:
         if self.usingJumboJobs() and self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nJumboJobs"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -472,7 +474,7 @@ class JediTaskSpec(object):
         return None
 
     # get the max number of jumbo jobs per site if defined
-    def getMaxJumboPerSite(self):
+    def getMaxJumboPerSite(self) -> int:
         if self.usingJumboJobs() and self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["maxJumboPerSite"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -480,7 +482,7 @@ class JediTaskSpec(object):
         return 1
 
     # get the number of sites per job
-    def getNumSitesPerJob(self):
+    def getNumSitesPerJob(self) -> int:
         if not self.useEventService():
             return 1
         if self.splitRule is not None:
@@ -490,7 +492,7 @@ class JediTaskSpec(object):
         return 1
 
     # get the number of files per job if defined
-    def getNumFilesPerJob(self):
+    def getNumFilesPerJob(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nFilesPerJob"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -504,11 +506,11 @@ class JediTaskSpec(object):
         return None
 
     # remove nFilesPerJob
-    def removeNumFilesPerJob(self):
+    def removeNumFilesPerJob(self) -> None:
         self.removeSplitRule(self.splitRuleToken["nFilesPerJob"])
 
     # get the number of files per merge job if defined
-    def getNumFilesPerMergeJob(self):
+    def getNumFilesPerMergeJob(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nFilesPerMergeJob"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -516,7 +518,7 @@ class JediTaskSpec(object):
         return None
 
     # get the number of events per job if defined
-    def getNumEventsPerJob(self):
+    def getNumEventsPerJob(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nEventsPerJob"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -524,7 +526,7 @@ class JediTaskSpec(object):
         return None
 
     # get offset for random seed
-    def getRndmSeedOffset(self):
+    def getRndmSeedOffset(self) -> int:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["randomSeed"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -532,7 +534,7 @@ class JediTaskSpec(object):
         return 0
 
     # get offset for first event
-    def getFirstEventOffset(self):
+    def getFirstEventOffset(self) -> int:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["firstEvent"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -540,7 +542,7 @@ class JediTaskSpec(object):
         return 0
 
     # grouping with boundaryID
-    def useGroupWithBoundaryID(self):
+    def useGroupWithBoundaryID(self) -> dict[str, Any] | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["groupBoundaryID"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -572,15 +574,15 @@ class JediTaskSpec(object):
         return None
 
     # use build
-    def useBuild(self):
+    def useBuild(self) -> bool:
         return self.check_split_rule("useBuild")
 
     # use sjob cloning
-    def useJobCloning(self):
+    def useJobCloning(self) -> bool:
         return self.check_split_rule("useJobCloning")
 
     # get job cloning type
-    def getJobCloningType(self):
+    def getJobCloningType(self) -> str:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["useJobCloning"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -588,16 +590,16 @@ class JediTaskSpec(object):
         return ""
 
     # reuse secondary on demand
-    def reuseSecOnDemand(self):
+    def reuseSecOnDemand(self) -> bool:
         return self.check_split_rule("reuseSecOnDemand")
 
     # not wait for completion of parent
-    def noWaitParent(self):
+    def noWaitParent(self) -> bool:
         return self.check_split_rule("noWaitParent")
 
     # check splitRule if not wait for completion of parent
     @classmethod
-    def noWaitParentSL(cls, splitRule):
+    def noWaitParentSL(cls, splitRule: str | None) -> bool:
         if splitRule is not None:
             tmpMatch = re.search(cls.splitRuleToken["noWaitParent"] + "=(\d+)", splitRule)
             if tmpMatch is not None:
@@ -605,11 +607,11 @@ class JediTaskSpec(object):
         return False
 
     # use only limited sites
-    def useLimitedSites(self):
+    def useLimitedSites(self) -> bool:
         return self.check_split_rule("limitedSites")
 
     # set limited sites
-    def setLimitedSites(self, policy):
+    def setLimitedSites(self, policy: str) -> None:
         tag = None
         for tmpIdx, tmpPolicy in self.enum_limitedSites.items():
             if policy == tmpPolicy:
@@ -632,7 +634,7 @@ class JediTaskSpec(object):
                 self.splitRule = re.sub(self.splitRuleToken["limitedSites"] + "=(\d+)", self.splitRuleToken["limitedSites"] + "=" + tag, self.splitRule)
 
     # use local IO
-    def useLocalIO(self):
+    def useLocalIO(self) -> bool:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["useLocalIO"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None and int(tmpMatch.group(1)):
@@ -640,7 +642,7 @@ class JediTaskSpec(object):
         return False
 
     # use Event Service
-    def useEventService(self, siteSpec=None):
+    def useEventService(self, siteSpec: "SiteSpec | None" = None) -> bool:
         if self.eventService in [1, 2]:
             # check site if ES is disabled
             if self.switchEStoNormal() and siteSpec is not None and siteSpec.getJobSeed() in ["all"]:
@@ -649,7 +651,7 @@ class JediTaskSpec(object):
         return False
 
     # get the number of events per worker for Event Service
-    def getNumEventsPerWorker(self):
+    def getNumEventsPerWorker(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nEventsPerWorker"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -657,7 +659,7 @@ class JediTaskSpec(object):
         return None
 
     # get the number of event service consumers
-    def getNumEventServiceConsumer(self):
+    def getNumEventServiceConsumer(self) -> int | None:
         if not self.useEventService():
             return None
         if self.splitRule is not None:
@@ -667,23 +669,23 @@ class JediTaskSpec(object):
         return None
 
     # disable automatic retry
-    def disableAutoRetry(self):
+    def disableAutoRetry(self) -> bool:
         return self.check_split_rule("disableAutoRetry")
 
     # disable reassign
-    def disableReassign(self):
+    def disableReassign(self) -> bool:
         return self.check_split_rule("disableReassign")
 
     # allow empty input
-    def allowEmptyInput(self):
+    def allowEmptyInput(self) -> bool:
         return self.check_split_rule("allowEmptyInput")
 
     # use PFN list
-    def useListPFN(self):
+    def useListPFN(self) -> bool:
         return self.check_split_rule("pfnList")
 
     # set preprocessing
-    def setPrePro(self):
+    def setPrePro(self) -> None:
         if self.splitRule is None:
             # new
             self.splitRule = self.splitRuleToken["usePrePro"] + "=" + self.enum_toPreProcess
@@ -692,7 +694,7 @@ class JediTaskSpec(object):
             self.splitRule += "," + self.splitRuleToken["usePrePro"] + "=" + self.enum_toPreProcess
 
     # use preprocessing
-    def usePrePro(self):
+    def usePrePro(self) -> bool:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["usePrePro"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) == self.enum_toPreProcess:
@@ -700,7 +702,7 @@ class JediTaskSpec(object):
         return False
 
     # set preprocessed
-    def setPreProcessed(self):
+    def setPreProcessed(self) -> None:
         if self.splitRule is None:
             # new
             self.splitRule = self.splitRuleToken["usePrePro"] + "=" + self.enum_preProcessed
@@ -717,7 +719,7 @@ class JediTaskSpec(object):
         return
 
     # check preprocessed
-    def checkPreProcessed(self):
+    def checkPreProcessed(self) -> bool:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["usePrePro"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) == self.enum_preProcessed:
@@ -725,7 +727,7 @@ class JediTaskSpec(object):
         return False
 
     # set post preprocess
-    def setPostPreProcess(self):
+    def setPostPreProcess(self) -> None:
         if self.splitRule is None:
             # new
             self.splitRule = self.splitRuleToken["usePrePro"] + "=" + self.enum_postPProcess
@@ -742,23 +744,23 @@ class JediTaskSpec(object):
         return
 
     # instantiate template datasets
-    def instantiateTmpl(self):
+    def instantiateTmpl(self) -> bool:
         return self.check_split_rule("instantiateTmpl")
 
     # instantiate template datasets at site
-    def instantiateTmplSite(self):
+    def instantiateTmplSite(self) -> bool:
         return self.check_split_rule("instantiateTmplSite")
 
     # merge output
-    def mergeOutput(self):
+    def mergeOutput(self) -> bool:
         return self.check_split_rule("mergeOutput")
 
     # use random seed
-    def useRandomSeed(self):
+    def useRandomSeed(self) -> bool:
         return self.check_split_rule("randomSeed")
 
     # get the size of workDisk in bytes
-    def getWorkDiskSize(self):
+    def getWorkDiskSize(self) -> int:
         safetyMargin = 300 * 1024 * 1024
         tmpSize = self.workDiskCount
         if tmpSize is None:
@@ -773,7 +775,7 @@ class JediTaskSpec(object):
         return tmpSize
 
     # get the size of outDisk in bytes
-    def getOutDiskSize(self):
+    def getOutDiskSize(self) -> int:
         tmpSize = self.outDiskCount
         if tmpSize is None or tmpSize < 0:
             return 0
@@ -787,18 +789,18 @@ class JediTaskSpec(object):
         return tmpSize
 
     # output scales with the number of events
-    def outputScaleWithEvents(self):
+    def outputScaleWithEvents(self) -> bool:
         if self.outDiskUnit is not None and "PerEvent" in self.outDiskUnit:
             return True
         return False
 
     # return list of status to update contents
     @classmethod
-    def statusToUpdateContents(cls):
+    def statusToUpdateContents(cls) -> list[str]:
         return ["defined"]
 
     # set task status on hold
-    def setOnHold(self):
+    def setOnHold(self) -> None:
         # change status
         if self.status in ["ready", "running", "merging", "scouting", "defined", "topreprocess", "preprocessing", "registered", "prepared", "rerefine"]:
             self.oldStatus = self.status
@@ -806,37 +808,37 @@ class JediTaskSpec(object):
 
     # return list of status to reject external changes
     @classmethod
-    def statusToRejectExtChange(cls):
+    def statusToRejectExtChange(cls) -> list[str]:
         return ["finished", "done", "prepared", "broken", "tobroken", "aborted", "toabort", "aborting", "failed", "passed"]
 
     # return list of status for retry
     @classmethod
-    def statusToRetry(cls):
+    def statusToRetry(cls) -> list[str]:
         return ["finished", "failed", "aborted", "exhausted"]
 
     # return list of status for incexec
     @classmethod
-    def statusToIncexec(cls):
+    def statusToIncexec(cls) -> list[str]:
         return ["done"] + cls.statusToRetry()
 
     # return list of status for reassign
     @classmethod
-    def statusToReassign(cls):
+    def statusToReassign(cls) -> list[str]:
         return ["registered", "defined", "ready", "running", "scouting", "scouted", "pending", "assigning", "exhausted"]
 
     # return list of status for Job Generator
     @classmethod
-    def statusForJobGenerator(cls):
+    def statusForJobGenerator(cls) -> list[str]:
         return ["ready", "running", "scouting", "topreprocess", "preprocessing"]
 
     # return list of status to not pause
     @classmethod
-    def statusNotToPause(cls):
+    def statusNotToPause(cls) -> list[str]:
         return ["finished", "failed", "done", "aborted", "broken", "paused"]
 
     # return mapping of command and status
     @classmethod
-    def commandStatusMap(cls):
+    def commandStatusMap(cls) -> dict[str, dict[str, str]]:
         return {
             "kill": {"doing": "aborting", "done": "toabort"},
             "finish": {"doing": "finishing", "done": "passed"},
@@ -882,7 +884,7 @@ class JediTaskSpec(object):
         return qualifiers
 
     # set error dialog
-    def setErrDiag(self, diag, append=False, prepend=False):
+    def setErrDiag(self, diag: str | None, append: bool | None = False, prepend: bool = False) -> None:
         # check if message can be encoded with UTF-8
         if diag:
             try:
@@ -904,11 +906,11 @@ class JediTaskSpec(object):
             self.errorDialog = diag
 
     # use loadXML
-    def useLoadXML(self):
+    def useLoadXML(self) -> bool:
         return self.check_split_rule("loadXML")
 
     # make VOMS FQANs
-    def makeFQANs(self):
+    def makeFQANs(self) -> list[str]:
         # no working group
         if self.workingGroup is not None:
             fqan = f"/{self.vo}/{self.workingGroup}/Role=production"
@@ -921,7 +923,7 @@ class JediTaskSpec(object):
         return [fqan]
 
     # set split rule
-    def setSplitRule(self, ruleName, ruleValue):
+    def setSplitRule(self, ruleName: str, ruleValue: str) -> None:
         if self.splitRule is None:
             # new
             self.splitRule = self.splitRuleToken[ruleName] + "=" + ruleValue
@@ -935,7 +937,7 @@ class JediTaskSpec(object):
                 self.splitRule = re.sub(self.splitRuleToken[ruleName] + "=(\d+)", self.splitRuleToken[ruleName] + "=" + ruleValue, self.splitRule)
 
     # remove split rule
-    def removeSplitRule(self, ruleName):
+    def removeSplitRule(self, ruleName: str) -> None:
         if self.splitRule is not None:
             items = self.splitRule.split(",")
             newItems = []
@@ -948,18 +950,18 @@ class JediTaskSpec(object):
             self.splitRule = ",".join(newItems)
 
     # set to use scout
-    def setUseScout(self, useFlag):
+    def setUseScout(self, useFlag: bool) -> None:
         if useFlag:
             self.setSplitRule("useScout", self.enum_useScout)
         else:
             self.setSplitRule("useScout", self.enum_noScout)
 
     # set post scout
-    def setPostScout(self):
+    def setPostScout(self) -> None:
         self.setSplitRule("useScout", self.enum_postScout)
 
     # use scout
-    def useScout(self, splitRule=None):
+    def useScout(self, splitRule: str | None = None) -> bool:
         if splitRule is None:
             splitRule = self.splitRule
         if splitRule is not None:
@@ -969,19 +971,19 @@ class JediTaskSpec(object):
         return False
 
     # use exhausted
-    def useExhausted(self):
+    def useExhausted(self) -> bool:
         return self.check_split_rule("useExhausted")
 
     # use real number of events
-    def useRealNumEvents(self):
+    def useRealNumEvents(self) -> bool:
         return self.check_split_rule("useRealNumEvents")
 
     # use input LFN as source for output LFN
-    def useFileAsSourceLFN(self):
+    def useFileAsSourceLFN(self) -> bool:
         return self.check_split_rule("useFileAsSourceLFN")
 
     # post scout
-    def isPostScout(self):
+    def isPostScout(self) -> bool:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["useScout"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) == self.enum_postScout:
@@ -989,11 +991,11 @@ class JediTaskSpec(object):
         return False
 
     # wait until input shows up
-    def waitInput(self):
+    def waitInput(self) -> bool:
         return self.check_split_rule("waitInput")
 
     # input prestaging
-    def inputPreStaging(self):
+    def inputPreStaging(self) -> bool:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["inputPreStaging"] + "=" + self.enum_inputPreStaging["use"], self.splitRule)
             if tmpMatch is not None:
@@ -1001,7 +1003,7 @@ class JediTaskSpec(object):
         return False
 
     # set DDM backend
-    def setDdmBackEnd(self, backEnd):
+    def setDdmBackEnd(self, backEnd: str) -> None:
         if self.splitRule is None:
             # new
             self.splitRule = self.splitRuleToken["ddmBackEnd"] + "=" + backEnd
@@ -1015,7 +1017,7 @@ class JediTaskSpec(object):
                 self.splitRule = re.sub(self.splitRuleToken["ddmBackEnd"] + "=([^,$]+)", self.splitRuleToken["ddmBackEnd"] + "=" + backEnd, self.splitRule)
 
     # get DDM backend
-    def getDdmBackEnd(self):
+    def getDdmBackEnd(self) -> str | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["ddmBackEnd"] + "=([^,$]+)", self.splitRule)
             if tmpMatch is not None:
@@ -1023,7 +1025,7 @@ class JediTaskSpec(object):
         return None
 
     # get field number to add middle name to LFN
-    def getFieldNumToLFN(self):
+    def getFieldNumToLFN(self) -> list[int] | None:
         try:
             if self.splitRule is not None:
                 tmpMatch = re.search(self.splitRuleToken["addNthFieldToLFN"] + "=([,\d]+)", self.splitRule)
@@ -1039,7 +1041,7 @@ class JediTaskSpec(object):
         return None
 
     # get required success rate for scout jobs
-    def getScoutSuccessRate(self):
+    def getScoutSuccessRate(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["scoutSuccessRate"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1047,7 +1049,7 @@ class JediTaskSpec(object):
         return None
 
     # get T1 weight
-    def getT1Weight(self):
+    def getT1Weight(self) -> int:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["t1Weight"] + "=(-*\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1055,27 +1057,27 @@ class JediTaskSpec(object):
         return 0
 
     # respect Lumiblock boundaries
-    def respectLumiblock(self):
+    def respectLumiblock(self) -> bool:
         return self.check_split_rule("respectLB")
 
     # release files per Lumiblock
-    def releasePerLumiblock(self):
+    def releasePerLumiblock(self) -> bool:
         return self.check_split_rule("releasePerLB")
 
     # order by Lumiblock numbers
-    def orderByLB(self):
+    def orderByLB(self) -> bool:
         return self.check_split_rule("orderByLB")
 
     # respect split rule
-    def respectSplitRule(self):
+    def respectSplitRule(self) -> bool:
         return self.check_split_rule("respectSplitRule")
 
     # allow partial finish
-    def allowPartialFinish(self):
+    def allowPartialFinish(self) -> bool:
         return self.check_split_rule("allowPartialFinish")
 
     # check if datasets should be registered or moved
-    def toRegisterDatasets(self):
+    def toRegisterDatasets(self) -> bool:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["registerDatasets"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) in [self.enum_toRegisterDS, self.enum_moveDS]:
@@ -1083,7 +1085,7 @@ class JediTaskSpec(object):
         return False
 
     # check if datasets should be moved
-    def toMoveDatasets(self):
+    def toMoveDatasets(self) -> bool:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["registerDatasets"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) == self.enum_moveDS:
@@ -1091,19 +1093,19 @@ class JediTaskSpec(object):
         return False
 
     # datasets were registered
-    def registeredDatasets(self):
+    def registeredDatasets(self) -> None:
         self.setSplitRule("registerDatasets", self.enum_registeredDS)
 
     # set datasets to be registered
-    def setToRegisterDatasets(self):
+    def setToRegisterDatasets(self) -> None:
         self.setSplitRule("registerDatasets", self.enum_toRegisterDS)
 
     # set datasets to be moved
-    def setToMoveDatasets(self):
+    def setToMoveDatasets(self) -> None:
         self.setSplitRule("registerDatasets", self.enum_moveDS)
 
     # get the max number of attempts for ES events
-    def getMaxAttemptES(self):
+    def getMaxAttemptES(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["maxAttemptES"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1111,7 +1113,7 @@ class JediTaskSpec(object):
         return None
 
     # get the max number of attempts for ES jobs
-    def getMaxAttemptEsJob(self):
+    def getMaxAttemptEsJob(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["maxAttemptEsJob"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1119,7 +1121,7 @@ class JediTaskSpec(object):
         return self.getMaxAttemptES()
 
     # check attribute length
-    def checkAttrLength(self):
+    def checkAttrLength(self) -> bool:
         for attrName, attrLength in self._attrLength.items():
             attrVal = getattr(self, attrName)
             if attrVal is None:
@@ -1131,7 +1133,7 @@ class JediTaskSpec(object):
         return True
 
     # set IP connectivity and stack
-    def setIpConnectivity(self, value):
+    def setIpConnectivity(self, value: str | None) -> None:
         if not value:
             return
         values = value.split("#")
@@ -1152,7 +1154,7 @@ class JediTaskSpec(object):
                         break
 
     # get IP connectivity
-    def getIpConnectivity(self):
+    def getIpConnectivity(self) -> str | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["ipConnectivity"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1160,7 +1162,7 @@ class JediTaskSpec(object):
         return None
 
     # get IP connectivity
-    def getIpStack(self):
+    def getIpStack(self) -> str | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["ipStack"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1168,11 +1170,11 @@ class JediTaskSpec(object):
         return None
 
     # use HS06 for walltime estimation
-    def useHS06(self):
+    def useHS06(self) -> bool:
         return self.cpuTimeUnit in ["HS06sPerEvent", "HS06sPerEventFixed", "mHS06sPerEvent", "mHS06sPerEventFixed"]
 
     # get CPU time in sec
-    def getCpuTime(self):
+    def getCpuTime(self) -> float | None:
         if not self.useHS06():
             return None
         try:
@@ -1183,35 +1185,35 @@ class JediTaskSpec(object):
         return self.cpuTime
 
     # RAM scales with nCores
-    def ramPerCore(self):
+    def ramPerCore(self) -> bool:
         return self.ramUnit in ["MBPerCore", "MBPerCoreFixed"]
 
     # run until input is closed
-    def runUntilClosed(self):
+    def runUntilClosed(self) -> bool:
         return self.check_split_rule("runUntilClosed")
 
     # stay output on site
-    def stayOutputOnSite(self):
+    def stayOutputOnSite(self) -> bool:
         return self.check_split_rule("stayOutputOnSite")
 
     # fail when goal unreached
-    def failGoalUnreached(self):
+    def failGoalUnreached(self) -> bool:
         return self.check_split_rule("failGoalUnreached")
 
     # unset fail when goal unreached
-    def unsetFailGoalUnreached(self):
+    def unsetFailGoalUnreached(self) -> None:
         self.removeSplitRule(self.splitRuleToken["failGoalUnreached"])
 
     # switch ES to normal when jobs land at normal sites
-    def switchEStoNormal(self):
+    def switchEStoNormal(self) -> bool:
         return self.check_split_rule("switchEStoNormal")
 
     # use world cloud
-    def useWorldCloud(self):
+    def useWorldCloud(self) -> bool:
         return self.cloud == self.worldCloudName
 
     # dynamic number of events
-    def dynamicNumEvents(self):
+    def dynamicNumEvents(self) -> bool:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["dynamicNumEvents"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1219,7 +1221,7 @@ class JediTaskSpec(object):
         return False
 
     # get min granularity for dynamic number of events
-    def get_min_granularity(self):
+    def get_min_granularity(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["dynamicNumEvents"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1227,7 +1229,7 @@ class JediTaskSpec(object):
         return None
 
     # set alternative stage-out
-    def setAltStageOut(self, value):
+    def setAltStageOut(self, value: str) -> None:
         if value in self.enum_altStageOut.values():
             for tmpKey, tmpVal in self.enum_altStageOut.items():
                 if value == tmpVal:
@@ -1235,7 +1237,7 @@ class JediTaskSpec(object):
                     break
 
     # get alternative stage-out
-    def getAltStageOut(self):
+    def getAltStageOut(self) -> str | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["altStageOut"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1243,11 +1245,11 @@ class JediTaskSpec(object):
         return None
 
     # allow WAN for input access
-    def allowInputWAN(self):
+    def allowInputWAN(self) -> bool:
         return self.check_split_rule("allowInputWAN")
 
     # set mode for input LAN access
-    def setAllowInputLAN(self, value):
+    def setAllowInputLAN(self, value: str) -> None:
         if value in self.enum_inputLAN.values():
             for tmpKey, tmpVal in self.enum_inputLAN.items():
                 if value == tmpVal:
@@ -1255,7 +1257,7 @@ class JediTaskSpec(object):
                     break
 
     # check if LAN is used for input access
-    def allowInputLAN(self):
+    def allowInputLAN(self) -> str | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["allowInputLAN"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1263,57 +1265,57 @@ class JediTaskSpec(object):
         return None
 
     # put log files to OS
-    def putLogToOS(self):
+    def putLogToOS(self) -> bool:
         return self.check_split_rule("putLogToOS")
 
     # merge ES on Object Store
-    def mergeEsOnOS(self):
+    def mergeEsOnOS(self) -> bool:
         return self.check_split_rule("mergeEsOnOS")
 
     # write input to file
-    def writeInputToFile(self):
+    def writeInputToFile(self) -> bool:
         return self.check_split_rule("writeInputToFile")
 
     # ignore missing input datasets
-    def ignoreMissingInDS(self):
+    def ignoreMissingInDS(self) -> bool:
         return self.check_split_rule("ignoreMissingInDS")
 
     # suppress execute string conversion
-    def noExecStrCnv(self):
+    def noExecStrCnv(self) -> bool:
         return self.check_split_rule("noExecStrCnv")
 
     # in-file positional event number
-    def inFilePosEvtNum(self):
+    def inFilePosEvtNum(self) -> bool:
         return self.check_split_rule("inFilePosEvtNum")
 
     # register event service files
-    def registerEsFiles(self):
+    def registerEsFiles(self) -> bool:
         return self.check_split_rule("registerEsFiles")
 
     # disable auto finish
-    def disableAutoFinish(self):
+    def disableAutoFinish(self) -> bool:
         return self.check_split_rule("disableAutoFinish")
 
     # reset refined attributes which may confuse they system
-    def resetRefinedAttrs(self):
+    def resetRefinedAttrs(self) -> None:
         self.resetChangedAttr("splitRule")
         self.resetChangedAttr("eventService")
         self.reserve_old_attributes()
 
     # resurrect consumers
-    def resurrectConsumers(self):
+    def resurrectConsumers(self) -> bool:
         return self.check_split_rule("resurrectConsumers")
 
     # use prefetcher
-    def usePrefetcher(self):
+    def usePrefetcher(self) -> bool:
         return self.check_split_rule("usePrefetcher")
 
     # no input pooling
-    def noInputPooling(self):
+    def noInputPooling(self) -> bool:
         return self.check_split_rule("noInputPooling")
 
     # get num of input chunks to wait
-    def nChunksToWait(self):
+    def nChunksToWait(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nChunksToWait"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1321,7 +1323,7 @@ class JediTaskSpec(object):
         return None
 
     # get max walltime
-    def getMaxWalltime(self):
+    def getMaxWalltime(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["maxWalltime"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1329,11 +1331,11 @@ class JediTaskSpec(object):
         return None
 
     # set max walltime
-    def set_max_walltime(self, value):
+    def set_max_walltime(self, value: int) -> None:
         self.setSplitRule("maxWalltime", str(value))
 
     # get target size of the largest output to reset NG
-    def getTgtMaxOutputForNG(self):
+    def getTgtMaxOutputForNG(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["tgtMaxOutputForNG"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1341,11 +1343,11 @@ class JediTaskSpec(object):
         return None
 
     # not discard events
-    def notDiscardEvents(self):
+    def notDiscardEvents(self) -> bool:
         return self.check_split_rule("notDiscardEvents")
 
     # get min CPU efficiency
-    def getMinCpuEfficiency(self):
+    def getMinCpuEfficiency(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["minCpuEfficiency"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1353,11 +1355,11 @@ class JediTaskSpec(object):
         return None
 
     # decrement attemptNr of events only when failed
-    def decAttOnFailedES(self):
+    def decAttOnFailedES(self) -> bool:
         return self.check_split_rule("decAttOnFailedES")
 
     # use zip files to pin input files
-    def useZipToPin(self):
+    def useZipToPin(self) -> bool:
         return self.check_split_rule("useZipToPin")
 
     # architecture:
@@ -1370,7 +1372,7 @@ class JediTaskSpec(object):
     #             gpu_spec: a json dict with keys of vendor and model
 
     # reformat architecture into JSON
-    def reformat_architecture(self):
+    def reformat_architecture(self) -> None:
         if self.architecture is None:
             return
         encoded_platform = ""
@@ -1384,29 +1386,29 @@ class JediTaskSpec(object):
         except Exception:
             pass
         # convert to new format
-        new_dict = {}
-        val = self.get_sw_platform()
-        if val:
-            new_dict["sw_platform"] = val
-        val = self.get_base_platform(encoded_platform)
-        if val:
-            new_dict["base_platform"] = val
-        val = self.get_host_cpu_spec(encoded_platform)
-        if val:
+        new_dict: dict[str, Any] = {}
+        sw_platform = self.get_sw_platform()
+        if sw_platform:
+            new_dict["sw_platform"] = sw_platform
+        base_platform = self.get_base_platform(encoded_platform)
+        if base_platform:
+            new_dict["base_platform"] = base_platform
+        host_cpu_spec = self.get_host_cpu_spec(encoded_platform)
+        if host_cpu_spec:
             # remove wildcard entries and empty specs
-            cpu_specs = [x for x in [{k: v for k, v in d.items() if v != "*"} for d in val] if x]
+            cpu_specs = [x for x in [{k: v for k, v in d.items() if v != "*"} for d in host_cpu_spec] if x]
             if cpu_specs:
                 new_dict["cpu_specs"] = cpu_specs
-        val = self.get_host_gpu_spec()
-        if val:
+        host_gpu_spec = self.get_host_gpu_spec()
+        if host_gpu_spec:
             # remove wildcard entries and empty specs
-            gpu_spec = {k: v for k, v in val.items() if v != "*"}
+            gpu_spec = {k: v for k, v in host_gpu_spec.items() if v != "*"}
             if gpu_spec:
                 new_dict["gpu_spec"] = gpu_spec
         self.architecture = json.dumps(new_dict)
 
     # get SW platform
-    def get_sw_platform(self):
+    def get_sw_platform(self) -> str | None:
         try:
             d = json.loads(self.architecture or "{}")
             return d.get("sw_platform", "")
@@ -1419,7 +1421,7 @@ class JediTaskSpec(object):
         return self.architecture
 
     # get base platform
-    def get_base_platform(self, encoded_platform=None):
+    def get_base_platform(self, encoded_platform: str | None = None) -> str | None:
         try:
             d = json.loads(self.architecture or "{}")
             val = d.get("base_platform", None)
@@ -1427,6 +1429,7 @@ class JediTaskSpec(object):
                 return val
         except Exception:
             pass
+        architecture: str | None
         if encoded_platform:
             architecture = encoded_platform
         else:
@@ -1438,23 +1441,25 @@ class JediTaskSpec(object):
         m = re.search("@([^#&]*)", architecture)
         if m is None:
             return None
-        img = m.group(1)
+        img: str | None = m.group(1)
         if img == "":
             img = None
         return img
 
     # get platforms
-    def get_platforms(self):
+    def get_platforms(self) -> str | None:
         if self.architecture is not None:
             platform = self.get_sw_platform()
             base = self.get_base_platform()
-            if base:
+            # the platform can be absent even when the architecture is not, when the JSON form
+            # carries no sw_platform. There is then nothing to append the base platform to
+            if platform and base:
                 platform += "@" + base
             return platform
         return self.architecture
 
     # get host CPU spec
-    def get_host_cpu_spec(self, encoded_platform=None):
+    def get_host_cpu_spec(self, encoded_platform: str | None = None) -> list[dict[str, Any]] | None:
         try:
             d = json.loads(self.architecture or "{}")
             specs = d.get("cpu_specs", None)
@@ -1467,6 +1472,7 @@ class JediTaskSpec(object):
                 return specs
         except Exception:
             pass
+        architecture: str | None
         if encoded_platform:
             architecture = encoded_platform
         else:
@@ -1504,7 +1510,7 @@ class JediTaskSpec(object):
         except Exception:
             return None
 
-    def get_host_cpu_preference(self):
+    def get_host_cpu_preference(self) -> Any:
         try:
             d = json.loads(self.architecture or "{}")
             cpu_pref = d.get("cpu_pref", None)
@@ -1513,7 +1519,7 @@ class JediTaskSpec(object):
             return None
 
     # get host GPU spec
-    def get_host_gpu_spec(self):
+    def get_host_gpu_spec(self) -> dict[str, Any] | None:
         try:
             d = json.loads(self.architecture or "{}")
             spec = d.get("gpu_spec", None)
@@ -1561,19 +1567,19 @@ class JediTaskSpec(object):
             return None
 
     # HPO workflow
-    def is_hpo_workflow(self):
+    def is_hpo_workflow(self) -> bool:
         return self.check_split_rule("hpoWorkflow")
 
     # debug mode
-    def is_debug_mode(self):
+    def is_debug_mode(self) -> bool:
         return self.check_split_rule("debugMode")
 
     # multi-step execution
-    def is_multi_step_exec(self):
+    def is_multi_step_exec(self) -> bool:
         return self.check_split_rule("multiStepExec")
 
     # get max number of jobs
-    def get_max_num_jobs(self):
+    def get_max_num_jobs(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["maxNumJobs"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1581,7 +1587,7 @@ class JediTaskSpec(object):
         return None
 
     # get total number of jobs
-    def get_total_num_jobs(self):
+    def get_total_num_jobs(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["totNumJobs"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1589,22 +1595,22 @@ class JediTaskSpec(object):
         return None
 
     # use only tags for fat container
-    def use_only_tags_fc(self):
+    def use_only_tags_fc(self) -> bool:
         return self.check_split_rule("onlyTagsForFC")
 
     # avoid VP
-    def avoid_vp(self):
+    def avoid_vp(self) -> bool:
         return self.check_split_rule("avoidVP")
 
     # set first contents feed
-    def set_first_contents_feed(self, is_first):
+    def set_first_contents_feed(self, is_first: bool) -> None:
         if is_first:
             self.setSplitRule("firstContentsFeed", self.FirstContentsFeed.TRUE.value)
         else:
             self.setSplitRule("firstContentsFeed", self.FirstContentsFeed.FALSE.value)
 
     # check if first contents feed
-    def is_first_contents_feed(self):
+    def is_first_contents_feed(self) -> bool:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["firstContentsFeed"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) == self.FirstContentsFeed.TRUE.value:
@@ -1612,19 +1618,19 @@ class JediTaskSpec(object):
         return False
 
     # check if work is segmented
-    def is_work_segmented(self):
+    def is_work_segmented(self) -> bool:
         return self.check_split_rule("segmentedWork")
 
     # check if looping check is disabled
-    def no_looping_check(self):
+    def no_looping_check(self) -> bool:
         return self.check_split_rule("noLoopingCheck")
 
     # encode job parameters
-    def encode_job_params(self):
+    def encode_job_params(self) -> bool:
         return self.check_split_rule("encJobParams")
 
     # get original error dialog
-    def get_original_error_dialog(self):
+    def get_original_error_dialog(self) -> str:
         if not self.origErrorDialog:
             return ""
         # remove log URL
@@ -1632,11 +1638,11 @@ class JediTaskSpec(object):
         return tmpStr.split(". ")[-1]
 
     # check if secrets are used
-    def use_secrets(self):
+    def use_secrets(self) -> bool:
         return self.check_split_rule("useSecrets")
 
     # get max core count
-    def get_max_core_count(self):
+    def get_max_core_count(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["maxCoreCount"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1644,27 +1650,27 @@ class JediTaskSpec(object):
         return None
 
     # push status changes
-    def push_status_changes(self):
+    def push_status_changes(self) -> bool:
         return push_status_changes(self.splitRule)
 
     # use cloud as VO
-    def cloud_as_vo(self):
+    def cloud_as_vo(self) -> bool:
         return self.check_split_rule("cloudAsVO")
 
     # push job
-    def push_job(self):
+    def push_job(self) -> bool:
         return self.check_split_rule("pushJob")
 
     # fine-grained process
-    def is_fine_grained_process(self):
+    def is_fine_grained_process(self) -> bool:
         return self.check_split_rule("fineGrainedProc")
 
     # on site merging
-    def on_site_merging(self):
+    def on_site_merging(self) -> bool:
         return self.check_split_rule("onSiteMerging")
 
     # set full chain flag
-    def set_full_chain(self, mode):
+    def set_full_chain(self, mode: str) -> None:
         var = None
         if mode == "only":
             var = self.FullChain.Only
@@ -1676,7 +1682,7 @@ class JediTaskSpec(object):
             self.setSplitRule("fullChain", var)
 
     # get full chain flag
-    def get_full_chain(self):
+    def get_full_chain(self) -> str | None:
         if self.splitRule:
             tmpMatch = re.search(self.splitRuleToken["fullChain"] + r"=(\d+)", self.splitRule)
             if tmpMatch:
@@ -1684,7 +1690,7 @@ class JediTaskSpec(object):
         return None
 
     # check full chain with mode
-    def check_full_chain_with_mode(self, mode):
+    def check_full_chain_with_mode(self, mode: str) -> bool:
         task_flag = self.get_full_chain()
         if mode == "only":
             if task_flag == self.FullChain.Only:
@@ -1698,13 +1704,13 @@ class JediTaskSpec(object):
         return False
 
     # check full chain with nucleus
-    def check_full_chain_with_nucleus(self, nucleus):
+    def check_full_chain_with_nucleus(self, nucleus: "NucleusSpec") -> bool:
         if self.get_full_chain() and nucleus.get_bare_nucleus_mode():
             return True
         return False
 
     # get RAM for retry
-    def get_ram_for_retry(self, current_ram):
+    def get_ram_for_retry(self, current_ram: int | None) -> int | None:
         if not self.splitRule:
             return None
         tmpMatch = re.search(self.splitRuleToken["retryRamOffset"] + r"=(\d+)", self.splitRule)
@@ -1736,14 +1742,14 @@ class JediTaskSpec(object):
             return min(offset + math.ceil((current_ram - offset) / step) * step, max_ram)
 
     # get number of events per input
-    def get_num_events_per_input(self):
+    def get_num_events_per_input(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["nEventsPerInput"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
 
-    def get_max_events_per_job(self):
+    def get_max_events_per_job(self) -> int | None:
         if self.splitRule is not None:
             tmpMatch = re.search(self.splitRuleToken["maxEventsPerJob"] + "=(\d+)", self.splitRule)
             if tmpMatch is not None:
@@ -1751,7 +1757,7 @@ class JediTaskSpec(object):
         return None
 
     # set order input by
-    def set_order_input_by(self, mode):
+    def set_order_input_by(self, mode: str) -> None:
         var = None
         if mode == "eventsAlignment":
             var = self.OrderInputBy.eventsAlignment
@@ -1759,7 +1765,7 @@ class JediTaskSpec(object):
             self.setSplitRule("orderInputBy", var)
 
     # get full chain flag
-    def order_input_by(self):
+    def order_input_by(self) -> str | None:
         if self.splitRule:
             tmpMatch = re.search(self.splitRuleToken["orderInputBy"] + r"=(\d+)", self.splitRule)
             if tmpMatch:
@@ -1768,30 +1774,30 @@ class JediTaskSpec(object):
         return None
 
     # check if intermediate task
-    def is_intermediate_task(self):
+    def is_intermediate_task(self) -> bool:
         return self.check_split_rule("intermediateTask")
 
     # check if message driven
-    def is_msg_driven(self):
+    def is_msg_driven(self) -> bool:
         return is_msg_driven(self.splitRule)
 
     # check if incomplete input datasets are allowed
-    def allow_incomplete_input(self):
+    def allow_incomplete_input(self) -> bool:
         return self.check_split_rule("allowIncompleteInDS")
 
     # check if workflow holdup
-    def is_workflow_holdup(self):
+    def is_workflow_holdup(self) -> bool:
         return self.check_split_rule("workflowHoldup")
 
     # set workflow holdup
-    def set_workflow_holdup(self, value: bool):
+    def set_workflow_holdup(self, value: bool) -> None:
         if value:
             self.setSplitRule("workflowHoldup", "1")
         else:
             self.removeSplitRule(self.splitRuleToken["workflowHoldup"])
 
     # get queued time
-    def get_queued_time(self):
+    def get_queued_time(self) -> float | None:
         """
         Get queued time in timestamp
         :return: queued time in timestamp. None if not set
@@ -1805,7 +1811,7 @@ class JediTaskSpec(object):
 
 
 # check split rule with positive integer
-def check_split_rule_positive_int(key, split_rule):
+def check_split_rule_positive_int(key: str, split_rule: str | None) -> bool:
     if not split_rule:
         return False
     tmpMatch = re.search(JediTaskSpec.splitRuleToken[key] + r"=(\d+)", split_rule)
@@ -1815,15 +1821,15 @@ def check_split_rule_positive_int(key, split_rule):
 
 
 # check if push status changes without class instance
-def push_status_changes(split_rule):
+def push_status_changes(split_rule: str | None) -> bool:
     return check_split_rule_positive_int("pushStatusChanges", split_rule)
 
 
 # check if message driven without class instance
-def is_msg_driven(split_rule):
+def is_msg_driven(split_rule: str | None) -> bool:
     return check_split_rule_positive_int("messageDriven", split_rule)
 
 
 # check if auto pause is disabled
-def is_auto_pause_disabled(split_rule):
+def is_auto_pause_disabled(split_rule: str | None) -> bool:
     return not check_split_rule_positive_int("noAutoPause", split_rule)

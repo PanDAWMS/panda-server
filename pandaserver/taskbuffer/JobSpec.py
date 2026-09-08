@@ -6,7 +6,7 @@ job specification
 import datetime
 import json
 import re
-from typing import Any
+from typing import Any, Sequence
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
@@ -374,7 +374,7 @@ class JobSpec(object):
     }
 
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         # install attributes
         for attr in self._attributes:
             object.__setattr__(self, attr, None)
@@ -386,14 +386,14 @@ class JobSpec(object):
         object.__setattr__(self, "_reserveChangedState", False)
 
     # override __getattribute__ for SQL
-    def __getattribute__(self, name):
+    def __getattribute__(self, name: str) -> Any:
         ret = object.__getattribute__(self, name)
         if ret is None:
             return "NULL"
         return ret
 
     # override __setattr__ to collecte the changed attributes
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         oldVal = getattr(self, name)
         object.__setattr__(self, name, value)
         newVal = getattr(self, name)
@@ -405,25 +405,25 @@ class JobSpec(object):
             self._changedAttrs[name] = value
 
     # reset changed attribute list
-    def resetChangedList(self):
+    def resetChangedList(self) -> None:
         object.__setattr__(self, "_changedAttrs", {})
 
     # add File to files list
-    def addFile(self, file):
+    def addFile(self, file: FileSpec) -> None:
         # set owner
         file.setOwner(self)
         # append
         self.Files.append(file)
 
     # pack tuple into JobSpec
-    def pack(self, values):
+    def pack(self, values: Sequence[Any]) -> None:
         for i in range(len(self._attributes)):
             attr = self._attributes[i]
             val = values[i]
             object.__setattr__(self, attr, val)
 
     # return a tuple of values
-    def values(self):
+    def values(self) -> tuple[Any, ...]:
         ret = []
         for attr in self._attributes:
             val = getattr(self, attr)
@@ -431,7 +431,7 @@ class JobSpec(object):
         return tuple(ret)
 
     # return map of values
-    def valuesMap(self, useSeq=False, onlyChanged=False):
+    def valuesMap(self, useSeq: bool = False, onlyChanged: bool = False) -> dict[str, Any]:
         ret = {}
         for attr in self._attributes:
             if useSeq and attr in self._seqAttrMap:
@@ -456,7 +456,7 @@ class JobSpec(object):
         return ret
 
     # return state values to be pickled
-    def __getstate__(self):
+    def __getstate__(self) -> list[Any]:
         state = []
         for attr in self._attributes:
             val = getattr(self, attr)
@@ -468,7 +468,7 @@ class JobSpec(object):
         return state
 
     # restore state from the unpickled state values
-    def __setstate__(self, state):
+    def __setstate__(self, state: list[Any]) -> None:
         for i in range(len(self._attributes)):
             # schema evolution is supported only when adding attributes
             if i + 1 < len(state):
@@ -485,7 +485,7 @@ class JobSpec(object):
 
     # return column names for INSERT or full SELECT
     @classmethod
-    def columnNames(cls):
+    def columnNames(cls) -> str:
         ret = ""
         for attr in cls._attributes:
             if ret != "":
@@ -495,7 +495,7 @@ class JobSpec(object):
 
     # return expression of values for INSERT
     @classmethod
-    def valuesExpression(cls):
+    def valuesExpression(cls) -> str:
         ret = "VALUES("
         for attr in cls._attributes:
             ret += "%s"
@@ -506,7 +506,7 @@ class JobSpec(object):
 
     # return expression of bind values for INSERT
     @classmethod
-    def bindValuesExpression(cls, useSeq=False):
+    def bindValuesExpression(cls, useSeq: bool = False) -> str:
         from pandaserver.config import panda_config
 
         ret = "VALUES("
@@ -526,7 +526,7 @@ class JobSpec(object):
 
     # return an expression for UPDATE
     @classmethod
-    def updateExpression(cls):
+    def updateExpression(cls) -> str:
         ret = ""
         for attr in cls._attributes:
             ret = ret + attr + "=%s"
@@ -536,7 +536,7 @@ class JobSpec(object):
 
     # return an expression of bind variables for UPDATE
     @classmethod
-    def bindUpdateExpression(cls):
+    def bindUpdateExpression(cls) -> str:
         ret = ""
         for attr in cls._attributes:
             ret += f"{attr}=:{attr},"
@@ -546,7 +546,7 @@ class JobSpec(object):
 
     # comparison function for sort
     @classmethod
-    def compFunc(cls, a, b):
+    def compFunc(cls, a: Sequence[Any], b: Sequence[Any]) -> int:
         iPandaID = list(cls._attributes).index("PandaID")
         iPriority = list(cls._attributes).index("currentPriority")
         if a[iPriority] > b[iPriority]:
@@ -562,7 +562,7 @@ class JobSpec(object):
                 return 0
 
     # return an expression of bind variables for UPDATE to update only changed attributes
-    def bindUpdateChangesExpression(self):
+    def bindUpdateChangesExpression(self) -> str:
         ret = ""
         for attr in self._attributes:
             if attr in self._changedAttrs:
@@ -572,7 +572,7 @@ class JobSpec(object):
         return ret
 
     # check if goint to merging
-    def produceUnMerge(self):
+    def produceUnMerge(self) -> bool:
         for tmpFile in self.Files:
             if tmpFile.isUnMergedOutput():
                 return True
@@ -580,7 +580,7 @@ class JobSpec(object):
 
     # truncate string attribute
     @classmethod
-    def truncateStringAttr(cls, attr, val):
+    def truncateStringAttr(cls, attr: str, val: Any) -> Any:
         if attr not in cls._limitLength:
             return val
         if val is None:
@@ -588,7 +588,7 @@ class JobSpec(object):
         return val[: cls._limitLength[attr]]
 
     # set DDM backend
-    def setDdmBackEnd(self, backEnd):
+    def setDdmBackEnd(self, backEnd: str) -> None:
         if self.specialHandling in [None, ""]:
             self.specialHandling = "ddm:" + backEnd
         else:
@@ -598,14 +598,14 @@ class JobSpec(object):
                 self.specialHandling = self.specialHandling + "," + "ddm:" + backEnd
 
     # set LB number
-    def setLumiBlockNr(self, lumiBlockNr):
+    def setLumiBlockNr(self, lumiBlockNr: int) -> None:
         if self.specialHandling in ["", None, "NULL"]:
             self.specialHandling = f"lb:{lumiBlockNr}"
         else:
             self.specialHandling += f",lb:{lumiBlockNr}"
 
     # get LB number
-    def getLumiBlockNr(self):
+    def getLumiBlockNr(self) -> int | None:
         if self.specialHandling is not None:
             for tmpItem in self.specialHandling.split(","):
                 if tmpItem.startswith("lb:"):
@@ -613,7 +613,7 @@ class JobSpec(object):
         return None
 
     # get DDM backend
-    def getDdmBackEnd(self):
+    def getDdmBackEnd(self) -> str | None:
         if self.specialHandling is None:
             return None
         for tmpItem in self.specialHandling.split(","):
@@ -622,22 +622,22 @@ class JobSpec(object):
         return None
 
     # set to accept partial finish
-    def setToAcceptPartialFinish(self):
+    def setToAcceptPartialFinish(self) -> None:
         self.set_special_handling("acceptPartial")
 
     # accept partial finish
-    def acceptPartialFinish(self):
+    def acceptPartialFinish(self) -> bool:
         return self.check_special_handling("acceptPartial")
 
     # set home cloud
-    def setHomeCloud(self, homeCloud):
+    def setHomeCloud(self, homeCloud: str) -> None:
         if self.specialHandling in ["", None, "NULL"]:
             self.specialHandling = f"hc:{homeCloud}"
         else:
             self.specialHandling += f",hc:{homeCloud}"
 
     # get cloud
-    def getCloud(self):
+    def getCloud(self) -> str:
         if self.specialHandling is not None:
             for tmpItem in self.specialHandling.split(","):
                 if tmpItem.startswith("hc:"):  # hc: Home Cloud
@@ -645,11 +645,11 @@ class JobSpec(object):
         return self.cloud
 
     # check if cancelled or it's flavor
-    def isCancelled(self):
+    def isCancelled(self) -> bool:
         return self.jobStatus in ["cancelled", "closed"]
 
     # get file names which were uploaded to alternative locations
-    def altStgOutFileList(self):
+    def altStgOutFileList(self) -> list[str]:
         try:
             if self.jobMetrics is not None:
                 for item in self.jobMetrics.split():
@@ -660,13 +660,13 @@ class JobSpec(object):
         return []
 
     # check special handling
-    def check_special_handling(self, key):
+    def check_special_handling(self, key: str) -> bool:
         if self.specialHandling:
             return self._tagForSH[key] in self.specialHandling.split(",")
         return False
 
     # set special handling
-    def set_special_handling(self, key):
+    def set_special_handling(self, key: str) -> None:
         if self.specialHandling:
             items = self.specialHandling.split(",")
         else:
@@ -676,7 +676,7 @@ class JobSpec(object):
         self.specialHandling = ",".join(items)
 
     # get mode for alternative stage-out
-    def getAltStgOut(self):
+    def getAltStgOut(self) -> str | None:
         if self.specialHandling is not None:
             for tmpItem in self.specialHandling.split(","):
                 if tmpItem.startswith(f"{self._tagForSH['altStgOut']}:"):
@@ -684,7 +684,7 @@ class JobSpec(object):
         return None
 
     # set alternative stage-out
-    def setAltStgOut(self, mode):
+    def setAltStgOut(self, mode: str) -> None:
         if self.specialHandling is not None:
             items = self.specialHandling.split(",")
         else:
@@ -699,23 +699,23 @@ class JobSpec(object):
         self.specialHandling = ",".join(newItems)
 
     # put log files to OS
-    def putLogToOS(self):
+    def putLogToOS(self) -> bool:
         return self.check_special_handling("putLogToOS")
 
     # set to put log files to OS
-    def setToPutLogToOS(self):
+    def setToPutLogToOS(self) -> None:
         self.set_special_handling("putLogToOS")
 
     # write input to file
-    def writeInputToFile(self):
+    def writeInputToFile(self) -> bool:
         return self.check_special_handling("writeInputToFile")
 
     # set to write input to file
-    def setToWriteInputToFile(self):
+    def setToWriteInputToFile(self) -> None:
         self.set_special_handling("writeInputToFile")
 
     # set request type
-    def setRequestType(self, reqType):
+    def setRequestType(self, reqType: str) -> None:
         if self.specialHandling is not None:
             items = self.specialHandling.split(",")
         else:
@@ -729,7 +729,7 @@ class JobSpec(object):
         self.specialHandling = ",".join(newItems)
 
     # sort files
-    def sortFiles(self):
+    def sortFiles(self) -> None:
         try:
             lfnMap: dict[str, Any] = {}
             for tmpFile in self.Files:
@@ -746,28 +746,27 @@ class JobSpec(object):
             pass
 
     # get zip file map
-    def getZipFileMap(self):
-        zipMap = dict()
+    def getZipFileMap(self) -> dict[str, list[str]]:
+        zipMap: dict[str, list[str]] = {}
         try:
             if self.jobParameters is not None:
                 zipStr = re.search("<ZIP_MAP>(.+)</ZIP_MAP>", self.jobParameters)
                 if zipStr is not None:
                     for item in zipStr.group(1).split():
-                        zipFile, conFiles = item.split(":")
-                        conFiles = conFiles.split(",")
-                        zipMap[zipFile] = conFiles
+                        zipFile, conFileStr = item.split(":")
+                        zipMap[zipFile] = conFileStr.split(",")
         except Exception:
             pass
         return zipMap
 
     # add multi step exec
-    def addMultiStepExec(self, steps):
+    def addMultiStepExec(self, steps: dict[str, Any]) -> None:
         if not self.jobParameters:
             self.jobParameters = ""
         self.jobParameters += "<MULTI_STEP_EXEC>" + json.dumps(steps) + "</MULTI_STEP_EXEC>"
 
     # extract multi step exec
-    def extractMultiStepExec(self):
+    def extractMultiStepExec(self) -> tuple[str, Any]:
         try:
             if "<MULTI_STEP_EXEC>" in self.jobParameters and "</MULTI_STEP_EXEC>" in self.jobParameters:
                 pp_1, pp_2 = self.jobParameters.split("<MULTI_STEP_EXEC>")
@@ -778,31 +777,31 @@ class JobSpec(object):
         return self.jobParameters, None
 
     # suppress execute string conversion
-    def noExecStrCnv(self):
+    def noExecStrCnv(self) -> bool:
         return self.check_special_handling("noExecStrCnv")
 
     # set to suppress execute string conversion
-    def setNoExecStrCnv(self):
+    def setNoExecStrCnv(self) -> None:
         self.set_special_handling("noExecStrCnv")
 
     # in-file positional event number
-    def inFilePosEvtNum(self):
+    def inFilePosEvtNum(self) -> bool:
         return self.check_special_handling("inFilePosEvtNum")
 
     # set to use in-file positional event number
-    def setInFilePosEvtNum(self):
+    def setInFilePosEvtNum(self) -> None:
         self.set_special_handling("inFilePosEvtNum")
 
     # register event service files
-    def registerEsFiles(self):
+    def registerEsFiles(self) -> bool:
         return self.check_special_handling("registerEsFiles")
 
     # set to register event service files
-    def setRegisterEsFiles(self):
+    def setRegisterEsFiles(self) -> None:
         self.set_special_handling("registerEsFiles")
 
     # set background-able flag
-    def setBackgroundableFlag(self):
+    def setBackgroundableFlag(self) -> None:
         self.jobExecutionID = 0
         if self.prodSourceLabel not in ["managed", "test"]:
             return
@@ -821,83 +820,83 @@ class JobSpec(object):
         self.jobExecutionID = 1
 
     # use prefetcher
-    def usePrefetcher(self):
+    def usePrefetcher(self) -> bool:
         return self.check_special_handling("usePrefetcher")
 
     # set to use prefetcher
-    def setUsePrefetcher(self):
+    def setUsePrefetcher(self) -> None:
         self.set_special_handling("usePrefetcher")
 
     # use zip to pin
-    def useZipToPin(self):
+    def useZipToPin(self) -> bool:
         return self.check_special_handling("useZipToPin")
 
     # set to use zip to pin
-    def setUseZipToPin(self):
+    def setUseZipToPin(self) -> None:
         self.set_special_handling("useZipToPin")
 
     # use secrets
-    def use_secrets(self):
+    def use_secrets(self) -> bool:
         return self.check_special_handling("useSecrets")
 
     # set to use secrets
-    def set_use_secrets(self):
+    def set_use_secrets(self) -> None:
         self.set_special_handling("useSecrets")
 
     # not discard events
-    def notDiscardEvents(self):
+    def notDiscardEvents(self) -> bool:
         return self.check_special_handling("notDiscardEvents")
 
     # set not to discard events
-    def setNotDiscardEvents(self):
+    def setNotDiscardEvents(self) -> None:
         self.set_special_handling("notDiscardEvents")
 
     # all events are done
-    def allOkEvents(self):
+    def allOkEvents(self) -> bool:
         return self.check_special_handling("allOkEvents")
 
     # set all events are done
-    def setAllOkEvents(self):
+    def setAllOkEvents(self) -> None:
         self.set_special_handling("allOkEvents")
 
     # set scout job flag
-    def setScoutJobFlag(self):
+    def setScoutJobFlag(self) -> None:
         self.set_special_handling("scoutJob")
 
     # check if scout job
-    def isScoutJob(self):
+    def isScoutJob(self) -> bool:
         return self.check_special_handling("scoutJob")
 
     # set build job flag
-    def set_build_job_flag(self):
+    def set_build_job_flag(self) -> None:
         self.set_special_handling("buildJob")
 
     # check if build job
-    def is_build_job(self):
+    def is_build_job(self) -> bool:
         return self.check_special_handling("buildJob")
 
     # set pmerge job flag
-    def set_pmerge_job_flag(self):
+    def set_pmerge_job_flag(self) -> None:
         self.set_special_handling("pmergeJob")
 
     # check if pmerge job
-    def is_pmerge_job(self):
+    def is_pmerge_job(self) -> bool:
         return self.check_special_handling("pmergeJob")
 
     # decrement attemptNr of events only when failed
-    def decAttOnFailedES(self):
+    def decAttOnFailedES(self) -> bool:
         return self.check_special_handling("decAttOnFailedES")
 
     # set to decrement attemptNr of events only when failed
-    def setDecAttOnFailedES(self):
+    def setDecAttOnFailedES(self) -> None:
         self.set_special_handling("decAttOnFailedES")
 
     # set fake flag to ignore in monigoring
-    def setFakeJobToIgnore(self):
+    def setFakeJobToIgnore(self) -> None:
         self.set_special_handling("fakeJobToIgnore")
 
     # remove fake flag to ignore in monigoring
-    def removeFakeJobToIgnore(self):
+    def removeFakeJobToIgnore(self) -> None:
         if self.specialHandling is not None:
             items = self.specialHandling.split(",")
         else:
@@ -907,7 +906,7 @@ class JobSpec(object):
         self.specialHandling = ",".join(items)
 
     # set task attribute
-    def set_task_attribute(self, key, value):
+    def set_task_attribute(self, key: str, value: Any) -> None:
         if not isinstance(self.metadata, list):
             self.metadata = [None, None]
         if len(self.metadata) != 3:
@@ -915,22 +914,22 @@ class JobSpec(object):
         self.metadata[2][key] = value
 
     # get task attribute
-    def get_task_attribute(self, key):
+    def get_task_attribute(self, key: str) -> Any:
         try:
-            return self.metadata[2][key]
+            return self.metadata[2][key]  # type: ignore[index]  # "NULL" sentinel, see spec_column.py
         except Exception:
             return None
 
     # set input prestaging
-    def setInputPrestaging(self):
+    def setInputPrestaging(self) -> None:
         self.set_special_handling("inputPrestaging")
 
     # use input prestaging
-    def useInputPrestaging(self):
+    def useInputPrestaging(self) -> bool:
         return self.check_special_handling("inputPrestaging")
 
     # to a dictionary
-    def to_dict_advanced(self, add_extra_info=False):
+    def to_dict_advanced(self, add_extra_info: bool = False) -> dict[str, Any]:
         """
         Convert the JobSpec to a dictionary, including file information and optionally extra info.
 
@@ -976,7 +975,7 @@ class JobSpec(object):
 
         return ret
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         ret = {}
         for a in self._attributes:
             v = getattr(self, a)
@@ -988,66 +987,66 @@ class JobSpec(object):
         return ret
 
     # check if HPO workflow flag
-    def is_hpo_workflow(self):
+    def is_hpo_workflow(self) -> bool:
         return self.check_special_handling("hpoWorkflow")
 
     # set HPO workflow flag
-    def set_hpo_workflow(self):
+    def set_hpo_workflow(self) -> None:
         self.set_special_handling("hpoWorkflow")
 
     # check if looping check is disabled
-    def is_no_looping_check(self):
+    def is_no_looping_check(self) -> bool:
         return self.check_special_handling("noLoopingCheck")
 
     # disable looping check
-    def disable_looping_check(self):
+    def disable_looping_check(self) -> None:
         self.set_special_handling("noLoopingCheck")
 
     # check if encode job parameters
-    def to_encode_job_params(self):
+    def to_encode_job_params(self) -> bool:
         return self.check_special_handling("encJobParams")
 
     # encode job parameters
-    def set_encode_job_params(self):
+    def set_encode_job_params(self) -> None:
         self.set_special_handling("encJobParams")
 
     # check if debug mode
-    def is_debug_mode(self):
+    def is_debug_mode(self) -> bool:
         if self.specialHandling is not None:
             items = self.specialHandling.split(",")
             return self._tagForSH["debugMode"] in items or "debug" in items
         return False
 
     # set debug mode
-    def set_debug_mode(self):
+    def set_debug_mode(self) -> None:
         self.set_special_handling("debugMode")
 
     # set push status changes
-    def set_push_status_changes(self):
+    def set_push_status_changes(self) -> None:
         self.set_special_handling("pushStatusChanges")
 
     # check if to push status changes
-    def push_status_changes(self):
+    def push_status_changes(self) -> bool:
         return push_status_changes(self.specialHandling)
 
     # set push job
-    def set_push_job(self):
+    def set_push_job(self) -> None:
         self.set_special_handling("pushJob")
 
     # check if to push job
-    def is_push_job(self):
+    def is_push_job(self) -> bool:
         return self.check_special_handling("pushJob")
 
     # set on-site merging
-    def set_on_site_merging(self):
+    def set_on_site_merging(self) -> None:
         self.set_special_handling("onSiteMerging")
 
     # check if on-site merging
-    def is_on_site_merging(self):
+    def is_on_site_merging(self) -> bool:
         return self.check_special_handling("onSiteMerging")
 
     # get RAM for retry
-    def get_ram_for_retry(self):
+    def get_ram_for_retry(self) -> int | None:
         if self.specialHandling is not None:
             for tmpItem in self.specialHandling.split(","):
                 if tmpItem.startswith(f"{self._tagForSH['retryRam']}:"):
@@ -1055,7 +1054,7 @@ class JobSpec(object):
         return None
 
     # set RAM for retry
-    def set_ram_for_retry(self, val):
+    def set_ram_for_retry(self, val: int) -> None:
         if self.specialHandling:
             items = self.specialHandling.split(",")
         else:
@@ -1070,7 +1069,7 @@ class JobSpec(object):
         self.specialHandling = ",".join(newItems)
 
     # dump to json-serializable
-    def dump_to_json_serializable(self):
+    def dump_to_json_serializable(self) -> list[Any]:
         job_state = self.__getstate__()
         file_state_list = []
         for file_spec in job_state[-1]:
@@ -1082,7 +1081,7 @@ class JobSpec(object):
         return job_state
 
     # load from json-serializable
-    def load_from_json_serializable(self, job_state):
+    def load_from_json_serializable(self, job_state: list[Any]) -> None:
         # initialize with empty file list
         self.__setstate__(job_state[:-1] + [[]])
         # add files
@@ -1091,7 +1090,7 @@ class JobSpec(object):
             file_spec.__setstate__(file_stat)
             self.addFile(file_spec)
 
-    def load_from_dict(self, job_dict):
+    def load_from_dict(self, job_dict: dict[str, Any]) -> None:
         # Extract job attributes (excluding files)
         job_attrs = []
         for slot in self.__slots__:
@@ -1141,7 +1140,7 @@ class JobSpec(object):
             self.outputFileType = ",".join(sorted(out_types))[: self._limitLength["outputFileType"]]
 
     # set task queued time
-    def set_task_queued_time(self, queued_time):
+    def set_task_queued_time(self, queued_time: float | None) -> None:
         """
         Set task queued time in job metrics. Skip if queued_time is None
 
@@ -1161,7 +1160,7 @@ class JobSpec(object):
 
 
 # check if to push status changes without class instance
-def push_status_changes(special_handling):
+def push_status_changes(special_handling: str | None) -> bool:
     if special_handling is not None:
         items = special_handling.split(",")
         return JobSpec._tagForSH["pushStatusChanges"] in items
@@ -1169,7 +1168,7 @@ def push_status_changes(special_handling):
 
 
 # get task queued time
-def get_task_queued_time(special_handling):
+def get_task_queued_time(special_handling: str | None) -> datetime.datetime | None:
     """
     Get task queued time from job metrics
 

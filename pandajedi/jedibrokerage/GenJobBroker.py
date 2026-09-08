@@ -68,7 +68,8 @@ class GenJobBroker(JobBrokerBase):
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
                     return retTmpError
         elif inputChunk.getPreassignedSite() is not None:
-            scanSiteList = [inputChunk.getPreassignedSite()]
+            preassigned_site = inputChunk.getPreassignedSite()
+            scanSiteList = [preassigned_site] if preassigned_site is not None else []
             tmpLog.debug(f"site={inputChunk.getPreassignedSite()} is pre-assigned in masterDS")
         else:
             site_preassigned = False
