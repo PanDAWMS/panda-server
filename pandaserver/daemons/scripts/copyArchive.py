@@ -245,6 +245,9 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                                     continue
                                 sub_ds_names.add(tmpFileSpec.destinationDBlock)
                                 datasetSpec = taskBuffer.queryDatasetWithMap({"name": tmpFileSpec.destinationDBlock})
+                                if datasetSpec is None:
+                                    _logger.debug(f"sub dataset {tmpFileSpec.destinationDBlock} is missing")
+                                    continue
                                 sub_ds_list.append(datasetSpec)
                         _logger.debug(f"update unmerged datasets for jediTaskID={jediTaskID} PandaID={PandaID}")
                         taskBuffer.updateUnmergedDatasets(jobSpec, sub_ds_list, updateCompleted=True)
