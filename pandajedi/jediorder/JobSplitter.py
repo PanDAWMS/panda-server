@@ -40,6 +40,9 @@ class JobSplitter:
             # set fsize intercepts using taskSpec
             sizeIntercepts = taskSpec.getWorkDiskSize()
             # walltime
+            # the walltime column is whole seconds, while a HS06 cpuTime is divided down to a
+            # fraction of one, so this holds either
+            walltimeGradient: float | None
             if not taskSpec.useHS06():
                 walltimeGradient = taskSpec.walltime
             else:
@@ -60,7 +63,9 @@ class JobSplitter:
             maxSizePerJob = taskSpec.getMaxSizePerJob()
             if maxSizePerJob is not None:
                 maxSizePerJob += InputChunk.defaultOutputSize
-            # multiplicity of jobs
+            # multiplicity of jobs. None means unset, which is what the merging branch below
+            # also uses and what the chunk map carries through
+            multiplicity: int | None
             if taskSpec.useJobCloning():
                 multiplicity = 1
             else:
@@ -88,13 +93,16 @@ class JobSplitter:
             interceptsMergin = self.interceptsMerginForMerge
             if sizeIntercepts < interceptsMergin:
                 sizeIntercepts = interceptsMergin
-            maxOutSize = taskSpec.getMaxSizePerMergeJob()
-            if maxOutSize is None:
+            maxSizePerMergeJob = taskSpec.getMaxSizePerMergeJob()
+            if maxSizePerMergeJob is None:
                 # max output size is 5GB for merging by default
                 maxOutSize = 5 * 1024 * 1024 * 1024
+            else:
+                maxOutSize = maxSizePerMergeJob
             # split with fields
-            if taskSpec.getFieldNumToLFN() is not None and taskSpec.useFileAsSourceLFN():
-                splitByFields = list(range(4 + 1, 4 + 1 + len(taskSpec.getFieldNumToLFN())))
+            field_num_to_lfn = taskSpec.getFieldNumToLFN()
+            if field_num_to_lfn is not None and taskSpec.useFileAsSourceLFN():
+                splitByFields = list(range(4 + 1, 4 + 1 + len(field_num_to_lfn)))
             else:
                 splitByFields = None
         # LB
@@ -174,11 +182,12 @@ class JobSplitter:
                 siteName = siteCandidate.siteName
                 siteSpec = siteMapper.getSite(siteName)
                 # set chunk size
-                nSubChunks = siteSpec.get_job_chunk_size()
-                if nSubChunks is None:
+                chunk_size = siteSpec.get_job_chunk_size()
+                if chunk_size is None:
                     nSubChunks = default_nSubChunks
                     strict_chunkSize = False
                 else:
+                    nSubChunks = chunk_size
                     strict_chunkSize = True
                 # directIO
                 if not CoreUtils.use_direct_io_for_job(taskSpec, siteSpec, inputChunk):
@@ -220,7 +229,9 @@ class JobSplitter:
                     maxWalltime = taskSpec.getMaxWalltime()
                 if maxWalltime is None:
                     maxWalltime = siteSpec.maxtime
-                elif maxWalltime > siteSpec.maxtime:
+                # a site with no maxtime imposes no ceiling, which is what the branch above
+                # already leaves behind when the task has no walltime either
+                elif siteSpec.maxtime is not None and maxWalltime > siteSpec.maxtime:
                     maxWalltime = siteSpec.maxtime
                 # core count
                 if siteSpec.coreCount:

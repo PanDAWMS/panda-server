@@ -1101,12 +1101,13 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     if taskSpec.ramPerCore() and not inputChunk.isMerging:
                         if tmpSiteSpec.coreCount not in [None, 0]:
                             minRamCount = origMinRamCount * tmpSiteSpec.coreCount
-                    minRamCount = JobUtils.compensate_ram_count(minRamCount)
+                    compensated_min_ram_count = JobUtils.compensate_ram_count(minRamCount)
+                    minRamCount = compensated_min_ram_count if compensated_min_ram_count is not None else 0
                     # site max memory requirement
                     site_maxmemory = 0
                     if tmpSiteSpec.maxrss not in [0, None]:
                         site_maxmemory = tmpSiteSpec.maxrss
-                    if site_maxmemory not in [0, None] and minRamCount != 0 and minRamCount > site_maxmemory:
+                    if site_maxmemory not in [0, None] and minRamCount and minRamCount > site_maxmemory:
                         msg_map[tmpSiteSpec.get_unified_name()] = (
                             f"  skip site={tmpSiteSpec.get_unified_name()} due to insufficient RAM less than job's core-scaled requirement {minRamCount} MB criteria=-lowmemory"
                         )
@@ -1115,7 +1116,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     site_minmemory = 0
                     if tmpSiteSpec.minrss not in [0, None]:
                         site_minmemory = tmpSiteSpec.minrss
-                    if site_minmemory not in [0, None] and minRamCount != 0 and minRamCount < site_minmemory:
+                    if site_minmemory not in [0, None] and minRamCount and minRamCount < site_minmemory:
                         msg_map[tmpSiteSpec.get_unified_name()] = (
                             f"  skip site={tmpSiteSpec.get_unified_name()} due to RAM lower limit greater than job's core-scaled requirement {minRamCount} MB criteria=-highmemory"
                         )
@@ -1146,7 +1147,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 else:
                     maxSizePerJob //= 1024 * 1024
                 # size for direct IO sites
-                minDiskCountR = tmpOutDiskSize * tmpEffAtomSize + tmpWorkDiskSize
+                minDiskCountR: Any = tmpOutDiskSize * tmpEffAtomSize + tmpWorkDiskSize
                 minDiskCountR = minDiskCountR // 1024 // 1024
                 tmpLog.info(f"maxAtomSize={tmpMaxAtomSize} effectiveAtomSize={tmpEffAtomSize} outDiskCount={tmpOutDiskSize} workDiskSize={tmpWorkDiskSize}")
             else:
@@ -1169,9 +1170,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 # check disk space
                 if tmpSiteSpec.maxwdir:
                     if CoreUtils.use_direct_io_for_job(taskSpec, tmpSiteSpec, inputChunk):
-                        minDiskCount = minDiskCountR
+                        minDiskCount: Any = minDiskCountR
                         if maxSizePerJob is not None and not taskSpec.useLocalIO():
-                            tmpMinDiskCountR = tmpOutDiskSize * maxSizePerJob + tmpWorkDiskSize
+                            tmpMinDiskCountR: float = tmpOutDiskSize * maxSizePerJob + tmpWorkDiskSize
                             tmpMinDiskCountR /= 1024 * 1024
                             if tmpMinDiskCountR > minDiskCount:
                                 minDiskCount = tmpMinDiskCountR
@@ -1279,8 +1280,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 strMinWalltime = f"walltime*inputSize={taskSpec.walltime}*{tmpMaxAtomSize}"
             else:
                 tmpMaxAtomSize = inputChunk.getMaxAtomSize(getNumEvents=True)
-                if taskSpec.getCpuTime() is not None:
-                    minWalltime = taskSpec.getCpuTime() * tmpMaxAtomSize
+                cpu_time = taskSpec.getCpuTime()
+                if cpu_time is not None:
+                    minWalltime = cpu_time * tmpMaxAtomSize
                 else:
                     minWalltime = None
                 strMinWalltime = f"cpuTime*nEventsPerJob={taskSpec.getCpuTime()}*{tmpMaxAtomSize}"

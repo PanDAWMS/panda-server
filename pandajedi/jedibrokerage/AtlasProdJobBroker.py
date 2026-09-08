@@ -240,8 +240,11 @@ class AtlasProdJobBroker(JobBrokerBase):
             else:
                 # pmerge
                 siteListPreAssigned = True
-                scanSiteList = DataServiceUtils.getSitesShareDDM(self.siteMapper, inputChunk.getPreassignedSite(), JobUtils.PROD_PS, JobUtils.PROD_PS)
-                scanSiteList.append(inputChunk.getPreassignedSite())
+                # a merge chunk carries its site on the master dataset, so this is set here
+                preassigned_site = inputChunk.getPreassignedSite()
+                scanSiteList = DataServiceUtils.getSitesShareDDM(self.siteMapper, preassigned_site or "", JobUtils.PROD_PS, JobUtils.PROD_PS)
+                if preassigned_site is not None:
+                    scanSiteList.append(preassigned_site)
                 # also the skip reason built for each site further down
                 tmp_msg: str | None = (
                     f"use site={scanSiteList} since they share DDM endpoints with original_site={inputChunk.getPreassignedSite()} "
@@ -919,15 +922,18 @@ class AtlasProdJobBroker(JobBrokerBase):
                 if taskSpec.ramPerCore() and not inputChunk.isMerging:
                     if tmpSiteSpec.coreCount not in [None, 0]:
                         minRamCount = origMinRamCount * tmpSiteSpec.coreCount
-                    minRamCount += taskSpec.baseRamCount
+                    # an unset base adds nothing
+                    if taskSpec.baseRamCount is not None:
+                        minRamCount += taskSpec.baseRamCount
                 # compensate
-                minRamCount = JobUtils.compensate_ram_count(minRamCount)
+                compensated_min_ram_count = JobUtils.compensate_ram_count(minRamCount)
+                minRamCount = compensated_min_ram_count if compensated_min_ram_count is not None else 0
                 # site max memory requirement
                 site_maxmemory = 0
                 if tmpSiteSpec.maxrss not in [0, None]:
                     site_maxmemory = tmpSiteSpec.maxrss
                 # check at the site
-                if site_maxmemory not in [0, None] and minRamCount != 0 and minRamCount > site_maxmemory:
+                if site_maxmemory not in [0, None] and minRamCount and minRamCount > site_maxmemory:
                     tmp_msg = f"  skip site={tmpSiteName} due to sue to insufficient RAM less than less than job's core-scaled requirement {minRamCount} MB "
                     tmp_msg += "criteria=-lowmemory"
                     msg_map[tmpSiteSpec.get_unified_name()] = tmp_msg
@@ -936,7 +942,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 site_minmemory = 0
                 if tmpSiteSpec.minrss not in [0, None]:
                     site_minmemory = tmpSiteSpec.minrss
-                if site_minmemory not in [0, None] and minRamCount != 0 and minRamCount < site_minmemory:
+                if site_minmemory not in [0, None] and minRamCount and minRamCount < site_minmemory:
                     tmp_msg = f"  skip site={tmpSiteName} due to RAM lower limit greater than than job's core-scaled requirement {minRamCount} MB "
                     tmp_msg += "criteria=-highmemory"
                     msg_map[tmpSiteSpec.get_unified_name()] = tmp_msg
@@ -1073,8 +1079,8 @@ class AtlasProdJobBroker(JobBrokerBase):
             maxAttemptEsJob = 1
         maxWalltime = None
         maxWalltime_dyn = None
-        minWalltime_dyn = None
-        minWalltime = None
+        minWalltime_dyn: float | None = None
+        minWalltime: float | None = None
         strMaxWalltime = None
         strMaxWalltime_dyn = None
         strMinWalltime_dyn = None
@@ -1091,21 +1097,27 @@ class AtlasProdJobBroker(JobBrokerBase):
                 strMinWalltime = f"walltime*inputSize/nEsConsumers/maxAttemptEsJob={taskSpec.walltime}*{tmpMaxAtomSize}/{nEsConsumers}/{maxAttemptEsJob}"
         else:
             tmpMaxAtomSize = inputChunk.getMaxAtomSize(getNumEvents=True)
-            if taskSpec.getCpuTime() is not None:
-                minWalltime = taskSpec.getCpuTime() * tmpMaxAtomSize
+            # read once: every multiplication below is on this value
+            cpuTime = taskSpec.getCpuTime()
+            if cpuTime is not None:
+                minWalltime = cpuTime * tmpMaxAtomSize
                 if taskSpec.dynamicNumEvents():
                     # use minGranularity as the smallest chunk
                     minGranularity = taskSpec.get_min_granularity()
-                    minWalltime_dyn = taskSpec.getCpuTime() * minGranularity
-                    strMinWalltime_dyn = f"cpuTime*minGranularity={taskSpec.getCpuTime()}*{minGranularity}"
+                    # dynamicNumEvents and minGranularity are separate split rules, so the
+                    # granularity can be absent here. minWalltime_dyn then stays None, which is
+                    # the "no dynamic minimum" the site loop below already tests for
+                    if minGranularity:
+                        minWalltime_dyn = cpuTime * minGranularity
+                        strMinWalltime_dyn = f"cpuTime*minGranularity={cpuTime}*{minGranularity}"
                     # use most consecutive events as the largest chunk
                     eventJump, totalEvents = inputChunk.check_event_jump_and_sum()
                     # use maxEventsPerJob if smaller
                     maxEventsPerJob = taskSpec.get_max_events_per_job()
                     if maxEventsPerJob:
                         totalEvents = min(totalEvents, maxEventsPerJob)
-                    maxWalltime_dyn = taskSpec.getCpuTime() * totalEvents
-                    strMaxWalltime_dyn = f"cpuTime*maxEventsPerJob={taskSpec.getCpuTime()}*{totalEvents}"
+                    maxWalltime_dyn = cpuTime * totalEvents
+                    strMaxWalltime_dyn = f"cpuTime*maxEventsPerJob={cpuTime}*{totalEvents}"
             # take # of consumers into account
             if not taskSpec.useEventService() or taskSpec.useJobCloning():
                 strMinWalltime = f"cpuTime*nEventsPerJob={taskSpec.getCpuTime()}*{tmpMaxAtomSize}"

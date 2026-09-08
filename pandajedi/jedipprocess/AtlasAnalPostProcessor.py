@@ -301,7 +301,7 @@ class AtlasAnalPostProcessor(PostProcessorBase):
         else:
             input_str = "Points"
             cancelled_str = "Unprocessed"
-            n_total_jobs = taskSpec.get_total_num_jobs()
+            n_total_jobs = taskSpec.get_total_num_jobs() or 0
             event_stat = self.taskBufferIF.get_event_statistics(taskSpec.jediTaskID)
             if event_stat is not None:
                 n_succeeded_jobs = event_stat.get(EventServiceUtils.ST_finished, 0)
