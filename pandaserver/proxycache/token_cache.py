@@ -142,4 +142,5 @@ class TokenCache:
             if not token:
                 token = None
             self.cached_access_tokens[client_name] = {"token": token, "last_update": time_now}
-        return self.cached_access_tokens[client_name]["token"]
+        cached_token: str | None = self.cached_access_tokens[client_name]["token"]
+        return cached_token

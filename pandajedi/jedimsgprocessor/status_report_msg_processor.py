@@ -127,6 +127,7 @@ class StatusReportMsgProcPlugin(BaseMsgProcPlugin):
         tmp_log.debug(f"{msg_dict}; to_return={to_return_message}")
         tmp_log.info("done")
         if to_return_message:
-            return msg_obj.data
+            data: str = msg_obj.data
+            return data
         # nothing goes to the outgoing queue for a status this plugin does not report
         return None

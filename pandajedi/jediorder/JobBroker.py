@@ -22,7 +22,11 @@ class JobBroker(FactoryBase):
     def doBrokerage(
         self, taskSpec: JediTaskSpec, cloudName: str | None, inputChunk: InputChunk, taskParamMap: dict[str, Any] | None
     ) -> tuple[Interaction.StatusCode, InputChunk]:
-        return self.getImpl(taskSpec.vo, taskSpec.prodSourceLabel).doBrokerage(taskSpec, cloudName, inputChunk, taskParamMap)
+        # the plugin is whichever class the configuration named, so its answer is untyped
+        ret: tuple[Interaction.StatusCode, InputChunk] = self.getImpl(taskSpec.vo, taskSpec.prodSourceLabel).doBrokerage(
+            taskSpec, cloudName, inputChunk, taskParamMap
+        )
+        return ret
 
     # set live counter
     def setLiveCounter(self, vo: str, sourceLabel: str, liveCounter: MapWithLock) -> None:
@@ -34,7 +38,8 @@ class JobBroker(FactoryBase):
 
     # get base lock ID
     def getBaseLockID(self, vo: str, sourceLabel: str) -> str | None:
-        return self.getImpl(vo, sourceLabel).getBaseLockID()
+        lock_id: str | None = self.getImpl(vo, sourceLabel).getBaseLockID()
+        return lock_id
 
     # set test mode
     def setTestMode(self, vo: str, sourceLabel: str) -> None:

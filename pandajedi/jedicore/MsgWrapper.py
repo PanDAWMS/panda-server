@@ -96,7 +96,7 @@ class MsgWrapper:
             return f"failed to upload log with {s} {o}."
 
         success = o["success"]
-        message = o["message"]
+        message: str = o["message"]
         url = o["data"]
 
         if success and url.startswith("http"):

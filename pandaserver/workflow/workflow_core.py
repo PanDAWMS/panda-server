@@ -387,7 +387,7 @@ class WorkflowInterface(object):
         workflow_spec.creation_time = naive_utcnow()
         workflow_spec.status = WorkflowStatus.registered
         # Insert to DB
-        ret_workflow_id = self.tbif.insert_workflow(workflow_spec)
+        ret_workflow_id: int | None = self.tbif.insert_workflow(workflow_spec)
         if ret_workflow_id is None:
             tmp_log.error(f"Failed to register workflow")
             return None

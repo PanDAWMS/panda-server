@@ -41,13 +41,13 @@ class StatusCode(object):
     # which is why these take object rather than StatusCode
     def __eq__(self, other: object) -> bool:
         try:
-            return self.value == other.value  # type: ignore[attr-defined]
+            return bool(self.value == other.value)  # type: ignore[attr-defined]
         except Exception:
             return False
 
     def __ne__(self, other: object) -> bool:
         try:
-            return self.value != other.value  # type: ignore[attr-defined]
+            return bool(self.value != other.value)  # type: ignore[attr-defined]
         except Exception:
             return True
 
@@ -118,7 +118,8 @@ class ProcessClass(object):
     # get connection
     def connection(self) -> Connection:
         # rebuild connection
-        return self.reduced_pipe[0](*self.reduced_pipe[1])
+        rebuilt: Connection = self.reduced_pipe[0](*self.reduced_pipe[1])
+        return rebuilt
 
     # reduce connection
     def reduceConnection(self, connection: Connection) -> None:

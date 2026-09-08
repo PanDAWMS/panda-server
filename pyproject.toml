@@ -136,6 +136,12 @@ check_untyped_defs = true
 # recover it. Filling the parameters in is what makes an annotation worth having,
 # so it is required rather than left to whoever writes the line.
 disallow_any_generics = true
+# A function that declares a type and then returns a value the checker knows nothing about
+# has an annotation nobody verified. Most of those values are real -- a cursor result, a
+# json.loads, a plugin the configuration named -- so this does not ask for them to go away;
+# it asks for the type to be written on the value where it is received, which is the one
+# place a reader can check it against the code that produced it.
+warn_return_any = true
 
 # ignore_missing_imports silences a module mypy cannot find, which for a first-party path
 # means it silences a typo: the name becomes Any and nothing is reported. ruff F821 cannot

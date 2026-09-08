@@ -2503,7 +2503,7 @@ class JobStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"start label={str(labels)} limit={limit} anti_label={str(anti_labels)}")
         try:
-            retVal = None
+            retVal: list[Any] | None = None
             if only_unlocked:
                 # try to get only records unlocked or with expired lock
                 varMap: dict[str, Any] = {}

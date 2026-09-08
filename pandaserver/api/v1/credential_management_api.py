@@ -57,7 +57,8 @@ def _read_token_cache_configuration() -> dict[str, Any]:
     # config of token cacher
     try:
         with open(panda_config.token_cache_config) as f:
-            return json.load(f)
+            configuration: dict[str, Any] = json.load(f)
+            return configuration
     except Exception:
         return {}
 

@@ -135,7 +135,7 @@ def get_initial_global_share(
         task_param_map = decodeJSON(tmp_str)
     if "gshare" in task_param_map and task_buffer.is_valid_share(task_param_map["gshare"]):
         # global share was already specified in ProdSys
-        gshare = task_param_map["gshare"]
+        gshare: str = task_param_map["gshare"]
     else:
         if task_spec is None:
             # get task specification from DB

@@ -114,7 +114,7 @@ class TestDataCarouselAsyncAPI(unittest.TestCase):
         """Check the submit response and return the async_id."""
         self.assertTrue(output["success"])
         self.assertIsInstance(output["data"], dict)
-        async_id = output["data"]["async_id"]
+        async_id: str = output["data"]["async_id"]
         self.assertIsInstance(async_id, str)
         self.assertEqual(len(async_id), 36)
         return async_id
@@ -124,6 +124,7 @@ class TestDataCarouselAsyncAPI(unittest.TestCase):
         url = f"{api_url_ssl}/async_process/get_result"
         print(f"Testing URL: {url}")
         deadline = time.time() + POLL_TIMEOUT_SECONDS
+        output: dict[str, Any]
         while time.time() < deadline:
             status, output = self.http_client.get(url, {"request_id": async_id})
             print(status, output)
@@ -285,7 +286,8 @@ class TestDataCarouselAsyncHandlers(unittest.TestCase):
         with mock.patch.dict(data_carousel_ops.OPERATIONS, {"force_to_staging": operation}):
             data_carousel_handlers.HANDLERS["dc_force_to_staging"](self.row, self.task_buffer, self.tmp_logger, "any")
         self.task_buffer.finish_async_result.assert_called_once()
-        return self.task_buffer.finish_async_result.call_args
+        call_args: mock._Call = self.task_buffer.finish_async_result.call_args
+        return call_args
 
     def test_owner_and_access_not_passed_to_operation(self) -> None:
         operation = mock.MagicMock(return_value=(True, "ok", {"request_id": 123}))

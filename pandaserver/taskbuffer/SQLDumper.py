@@ -13,7 +13,8 @@ class SQLDumper(object):
         self.cursor = cur
 
     def __iter__(self) -> Iterator[Any]:
-        return self.cursor.__iter__()
+        rows: Iterator[Any] = self.cursor.__iter__()
+        return rows
 
     def next(self) -> Any:
         return self.cursor.next()

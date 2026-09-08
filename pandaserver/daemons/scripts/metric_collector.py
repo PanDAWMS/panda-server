@@ -42,7 +42,7 @@ def get_now_time_str() -> str:
     Return string of nowtime that can be stored in DB
     """
     now_time = naive_utcnow()
-    ts_str = now_time.strftime("%Y-%m-%d %H:%M:%S")
+    ts_str: str = now_time.strftime("%Y-%m-%d %H:%M:%S")
     return ts_str
 
 
@@ -51,7 +51,7 @@ def conf_interval_upper(n: int, mean: float, stdev: float, cl: float = 0.95) -> 
     Get estimated confidence level
     """
     max_value = 999999
-    ciu = stats.t.ppf(cl, (n - 1), loc=mean, scale=stdev)
+    ciu: float = stats.t.ppf(cl, (n - 1), loc=mean, scale=stdev)
     ciu = min(ciu, max_value)
     return ciu
 
@@ -613,11 +613,7 @@ class FetchData(object):
                         ranking_wait_time = np.maximum(v["w_cl95upp"], v["long_q_mean"])
                         ranking_wait_time_list.append(ranking_wait_time)
                     else:
-                        tmp_log.warning(
-                            ("site={site} none value, skipped : w_cl95upp={w_cl95upp} long_q_mean={long_q_mean} ").format(
-                                site=site, w_cl95upp=v["w_cl95upp"], long_q_mean=v["long_q_mean"]
-                            )
-                        )
+                        tmp_log.warning(f"site={site} none value, skipped : w_cl95upp={v['w_cl95upp']} long_q_mean={v['long_q_mean']} ")
                         continue
                 except KeyError:
                     continue

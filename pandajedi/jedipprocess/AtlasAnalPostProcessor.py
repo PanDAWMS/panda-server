@@ -406,7 +406,8 @@ class AtlasAnalPostProcessor(PostProcessorBase):
                 if not_send_mail or mail_address_db in (None, ""):
                     return ret_suppressed
                 else:
-                    return mail_address_db.split(":")[-1]
+                    mail_address_cached: str = mail_address_db.split(":")[-1]
+                    return mail_address_cached
             else:
                 # look up the address via DDM finger
                 tmp_logger.debug(f"getting email using rucio.finger({dn})")
@@ -418,7 +419,7 @@ class AtlasAnalPostProcessor(PostProcessorBase):
                             tmp_logger.error(f"no DDM interface for vo={vo}")
                             return ret_suppressed
                         user_info = ddm_interface.finger(dn)
-                        mail_address = user_info["email"]
+                        mail_address: str = user_info["email"]
                         tmp_logger.debug(f"email from Rucio : {mail_address}")
                         if mail_address is None:
                             mail_address = ""

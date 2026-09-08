@@ -5819,4 +5819,5 @@ class JobComplexModule(BaseModule):
 
 # get module
 def get_job_complex_module(base_mod: BaseModule) -> JobComplexModule:
-    return base_mod.get_composite_module("job_complex")
+    module: JobComplexModule = base_mod.get_composite_module("job_complex")
+    return module

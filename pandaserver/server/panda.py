@@ -193,7 +193,7 @@ def parse_json_parameters_legacy(body: bytes) -> dict[str, Any]:
     body = gzip.decompress(body)
 
     # de-serialize the body and patch for True/False
-    params = json.loads(body)
+    params: dict[str, Any] = json.loads(body)
     for key in list(params):
         if params[key] is True:
             params[key] = "True"
@@ -209,7 +209,7 @@ def parse_json_parameters(body: bytes, content_encoding: str | None) -> dict[str
         body = gzip.decompress(body)
 
     # de-serialize the body
-    params = json.loads(body)
+    params: dict[str, Any] = json.loads(body)
 
     return params
 

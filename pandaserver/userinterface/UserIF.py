@@ -132,7 +132,8 @@ def relay_idds_command(
         try:
             return json.dumps((True, ret))
         except Exception:
-            return idds.common.utils.json_dumps((True, ret))
+            serialized: str = idds.common.utils.json_dumps((True, ret))
+            return serialized
     except Exception as e:
         tmp_str = f"failed to execute command with {str(e)}"
         tmp_log.error(f"{tmp_str} {traceback.format_exc()}")

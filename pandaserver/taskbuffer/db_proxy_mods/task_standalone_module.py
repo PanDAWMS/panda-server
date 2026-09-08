@@ -3992,7 +3992,7 @@ class TaskStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             self.cur.execute(sqlFID + comment, varMap)
-            nRow = self.cur.rowcount
+            nRow: int = self.cur.rowcount
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -4196,6 +4196,7 @@ class TaskStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
+            nDone: int
             (nDone,) = self.cur.fetchone()
             # return
             tmpLog.debug(f"got {nDone} jobs")
@@ -4394,7 +4395,7 @@ class TaskStandaloneModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jeditaskid}")
         tmpLog.debug("start")
         try:
-            retVal = 0
+            retVal: int = 0
             # varMap
             varMap: dict[str, Any] = dict()
             varMap[":jediTaskID"] = jeditaskid
@@ -4798,7 +4799,7 @@ class TaskStandaloneModule(BaseModule):
             varMap[":err"] = reason
             varMap[":status"] = "pending"
             self.cur.execute(sqlPDG + comment, varMap)
-            nRows = self.cur.rowcount
+            nRows: int = self.cur.rowcount
             # add missing record_task_status_change and push_task_status_message updates
             self.record_task_status_change(jedi_taskid)
             self.push_task_status_message(None, jedi_taskid, varMap[":status"])
@@ -5131,6 +5132,7 @@ class TaskStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
+            max_events: int
             (max_events,) = res
             tmp_log.debug(f"got {max_events}")
             return max_events

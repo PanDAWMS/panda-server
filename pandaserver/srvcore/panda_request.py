@@ -203,7 +203,8 @@ class PandaRequest:
     # get remote host
     def get_remote_host(self) -> str:
         if "REMOTE_HOST" in self.subprocess_env:
-            return self.subprocess_env["REMOTE_HOST"]
+            remote_host: str = self.subprocess_env["REMOTE_HOST"]
+            return remote_host
         return ""
 
     # accept json

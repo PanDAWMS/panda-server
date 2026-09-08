@@ -412,11 +412,11 @@ def convert_config_params(itemStr: str) -> list[Any]:
 
 
 # parse init params
-def parse_init_params(par: Any) -> list[Any]:
+def parse_init_params(par: str | list[Any] | None) -> list[Any]:
     if isinstance(par, list):
         return par
     try:
-        return par.split("|")
+        return par.split("|")  # type: ignore[union-attr]  # None is what the except is for
     except Exception:
         return [par]
 

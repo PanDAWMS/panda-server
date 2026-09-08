@@ -19,7 +19,7 @@ class ForwardingMsgProcPlugin(BaseMsgProcPlugin):
         # tmp_log.debug('sub_id={0} ; msg_id={1}'.format(msg_obj.sub_id, msg_obj.msg_id))
         # run
         try:
-            msg = msg_obj.data
+            msg: str = msg_obj.data
             tmp_log.debug(f"forward message {msg}")
         except Exception as e:
             err_str = f"failed to run, skipped. {e.__class__.__name__} : {e}"

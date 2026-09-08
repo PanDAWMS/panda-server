@@ -7,7 +7,7 @@ import time
 import traceback
 from collections.abc import Callable
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Callable, Iterator
+from typing import TYPE_CHECKING, Any, Callable, Iterator, TypeVar
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -42,7 +42,12 @@ SQL_QUEUE_TOPIC_async_dataset_update = "async_dataset_update"
 
 
 # Internal caching of a result. Use only for information with low update frequency and low memory footprint
-def memoize(f: Callable[..., Any]) -> Callable[..., Any]:
+# Preserves the signature of what it decorates, so a memoized method is still checked
+# at its call sites. The wrapper cannot be shown to match _F, hence the one ignore below
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def memoize(f: _F) -> _F:
     memo: dict[Any, Any] = {}
     kwd_mark = object()
 
@@ -54,7 +59,7 @@ def memoize(f: Callable[..., Any]) -> Callable[..., Any]:
             memo[key] = tmp_data
         return memo[key]["value"]
 
-    return helper
+    return helper  # type: ignore[return-value]  # a wrapper cannot be shown to match _F
 
 
 # convert dict to bind variable dict
@@ -242,6 +247,8 @@ class BaseModule:
         self.composite_modules[module_name] = module
 
     # get composite module
+    # the key does not say which class comes back, so each of the module-level getters
+    # that wraps this states the type it expects
     def get_composite_module(self, module_name: str) -> Any:
         return self.composite_modules.get(module_name, None)
 

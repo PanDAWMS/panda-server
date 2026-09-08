@@ -42,18 +42,20 @@ def compare_version_string(version_string: str, comparison_string: str) -> bool 
     except version.InvalidVersion:
         return None
 
+    # the comparisons already produce a bool; bool() is what says so, because the version
+    # objects come from packaging, which CI does not install
     if operator == "==":
-        return version1 == version2
+        return bool(version1 == version2)
     elif operator == "!=":
-        return version1 != version2
+        return bool(version1 != version2)
     elif operator == ">=":
-        return version1 >= version2
+        return bool(version1 >= version2)
     elif operator == "<=":
-        return version1 <= version2
+        return bool(version1 <= version2)
     elif operator == ">":
-        return version1 > version2
+        return bool(version1 > version2)
     elif operator == "<":
-        return version1 < version2
+        return bool(version1 < version2)
     else:
         return None
 

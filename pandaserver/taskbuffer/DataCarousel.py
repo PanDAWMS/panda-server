@@ -181,7 +181,8 @@ class DataCarouselRequestSpec(SpecBase):
         if self.parameters is None:
             return {}
         else:
-            return json.loads(self.parameters)
+            parameters: dict[str, Any] = json.loads(self.parameters)
+            return parameters
 
     @parameter_map.setter
     def parameter_map(self, value_map: dict[str, Any]) -> None:
@@ -509,7 +510,7 @@ class DataCarouselInterface(object):
         if full_pid is None:
             full_pid = self.full_pid
         # try to release the lock
-        ret = self.taskBufferIF.unlockProcess_PANDA(
+        ret: bool = self.taskBufferIF.unlockProcess_PANDA(
             component=GLOBAL_DC_LOCK_NAME,
             pid=full_pid,
         )
@@ -1233,7 +1234,7 @@ class DataCarouselInterface(object):
             return None
         try:
             # source_rse is RSE
-            source_tape = self.dc_config_map.source_rses_config[source_rse].tape
+            source_tape: str | None = self.dc_config_map.source_rses_config[source_rse].tape
         except KeyError:
             # source_rse is physical tape
             source_tape = source_rse
@@ -2312,7 +2313,7 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, f"cancel_request request_id={dc_req_spec.request_id} by={by}" + (f" reason={reason}" if reason else " "))
         # cancel
-        ret = self.taskBufferIF.cancel_data_carousel_request_JEDI(dc_req_spec.request_id)
+        ret: bool | None = self.taskBufferIF.cancel_data_carousel_request_JEDI(dc_req_spec.request_id)
         if ret:
             tmp_log.debug(f"cancelled")
         elif ret == 0:

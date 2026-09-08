@@ -18,4 +18,6 @@ class TaskGenerator(FactoryBase):
 
     # main
     def doGenerate(self, taskSpec: JediTaskSpec, taskParamMap: dict[str, Any], **varMap: Any) -> Interaction.StatusCode:
-        return self.getImpl(taskSpec.vo, taskSpec.prodSourceLabel).doGenerate(taskSpec, taskParamMap, **varMap)
+        # the plugin is whichever class the configuration named, so its answer is untyped
+        ret: Interaction.StatusCode = self.getImpl(taskSpec.vo, taskSpec.prodSourceLabel).doGenerate(taskSpec, taskParamMap, **varMap)
+        return ret

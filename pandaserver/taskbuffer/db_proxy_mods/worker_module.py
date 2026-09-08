@@ -1605,6 +1605,7 @@ class WorkerModule(BaseModule):
             self.conn.begin()
             self.cur.execute(sql_get_max + comment, var_map)
             row = self.cur.fetchone()
+            max_id: int | None
             if row:
                 (max_id,) = row
             else:
@@ -2016,7 +2017,7 @@ class WorkerModule(BaseModule):
             var_map = {":site": site, ":host_name": host_name_clean}
 
             self.cur.execute(sql + comment, var_map)
-            results = self.cur.fetchall()
+            results: list[tuple[str, float]] = self.cur.fetchall()
 
             tmp_log.debug(f"Got {len(results)} benchmarks")
             return results
@@ -2028,4 +2029,5 @@ class WorkerModule(BaseModule):
 
 # get worker module
 def get_worker_module(base_mod: BaseModule) -> WorkerModule:
-    return base_mod.get_composite_module("worker")
+    module: WorkerModule = base_mod.get_composite_module("worker")
+    return module

@@ -329,9 +329,10 @@ class RucioAPI:
         """
         tmp_list = list(client.list_accounts("user", distinguished_name))
         if tmp_list:
-            owner = tmp_list[0]["account"]
+            owner: str = tmp_list[0]["account"]
             return owner
-        return client.account
+        account: str = client.account
+        return account
 
     # register dataset subscription
     def register_dataset_subscription(
@@ -1245,7 +1246,7 @@ class RucioAPI:
             # get metadata
             if dsn.endswith("/"):
                 dsn = dsn[:-1]
-            metadata = client.get_metadata(scope, dsn)
+            metadata: dict[str, Any] = client.get_metadata(scope, dsn)
             # set state
             if metadata["is_open"] is True and metadata["did_type"] != "CONTAINER":
                 metadata["state"] = "open"
@@ -1402,7 +1403,7 @@ class RucioAPI:
         method_name = f"{method_name} dataset_name={dataset_name} expression={expression} activity={activity} lifetime={lifetime}"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
-        ruleID = None
+        ruleID: str | None = None
         try:
             if lifetime is not None:
                 lifetime = lifetime * 24 * 60 * 60
@@ -1470,7 +1471,7 @@ class RucioAPI:
             # get rucio API
             client = self._get_rucio_client()
             # get rules
-            rule = client.get_replication_rule(rule_id)
+            rule: dict[str, Any] = client.get_replication_rule(rule_id)
         except RuleNotFound as e:
             if allow_missing:
                 tmp_log.warning(e)
@@ -1513,7 +1514,7 @@ class RucioAPI:
             # get rucio API
             client = self._get_rucio_client()
             # get rules
-            ret = client.delete_replication_rule(rule_id)
+            ret: bool = client.delete_replication_rule(rule_id)
         except RuleNotFound as e:
             if allow_missing:
                 tmp_log.debug(e)

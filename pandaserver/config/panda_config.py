@@ -275,7 +275,7 @@ if "disable_file_dispatch" not in tmpSelf.__dict__:
 
 
 # dict for plugins
-g_pluginMap: dict[str, Any] = {}
+g_pluginMap: dict[str, dict[str, type[Any]]] = {}
 
 
 # parser for plugin setup

@@ -1896,7 +1896,7 @@ class TaskComplexModule(BaseModule):
         # select
         tmp_log.debug(sql + comment + str(var_map))
         self.cur.execute(sql + comment, var_map)
-        res_list = self.cur.fetchall()
+        res_list: list[tuple[Any, ...]] = self.cur.fetchall()
         # commit
         if not self._commit():
             raise RuntimeError("Commit error")
@@ -1976,7 +1976,9 @@ class TaskComplexModule(BaseModule):
 
             # return the max priority for peeking mode
             if is_peeking:
-                return current_priority
+                # the priority comes off an untyped row, and this is the peeking overload's answer
+                max_priority: int = current_priority
+                return max_priority
             # make task-status mapping
             task_status_map[jedi_task_id] = task_status
             # make task-useJumbo mapping

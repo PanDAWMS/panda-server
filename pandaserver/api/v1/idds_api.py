@@ -97,7 +97,7 @@ def relay_idds_command(
             return generate_response(True, "", ret)
         except Exception:
             # TODO: I don't know how to handle this
-            return idds.common.utils.json_dumps((True, ret))
+            return idds.common.utils.json_dumps((True, ret))  # type: ignore[no-any-return]  # see the TODO above: this path does not match the declared shape
 
     except Exception as e:
         tmp_str = f"failed to execute command with {str(e)}"

@@ -71,7 +71,8 @@ class JobBrokerBase(object):
 
     # every argument is bound into the lock query, where a NULL simply matches no row
     def checkSiteLock(self, vo: str | None, prodSourceLabel: str | None, siteName: str, queue_id: int | None, resource_name: str | None) -> bool:
-        return self.taskBufferIF.checkProcessLock_JEDI(
+        # the interface forwards this over a pipe, so what comes back carries no type
+        is_locked: bool = self.taskBufferIF.checkProcessLock_JEDI(
             vo=vo,
             prodSourceLabel=prodSourceLabel,
             cloud=siteName,
@@ -81,6 +82,7 @@ class JobBrokerBase(object):
             pid=self.baseLockID,
             checkBase=True,
         )
+        return is_locked
 
     def setTestMode(self) -> None:
         self.testMode = True

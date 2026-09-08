@@ -22,7 +22,7 @@ def decode_value(val: str | bytes) -> int:
 def rsa_pem_from_jwk(jwk: dict[str, Any]) -> bytes:
     public_num = RSAPublicNumbers(n=decode_value(jwk["n"]), e=decode_value(jwk["e"]))
     public_key = public_num.public_key(default_backend())
-    pem = public_key.public_bytes(
+    pem: bytes = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
@@ -30,7 +30,8 @@ def rsa_pem_from_jwk(jwk: dict[str, Any]) -> bytes:
 
 
 def get_jwk(kid: str, jwks: dict[str, Any]) -> dict[str, Any]:
-    for jwk in jwks.get("keys", []):
+    keys: list[dict[str, Any]] = jwks.get("keys", [])
+    for jwk in keys:
         if jwk.get("kid") == kid:
             return jwk
     raise InvalidTokenError(f"JWK not found for kid={kid}")
@@ -110,7 +111,7 @@ class TokenDecoder:
                 issuers = list(dict.fromkeys([issuer] + legacy_token_issuers))
             else:
                 issuers = [issuer]
-            decoded = None
+            decoded: dict[str, Any] | None = None
             err_msg = None
             for tmp_issuer in issuers:
                 try:

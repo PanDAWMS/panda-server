@@ -180,7 +180,7 @@ class EntityModule(BaseModule):
             var_map.update(parent_var_map)
 
         self.cur.execute(sql + comment, var_map)
-        resList = self.cur.fetchall()
+        resList: list[tuple[Any, ...]] = self.cur.fetchall()
 
         tmp_log.debug("done")
         return resList
@@ -611,7 +611,10 @@ class EntityModule(BaseModule):
         for resource_spec in resource_map:
             if resource_spec.match_task(task_spec):
                 tmp_log.debug(f"done. resource_type is {resource_spec.resource_name}")
-                return resource_spec.resource_name
+                # load_resource_types switches its element shape on its formatting argument, so the
+                # specs it yields here are untyped
+                resource_name: str = resource_spec.resource_name
+                return resource_name
 
         tmp_log.debug("done. resource_type is Undefined")
         return "Undefined"
@@ -707,7 +710,7 @@ class EntityModule(BaseModule):
             self.conn.begin()
             self.cur.arraysize = 1
             self.cur.execute(sql + comment, var_map)
-            rtype = self.cur.fetchone()[0]
+            rtype: str = self.cur.fetchone()[0]
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -1012,7 +1015,7 @@ class EntityModule(BaseModule):
         var_map = {":region": region}
         sql = "SELECT timestamp, region, value FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS WHERE region=:region"
         self.cur.execute(sql + comment, var_map)
-        results = self.cur.fetchall()
+        results: list[tuple[Any, ...]] = self.cur.fetchall()
         return results
 
     def get_co2_emissions_grid(self) -> list[tuple[Any, ...]]:
@@ -1020,7 +1023,7 @@ class EntityModule(BaseModule):
 
         sql = "SELECT timestamp, region, value FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS WHERE region='GRID'"
         self.cur.execute(sql + comment)
-        results = self.cur.fetchall()
+        results: list[tuple[Any, ...]] = self.cur.fetchall()
         return results
 
     # set CO2 emissions
@@ -1196,12 +1199,15 @@ class EntityModule(BaseModule):
             pq_data_des = pq_data[0][0]
             if not isinstance(pq_data_des, dict):
                 pq_data_des = json.loads(pq_data_des)
+                # the column holds either the JSON text or an already decoded mapping, and neither
+                # carries a type, so name the shape the callers are promised
+                queue_config: dict[str, Any] = pq_data_des
         except Exception:
             tmp_log.error("Could not find queue configuration")
             return None
 
         tmp_log.debug("done")
-        return pq_data_des
+        return queue_config
 
     def getQueuesInJSONSchedconfig(self) -> list[str] | None:
         comment = " /* DBProxy.getQueuesInJSONSchedconfig */"
@@ -3858,4 +3864,5 @@ class EntityModule(BaseModule):
 
 # get entity module
 def get_entity_module(base_mod: BaseModule) -> EntityModule:
-    return base_mod.get_composite_module("entity")
+    module: EntityModule = base_mod.get_composite_module("entity")
+    return module

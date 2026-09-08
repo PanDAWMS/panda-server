@@ -61,11 +61,11 @@ class JediKnight(Interaction.CommandReceiveInterface):
     # the value comes from JediMaster.convParams(), which turns an empty configuration
     # field into None and a comma-separated one into a list, so this takes whatever that
     # produced -- a string, a list or None -- and always hands back a list
-    def parseInit(self, par: Any) -> list[Any]:
+    def parseInit(self, par: str | list[Any] | None) -> list[Any]:
         if isinstance(par, list):
             return par
         try:
-            return par.split("|")
+            return par.split("|")  # type: ignore[union-attr]  # None is what the except is for
         except Exception:
             return [par]
 

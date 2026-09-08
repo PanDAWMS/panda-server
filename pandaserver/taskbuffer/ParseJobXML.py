@@ -94,7 +94,8 @@ class dom_job:
     def files_in_DS(s, DS: str) -> list[str]:
         """Returns a list of files used in a given job in a given dataset"""
         if DS in s.infiles:
-            return s.infiles[DS]
+            files: list[str] = s.infiles[DS]
+            return files
         else:
             return []
 

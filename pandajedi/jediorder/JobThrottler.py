@@ -19,7 +19,7 @@ class JobThrottler(FactoryBase):
         self, vo: str, sourceLabel: str, cloudName: str | None, workQueue: WorkQueue, resourceType: str
     ) -> tuple[Interaction.StatusCode, bool | int]:
         impl = self.getImpl(vo, sourceLabel)
-        retVal = impl.toBeThrottled(vo, sourceLabel, cloudName, workQueue, resourceType)
+        retVal: tuple[Interaction.StatusCode, bool | int] = impl.toBeThrottled(vo, sourceLabel, cloudName, workQueue, resourceType)
         # retrieve min priority and max number of jobs from concrete class
         self.minPriority = impl.minPriority
         self.maxNumJobs = impl.maxNumJobs
@@ -29,4 +29,5 @@ class JobThrottler(FactoryBase):
     # check throttle level
     def mergeThrottled(self, vo: str, sourceLabel: str, thrLevel: bool | int) -> bool:
         impl = self.getImpl(vo, sourceLabel)
-        return impl.mergeThrottled(thrLevel)
+        merge_throttled: bool = impl.mergeThrottled(thrLevel)
+        return merge_throttled

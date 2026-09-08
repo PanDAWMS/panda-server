@@ -3,15 +3,11 @@ pool for DBProxies
 
 """
 
-try:
-    from Queue import Queue
-except ImportError:
-    from queue import Queue
-
 import os
 import random
 import time
 from contextlib import contextmanager
+from queue import Queue
 from threading import Lock
 from typing import Any, Iterator
 
@@ -38,7 +34,7 @@ class DBProxyPool:
         self.callers: list[Any] = []
         # create Proxies
         _logger.debug("init")
-        self.proxyList: Queue = Queue(nConnection)
+        self.proxyList: "Queue[DBProxy.DBProxy]" = Queue(nConnection)
         self.connList: list[DBProxy.DBProxy] = []
         for i in range(nConnection):
             _logger.debug(f"connect -> {i} ")

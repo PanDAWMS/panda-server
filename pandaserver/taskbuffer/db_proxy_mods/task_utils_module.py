@@ -1711,6 +1711,7 @@ class TaskUtilsModule(BaseModule):
             varMap[":datasetID"] = datasetSpec.datasetID
             self.cur.execute(sqlCT + comment, varMap)
             resCT = self.cur.fetchone()
+            iFile: int
             (iFile,) = resCT
             # insert files
             varMap = {}
@@ -2127,4 +2128,5 @@ class TaskUtilsModule(BaseModule):
 
 # get module
 def get_task_utils_module(base_mod: BaseModule) -> TaskUtilsModule:
-    return base_mod.get_composite_module("task_utils")
+    module: TaskUtilsModule = base_mod.get_composite_module("task_utils")
+    return module

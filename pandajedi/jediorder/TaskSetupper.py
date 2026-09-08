@@ -18,4 +18,6 @@ class TaskSetupper(FactoryBase):
 
     # main
     def doSetup(self, taskSpec: JediTaskSpec, datasetToRegister: list[int | Null], pandaJobs: list[JobSpec]) -> Interaction.StatusCode:
-        return self.getImpl(taskSpec.vo, taskSpec.prodSourceLabel).doSetup(taskSpec, datasetToRegister, pandaJobs)
+        # the plugin is whichever class the configuration named, so its answer is untyped
+        ret: Interaction.StatusCode = self.getImpl(taskSpec.vo, taskSpec.prodSourceLabel).doSetup(taskSpec, datasetToRegister, pandaJobs)
+        return ret

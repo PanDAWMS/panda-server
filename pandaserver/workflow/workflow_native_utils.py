@@ -296,7 +296,7 @@ class Node(object):
             if "opt_containerImage" in dict_inputs and dict_inputs["opt_containerImage"]:
                 container_image = dict_inputs["opt_containerImage"]
             if use_athena:
-                task_params = copy.deepcopy(task_template["athena"])
+                task_params: dict[str, Any] = copy.deepcopy(task_template["athena"])
             else:
                 task_params = copy.deepcopy(task_template["container"])
             task_params["taskName"] = task_name

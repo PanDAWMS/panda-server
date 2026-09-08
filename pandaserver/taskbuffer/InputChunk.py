@@ -316,7 +316,8 @@ class InputChunk:
         if self.masterIndexName is None:
             return False
         indexVal = self.datasetMap[self.masterIndexName]
-        return indexVal["used"] < len(indexVal["datasetSpec"].Files)
+        used: int = indexVal["used"]
+        return used < len(indexVal["datasetSpec"].Files)
 
     # get master used index
     def getMasterUsedIndex(self) -> int:
@@ -324,7 +325,8 @@ class InputChunk:
         if self.masterIndexName is None:
             return 0
         indexVal = self.datasetMap[self.masterIndexName]
-        return indexVal["used"]
+        used: int = indexVal["used"]
+        return used
 
     # get num of files in master
     def getNumFilesInMaster(self) -> int:
@@ -411,7 +413,8 @@ class InputChunk:
     # get preassigned site
     def getPreassignedSite(self) -> str | None:
         if self.masterDataset is not None:
-            return self.masterDataset.site
+            site: str | None = self.masterDataset.site
+            return site
         return None
 
     # get max output size

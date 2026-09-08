@@ -452,6 +452,7 @@ def isSecure(req: "PandaRequest") -> bool:
 # get user DN
 def getUserDN(req: "PandaRequest") -> str:
     try:
-        return req.subprocess_env["SSL_CLIENT_S_DN"]
+        user_dn: str = req.subprocess_env["SSL_CLIENT_S_DN"]
+        return user_dn
     except Exception:
         return "None"

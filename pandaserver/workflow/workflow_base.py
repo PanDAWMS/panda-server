@@ -153,7 +153,8 @@ class WorkflowBaseSpec(SpecBase):
         if self.parameters is None:
             return {}
         else:
-            return json.loads(self.parameters)
+            parameters: dict[str, Any] = json.loads(self.parameters)
+            return parameters
 
     @parameter_map.setter
     def parameter_map(self, value_map: dict[str, Any]) -> None:
@@ -247,7 +248,8 @@ class WorkflowSpec(WorkflowBaseSpec):
         if self.raw_request_json is None:
             return {}
         else:
-            return json.loads(self.raw_request_json)
+            raw_request: dict[str, Any] = json.loads(self.raw_request_json)
+            return raw_request
 
     @raw_request_json_map.setter
     def raw_request_json_map(self, value_map: dict[str, Any]) -> None:
@@ -270,7 +272,8 @@ class WorkflowSpec(WorkflowBaseSpec):
         if self.definition_json is None:
             return {}
         else:
-            return json.loads(self.definition_json)
+            definition: dict[str, Any] = json.loads(self.definition_json)
+            return definition
 
     @definition_json_map.setter
     def definition_json_map(self, value_map: dict[str, Any]) -> None:
@@ -328,7 +331,8 @@ class WFStepSpec(WorkflowBaseSpec):
         if self.definition_json is None:
             return {}
         else:
-            return json.loads(self.definition_json)
+            definition: dict[str, Any] = json.loads(self.definition_json)
+            return definition
 
     @definition_json_map.setter
     def definition_json_map(self, value_map: dict[str, Any]) -> None:
@@ -386,7 +390,8 @@ class WFDataSpec(WorkflowBaseSpec):
         if self.metadata is None:
             return {}
         else:
-            return json.loads(self.metadata)
+            metadata: dict[str, Any] = json.loads(self.metadata)
+            return metadata
 
     @metadata_map.setter
     def metadata_map(self, value_map: dict[str, Any]) -> None:

@@ -876,4 +876,5 @@ class MetricsModule(BaseModule):
 
 # get metrics module
 def get_metrics_module(base_mod: BaseModule) -> MetricsModule:
-    return base_mod.get_composite_module("metrics")
+    module: MetricsModule = base_mod.get_composite_module("metrics")
+    return module

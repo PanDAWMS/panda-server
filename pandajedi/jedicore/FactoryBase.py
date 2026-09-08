@@ -102,9 +102,7 @@ class FactoryBase:
                             self.logger.info(f"{cls} is ready for {vo}:{sourceLabel}:{subType}")
                         except Exception as e:
                             self.logger.error(
-                                "failed to import {mn}.{cn} for vo={vo} label={lb} subtype={st} due to {et} {ev}".format(
-                                    et=type(e).__name__, ev=e, st=subType, vo=vo, lb=sourceLabel, cn=className, mn=moduleName
-                                )
+                                f"failed to import {moduleName}.{className} for vo={vo} label={sourceLabel} subtype={subType} due to {type(e).__name__} {e}"
                             )
                             raise ImportError(f"failed to import {moduleName}.{className}")
         # return
@@ -187,4 +185,5 @@ class FactoryBase:
         impl = self.getImpl(vo, sourceLabel, doRefresh=False)
         if impl is None:
             return None
-        return impl.__class__.__name__
+        # type() of an untyped object still gives a class, whose name is a str
+        return type(impl).__name__

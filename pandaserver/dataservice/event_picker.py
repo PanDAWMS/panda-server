@@ -119,6 +119,8 @@ class EventPicker:
         if self.jedi_task_id is None:
             return "cannot find jediTaskID"
         str_msg = self.logger.dumpToString()
+        # Client is the pandaclient package, which CI does not install
+        output: str
         status, output = Client.uploadLog(str_msg, self.jedi_task_id)
         if status != 0:
             return f"failed to upload log with {status}."

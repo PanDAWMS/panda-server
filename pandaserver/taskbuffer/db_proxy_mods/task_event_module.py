@@ -1906,6 +1906,7 @@ class TaskEventModule(BaseModule):
                 sqlE += "AND PandaID=:jobsetID "
             self.cur.execute(sqlE + comment, varMap)
             res = self.cur.fetchone()
+            nEvents: int
             if res is not None:
                 (nEvents,) = res
             else:
@@ -3437,9 +3438,10 @@ class TaskEventModule(BaseModule):
             varMap[":userName"] = user_name
             varMap[":taskName"] = parent_name
             self.cur.execute(sqlC + comment, varMap)
-            tid = self.cur.fetchone()
-            if tid:
-                (tid,) = tid
+            tid_row = self.cur.fetchone()
+            tid: int | None = None
+            if tid_row:
+                (tid,) = tid_row
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -4403,7 +4405,7 @@ class TaskEventModule(BaseModule):
             varMap[keyName] = attrValue
             # update JEDI
             self.cur.execute(sqlT + comment, varMap)
-            nRow = self.cur.rowcount
+            nRow: int = self.cur.rowcount
             if nRow:
                 get_entity_module(self).reset_resource_type_task(jediTaskID, use_commit=False)
             # commit
@@ -4883,7 +4885,7 @@ class TaskEventModule(BaseModule):
             varMap[":useJumboP"] = JediTaskSpec.enum_useJumbo["pending"]
             varMap[":useJumboR"] = JediTaskSpec.enum_useJumbo["running"]
             self.cur.execute(sqlAV + comment, varMap)
-            nDone = self.cur.rowcount
+            nDone: int = self.cur.rowcount
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -4999,4 +5001,5 @@ class TaskEventModule(BaseModule):
 
 # get task event module
 def get_task_event_module(base_mod: BaseModule) -> TaskEventModule:
-    return base_mod.get_composite_module("task_event")
+    module: TaskEventModule = base_mod.get_composite_module("task_event")
+    return module

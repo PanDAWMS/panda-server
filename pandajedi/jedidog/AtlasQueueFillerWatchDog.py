@@ -99,7 +99,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
     def _get_from_pt_cache(self) -> dict[str, Any]:
         cache_spec = self.taskBufferIF.getCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_pt)
         if cache_spec is not None:
-            ret_map = json.loads(cache_spec.data)
+            ret_map: dict[str, Any] = json.loads(cache_spec.data)
             return ret_map
         else:
             return dict()
@@ -113,7 +113,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
     def _get_from_bt_cache(self) -> dict[str, Any]:
         cache_spec = self.taskBufferIF.getCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_bt)
         if cache_spec is not None:
-            ret_map = json.loads(cache_spec.data)
+            ret_map: dict[str, Any] = json.loads(cache_spec.data)
             return ret_map
         else:
             return dict()
@@ -127,7 +127,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
     def _get_from_attr_cache(self) -> dict[str, Any]:
         cache_spec = self.taskBufferIF.getCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_attr)
         if cache_spec is not None:
-            ret_map = json.loads(cache_spec.data)
+            ret_map: dict[str, Any] = json.loads(cache_spec.data)
             return ret_map
         else:
             return dict()
@@ -141,14 +141,14 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
     def _get_from_ses_cache(self) -> dict[str, int]:
         cache_spec = self.taskBufferIF.getCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_ses)
         if cache_spec is not None:
-            ret_map = json.loads(cache_spec.data)
+            ret_map: dict[str, int] = json.loads(cache_spec.data)
             return ret_map
         else:
             return dict()
 
     # get process lock to preassign
     def _get_lock(self) -> bool:
-        return self.taskBufferIF.lockProcess_JEDI(
+        got_lock: bool = self.taskBufferIF.lockProcess_JEDI(
             vo=self.vo,
             prodSourceLabel="managed",
             cloud=None,
@@ -158,6 +158,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             pid=self.pid,
             timeLimit=5,
         )
+        return got_lock
 
     # get map of site to list of RSEs
     def get_site_rse_map(self, prod_source_label: str) -> dict[str, list[str]]:
@@ -325,7 +326,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             excluded_sites_str = ",".join(sorted(sites_set))
             tmp_log.debug(f"excluded sites due to {reason} : {excluded_sites_str}")
         included_sites_str = ",".join(sorted([x[0] for x in available_sites_list]))
-        tmp_log.debug("included sites : {sites}".format(sites=included_sites_str))
+        tmp_log.debug(f"included sites : {included_sites_str}")
         # return
         return available_sites_list
 

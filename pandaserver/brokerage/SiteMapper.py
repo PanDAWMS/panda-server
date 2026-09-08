@@ -41,8 +41,8 @@ class SiteMapper:
     def __init__(self, taskBuffer: "TaskBuffer", verbose: bool = False) -> None:
         _logger.debug("__init__ SiteMapper")
         try:
-            self.siteSpecList: dict[str, Any] = {}
-            self.cloudSpec: dict[str, Any] = {}  # in reality this is a dictionary of clouds, not a "spec" object
+            self.siteSpecList: dict[str, SiteSpec] = {}
+            self.cloudSpec: dict[str, dict[str, Any]] = {}  # in reality this is a dictionary of clouds, not a "spec" object
             self.worldCloudSpec: dict[str, Any] = {}
             self.nuclei: dict[str, NucleusSpec] = {}
             self.satellites: dict[str, NucleusSpec] = {}

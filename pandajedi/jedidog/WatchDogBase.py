@@ -50,7 +50,8 @@ class WatchDogBase(object):
         Returns:
             bool : True if got lock, False otherwise
         """
-        return self.taskBufferIF.lockProcess_JEDI(
+        # the interface forwards this over a pipe, so what comes back carries no type
+        got_lock: bool = self.taskBufferIF.lockProcess_JEDI(
             vo=self.vo,
             prodSourceLabel=kwargs.get("prodSourceLabel", "default"),
             cloud=kwargs.get("cloud", None),
@@ -60,6 +61,7 @@ class WatchDogBase(object):
             pid=self.pid,
             timeLimit=timeLimit,
         )
+        return got_lock
 
     # refresh
     def refresh(self) -> None:

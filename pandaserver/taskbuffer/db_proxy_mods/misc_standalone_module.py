@@ -138,7 +138,7 @@ class MiscStandaloneModule(BaseModule):
             varMap[":newPriority"] = newPriority
             # update JEDI
             self.cur.execute(sqlT + comment, varMap)
-            nRow = self.cur.rowcount
+            nRow: int = self.cur.rowcount
             if nRow == 1:
                 # update jobs
                 for tableName in ["jobsActive4", "jobsDefined4"]:
@@ -173,6 +173,7 @@ class MiscStandaloneModule(BaseModule):
             varMap[":taskName"] = taskName
             self.cur.execute(sqlGF + comment, varMap)
             resFJ = self.cur.fetchone()
+            jediTaskID: int | None
             if resFJ is not None:
                 (jediTaskID,) = resFJ
             else:
@@ -471,7 +472,7 @@ class MiscStandaloneModule(BaseModule):
         self.conn.begin()
         self.cur.execute(sql, varMap)
 
-        rowcount = self.cur.rowcount
+        rowcount: int = self.cur.rowcount
 
         if not self._commit():
             raise RuntimeError("Commit error")
@@ -550,7 +551,8 @@ class MiscStandaloneModule(BaseModule):
             return {}
 
     # get task status
-    def getTaskStatus(self, jediTaskID: int) -> list[Any]:
+    # the row the query produced, or an empty one when the task is not there
+    def getTaskStatus(self, jediTaskID: int) -> Sequence[Any]:
         comment = " /* DBProxy.getTaskStatus */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -565,7 +567,7 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             self.cur.arraysize = 1000
             self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchone()
+            res: Sequence[Any] = self.cur.fetchone()
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -583,7 +585,8 @@ class MiscStandaloneModule(BaseModule):
             return []
 
     # get task status and superstatus
-    def getTaskStatusSuperstatus(self, jediTaskID: int) -> list[Any]:
+    # the row the query produced, or an empty one when the task is not there
+    def getTaskStatusSuperstatus(self, jediTaskID: int) -> Sequence[Any]:
         comment = " /* DBProxy.getTaskStatusSuperstatus */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -597,7 +600,7 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             self.cur.arraysize = 1000
             self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchone()
+            res: Sequence[Any] = self.cur.fetchone()
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -3444,7 +3447,7 @@ class MiscStandaloneModule(BaseModule):
         tmpLog.debug("start")
         now_ts = naive_utcnow()
         try:
-            retVal = None
+            retVal: list[Any] | None = None
             # sql to get all jediTaskID and datasetID of input
             sql = (
                 "SELECT tabT.jediTaskID,datasetID, tabD.datasetName "
@@ -3574,7 +3577,7 @@ class MiscStandaloneModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment, f"before_timestamp={before_timestamp_str}")
         tmpLog.debug("start")
         try:
-            retVal = 0
+            retVal: int = 0
             # sql to delete
             sqlD = f"DELETE FROM {panda_config.schemaJEDI}.Jedi_Dataset_Locality WHERE timestamp<=:timestamp "
             # start transaction
@@ -4133,7 +4136,7 @@ class MiscStandaloneModule(BaseModule):
             varMap: dict[str, Any] = {}
             varMap[":fileName"] = file_name
             self.cur.execute(sqlC + comment, varMap)
-            nRows = self.cur.rowcount
+            nRows: int = self.cur.rowcount
             if not self._commit():
                 raise RuntimeError("Commit error")
             tmpLog.debug(f"done {file_name} with {nRows}")

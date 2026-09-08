@@ -2022,14 +2022,14 @@ class TaskBuffer:
         return res
 
     # get task status
-    def getTaskStatus(self, jediTaskID: int) -> list[Any]:
+    def getTaskStatus(self, jediTaskID: int) -> Sequence[Any]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.getTaskStatus(jediTaskID)
         return res
 
     # get task status and superstatus
-    def getTaskStatusSuperstatus(self, jediTaskID: int) -> list[Any]:
+    def getTaskStatusSuperstatus(self, jediTaskID: int) -> Sequence[Any]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.getTaskStatusSuperstatus(jediTaskID)

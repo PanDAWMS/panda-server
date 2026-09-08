@@ -42,7 +42,7 @@ class DataCarouselModule(BaseModule):
                 tmp_log.debug("no such request")
                 self._commit()
                 return None
-            request_id = res[0]
+            request_id: int = res[0]
             tmp_log.debug(f"found request_id={request_id}")
             self._commit()
             return request_id
@@ -458,7 +458,7 @@ class DataCarouselModule(BaseModule):
                 var_map[":request_id"] = request_id
                 var_map_list.append(var_map)
             self.cur.executemany(sql_delete_req + comment, var_map_list)
-            ret_req = self.cur.rowcount
+            ret_req: int = self.cur.rowcount
             # sql to delete relations
             sql_delete_rel = (
                 f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_relations rel "
@@ -497,7 +497,7 @@ class DataCarouselModule(BaseModule):
             var_map = {":end_time_max": now_time - datetime.timedelta(days=time_limit_days)}
             var_map.update(status_var_map)
             self.cur.execute(sql_delete_req + comment, var_map)
-            ret_req = self.cur.rowcount
+            ret_req: int = self.cur.rowcount
             # sql to delete relations
             sql_delete_rel = (
                 f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_relations rel "
@@ -543,7 +543,7 @@ class DataCarouselModule(BaseModule):
             }
             var_map.update(status_var_map)
             self.cur.execute(sql_update + comment, var_map)
-            ret_req = self.cur.rowcount
+            ret_req: int = self.cur.rowcount
             if not ret_req:
                 tmp_log.warning(f"already terminated; cannot be cancelled ; skipped")
             else:
@@ -583,7 +583,7 @@ class DataCarouselModule(BaseModule):
                 ":now_time": now_time,
             }
             self.cur.execute(sql_update + comment, var_map)
-            ret_req = self.cur.rowcount
+            ret_req: int = self.cur.rowcount
             if not ret_req:
                 tmp_log.warning(f"not done; cannot be retired ; skipped")
             else:

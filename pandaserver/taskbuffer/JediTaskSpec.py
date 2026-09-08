@@ -1411,7 +1411,8 @@ class JediTaskSpec(object):
     def get_sw_platform(self) -> str | None:
         try:
             d = json.loads(self.architecture or "{}")
-            return d.get("sw_platform", "")
+            sw_platform: str = d.get("sw_platform", "")
+            return sw_platform
         except Exception:
             pass
         if self.architecture is not None:
@@ -1424,7 +1425,7 @@ class JediTaskSpec(object):
     def get_base_platform(self, encoded_platform: str | None = None) -> str | None:
         try:
             d = json.loads(self.architecture or "{}")
-            val = d.get("base_platform", None)
+            val: str | None = d.get("base_platform", None)
             if val is not None or encoded_platform is None:
                 return val
         except Exception:
@@ -1469,7 +1470,8 @@ class JediTaskSpec(object):
                 for spec in specs:
                     spec.setdefault("vendor", "*")
                     spec.setdefault("instr", "*")
-                return specs
+                cpu_specs: list[dict[str, Any]] = specs
+                return cpu_specs
         except Exception:
             pass
         architecture: str | None
@@ -1525,7 +1527,8 @@ class JediTaskSpec(object):
             spec = d.get("gpu_spec", None)
             spec.setdefault("vendor", "*")
             spec.setdefault("model", "*")
-            return spec
+            gpu_spec: dict[str, Any] = spec
+            return gpu_spec
         except Exception:
             pass
         try:

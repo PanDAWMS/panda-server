@@ -35,7 +35,7 @@ class AtlasTaskWithholderWatchDog(WatchDogBase):
 
     # get process lock
     def _get_lock(self) -> bool:
-        return self.taskBufferIF.lockProcess_JEDI(
+        got_lock: bool = self.taskBufferIF.lockProcess_JEDI(
             vo=self.vo,
             prodSourceLabel="managed",
             cloud=None,
@@ -45,6 +45,7 @@ class AtlasTaskWithholderWatchDog(WatchDogBase):
             pid=self.pid,
             timeLimit=5,
         )
+        return got_lock
 
     # refresh information stored in the instance
     def refresh(self) -> None:
