@@ -320,35 +320,39 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
     The response has two shapes, depending on what the request's handler stores.
 
     Handlers writing raw output (grep, sleep_echo) report one entry per machine:
-            ```
-            {
-                "success": bool,        # whether this poll succeeded
-                "message": str,
-                "data": {
-                    "overall_status": "complete" | "pending",
-                    "expected_machines": [str, ...],
-                    "results": [{"machine_name": str, "status": str, "result": str,
-                                  "truncated": int, "error_msg": str, "attempts": int,
-                                  "started_at": str, "finished_at": str,
-                                  "stderr": str, "return_code": int}, ...]
-                }
-            }
-            ```
-        overall_status is "complete" when all expected machines have a terminal result (done/failed).
+
+    ```
+    {
+        "success": bool,        # whether this poll succeeded
+        "message": str,
+        "data": {
+            "overall_status": "complete" | "pending",
+            "expected_machines": [str, ...],
+            "results": [{"machine_name": str, "status": str, "result": str,
+                          "truncated": int, "error_msg": str, "attempts": int,
+                          "started_at": str, "finished_at": str,
+                          "stderr": str, "return_code": int}, ...]
+        }
+    }
+    ```
+
+    overall_status is "complete" when all expected machines have a terminal result (done/failed).
 
     Handlers writing a structured payload (e.g. the Data Carousel operations submitted by
     pandaserver.api.v1.data_carousel_api) report that payload at the top level instead:
-            ```
-            {
-                "success": bool,        # whether the OPERATION succeeded
-                "message": str,         # the operation's message
-                "data": <the operation's data>,
-                "async_meta": {"status": "pending" | "running" | "done" | "failed",
-                               "attempts": int, "started_at": str, "finished_at": str,
-                               "error_msg": str}
-            }
-            ```
-        Poll on async_meta.status, not on success: success is False while the request is still
+
+    ```
+    {
+        "success": bool,        # whether the OPERATION succeeded
+        "message": str,         # the operation's message
+        "data": <the operation's data>,
+        "async_meta": {"status": "pending" | "running" | "done" | "failed",
+                       "attempts": int, "started_at": str, "finished_at": str,
+                       "error_msg": str}
+    }
+    ```
+
+    Poll on async_meta.status, not on success: success is False while the request is still
         pending or running, and False again when the handler crashed (status "failed", reason in
         async_meta.error_msg), so it only tells the operation's outcome once status is "done".
         async_meta is present whenever the poll itself succeeded, so a response without it is a
