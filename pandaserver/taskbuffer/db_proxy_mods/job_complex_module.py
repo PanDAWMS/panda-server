@@ -4988,7 +4988,9 @@ class JobComplexModule(BaseModule):
                         for share in get_entity_module(self).leave_shares:
                             if gshare == share.name:
                                 prod_source_label = share.prodsourcelabel
-                                if "|" in prod_source_label:
+                                # the column is optional, and a share with no label has nothing
+                                # to split; the map below then carries that None as it is
+                                if prod_source_label is not None and "|" in prod_source_label:
                                     prod_source_label = prod_source_label.split("|")[0]
                                     prod_source_label = prod_source_label.replace(".*", "")
                                 share_label_map[gshare] = prod_source_label

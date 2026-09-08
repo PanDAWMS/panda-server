@@ -7,15 +7,27 @@ PLEDGED = "pledged"
 
 
 class Node(object):
-    def __init__(self):
-        self.children = []
+    def __init__(self) -> None:
+        self.children: list["Share"] = []
 
-    def add_child(self, node):
+    def add_child(self, node: "Share") -> None:
         self.children.append(node)
 
-    def get_leaves(self, leaves=[]):
+    # leaves used to be a mutable default argument. A default list is created once, when the
+    # function is defined, so every call without an argument kept every leaf from every earlier
+    # call: a fresh three-leaf tree reported 3, then 6, then 9. reload_shares() calls this once an
+    # hour and stores the result in self.leave_shares, and the lookups over that list --
+    # get_share_for_job, get_share_for_task, is_valid_share -- stop at the first match, which is
+    # the oldest entry. So a share whose definition changed in the database went on being matched
+    # by the definition it replaced, for as long as the process lived.
+    def get_leaves(self, leaves: list["Share"] | None = None) -> list["Share"]:
+        if leaves is None:
+            leaves = []
         # If the node has no leaves, return the node in a list
         if not self.children:
+            # nothing instantiates Node and Share is its only subclass, so this states the
+            # invariant the tree and its consumers already depend on rather than widening them
+            assert isinstance(self, Share)
             leaves.append(self)
             return leaves
 
@@ -46,7 +58,7 @@ class Share(Node):
         "throttled",
     )
 
-    def __str__(self, level=0):
+    def __str__(self, level: int = 0) -> str:
         """
         Print the tree structure
         """
@@ -55,37 +67,40 @@ class Share(Node):
             ret += child.__str__(level + 1)
         return ret
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
-    def __mul__(self, other):
+    def __mul__(self, other: float) -> float:
         """
         If I multiply a share object by a number, multiply the value field
         """
         self.value *= other
         return self.value
 
-    def __rmul__(self, other):
-        return self.__mul__
+    def __rmul__(self, other: float) -> float:
+        return self.__mul__(other)
 
-    def __imul__(self, other):
-        return self.__mul__
+    def __imul__(self, other: float) -> "Share":
+        self.__mul__(other)
+        return self
 
+    # every argument is one column of ATLAS_PANDA.GLOBAL_SHARES, in the order get_shares()
+    # selects them. The four that are matched against a task or a job are regular expressions
     def __init__(
         self,
-        name,
-        value,
-        parent,
-        prodsourcelabel,
-        workinggroup,
-        campaign,
-        processingtype,
-        transpath,
-        rtype,
-        vo,
-        queue_id,
-        throttled,
-    ):
+        name: str,
+        value: float,
+        parent: str | None,
+        prodsourcelabel: str | None,
+        workinggroup: str | None,
+        campaign: str | None,
+        processingtype: str | None,
+        transpath: str | None,
+        rtype: str | None,
+        vo: str | None,
+        queue_id: int | None,
+        throttled: str | None,
+    ) -> None:
         # Create default attributes
         for attr in self._attributes:
             setattr(self, attr, None)
@@ -104,7 +119,7 @@ class Share(Node):
         self.queue_id = queue_id
         self.throttled = throttled
 
-    def pretty_print_hs_distribution(self, hs_distribution, level=0):
+    def pretty_print_hs_distribution(self, hs_distribution: dict[str, dict[str, float]], level: int = 0) -> str:
         try:
             executing = hs_distribution[self.name][EXECUTING] / 1000.0
         except Exception:
@@ -125,7 +140,7 @@ class Share(Node):
             ret += child.pretty_print_hs_distribution(hs_distribution, level + 1)
         return ret
 
-    def normalize(self, multiplier=100, divider=100):
+    def normalize(self, multiplier: float = 100, divider: float = 100) -> None:
         """
         Will run down the branch and normalize values beneath
         """
@@ -144,7 +159,7 @@ class Share(Node):
 
         return
 
-    def sort_branch_by_current_hs_distribution(self, hs_distribution):
+    def sort_branch_by_current_hs_distribution(self, hs_distribution: dict[str, dict[str, float]]) -> list["Share"]:
         """
         Runs down the branch in order of under-pledging. It returns a list of sorted leave shares
         """
@@ -191,12 +206,12 @@ class Share(Node):
 
         return sorted_shares
 
-    def aggregate_hs_distribution(self, hs_distribution):
+    def aggregate_hs_distribution(self, hs_distribution: dict[str, dict[str, float]]) -> tuple[float, float, float]:
         """
         We have the current HS distribution values for the leaves, but want to propagate it updwards to the parents.
         We will traverse the tree from top to bottom and bring up the aggregated values.
         """
-        executing, queued, pledged = 0, 0, 0
+        executing, queued, pledged = 0.0, 0.0, 0.0
 
         # If the node has no children, it's a leave and should have an entry in the hs_distribution
         if not self.children:
@@ -236,7 +251,7 @@ class Share(Node):
 
     # return column names
     @classmethod
-    def column_names(cls):
+    def column_names(cls) -> str:
         ret = ""
         for attr in cls._attributes:
             if ret != "":
