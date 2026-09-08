@@ -71,7 +71,7 @@ client = Client(transport)
 
 
 # test function
-async def cl():
+async def cl() -> None:
     # Connection is established here
     async with client:
         if client.is_connected():

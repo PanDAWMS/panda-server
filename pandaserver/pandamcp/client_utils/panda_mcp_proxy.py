@@ -97,7 +97,7 @@ def _build_ssl_context() -> ssl.SSLContext:
 class TokenManager:
     """Thread-safe token cache with silent refresh via refresh_token."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = asyncio.Lock()
         self._id_token: str = ""
         self._exp: float = 0.0
@@ -234,7 +234,7 @@ async def _read_stdin_lines(queue: asyncio.Queue[str]) -> None:
     """Read newline-delimited JSON from stdin and push to queue. Runs in a thread."""
     loop = asyncio.get_event_loop()
 
-    def _blocking_read():
+    def _blocking_read() -> str:
         # sys.stdin.readline returns '' on EOF; works on Windows and Unix
         return sys.stdin.readline()
 
@@ -251,7 +251,7 @@ async def _write_stdout_lines(queue: asyncio.Queue[str]) -> None:
     """Write newline-delimited JSON from queue to stdout."""
     loop = asyncio.get_event_loop()
 
-    def _blocking_write(msg: str):
+    def _blocking_write(msg: str) -> None:
         sys.stdout.write(msg + "\n")
         sys.stdout.flush()
 
@@ -271,7 +271,7 @@ async def _write_stdout_lines(queue: asyncio.Queue[str]) -> None:
 
 
 class MCPProxy:
-    def __init__(self):
+    def __init__(self) -> None:
         self.tokens = TokenManager()
         self._session_id: str | None = None
         self._outbound: asyncio.Queue[str] = asyncio.Queue()  # stdin  → remote

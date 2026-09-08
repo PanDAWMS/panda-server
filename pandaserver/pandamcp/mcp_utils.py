@@ -55,7 +55,10 @@ def create_tool(func: Callable[..., Any], name: str | None = None) -> Tool:
             annotations[k] = v
 
     # create a new function that wraps the API call
-    def wrapped_func(**kwarg):
+    # what is written here is discarded: both __signature__ and __annotations__ are
+    # replaced below with the wrapped endpoint's, which is what the tool schema is built
+    # from
+    def wrapped_func(**kwarg: Any) -> Any:
         nonlocal url, http_method
         kwarg.pop("req", None)
         # extract the id_token and auth_vo from the headers

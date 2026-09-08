@@ -117,10 +117,11 @@ line-length = 160
 ignore = ['E501', 'U100']
 
 # The tree is clean under these flags and CI fails on any finding, so a change that
-# introduces one has to fix it. Widening the flags (the strictness options are all
-# still off) will surface findings that were never counted; do that in a PR that
-# also resolves them, together with the mypy pin in
-# .github/workflows/syntax-check.yml.
+# introduces one has to fix it. Widening them further will surface findings that were
+# never counted; do that in a PR that also resolves them, together with the mypy pin in
+# .github/workflows/syntax-check.yml. --strict is not the next step: most of what it adds
+# is disallow_untyped_calls, which reports a call into an unannotated function rather than
+# an unannotated function, so it counts the same gaps again from the other side.
 [tool.mypy]
 files = ["pandaserver", "pandajedi"]
 # CI installs mypy and two stub packages and nothing else, so every third-party import in
@@ -142,6 +143,13 @@ disallow_any_generics = true
 # it asks for the type to be written on the value where it is received, which is the one
 # place a reader can check it against the code that produced it.
 warn_return_any = true
+# Every function states the type of each parameter and of what it returns. A function that
+# does not is not a style problem: it is a function whose body check_untyped_defs above
+# checks in isolation and whose call sites nothing checks at all, so a wrong argument
+# reaches production. disallow_incomplete_defs is the other half -- without it a single
+# annotation on one parameter counts as annotating the function.
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
 
 # ignore_missing_imports silences a module mypy cannot find, which for a first-party path
 # means it silences a typo: the name becomes Any and nothing is reported. ruff F821 cannot
@@ -157,47 +165,3 @@ module = [
     "pandaserver.*",
 ]
 ignore_missing_imports = false
-
-# disallow_untyped_defs and disallow_incomplete_defs are being turned on a subpackage at a
-# time. Tree-wide they report ~2869 findings, far too many for one change, and unlike the
-# flags above they cannot be satisfied by a mechanical edit: every function needs its
-# parameter and return types read out of the code.
-#
-# Each name below is a subpackage that is already clean under both flags, so the gate holds
-# it there. The list now covers every subpackage in the tree except pandaserver.pandamcp,
-# which reads and rewrites __annotations__ at runtime, so annotating it changes what its MCP
-# tool definitions do and belongs in its own change. When that lands, the two settings move
-# up into [tool.mypy] and this block is deleted.
-[[tool.mypy.overrides]]
-module = [
-    "pandajedi.jedibrokerage.*",
-    "pandajedi.jediconfig.*",
-    "pandajedi.jedicore.*",
-    "pandajedi.jediddm.*",
-    "pandajedi.jedidog.*",
-    "pandajedi.jediexec.*",
-    "pandajedi.jedigen.*",
-    "pandajedi.jedimsgprocessor.*",
-    "pandajedi.jediorder.*",
-    "pandajedi.jedipprocess.*",
-    "pandajedi.jedirefine.*",
-    "pandajedi.jedisetup.*",
-    "pandajedi.jedithrottle.*",
-    "pandaserver.api.*",
-    "pandaserver.asyncprocess.*",
-    "pandaserver.brokerage.*",
-    "pandaserver.config.*",
-    "pandaserver.configurator.*",
-    "pandaserver.daemons.*",
-    "pandaserver.dataservice.*",
-    "pandaserver.jobdispatcher.*",
-    "pandaserver.proxycache.*",
-    "pandaserver.server.*",
-    "pandaserver.srvcore.*",
-    "pandaserver.taskbuffer.*",
-    "pandaserver.test.*",
-    "pandaserver.userinterface.*",
-    "pandaserver.workflow.*",
-]
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
