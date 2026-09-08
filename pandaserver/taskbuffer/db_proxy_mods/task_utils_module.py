@@ -1366,7 +1366,8 @@ class TaskUtilsModule(BaseModule):
             # CPU efficiency
             if taskSpec.status != "exhausted" and not sl_changed:
                 # OK if minCpuEfficiency is satisfied
-                if taskSpec.getMinCpuEfficiency() and extraInfo["minCpuEfficiency"] >= taskSpec.getMinScoutEfficiency():
+                min_cpu_efficiency = taskSpec.getMinCpuEfficiency()
+                if min_cpu_efficiency and extraInfo["minCpuEfficiency"] >= min_cpu_efficiency:
                     pass
                 else:
                     # get inefficiency threshold for exhausted
