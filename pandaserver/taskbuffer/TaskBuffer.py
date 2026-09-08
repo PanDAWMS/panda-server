@@ -2043,14 +2043,6 @@ class TaskBuffer:
             res = proxy.get_tree_of_gshare_names()
         return res
 
-    # get the HS06 distribution for global shares
-    def get_hs_distribution(self) -> Any:
-        # get DB proxy
-        with self.proxyPool.get() as proxy:
-            # exec
-            res = proxy.get_hs_distribution()
-        return res
-
     # reassign share
     def reassignShare(self, jedi_task_ids: list[int], share_dest: str, reassign_running: bool) -> tuple[int, str | None]:
         with self.proxyPool.get() as proxy:
