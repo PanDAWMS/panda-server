@@ -162,7 +162,7 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
             jedi_task_ids = None
             if to_id == "from_input_dataset":
                 dataset_name = message_payload["name"].split(":")[-1]
-                jedi_task_ids = self.tbIF.get_task_ids_with_dataset_attributes({"datasetName": dataset_name, "type": "input"})
+                _, jedi_task_ids = self.tbIF.get_task_ids_with_dataset_attributes({"datasetName": dataset_name, "type": "input"})
             else:
                 tmp_log.warning(f"unknown to_id={to_id} for action_item={action_item} ; skipped")
                 continue
@@ -177,9 +177,9 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
                 # release task just in case
                 self.tbIF.release_task_on_hold(jedi_task_id)
                 # push trigger message
-                push_ret = self.tbIF.push_task_trigger_message(component_name, jedi_task_ids)
+                push_ret = self.tbIF.push_task_trigger_message(component_name, jedi_task_id)
                 if push_ret:
-                    tmp_log.debug(f"pushed trigger message to {component_name} for jediTaskID={jedi_task_ids}")
+                    tmp_log.debug(f"pushed trigger message to {component_name} for jediTaskID={jedi_task_id}")
                 else:
-                    tmp_log.warning(f"failed to push trigger to {component_name} for jediTaskID={jedi_task_ids}")
+                    tmp_log.warning(f"failed to push trigger to {component_name} for jediTaskID={jedi_task_id}")
         return
