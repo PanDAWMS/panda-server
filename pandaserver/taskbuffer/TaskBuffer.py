@@ -1140,10 +1140,13 @@ class TaskBuffer:
                                         tmpJobSpec.jobSubStatus = killOpt.split("=")[-1]
                                         break
                                 # trigger ppE for ES jobs to properly trigger subsequent procedures
+                                # archiveJob reports its outcome first and then the DDM
+                                # information this path has no use for. rets is a list of
+                                # outcomes, so only the first element belongs in it
                                 ret = proxy.archiveJob(
                                     tmpJobSpec,
                                     tmpJobSpec.jobStatus in ["defined", "assigned"],
-                                )
+                                )[0]
                                 toKill = False
                                 userInfo = {"prodSourceLabel": None}
                 if toKill:
