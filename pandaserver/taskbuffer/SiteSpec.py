@@ -338,7 +338,7 @@ class SiteSpec(object):
     def disable_reassign(self):
         if self.hasValueInCatchall("disableReassign"):
             return True
-        self.status == "paused"
+        return self.status == "paused"
 
     # get job chunk size
     def get_job_chunk_size(self):
