@@ -1,3 +1,4 @@
+import json
 import sys
 
 from pandajedi.jedicore import JediTaskBuffer
@@ -16,4 +17,14 @@ s, o = proxy.getClobObj("select task_param from atlas_deft.deft_task where task_
 
 taskParamStr = o[0][0]
 
-proxy.insertTaskParams_JEDI(None, taskParamStr)
+# the task attributes the insert needs are in the parameters themselves, which is where the
+# other drivers in this directory read them from
+taskParamMap = json.loads(taskParamStr)
+
+proxy.insertTaskParams_JEDI(
+    taskParamMap["vo"],
+    taskParamMap["prodSourceLabel"],
+    taskParamMap["userName"],
+    taskParamMap["taskName"],
+    taskParamStr,
+)
