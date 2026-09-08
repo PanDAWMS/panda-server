@@ -373,9 +373,9 @@ def set_debug_mode(req: PandaRequest, job_id: int, mode: bool) -> dict[str, Any]
 
     message = global_task_buffer.setDebugMode(user, job_id, is_production_manager, mode, working_group)
 
-    success = False
-    if message != "Succeeded":
-        success = True
+    # setDebugMode reports the outcome in the message and says "Succeeded" for the one case
+    # that worked; every other string is a refusal or a failure, and None is a database error
+    success = message == "Succeeded"
 
     return generate_response(success, message=message)
 
