@@ -1,8 +1,10 @@
 import json
+import logging
 import os.path
 import sys
 import tempfile
 import traceback
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import requests
 from idds.client.clientmanager import ClientManager
@@ -18,6 +20,9 @@ from pandaserver.srvcore.MailUtils import MailUtils
 from pandaserver.workflow import pcwl_utils, workflow_utils
 from pandaserver.workflow.snakeparser import Parser
 
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 _logger = PandaLogger().getLogger("workflow_processor")
 
 
@@ -27,22 +32,28 @@ SUPPORTED_WORKFLOW_LANGUAGES = ["cwl", "snakemake"]
 # process workflow
 class WorkflowProcessor(object):
     # constructor
-    def __init__(self, task_buffer=None, log_stream=None):
+    # log_stream is accepted and discarded: c4e2ac7d replaced `self.log = log_stream` with the
+    # module logger and left the parameter, and all three call sites still pass their own logger
+    def __init__(self, task_buffer: "TaskBuffer | None" = None, log_stream: logging.Logger | None = None) -> None:
         self.taskBuffer = task_buffer
         self.log = _logger
 
     # process a file
     def process(
         self,
-        file_name,
-        to_delete=False,
-        test_mode=False,
-        get_log=False,
-        dump_workflow=False,
-    ):
+        file_name: str,
+        to_delete: bool = False,
+        test_mode: bool = False,
+        get_log: bool = False,
+        dump_workflow: bool = False,
+    ) -> dict[str, Any] | None:
         is_fatal = False
         request_id = None
         dump_str = None
+        # bound before the try because the handler logs through it: the open, the json parse and
+        # the key lookups below can all fail before the real token is known, and reaching the
+        # handler with this name unbound turns the failure into an UnboundLocalError from inside it
+        tmpLog = LogWrapper(self.log, f"< file={file_name} >")
         try:
             with open(file_name) as f:
                 ops = json.load(f)
@@ -118,22 +129,19 @@ class WorkflowProcessor(object):
                 else:
                     ret_val["log"] = dump_str
             return ret_val
+        return None
 
 
 # execute chdir in another process
-def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_mode):
+# every argument arrives from sys.argv below, so they are all text -- including the two flags,
+# which the caller spells as the words True and False
+def core_exec(sandbox_url: str, log_token: str, dump_workflow: str, ops_file: str, user_name: str, test_mode: str) -> NoReturn:
     tmpLog = LogWrapper(_logger, log_token)
     is_OK = True
     is_fatal = False
     request_id = None
-    if dump_workflow == "True":
-        dump_workflow = True
-    else:
-        dump_workflow = False
-    if test_mode == "True":
-        test_mode = True
-    else:
-        test_mode = False
+    do_dump_workflow = dump_workflow == "True"
+    is_test_mode = test_mode == "True"
     try:
         with open(ops_file) as f:
             ops = json.load(f)
@@ -214,7 +222,7 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                         ) = workflow_utils.convert_nodes_to_workflow(nodes, workflow_name=workflow_name)
                         try:
                             if workflow_to_submit:
-                                if not test_mode:
+                                if not is_test_mode:
                                     tmpLog.info("submit workflow")
                                     wm = ClientManager(host=get_rest_host())
                                     request_id = wm.submit(workflow_to_submit, username=user_name, use_dataset_name=False)
@@ -232,7 +240,7 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                         except Exception as e:
                             dump_str = f"failed to submit the workflow with {str(e)}"
                             tmpLog.error(f"{dump_str} {traceback.format_exc()}")
-                        if dump_workflow:
+                        if do_dump_workflow:
                             tmpLog.debug("\n" + "".join(dump_str_list))
         os.chdir(cur_dir)
     except Exception as e:
