@@ -2930,8 +2930,12 @@ class EntityModule(BaseModule):
         comment = " /* DBProxy.getUserParameter */"
         tmp_log = self.create_tagged_logger(comment, f"dn={dn} jobID={jobID} jobsetID={jobsetID}")
         try:
-            # set initial values
+            # set initial values. the two IDs are bound before the branch below so that the
+            # except at the bottom, which returns them, has something to return when the
+            # arithmetic there fails on a jobID that was never set
             retStatus = True
+            retJobID = jobID
+            retJobsetID: int | None = None
             if jobsetID == -1:
                 # generate new jobsetID
                 retJobsetID = jobID
