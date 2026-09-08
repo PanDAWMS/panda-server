@@ -580,7 +580,7 @@ class JobStandaloneModule(BaseModule):
         return None
 
     # get express jobs
-    def getExpressJobs(self, dn: str) -> dict[str, Any] | None:
+    def getExpressJobs(self, dn: str | None) -> dict[str, Any] | None:
         comment = " /* DBProxy.getExpressJobs */"
         tmp_log = self.create_tagged_logger(comment, f"DN={dn}")
         tmp_log.debug(f"start")
@@ -720,7 +720,7 @@ class JobStandaloneModule(BaseModule):
             return None
 
     # get active debug jobs
-    def getActiveDebugJobs(self, dn: str | None = None, workingGroup: str | None = None, prodRole: bool = False) -> dict[Any, Any] | None | list[Any]:
+    def getActiveDebugJobs(self, dn: str | None = None, workingGroup: str | None = None, prodRole: bool = False) -> list[Any] | None:
         comment = " /* DBProxy.getActiveDebugJobs */"
         tmp_log = self.create_tagged_logger(comment, f"DN={dn}")
         tmp_log.debug(f"wg={workingGroup} prodRole={prodRole}")
@@ -2127,7 +2127,7 @@ class JobStandaloneModule(BaseModule):
             return None, ""
 
     # check Job status
-    def checkJobStatus(self, pandaID: int) -> dict[str, Any]:
+    def checkJobStatus(self, pandaID: int | str) -> dict[str, Any]:
         comment = " /* DBProxy.checkJobStatus */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug("start")

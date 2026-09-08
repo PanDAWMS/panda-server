@@ -228,7 +228,7 @@ class TaskBuffer:
             # check quota for priority calculation
             weight = 0.0
             userJobID = -1
-            userJobsetID = -1
+            userJobsetID: int | None = -1
             userStatus = True
             priorityOffset = 0
             userCountry = None
@@ -260,7 +260,11 @@ class TaskBuffer:
                 # get DB proxy
                 with self.proxyPool.get() as proxy:
                     # get JobID and status
-                    userJobID, userJobsetID, userStatus = proxy.getUserParameter(user, jobs[0].jobDefinitionID, jobs[0].jobsetID)
+                    userJobID, userJobsetID, userStatus = proxy.getUserParameter(
+                        user,
+                        jobs[0].jobDefinitionID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                        jobs[0].jobsetID,
+                    )
 
                     # check quota for express jobs
                     if "express" in jobs[0].specialHandling:
@@ -454,7 +458,7 @@ class TaskBuffer:
                     # check events for jumbo jobs
                     isOK = True
                     if EventServiceUtils.isJumboJob(job):
-                        hasReadyEvents = proxy.hasReadyEvents(job.jediTaskID)
+                        hasReadyEvents = proxy.hasReadyEvents(job.jediTaskID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                         if hasReadyEvents is False:
                             isOK = False
                     # insert job to DB
@@ -518,7 +522,10 @@ class TaskBuffer:
                     else:
                         new_jobset_ids = []
                     tmp_ret, job_ret_list, es_jobset_map = proxy.bulk_insert_new_jobs(
-                        jobs[0].jediTaskID, params_for_bulk_insert, new_jobset_ids, special_handling_list
+                        jobs[0].jediTaskID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                        params_for_bulk_insert,
+                        new_jobset_ids,
+                        special_handling_list,
                     )
                     if not tmp_ret:
                         raise RuntimeError("bulk job insert failed")
@@ -638,7 +645,7 @@ class TaskBuffer:
             newMover = None
             for idxJob, job in enumerate(jobs):
                 # update DB
-                tmpddmIDs = []
+                tmpddmIDs: list[Any] = []
                 if oldJobStatusList is not None and idxJob < len(oldJobStatusList):
                     oldJobStatus = oldJobStatusList[idxJob]
                 else:
@@ -649,7 +656,11 @@ class TaskBuffer:
                         pass
                     else:
                         # check if there are done events
-                        hasDone = proxy.hasDoneEvents(job.jediTaskID, job.PandaID, job)
+                        hasDone = proxy.hasDoneEvents(
+                            job.jediTaskID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                            job.PandaID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                            job,
+                        )
                         if hasDone:
                             job.jobStatus = "finished"
                         else:
@@ -671,7 +682,7 @@ class TaskBuffer:
                         async_params = None
                     ret, tmpddmIDs, ddmAttempt, newMover = proxy.archiveJob(job, inJobsDefined, extraInfo=extraInfo, async_params=async_params)
                     if async_params is not None and ret:
-                        proxy.async_update_datasets(job.PandaID)
+                        proxy.async_update_datasets(job.PandaID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                 else:
                     ret = proxy.updateJob(job, inJobsDefined, oldJobStatus=oldJobStatus, extraInfo=extraInfo)
                 returns.append(ret)
@@ -870,6 +881,7 @@ class TaskBuffer:
     # set debug mode
     def setDebugMode(self, dn: str, pandaID: int, prodManager: bool, modeOn: bool, workingGroup: str | None) -> str | None:
         # get DB proxy
+        retStr: str | None
         with self.proxyPool.get() as proxy:
             # check the number of debug jobs
             hitLimit = False
@@ -989,7 +1001,7 @@ class TaskBuffer:
     ) -> list[str | None]:
         # get DBproxy
         with self.proxyPool.get() as proxy:
-            retStatus = []
+            retStatus: list[str | None] = []
             # peek at job
             for jobID in jobIDs:
                 res = proxy.peekJob(jobID, fromDefined, fromActive, fromArchived, fromWaiting)
@@ -1012,7 +1024,7 @@ class TaskBuffer:
     ) -> list[Any]:
         # get proxy
         with self.proxyPool.get() as proxy:
-            retJobs = []
+            retJobs: list[Any] = []
             # peek at job
             for jobID in jobIDs:
                 res = proxy.peekJob(jobID, fromDefined, fromActive, fromArchived, fromWaiting, forAnal)
@@ -1077,13 +1089,14 @@ class TaskBuffer:
         # sort
         retJobs: list[Any] = []
         for jobID in jobIDs:
+            jobSpec = retJobMap[jobID]
             if use_json:
-                if retJobMap[jobID] is None:
+                if jobSpec is None:
                     retJobs.append(None)
                 else:
-                    retJobs.append(retJobMap[jobID].to_dict())
+                    retJobs.append(jobSpec.to_dict())
             else:
-                retJobs.append(retJobMap[jobID])
+                retJobs.append(jobSpec)
 
         return retJobs
 
@@ -1133,7 +1146,7 @@ class TaskBuffer:
                                 id,
                                 {},
                                 getNewPandaID=True,
-                                attemptNr=tmpJobSpec.attemptNr,
+                                attemptNr=tmpJobSpec.attemptNr,  # type: ignore[arg-type]  # the id is a column, which is declared optional
                                 recoverableEsMerge=True,
                             )
                         elif EventServiceUtils.isEventServiceJob(tmpJobSpec) and not EventServiceUtils.isJobCloningJob(tmpJobSpec):

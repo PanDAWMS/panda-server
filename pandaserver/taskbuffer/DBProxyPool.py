@@ -21,6 +21,12 @@ from pandaserver.config import panda_config
 from pandaserver.taskbuffer import OraDBProxy as DBProxy
 from pandaserver.taskbuffer.ConBridge import ConBridge
 
+# DBProxy here is the module, and JediDBProxyPool rebinds this name to JediDBProxy so that
+# the constructor below builds the JEDI proxy. The annotations naming DBProxy.DBProxy are
+# evaluated when this module is imported, so they stay bound to the class in OraDBProxy --
+# which is the right answer either way, since the JEDI proxy subclasses it and adds no
+# method of its own.
+
 # logger
 _logger = PandaLogger().getLogger("DBProxyPool")
 
@@ -33,9 +39,10 @@ class DBProxyPool:
         # create Proxies
         _logger.debug("init")
         self.proxyList: Queue = Queue(nConnection)
-        self.connList: list[Any] = []
+        self.connList: list[DBProxy.DBProxy] = []
         for i in range(nConnection):
             _logger.debug(f"connect -> {i} ")
+            proxy: DBProxy.DBProxy
             if dbProxyClass is not None:
                 proxy = dbProxyClass()
             elif useTimeout and hasattr(panda_config, "usedbtimeout") and panda_config.usedbtimeout is True:
@@ -43,7 +50,11 @@ class DBProxyPool:
                 ConBridge allows having database interactions in separate processes and killing them independently when interactions are stalled.
                 This avoids clogged httpd processes due to stalled database accesses.
                 """
-                proxy = ConBridge()
+                # ConBridge is not a DBProxy subclass, but it answers to the same method set:
+                # its __getattribute__ forwards a name only when DBProxy has it and it is a
+                # method, so the divergence is `connect` (which it defines itself, minus the
+                # dbport this class does not pass) and the bridge_* methods callers never use.
+                proxy = ConBridge()  # type: ignore[assignment]
             else:
                 proxy = DBProxy.DBProxy()
                 self.connList.append(proxy)
@@ -61,7 +72,7 @@ class DBProxyPool:
         _logger.debug("ready")
 
     # return a free proxy. this method blocks until a proxy is available
-    def getProxy(self) -> Any:
+    def getProxy(self) -> "DBProxy.DBProxy":
         # time how long it took to get a proxy
         start_time = time.time()
 
@@ -77,12 +88,12 @@ class DBProxyPool:
         return proxy
 
     # put back a proxy
-    def putProxy(self, proxy: Any) -> None:
+    def putProxy(self, proxy: "DBProxy.DBProxy") -> None:
         self.proxyList.put(proxy)
 
     # context manager for getting DBProxy
     @contextmanager
-    def get(self) -> Iterator[Any]:
+    def get(self) -> Iterator["DBProxy.DBProxy"]:
         proxy = self.getProxy()
         try:
             yield proxy
@@ -92,5 +103,6 @@ class DBProxyPool:
     # cleanup
     def cleanup(self) -> None:
         _logger.debug("cleanup start")
-        [c.cleanup() for c in self.connList]
+        for conn in self.connList:
+            conn.cleanup()
         _logger.debug("cleanup done")

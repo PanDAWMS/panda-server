@@ -3873,7 +3873,7 @@ class JobComplexModule(BaseModule):
     # retry analysis job
     def retryJob(
         self,
-        pandaID: int,
+        pandaID: int | str,
         param: dict[str, Any],
         failedInActive: bool = False,
         changeJobInMem: bool = False,

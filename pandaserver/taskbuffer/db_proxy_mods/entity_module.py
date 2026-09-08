@@ -6,7 +6,7 @@ import re
 import time
 import traceback
 import uuid
-from typing import TYPE_CHECKING, Any, Collection
+from typing import TYPE_CHECKING, Any, Collection, Literal
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -2926,7 +2926,9 @@ class EntityModule(BaseModule):
             return False, False
 
     # get serialize JobID and status
-    def getUserParameter(self, dn: str, jobID: int, jobsetID: int) -> tuple[int, int | None, bool]:
+    # jobsetID takes the "NULL" sentinel and None because the branch below reads both as
+    # "no jobsetID", and dn is optional because an internal caller has no user
+    def getUserParameter(self, dn: str | None, jobID: int, jobsetID: int | Literal["NULL"] | None) -> tuple[int, int | None, bool]:
         comment = " /* DBProxy.getUserParameter */"
         tmp_log = self.create_tagged_logger(comment, f"dn={dn} jobID={jobID} jobsetID={jobsetID}")
         try:
@@ -2946,8 +2948,10 @@ class EntityModule(BaseModule):
                 retJobsetID = None
                 retJobID = jobID
             else:
-                # user specified jobsetID
-                retJobsetID = jobsetID
+                # user specified jobsetID. the branch above has taken the sentinel out, which
+                # the checker cannot see because the membership test is not against literals
+                # alone
+                retJobsetID = jobsetID  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                 retJobID = jobID
             # set autocommit on
             self.conn.begin()
@@ -3010,7 +3014,7 @@ class EntityModule(BaseModule):
             return retJobID, retJobsetID, retStatus
 
     # check ban user
-    def checkBanUser(self, dn: str, sourceLabel: str | None, jediCheck: bool = False) -> bool | int:
+    def checkBanUser(self, dn: str | None, sourceLabel: str | None, jediCheck: bool = False) -> bool | int:
         comment = " /* DBProxy.checkBanUser */"
         try:
             methodName = "checkBanUser"

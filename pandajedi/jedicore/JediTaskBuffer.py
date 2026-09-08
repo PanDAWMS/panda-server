@@ -174,7 +174,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
     ) -> tuple[bool, list[JediDatasetSpec] | None]:
         with self.proxyPool.get() as proxy:
             retStat, datasetSpecList = proxy.getDatasetsWithJediTaskID_JEDI(jediTaskID, datasetTypes=datasetTypes)
-            if retStat is True and getFiles is True:
+            if retStat is True and getFiles is True and datasetSpecList is not None:
                 for datasetSpec in datasetSpecList:
                     # read files
                     retStat, fileSpecList = proxy.getFilesInDatasetWithID_JEDI(jediTaskID, datasetSpec.datasetID, None, None)
