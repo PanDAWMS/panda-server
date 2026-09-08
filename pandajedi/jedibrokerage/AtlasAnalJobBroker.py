@@ -72,6 +72,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
         # return for failure
         retFatal = self.SC_FATAL, inputChunk
         retTmpError = self.SC_FAILED, inputChunk
+        # return when the task is only waiting for something it cannot control, so that
+        # it is not penalized with the pending timeout while it waits
+        retWaiting = self.SC_WAITING, inputChunk
         # doBrokerage returns either one of the error tuples above or None. Declared
         # without a value, which binds nothing at runtime, so that the first assignment
         # further down does not fix retVal to the tuple type alone.
@@ -206,20 +209,20 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 if totalJobStat["nRunJobs"] > maxNumRunJobs:
                     tmpLog.error(f"throttle to generate jobs due to too many running jobs {totalJobStat['nRunJobs']} > {gdp_token_jobs}")
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                    return retTmpError
+                    return retWaiting
                 elif totalJobStat["nQueuedJobs"] > maxFactor * maxNumRunJobs:
                     tmpLog.error(f"throttle to generate jobs due to too many queued jobs {totalJobStat['nQueuedJobs']} > {maxFactor}x{gdp_token_jobs}")
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                    return retTmpError
+                    return retWaiting
             if maxNumRunCores:
                 if totalJobStat["nRunCores"] > maxNumRunCores:
                     tmpLog.error(f"throttle to generate jobs due to too many running cores {totalJobStat['nRunCores']} > {gdp_token_cores}")
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                    return retTmpError
+                    return retWaiting
                 elif totalJobStat["nQueuedCores"] > maxFactor * maxNumRunCores:
                     tmpLog.error(f"throttle to generate jobs due to too many queued cores {totalJobStat['nQueuedCores']} > {maxFactor}x{gdp_token_cores}")
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                    return retTmpError
+                    return retWaiting
 
         # get gshare usage
         ret_val, gshare_usage_dict = AtlasBrokerUtils.getGShareUsage(tbIF=self.taskBufferIF, gshare=taskSpec.gshare)
@@ -329,7 +332,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         )
                     )
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                    return retTmpError
+                    return retWaiting
                 elif task_class_value == 0 and usage_percent > user_analyis_to_throttle_threshold_perc_B:
                     # B-tasks to throttle
                     tmpLog.error(
@@ -338,7 +341,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         )
                     )
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                    return retTmpError
+                    return retWaiting
                 elif (
                     task_class_value == 1 and usage_percent * usage_slot_ratio_A * user_analyis_throttle_intensity_A > user_analyis_to_throttle_threshold_perc_A
                 ):
@@ -349,7 +352,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         )
                     )
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
-                    return retTmpError
+                    return retWaiting
             except Exception as e:
                 tmpLog.error(f"got error when checking low-ranked tasks to throttle; skipped : {e}")
 

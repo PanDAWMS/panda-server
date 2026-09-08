@@ -33,6 +33,7 @@ class TaskRefinerBase(object):
     SC_SUCCEEDED: Interaction.StatusCode
     SC_FAILED: Interaction.StatusCode
     SC_FATAL: Interaction.StatusCode
+    SC_WAITING: Interaction.StatusCode
 
     # Set by extractCommon() before any of the methods that read it run, so it is
     # declared non-Optional: nothing in this class guards it, and a refiner that

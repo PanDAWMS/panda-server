@@ -19,6 +19,7 @@ class JobSplitter:
     SC_SUCCEEDED: Interaction.StatusCode
     SC_FAILED: Interaction.StatusCode
     SC_FATAL: Interaction.StatusCode
+    SC_WAITING: Interaction.StatusCode
 
     # constructor
     def __init__(self) -> None:

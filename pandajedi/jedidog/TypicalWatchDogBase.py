@@ -19,6 +19,7 @@ class TypicalWatchDogBase(WatchDogBase):
     SC_SUCCEEDED: Interaction.StatusCode
     SC_FAILED: Interaction.StatusCode
     SC_FATAL: Interaction.StatusCode
+    SC_WAITING: Interaction.StatusCode
 
     # pre-action
     def pre_action(self, tmpLog: "MsgWrapper", vo: str | None, prodSourceLabel: str | None, pid: str, *args: Any, **kwargs: Any) -> None:

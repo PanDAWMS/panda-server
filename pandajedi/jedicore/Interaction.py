@@ -57,12 +57,16 @@ class StatusCode(object):
 SC_SUCCEEDED = StatusCode(0)
 SC_FAILED = StatusCode(1)
 SC_FATAL = StatusCode(2)
+# the action didn't go through, but only because it is waiting for something outside
+# of the task's control, so the caller must not penalize the task for the wait
+SC_WAITING = StatusCode(3)
 
 # mapping to accessors
 statusCodeMap = {
     "SC_SUCCEEDED": SC_SUCCEEDED,
     "SC_FAILED": SC_FAILED,
     "SC_FATAL": SC_FATAL,
+    "SC_WAITING": SC_WAITING,
 }
 
 
@@ -209,6 +213,9 @@ class MethodClass(object):
                 stepIdx = 6
                 if ret.statusCode == SC_FAILED:
                     retException = JEDITemporaryError
+                elif ret.statusCode == SC_WAITING:
+                    # a caller over IPC has no use for the distinction, so treat it as temporary
+                    retException = JEDITemporaryError
                 elif ret.statusCode == SC_FATAL:
                     retException = JEDIFatalError
             except Exception as e:
@@ -339,6 +346,7 @@ class CommandReceiveInterface(object):
     SC_SUCCEEDED: StatusCode
     SC_FAILED: StatusCode
     SC_FATAL: StatusCode
+    SC_WAITING: StatusCode
 
     # constructor. con is None in the jeditest drivers, which build a knight to call one
     # of its methods directly and never reach start()

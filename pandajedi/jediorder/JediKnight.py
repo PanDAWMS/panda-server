@@ -20,6 +20,7 @@ class JediKnight(Interaction.CommandReceiveInterface):
     SC_SUCCEEDED: Interaction.StatusCode
     SC_FAILED: Interaction.StatusCode
     SC_FATAL: Interaction.StatusCode
+    SC_WAITING: Interaction.StatusCode
 
     # What this holds depends on the subclass. WatchDog, TaskBroker, TaskRefiner and
     # PostProcessor also inherit FactoryBase, whose __init__() assigns self.logger a

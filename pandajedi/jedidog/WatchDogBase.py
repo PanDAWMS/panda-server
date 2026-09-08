@@ -23,6 +23,7 @@ class WatchDogBase(object):
     SC_SUCCEEDED: Interaction.StatusCode
     SC_FAILED: Interaction.StatusCode
     SC_FATAL: Interaction.StatusCode
+    SC_WAITING: Interaction.StatusCode
 
     # Installed by FactoryBase, which sets both right after the plugin is instantiated --
     # the only way a watchdog is created -- so both carry a real value by the time an

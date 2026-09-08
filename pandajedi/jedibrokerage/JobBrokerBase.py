@@ -20,6 +20,7 @@ class JobBrokerBase(object):
     SC_SUCCEEDED: Interaction.StatusCode
     SC_FAILED: Interaction.StatusCode
     SC_FATAL: Interaction.StatusCode
+    SC_WAITING: Interaction.StatusCode
 
     def __init__(self, ddmIF: Interaction.CommandSendInterface, taskBufferIF: "JediTaskBufferInterface") -> None:
         self.ddmIF = ddmIF
