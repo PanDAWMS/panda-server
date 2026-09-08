@@ -874,6 +874,9 @@ class TaskBuffer:
             # check the number of debug jobs
             hitLimit = False
             if modeOn is True:
+                # bound here because the production manager branch below sets no limit and
+                # so never reads it
+                jobList: list[Any] | None = None
                 if prodManager:
                     limitNum = None
                 elif workingGroup is not None:
@@ -882,7 +885,11 @@ class TaskBuffer:
                 else:
                     jobList = proxy.getActiveDebugJobs(dn=dn)
                     limitNum = ProcessGroups.maxDebugJobs
-                if limitNum and len(jobList) >= limitNum:
+                if limitNum and jobList is None:
+                    # the subjobs already in debug mode could not be counted, so the limit
+                    # cannot be checked and the mode must not be granted by default
+                    return "Failed to count the subjobs already in debug mode"
+                if limitNum and jobList is not None and len(jobList) >= limitNum:
                     # exceeded
                     retStr = "You already hit the limit on the maximum number of debug subjobs "
                     retStr += f"({limitNum} jobs). "
