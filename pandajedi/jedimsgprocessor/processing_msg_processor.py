@@ -121,14 +121,17 @@ class ProcessingMsgProcPlugin(BaseMsgProcPlugin):
                 n_missing = len(missing_files_dict)
                 if n_missing > 0:
                     res = self.tbIF.setMissingFilesAboutIdds_JEDI(jeditaskid=jeditaskid, filenames_dict=missing_files_dict)
-                    if res == n_missing:
+                    # The three comparisons below cover every number, so the else was written for
+                    # the None this returns when the update failed -- but it sat after comparisons
+                    # that raise on None, so that case was a TypeError rather than this warning.
+                    if res is None:
+                        tmp_log.warning(f"jeditaskid={jeditaskid}, res={res}, something unwanted happened about missing files...")
+                    elif res == n_missing:
                         tmp_log.debug(f"jeditaskid={jeditaskid}, marked all {n_missing} files missing")
                     elif res < n_missing:
                         tmp_log.warning(f"jeditaskid={jeditaskid}, only {res} out of {n_missing} files marked missing...")
-                    elif res > n_missing:
-                        tmp_log.warning(f"jeditaskid={jeditaskid}, strangely, {res} out of {n_missing} files marked missing...")
                     else:
-                        tmp_log.warning(f"jeditaskid={jeditaskid}, res={res}, something unwanted happened about missing files...")
+                        tmp_log.warning(f"jeditaskid={jeditaskid}, strangely, {res} out of {n_missing} files marked missing...")
             else:
                 # do nothing
                 tmp_log.debug(f"jeditaskid={jeditaskid}, msg_type={msg_type}, relation_type={relation_type}, nothing done")
