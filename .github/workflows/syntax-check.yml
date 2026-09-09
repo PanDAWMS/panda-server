@@ -86,9 +86,13 @@ jobs:
     # Last, after mypy: panda-common ships py.typed, so installing it changes what mypy
     # resolves. It produces no findings today -- measured, identical counts with and
     # without -- but the ordering keeps this step from quietly moving the gate above it.
+    #
+    # No version here on purpose. This step only needs the package to be importable, and
+    # pip installs the newest release either way, so a bound would be a second copy of the
+    # one in pyproject.toml -- the copy that gets forgotten when the real one moves.
     - name: Import the classes that build __slots__
       run: |
-        pip install 'panda-common>=0.1.9'
+        pip install panda-common
         python -c "
         import pandaserver.taskbuffer.JobSpec
         import pandaserver.taskbuffer.FileSpec
