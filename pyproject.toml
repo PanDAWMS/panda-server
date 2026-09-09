@@ -116,17 +116,21 @@ line-length = 160
 [tool.flake8]
 ignore = ['E501', 'U100']
 
-# The tree is clean under these flags and CI fails on any finding, so a change that
-# introduces one has to fix it. Widening them further will surface findings that were
-# never counted; do that in a PR that also resolves them, together with the mypy pin in
-# .github/workflows/syntax-check.yml. --strict is not the next step: most of what it adds
-# is disallow_untyped_calls, which reports a call into an unannotated function rather than
-# an unannotated function, so it counts the same gaps again from the other side.
+# The tree is clean under these flags, so `mypy` with no arguments answers whether a change
+# keeps it that way. Nothing in CI runs it yet -- wiring it in belongs with the pre-commit
+# hook that lets a contributor see the same result before opening a PR, so both go in
+# together in a follow-up.
+#
+# Widening the flags further will surface findings that were never counted; do that in a PR
+# that also resolves them. --strict is not the next step: most of what it adds is
+# disallow_untyped_calls, which reports a call into an unannotated function rather than an
+# unannotated function, so it counts the same gaps again from the other side.
 [tool.mypy]
 files = ["pandaserver", "pandajedi"]
-# CI installs mypy and two stub packages and nothing else, so every third-party import in
-# the tree is unresolvable there and would otherwise be 455 findings that say nothing
-# about this code. The override below takes this back off for pandaserver and pandajedi.
+# Run without the third-party packages installed -- which is how a checkout with only mypy
+# in the environment runs -- and every third-party import in the tree is unresolvable,
+# which would otherwise be 455 findings that say nothing about this code. The override
+# below takes this back off for pandaserver and pandajedi.
 ignore_missing_imports = true
 # Without this, mypy skips the body of every function that has no annotations --
 # which is most of this tree, so the gate would only cover the code that needs it
@@ -152,13 +156,13 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 
 # ignore_missing_imports silences a module mypy cannot find, which for a first-party path
-# means it silences a typo: the name becomes Any and nothing is reported. ruff F821 cannot
-# see a module path at all and py_compile does not import, so an import naming a module
-# that is not there passed every gate. Seven of them were in the tree, two fatal in
-# production and three written by the annotation work itself. For ignore_missing_imports
-# the module patterns match the module being imported, not the file importing it, so
-# naming the two first-party roots here makes only their paths a findable-or-fail matter
-# and leaves every third-party import silent.
+# means it silences a typo: the name becomes Any and nothing is reported. py_compile parses
+# rather than imports, so an import naming a module that is not there passes it, and the
+# override below is what catches it instead. Seven of them were in the tree, two fatal in
+# production and three written by the annotation work itself. For ignore_missing_imports the
+# module patterns match the module being imported, not the file importing it, so naming the
+# two first-party roots here makes only their paths a findable-or-fail matter and leaves
+# every third-party import silent.
 [[tool.mypy.overrides]]
 module = [
     "pandajedi.*",

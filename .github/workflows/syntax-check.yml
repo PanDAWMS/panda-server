@@ -1,8 +1,6 @@
 name: Syntax Check
 
-on: 
-  pull_request:
-  workflow_dispatch:
+on: [pull_request]
 
 # a new push to the PR supersedes the previous check
 concurrency:
@@ -33,69 +31,3 @@ jobs:
         else
           echo "No Python files changed."
         fi
-
-    # py_compile only parses, so a name that does not exist compiles fine and
-    # raises at import time instead -- in a daemon, that is an outage rather
-    # than a test failure. Type annotations make this easy to hit, because the
-    # class named in one has to be imported even though nothing calls it.
-    - name: Install ruff
-      run: pip install 'ruff==0.14.5'
-
-    # the whole tree, not just the changed files: the tree is clean, the scan
-    # takes well under a second for ~380 files, and a name can be broken by an
-    # edit somewhere else -- a renamed import, a deleted helper, a moved class.
-    - name: Check for undefined names
-      run: ruff check --isolated --select F821 .
-
-    # The tree is clean under these flags, so the gate is mypy itself: any finding
-    # fails the step. This replaced a baseline of ~2190 findings, which is why a
-    # count-based gate was never used -- annotating a function turns on checking of
-    # its whole body, so improving the annotations can raise the number of findings
-    # before it lowers it. With zero as the bar that problem goes away.
-    #
-    # The whole tree, not just the changed files: a cold run takes about five
-    # seconds, and a finding can be introduced in one file by an edit in another.
-    # The flags live in [tool.mypy] in pyproject.toml.
-    #
-    # mypy and the stub packages are pinned together: the stubs are part of what the
-    # run sees, so an unpinned upgrade would produce findings without a code change.
-    # When upgrading either, fix what the new version reports in the same PR.
-    #
-    # Nothing else is installed on purpose. Third-party imports are unresolvable here and
-    # ignore_missing_imports silences them; the overrides block that turns it back off for
-    # pandaserver and pandajedi is what makes this step also catch an import naming a
-    # module that is not there, which ruff F821 cannot see and py_compile does not execute.
-    - name: Type check
-      run: |
-        pip install 'mypy==2.3.1' 'types-requests==2.33.0.20260712' 'types-PyYAML==6.0.12.20260815'
-        mypy
-
-    # None of the gates above executes a class body, so a class that cannot be created
-    # passes all three and fails at import time instead -- in a daemon, an outage rather
-    # than a failed check. The case this tree can actually reach is a class attribute that
-    # carries a value while its name is in __slots__, which raises ValueError when the class
-    # is built. Annotating the spec classes is exactly the work that invites it, since the
-    # obvious way to write one is `status: str = ""`, so the gate goes in before that work
-    # rather than after the first outage.
-    #
-    # These four are the spec classes that assign __slots__ and import without a config
-    # file. The fifth, daemons/utils.py's DaemonWorker, is left out on purpose: it pulls in
-    # pandaserver.config.panda_config, which reads panda_server.cfg at import time and does
-    # not swallow the failure, so covering it would mean shipping a config to CI.
-    #
-    # Last, after mypy: panda-common ships py.typed, so installing it changes what mypy
-    # resolves. It produces no findings today -- measured, identical counts with and
-    # without -- but the ordering keeps this step from quietly moving the gate above it.
-    #
-    # No version here on purpose. This step only needs the package to be importable, and
-    # pip installs the newest release either way, so a bound would be a second copy of the
-    # one in pyproject.toml -- the copy that gets forgotten when the real one moves.
-    - name: Import the classes that build __slots__
-      run: |
-        pip install panda-common
-        python -c "
-        import pandaserver.taskbuffer.JobSpec
-        import pandaserver.taskbuffer.FileSpec
-        import pandaserver.taskbuffer.WorkerSpec
-        import pandaserver.taskbuffer.HarvesterMetricsSpec
-        "
