@@ -38,7 +38,7 @@ class HarvesterMetricsSpec(object):
         # map of changed attributes
         object.__setattr__(self, "_changedAttrs", {})
 
-    # override __setattr__ to collecte the changed attributes
+    # override __setattr__ to collect the changed attributes
     def __setattr__(self, name: str, value: Any) -> None:
         oldVal = getattr(self, name)
         # convert string to datetime

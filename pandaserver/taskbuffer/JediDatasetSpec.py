@@ -154,7 +154,7 @@ class JediDatasetSpec(object):
         # distributed
         object.__setattr__(self, "distributed", False)
 
-    # override __setattr__ to collecte the changed attributes
+    # override __setattr__ to collect the changed attributes
     def __setattr__(self, name: str, value: Any) -> None:
         oldVal = getattr(self, name)
         object.__setattr__(self, name, value)
