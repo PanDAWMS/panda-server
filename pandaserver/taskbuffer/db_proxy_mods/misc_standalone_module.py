@@ -1264,10 +1264,6 @@ class MiscStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"datasetname={datasetname}")
         try:
             tmp_log.debug(f"fresh={definedFreshFlag}")
-            dataset_key: str | bytes = datasetname
-            if isinstance(datasetname, str):
-                dataset_key = datasetname.encode("ascii", "ignore")
-                tmp_log.debug(f"converted unicode for {dataset_key!r}")
             # start transaction
             self.conn.begin()
             # check freshness
