@@ -801,25 +801,27 @@ class TaskUtilsModule(BaseModule):
                                     startTime, endTime, corePower, coreCount, baseWalltime=preBaseWalltime, cpuEfficiency=preCpuEfficiency
                                 )
                                 if hs06sec is None:
-                                    # the helper answers None when it could not compute one. The
-                                    # division below used to reach the except with a TypeError,
-                                    # which is the same skip with a less useful reason
-                                    raise RuntimeError("failed to compute HS06sec")
-                                tmpVal = hs06sec
-                                if pandaID in inEventsMap and inEventsMap[pandaID] > 0:
-                                    tmpVal /= float(inEventsMap[pandaID])
-                                if (
-                                    pandaID not in inEventsMap
-                                    or inEventsMap[pandaID] >= (10 * coreCount)
-                                    or pandaID in pseudoInput
-                                    or (
-                                        inEventsMap[pandaID] < (10 * coreCount)
-                                        and pandaID in execTimeMap
-                                        and execTimeMap[pandaID] > datetime.timedelta(seconds=6 * 3600)
-                                    )
-                                ):
-                                    cpuTimeList.append(tmpVal)
-                                    cpuTimeDict[tmpVal] = pandaID
+                                    # the helper answers None when it could not compute one, which
+                                    # means the job's times are unusable. Leave the job out of
+                                    # cpuTimeList rather than putting None in it: percentile()
+                                    # sorts that list and would raise outside this try
+                                    tmpLog.warning(f"cannot compute HS06sec for PandaID={pandaID}")
+                                else:
+                                    tmpVal = hs06sec
+                                    if pandaID in inEventsMap and inEventsMap[pandaID] > 0:
+                                        tmpVal /= float(inEventsMap[pandaID])
+                                    if (
+                                        pandaID not in inEventsMap
+                                        or inEventsMap[pandaID] >= (10 * coreCount)
+                                        or pandaID in pseudoInput
+                                        or (
+                                            inEventsMap[pandaID] < (10 * coreCount)
+                                            and pandaID in execTimeMap
+                                            and execTimeMap[pandaID] > datetime.timedelta(seconds=6 * 3600)
+                                        )
+                                    ):
+                                        cpuTimeList.append(tmpVal)
+                                        cpuTimeDict[tmpVal] = pandaID
                         except Exception:
                             pass
 
