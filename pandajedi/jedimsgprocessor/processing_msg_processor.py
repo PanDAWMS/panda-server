@@ -125,12 +125,14 @@ class ProcessingMsgProcPlugin(BaseMsgProcPlugin):
                 n_missing = len(missing_files_dict)
                 if n_missing > 0:
                     res = self.tbIF.setMissingFilesAboutIdds_JEDI(jeditaskid=jeditaskid, filenames_dict=missing_files_dict)
-                    # The three comparisons below cover every number, so the else was written for
-                    # the None this returns when the update failed -- but it sat after comparisons
-                    # that raise on None, so that case was a TypeError rather than this warning.
                     if res is None:
-                        tmp_log.warning(f"jeditaskid={jeditaskid}, res={res}, something unwanted happened about missing files...")
-                    elif res == n_missing:
+                        # got error and rollback in dbproxy. Raising is what the two updates above
+                        # do for the same case, and it is what nacks the message so that iDDS
+                        # redelivers it instead of the missing files being dropped
+                        err_str = f"jeditaskid={jeditaskid}, failed to mark {n_missing} files missing"
+                        raise RuntimeError(err_str)
+                    # the three comparisons below cover every number
+                    if res == n_missing:
                         tmp_log.debug(f"jeditaskid={jeditaskid}, marked all {n_missing} files missing")
                     elif res < n_missing:
                         tmp_log.warning(f"jeditaskid={jeditaskid}, only {res} out of {n_missing} files marked missing...")
