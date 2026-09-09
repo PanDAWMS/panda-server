@@ -62,7 +62,7 @@ class JediFileSpec(object):
         # source name
         object.__setattr__(self, "sourceName", None)
 
-    # override __setattr__ to collecte the changed attributes
+    # override __setattr__ to collect the changed attributes
     def __setattr__(self, name, value):
         oldVal = getattr(self, name)
         object.__setattr__(self, name, value)
