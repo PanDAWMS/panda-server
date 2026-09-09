@@ -173,18 +173,22 @@ class Watcher(threading.Thread):
                                         "error_diag": error_diag,
                                     }
                                 ]
-                                self.logger.debug("Watcher.run 2 will call job_failure_postprocessing")
-                                retryModule.job_failure_postprocessing(
+                                # only the retry rules here, not the whole postprocessing: the error
+                                # classification reads the errors off the job spec rather than from
+                                # this list, so the call above has already run it on this same job,
+                                # and increase_max_failure() adds one to maxFailure each time
+                                self.logger.debug("Watcher.run 2 will call apply_retrial_rules")
+                                retryModule.apply_retrial_rules(
                                     self.taskBuffer,
-                                    job_tmp.PandaID,
+                                    job_tmp,
                                     errors,
                                     job_tmp.attemptNr,
                                 )
-                                self.logger.debug("job_failure_postprocessing 2 is back")
+                                self.logger.debug("apply_retrial_rules 2 is back")
                         except IndexError:
                             pass
                         except Exception as e:
-                            self.logger.error(f"job_failure_postprocessing 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+                            self.logger.error(f"apply_retrial_rules 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
                         cThr = Closer(self.taskBuffer, destDBList, job)
                         cThr.run()
