@@ -1452,10 +1452,11 @@ class JediTaskSpec(object):
         if self.architecture is not None:
             platform = self.get_sw_platform()
             base = self.get_base_platform()
-            # the platform can be absent even when the architecture is not, when the JSON form
-            # carries no sw_platform. There is then nothing to append the base platform to
-            if platform and base:
-                platform += "@" + base
+            # the SW platform is empty, not absent, when the JSON form carries no sw_platform,
+            # and "@base" is the encoded form of a task that has only a base platform. Keep
+            # appending in that case: it is what the clients send and what asetup reads back
+            if base:
+                platform = (platform or "") + "@" + base
             return platform
         return self.architecture
 
