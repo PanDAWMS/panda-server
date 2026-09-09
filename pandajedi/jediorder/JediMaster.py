@@ -164,12 +164,6 @@ class JediMaster:
             proc = multiprocessing.Process(target=self.launcher, args=("pandajedi.jediorder.JediMsgProcessor", stop_event))
             proc.start()
             knightList.append(proc)
-        # setup JediDaemon agent (only one system process)
-        if hasattr(jedi_config, "daemon") and hasattr(jedi_config.daemon, "enable") and jedi_config.daemon.enable:
-            parent_conn, child_conn = multiprocessing.Pipe()
-            proc = multiprocessing.Process(target=self.launcher, args=("pandajedi.jediorder.JediDaemon", taskBufferIF, ddmIF))
-            proc.start()
-            knightList.append(proc)
         # check initial failures
         time.sleep(5)
         for knight in knightList:

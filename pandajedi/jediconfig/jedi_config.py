@@ -41,11 +41,6 @@ class _Confeeder(_SectionClass):
     procConfig: str
 
 
-class _Daemon(_SectionClass):
-    config: str
-    enable: bool
-
-
 class _Db(_SectionClass):
     dbhost: str
     dbname: str
@@ -145,7 +140,6 @@ class _WatchDog(_SectionClass):
 
 _SECTION_CLASSES: dict[str, type[_SectionClass]] = {
     "confeeder": _Confeeder,
-    "daemon": _Daemon,
     "db": _Db,
     "ddm": _Ddm,
     "jobbroker": _JobBroker,
@@ -166,7 +160,6 @@ _SECTION_CLASSES: dict[str, type[_SectionClass]] = {
 # The sections themselves, installed into this module's dict by the loop below.
 # Declared without values, so nothing is created at import time.
 confeeder: _Confeeder
-daemon: _Daemon
 db: _Db
 ddm: _Ddm
 jobbroker: _JobBroker
