@@ -4692,14 +4692,6 @@ class TaskComplexModule(BaseModule):
             sqlTO = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlTO += "SET status=:newStatus,errorDialog=:errorDialog,modificationtime=CURRENT_DATE,stateChangeTime=CURRENT_DATE "
             sqlTO += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
-            # sql to keep pending
-            sqlTK = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTK += "SET modificationtime=CURRENT_DATE,frozenTime=CURRENT_DATE "
-            sqlTK += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
-            # sql to check the number of finished files
-            sqlND = f"SELECT SUM(nFilesFinished) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlND += f"WHERE jediTaskID=:jediTaskID AND type IN ({INPUT_TYPES_var_str}) "
-            sqlND += "AND masterID IS NULL "
             # start transaction
             self.conn.begin()
             self.cur.execute(sqlTL + comment, varMap)
@@ -4709,10 +4701,6 @@ class TaskComplexModule(BaseModule):
             msg_driven_taskid_set = set()
             for jediTaskID, frozenTime, errorDialog, parent_tid, splitRule, startTime in resTL:
                 timeoutFlag = False
-                keepFlag = False
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":oldStatus"] = "pending"
                 # check parent
                 parentRunning = False
                 if parent_tid not in [None, jediTaskID]:
@@ -4720,51 +4708,38 @@ class TaskComplexModule(BaseModule):
                     # if parent is running
                     if tmpStat == "running":
                         parentRunning = True
-                if not keepFlag:
-                    # if timeout
-                    if not parentRunning and timeoutDate is not None and frozenTime is not None and frozenTime < timeoutDate:
-                        timeoutFlag = True
-                        # check the number of finished files
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap.update(INPUT_TYPES_var_map)
-                        self.cur.execute(sqlND + comment, varMap)
-                        tmpND = self.cur.fetchone()
-                        if tmpND is not None and tmpND[0] is not None and tmpND[0] > 0:
-                            abortingFlag = False
-                        else:
-                            abortingFlag = True
-                        # go to exhausted
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":newStatus"] = "exhausted"
-                        varMap[":oldStatus"] = "pending"
-                        if errorDialog is None:
-                            errorDialog = ""
-                        else:
-                            errorDialog += ". "
-                        errorDialog += f"timeout while in pending since {frozenTime.strftime('%Y/%m/%d %H:%M:%S')}"
-                        varMap[":errorDialog"] = errorDialog[: JediTaskSpec._limitLength["errorDialog"]]
-                        sql = sqlTO
+                # if timeout
+                if not parentRunning and timeoutDate is not None and frozenTime is not None and frozenTime < timeoutDate:
+                    timeoutFlag = True
+                    # go to exhausted
+                    varMap = {}
+                    varMap[":jediTaskID"] = jediTaskID
+                    varMap[":newStatus"] = "exhausted"
+                    varMap[":oldStatus"] = "pending"
+                    if errorDialog is None:
+                        errorDialog = ""
                     else:
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":oldStatus"] = "pending"
-                        sql = sqlTU
+                        errorDialog += ". "
+                    errorDialog += f"timeout while in pending since {frozenTime.strftime('%Y/%m/%d %H:%M:%S')}"
+                    varMap[":errorDialog"] = errorDialog[: JediTaskSpec._limitLength["errorDialog"]]
+                    sql = sqlTO
+                else:
+                    varMap = {}
+                    varMap[":jediTaskID"] = jediTaskID
+                    varMap[":oldStatus"] = "pending"
+                    sql = sqlTU
                 self.cur.execute(sql + comment, varMap)
                 tmpRow = self.cur.rowcount
                 if tmpRow > 0:
                     if timeoutFlag:
                         tmpLog.info(f"#ATM #KV jediTaskID={jediTaskID} timeout")
-                    elif keepFlag:
-                        tmpLog.info(f"#ATM #KV jediTaskID={jediTaskID} action=keep_pending")
                     else:
                         tmpLog.info(f"#ATM #KV jediTaskID={jediTaskID} action=reactivate")
                         if is_msg_driven(splitRule):
                             # added msg driven tasks
                             msg_driven_taskid_set.add(jediTaskID)
                 nRow += tmpRow
-                if tmpRow > 0 and not keepFlag:
+                if tmpRow > 0:
                     self.record_task_status_change(jediTaskID)
                 # update DEFT for timeout
                 if timeoutFlag:
