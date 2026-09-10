@@ -812,7 +812,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                 continue
             if lockedby == "jedi":
                 if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
-                    _logger.debug("retrying {0} in long activated" % pandaID)
+                    _logger.debug(f"retrying {pandaID} in long activated")
                     taskBuffer.retryJob(
                         pandaID,
                         {},
