@@ -74,6 +74,6 @@ else:
         print(f"{job_id_end} is less than {job_id_start}")
         sys.exit(1)
 
-    ret = Client.kill_jobs(range(job_id_start, job_id_end + 1), code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
+    ret = Client.kill_jobs(list(range(job_id_start, job_id_end + 1)), code=codeV, keep_unmerged=options.keepUnmerged, job_sub_status=options.jobSubStatus)
 
 print(ret)

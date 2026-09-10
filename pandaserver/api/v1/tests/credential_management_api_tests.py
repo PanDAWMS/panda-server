@@ -16,11 +16,11 @@ NO_SSL_RESPONSE = {"success": False, "message": "SSL secure connection is requir
 
 
 class TestSecretManagementAPI(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.http_client = HttpClient()
         self.urls = [api_url, api_url_ssl]  # Run tests with both base URLs
 
-    def test_set_user_secrets(self):
+    def test_set_user_secrets(self) -> None:
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/creds/set_user_secrets"
@@ -34,7 +34,7 @@ class TestSecretManagementAPI(unittest.TestCase):
                     expected_response = {"success": True, "message": "OK", "data": None}
                 self.assertEqual(output, expected_response)
 
-    def test_get_user_secrets(self):
+    def test_get_user_secrets(self) -> None:
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/creds/get_user_secrets"
@@ -48,7 +48,7 @@ class TestSecretManagementAPI(unittest.TestCase):
                     expected_response = {"success": True, "message": "", "data": '{"test_key": "test_value"}'}
                 self.assertEqual(output, expected_response)
 
-    def test_get_key_pair(self):
+    def test_get_key_pair(self) -> None:
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/creds/get_key_pair"
@@ -66,7 +66,7 @@ class TestSecretManagementAPI(unittest.TestCase):
                     }
                 self.assertEqual(output, expected_response)
 
-    def test_get_proxy(self):
+    def test_get_proxy(self) -> None:
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/creds/get_proxy"
@@ -80,7 +80,7 @@ class TestSecretManagementAPI(unittest.TestCase):
                     expected_response = {"success": False, "message": "'proxy' not found for atlpilo2", "data": None}
                 self.assertEqual(output, expected_response)
 
-    def test_get_access_token(self):
+    def test_get_access_token(self) -> None:
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/creds/get_access_token"
@@ -94,7 +94,7 @@ class TestSecretManagementAPI(unittest.TestCase):
                     expected_response = {"success": False, "message": "failed since token key is invalid for pilot_server", "data": None}
                 self.assertEqual(output, expected_response)
 
-    def test_get_token_key(self):
+    def test_get_token_key(self) -> None:
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/creds/get_token_key"

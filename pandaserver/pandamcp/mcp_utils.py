@@ -1,6 +1,7 @@
 import inspect
 import os.path
 from collections.abc import Callable
+from typing import Any
 
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.tools.tool import Tool
@@ -12,7 +13,7 @@ from pandaserver.srvcore.panda_request import PandaRequest
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
-def create_tool(func: Callable, name: str | None = None) -> Tool:
+def create_tool(func: Callable[..., Any], name: str | None = None) -> Tool:
     """
     Create an MCP tool that wraps the API call.
 
@@ -21,12 +22,15 @@ def create_tool(func: Callable, name: str | None = None) -> Tool:
     """
 
     # construct the URL based on the module and function name
-    mod_path = inspect.getfile(inspect.getmodule(func))
+    func_module = inspect.getmodule(func)
+    if func_module is None:
+        raise ValueError(f"cannot find the module defining {func.__name__}")
+    mod_path = inspect.getfile(func_module)
     mod_name = "_".join(os.path.basename(mod_path).split("_")[:-1])
 
     # determine http method based on the docstring
     http_method = None
-    for line in func.__doc__.splitlines():
+    for line in (func.__doc__ or "").splitlines():
         line = line.strip()
         if line.startswith("HTTP Method:"):
             http_method = line.split(":")[1].strip().lower()
@@ -51,7 +55,10 @@ def create_tool(func: Callable, name: str | None = None) -> Tool:
             annotations[k] = v
 
     # create a new function that wraps the API call
-    def wrapped_func(**kwarg):
+    # what is written here is discarded: both __signature__ and __annotations__ are
+    # replaced below with the wrapped endpoint's, which is what the tool schema is built
+    # from
+    def wrapped_func(**kwarg: Any) -> Any:
         nonlocal url, http_method
         kwarg.pop("req", None)
         # extract the id_token and auth_vo from the headers
@@ -74,7 +81,7 @@ def create_tool(func: Callable, name: str | None = None) -> Tool:
         return output
 
     # set the signature and annotations to the wrapped function to align with the original API call
-    wrapped_func.__signature__ = sig.replace(parameters=params)
+    wrapped_func.__signature__ = sig.replace(parameters=params)  # type: ignore[attr-defined]  # honored by inspect, but not declared on function objects in typeshed
     wrapped_func.__annotations__ = annotations
 
     return Tool.from_function(wrapped_func, name=name or func.__name__, description=func.__doc__)

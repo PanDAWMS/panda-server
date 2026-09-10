@@ -1,14 +1,15 @@
 import sys
 import uuid
+from typing import Any
 
-from userinterface import Client
+from pandaclient import Client
 
 site = sys.argv[1]
 
 dsName = "mc12_8TeV.189659.gg2VVPythia8_AU2CT10_ggH125p5_VV_2mu2numu_m2l4_2pt3.evgen.EVNT.e2872_tid01461041_00"
 logDatasetName = f"panda.jeditest.log.{uuid.uuid4()}"
 
-taskParamMap = {}
+taskParamMap: dict[str, Any] = {}
 
 # taskParamMap['nFilesPerJob'] = 1
 taskParamMap["nFiles"] = 1

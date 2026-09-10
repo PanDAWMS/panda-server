@@ -2,7 +2,11 @@
 
 import sys
 import xml.dom.minidom
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.FileSpec import FileSpec
 
 
 class dom_job:
@@ -13,10 +17,16 @@ class dom_job:
     forward  - list of (option,value) forwarded to the grid job
     """
 
-    def __init__(s, domjob=None, primaryds=None, defaultcmd=None, defaultout=[]):
+    def __init__(
+        s,
+        domjob: xml.dom.minidom.Element | None = None,
+        primaryds: str | None = None,
+        defaultcmd: str | None = None,
+        defaultout: list[str] = [],
+    ) -> None:
         """Loads <job></job> from xml file.
         If primaryds is set, makes sure it is present in job spec"""
-        s.infiles = {}
+        s.infiles: dict[str, Any] = {}
         s.outfiles = []
         s.command = defaultcmd
         s.prepend = []
@@ -40,7 +50,7 @@ class dom_job:
             sys.exit(0)
         # output files (also, drop duplicates within this job)
         outfiles = set(defaultout)
-        [outfiles.add(dom_parser.text(v)) for v in domjob.getElementsByTagName("output")]
+        outfiles.update(dom_parser.text(v) for v in domjob.getElementsByTagName("output"))
         s.outfiles = list(outfiles)
         # gearing options
         for o in domjob.getElementsByTagName("option"):
@@ -53,53 +63,51 @@ class dom_job:
             if forward:
                 s.forward.append((name, value))
 
-    def to_dom(s):
+    def to_dom(s) -> xml.dom.minidom.Element:
         """Converts this job to a dom tree branch"""
         x = xml.dom.minidom.Document()
         job = x.createElement("job")
+        # appendChild returns the element it appended, so each new node is named rather
+        # than reached back through childNodes[-1]: a child list holds text and comments
+        # as well as elements, so the last entry of one is not an element to a reader
         for inds in s.infiles.keys():
-            job.appendChild(x.createElement("inds"))
-            job.childNodes[-1].appendChild(x.createElement("name"))
-            job.childNodes[-1].childNodes[-1].appendChild(x.createTextNode(inds))
+            inds_node = job.appendChild(x.createElement("inds"))
+            name_node = inds_node.appendChild(x.createElement("name"))
+            name_node.appendChild(x.createTextNode(inds))
             for file in s.infiles[inds]:
-                job.childNodes[-1].appendChild(x.createElement("file"))
-                job.childNodes[-1].childNodes[-1].appendChild(x.createTextNode(file))
+                file_node = inds_node.appendChild(x.createElement("file"))
+                file_node.appendChild(x.createTextNode(file))
         for outfile in s.outfiles:
-            job.appendChild(x.createElement("output"))
-            job.childNodes[-1].appendChild(x.createTextNode(outfile))
+            output_node = job.appendChild(x.createElement("output"))
+            output_node.appendChild(x.createTextNode(outfile))
         if s.command:
-            job.appendChild(x.createElement("command"))
-            job.childNodes[-1].appendChild(x.createTextNode(s.command))
+            command_node = job.appendChild(x.createElement("command"))
+            command_node.appendChild(x.createTextNode(s.command))
         for option in s.prepend + list(set(s.prepend + s.forward) - set(s.prepend)):
-            job.appendChild(x.createElement("option"))
-            job.childNodes[-1].setAttribute("name", str(option[0]))
-            if option in s.forward:
-                job.childNodes[-1].setAttribute("forward", "true")
-            else:
-                job.childNodes[-1].setAttribute("forward", "false")
-            if option in s.prepend:
-                job.childNodes[-1].setAttribute("prepend", "true")
-            else:
-                job.childNodes[-1].setAttribute("prepend", "false")
-            job.childNodes[-1].appendChild(x.createTextNode(str(option[1])))
+            option_node = job.appendChild(x.createElement("option"))
+            option_node.setAttribute("name", str(option[0]))
+            option_node.setAttribute("forward", "true" if option in s.forward else "false")
+            option_node.setAttribute("prepend", "true" if option in s.prepend else "false")
+            option_node.appendChild(x.createTextNode(str(option[1])))
         return job
 
-    def files_in_DS(s, DS):
+    def files_in_DS(s, DS: str) -> list[str]:
         """Returns a list of files used in a given job in a given dataset"""
         if DS in s.infiles:
-            return s.infiles[DS]
+            files: list[str] = s.infiles[DS]
+            return files
         else:
             return []
 
-    def forward_opts(s):
+    def forward_opts(s) -> str:
         """passable string of forward options"""
         return " ".join([f"{v[0]}={v[1]}" for v in s.forward])
 
-    def prepend_string(s):
+    def prepend_string(s) -> str:
         """a tag string prepended to output files"""
         return "_".join([f"{v[0]}{v[1]}" for v in s.prepend])
 
-    def exec_string(s):
+    def exec_string(s) -> str:
         """exec string for prun.
         If user requested to run script run.sh (via <command>run.sh</command>), it will return
         opt1=value1 opt2=value2 opt3=value3 run.sh
@@ -107,7 +115,7 @@ class dom_job:
         """
         return f"{s.forward_opts()} {s.command}"
 
-    def exec_string_enc(s):
+    def exec_string_enc(s) -> str:
         """exec string for prun.
         If user requested to run script run.sh (via <command>run.sh</command>), it will return
         opt1=value1 opt2=value2 opt3=value3 run.sh
@@ -116,38 +124,39 @@ class dom_job:
         comStr = f"{s.forward_opts()} {s.command}"
         return quote(comStr)
 
-    def get_outmap_str(s, outMap):
+    def get_outmap_str(s, outMap: dict[str, "FileSpec"]) -> str:
         """return mapping of original and new filenames"""
         newMap = {}
         for oldLFN, fileSpec in outMap.items():
             newMap[oldLFN] = str(fileSpec.lfn)
         return str(newMap)
 
-    def outputs_list(s, prepend=False):
+    def outputs_list(s, prepend: bool = False) -> list[str]:
         """python list with finalized output file names"""
         if prepend and s.prepend_string():
             return [s.prepend_string() + "." + o for o in s.outfiles]
         else:
             return [o for o in s.outfiles]
 
-    def outputs(s, prepend=False):
+    def outputs(s, prepend: bool = False) -> str:
         """Comma-separated list of output files accepted by prun"""
         return ",".join(s.outputs_list(prepend))
 
 
 class dom_parser:
-    def __init__(s, fname=None, xmlStr=None):
+    def __init__(s, fname: str | None = None, xmlStr: str | None = None) -> None:
         """creates a dom object out of a text file (if provided)"""
         s.fname = fname
-        s.dom = None
-        s.title = None
-        s.tag = None
-        s.command = None
-        s.outds = None
-        s.inds = {}
-        s.global_outfiles = []
-        s.jobs = []
-        s.primaryds = None
+        s.dom: xml.dom.minidom.Document | None = None
+        s.title: str | None = None
+        s.tag: str | None = None
+        s.command: str | None = None
+        s.outds: str | None = None
+        # input dataset name -> the stream it is read as
+        s.inds: dict[str, str] = {}
+        s.global_outfiles: list[str] = []
+        s.jobs: list["dom_job"] = []
+        s.primaryds: str | None = None
         if fname:
             s.dom = xml.dom.minidom.parse(fname)
             s.parse()
@@ -158,12 +167,12 @@ class dom_parser:
             s.check()
 
     @staticmethod
-    def true(v):
+    def true(v: str) -> bool:
         """define True"""
         return v in ("1", "true", "True", "TRUE", "yes", "Yes", "YES")
 
     @staticmethod
-    def text(pnode):
+    def text(pnode: xml.dom.minidom.Node) -> str:
         """extracts the value stored in the node"""
         rc = []
         for node in pnode.childNodes:
@@ -171,8 +180,11 @@ class dom_parser:
                 rc.append(str(node.data).strip())
         return "".join(rc)
 
-    def parse(s):
+    def parse(s) -> None:
         """loads submission configuration from an xml file"""
+        if s.dom is None:
+            # __init__ parses the document before it calls this
+            raise RuntimeError("parse() called before a document was loaded")
         try:
             # general settings
             if len(s.dom.getElementsByTagName("title")) > 0:
@@ -198,7 +210,9 @@ class dom_parser:
             # declaration of all input datasets
             primarydss = []
             for elm in s.dom.getElementsByTagName("submission")[0].childNodes:
-                if elm.nodeName != "inds":
+                # a child list holds text and comments too, and only an element has
+                # attributes or elements of its own; the name check alone does not say so
+                if not isinstance(elm, xml.dom.minidom.Element) or elm.nodeName != "inds":
                     continue
                 if "primary" in elm.attributes.keys() and dom_parser.true(elm.attributes["primary"].value):
                     primary = True
@@ -217,42 +231,42 @@ class dom_parser:
             for job in s.dom.getElementsByTagName("job"):
                 s.jobs.append(dom_job(job, primaryds=s.primaryds, defaultcmd=s.command, defaultout=s.global_outfiles))
         except Exception:
-            print("ERROR: failed to parse" + " " + s.fname)
+            print(f"ERROR: failed to parse {s.fname}")
             raise
 
-    def to_dom(s):
+    def to_dom(s) -> xml.dom.minidom.Element:
         """Converts this submission to a dom tree branch"""
         x = xml.dom.minidom.Document()
         submission = x.createElement("submission")
+        # named rather than reached back through childNodes[-1], for the reason given in
+        # dom_job.to_dom above
         if s.title:
-            submission.appendChild(x.createElement("title"))
-            submission.childNodes[-1].appendChild(x.createTextNode(s.title))
+            title_node = submission.appendChild(x.createElement("title"))
+            title_node.appendChild(x.createTextNode(s.title))
         if s.tag:
-            submission.appendChild(x.createElement("tag"))
-            submission.childNodes[-1].appendChild(x.createTextNode(s.tag))
+            tag_node = submission.appendChild(x.createElement("tag"))
+            tag_node.appendChild(x.createTextNode(s.tag))
         for name, stream in s.inds.items():
-            submission.appendChild(x.createElement("inds"))
-            if name == s.primaryds:
-                submission.childNodes[-1].setAttribute("primary", "true")
-            else:
-                submission.childNodes[-1].setAttribute("primary", "false")
-            submission.childNodes[-1].appendChild(x.createElement("stream"))
-            submission.childNodes[-1].childNodes[-1].appendChild(x.createTextNode(stream))
-            submission.childNodes[-1].appendChild(x.createElement("name"))
-            submission.childNodes[-1].childNodes[-1].appendChild(x.createTextNode(name))
+            inds_node = submission.appendChild(x.createElement("inds"))
+            inds_node.setAttribute("primary", "true" if name == s.primaryds else "false")
+            stream_node = inds_node.appendChild(x.createElement("stream"))
+            stream_node.appendChild(x.createTextNode(stream))
+            name_node = inds_node.appendChild(x.createElement("name"))
+            name_node.appendChild(x.createTextNode(name))
         if s.command:
-            submission.appendChild(x.createElement("command"))
-            submission.childNodes[-1].appendChild(x.createTextNode(s.command))
+            command_node = submission.appendChild(x.createElement("command"))
+            command_node.appendChild(x.createTextNode(s.command))
         for outfile in s.global_outfiles:
-            submission.appendChild(x.createElement("output"))
-            submission.childNodes[-1].appendChild(x.createTextNode(outfile))
-        submission.appendChild(x.createElement("outds"))
-        submission.childNodes[-1].appendChild(x.createTextNode(s.outds))
+            output_node = submission.appendChild(x.createElement("output"))
+            output_node.appendChild(x.createTextNode(outfile))
+        outds_node = submission.appendChild(x.createElement("outds"))
+        # parse() always sets outds, from the document or from the default
+        outds_node.appendChild(x.createTextNode(s.outds or ""))
         for job in s.jobs:
             submission.appendChild(job.to_dom())
         return submission
 
-    def check(s):
+    def check(s) -> None:
         """checks that all output files have unique qualifiers"""
         quals = []
         for j in s.jobs:
@@ -262,7 +276,7 @@ class dom_parser:
             print("(you likely need to review xml options with prepend=true)")
             sys.exit(0)
 
-    def input_datasets(s):
+    def input_datasets(s) -> list[str]:
         """returns a list of all used input datasets"""
         DSs = set()
         for j in s.jobs:
@@ -270,7 +284,7 @@ class dom_parser:
                 DSs.add(ds)
         return list(DSs)
 
-    def inDS(s):
+    def inDS(s) -> str:
         """chooses a dataset we'll call inDS; others will become secondaryDS"""
         # user manually labeled one of datasets as primary, so make it inDS:
         if s.primaryds:
@@ -279,11 +293,11 @@ class dom_parser:
         else:
             return s.input_datasets()[0]
 
-    def secondaryDSs(s):
+    def secondaryDSs(s) -> list[str]:
         """returns all secondaryDSs. This excludes inDS, unless inDS is managed by prun"""
         return [d for d in s.input_datasets() if d != s.inDS()]
 
-    def writeInputToTxt(s):
+    def writeInputToTxt(s) -> str:
         """Prepares prun option --writeInputToTxt
         comma-separated list of STREAM:STREAM.files.dat
         """
@@ -298,7 +312,7 @@ class dom_parser:
         out.append("IN:IN.files.dat")
         return ",".join(out)
 
-    def files_in_DS(s, DS, regex=False):
+    def files_in_DS(s, DS: str, regex: bool = False) -> str | list[str]:
         """Returns a list of all files from a given dataset
         that will be used in at least one job in this submission
         If regex==True, the list is converted to a regex string
@@ -313,17 +327,19 @@ class dom_parser:
         else:
             return sorted(list(set(files)))
 
-    def nJobs(s):
+    def nJobs(s) -> int:
         return len(s.jobs)
 
-    def dump(s, verbose=True):
+    def dump(s, verbose: bool = True) -> None:
         """prints a summary of this submission"""
 
-        def P(key, value=""):
+        def P(key: str, value: Any = "") -> None:
             if value == "":
                 print(key)
             else:
-                print((key + ":").ljust(14) + " " + value)
+                # str() because the counts below are numbers, which the concatenation this
+                # replaces could not take
+                print((key + ":").ljust(14) + " " + str(value))
 
         P("XML FILE LOADED", s.fname)
         P("Title", s.title)

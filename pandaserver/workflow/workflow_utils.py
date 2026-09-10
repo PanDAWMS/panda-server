@@ -3,6 +3,8 @@ import json
 import re
 import shlex
 import tempfile
+from collections.abc import Iterable
+from typing import Any
 
 from idds.atlas.workflowv2.atlaslocalpandawork import ATLASLocalPandaWork
 from idds.atlas.workflowv2.atlaspandawork import ATLASPandaWork
@@ -11,7 +13,7 @@ from pandaclient import PhpoScript, PrunScript
 
 
 # extract argument value from execution string
-def get_arg_value(arg, exec_str):
+def get_arg_value(arg: str, exec_str: str) -> str | None:
     args = shlex.split(exec_str)
     if arg in args:
         return args[args.index(arg) + 1]
@@ -22,7 +24,7 @@ def get_arg_value(arg, exec_str):
 
 
 # merge job parameters
-def merge_job_params(base_params, io_params):
+def merge_job_params(base_params: list[dict[str, Any]], io_params: list[dict[str, Any]]) -> list[dict[str, Any]]:
     new_params = []
     # remove exec stuff from base_params
     exec_start = False
@@ -57,33 +59,33 @@ def merge_job_params(base_params, io_params):
 
 # DAG vertex
 class Node(object):
-    def __init__(self, id, node_type, data, is_leaf, name):
+    def __init__(self, id: int, node_type: str, data: Any, is_leaf: bool, name: str) -> None:
         self.id = id
         self.type = node_type
         self.data = data
         self.is_leaf = is_leaf
         self.is_tail = False
         self.is_head = False
-        self.inputs = {}
-        self.outputs = {}
-        self.output_types = []
-        self.scatter = None
-        self.parents = set()
+        self.inputs: dict[str, Any] = {}
+        self.outputs: dict[str, Any] = {}
+        self.output_types: list[str] = []
+        self.scatter: list[str] | None = None
+        self.parents: set[int] = set()
         self.name = name
-        self.sub_nodes = set()
-        self.root_inputs = None
-        self.task_params = None
-        self.condition = None
+        self.sub_nodes: Any = set()
+        self.root_inputs: dict[str, Any] | None = None
+        self.task_params: dict[str, Any] | None = None
+        self.condition: "ConditionItem | None" = None
         self.is_workflow_output = False
         self.loop = False
         self.in_loop = False
-        self.upper_root_inputs = None
+        self.upper_root_inputs: dict[str, Any] | None = None
 
-    def add_parent(self, id):
+    def add_parent(self, id: int) -> None:
         self.parents.add(id)
 
     # set real input values
-    def set_input_value(self, key, src_key, src_value):
+    def set_input_value(self, key: str, src_key: str, src_value: Any) -> None:
         # replace the value with a list of parameter names and indexes if value is a list,
         # and src and dst are looping params
         if isinstance(src_value, list):
@@ -105,7 +107,7 @@ class Node(object):
             self.inputs[key]["value"] = src_value
 
     # convert inputs to dict inputs
-    def convert_dict_inputs(self, skip_suppressed=False):
+    def convert_dict_inputs(self, skip_suppressed: bool = False) -> dict[str, Any]:
         data = {}
         for k, v in self.inputs.items():
             if skip_suppressed and "suppressed" in v and v["suppressed"]:
@@ -120,7 +122,7 @@ class Node(object):
         return data
 
     # convert outputs to set
-    def convert_set_outputs(self):
+    def convert_set_outputs(self) -> set[Any]:
         data = set()
         for k, v in self.outputs.items():
             if "value" in v:
@@ -128,7 +130,7 @@ class Node(object):
         return data
 
     # verify
-    def verify(self):
+    def verify(self) -> tuple[bool, str]:
         if self.is_leaf:
             dict_inputs = self.convert_dict_inputs(True)
             # check input
@@ -196,7 +198,7 @@ class Node(object):
         return True, ""
 
     # string representation
-    def __str__(self):
+    def __str__(self) -> str:
         outstr = f"ID:{self.id} Name:{self.name} Type:{self.type}\n"
         outstr += f"  Parent:{','.join([str(p) for p in self.parents])}\n"
         outstr += "  Input:\n"
@@ -212,11 +214,11 @@ class Node(object):
         return outstr
 
     # short description
-    def short_desc(self):
+    def short_desc(self) -> str:
         return f"ID:{self.id} Name:{self.name} Type:{self.type}"
 
     # resolve workload-specific parameters
-    def resolve_params(self, task_template=None, id_map=None, workflow=None):
+    def resolve_params(self, task_template: dict[str, Any], id_map: "dict[int, Node]", workflow: "Node | None" = None) -> None:
         if self.type in ["prun", "junction", "reana"]:
             dict_inputs = self.convert_dict_inputs()
             if "opt_secondaryDSs" in dict_inputs:
@@ -269,7 +271,7 @@ class Node(object):
         [n.resolve_params(task_template, id_map, self) for n in self.sub_nodes]
 
     # create task params
-    def make_task_params(self, task_template, id_map, workflow_node):
+    def make_task_params(self, task_template: dict[str, Any], id_map: "dict[int, Node]", workflow_node: "Node | None") -> dict[str, Any] | None:
         # task name
         for k, v in self.outputs.items():
             task_name = v["value"]
@@ -284,7 +286,7 @@ class Node(object):
             if "opt_containerImage" in dict_inputs and dict_inputs["opt_containerImage"]:
                 container_image = dict_inputs["opt_containerImage"]
             if use_athena:
-                task_params = copy.deepcopy(task_template["athena"])
+                task_params: dict[str, Any] = copy.deepcopy(task_template["athena"])
             else:
                 task_params = copy.deepcopy(task_template["container"])
             task_params["taskName"] = task_name
@@ -299,6 +301,10 @@ class Node(object):
                     dict_inputs["opt_args"] += f" --outputs {results_json}"
                 else:
                     m = re.search("(--outputs)( +|=)([^ ]+)", dict_inputs["opt_args"])
+                    if m is None:
+                        # --outputs appears in the string but carries no value, so there is
+                        # nothing to append results.json to
+                        raise ValueError(f"""--outputs has no value in opt_args '{dict_inputs["opt_args"]}'""")
                     if results_json not in m.group(3):
                         tmp_dst = m.group(1) + "=" + m.group(3) + "," + results_json
                         dict_inputs["opt_args"] = re.sub(m.group(0), tmp_dst, dict_inputs["opt_args"])
@@ -357,12 +363,16 @@ class Node(object):
                         dict_inputs["opt_args"] = re.sub(tmp_src, tmp_dst, dict_inputs["opt_args"])
             com += ["--exec", dict_inputs["opt_exec"]]
             com += ["--outDS", task_name]
+            # argv-shaped, and the else branch puts a None where the image name would be.
+            # Built with list() rather than copy.copy() so the element type comes from the
+            # declaration: com[1:] is already a fresh list, so this also drops a second copy.
+            parse_com: list[str | None]
             if container_image:
                 com += ["--containerImage", container_image]
-                parse_com = copy.copy(com[1:])
+                parse_com = list(com[1:])
             else:
                 # add dummy container to keep build step consistent
-                parse_com = copy.copy(com[1:])
+                parse_com = list(com[1:])
                 parse_com += ["--containerImage", None]
             # force a writable temp base for dry parsing regardless of process cwd
             parse_com += ["--tmpDir", tempfile.gettempdir()]
@@ -409,10 +419,16 @@ class Node(object):
             # outputs
             for tmp_item in task_params["jobParameters"]:
                 if tmp_item["type"] == "template" and tmp_item["param_type"] == "output":
+                    # the output type is the tail of the dataset name for a regex output and
+                    # the suffix of the filename template otherwise
                     if tmp_item["value"].startswith("regex|"):
-                        self.output_types.append(re.search(r"_([^_]+)/$", tmp_item["dataset"]).group(1))
+                        source, pattern = tmp_item["dataset"], r"_([^_]+)/$"
                     else:
-                        self.output_types.append(re.search(r"}\.(.+)$", tmp_item["value"]).group(1))
+                        source, pattern = tmp_item["value"], r"}\.(.+)$"
+                    tmp_match = re.search(pattern, source)
+                    if tmp_match is None:
+                        raise ValueError(f"cannot extract the output type from '{source}'")
+                    self.output_types.append(tmp_match.group(1))
             # add a dummy output if empty. this is to allow association to downstream steps which is described through outputs
             if not self.output_types:
                 self.output_types.append("dummy")
@@ -432,8 +448,15 @@ class Node(object):
                 del task_params["buildSpec"]
             # parent
             if self.parents and len(self.parents) == 1:
+                # resolve_nodes replaces the parents of every node with real leaf IDs, and
+                # resolve_params walks the topologically sorted list, so the parent's task
+                # params are built by the time this runs. Say which node broke that rather
+                # than subscripting a None
+                parent_node = id_map[list(self.parents)[0]]
+                if parent_node.task_params is None:
+                    raise ReferenceError(f"parent {parent_node.short_desc()} has no task params")
                 task_params["noWaitParent"] = True
-                task_params["parentTaskName"] = id_map[list(self.parents)[0]].task_params["taskName"]
+                task_params["parentTaskName"] = parent_node.task_params["taskName"]
             # notification
             if not self.is_workflow_output:
                 task_params["noEmail"] = True
@@ -512,7 +535,7 @@ class Node(object):
         return None
 
     # get global parameters in the workflow
-    def get_global_parameters(self):
+    def get_global_parameters(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         if self.is_leaf:
             root_inputs = self.upper_root_inputs
         else:
@@ -531,7 +554,7 @@ class Node(object):
         return loop_params, workflow_params
 
     # get all sub node IDs
-    def get_all_sub_node_ids(self, all_ids=None):
+    def get_all_sub_node_ids(self, all_ids: set[int] | None = None) -> set[int]:
         if all_ids is None:
             all_ids = set()
         all_ids.add(self.id)
@@ -542,7 +565,7 @@ class Node(object):
         return all_ids
 
     # get loop param name
-    def get_loop_param_name(self, k):
+    def get_loop_param_name(self, k: str) -> str | None:
         param = k.split("#")[-1]
         m = re.search(r"^param_(.+)", param)
         if m:
@@ -550,7 +573,7 @@ class Node(object):
         return None
 
     # def get input dataset list
-    def get_input_ds_list(self, dict_inputs, id_map):
+    def get_input_ds_list(self, dict_inputs: dict[str, Any], id_map: "dict[int, Node]") -> list[str]:
         if "opt_inDS" not in dict_inputs:
             return []
         if isinstance(dict_inputs["opt_inDS"], list):
@@ -558,6 +581,12 @@ class Node(object):
         else:
             is_list_in_ds = False
         if "opt_inDsType" not in dict_inputs or not dict_inputs["opt_inDsType"]:
+            # A list when several input datasets are given, otherwise the single suffix
+            # string, and None until a parent supplies one. is_list_in_ds decides which,
+            # and every use below is guarded by that same flag -- an invariant the type
+            # system cannot express, hence Any rather than a union mypy would reject at
+            # each use.
+            in_ds_suffix: Any
             if is_list_in_ds:
                 in_ds_suffix = []
                 in_ds_list = dict_inputs["opt_inDS"]
@@ -585,7 +614,7 @@ class Node(object):
 
 
 # dump nodes
-def dump_nodes(node_list, dump_str=None, only_leaves=False):
+def dump_nodes(node_list: Iterable[Node], dump_str: str | None = None, only_leaves: bool = False) -> str:
     if dump_str is None:
         dump_str = "\n"
     for node in node_list:
@@ -602,7 +631,7 @@ def dump_nodes(node_list, dump_str=None, only_leaves=False):
 
 
 # get id map
-def get_node_id_map(node_list, id_map=None):
+def get_node_id_map(node_list: Iterable[Node], id_map: dict[int, Node] | None = None) -> dict[int, Node]:
     if id_map is None:
         id_map = {}
     for node in node_list:
@@ -613,7 +642,7 @@ def get_node_id_map(node_list, id_map=None):
 
 
 # get all parents
-def get_all_parents(node_list, all_parents=None):
+def get_all_parents(node_list: Iterable[Node], all_parents: set[int] | None = None) -> set[int]:
     if all_parents is None:
         all_parents = set()
     for node in node_list:
@@ -624,7 +653,7 @@ def get_all_parents(node_list, all_parents=None):
 
 
 # set workflow outputs
-def set_workflow_outputs(node_list, all_parents=None):
+def set_workflow_outputs(node_list: Iterable[Node], all_parents: set[int] | None = None) -> None:
     if all_parents is None:
         all_parents = get_all_parents(node_list)
     for node in node_list:
@@ -635,7 +664,9 @@ def set_workflow_outputs(node_list, all_parents=None):
 
 
 # convert parameter names to parent IDs
-def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map):
+# id_map here is resolve_nodes' tmp_to_real_id_map: a temporary node ID to the set of
+# real node IDs it resolved to, not the id-to-Node map the other helpers take
+def convert_params_in_condition_to_parent_ids(condition_item: "ConditionItem", input_data: dict[str, Any], id_map: dict[int, set[int]]) -> None:
     for item in ["left", "right"]:
         param = getattr(condition_item, item)
         if isinstance(param, str):
@@ -676,16 +707,24 @@ def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map
 
 
 # resolve nodes
-def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_name, log_stream):
+def resolve_nodes(
+    node_list: Iterable[Node],
+    root_inputs: dict[str, Any],
+    data: dict[str, Any],
+    serial_id: int,
+    parent_ids: set[int],
+    out_ds_name: str,
+    log_stream: Any,
+) -> tuple[int, list[Node], list[Node]]:
     for k in root_inputs:
         kk = k.split("#")[-1]
         if kk in data:
             root_inputs[k] = data[kk]
-    tmp_to_real_id_map = {}
-    resolved_map = {}
+    tmp_to_real_id_map: dict[int, set[int]] = {}
+    resolved_map: dict[int, list[Node]] = {}
     # map of object identity to original temporary node ID used in resolved_map keys
-    node_key_map = {}
-    all_nodes = []
+    node_key_map: dict[int, int] = {}
+    all_nodes: list[Node] = []
     for node in node_list:
         # resolve input
         for tmp_name, tmp_data in node.inputs.items():
@@ -744,9 +783,10 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                     scatters = [{item: v} for v in node.inputs[item]["value"]]
                 else:
                     [i.update({item: v}) for i, v in zip(scatters, node.inputs[item]["value"])]
-            for idx, item in enumerate(scatters):
+            # scatters is filled by the loop above, which runs since node.scatter is not empty
+            for idx, scatter_item in enumerate(scatters or []):
                 sc_node = copy.deepcopy(node)
-                for k, v in item.items():
+                for k, v in scatter_item.items():
                     sc_node.inputs[k]["value"] = v
                 for tmp_node in sc_node.sub_nodes:
                     tmp_node.scatter_index = idx
@@ -777,7 +817,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             else:
                 serial_id, sub_tail_nodes, sc_node.sub_nodes = resolve_nodes(
                     sc_node.sub_nodes,
-                    sc_node.root_inputs,
+                    sc_node.root_inputs or {},
                     sc_node.convert_dict_inputs(),
                     serial_id,
                     sc_node.parents,
@@ -811,7 +851,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
 
 # condition item
 class ConditionItem(object):
-    def __init__(self, left, right=None, operator=None):
+    def __init__(self, left: Any, right: Any = None, operator: str | None = None) -> None:
         if operator not in ["and", "or", "not", None]:
             raise TypeError(f"unknown operator '{operator}'")
         if operator in ["not", None] and right:
@@ -820,7 +860,10 @@ class ConditionItem(object):
         self.right = right
         self.operator = operator
 
-    def get_dict_form(self, serial_id=None, dict_form=None):
+    # Answers the sorted (id, item) list when it is the entry call -- dict_form None --
+    # and the (serial_id, dict_form) pair it passes to itself otherwise. Only the argument
+    # says which, so a union would push an isinstance() check onto the recursion
+    def get_dict_form(self, serial_id: int | None = None, dict_form: dict[int, Any] | None = None) -> Any:
         if dict_form is None:
             dict_form = {}
             is_entry = True
@@ -854,7 +897,9 @@ class ConditionItem(object):
 
 
 # convert nodes to workflow
-def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow_name=None):
+def convert_nodes_to_workflow(
+    nodes: Iterable[Node], workflow_node: Node | None = None, workflow: Any = None, workflow_name: str | None = None
+) -> tuple[Any, list[str]]:
     if workflow is None:
         is_top = True
         workflow = Workflow()
@@ -1025,8 +1070,8 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
     if workflow_node:
         tmp_global, tmp_workflow_global = workflow_node.get_global_parameters()
         if tmp_global:
-            loop_locals = {}
-            loop_slices = []
+            loop_locals: dict[str, Any] = {}
+            loop_slices: list[list[Any]] = []
             for k, v in tmp_global.items():
                 if not isinstance(v, dict):
                     # normal looping locals

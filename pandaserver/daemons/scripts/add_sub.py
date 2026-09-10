@@ -6,6 +6,8 @@ import sys
 import threading
 import time
 import traceback
+from collections.abc import Sequence
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -23,7 +25,7 @@ _logger = PandaLogger().getLogger("add_sub")
 
 
 # main
-def main(argv=tuple(), tbuf=None, **kwargs):
+def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     tmp_log = LogWrapper(_logger, None)
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
@@ -85,8 +87,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # tmp name
             tmp_logName = f"{dispLogName}.tmp-{naive_utcnow().strftime('%Y-%m-%d-%H-%M-%S')}"
             # loop over all files
-            pilotCounts = {}
-            pilotCountsS = {}
+            pilotCounts: dict[str, Any] = {}
+            pilotCountsS: dict[str, Any] = {}
             for tmpDispLogName in dispLogNameList:
                 # expand or copy
                 if tmpDispLogName.endswith(".gz"):
@@ -203,7 +205,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 iJob = 0
                 while iJob < len(jediJobs):
                     tmp_log.debug(f" killing {str(jediJobs[iJob:iJob + nJob])}")
-                    Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
+                    Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
                     iJob += nJob
     except Exception:
         errStr = traceback.format_exc()

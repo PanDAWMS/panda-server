@@ -6,17 +6,23 @@ import socket
 import sys
 import time
 import traceback
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandajedi.jedibrokerage import AtlasBrokerUtils
 from pandajedi.jediconfig import jedi_config
+from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.taskbuffer.ResourceSpec import ResourceSpecMapper
 
 from .WatchDogBase import WatchDogBase
+
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -31,10 +37,19 @@ magic_workqueue_name = "wd_queuefiller"
 reassign_jobs_wait_time = 300
 
 
+class SiteFillTarget(TypedDict):
+    """
+    Where one preassigned task was sent and how many jobs that site had room for
+    """
+
+    site: str
+    n_jobs_to_fill: float
+
+
 # queue filler watchdog for ATLAS
 class AtlasQueueFillerWatchDog(WatchDogBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface") -> None:
         WatchDogBase.__init__(self, taskBufferIF, ddmIF)
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-dog"
         self.vo = "atlas"
@@ -54,7 +69,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         self.refresh()
 
     # refresh information stored in the instance
-    def refresh(self):
+    def refresh(self) -> None:
         # work queue mapper
         self.workQueueMapper = self.taskBufferIF.getWorkQueueMap()
         # site mapper
@@ -76,64 +91,64 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             self.sw_map = {}
 
     # update preassigned task map to cache
-    def _update_to_pt_cache(self, ptmap):
+    def _update_to_pt_cache(self, ptmap: dict[str, Any]) -> None:
         data_json = json.dumps(ptmap)
         self.taskBufferIF.updateCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_pt, data=data_json)
 
     # get preassigned task map from cache
-    def _get_from_pt_cache(self):
+    def _get_from_pt_cache(self) -> dict[str, Any]:
         cache_spec = self.taskBufferIF.getCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_pt)
         if cache_spec is not None:
-            ret_map = json.loads(cache_spec.data)
+            ret_map: dict[str, Any] = json.loads(cache_spec.data)
             return ret_map
         else:
             return dict()
 
     # update blacklisted task map to cache
-    def _update_to_bt_cache(self, btmap):
+    def _update_to_bt_cache(self, btmap: dict[str, Any]) -> None:
         data_json = json.dumps(btmap)
         self.taskBufferIF.updateCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_bt, data=data_json)
 
     # get blacklisted task map from cache
-    def _get_from_bt_cache(self):
+    def _get_from_bt_cache(self) -> dict[str, Any]:
         cache_spec = self.taskBufferIF.getCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_bt)
         if cache_spec is not None:
-            ret_map = json.loads(cache_spec.data)
+            ret_map: dict[str, Any] = json.loads(cache_spec.data)
             return ret_map
         else:
             return dict()
 
     # update task original attributes map to cache
-    def _update_to_attr_cache(self, attrmap):
+    def _update_to_attr_cache(self, attrmap: dict[str, Any]) -> None:
         data_json = json.dumps(attrmap)
         self.taskBufferIF.updateCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_attr, data=data_json)
 
     # get task original attributes map from cache
-    def _get_from_attr_cache(self):
+    def _get_from_attr_cache(self) -> dict[str, Any]:
         cache_spec = self.taskBufferIF.getCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_attr)
         if cache_spec is not None:
-            ret_map = json.loads(cache_spec.data)
+            ret_map: dict[str, Any] = json.loads(cache_spec.data)
             return ret_map
         else:
             return dict()
 
     # update site empty-since map to cache
-    def _update_to_ses_cache(self, sesmap):
+    def _update_to_ses_cache(self, sesmap: dict[str, int]) -> None:
         data_json = json.dumps(sesmap)
         self.taskBufferIF.updateCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_ses, data=data_json)
 
     # get site empty-since map from cache
-    def _get_from_ses_cache(self):
+    def _get_from_ses_cache(self) -> dict[str, int]:
         cache_spec = self.taskBufferIF.getCache_JEDI(main_key=self.dc_main_key, sub_key=self.dc_sub_key_ses)
         if cache_spec is not None:
-            ret_map = json.loads(cache_spec.data)
+            ret_map: dict[str, int] = json.loads(cache_spec.data)
             return ret_map
         else:
             return dict()
 
     # get process lock to preassign
-    def _get_lock(self):
-        return self.taskBufferIF.lockProcess_JEDI(
+    def _get_lock(self) -> bool:
+        got_lock: bool = self.taskBufferIF.lockProcess_JEDI(
             vo=self.vo,
             prodSourceLabel="managed",
             cloud=None,
@@ -143,9 +158,10 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             pid=self.pid,
             timeLimit=5,
         )
+        return got_lock
 
     # get map of site to list of RSEs
-    def get_site_rse_map(self, prod_source_label):
+    def get_site_rse_map(self, prod_source_label: str) -> dict[str, list[str]]:
         site_rse_map = {}
         for tmpPseudoSiteName in self.allSiteList:
             tmpSiteSpec = self.siteMapper.getSite(tmpPseudoSiteName)
@@ -162,14 +178,14 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         return site_rse_map
 
     # get to-running rate of sites between 24 hours ago ~ 6 hours ago
-    def get_site_trr_map(self):
+    def get_site_trr_map(self) -> dict[str, Any] | None:
         ret_val, ret_map = AtlasBrokerUtils.getSiteToRunRateStats(self.taskBufferIF, self.vo, time_window=86400, cutoff=0, cache_lifetime=600)
         if ret_val:
             return ret_map
         else:
             return None
 
-    def is_arm_only_site(self, site) -> bool:
+    def is_arm_only_site(self, site: str) -> bool:
         """
         Check if a site is ARM-only.
 
@@ -193,7 +209,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                     ret = True
         return ret
 
-    def is_fat_container_site(self, site) -> bool:
+    def is_fat_container_site(self, site: str) -> bool:
         """
         Check if a site is a fat container site.
 
@@ -210,7 +226,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                 ret = True
         return ret
 
-    def get_list_of_fat_container_names(self, site) -> list | None:
+    def get_list_of_fat_container_names(self, site: str) -> list[str] | None:
         """
         Get the list of fat container names for a site if it is a fat container site.
 
@@ -230,21 +246,22 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         return container_names_list
 
     # get available sites sorted list
-    def get_available_sites_list(self):
+    # each entry is (site name, its SiteSpec, how many jobs it has room for)
+    def get_available_sites_list(self) -> list[tuple[str, Any, float]]:
         tmp_log = MsgWrapper(logger, "get_available_sites_list")
         # initialize
-        available_sites_dict = {}
+        available_sites_dict: dict[str, Any] = {}
         # get global share
         tmpSt, jobStatPrioMap = self.taskBufferIF.getJobStatisticsByGlobalShare(self.vo)
         if not tmpSt:
             # got nothing...
-            return available_sites_dict
+            return []
         # get to-running rate of sites
         site_trr_map = self.get_site_trr_map()
         if site_trr_map is None:
-            return available_sites_dict
+            return []
         # record for excluded site reasons
-        excluded_sites_dict = {
+        excluded_sites_dict: dict[str, set[str]] = {
             "not_online": set(),
             "has_minrss": set(),
             "es_jobseed": set(),
@@ -309,13 +326,13 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             excluded_sites_str = ",".join(sorted(sites_set))
             tmp_log.debug(f"excluded sites due to {reason} : {excluded_sites_str}")
         included_sites_str = ",".join(sorted([x[0] for x in available_sites_list]))
-        tmp_log.debug("included sites : {sites}".format(reason=reason, sites=included_sites_str))
+        tmp_log.debug(f"included sites : {included_sites_str}")
         # return
         return available_sites_list
 
     # get busy sites
-    def get_busy_sites(self):
-        busy_sites_dict = {}
+    def get_busy_sites(self) -> dict[str, Any]:
+        busy_sites_dict: dict[str, Any] = {}
         # get global share
         tmpSt, jobStatPrioMap = self.taskBufferIF.getJobStatisticsByGlobalShare(self.vo)
         if not tmpSt:
@@ -355,7 +372,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         return busy_sites_dict
 
     # preassign tasks to site
-    def do_preassign(self):
+    def do_preassign(self) -> dict[str, dict[int, SiteFillTarget]]:
         tmp_log = MsgWrapper(logger, "do_preassign")
         # refresh
         self.refresh()
@@ -364,7 +381,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         # threshold of time duration in second that the queue keeps empty to trigger preassigning
         empty_duration_threshold = 1800
         # return map
-        ret_map = {
+        ret_map: dict[str, dict[int, SiteFillTarget]] = {
             "to_reassign": {},
         }
         # loop
@@ -473,10 +490,10 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                 site_corecount = tmpSiteSpec.coreCount
                 site_capability = str(tmpSiteSpec.capability).lower()
                 # make sql parameters of rses
-                available_rses = list(available_rses)
+                available_rse_list = list(available_rses)
                 rse_params_list = []
                 rse_params_map = {}
-                for j, rse in enumerate(available_rses):
+                for j, rse in enumerate(available_rse_list):
                     rse_param = f":rse_{j + 1}"
                     rse_params_list.append(rse_param)
                     rse_params_map[rse_param] = rse
@@ -604,7 +621,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
         return ret_map
 
     # undo preassign tasks
-    def undo_preassign(self):
+    def undo_preassign(self) -> None:
         tmp_log = MsgWrapper(logger, "undo_preassign")
         # refresh
         self.refresh()
@@ -694,7 +711,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                             "AND NOT ( "
                             "t.status IN ('ready','running') "
                             "AND EXISTS ( "
-                            "SELECT d.datasetID FROM {0}.JEDI_Datasets d "
+                            "SELECT d.datasetID FROM {jedi_schema}.JEDI_Datasets d "
                             "WHERE t.jediTaskID=d.jediTaskID AND d.type='input' "
                             "AND d.nFilesToBeUsed-d.nFilesUsed>=:min_files_ready AND d.nFiles-d.nFilesUsed>=:min_files_remaining "
                             ") "
@@ -751,7 +768,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                     self._update_to_bt_cache(blacklisted_tasks_map)
 
     # close and reassign jobs of preassigned tasks
-    def reassign_jobs(self, to_reassign_map):
+    def reassign_jobs(self, to_reassign_map: dict[int, SiteFillTarget]) -> None:
         tmp_log = MsgWrapper(logger, "reassign_jobs")
         for jedi_taskid, value_map in to_reassign_map.items():
             site = value_map["site"]
@@ -766,7 +783,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                 tmp_log.debug(f"jediTaskID={jedi_taskid} to {site} , closed {n_jobs_closed} jobs")
 
     # main
-    def doAction(self):
+    def doAction(self) -> Interaction.StatusCode:
         try:
             # get logger
             origTmpLog = MsgWrapper(logger)

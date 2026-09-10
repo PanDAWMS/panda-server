@@ -1,6 +1,6 @@
 import sys
 import traceback
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -23,7 +23,10 @@ from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("api_job")
 
-global_task_buffer = None
+# Installed by init_task_buffer() before any handler runs, so these are declared
+# non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
+# only push a None check onto every handler without making any of them safer.
+global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -35,7 +38,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict:
+def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict[str, Any]:
     """
     Get status of a job.
 
@@ -78,7 +81,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
 
 
 @request_validation(_logger, secure=True)
-def get_description(req: PandaRequest, job_ids: List[int]) -> Dict:
+def get_description(req: PandaRequest, job_ids: List[int]) -> Dict[str, Any]:
     """
     Get description of a job.
 
@@ -118,7 +121,7 @@ def get_description(req: PandaRequest, job_ids: List[int]) -> Dict:
 
 
 @request_validation(_logger, secure=True)
-def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
+def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict[str, Any]:
     """
     Get description of a job.
 
@@ -159,7 +162,7 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int = None) -> Dict:
+def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int | None = None) -> Dict[str, Any]:
     """
     Get execution script for a job.
 
@@ -185,14 +188,14 @@ def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int 
 
     if script.startswith("ERROR"):
         tmp_logger.debug(f"Failed to generate script: {script}")
-        return script
+        return script  # type: ignore[return-value]
 
     tmp_logger.debug("Done")
-    return script
+    return script  # type: ignore[return-value]
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:
+def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict[str, Any]:
     """
     Get metadata for analysis jobs
 
@@ -223,7 +226,7 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def kill(req, job_ids: List[int], code: int = None, use_email_as_id: bool = False, kill_options: List[str] = []):
+def kill(req: PandaRequest, job_ids: List[int], code: int | None = None, use_email_as_id: bool = False, kill_options: List[str] = []) -> dict[str, Any]:
     """
     Kill the jobs
 
@@ -271,7 +274,7 @@ def kill(req, job_ids: List[int], code: int = None, use_email_as_id: bool = Fals
 
     # Get the user's email address if use_email_as_id is set
     if use_email_as_id:
-        email = get_email_address(user)
+        email = get_email_address(user, tmp_logger)
         if email:
             user = email
 
@@ -285,7 +288,7 @@ def kill(req, job_ids: List[int], code: int = None, use_email_as_id: bool = Fals
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def reassign(req: PandaRequest, job_ids: List[int]):
+def reassign(req: PandaRequest, job_ids: List[int]) -> dict[str, Any]:
     """
     Reassign a list of jobs
 
@@ -312,7 +315,7 @@ def reassign(req: PandaRequest, job_ids: List[int]):
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def set_command(req: PandaRequest, job_id: int, command: str):
+def set_command(req: PandaRequest, job_id: int, command: str) -> dict[str, Any]:
     """
     Set a pilot command
 
@@ -338,7 +341,7 @@ def set_command(req: PandaRequest, job_id: int, command: str):
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def set_debug_mode(req: PandaRequest, job_id: int, mode: bool):
+def set_debug_mode(req: PandaRequest, job_id: int, mode: bool) -> dict[str, Any]:
     """
     Set the debug mode
 
@@ -370,15 +373,15 @@ def set_debug_mode(req: PandaRequest, job_id: int, mode: bool):
 
     message = global_task_buffer.setDebugMode(user, job_id, is_production_manager, mode, working_group)
 
-    success = False
-    if message != "Succeeded":
-        success = True
+    # setDebugMode reports the outcome in the message and says "Succeeded" for the one case
+    # that worked; every other string is a refusal or a failure, and None is a database error
+    success = message == "Succeeded"
 
     return generate_response(success, message=message)
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def submit(req: PandaRequest, jobs: str):
+def submit(req: PandaRequest, jobs: str) -> dict[str, Any]:
     """
     Submit jobs
 
@@ -403,22 +406,22 @@ def submit(req: PandaRequest, jobs: str):
 
     # deserialize job specs
     try:
-        jobs = JobUtils.load_jobs_json(jobs)
-        tmp_logger.debug(f"{user} len:{len(jobs)} is_production_role={is_production_role} FQAN:{fqans}")
+        job_specs = JobUtils.load_jobs_json(jobs)
+        tmp_logger.debug(f"{user} len:{len(job_specs)} is_production_role={is_production_role} FQAN:{fqans}")
         max_jobs = 5000
-        if len(jobs) > max_jobs:
+        if len(job_specs) > max_jobs:
             _logger.error(f"Number of jobs exceeded maximum {max_jobs}. Truncating the list.")
-            jobs = jobs[:max_jobs]
+            job_specs = job_specs[:max_jobs]
     except Exception as ex:
         error_message = f"Failed to deserialize jobs: {str(ex)} {traceback.format_exc()}"
         tmp_logger.error(error_message)
         return generate_response(False, message=error_message)
 
-    if not jobs:
+    if not job_specs:
         return generate_response(False, message="No jobs were submitted")
 
     # check prodSourceLabel and job_label are correct
-    for tmp_job in jobs:
+    for tmp_job in job_specs:
         # check production jobs are submitted with production role
         if tmp_job.prodSourceLabel in ["managed"] and not is_production_role:
             return generate_response(False, message=f"{user} is missing production for prodSourceLabel={tmp_job.prodSourceLabel} submission")
@@ -427,7 +430,7 @@ def submit(req: PandaRequest, jobs: str):
         if tmp_job.job_label not in [None, "", "NULL"] and tmp_job.job_label not in JobUtils.job_labels:
             return generate_response(False, message=f"job_label={tmp_job.job_label} is not valid")
 
-    sample_job = jobs[0]
+    sample_job = job_specs[0]
 
     # get user VO
     try:
@@ -450,7 +453,7 @@ def submit(req: PandaRequest, jobs: str):
             tmp_logger.error(f"VO {user_vo} check: username not found in job parameters and defaulted to submitter ({user})")
 
     # store jobs
-    ret = global_task_buffer.storeJobs(jobs, user, fqans=fqans, hostname=host, userVO=user_vo)
+    ret = global_task_buffer.storeJobs(job_specs, user, fqans=fqans, hostname=host, userVO=user_vo)
     tmp_logger.debug(f"{user} -> {len(ret)}")
 
     # There was no response

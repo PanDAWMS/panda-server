@@ -1,6 +1,7 @@
 import json
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore.FactoryBase import FactoryBase
@@ -18,8 +19,8 @@ class JediPostProcessorMsgProcPlugin(BaseMsgProcPlugin):
     Message-driven Post-Processor
     """
 
-    def initialize(self):
-        BaseMsgProcPlugin.initialize(self)
+    def initialize(self, in_collective: bool = False) -> None:
+        BaseMsgProcPlugin.initialize(self, in_collective)
         # DDM interface
         ddmIF = DDMInterface()
         ddmIF.setupInterface()
@@ -37,7 +38,7 @@ class JediPostProcessorMsgProcPlugin(BaseMsgProcPlugin):
                 for prodsourcelabel in prodsourcelabels:
                     self.post_processor_thread_dict[(vo, prodsourcelabel)] = tmp_post_processor_thread_obj
 
-    def process(self, msg_obj):
+    def process(self, msg_obj: MsgObj) -> None:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         # start
         tmp_log.info("start")
@@ -66,8 +67,8 @@ class JediPostProcessorMsgProcPlugin(BaseMsgProcPlugin):
             task_id = msg_dict["taskid"]
             vo = msg_dict["task_vo"]
             prodsourcelabel = msg_dict["task_prodsourcelabel"]
-            ret_list = self.tbIF.prepareTasksToBeFinished_JEDI(vo, prodSourceLabel, jedi_config.postprocessor.nTasks, self.get_pid())
-            task_list = self.tbIF.getTasksToBeFinished_JEDI(vo, prodSourceLabel, self.get_pid(), jedi_config.postprocessor.nTasks, target_tasks=ret_list)
+            ret_list = self.tbIF.prepareTasksToBeFinished_JEDI(vo, prodsourcelabel, jedi_config.postprocessor.nTasks, self.get_pid())
+            task_list = self.tbIF.getTasksToBeFinished_JEDI(vo, prodsourcelabel, self.get_pid(), jedi_config.postprocessor.nTasks, target_tasks=ret_list)
             if task_list and task_id in [task_spec.jediTaskID for task_spec in task_list]:
                 tmp_post_processor_thread_obj = self.post_processor_thread_dict[(vo, prodsourcelabel)]
                 tmp_post_processor_thread_obj.post_process_tasks(task_list)

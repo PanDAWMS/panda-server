@@ -1,5 +1,6 @@
 import json
 import sys
+from typing import Any
 
 # special permission
 PERMISSION_KEY = "k"
@@ -12,7 +13,7 @@ PERMISSION_ASYNC_REQUEST = "a"
 
 # convert UTF-8 to ASCII in json dumps
 # This is needed for Python 2, but not for Python 3
-def unicodeConvert(input):
+def unicodeConvert(input: Any) -> Any:
     if isinstance(input, dict):
         retMap = {}
         for tmpKey in input:
@@ -31,11 +32,11 @@ def unicodeConvert(input):
 
 # decode
 # This is needed for Python 2, but not for Python 3
-def decodeJSON(inputStr):
+def decodeJSON(inputStr: str) -> Any:
     return json.loads(inputStr, object_hook=unicodeConvert)
 
 
 # calculate priority for user jobs
-def calculatePriority(priorityOffset, serNum, weight):
+def calculatePriority(priorityOffset: int, serNum: int, weight: float) -> int:
     priority = int(1000 + priorityOffset - (serNum / 5) - int(100 * weight))
     return priority

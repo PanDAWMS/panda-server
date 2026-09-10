@@ -4,6 +4,7 @@ import os
 import re
 import socket
 import sys
+from typing import Any
 
 from pandacommon.liveconfigparser.LiveConfigParser import (
     LiveConfigParser,
@@ -27,6 +28,103 @@ config_utils.load_config_map("server", tmpDict)
 # expand all values
 tmpSelf = sys.modules[__name__]
 expand_values(tmpSelf, tmpDict)
+
+# ---------------------------------------------------------------------------
+# The attributes this module exposes are installed at import time by the
+# expand_values() call above and by the defaults set below, so a type checker
+# sees none of them. They are declared here without values, which records the
+# name and its type without creating anything at runtime.
+#
+# The types are those the call sites rely on. Note that expand_values() derives
+# them from the cfg text: "True"/"False" become bool, a run of digits becomes
+# int, "None" becomes None, and anything else stays a str. So a cfg that writes
+# a value in an unexpected form can still contradict the declaration below.
+# ---------------------------------------------------------------------------
+CO2_BEARER_TOKEN: str
+CRIC_URL_CM: str
+CRIC_URL_DDMBLACKLIST: str
+CRIC_URL_DDMBLACKLIST_FULL: str
+CRIC_URL_DDMBLACKLIST_READ: str
+CRIC_URL_DDMENDPOINTS: str
+CRIC_URL_SCHEDCONFIG: str
+CRIC_URL_SITES: str
+CRIC_URL_TAGS: str
+NWS_URL: str
+RUCIO_RSE_USAGE: str
+backend: str
+cache_dir: str
+compress_file_names: str
+dbhost: str
+dbname: str
+dbpasswd: str
+dbuser: str
+def_ddm: str
+def_nickname: str
+def_queue: str
+def_sitename: str
+def_status: str
+def_type: str
+emailLogin: str
+emailPass: str
+emailSMTPsrv: str
+emailSender: str
+endpoint_mapfile: str
+keyDir: str
+logdir: str
+mq_configFile: str
+pandaEmailNotification: str
+pandaProxy_URLSSL: str
+pandaProxy_ca_certs: str
+pilot_secrets: str
+proxy_cache_roles: str
+pserveralias: str
+pserverhost: str
+pserverhosthttp: str
+sandboxHostname: str
+schemaDEFT: str
+schemaGRISLI: str
+schemaJEDI: str
+schemaMETA: str
+schemaPANDA: str
+schemaPANDAARCH: str
+token_audience: str
+token_cache_config: str
+wn_script_base_url: str
+
+dbport: int
+dbtimeout: int
+nDBConnection: int
+nJobsInGetJob: int
+nrun_hosts: int
+nrun_interval: int
+nrun_snum: int
+pserverport: int
+pserverportcache: int
+pserverporthttp: int
+
+configurator_use_cert: bool
+cursor_dump: bool
+dbbridgeverbose: bool
+disableHTTP: bool
+disable_file_aggregation: bool
+disable_file_dispatch: bool
+dumpBadRequest: bool
+dump_sql: bool
+entryVerbose: bool
+record_sandbox_info: bool
+record_statuschange: bool
+useJEDI: bool
+usedbtimeout: bool
+
+auth_config: dict[str, dict[str, str]]
+auth_policies: dict[str, list[tuple[str, dict[str, str]]]]
+auth_vo_dict: dict[str, dict[str, Any]]
+
+# set to None when the cfg leaves it empty, see below
+legacy_token_issuers: list[str] | None
+production_dns: list[str]
+# compared against None in srvcore/panda_request.py
+token_authType: str | None
 
 # set hostname
 if "pserverhost" not in tmpSelf.__dict__:
@@ -120,7 +218,7 @@ tmpSelf.__dict__["auth_vo_dict"] = {}
 try:
     data_dict = {}
     vo_data_dict = {}
-    policy_dict = {}
+    policy_dict: dict[str, Any] = {}
     for name in glob.glob(os.path.join(tmpSelf.__dict__["auth_config"], "*_auth_config.json")):
         with open(name) as f:
             data = json.load(f)
@@ -177,11 +275,11 @@ if "disable_file_dispatch" not in tmpSelf.__dict__:
 
 
 # dict for plugins
-g_pluginMap = {}
+g_pluginMap: dict[str, dict[str, type[Any]]] = {}
 
 
 # parser for plugin setup
-def parsePluginConf(modConfigName):
+def parsePluginConf(modConfigName: str) -> None:
     global tmpSelf
     global g_pluginMap
     g_pluginMap.setdefault(modConfigName, {})
@@ -214,7 +312,7 @@ def parsePluginConf(modConfigName):
 
 
 # accessor for plugin
-def getPlugin(modConfigName, vo, group=None):
+def getPlugin(modConfigName: str, vo: str, group: str | None = None) -> type[Any] | None:
     if modConfigName not in g_pluginMap:
         return None
     if group:
@@ -233,6 +331,6 @@ def getPlugin(modConfigName, vo, group=None):
 
 
 # plug-ins
-def setupPlugin():
+def setupPlugin() -> None:
     parsePluginConf("adder_plugins")
     parsePluginConf("setupper_plugins")

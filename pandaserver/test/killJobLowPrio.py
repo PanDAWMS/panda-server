@@ -1,5 +1,6 @@
 import optparse
 import time
+from typing import Any
 
 # password
 from pandaserver.config import panda_config
@@ -43,7 +44,7 @@ if options.cloud is None and options.site is None:
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost, panda_config.dbpasswd, panda_config.dbuser, panda_config.dbname)
 
-jobsMap = {}
+jobsMap: dict[str, Any] = {}
 
 if len(args) == 0:
     option_parser.error("priority is required")

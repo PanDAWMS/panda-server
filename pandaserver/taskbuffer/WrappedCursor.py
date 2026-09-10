@@ -6,6 +6,7 @@ WrappedCursor for a generic database connection proxy
 import os
 import re
 import warnings
+from typing import Any, Iterator
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -13,11 +14,19 @@ from pandaserver.config import panda_config
 
 warnings.filterwarnings("ignore")
 
+# oracledb is only installed with the oracle backend
+if panda_config.backend == "oracle":
+    import oracledb
+
+    varNUMBER = oracledb.NUMBER
+else:
+    varNUMBER = int
+
 _logger = PandaLogger().getLogger("WrappedCursor")
 
 
 # extract table names from sql query
-def extract_table_names(sql):
+def extract_table_names(sql: str) -> list[str]:
     table_names = []
     for item in re.findall(r" FROM (.+?)(WHERE|$)", sql, flags=re.IGNORECASE):
         if "FROM" in item[0]:
@@ -29,7 +38,7 @@ def extract_table_names(sql):
 
 
 # convert SQL and parameters in_printf format
-def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
+def convert_query_in_printf_format(sql: str, var_dict_list: list[dict[str, Any]], sql_conv_map: dict[str, str]) -> tuple[str, list[list[Any]]]:
     if sql in sql_conv_map:
         sql = sql_conv_map[sql]
     else:
@@ -151,7 +160,7 @@ def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
             # cache
             sql_conv_map[old_sql] = sql
     # extract placeholders
-    params_list = []
+    params_list: list[list[Any]] = []
     items = re.findall(r":[^ $,)\+\-\n]+", sql)
     for var_dict in var_dict_list:
         params = []
@@ -166,24 +175,28 @@ def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
 
 
 # proxy
+# The connection and cursor come from oracledb, psycopg2 or MySQLdb. None of the three ships
+# stubs and CI installs none of them, so anything that passes through the driver is Any whatever
+# is written down here. Where a value is really known -- the hostname below -- it is declared on
+# the local instead, which keeps the return type honest without asserting anything about the driver
 class WrappedCursor(object):
     # constructor
-    def __init__(self, connection):
+    def __init__(self, connection: Any) -> None:
         # connection object
         self.conn = connection
         # cursor object
         self.cur = self.conn.cursor()
         # backend
         self.backend = panda_config.backend
-        # statement
-        self.statement = None
+        # statement. Set by prepare(), which nothing in the tree calls
+        self.statement: str | None = None
         # dump
         if hasattr(panda_config, "cursor_dump") and panda_config.cursor_dump:
             self.dump = True
         else:
             self.dump = False
         # SQL conversion map
-        self.sql_conv_map = {}
+        self.sql_conv_map: dict[str, str] = {}
         # executemany
         if self.backend == "postgres":
             from psycopg2.extras import execute_batch
@@ -193,16 +206,16 @@ class WrappedCursor(object):
             self.alt_executemany = None
 
     # __iter__
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         return iter(self.cur)
 
     # serialize
-    def __str__(self):
+    def __str__(self) -> str:
         return f"WrappedCursor[{self.conn}]"
 
     # initialize
-    def initialize(self):
-        hostname = None
+    def initialize(self) -> str | None:
+        hostname: str | None = None
         if self.backend == "oracle":
             # get hostname
             self.execute("SELECT SYS_CONTEXT('USERENV','HOST') FROM dual")
@@ -241,7 +254,7 @@ class WrappedCursor(object):
         return hostname
 
     # execute query on cursor
-    def execute(self, sql, varDict=None, cur=None):  # , returningInto=None
+    def execute(self, sql: str, varDict: dict[str, Any] | None = None, cur: Any = None) -> Any:  # , returningInto=None
         if varDict is None:
             varDict = {}
         if cur is None:
@@ -349,7 +362,7 @@ class WrappedCursor(object):
                 ret = self._returningIntoMySQLpost(returningInto, varDict, cur)
         return ret
 
-    def _returningIntoOracle(self, returningInputData, varDict, cur, dryRun=False):
+    def _returningIntoOracle(self, returningInputData: list[dict[str, str]] | None, varDict: dict[str, Any], cur: Any, dryRun: bool = False) -> str:
         # returningInputData=[{'returning': 'PandaID', 'into': ':newPandaID'}, {'returning': 'row_ID', 'into': ':newRowID'}]
         result = ""
         if returningInputData is not None:
@@ -360,13 +373,13 @@ class WrappedCursor(object):
                 # assuming that we use RETURNING INTO only for PandaID or row_ID columns
                 if not dryRun:
                     for x in listInto:
-                        varDict[x] = cur.var(oracledb.NUMBER)
+                        varDict[x] = cur.var(varNUMBER)
                 result = f" RETURNING {valReturning} INTO {valInto} "
             except Exception:
                 pass
         return result
 
-    def _returningIntoMySQLpre(self, returningInputData, varDict, cur):
+    def _returningIntoMySQLpre(self, returningInputData: list[dict[str, str]] | None, varDict: dict[str, Any], cur: Any) -> None:
         # returningInputData=[{'returning': 'PandaID', 'into': ':newPandaID'}, {'returning': 'row_ID', 'into': ':newRowID'}]
         if returningInputData is not None:
             try:
@@ -385,7 +398,7 @@ class WrappedCursor(object):
             except Exception:
                 pass
 
-    def _returningIntoMySQLpost(self, returningInputData, varDict, cur):
+    def _returningIntoMySQLpost(self, returningInputData: list[dict[str, str]], varDict: dict[str, Any], cur: Any) -> int:
         # returningInputData=[{'returning': 'PandaID', 'into': ':newPandaID'}, {'returning': 'row_ID', 'into': ':newRowID'}]
         result = int(0)
         if len(returningInputData) == 1:
@@ -405,29 +418,29 @@ class WrappedCursor(object):
         return result
 
     # fetchall
-    def fetchall(self):
+    def fetchall(self) -> Any:
         return self.cur.fetchall()
 
     # fetchmany
-    def fetchmany(self, arraysize=1000):
+    def fetchmany(self, arraysize: int = 1000) -> Any:
         self.cur.arraysize = arraysize
         return self.cur.fetchmany()
 
     # fetchall
-    def fetchone(self):
+    def fetchone(self) -> Any:
         return self.cur.fetchone()
 
     # var
-    def var(self, dataType, *args, **kwargs):
+    def var(self, dataType: Any, *args: Any, **kwargs: Any) -> Any:
         if self.backend == "mysql":
-            return apply(dataType, [0])
+            return dataType(0)
         elif self.backend == "postgres":
             return None
         else:
             return self.cur.var(dataType, *args, **kwargs)
 
     # get value
-    def getvalue(self, dataItem):
+    def getvalue(self, dataItem: Any) -> Any:
         if self.backend == "mysql":
             return dataItem
         elif self.backend == "postgres":
@@ -436,23 +449,28 @@ class WrappedCursor(object):
             return dataItem.getvalue()
 
     # next
-    def next(self):
+    def next(self) -> Any:
         if self.backend == "mysql":
             return self.cur.fetchone()
         return self.cur.next()
 
     # close
-    def close(self):
+    def close(self) -> Any:
         return self.cur.close()
 
     # prepare
-    def prepare(self, statement):
+    def prepare(self, statement: str) -> None:
         self.statement = statement
 
     # executemany
-    def executemany(self, sql, params):
+    def executemany(self, sql: str | None, params: list[dict[str, Any]]) -> None:
         if sql is None:
             sql = self.statement
+        if sql is None:
+            # nothing calls prepare(), so self.statement is always None and this is reachable
+            # only by passing None without one. The old spelling carried the None into re.sub()
+            # below and raised there, naming neither this method nor the missing statement
+            raise ValueError("executemany() needs a statement, either as its argument or from prepare()")
         sql = self.change_schema(sql)
         if self.backend == "postgres":
             sql, vars_list = convert_query_in_printf_format(sql, params, self.sql_conv_map)
@@ -462,25 +480,25 @@ class WrappedCursor(object):
 
     # get_description
     @property
-    def description(self):
+    def description(self) -> Any:
         return self.cur.description
 
     # rowcount
     @property
-    def rowcount(self):
+    def rowcount(self) -> Any:
         return self.cur.rowcount
 
     # arraysize
     @property
-    def arraysize(self):
+    def arraysize(self) -> Any:
         return self.cur.arraysize
 
     @arraysize.setter
-    def arraysize(self, val):
+    def arraysize(self, val: int) -> None:
         self.cur.arraysize = val
 
     # change schema
-    def change_schema(self, sql):
+    def change_schema(self, sql: str) -> str:
         if panda_config.schemaPANDA != "ATLAS_PANDA":
             sql = re.sub("ATLAS_PANDA\.", panda_config.schemaPANDA + ".", sql)
         if panda_config.schemaMETA != "ATLAS_PANDAMETA":

@@ -1,4 +1,6 @@
+import logging
 import re
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -8,7 +10,7 @@ from pandaserver.userinterface import Client
 
 
 class MsgWrapper:
-    def __init__(self, logger, token=None, lineLimit=500, monToken=None):
+    def __init__(self, logger: logging.Logger, token: str | None = None, lineLimit: int = 500, monToken: str | None = None) -> None:
         self.logger = logger
         # use timestamp as token if undefined
         if token is None:
@@ -22,16 +24,17 @@ class MsgWrapper:
             self.monToken = monToken
         # remove <> for django
         try:
-            self.monToken = re.sub("<(?P<name>[^>]+)>", "\g<name>", self.monToken)
+            self.monToken = re.sub("<(?P<name>[^>]+)>", r"\g<name>", self.monToken)
         except Exception:
             pass
         # message buffer
-        self.msgBuffer = []
-        self.bareMsg = []
+        self.msgBuffer: list[str] = []
+        self.bareMsg: list[str] = []
         self.lineLimit = lineLimit
-        self.message_slot = None
+        # how many more messages keepMsg() will store, or None for no limit
+        self.message_slot: int | None = None
 
-    def keepMsg(self, msg):
+    def keepMsg(self, msg: str) -> None:
         # check if message slot is defined and available
         if self.message_slot is not None:
             if self.message_slot < 0:
@@ -47,46 +50,53 @@ class MsgWrapper:
         self.msgBuffer.append(f"{timeNow.isoformat(' ')} : {msg}")
         self.bareMsg.append(msg)
 
-    def set_message_slot(self, slot: int = 10):
+    def set_message_slot(self, slot: int = 10) -> None:
         self.message_slot = slot
 
-    def unset_message_slot(self):
+    def unset_message_slot(self) -> None:
         self.message_slot = None
 
-    def info(self, msg):
+    # the four levels below stringify whatever they are handed, which is what lets the
+    # callers pass a None error diagnostic or a decoded task parameter straight in
+    def info(self, msg: Any) -> None:
         msg = str(msg)
         self.logger.info(self.token + " " + msg)
         self.keepMsg(msg)
 
-    def debug(self, msg):
+    def debug(self, msg: Any) -> None:
         msg = str(msg)
         self.logger.debug(self.token + " " + msg)
 
-    def error(self, msg):
+    def error(self, msg: Any) -> None:
         msg = str(msg)
         self.logger.error(self.token + " " + msg)
         self.keepMsg(msg)
 
-    def warning(self, msg):
+    def warning(self, msg: Any) -> None:
         msg = str(msg)
         self.logger.warning(self.token + " " + msg)
         self.keepMsg(msg)
 
-    def dumpToString(self):
+    def dumpToString(self) -> str:
         strMsg = ""
         for msg in self.msgBuffer:
             strMsg += msg
             strMsg += "\n"
         return strMsg
 
-    def uploadLog(self, id):
+    # returns the text the caller puts in the task error dialog, which is either a link
+    # to the uploaded log or the reason there is none
+    def uploadLog(self, id: int | None) -> str:
         strMsg = self.dumpToString()
-        s, o = Client.uploadLog(strMsg, id)
+        # every caller passes a task ID off a task spec, whose column reads None until the
+        # spec is loaded. Client.uploadLog stringifies the name anyway, so this is only
+        # doing it one step earlier
+        s, o = Client.uploadLog(strMsg, str(id))
         if s != 0:
             return f"failed to upload log with {s} {o}."
 
         success = o["success"]
-        message = o["message"]
+        message: str = o["message"]
         url = o["data"]
 
         if success and url.startswith("http"):
@@ -95,7 +105,7 @@ class MsgWrapper:
         return message
 
     # send message to logger
-    def sendMsg(self, message, msgType, msgLevel="info", escapeChar=False):
+    def sendMsg(self, message: str, msgType: str, msgLevel: str = "info", escapeChar: bool = False) -> None:
         try:
             # get logger
             tmpPandaLogger = PandaLogger()

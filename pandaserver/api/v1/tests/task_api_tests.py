@@ -10,10 +10,10 @@ JEDI_TASK_ID = os.environ.get("JEDI_TASK_ID_TEST", -1)
 
 
 class TestTaskAPI(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.http_client = HttpClient()
 
-    def test_retry(self):
+    def test_retry(self) -> None:
         url = f"{api_url_ssl}/task/retry"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID}
@@ -30,7 +30,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True, "data": 0, "message": ""}
         self.assertEqual(output, expected_response)
 
-    def test_enable_jumbo_jobs(self):
+    def test_enable_jumbo_jobs(self) -> None:
         url = f"{api_url_ssl}/task/enable_jumbo_jobs"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID, "jumbo_jobs_total": 1}
@@ -48,7 +48,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_enable_job_cloning(self):
+    def test_enable_job_cloning(self) -> None:
         url = f"{api_url_ssl}/task/enable_job_cloning"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID}
@@ -66,7 +66,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_disable_job_cloning(self):
+    def test_disable_job_cloning(self) -> None:
         url = f"{api_url_ssl}/task/disable_job_cloning"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID}
@@ -84,7 +84,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_increase_attempts(self):
+    def test_increase_attempts(self) -> None:
         url = f"{api_url_ssl}/task/increase_attempts"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID}
@@ -102,7 +102,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_resume(self):
+    def test_resume(self) -> None:
         url = f"{api_url_ssl}/task/resume"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID}
@@ -120,7 +120,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_release(self):
+    def test_release(self) -> None:
         url = f"{api_url_ssl}/task/release"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID}
@@ -138,7 +138,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_reassign(self):
+    def test_reassign(self) -> None:
         # reassign(req: PandaRequest, task_id: int, site: str = None, cloud: str = None, nucleus: str = None, soft: bool = None, mode: str = None):
         url = f"{api_url_ssl}/task/reassign"
         print(f"Testing URL: {url}")
@@ -157,7 +157,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_pause(self):
+    def test_pause(self) -> None:
         url = f"{api_url_ssl}/task/pause"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID}
@@ -175,7 +175,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_kill(self):
+    def test_kill(self) -> None:
         url = f"{api_url_ssl}/task/kill"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID}
@@ -193,7 +193,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_finish(self):
+    def test_finish(self) -> None:
         # def finish(req: PandaRequest, task_id: int, soft: bool = False, broadcast: bool = False) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/finish"
         print(f"Testing URL: {url}")
@@ -212,7 +212,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_reactivate(self):
+    def test_reactivate(self) -> None:
         # def reactivate(req: PandaRequest, task_id: int, keep_attempt_nr: bool = False, trigger_job_generation: bool = False) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/reactivate"
         print(f"Testing URL: {url}")
@@ -227,7 +227,7 @@ class TestTaskAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_avalanche(self):
+    def test_avalanche(self) -> None:
         url = f"{api_url_ssl}/task/avalanche"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID}
@@ -245,7 +245,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_reload_input(self):
+    def test_reload_input(self) -> None:
         url = f"{api_url_ssl}/task/reload_input"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID}
@@ -263,7 +263,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_reassign_global_share(self):
+    def test_reassign_global_share(self) -> None:
         url = f"{api_url_ssl}/task/reassign_global_share"
         print(f"Testing URL: {url}")
         data = {"task_id_list": [JEDI_TASK_ID], "share": "Test", "reassign_running_jobs": False}
@@ -281,7 +281,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_status(self):
+    def test_get_status(self) -> None:
         url = f"{api_url_ssl}/task/get_status"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID}
@@ -299,7 +299,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_details(self):
+    def test_get_details(self) -> None:
         url = f"{api_url_ssl}/task/get_details"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID, "include_parameters": False, "include_status": False}
@@ -317,7 +317,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_change_attribute(self):
+    def test_change_attribute(self) -> None:
         url = f"{api_url_ssl}/task/change_attribute"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID, "attribute_name": "coreCount", "value": 8}
@@ -335,7 +335,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_change_modification_time(self):
+    def test_change_modification_time(self) -> None:
         url = f"{api_url_ssl}/task/change_modification_time"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID, "positive_hour_offset": 1}
@@ -353,7 +353,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_change_priority(self):
+    def test_change_priority(self) -> None:
         url = f"{api_url_ssl}/task/change_priority"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID, "priority": 1}
@@ -371,7 +371,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_change_split_rule(self):
+    def test_change_split_rule(self) -> None:
         url = f"{api_url_ssl}/task/change_split_rule"
         print(f"Testing URL: {url}")
         data = {"task_id": JEDI_TASK_ID, "attribute_name": "AI", "value": 1}
@@ -389,7 +389,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_tasks_modified_since(self):
+    def test_get_tasks_modified_since(self) -> None:
         # def get_tasks_modified_since(req, since: str, dn: str = "", full: bool = False, min_task_id: int = None, prod_source_label: str = "user") -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/get_tasks_modified_since"
         print(f"Testing URL: {url}")
@@ -408,7 +408,7 @@ class TestTaskAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_datasets_and_files(self):
+    def test_get_datasets_and_files(self) -> None:
         # def get_datasets_and_files(req, task_id, dataset_types: List = ("input", "pseudo_input")) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/get_datasets_and_files"
         print(f"Testing URL: {url}")
@@ -427,7 +427,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_job_ids(self):
+    def test_get_job_ids(self) -> None:
         # def get_job_ids(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/get_job_ids"
         print(f"Testing URL: {url}")
@@ -442,7 +442,7 @@ class TestTaskAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_insert_task_parameters(self):
+    def test_insert_task_parameters(self) -> None:
         # def insert_task_parameters(req: PandaRequest, task_parameters: Dict, parent_tid: int = None) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/insert_task_parameters"
         print(f"Testing URL: {url}")
@@ -456,7 +456,7 @@ class TestTaskAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_task_parameters(self):
+    def test_get_task_parameters(self) -> None:
         # def get_task_parameters(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/get_task_parameters"
         print(f"Testing URL: {url}")
@@ -475,7 +475,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_detailed_info(self):
+    def test_get_detailed_info(self) -> None:
         # def get_detailed_info(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/get_detailed_info"
         print(f"Testing URL: {url}")
@@ -502,7 +502,7 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_parent_detailed_info(self):
+    def test_get_parent_detailed_info(self) -> None:
         # def get_parent_detailed_info(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/get_parent_detailed_info"
         print(f"Testing URL: {url}")
@@ -541,7 +541,7 @@ class TestTaskAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": output["success"]}
         self.assertEqual(output, expected_response)
 
-    def test_get_tasks_detailed_info_since(self):
+    def test_get_tasks_detailed_info_since(self) -> None:
         url = f"{api_url_ssl}/task/get_tasks_detailed_info_since"
         print(f"Testing URL: {url}")
 
@@ -614,7 +614,7 @@ class TestTaskAPI(unittest.TestCase):
             returned_ids = [task_info.get("jediTaskID") for task_info in output["data"]]
             self.assertIn(int(JEDI_TASK_ID), returned_ids)
 
-    def test_get_job_descriptions(self):
+    def test_get_job_descriptions(self) -> None:
         # def get_job_descriptions(req: PandaRequest, task_id: int, unsuccessful_only: bool = False) -> Dict:
         url = f"{api_url_ssl}/task/get_job_descriptions"
         print(f"Testing URL: {url}")

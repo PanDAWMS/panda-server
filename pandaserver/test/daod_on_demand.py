@@ -3,6 +3,7 @@ import math
 import re
 import sys
 import uuid
+from typing import Any
 
 from pandajedi.jedicore import JediTaskBuffer
 from pandaserver.taskbuffer.Initializer import initializer
@@ -76,7 +77,7 @@ if "inputPreStaging" in t:
 if "nGBPerJob" in t:
     t["nGBPerJob"] = math.ceil(t["nGBPerJob"] / 2)
 
-newJ = []
+newJ: list[Any] = []
 for i in t["jobParameters"]:
     if "dataset" in i:
         if i["param_type"] == "output":

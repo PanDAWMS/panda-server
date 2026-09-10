@@ -1,3 +1,5 @@
+from typing import Any
+
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -13,7 +15,10 @@ from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 _logger = PandaLogger().getLogger("api_metaconfig")
 
 # These global variables are initialized in the init_task_buffer method
-global_task_buffer = None
+# Installed by init_task_buffer() before any handler runs, so these are declared
+# non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
+# only push a None check onto every handler without making any of them safer.
+global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -26,7 +31,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_banned_users(req: PandaRequest) -> dict:
+def get_banned_users(req: PandaRequest) -> dict[str, Any]:
     """
     Get banned users
 
@@ -52,7 +57,7 @@ def get_banned_users(req: PandaRequest) -> dict:
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict:
+def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict[str, Any]:
     """
     Get site specs
 
@@ -89,7 +94,7 @@ def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_resource_types(req: PandaRequest):
+def get_resource_types(req: PandaRequest) -> dict[str, Any]:
     """
     Get resource types
 

@@ -8,11 +8,19 @@ import json
 import re
 import sys
 import threading
-from typing import List
+from typing import TYPE_CHECKING, Any, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
+
+from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("finisher")
@@ -40,7 +48,7 @@ class Finisher(threading.Thread):
     """
 
     # constructor
-    def __init__(self, taskBuffer, dataset, job: str = None, site: str = None):
+    def __init__(self, taskBuffer: "TaskBuffer", dataset: DatasetSpec | None, job: JobSpec | None = None, site: str | None = None) -> None:
         """
         Constructs all the necessary attributes for the Finisher object.
 
@@ -56,12 +64,12 @@ class Finisher(threading.Thread):
                 The site where the job is to be transferred (default is None)
         """
         threading.Thread.__init__(self)
-        self.dataset = dataset
+        self.dataset: DatasetSpec | None = dataset
         self.task_buffer = taskBuffer
         self.job = job
         self.site = site
 
-    def create_json_doc(self, job, failed_files: List[str], no_out_files: List[str]):
+    def create_json_doc(self, job: JobSpec, failed_files: List[str], no_out_files: List[str]) -> str:
         """
         This function creates a JSON document for the jobs.
 
@@ -73,7 +81,7 @@ class Finisher(threading.Thread):
         Returns:
         str: The created JSON document as a string.
         """
-        json_dict = {}
+        json_dict: dict[str, dict[str, Any]] = {}
         for file in job.Files:
             if file.type in ["output", "log"]:
                 # skip failed or no-output files
@@ -91,7 +99,7 @@ class Finisher(threading.Thread):
                 json_dict[file.lfn] = file_dict
         return json.dumps(json_dict)
 
-    def update_job_output_report(self, job, failed_files: List[str], no_out_files: List[str]):
+    def update_job_output_report(self, job: JobSpec, failed_files: List[str], no_out_files: List[str]) -> None:
         """
         This function updates the job output report.
 
@@ -103,20 +111,20 @@ class Finisher(threading.Thread):
         json_data = self.create_json_doc(job, failed_files, no_out_files)
         record_status = "finished" if not failed_files else "failed"
         tmp_ret = self.task_buffer.updateJobOutputReport(
-            panda_id=job.PandaID,
-            attempt_nr=job.attemptNr,
+            panda_id=job.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+            attempt_nr=job.attemptNr,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             data=json_data,
         )
         if not tmp_ret:
             self.task_buffer.insertJobOutputReport(
-                panda_id=job.PandaID,
+                panda_id=job.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 prod_source_label=job.prodSourceLabel,
                 job_status=record_status,
-                attempt_nr=job.attemptNr,
+                attempt_nr=job.attemptNr,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 data=json_data,
             )
 
-    def check_file_status(self, job):
+    def check_file_status(self, job: JobSpec) -> tuple[bool, list[str], list[str]]:
         """
         This function checks the status of the files for the job.
 
@@ -130,8 +138,8 @@ class Finisher(threading.Thread):
             - list: A list of files with no output.
         """
         tmp_log = LogWrapper(_logger, f"check_file_status-{naive_utcnow().isoformat('/')}")
-        failed_files = []
-        no_out_files = []
+        failed_files: list[str] = []
+        no_out_files: list[str] = []
         for file in job.Files:
             if file.type in ("output", "log"):
                 if file.status == "failed":
@@ -144,7 +152,7 @@ class Finisher(threading.Thread):
         return True, failed_files, no_out_files
 
     # main
-    def run(self):
+    def run(self) -> None:
         """
         Starts the thread to finish transferring jobs
         """
@@ -152,18 +160,26 @@ class Finisher(threading.Thread):
         # start
         try:
             by_call_back = False
+            dataset = self.dataset
+            # a Finisher is made either for a job or for a dataset, and what it is made for
+            # names it in the start and end messages
             if self.job is not None:
-                tmp_log.debug(f"start: {self.job.PandaID}")
+                label = str(self.job.PandaID)
+                tmp_log.debug(f"start: {label}")
                 panda_ids = [self.job.PandaID]
                 jobs = [self.job]
-            else:
+            elif dataset is not None:
                 by_call_back = True
-                tmp_log.debug(f"start: {self.dataset.name}")
-                panda_ids = self.task_buffer.updateOutFilesReturnPandaIDs(self.dataset.name)
+                label = dataset.name
+                tmp_log.debug(f"start: {label}")
+                panda_ids = self.task_buffer.updateOutFilesReturnPandaIDs(dataset.name)  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                 # set flag for T2 cleanup
-                self.dataset.status = "cleanup"
-                self.task_buffer.updateDatasets([self.dataset])
+                dataset.status = "cleanup"
+                self.task_buffer.updateDatasets([dataset])
                 jobs = self.task_buffer.peekJobs(panda_ids, fromDefined=False, fromArchived=False, fromWaiting=False)
+            else:
+                tmp_log.error("neither a job nor a dataset was given")
+                return
 
             tmp_log.debug(f"IDs: {panda_ids}")
             if len(panda_ids) != 0:
@@ -185,10 +201,7 @@ class Finisher(threading.Thread):
                             exc_type, value, _ = sys.exc_info()
                             tmp_log.error(f"Job: {job.PandaID} {exc_type} {value}")
                     tmp_log.debug(f"Job: {job.PandaID} status: {job.jobStatus}")
-            if self.job is None:
-                tmp_log.debug(f"end: {self.dataset.name}")
-            else:
-                tmp_log.debug(f"end: {self.job.PandaID}")
+            tmp_log.debug(f"end: {label}")
         except Exception:
             exc_type, value, _ = sys.exc_info()
             tmp_log.error(f"run() : {exc_type} {value}")

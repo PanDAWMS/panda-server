@@ -1,29 +1,35 @@
 """
 EventLookupClientEI is a class for looking up events in the EventIndex.
 """
+
 import os
 import subprocess
 import tempfile
-
-from typing import List, Tuple
+from collections.abc import Sequence
+from typing import Any, Dict, Tuple
 
 
 class EventLookupClientEI:
     """
     EventLookupClientEI is a class for looking up events in the EventIndex.
     """
-    def do_lookup(self, event_run_list: List[Tuple[int, int]], stream: str = None, tokens: str = None, ami_tag: str = None) -> Tuple[List[str], str, str, str]:
+
+    def do_lookup(
+        self, event_run_list: Sequence[Sequence[str | int]], stream: str | None = None, tokens: str | None = None, ami_tag: str | None = None
+    ) -> Tuple[Dict[Any, Any], str, str, str]:
         """
         Performs a lookup in the EventIndex for the given parameters.
 
         Parameters:
-            event_run_list (List[Tuple[int, int]]): The list of run events.
+            event_run_list (Sequence[Sequence[str | int]]): The list of run events. The only
+                caller reads them out of a text file, so they arrive as strings; the int()
+                calls below are what make either form work.
             stream (str): The name of the stream.
             tokens (str): The tokens.
             ami_tag (str): The AMI tag.
 
         Returns:
-            Tuple[List[str], str, str, str]: A tuple containing the list of GUIDs, the command, the output, and the error.
+            Tuple[Dict[Any, Any], str, str, str]: A tuple mapping each (run, event) to its set of GUIDs, plus the command, the output, and the error.
         """
         command = os.path.join(
             os.getenv(
@@ -45,10 +51,9 @@ class EventLookupClientEI:
             if ami_tag not in [None, ""]:
                 command += f"-a {ami_tag} "
             command += "-c plain "
-            with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True,
-                                  universal_newlines=True) as execute_process:
+            with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, universal_newlines=True) as execute_process:
                 tmp_output, tmp_error = execute_process.communicate()
-            guids = {}
+            guids: dict[Any, Any] = {}
             if tokens == "":
                 tokens = None
             try:

@@ -8,20 +8,24 @@ import re
 import sys
 import time
 import uuid
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.taskbuffer import JobUtils
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.SiteSpec import SiteSpec
 
 _logger = PandaLogger().getLogger("dyn_data_distributer")
 
-# files in datasets
-g_files_in_ds_map = {}
+# files in datasets: dataset name -> LFN -> the file attributes rucio reported, which
+# get_file_from_dataset adds "lfn" and "dataset" to before returning them
+g_files_in_ds_map: dict[str, dict[str, dict[str, Any]]] = {}
 
 
 class DynDataDistributer:
@@ -29,7 +33,7 @@ class DynDataDistributer:
     Find candidate site to distribute input datasets.
     """
 
-    def __init__(self, jobs, siteMapper, simul=False, token=None, dataset_lifetime=14):
+    def __init__(self, jobs: List[JobSpec], siteMapper: SiteMapper, simul: bool = False, token: str | None = None, dataset_lifetime: int = 14) -> None:
         self.jobs = jobs
         self.site_mapper = siteMapper
         if token is None:
@@ -42,7 +46,7 @@ class DynDataDistributer:
         # lifetime for temporary datasets
         self.dataset_lifetime = dataset_lifetime
 
-    def get_replica_locations(self, input_ds: str, check_used_file: bool) -> Tuple[bool, Dict]:
+    def get_replica_locations(self, input_ds: str, check_used_file: bool) -> Tuple[bool, Dict[str, Any]]:
         """
         Get replica locations for a given dataset.
 
@@ -57,7 +61,7 @@ class DynDataDistributer:
         tmp_log.debug(f"get_replica_locations {input_ds}")
 
         # return for failure
-        res_for_failure = False, {"": {"": ([], [], [], 0, False, False, 0, 0, [])}}
+        res_for_failure: Tuple[bool, Dict[str, Any]] = False, {"": {"": ([], [], [], 0, False, False, 0, 0, [])}}
 
         # get replica locations
         if input_ds.endswith("/"):
@@ -86,7 +90,7 @@ class DynDataDistributer:
         tmp_log.debug("end")
         return True, tmp_rep_maps
 
-    def get_all_sites(self) -> List:
+    def get_all_sites(self) -> List[SiteSpec]:
         """
         Retrieves all sites that meet certain conditions.
 
@@ -117,7 +121,7 @@ class DynDataDistributer:
             all_sites.append(site_spec)
         return all_sites
 
-    def get_candidate_sites(self, tmp_rep_maps: Dict, prod_source_label: str, job_label: str) -> Tuple[bool, Dict]:
+    def get_candidate_sites(self, tmp_rep_maps: Dict[str, Any], prod_source_label: str, job_label: str) -> Tuple[bool, Dict[str, Any]]:
         """
         Retrieves candidate sites for data distribution based on certain conditions.
 
@@ -135,16 +139,16 @@ class DynDataDistributer:
                    site-related lists and values as values.
         """
         all_site_map = self.get_all_sites()
-        return_map = {}
+        return_map: dict[str, Any] = {}
         cloud = "WORLD"
         for tmp_ds, tmp_rep_map in tmp_rep_maps.items():
             cand_sites = []
             sites_com_ds = []
-            sites_comp_pd2p = []
+            sites_comp_pd2p: list[Any] = []
             t1_has_replica = False
             t1_has_primary = False
             n_sec_replicas = 0
-            cand_for_mou = []
+            cand_for_mou: list[Any] = []
             n_user_sub = 0
             for tmp_site_spec in all_site_map:
                 tmp_scope_input, tmp_scope_output = select_scope(tmp_site_spec, prod_source_label, job_label)
@@ -173,7 +177,7 @@ class DynDataDistributer:
             )
         return True, return_map
 
-    def get_candidates(self, input_ds: str, prod_source_label: str, job_label: str, check_used_file: bool = True) -> Tuple[bool, Dict]:
+    def get_candidates(self, input_ds: str, prod_source_label: str, job_label: str, check_used_file: bool = True) -> Tuple[bool, Dict[str, Any]]:
         """
         Get candidate sites for subscription.
 
@@ -194,7 +198,7 @@ class DynDataDistributer:
         # Get candidate sites
         return self.get_candidate_sites(tmp_rep_maps, prod_source_label, job_label)
 
-    def get_list_dataset_replicas(self, dataset: str, max_attempts: int = 3) -> Tuple[bool, Dict]:
+    def get_list_dataset_replicas(self, dataset: str, max_attempts: int = 3) -> Tuple[bool, Dict[str, List[Dict[str, Any]]]]:
         """
         Get the list of replicas for a given dataset.
 
@@ -221,7 +225,7 @@ class DynDataDistributer:
         tmp_log.debug("end")
         return False, {}
 
-    def get_list_dataset_replicas_in_container(self, container: str, max_attempts: int = 3) -> Tuple[bool, Dict]:
+    def get_list_dataset_replicas_in_container(self, container: str, max_attempts: int = 3) -> Tuple[bool, Dict[str, Dict[str, List[Dict[str, Any]]]]]:
         """
         Get the list of replicas for a given container.
 
@@ -237,7 +241,7 @@ class DynDataDistributer:
         tmp_log.debug(f"get_list_dataset_replicas_in_container {container}")
 
         # response for failure
-        res_for_failure = False, {}
+        res_for_failure: Tuple[bool, Dict[str, Dict[str, List[Dict[str, Any]]]]] = False, {}
 
         # get datasets in container
         for attempt in range(max_attempts):
@@ -268,7 +272,7 @@ class DynDataDistributer:
         tmp_log.debug("end")
         return True, all_rep_map
 
-    def get_used_datasets(self, dataset_map: Dict, max_attempts: int = 3) -> Tuple[bool, Dict]:
+    def get_used_datasets(self, dataset_map: Dict[str, Any], max_attempts: int = 3) -> Tuple[bool, List[str]]:
         """
         Get the datasets that are used by jobs.
 
@@ -282,7 +286,7 @@ class DynDataDistributer:
         tmp_log = LogWrapper(_logger, f"get_used_datasets-{naive_utcnow().isoformat('/')}")
         tmp_log.debug(f"get_used_datasets {str(dataset_map)}")
 
-        res_for_failure = (False, [])
+        res_for_failure: Tuple[bool, List[str]] = (False, [])
         used_ds_list = []
 
         # loop over all datasets
@@ -326,7 +330,7 @@ class DynDataDistributer:
         tmp_log.debug("end")
         return True, used_ds_list
 
-    def get_file_from_dataset(self, dataset_name: str, guid: str, max_attempts: int = 3) -> Tuple[bool, Dict]:
+    def get_file_from_dataset(self, dataset_name: str, guid: str, max_attempts: int = 3) -> Tuple[bool, Dict[str, Any] | None]:
         """
         Get file information from a dataset.
 
@@ -341,7 +345,7 @@ class DynDataDistributer:
         tmp_log = LogWrapper(_logger, f"get_file_from_dataset-{naive_utcnow().isoformat('/')}")
         tmp_log.debug(f"get_file_from_dataset {dataset_name} {guid}")
 
-        res_for_failure = (False, None)
+        res_for_failure: Tuple[bool, Dict[str, Any] | None] = (False, None)
 
         # get files in datasets
         global g_files_in_ds_map
@@ -380,8 +384,8 @@ class DynDataDistributer:
         return res_for_failure
 
     def register_dataset_container_with_datasets(
-        self, container_name: str, files: List, replica_map: Dict, n_sites: int = 1, owner: str = None, max_attempts: int = 3
-    ) -> Tuple[bool, Dict]:
+        self, container_name: str, files: List[Dict[str, Any]], replica_map: Dict[str, Any], n_sites: int = 1, owner: str | None = None, max_attempts: int = 3
+    ) -> bool:
         """
         Register a new dataset container with datasets.
 
@@ -409,7 +413,7 @@ class DynDataDistributer:
             tmp_logger.debug(f"parsed DN={owner}")
 
         # sort by locations
-        files_map = {}
+        files_map: dict[Any, Any] = {}
         for tmp_file in files:
             tmp_locations = sorted(replica_map[tmp_file["dataset"]])
             new_locations = []
@@ -480,7 +484,9 @@ class DynDataDistributer:
         tmp_logger.debug("end")
         return True
 
-    def register_dataset_with_location(self, dataset_name: str, files: List, locations: List, owner: str = None, max_attempts: int = 3) -> bool:
+    def register_dataset_with_location(
+        self, dataset_name: str, files: List[Dict[str, Any]], locations: List[str], owner: str | None = None, max_attempts: int = 3
+    ) -> bool:
         """
         Register a new dataset with locations.
 
@@ -534,14 +540,14 @@ class DynDataDistributer:
                 status = True
             except Exception:
                 err_type, err_value = sys.exc_info()[:2]
-                out = f"failed to freeze : {err_type} {err_value}"
+                freeze_error = f"failed to freeze : {err_type} {err_value}"
                 status = False
             if not status:
                 time.sleep(10)
             else:
                 break
         if not status:
-            tmp_logger.error(out)
+            tmp_logger.error(freeze_error)
             tmp_logger.error(f"bad DDM response to freeze {dataset_name}")
             tmp_logger.debug("end")
             return res_for_failure
@@ -551,8 +557,8 @@ class DynDataDistributer:
             for attempt in range(max_attempts):
                 try:
                     tmp_logger.debug(f"{attempt}/{max_attempts} registerDatasetLocation {dataset_name} {tmp_location}")
-                    out = rucioAPI.register_dataset_location(dataset_name, [tmp_location], self.dataset_lifetime, owner)
-                    tmp_logger.debug(out)
+                    location_out = rucioAPI.register_dataset_location(dataset_name, [tmp_location], self.dataset_lifetime, owner)
+                    tmp_logger.debug(location_out)
                     status = True
                     break
 
@@ -567,13 +573,13 @@ class DynDataDistributer:
                     time.sleep(10)
 
             if not status:
-                tmp_logger.error(out)
+                tmp_logger.error(location_out)
                 tmp_logger.error(f"bad DDM response to register location {dataset_name}")
                 tmp_logger.debug("end")
                 return res_for_failure
         return True
 
-    def get_datasets_by_guids(self, out_map: Dict, guids: List[str], dataset_filters: List[str]) -> Tuple[bool, Dict]:
+    def get_datasets_by_guids(self, out_map: Dict[str, Any], guids: List[str], dataset_filters: List[str]) -> Tuple[bool, Dict[str, Any]]:
         """
         Get datasets by GUIDs.
 
@@ -635,7 +641,7 @@ class DynDataDistributer:
 
         return True, ret_map
 
-    def list_datasets_by_guids(self, guids: List[str], dataset_filters: List[str], max_attempts: int = 3) -> Tuple[bool, Dict]:
+    def list_datasets_by_guids(self, guids: List[str], dataset_filters: List[str], max_attempts: int = 3) -> Tuple[bool, Dict[str, Any]]:
         """
         List datasets by GUIDs.
 
@@ -650,8 +656,8 @@ class DynDataDistributer:
         tmp_logger = LogWrapper(_logger, f"list_datasets_by_guids-{naive_utcnow().isoformat('/')}")
         tmp_logger.debug(f"list_datasets_by_guids {str(guids)}")
 
-        res_for_failure = (False, {})
-        res_for_fatal = (False, {"isFatal": True})
+        res_for_failure: Tuple[bool, Dict[str, Any]] = (False, {})
+        res_for_fatal: Tuple[bool, Dict[str, Any]] = (False, {"isFatal": True})
 
         # get size of datasets
         for attempt in range(max_attempts):
@@ -662,14 +668,14 @@ class DynDataDistributer:
                 break
             except Exception:
                 err_type, err_value = sys.exc_info()[:2]
-                out = f"failed to get datasets with GUIDs : {err_type} {err_value}"
+                lookup_error = f"failed to get datasets with GUIDs : {err_type} {err_value}"
                 status = False
                 time.sleep(10)
 
         if not status:
-            tmp_logger.error(out)
+            tmp_logger.error(lookup_error)
             tmp_logger.error(f"bad DDM response to get size of {str(guids)}")
-            if "DataIdentifierNotFound" in out:
+            if "DataIdentifierNotFound" in lookup_error:
                 tmp_logger.error("DataIdentifierNotFound in listDatasetsByGUIDs")
                 tmp_logger.debug("end")
                 return res_for_fatal
@@ -688,8 +694,14 @@ class DynDataDistributer:
         return True, ret_map
 
     def convert_evt_run_to_datasets(
-        self, event_run_list: List, dataset_type: str, stream_name: str, dataset_filters: List, ami_tag: str, run_evt_guid_map: Dict
-    ) -> Tuple[bool, Dict, List]:
+        self,
+        event_run_list: List[List[str]],
+        dataset_type: str,
+        stream_name: str,
+        dataset_filters: List[str],
+        ami_tag: str,
+        run_evt_guid_map: Dict[tuple[int, int], List[str]],
+    ) -> Tuple[bool, Dict[str, Any], List[Dict[str, Any]]]:
         """
         Convert event/run list to datasets.
 
@@ -708,8 +720,10 @@ class DynDataDistributer:
         tmp_logger.debug(f"convert_evt_run_to_datasets type={dataset_type} stream={stream_name} dsPatt={str(dataset_filters)} amitag={ami_tag}")
 
         # check data type
-        failed_ret = False, {}, []
-        fatal_ret = False, {"isFatal": True}, []
+        # the second slot is either the locations map or the {"isFatal": True} marker the
+        # caller tests for, so it is Any rather than the locations type
+        failed_ret: Tuple[bool, Dict[str, Any], List[Dict[str, Any]]] = False, {}, []
+        fatal_ret: Tuple[bool, Dict[str, Any], List[Dict[str, Any]]] = False, {"isFatal": True}, []
         stream_ref = "Stream" + dataset_type
         # import event lookup client
         if run_evt_guid_map == {}:
@@ -767,7 +781,7 @@ class DynDataDistributer:
         all_locations = {}
         for tmp_idx in run_evt_guid_map:
             tmp_guids = run_evt_guid_map[tmp_idx]
-            run_nr, evt_nr = tmp_idx
+            key_run_nr, key_evt_nr = tmp_idx
             tmp_ds_ret, tmp_dataset_map = self.list_datasets_by_guids(tmp_guids, dataset_filters)
             # failed
             if not tmp_ds_ret:
@@ -779,11 +793,11 @@ class DynDataDistributer:
                 return failed_ret
             # empty
             if not tmp_dataset_map:
-                tmp_logger.error(f"there is no dataset for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}")
+                tmp_logger.error(f"there is no dataset for Run:{key_run_nr} Evt:{key_evt_nr} GUIDs:{str(tmp_guids)}")
                 tmp_logger.debug("end")
                 return fatal_ret
             if len(tmp_dataset_map) != 1:
-                tmp_logger.error(f"there are multiple datasets {str(tmp_dataset_map)} for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}")
+                tmp_logger.error(f"there are multiple datasets {str(tmp_dataset_map)} for Run:{key_run_nr} Evt:{key_evt_nr} GUIDs:{str(tmp_guids)}")
                 tmp_logger.debug("end")
                 return fatal_ret
 
@@ -811,8 +825,9 @@ class DynDataDistributer:
 
                 # get file info
                 tmp_file_ret, tmp_file_info = self.get_file_from_dataset(tmp_dataset_name, tmp_guid)
-                # failed
-                if not tmp_file_ret:
+                # failed. get_file_from_dataset returns (False, None) together, so the second
+                # test never fires on its own -- it is what lets the append below see a dict
+                if not tmp_file_ret or tmp_file_info is None:
                     tmp_logger.error(f"failed to get fileinfo for GUID:{tmp_guid} DS:{tmp_dataset_name}")
                     tmp_logger.debug("end")
                     return failed_ret

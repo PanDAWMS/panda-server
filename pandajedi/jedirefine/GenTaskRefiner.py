@@ -1,6 +1,11 @@
 import re
+from typing import Any
 
+from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 
 from .TaskRefinerBase import TaskRefinerBase
 
@@ -8,11 +13,17 @@ from .TaskRefinerBase import TaskRefinerBase
 # refiner for general purpose
 class GenTaskRefiner(TaskRefinerBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         TaskRefinerBase.__init__(self, taskBufferIF, ddmIF)
 
     # extract common parameters
-    def extractCommon(self, jediTaskID, taskParamMap, workQueueMapper, splitRule):
+    def extractCommon(
+        self,
+        jediTaskID: int,
+        taskParamMap: dict[str, Any],
+        workQueueMapper: WorkQueueMapper,
+        splitRule: str | None,
+    ) -> None:
         if "cloud" not in taskParamMap and "workingGroup" in taskParamMap:
             taskParamMap["cloud"] = taskParamMap["workingGroup"]
         if "transPath" not in taskParamMap:
@@ -48,7 +59,7 @@ class GenTaskRefiner(TaskRefinerBase):
         TaskRefinerBase.extractCommon(self, jediTaskID, taskParamMap, workQueueMapper, splitRule)
 
     # main
-    def doRefine(self, jediTaskID, taskParamMap):
+    def doRefine(self, jediTaskID: int, taskParamMap: dict[str, Any]) -> Interaction.StatusCode:
         # normal refine
         self.doBasicRefine(taskParamMap)
         # get DDM I/F to check

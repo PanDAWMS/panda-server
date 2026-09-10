@@ -9,7 +9,7 @@ tbIF = JediTaskBufferInterface()
 tbIF.setupInterface()
 
 task = JediTaskSpec()
-task.jediTaskID = sys.argv[1]
+task.jediTaskID = int(sys.argv[1])
 task.taskName = f"pandatest.{uuid.uuid4()}"
 task.status = "defined"
 task.userName = "pandasrv1"

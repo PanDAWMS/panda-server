@@ -24,8 +24,13 @@ if data_carousel_interface is None:
     print(errStr)
     sys.exit(1)
 
+dc_req_spec = data_carousel_interface.get_request_by_id(request_id)
+if dc_req_spec is None:
+    print(f"no request with request_id={request_id}")
+    sys.exit(1)
+
 print(f"resubmit for request_id={request_id}")
-dc_req_spec_resubmitted, _ = data_carousel_interface.resubmit_request(request_id)
+dc_req_spec_resubmitted, _ = data_carousel_interface.resubmit_request(dc_req_spec)
 
 if not dc_req_spec_resubmitted:
     # failed to resubmit

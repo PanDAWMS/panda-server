@@ -5,6 +5,7 @@ import time
 import traceback
 from contextlib import contextmanager
 from threading import Lock
+from typing import Any, Collection, Iterator, Sequence
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -16,8 +17,14 @@ from pandaserver.dataservice.closer import Closer
 from pandaserver.dataservice.setupper import Setupper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
+from pandaserver.taskbuffer.DataCarousel import DataCarouselRequestSpec
+from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
+from pandaserver.taskbuffer.FileSpec import FileSpec
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.offline_run_script import generate_offline_run_script
+from pandaserver.workflow.workflow_base import WFDataSpec, WFStepSpec, WorkflowSpec
 
 _logger = PandaLogger().getLogger("TaskBuffer")
 
@@ -28,25 +35,32 @@ class TaskBuffer:
 
     """
 
+    # The proxy pool is installed by init() before any query runs. It is declared
+    # non-Optional on purpose, for the same reason as BaseModule.conn/cur: typing it
+    # as Optional would only push a None check onto each of the ~250 call sites
+    # without making any of them safer, since a query issued before init() is a bug
+    # either way.
+    proxyPool: DBProxyPool
+
     # constructor
-    def __init__(self):
-        self.proxyPool = None
+    def __init__(self) -> None:
+        self.proxyPool = None  # type: ignore[assignment]
         self.lock = Lock()
-        self.nDBConnection = None
+        self.nDBConnection: int = None  # type: ignore[assignment]
 
         # save the requester for monitoring/logging purposes
         self.start_time = time.time()
 
         # site mapper
-        self.site_mapper = None
+        self.site_mapper: SiteMapper | None = None
         # update time for site mapper
         self.last_update_site_mapper = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "TaskBuffer"
 
     # initialize
-    def init(self, dbname, dbpass, nDBConnection=10, useTimeout=False, requester=None):
+    def init(self, dbname: str, dbpass: str, nDBConnection: int = 10, useTimeout: bool = False, requester: str | None = None) -> None:
         # acquire lock
         self.lock.acquire()
         self.nDBConnection = nDBConnection
@@ -61,7 +75,7 @@ class TaskBuffer:
         self.lock.release()
 
     # cleanup
-    def cleanup(self, requester=None):
+    def cleanup(self, requester: str | None = None) -> None:
         if self.proxyPool:
             try:
                 pool_duration = time.time() - self.start_time
@@ -74,7 +88,7 @@ class TaskBuffer:
     # transaction as a context manager
     # CANNOT be used with ConBridge or TaskBufferInterface which uses multiprocess.pipe
     @contextmanager
-    def transaction(self, name=None, tmp_log=None):
+    def transaction(self, name: str | None = None, tmp_log: LogWrapper | None = None) -> Iterator[tuple[Any, LogWrapper]]:
         with self.proxyPool.get() as proxy:
             with proxy.transaction(name, tmp_log) as txn:
                 if txn is None:
@@ -83,21 +97,26 @@ class TaskBuffer:
                 yield txn
 
     # get number of database connections
-    def get_num_connections(self):
+    def get_num_connections(self) -> int:
         return self.nDBConnection
 
     # get SiteMapper
-    def get_site_mapper(self):
+    def get_site_mapper(self) -> SiteMapper:
         time_now = naive_utcnow()
-        if self.last_update_site_mapper is None or datetime.datetime.now(datetime.timezone.utc).replace(
-            tzinfo=None
-        ) - self.last_update_site_mapper > datetime.timedelta(minutes=10):
+        # the first test is what the second one already implies -- the two are set together
+        # below -- and it is spelled out so that the return type can be the mapper rather than
+        # an optional one
+        if (
+            self.site_mapper is None
+            or self.last_update_site_mapper is None
+            or datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - self.last_update_site_mapper > datetime.timedelta(minutes=10)
+        ):
             self.site_mapper = SiteMapper(self)
             self.last_update_site_mapper = time_now
         return self.site_mapper
 
     # check production role
-    def checkProdRole(self, fqans):
+    def checkProdRole(self, fqans: list[str]) -> tuple[bool, str | None]:
         for fqan in fqans:
             # check production role
             match = re.search("/([^/]+)/Role=production", fqan)
@@ -106,7 +125,9 @@ class TaskBuffer:
         return False, None
 
     # get priority parameters for user
-    def getPrioParameters(self, jobs, user, fqans, userDefinedWG, validWorkingGroup):
+    def getPrioParameters(
+        self, jobs: list[JobSpec], user: str | None, fqans: list[str], userDefinedWG: bool, validWorkingGroup: bool
+    ) -> tuple[bool, str | None, int, int, float, bool]:
         priorityOffset = 0
         serNum = 0
         weight = None
@@ -159,7 +180,7 @@ class TaskBuffer:
                 weight = proxy.checkQuota(user)
                 # get nJob
                 if jobs == []:
-                    serNum = proxy.getNumberJobsUser(user, workingGroup=userDefinedWG)
+                    serNum = proxy.getNumberJobsUser(user, workingGroup=userDefinedWG)  # type: ignore[arg-type]
                 elif userDefinedWG and validWorkingGroup:
                     # check if group privileged
                     isSU, isGU = proxy.isSuperUser(jobs[0].workingGroup)
@@ -185,29 +206,29 @@ class TaskBuffer:
     # store Jobs into DB
     def storeJobs(
         self,
-        jobs,
-        user,
-        joinThr=False,
-        fqans=[],
-        hostname="",
-        checkSpecialHandling=True,
-        toPending=False,
-        oldPandaIDs=None,
-        relationType=None,
-        userVO="atlas",
-        esJobsetMap=None,
-        getEsJobsetMap=False,
-        unprocessedMap=None,
-        bulk_job_insert=False,
-        trust_user=False,
-    ):
+        jobs: list[JobSpec],
+        user: str | None,
+        joinThr: bool = False,
+        fqans: list[str] = [],
+        hostname: str = "",
+        checkSpecialHandling: bool = True,
+        toPending: bool = False,
+        oldPandaIDs: list[list[int]] | None = None,
+        relationType: str | None = None,
+        userVO: str = "atlas",
+        esJobsetMap: dict[Any, Any] | None = None,
+        getEsJobsetMap: bool = False,
+        unprocessedMap: dict[Any, Any] | None = None,
+        bulk_job_insert: bool = False,
+        trust_user: bool = False,
+    ) -> Any:
         try:
             tmpLog = LogWrapper(_logger, f"storeJobs <{CoreUtils.clean_user_id(user)} nJobs={len(jobs)}>")
             tmpLog.debug(f"start toPending={toPending}")
             # check quota for priority calculation
             weight = 0.0
             userJobID = -1
-            userJobsetID = -1
+            userJobsetID: int | None = -1
             userStatus = True
             priorityOffset = 0
             userCountry = None
@@ -239,7 +260,11 @@ class TaskBuffer:
                 # get DB proxy
                 with self.proxyPool.get() as proxy:
                     # get JobID and status
-                    userJobID, userJobsetID, userStatus = proxy.getUserParameter(user, jobs[0].jobDefinitionID, jobs[0].jobsetID)
+                    userJobID, userJobsetID, userStatus = proxy.getUserParameter(
+                        user,
+                        jobs[0].jobDefinitionID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                        jobs[0].jobsetID,
+                    )
 
                     # check quota for express jobs
                     if "express" in jobs[0].specialHandling:
@@ -433,7 +458,7 @@ class TaskBuffer:
                     # check events for jumbo jobs
                     isOK = True
                     if EventServiceUtils.isJumboJob(job):
-                        hasReadyEvents = proxy.hasReadyEvents(job.jediTaskID)
+                        hasReadyEvents = proxy.hasReadyEvents(job.jediTaskID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                         if hasReadyEvents is False:
                             isOK = False
                     # insert job to DB
@@ -497,7 +522,10 @@ class TaskBuffer:
                     else:
                         new_jobset_ids = []
                     tmp_ret, job_ret_list, es_jobset_map = proxy.bulk_insert_new_jobs(
-                        jobs[0].jediTaskID, params_for_bulk_insert, new_jobset_ids, special_handling_list
+                        jobs[0].jediTaskID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                        params_for_bulk_insert,
+                        new_jobset_ids,
+                        special_handling_list,
                     )
                     if not tmp_ret:
                         raise RuntimeError("bulk job insert failed")
@@ -546,19 +574,18 @@ class TaskBuffer:
     # lock jobs for reassign
     def lockJobsForReassign(
         self,
-        tableName,
-        timeLimit,
-        statList,
-        labels,
-        processTypes,
-        sites,
-        clouds,
-        useJEDI=False,
-        onlyReassignable=False,
-        useStateChangeTime=False,
-        getEventService=False,
-    ):
-        # get DB proxy
+        tableName: str,
+        timeLimit: datetime.datetime,
+        statList: list[str],
+        labels: list[str],
+        processTypes: list[str],
+        sites: list[str],
+        clouds: list[str],
+        useJEDI: bool = False,
+        onlyReassignable: bool = False,
+        useStateChangeTime: bool = False,
+        getEventService: bool = False,
+    ) -> tuple[bool, list[Any]]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.lockJobsForReassign(
@@ -577,7 +604,7 @@ class TaskBuffer:
         return res
 
     # get a DB configuration value
-    def getConfigValue(self, component, key, app="pandaserver", vo=None, default=None):
+    def getConfigValue(self, component: str, key: str, app: str = "pandaserver", vo: str | None = None, default: Any = None) -> Any:
         # get DB proxy
         with self.proxyPool.get() as proxy:
             # exec
@@ -587,16 +614,14 @@ class TaskBuffer:
         return res
 
     # lock jobs for finisher
-    def lockJobsForFinisher(self, timeNow, rownum, highPrio):
-        # get DB proxy
+    def lockJobsForFinisher(self, timeNow: datetime.datetime, rownum: int, highPrio: bool) -> tuple[bool, list[Any]]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.lockJobsForFinisher(timeNow, rownum, highPrio)
         return res
 
     # lock jobs for activator
-    def lockJobsForActivator(self, timeLimit, rownum, prio):
-        # get DB proxy
+    def lockJobsForActivator(self, timeLimit: datetime.datetime, rownum: int, prio: int) -> tuple[bool, list[Any]]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.lockJobsForActivator(timeLimit, rownum, prio)
@@ -605,12 +630,12 @@ class TaskBuffer:
     # update overall job information
     def updateJobs(
         self,
-        jobs,
-        inJobsDefined,
-        oldJobStatusList=None,
-        extraInfo=None,
-        async_dataset_update=False,
-    ):
+        jobs: list[JobSpec],
+        inJobsDefined: bool,
+        oldJobStatusList: list[str | None] | None = None,
+        extraInfo: dict[str, Any] | None = None,
+        async_dataset_update: bool = False,
+    ) -> list[bool]:
         # get DB proxy
         with self.proxyPool.get() as proxy:
             # loop over all jobs
@@ -620,7 +645,7 @@ class TaskBuffer:
             newMover = None
             for idxJob, job in enumerate(jobs):
                 # update DB
-                tmpddmIDs = []
+                tmpddmIDs: list[Any] = []
                 if oldJobStatusList is not None and idxJob < len(oldJobStatusList):
                     oldJobStatus = oldJobStatusList[idxJob]
                 else:
@@ -631,7 +656,11 @@ class TaskBuffer:
                         pass
                     else:
                         # check if there are done events
-                        hasDone = proxy.hasDoneEvents(job.jediTaskID, job.PandaID, job)
+                        hasDone = proxy.hasDoneEvents(
+                            job.jediTaskID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                            job.PandaID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                            job,
+                        )
                         if hasDone:
                             job.jobStatus = "finished"
                         else:
@@ -653,7 +682,7 @@ class TaskBuffer:
                         async_params = None
                     ret, tmpddmIDs, ddmAttempt, newMover = proxy.archiveJob(job, inJobsDefined, extraInfo=extraInfo, async_params=async_params)
                     if async_params is not None and ret:
-                        proxy.async_update_datasets(job.PandaID)
+                        proxy.async_update_datasets(job.PandaID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                 else:
                     ret = proxy.updateJob(job, inJobsDefined, oldJobStatus=oldJobStatus, extraInfo=extraInfo)
                 returns.append(ret)
@@ -670,7 +699,7 @@ class TaskBuffer:
         return returns
 
     # update job jobStatus only
-    def updateJobStatus(self, jobID, jobStatus, param, updateStateChange=False, attemptNr=None):
+    def updateJobStatus(self, jobID: int, jobStatus: str, param: dict[str, Any], updateStateChange: bool = False, attemptNr: int | None = None) -> Any:
         # get DB proxy
         with self.proxyPool.get() as proxy:
             # update DB and buffer
@@ -691,8 +720,7 @@ class TaskBuffer:
         return ret
 
     # update worker status by the pilot
-    def updateWorkerPilotStatus(self, workerID, harvesterID, status, node_id):
-        # get DB proxy
+    def updateWorkerPilotStatus(self, workerID: int | str, harvesterID: str, status: str, node_id: str | None) -> bool:
         with self.proxyPool.get() as proxy:
             # update DB and buffer
             ret = proxy.updateWorkerPilotStatus(workerID, harvesterID, status, node_id)
@@ -700,22 +728,21 @@ class TaskBuffer:
 
     def update_worker_node(
         self,
-        site,
-        panda_queue,
-        host_name,
-        cpu_model,
-        cpu_model_normalized,
-        n_logical_cpus,
-        n_sockets,
-        cores_per_socket,
-        threads_per_core,
-        cpu_architecture,
-        cpu_architecture_level,
-        clock_speed,
-        total_memory,
-        total_local_disk,
-    ):
-        # get DB proxy
+        site: str,
+        panda_queue: str,
+        host_name: str,
+        cpu_model: str | None,
+        cpu_model_normalized: str | None,
+        n_logical_cpus: int | None,
+        n_sockets: int | None,
+        cores_per_socket: int | None,
+        threads_per_core: int | None,
+        cpu_architecture: str | None,
+        cpu_architecture_level: str | None,
+        clock_speed: float | None,
+        total_memory: int | None,
+        total_local_disk: int | None,
+    ) -> tuple[bool, str]:
         with self.proxyPool.get() as proxy:
             # update DB and buffer
             ret = proxy.update_worker_node(
@@ -748,8 +775,7 @@ class TaskBuffer:
         framework: str,
         framework_version: str,
         driver_version: str,
-    ):
-        # get DB proxy
+    ) -> tuple[bool, str]:
         with self.proxyPool.get() as proxy:
             # update DB and buffer
             ret = proxy.update_worker_node_gpu(
@@ -766,27 +792,25 @@ class TaskBuffer:
             )
         return ret
 
-    def get_architecture_level_map(self):
-        # get DB proxy
+    def get_architecture_level_map(self) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_architecture_level_map()
         return ret
 
-    def get_worker_node_gpu_map(self):
-        # get DB proxy
+    def get_worker_node_gpu_map(self) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_worker_node_gpu_map()
         return ret
 
-    def get_worker_node_metrics(self, site=None, panda_queue=None, host=None, key=None, days=1):
-        # get DB proxy
+    def get_worker_node_metrics(
+        self, site: str | None = None, panda_queue: str | None = None, host: str | None = None, key: str | None = None, days: int = 1
+    ) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_worker_node_metrics(site, panda_queue, host, key, days)
         return ret
 
     # finalize pending analysis jobs
-    def finalizePendingJobs(self, prodUserName, jobDefinitionID, waitLock=False):
-        # get DB proxy
+    def finalizePendingJobs(self, prodUserName: str, jobDefinitionID: int, waitLock: bool = False) -> bool:
         with self.proxyPool.get() as proxy:
             # update DB
             ret = proxy.finalizePendingJobs(prodUserName, jobDefinitionID, waitLock)
@@ -795,16 +819,15 @@ class TaskBuffer:
     # retry job
     def retryJob(
         self,
-        jobID,
-        param,
-        failedInActive=False,
-        changeJobInMem=False,
-        inMemJob=None,
-        getNewPandaID=False,
-        attemptNr=None,
-        recoverableEsMerge=False,
-    ):
-        # get DB proxy
+        jobID: int,
+        param: dict[str, Any],
+        failedInActive: bool = False,
+        changeJobInMem: bool = False,
+        inMemJob: JobSpec | None = None,
+        getNewPandaID: bool = False,
+        attemptNr: int | None = None,
+        recoverableEsMerge: bool = False,
+    ) -> Any:
         with self.proxyPool.get() as proxy:
             # update DB
             ret = proxy.retryJob(
@@ -820,7 +843,7 @@ class TaskBuffer:
         return ret
 
     # activate jobs
-    def activateJobs(self, jobs):
+    def activateJobs(self, jobs: list[JobSpec]) -> list[bool]:
         # get DB proxy
         with self.proxyPool.get() as proxy:
             # loop over all jobs
@@ -832,7 +855,7 @@ class TaskBuffer:
         return returns
 
     # send jobs to jobsWaiting
-    def keepJobs(self, jobs):
+    def keepJobs(self, jobs: list[JobSpec]) -> list[bool]:
         # get DB proxy
         with self.proxyPool.get() as proxy:
             # loop over all jobs
@@ -844,7 +867,7 @@ class TaskBuffer:
         return returns
 
     # archive jobs
-    def archiveJobs(self, jobs, inJobsDefined, fromJobsWaiting=False):
+    def archiveJobs(self, jobs: list[JobSpec], inJobsDefined: bool, fromJobsWaiting: bool = False) -> list[bool]:
         # get DB proxy
         with self.proxyPool.get() as proxy:
             # loop over all jobs
@@ -856,12 +879,16 @@ class TaskBuffer:
         return returns
 
     # set debug mode
-    def setDebugMode(self, dn, pandaID, prodManager, modeOn, workingGroup):
+    def setDebugMode(self, dn: str, pandaID: int, prodManager: bool, modeOn: bool, workingGroup: str | None) -> str | None:
         # get DB proxy
+        retStr: str | None
         with self.proxyPool.get() as proxy:
             # check the number of debug jobs
             hitLimit = False
             if modeOn is True:
+                # bound here because the production manager branch below sets no limit and
+                # so never reads it
+                jobList: list[Any] | None = None
                 if prodManager:
                     limitNum = None
                 elif workingGroup is not None:
@@ -870,7 +897,11 @@ class TaskBuffer:
                 else:
                     jobList = proxy.getActiveDebugJobs(dn=dn)
                     limitNum = ProcessGroups.maxDebugJobs
-                if limitNum and len(jobList) >= limitNum:
+                if limitNum and jobList is None:
+                    # the subjobs already in debug mode could not be counted, so the limit
+                    # cannot be checked and the mode must not be granted by default
+                    return "Failed to count the subjobs already in debug mode"
+                if limitNum and jobList is not None and len(jobList) >= limitNum:
                     # exceeded
                     retStr = "You already hit the limit on the maximum number of debug subjobs "
                     retStr += f"({limitNum} jobs). "
@@ -887,27 +918,27 @@ class TaskBuffer:
     # get jobs
     def getJobs(
         self,
-        nJobs,
-        siteName,
-        prodSourceLabel,
-        mem,
-        diskSpace,
-        node,
-        timeout,
-        computingElement,
-        prodUserID,
-        taskID,
-        background,
-        resourceType,
-        harvester_id,
-        worker_id,
-        schedulerID,
-        jobType,
-        is_gu,
-        via_topic,
-        remaining_time,
-        target_architecture,
-    ):
+        nJobs: int,
+        siteName: str,
+        prodSourceLabel: str | None,
+        mem: int | None,
+        diskSpace: int | None,
+        node: str | None,
+        timeout: int,
+        computingElement: str | None,
+        prodUserID: str | None,
+        taskID: int | None,
+        background: bool,
+        resourceType: str | None,
+        harvester_id: str | None,
+        worker_id: int | str | None,
+        schedulerID: str | None,
+        jobType: str | None,
+        is_gu: bool,
+        via_topic: bool,
+        remaining_time: int | None,
+        target_architecture: str | None,
+    ) -> list[Any]:
         # get DBproxy
         with self.proxyPool.get() as proxy:
             # get waiting jobs
@@ -962,15 +993,15 @@ class TaskBuffer:
     # get job status
     def getJobStatus(
         self,
-        jobIDs,
-        fromDefined=True,
-        fromActive=True,
-        fromArchived=True,
-        fromWaiting=True,
-    ):
+        jobIDs: Sequence[int | str],
+        fromDefined: bool = True,
+        fromActive: bool = True,
+        fromArchived: bool = True,
+        fromWaiting: bool = True,
+    ) -> list[str | None]:
         # get DBproxy
         with self.proxyPool.get() as proxy:
-            retStatus = []
+            retStatus: list[str | None] = []
             # peek at job
             for jobID in jobIDs:
                 res = proxy.peekJob(jobID, fromDefined, fromActive, fromArchived, fromWaiting)
@@ -983,17 +1014,17 @@ class TaskBuffer:
     # peek at jobs
     def peekJobs(
         self,
-        jobIDs,
-        fromDefined=True,
-        fromActive=True,
-        fromArchived=True,
-        fromWaiting=True,
-        forAnal=False,
-        use_json=False,
-    ):
+        jobIDs: Sequence[int | str],
+        fromDefined: bool = True,
+        fromActive: bool = True,
+        fromArchived: bool = True,
+        fromWaiting: bool = True,
+        forAnal: bool = False,
+        use_json: bool = False,
+    ) -> list[Any]:
         # get proxy
         with self.proxyPool.get() as proxy:
-            retJobs = []
+            retJobs: list[Any] = []
             # peek at job
             for jobID in jobIDs:
                 res = proxy.peekJob(jobID, fromDefined, fromActive, fromArchived, fromWaiting, forAnal)
@@ -1025,7 +1056,17 @@ class TaskBuffer:
         return retJobs
 
     # get full job status
-    def getFullJobStatus(self, jobIDs, fromDefined=True, fromActive=True, fromArchived=True, fromWaiting=True, forAnal=True, days=90, use_json=False):
+    def getFullJobStatus(
+        self,
+        jobIDs: Sequence[int | str],
+        fromDefined: bool = True,
+        fromActive: bool = True,
+        fromArchived: bool = True,
+        fromWaiting: bool = True,
+        forAnal: bool = True,
+        days: int | None = 90,
+        use_json: bool = False,
+    ) -> list[Any]:
         retJobMap = {}
 
         # peek at job
@@ -1046,20 +1087,21 @@ class TaskBuffer:
                     retJobMap[jobID] = res
 
         # sort
-        retJobs = []
+        retJobs: list[Any] = []
         for jobID in jobIDs:
+            jobSpec = retJobMap[jobID]
             if use_json:
-                if retJobMap[jobID] is None:
+                if jobSpec is None:
                     retJobs.append(None)
                 else:
-                    retJobs.append(retJobMap[jobID].to_dict())
+                    retJobs.append(jobSpec.to_dict())
             else:
-                retJobs.append(retJobMap[jobID])
+                retJobs.append(jobSpec)
 
         return retJobs
 
     # get script for offline running
-    def getScriptOfflineRunning(self, pandaID, days=None):
+    def getScriptOfflineRunning(self, pandaID: int, days: int | None = None) -> str:
         try:
             # get job
             tmpJobs = self.getFullJobStatus([pandaID], days=days)
@@ -1076,7 +1118,15 @@ class TaskBuffer:
             return f"ERROR: ServerError in getScriptOfflineRunning with {str(e)}"
 
     # kill jobs
-    def killJobs(self, ids, user, code, prodManager, wgProdRole=[], killOptions=[]):
+    def killJobs(
+        self,
+        ids: Sequence[int | str],
+        user: str,
+        code: int | str | None,
+        prodManager: bool,
+        wgProdRole: list[str] = [],
+        killOptions: list[str] = [],
+    ) -> list[bool]:
         tmp_log = LogWrapper(_logger, "killJobs")
         tmp_log.debug(f"start for {len(ids)} IDs")
         # get DBproxy
@@ -1096,7 +1146,7 @@ class TaskBuffer:
                                 id,
                                 {},
                                 getNewPandaID=True,
-                                attemptNr=tmpJobSpec.attemptNr,
+                                attemptNr=tmpJobSpec.attemptNr,  # type: ignore[arg-type]  # the id is a column, which is declared optional
                                 recoverableEsMerge=True,
                             )
                         elif EventServiceUtils.isEventServiceJob(tmpJobSpec) and not EventServiceUtils.isJobCloningJob(tmpJobSpec):
@@ -1110,10 +1160,13 @@ class TaskBuffer:
                                         tmpJobSpec.jobSubStatus = killOpt.split("=")[-1]
                                         break
                                 # trigger ppE for ES jobs to properly trigger subsequent procedures
+                                # archiveJob reports its outcome first and then the DDM
+                                # information this path has no use for. rets is a list of
+                                # outcomes, so only the first element belongs in it
                                 ret = proxy.archiveJob(
                                     tmpJobSpec,
                                     tmpJobSpec.jobStatus in ["defined", "assigned"],
-                                )
+                                )[0]
                                 toKill = False
                                 userInfo = {"prodSourceLabel": None}
                 if toKill:
@@ -1151,12 +1204,12 @@ class TaskBuffer:
     # reassign jobs
     def reassignJobs(
         self,
-        ids,
-        attempt=0,
-        joinThr=False,
-        forPending=False,
-        firstSubmission=True,
-    ):
+        ids: list[int],
+        attempt: int = 0,
+        joinThr: bool = False,
+        forPending: bool = False,
+        firstSubmission: bool = True,
+    ) -> bool:
         tmp_log = LogWrapper(_logger, "reassignJobs")
         tmp_log.debug(f"start for {len(ids)} IDs")
         # get DB proxy
@@ -1211,8 +1264,7 @@ class TaskBuffer:
         return True
 
     # update input files and return corresponding PandaIDs
-    def updateInFilesReturnPandaIDs(self, dataset, status, fileLFN=""):
-        # get DBproxy
+    def updateInFilesReturnPandaIDs(self, dataset: str, status: str, fileLFN: str = "") -> list[int]:
         with self.proxyPool.get() as proxy:
             retList = []
             # query PandaID
@@ -1220,14 +1272,13 @@ class TaskBuffer:
         return retList
 
     # update input files for jobs at certain sites and return corresponding PandaIDs
-    def update_input_files_at_sites_and_get_panda_ids(self, filename: str, sites: list) -> list:
+    def update_input_files_at_sites_and_get_panda_ids(self, filename: str, sites: list[str]) -> list[int]:
         with self.proxyPool.get() as proxy:
             ret = proxy.update_input_files_at_sites_and_get_panda_ids(filename, sites)
         return ret
 
     # update output files and return corresponding PandaIDs
-    def updateOutFilesReturnPandaIDs(self, dataset, fileLFN=""):
-        # get DBproxy
+    def updateOutFilesReturnPandaIDs(self, dataset: str, fileLFN: str = "") -> list[int]:
         with self.proxyPool.get() as proxy:
             retList = []
             # query PandaID
@@ -1235,8 +1286,7 @@ class TaskBuffer:
         return retList
 
     # get _dis datasets associated to _sub
-    def getAssociatedDisDatasets(self, subDsName):
-        # get DBproxy
+    def getAssociatedDisDatasets(self, subDsName: str) -> list[str]:
         with self.proxyPool.get() as proxy:
             retList = []
             # query
@@ -1244,31 +1294,28 @@ class TaskBuffer:
         return retList
 
     # insert sandbox file info
-    def insertSandboxFileInfo(self, userName, hostName, fileName, fileSize, checkSum):
-        # get DBproxy
+    def insertSandboxFileInfo(self, userName: str, hostName: str, fileName: str, fileSize: int, checkSum: str) -> str:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.insertSandboxFileInfo(userName, hostName, fileName, fileSize, checkSum)
         return ret
 
     # get and lock sandbox files
-    def getLockSandboxFiles(self, time_limit, n_files):
-        # get DBproxy
+    def getLockSandboxFiles(self, time_limit: int, n_files: int) -> list[tuple[Any, ...]] | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getLockSandboxFiles(time_limit, n_files)
         return ret
 
     # check duplicated sandbox file
-    def checkSandboxFile(self, userName, fileSize, checkSum):
-        # get DBproxy
+    def checkSandboxFile(self, userName: str, fileSize: int, checkSum: int | str) -> str:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.checkSandboxFile(userName, fileSize, checkSum)
         return ret
 
     # insert datasets
-    def insertDatasets(self, datasets):
+    def insertDatasets(self, datasets: Collection[DatasetSpec]) -> list[bool]:
         # get DBproxy
         with self.proxyPool.get() as proxy:
             retList = []
@@ -1279,32 +1326,28 @@ class TaskBuffer:
         return retList
 
     # get and lock dataset with a query
-    def getLockDatasets(self, sqlQuery, varMapGet, modTimeOffset="", getVersion=False):
-        # get DBproxy
+    def getLockDatasets(self, sqlQuery: str, varMapGet: dict[str, Any], modTimeOffset: str = "", getVersion: bool = False) -> list[Any]:
         with self.proxyPool.get() as proxy:
             # query Dataset
             ret = proxy.getLockDatasets(sqlQuery, varMapGet, modTimeOffset, getVersion)
         return ret
 
     # query Dataset
-    def queryDatasetWithMap(self, map):
-        # get DBproxy
+    def queryDatasetWithMap(self, map: dict[str, Any]) -> DatasetSpec | None:
         with self.proxyPool.get() as proxy:
             # query Dataset
             ret = proxy.queryDatasetWithMap(map)
         return ret
 
     # set GUIDs
-    def setGUIDs(self, files):
-        # get DBproxy
+    def setGUIDs(self, files: list[dict[str, Any]]) -> bool:
         with self.proxyPool.get() as proxy:
             # set GUIDs
             ret = proxy.setGUIDs(files)
         return ret
 
     # update dataset
-    def updateDatasets(self, datasets, withLock=False, withCriteria="", criteriaMap={}):
-        # get DBproxy
+    def updateDatasets(self, datasets: list[DatasetSpec], withLock: bool = False, withCriteria: str = "", criteriaMap: dict[str, Any] = {}) -> list[int]:
         with self.proxyPool.get() as proxy:
             # update Dataset
             retList = proxy.updateDataset(datasets, withLock, withCriteria, criteriaMap)
@@ -1317,23 +1360,21 @@ class TaskBuffer:
         return ret
 
     # count the number of files with map
-    def countFilesWithMap(self, map):
-        # get DBproxy
+    def countFilesWithMap(self, map: dict[str, Any]) -> int:
         with self.proxyPool.get() as proxy:
             # query files
             ret = proxy.countFilesWithMap(map)
         return ret
 
     # get serial number for dataset
-    def getSerialNumber(self, datasetname, definedFreshFlag=None):
-        # get DBproxy
+    def getSerialNumber(self, datasetname: str, definedFreshFlag: bool | None = None) -> tuple[int, bool]:
         with self.proxyPool.get() as proxy:
             # get serial number
             ret = proxy.getSerialNumber(datasetname, definedFreshFlag)
         return ret
 
     # add metadata
-    def addMetadata(self, ids, metadataList, newStatusList):
+    def addMetadata(self, ids: list[int], metadataList: list[str], newStatusList: list[str]) -> list[bool]:
         # get DBproxy
         with self.proxyPool.get() as proxy:
             # add metadata
@@ -1346,86 +1387,76 @@ class TaskBuffer:
         return retList
 
     # add stdout
-    def addStdOut(self, id, stdout):
-        # get DBproxy
+    def addStdOut(self, id: int, stdout: str) -> bool:
         with self.proxyPool.get() as proxy:
             # add
             ret = proxy.addStdOut(id, stdout)
         return ret
 
     # extract scope from dataset name
-    def extractScope(self, name):
-        # get DBproxy
+    def extractScope(self, name: str | None) -> str | None:
         with self.proxyPool.get() as proxy:
             # get
             ret = proxy.extractScope(name)
         return ret
 
     # get job statistics
-    def getJobStatistics(self):
-        # get DBproxy
+    def getJobStatistics(self) -> dict[Any, Any] | None:
         with self.proxyPool.get() as proxy:
             # get serial number
             ret = proxy.getJobStatistics()
         return ret
 
     # get detailed job statistics with resource_type and prodsourcelabel
-    def getDetailedJobStatistics(self):
+    def getDetailedJobStatistics(self) -> dict[Any, Any] | None:
         with self.proxyPool.get() as proxy:
             ret = proxy.getDetailedJobStatistics()
         return ret
 
     # get job statistics for ExtIF. Source type is analysis or production
-    def getJobStatisticsForExtIF(self, sourcetype=None):
-        # get DBproxy
+    def getJobStatisticsForExtIF(self, sourcetype: str | None = None) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # get serial number
             ret = proxy.getJobStatisticsForExtIF(sourcetype)
         return ret
 
     # get job statistics for Bamboo
-    def getJobStatisticsForBamboo(self):
-        # get DBproxy
+    def getJobStatisticsForBamboo(self) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # get serial number
             ret = proxy.getJobStatisticsPerProcessingType()
         return ret
 
     # update site data
-    def updateSiteData(self, hostID, pilotRequests, interval=3):
-        # get DBproxy
+    def updateSiteData(self, hostID: str, pilotRequests: dict[str, Any], interval: int = 3) -> bool:
         with self.proxyPool.get() as proxy:
             # get serial number
             ret = proxy.updateSiteData(hostID, pilotRequests, interval)
         return ret
 
     # get current site data
-    def getCurrentSiteData(self):
-        # get DBproxy
+    def getCurrentSiteData(self) -> dict[str, Any]:
         with self.proxyPool.get() as proxy:
             # get serial number
             ret = proxy.getCurrentSiteData()
         return ret
 
     # insert nRunning in site data
-    def insertnRunningInSiteData(self):
-        # get DBproxy
+    def insertnRunningInSiteData(self) -> bool:
         with self.proxyPool.get() as proxy:
             # get serial number
             ret = proxy.insertnRunningInSiteData()
         return ret
 
     # get site info
-    def getSiteInfo(self):
-        # get DBproxy
+    def getSiteInfo(self) -> tuple[dict[Any, Any], dict[str, Any]]:
         with self.proxyPool.get() as proxy:
             # get site info
             ret = proxy.getSiteInfo()
         return ret
 
     # get cloud list
-    def get_cloud_list(self):
-        # get DBproxy
+    def get_cloud_list(self) -> list[str]:
         with self.proxyPool.get() as proxy:
             # get cloud list
             ret = proxy.get_cloud_list()
@@ -1433,42 +1464,44 @@ class TaskBuffer:
 
     # async request methods
 
-    def upsert_machine_heartbeat(self, machine_name, service_name):
+    def upsert_machine_heartbeat(self, machine_name: str, service_name: str) -> bool:
         with self.proxyPool.get() as proxy:
             return proxy.upsert_machine_heartbeat(machine_name, service_name)
 
-    def get_alive_machines(self, service_name, within_minutes=60):
+    def get_alive_machines(self, service_name: str | None, within_minutes: int = 60) -> list[str]:
         with self.proxyPool.get() as proxy:
             return proxy.get_alive_machines(service_name, within_minutes)
 
-    def insert_async_request(self, request_id, request_type, parameters_json, service_name, machine_name, expected_machines_json):
+    def insert_async_request(
+        self, request_id: str, request_type: str, parameters_json: str, service_name: str | None, machine_name: str | None, expected_machines_json: str | None
+    ) -> bool:
         with self.proxyPool.get() as proxy:
             return proxy.insert_async_request(request_id, request_type, parameters_json, service_name, machine_name, expected_machines_json)
 
-    def get_async_request(self, request_id):
+    def get_async_request(self, request_id: str) -> dict[str, Any] | None:
         with self.proxyPool.get() as proxy:
             return proxy.get_async_request(request_id)
 
-    def get_pending_requests_for_machine(self, my_hostname, my_service, known_types):
+    def get_pending_requests_for_machine(self, my_hostname: str, my_service: str, known_types: list[str]) -> list[dict[str, Any]]:
         with self.proxyPool.get() as proxy:
             return proxy.get_pending_requests_for_machine(my_hostname, my_service, known_types)
 
-    def claim_async_result(self, request_id, machine_name):
+    def claim_async_result(self, request_id: str, machine_name: str) -> bool:
         with self.proxyPool.get() as proxy:
             return proxy.claim_async_result(request_id, machine_name)
 
     def finish_async_result(
         self,
-        request_id,
-        machine_name,
-        status,
-        result=None,
-        error_msg=None,
-        truncated=False,
-        stderr=None,
-        return_code=None,
-        retriable=True,
-    ):
+        request_id: str,
+        machine_name: str,
+        status: str,
+        result: str | None = None,
+        error_msg: str | None = None,
+        truncated: bool = False,
+        stderr: str | None = None,
+        return_code: int | None = None,
+        retriable: bool = True,
+    ) -> bool:
         with self.proxyPool.get() as proxy:
             return proxy.finish_async_result(
                 request_id,
@@ -1482,72 +1515,66 @@ class TaskBuffer:
                 retriable,
             )
 
-    def touch_async_result(self, request_id, machine_name):
+    def touch_async_result(self, request_id: str, machine_name: str) -> bool:
         with self.proxyPool.get() as proxy:
             return proxy.touch_async_result(request_id, machine_name)
 
-    def get_async_results(self, request_id):
+    def get_async_results(self, request_id: str) -> list[dict[str, Any]]:
         with self.proxyPool.get() as proxy:
             return proxy.get_async_results(request_id)
 
-    def cleanup_async_requests(self, retention_days=7):
+    def cleanup_async_requests(self, retention_days: int = 7) -> bool:
         with self.proxyPool.get() as proxy:
             return proxy.cleanup_async_requests(retention_days)
 
-    def recover_stale_results(self, machine_name, max_processing_seconds=300, max_attempts=3):
+    def recover_stale_results(self, machine_name: str, max_processing_seconds: int = 300, max_attempts: int = 3) -> bool:
         with self.proxyPool.get() as proxy:
             return proxy.recover_stale_results(machine_name, max_processing_seconds, max_attempts)
 
     # get special dispatcher parameters
-    def get_special_dispatch_params(self):
-        # get DBproxy
+    def get_special_dispatch_params(self) -> tuple[bool, dict[str, Any]]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.get_special_dispatch_params()
         return ret
 
     # get email address
-    def getEmailAddr(self, name, withDN=False, withUpTime=False):
-        # get DBproxy
+    def getEmailAddr(self, name: str, withDN: bool = False, withUpTime: bool = False) -> Any:
         with self.proxyPool.get() as proxy:
             # get
             ret = proxy.getEmailAddr(name, withDN, withUpTime)
         return ret
 
     # set email address for a user
-    def setEmailAddr(self, userName, emailAddr):
-        # get DBproxy
+    def setEmailAddr(self, userName: str, emailAddr: str) -> bool:
         with self.proxyPool.get() as proxy:
             # set
             ret = proxy.setEmailAddr(userName, emailAddr)
         return ret
 
     # get banned users
-    def get_ban_users(self):
-        # get DBproxy
+    def get_ban_users(self) -> tuple[bool, dict[str, Any] | None]:
         with self.proxyPool.get() as proxy:
             # get
             ret = proxy.get_ban_users()
         return ret
 
     # register a token key
-    def register_token_key(self, client_name, lifetime):
-        # get DBproxy
+    def register_token_key(self, client_name: str, lifetime: int) -> bool:
         with self.proxyPool.get() as proxy:
             # register proxy key
             ret = proxy.register_token_key(client_name, lifetime)
         return ret
 
     # query an SQL return Status
-    def querySQLS(self, sql, varMap, arraySize=1000):
-        # get DBproxy
+    def querySQLS(self, sql: str, varMap: dict[str, Any], arraySize: int = 1000) -> tuple[Any, Any]:
         with self.proxyPool.get() as proxy:
             # get
             ret = proxy.querySQLS(sql, varMap, arraySize)
         return ret
 
     # query an SQL
-    def querySQL(self, sql, varMap, arraySize=1000):
+    def querySQL(self, sql: str, varMap: dict[str, Any], arraySize: int = 1000) -> Any:
         # get DBproxy
         with self.proxyPool.get() as proxy:
             # get
@@ -1555,23 +1582,31 @@ class TaskBuffer:
         return ret
 
     # execute an SQL return with executemany
-    def executemanySQL(self, sql, varMaps, arraySize=1000):
-        # get DBproxy
+    def executemanySQL(self, sql: str, varMaps: list[dict[str, Any]], arraySize: int = 1000) -> Any:
         with self.proxyPool.get() as proxy:
             # get
             ret = proxy.executemanySQL(sql, varMaps, arraySize)
         return ret
 
     # check quota
-    def checkQuota(self, dn):
-        # query an SQL return Status
+    def checkQuota(self, dn: str) -> float:
         with self.proxyPool.get() as proxy:
             # get
             ret = proxy.checkQuota(dn)
         return ret
 
     # insert TaskParams
-    def insertTaskParamsPanda(self, taskParams, user, prodRole, fqans=[], parent_tid=None, properErrorCode=False, allowActiveTask=False, decode=True):
+    def insertTaskParamsPanda(
+        self,
+        taskParams: Any,
+        user: str,
+        prodRole: bool,
+        fqans: list[str] = [],
+        parent_tid: int | None = None,
+        properErrorCode: bool = False,
+        allowActiveTask: bool = False,
+        decode: bool = True,
+    ) -> tuple[Any, Any]:
         # query an SQL return Status
         with self.proxyPool.get() as proxy:
             # check user status
@@ -1587,7 +1622,7 @@ class TaskBuffer:
                 ret = False, f"The following DN is banned: DN={user}"
         return ret
 
-    def validate_ownership_or_production_role(self, task_id: int, dn: str, production_role: bool):
+    def validate_ownership_or_production_role(self, task_id: int, dn: str, production_role: bool) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.validate_ownership_or_production_role(task_id, dn, production_role)
@@ -1596,17 +1631,16 @@ class TaskBuffer:
     # send command to task
     def sendCommandTaskPanda(
         self,
-        jediTaskID,
-        dn,
-        prodRole,
-        comStr,
-        comComment=None,
-        useCommit=True,
-        properErrorCode=False,
-        comQualifier=None,
-        broadcast=False,
-    ):
-        # query an SQL return Status
+        jediTaskID: int,
+        dn: str,
+        prodRole: bool,
+        comStr: str,
+        comComment: str | None = None,
+        useCommit: bool = True,
+        properErrorCode: bool = False,
+        comQualifier: str | None = None,
+        broadcast: bool = False,
+    ) -> tuple[Any, str]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.sendCommandTaskPanda(
@@ -1623,15 +1657,16 @@ class TaskBuffer:
         return ret
 
     # update unmerged datasets to trigger merging
-    def updateUnmergedDatasets(self, job, finalStatusDS, updateCompleted=False):
-        # get proxy
+    def updateUnmergedDatasets(self, job: JobSpec, finalStatusDS: list[DatasetSpec], updateCompleted: bool = False) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.updateUnmergedDatasets(job, finalStatusDS, updateCompleted)
         return ret
 
     # get active JediTasks in a time range
-    def getJediTasksInTimeRange(self, dn, timeRangeStr, fullFlag=False, minTaskID=None, task_type="user"):
+    def getJediTasksInTimeRange(
+        self, dn: str | None, timeRangeStr: str, fullFlag: bool = False, minTaskID: int | None = None, task_type: str = "user"
+    ) -> dict[Any, Any]:
         # check DN
         if dn in ["NULL", "", "None", None]:
             return {}
@@ -1657,20 +1692,19 @@ class TaskBuffer:
             ret = proxy.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID, task_type)
         return ret
 
-    def getTaskIDsWithCriteria_JEDI(self, criteria, since=None, nTasks=50):
+    def getTaskIDsWithCriteria_JEDI(self, criteria: dict[str, Any], since: str | None = None, nTasks: int = 50) -> list[int] | None:
         with self.proxyPool.get() as proxy:
             return proxy.getTaskIDsWithCriteria_JEDI(criteria, since=since, nTasks=nTasks)
 
     # get details of JediTask
-    def getJediTaskDetails(self, jediTaskID, fullFlag, withTaskInfo):
-        # get proxy
+    def getJediTaskDetails(self, jediTaskID: int, fullFlag: bool, withTaskInfo: bool) -> dict[str, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getJediTaskDetails(jediTaskID, fullFlag, withTaskInfo)
         return ret
 
     # get task details as a plain dict (read-only, no lock)
-    def get_task_details_json(self, jedi_task_id, resolve_parent=False, include_resolve_status=False):
+    def get_task_details_json(self, jedi_task_id: int, resolve_parent: bool = False, include_resolve_status: bool = False) -> Any:
         with self.proxyPool.get() as proxy:
             return proxy.get_task_details_json(
                 jedi_task_id,
@@ -1679,16 +1713,19 @@ class TaskBuffer:
             )
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self, pandaID, jobsetID, jediTaskID, nRanges, acceptJson, scattered, segment_id):
-        # get proxy
+    def getEventRanges(
+        self, pandaID: int, jobsetID: int, jediTaskID: int | None, nRanges: int, acceptJson: bool, scattered: bool, segment_id: int | None
+    ) -> Any:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getEventRanges(pandaID, jobsetID, jediTaskID, nRanges, acceptJson, scattered, segment_id)
         return ret
 
     # update an even range
-    def updateEventRange(self, eventRangeID, eventStatus, cpuCore, cpuConsumptionTime, objstoreID=None):
-        eventDict = {}
+    def updateEventRange(
+        self, eventRangeID: str, eventStatus: str, cpuCore: int | None, cpuConsumptionTime: int | None, objstoreID: int | None = None
+    ) -> tuple[Any, str]:
+        eventDict: dict[str, Any] = {}
         eventDict["eventRangeID"] = eventRangeID
         eventDict["eventStatus"] = eventStatus
         eventDict["cpuCore"] = cpuCore
@@ -1707,7 +1744,7 @@ class TaskBuffer:
         return retVal, json.dumps(ret[1])
 
     # update even ranges
-    def updateEventRanges(self, eventRanges, version=0):
+    def updateEventRanges(self, eventRanges: str, version: int = 0) -> Any:
         # decode json
         try:
             eventRanges = json.loads(eventRanges)
@@ -1722,358 +1759,311 @@ class TaskBuffer:
         return json.dumps(ret[0]), json.dumps(ret[1])
 
     # change task priority
-    def changeTaskPriorityPanda(self, jediTaskID, newPriority):
-        # get proxy
+    def changeTaskPriorityPanda(self, jediTaskID: int, newPriority: int) -> int | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.changeTaskPriorityPanda(jediTaskID, newPriority)
         return ret
 
     # throttle user jobs
-    def throttleUserJobs(self, prodUserName, workingGroup, get_dict=False):
-        # get proxy
+    def throttleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool = False) -> Any:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.throttleUserJobs(prodUserName, workingGroup, get_dict)
         return ret
 
     # unthrottle user jobs
-    def unThrottleUserJobs(self, prodUserName, workingGroup, get_dict=False):
-        # get proxy
+    def unThrottleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool = False) -> Any:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.unThrottleUserJobs(prodUserName, workingGroup, get_dict)
         return ret
 
     # get throttled users
-    def getThrottledUsers(self):
-        # get proxy
+    def getThrottledUsers(self) -> set[tuple[Any, Any]]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getThrottledUsers()
         return ret
 
     # get the list of jobdefIDs for failed jobs in a task
-    def getJobdefIDsForFailedJob(self, jediTaskID):
-        # get proxy
+    def getJobdefIDsForFailedJob(self, jediTaskID: int) -> list[int]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getJobdefIDsForFailedJob(jediTaskID)
         return ret
 
     # change task attribute
-    def changeTaskAttributePanda(self, jediTaskID, attrName, attrValue):
-        # get proxy
+    def changeTaskAttributePanda(self, jediTaskID: int, attrName: str, attrValue: Any) -> int | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.changeTaskAttributePanda(jediTaskID, attrName, attrValue)
         return ret
 
     # change split rule for task
-    def changeTaskSplitRulePanda(self, jediTaskID, attrName, attrValue):
-        # get proxy
+    def changeTaskSplitRulePanda(self, jediTaskID: int, attrName: str, attrValue: Any) -> int | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.changeTaskSplitRulePanda(jediTaskID, attrName, attrValue)
         return ret
 
     # increase attempt number for unprocessed files
-    def increaseAttemptNrPanda(self, jediTaskID, increasedNr):
-        # get proxy
+    def increaseAttemptNrPanda(self, jediTaskID: int, increasedNr: int) -> tuple[int | None, str]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.increaseAttemptNrPanda(jediTaskID, increasedNr)
         return ret
 
     # get jediTaskID from taskName
-    def getTaskIDwithTaskNameJEDI(self, userName, taskName):
-        # get proxy
+    def getTaskIDwithTaskNameJEDI(self, userName: str, taskName: str) -> int | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getTaskIDwithTaskNameJEDI(userName, taskName)
         return ret
 
     # update error dialog for a jediTaskID
-    def updateTaskErrorDialogJEDI(self, jediTaskID, msg):
-        # get proxy
+    def updateTaskErrorDialogJEDI(self, jediTaskID: int, msg: str) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.updateTaskErrorDialogJEDI(jediTaskID, msg)
         return ret
 
     # update modificationtime for a jediTaskID to trigger subsequent process
-    def updateTaskModTimeJEDI(self, jediTaskID, newStatus=None):
-        # get proxy
+    def updateTaskModTimeJEDI(self, jediTaskID: int, newStatus: str | None = None) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.updateTaskModTimeJEDI(jediTaskID, newStatus)
         return ret
 
     # check input file status
-    def checkInputFileStatusInJEDI(self, jobSpec):
-        # get proxy
+    def checkInputFileStatusInJEDI(self, jobSpec: JobSpec) -> bool | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.checkInputFileStatusInJEDI(jobSpec)
         return ret
 
     # increase memory limit
-    def increaseRamLimitJEDI(self, jediTaskID, jobRamCount):
-        # get proxy
+    def increaseRamLimitJEDI(self, jediTaskID: int, jobRamCount: int | None) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.increaseRamLimitJEDI(jediTaskID, jobRamCount)
         return ret
 
     # increase memory limit
-    def increaseRamLimitJobJEDI(self, job, jobRamCount, jediTaskID):
-        # get proxy
+    def increaseRamLimitJobJEDI(self, job: JobSpec, jobRamCount: int | None, jediTaskID: int) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.increaseRamLimitJobJEDI(job, jobRamCount, jediTaskID)
         return ret
 
     # increase memory limit xtimes
-    def increaseRamLimitJobJEDI_xtimes(self, job, jobRamCount, jediTaskID, attemptNr):
-        # get proxy
+    def increaseRamLimitJobJEDI_xtimes(self, job: JobSpec, jobRamCount: int | None, jediTaskID: int, attemptNr: int | None) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.increaseRamLimitJobJEDI_xtimes(job, jobRamCount, jediTaskID, attemptNr)
         return ret
 
     # reduce input per job
-    def reduce_input_per_job(self, panda_id, jedi_task_id, attempt_nr, excluded_rules, steps, dry_mode=False):
-        # get proxy
+    def reduce_input_per_job(
+        self, panda_id: int | None, jedi_task_id: int | None, attempt_nr: int | None, excluded_rules: str | None, steps: int, dry_mode: bool = False
+    ) -> tuple[bool | None, str]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.reduce_input_per_job(panda_id, jedi_task_id, attempt_nr, excluded_rules, steps, dry_mode)
         return ret
 
     # reset files in JEDI
-    def resetFileStatusInJEDI(self, dn, prodManager, datasetName, lostFiles, recoverParent, simul=False):
-        # get proxy
+    def resetFileStatusInJEDI(
+        self, dn: str, prodManager: bool, datasetName: str, lostFiles: list[str], recoverParent: bool, simul: bool = False
+    ) -> tuple[bool, int | None, dict[str, list[str]] | None, str | None]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.resetFileStatusInJEDI(dn, prodManager, datasetName, lostFiles, recoverParent, simul)
         return ret
 
     # copy file records
-    def copy_file_records(self, new_lfns, file_spec):
-        # get proxy
+    def copy_file_records(self, new_lfns: list[str], file_spec: FileSpec) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.copy_file_records(new_lfns, file_spec)
         return ret
 
     # retry module: get the defined rules
-    def getRetrialRules(self):
-        # get proxy
+    def getRetrialRules(self) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getRetrialRules()
         return ret
 
     # retry module action: set max number of retries
-    def setMaxAttempt(self, jobID, jediTaskID, files, attemptNr):
-        # get proxy
+    def setMaxAttempt(self, jobID: int, jediTaskID: int, files: list[FileSpec], attemptNr: int) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.setMaxAttempt(jobID, jediTaskID, files, attemptNr)
         return ret
 
     # error classification action: increase by one the max number of retries
-    def increase_max_failure(self, job_id, task_id, files):
-        # get proxy
+    def increase_max_failure(self, job_id: int, task_id: int, files: list[FileSpec]) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.increase_max_failure(job_id, task_id, files)
         return ret
 
     # retry module action: set maxAttempt to the current attemptNr to avoid further retries
-    def setNoRetry(self, jobID, jediTaskID, files):
-        # get proxy
+    def setNoRetry(self, jobID: int, jediTaskID: int, files: list[FileSpec]) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.setNoRetry(jobID, jediTaskID, files)
         return ret
 
     # retry module action: increase CPU Time
-    def initialize_cpu_time_task(self, jobID, taskID, siteid, files, active):
-        # get proxy
+    def initialize_cpu_time_task(self, jobID: int, taskID: int, siteid: str, files: list[FileSpec], active: bool) -> tuple[float | None, str | None]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.initialize_cpu_time_task(jobID, taskID, siteid, files, active)
         return ret
 
     # retry module action: recalculate the Task Parameters
-    def requestTaskParameterRecalculation(self, taskID):
-        # get proxy
+    def requestTaskParameterRecalculation(self, taskID: int) -> int:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.requestTaskParameterRecalculation(taskID)
         return ret
 
     # add associate sub datasets for single consumer job
-    def getDestDBlocksWithSingleConsumer(self, jediTaskID, PandaID, ngDatasets):
-        # get proxy
+    def getDestDBlocksWithSingleConsumer(self, jediTaskID: int, PandaID: int, ngDatasets: list[str]) -> dict[str, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getDestDBlocksWithSingleConsumer(jediTaskID, PandaID, ngDatasets)
         return ret
 
     # check validity of merge job
-    def isValidMergeJob(self, pandaID, jediTaskID):
-        # get proxy
+    def isValidMergeJob(self, pandaID: int, jediTaskID: int) -> tuple[bool | None, str]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.isValidMergeJob(pandaID, jediTaskID)
         return ret
 
     # Configurator: insert network matrix data
-    def insertNetworkMatrixData(self, data):
-        # get proxy
+    def insertNetworkMatrixData(self, data: list[tuple[Any, ...]]) -> tuple[None, str] | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.insertNetworkMatrixData(data)
         return ret
 
     # Configurator: delete old network matrix data
-    def deleteOldNetworkData(self):
-        # get proxy
+    def deleteOldNetworkData(self) -> tuple[None, str] | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.deleteOldNetworkData()
         return ret
 
     # get dispatch datasets per user
-    def getDispatchDatasetsPerUser(self, vo, prodSourceLabel, onlyActive, withSize):
-        # get proxy
+    def getDispatchDatasetsPerUser(self, vo: str, prodSourceLabel: str, onlyActive: bool, withSize: bool) -> dict[str, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getDispatchDatasetsPerUser(vo, prodSourceLabel, onlyActive, withSize)
         return ret
 
     # get task parameters
-    def getTaskParamsPanda(self, jediTaskID):
-        # get proxy
+    def getTaskParamsPanda(self, jediTaskID: int) -> str:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getTaskParamsPanda(jediTaskID)
         return ret
 
     # get task attributes
-    def getTaskAttributesPanda(self, jediTaskID, attrs):
-        # get proxy
+    def getTaskAttributesPanda(self, jediTaskID: int, attrs: list[str]) -> dict[str, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getTaskAttributesPanda(jediTaskID, attrs)
         return ret
 
     # check for cloned jobs
-    def checkClonedJob(self, jobSpec):
-        # get proxy
+    def checkClonedJob(self, jobSpec: JobSpec) -> dict[str, Any] | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.checkClonedJob(jobSpec)
         return ret
 
     # get co-jumbo jobs to be finished
-    def getCoJumboJobsToBeFinished(self, timeLimit, minPriority, maxJobs):
-        # get proxy
+    def getCoJumboJobsToBeFinished(self, timeLimit: int, minPriority: int, maxJobs: int) -> list[Any] | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getCoJumboJobsToBeFinished(timeLimit, minPriority, maxJobs)
         return ret
 
     # get number of events to be processed
-    def getNumReadyEvents(self, jediTaskID):
-        # get proxy
+    def getNumReadyEvents(self, jediTaskID: int) -> int | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getNumReadyEvents(jediTaskID)
         return ret
 
     # check if task is applicable for jumbo jobs
-    def isApplicableTaskForJumbo(self, jediTaskID):
-        # get proxy
+    def isApplicableTaskForJumbo(self, jediTaskID: int) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.isApplicableTaskForJumbo(jediTaskID)
         return ret
 
     # cleanup jumbo jobs
-    def cleanupJumboJobs(self, jediTaskID=None):
-        # get proxy
+    def cleanupJumboJobs(self, jediTaskID: int | None = None) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.cleanupJumboJobs(jediTaskID)
         return ret
 
     # convert ObjID to endpoint
-    def convertObjIDtoEndPoint(self, srcFileName, ObjID):
-        # get DB proxy
+    def convertObjIDtoEndPoint(self, srcFileName: str, ObjID: str | int) -> dict[str, Any] | None:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.convertObjIDtoEndPoint(srcFileName, ObjID)
         return res
 
     # get task status
-    def getTaskStatus(self, jediTaskID):
-        # get DB proxy
+    def getTaskStatus(self, jediTaskID: int) -> Sequence[Any]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.getTaskStatus(jediTaskID)
         return res
 
     # get task status and superstatus
-    def getTaskStatusSuperstatus(self, jediTaskID):
-        # get DB proxy
+    def getTaskStatusSuperstatus(self, jediTaskID: int) -> Sequence[Any]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.getTaskStatusSuperstatus(jediTaskID)
         return res
 
     # reactivate task
-    def reactivateTask(self, jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
-        # get DB proxy
+    def reactivateTask(self, jediTaskID: int, keep_attempt_nr: bool = False, trigger_job_generation: bool = False) -> tuple[int | None, str]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.reactivateTask(jediTaskID, keep_attempt_nr, trigger_job_generation)
         return res
 
     # get event statistics
-    def getEventStat(self, jediTaskID, PandaID):
-        # get DB proxy
+    def getEventStat(self, jediTaskID: int, PandaID: int) -> dict[Any, int]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.getEventStat(jediTaskID, PandaID)
         return res
 
     # get nested dict of gshare names implying the tree structure
-    def get_tree_of_gshare_names(self):
-        # get DB proxy
+    def get_tree_of_gshare_names(self) -> Any:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.get_tree_of_gshare_names()
         return res
 
-    # get the HS06 distribution for global shares
-    def get_hs_distribution(self):
-        # get DB proxy
-        with self.proxyPool.get() as proxy:
-            # exec
-            res = proxy.get_hs_distribution()
-        return res
-
     # reassign share
-    def reassignShare(self, jedi_task_ids, share_dest, reassign_running):
-        # get DB proxy
+    def reassignShare(self, jedi_task_ids: list[int], share_dest: str, reassign_running: bool) -> tuple[int, str | None]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.reassignShare(jedi_task_ids, share_dest, reassign_running)
         return res
 
-    def is_valid_share(self, share_name):
+    def is_valid_share(self, share_name: str) -> bool:
         """
         Checks whether the share is a valid leave share
         """
@@ -2083,7 +2073,7 @@ class TaskBuffer:
             res = proxy.is_valid_share(share_name)
         return res
 
-    def get_share_for_task(self, task):
+    def get_share_for_task(self, task: JediTaskSpec) -> str:
         """
         Return the share based on a task specification
         """
@@ -2093,7 +2083,7 @@ class TaskBuffer:
             res = proxy.get_share_for_task(task)
         return res
 
-    def get_share_for_job(self, job):
+    def get_share_for_job(self, job: JobSpec) -> str:
         """
         Return the share based on a task specification
         """
@@ -2103,7 +2093,7 @@ class TaskBuffer:
             res = proxy.get_share_for_job(job)
         return res
 
-    def getTaskParamsMap(self, jediTaskID):
+    def getTaskParamsMap(self, jediTaskID: int) -> str:
         """
         Return the taskParamsMap
         """
@@ -2113,7 +2103,7 @@ class TaskBuffer:
             res = proxy.getTaskParamsPanda(jediTaskID)
         return res
 
-    def getCommands(self, harvester_id, n_commands):
+    def getCommands(self, harvester_id: str, n_commands: int) -> tuple[int, list[Any]]:
         """
         Get n commands for a particular harvester instance
         """
@@ -2123,7 +2113,7 @@ class TaskBuffer:
             res = proxy.getCommands(harvester_id, n_commands)
         return res
 
-    def ackCommands(self, command_ids):
+    def ackCommands(self, command_ids: list[int]) -> int:
         """
         Acknowledge a list of command IDs
         """
@@ -2136,15 +2126,14 @@ class TaskBuffer:
     # send command to harvester or lock command
     def commandToHarvester(
         self,
-        harvester_ID,
-        command,
-        ack_requested,
-        status,
-        lockInterval=None,
-        comInterval=None,
-        params=None,
-    ):
-        # get DB proxy
+        harvester_ID: str,
+        command: str,
+        ack_requested: bool,
+        status: str,
+        lockInterval: int | None = None,
+        comInterval: int | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.commandToHarvester(
@@ -2158,7 +2147,7 @@ class TaskBuffer:
             )
         return res
 
-    def getResourceTypes(self):
+    def getResourceTypes(self) -> list[Any]:
         """
         Get resource types (SCORE, MCORE, ...) and their definitions
         """
@@ -2169,31 +2158,28 @@ class TaskBuffer:
         return res
 
     # report stat of workers
-    def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
-        # get DB proxy
+    def reportWorkerStats_jobtype(self, harvesterID: str, siteName: str, paramsList: str) -> tuple[bool, str]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
         return res
 
     # get command locks
-    def getCommandLocksHarvester(self, harvester_ID, command, lockedBy, lockInterval, commandInterval):
-        # get DB proxy
+    def getCommandLocksHarvester(self, harvester_ID: str, command: str, lockedBy: str, lockInterval: int, commandInterval: int) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.getCommandLocksHarvester(harvester_ID, command, lockedBy, lockInterval, commandInterval)
         return res
 
     # release command lock
-    def releaseCommandLockHarvester(self, harvester_ID, command, computingSite, resourceType, lockedBy):
-        # get DB proxy
+    def releaseCommandLockHarvester(self, harvester_ID: str, command: str, computingSite: str, resourceType: str, lockedBy: str) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.releaseCommandLockHarvester(harvester_ID, command, computingSite, resourceType, lockedBy)
         return res
 
     # update workers
-    def updateWorkers(self, harvesterID, data):
+    def updateWorkers(self, harvesterID: str, data: list[dict[str, Any]]) -> list[Any] | None:
         """
         Update workers
         """
@@ -2204,7 +2190,7 @@ class TaskBuffer:
         return res
 
     # update workers
-    def updateServiceMetrics(self, harvesterID, data):
+    def updateServiceMetrics(self, harvesterID: str, data: list[Any]) -> list[bool] | None:
         """
         Update workers
         """
@@ -2215,7 +2201,7 @@ class TaskBuffer:
         return res
 
     # heartbeat for harvester
-    def harvesterIsAlive(self, user, host, harvesterID, data):
+    def harvesterIsAlive(self, user: str, host: str, harvesterID: str, data: dict[str, Any]) -> str | None:
         """
         update harvester instance information
         """
@@ -2225,7 +2211,7 @@ class TaskBuffer:
             res = proxy.harvesterIsAlive(user, host, harvesterID, data)
         return res
 
-    def storePilotLog(self, panda_id, pilot_log):
+    def storePilotLog(self, panda_id: int, pilot_log: str) -> int:
         """
         Store the pilot log in the pandalog table
         """
@@ -2236,293 +2222,267 @@ class TaskBuffer:
         return res
 
     # read the resource types from the DB
-    def load_resource_types(self):
-        # get DBproxy
+    def load_resource_types(self) -> list[Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret_val = proxy.load_resource_types()
         return ret_val
 
     # get the resource of a task
-    def get_resource_type_task(self, task_spec):
-        # get DBproxy
+    def get_resource_type_task(self, task_spec: JediTaskSpec) -> str | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret_val = proxy.get_resource_type_task(task_spec)
         return ret_val
 
-    def reset_resource_type_task(self, jedi_task_id, use_commit=True):
-        # get DBproxy
+    def reset_resource_type_task(self, jedi_task_id: int, use_commit: bool = True) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret_val = proxy.reset_resource_type_task(jedi_task_id, use_commit)
         return ret_val
 
     # get the resource of a task
-    def get_resource_type_job(self, job_spec):
-        # get DBproxy
+    def get_resource_type_job(self, job_spec: JobSpec) -> str | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret_val = proxy.get_resource_type_job(job_spec)
         return ret_val
 
     # check Job status
-    def checkJobStatus(self, pandaIDs):
+    def checkJobStatus(self, pandaIDs: str) -> list[dict[str, Any]]:
         try:
-            pandaIDs = pandaIDs.split(",")
+            id_list = pandaIDs.split(",")
         except Exception:
-            pandaIDs = []
+            id_list = []
         # get DBproxy
         with self.proxyPool.get() as proxy:
             # exec
             retList = []
-            for pandaID in pandaIDs:
+            for pandaID in id_list:
                 ret = proxy.checkJobStatus(pandaID)
                 retList.append(ret)
         return retList
 
     # get stat of workers
-    def getWorkerStats(self):
-        # get DBproxy
+    def getWorkerStats(self) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getWorkerStats()
         return ret
 
     # get unified pilot streaming queues
-    def ups_get_queues(self):
-        # get DBproxy
+    def ups_get_queues(self) -> list[str]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.ups_get_queues()
         return ret
 
     # load harvester worker stats
-    def ups_load_worker_stats(self):
-        # get DBproxy
+    def ups_load_worker_stats(self) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.ups_load_worker_stats()
         return ret
 
     # get the distribution of new workers to submit
-    def get_average_memory_workers(self, queue, harvester_id, target):
-        # get DBproxy
+    def get_average_memory_workers(self, queue: str, harvester_id: str, target: int) -> tuple[float, float]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.get_average_memory_workers(queue, harvester_id, target)
         return ret
 
     # get the distribution of new workers to submit
-    def ups_new_worker_distribution(self, queue, worker_stats):
-        # get DBproxy
+    def ups_new_worker_distribution(self, queue: str, worker_stats: dict[str, Any]) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.ups_new_worker_distribution(queue, worker_stats)
         return ret
 
     # check event availability
-    def checkEventsAvailability(self, pandaID, jobsetID, jediTaskID):
-        # get DBproxy
+    def checkEventsAvailability(self, pandaID: int, jobsetID: int, jediTaskID: int) -> int | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.checkEventsAvailability(pandaID, jobsetID, jediTaskID)
         return ret
 
     # get LNFs for jumbo job
-    def getLFNsForJumbo(self, jediTaskID):
-        # get DBproxy
+    def getLFNsForJumbo(self, jediTaskID: int) -> Any:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getLFNsForJumbo(jediTaskID)
         return ret
 
     # get original consumers
-    def getOriginalConsumers(self, jediTaskID, jobsetID, pandaID):
-        # get DBproxy
+    def getOriginalConsumers(self, jediTaskID: int, jobsetID: int, pandaID: int) -> list[Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getOriginalConsumers(jediTaskID, jobsetID, pandaID)
         return ret
 
     # add harvester dialog messages
-    def addHarvesterDialogs(self, harvesterID, dialogs):
-        # get DBproxy
+    def addHarvesterDialogs(self, harvesterID: str, dialogs: list[dict[str, Any]]) -> bool:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.addHarvesterDialogs(harvesterID, dialogs)
         return ret
 
     # get job statistics per site and resource
-    def getJobStatisticsPerSiteResource(self, timeWindow=None):
-        # get DBproxy
+    def getJobStatisticsPerSiteResource(self, timeWindow: int | None = None) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getJobStatisticsPerSiteResource(timeWindow)
         return ret
 
     # get job statistics per site, source label, and resource type
-    def get_job_statistics_per_site_label_resource(self, time_window=None):
-        # get DBproxy
+    def get_job_statistics_per_site_label_resource(self, time_window: int | None = None) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.get_job_statistics_per_site_label_resource(time_window)
         return ret
 
     # set num slots for workload provisioning
-    def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
-        # get DBproxy
+    def setNumSlotsForWP(
+        self, pandaQueueName: str, numSlots: int, gshare: str | None, resourceType: str | None, validPeriod: int | str | None
+    ) -> tuple[int, str]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)
         return ret
 
     # enable jumbo jobs
-    def enableJumboJobs(self, jediTaskID, totalJumboJobs, nJumboPerSite):
-        # get DBproxy
+    def enableJumboJobs(self, jediTaskID: int, totalJumboJobs: int, nJumboPerSite: int) -> tuple[int, str]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.enableJumboJobs(jediTaskID, totalJumboJobs, nJumboPerSite)
         return ret
 
     # enable event service
-    def enableEventService(self, jediTaskID):
-        # get DBproxy
+    def enableEventService(self, jediTaskID: int) -> tuple[int, str]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.enableEventService(jediTaskID)
         return ret
 
     # get JEDI file attributes
-    def getJediFileAttributes(self, PandaID, jediTaskID, datasetID, fileID, attrs):
-        # get DBproxy
+    def getJediFileAttributes(self, PandaID: int, jediTaskID: int, datasetID: int, fileID: int, attrs: list[str]) -> dict[str, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getJediFileAttributes(PandaID, jediTaskID, datasetID, fileID, attrs)
         return ret
 
     # check if super user
-    def isSuperUser(self, userName):
-        # get DBproxy
+    def isSuperUser(self, userName: str) -> tuple[bool, bool]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.isSuperUser(userName)
         return ret
 
     # get workers for a job
-    def getWorkersForJob(self, PandaID):
-        # get DBproxy
+    def getWorkersForJob(self, PandaID: int) -> list[Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getWorkersForJob(PandaID)
         return ret
 
     # get user job metadata
-    def getUserJobMetadata(self, jediTaskID):
-        # get DBproxy
+    def getUserJobMetadata(self, jediTaskID: int) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getUserJobMetadata(jediTaskID)
         return ret
 
     # get jumbo job datasets
-    def getJumboJobDatasets(self, n_days, grace_period):
-        # get DBproxy
+    def getJumboJobDatasets(self, n_days: int, grace_period: int) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getJumboJobDatasets(n_days, grace_period)
         return ret
 
     # get global shares status
-    def getGShareStatus(self):
-        # get DBproxy
+    def getGShareStatus(self) -> list[dict[str, Any]]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getGShareStatus()
         return ret
 
     # get output datasets
-    def getOutputDatasetsJEDI(self, panda_id):
-        # get DBproxy
+    def getOutputDatasetsJEDI(self, panda_id: int) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getOutputDatasetsJEDI(panda_id)
         return ret
 
     # update/insert JSON queue information into the scheconfig replica
-    def upsertQueuesInJSONSchedconfig(self, schedconfig_dump):
-        # get DBproxy
+    def upsertQueuesInJSONSchedconfig(self, schedconfig_dump: dict[str, Any] | None) -> str | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.upsertQueuesInJSONSchedconfig(schedconfig_dump)
         return ret
 
     # update/insert SW tag information
-    def loadSWTags(self, sw_tags):
-        # get DBproxy
+    def loadSWTags(self, sw_tags: dict[str, Any] | None) -> str:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.loadSWTags(sw_tags)
         return ret
 
     # generate a harvester command to clean up the workers of a site
-    def sweepPQ(self, panda_queue_des, status_list_des, ce_list_des, submission_host_list_des):
-        # get DBproxy
+    def sweepPQ(self, panda_queue_des: str, status_list_des: list[str], ce_list_des: str | list[str], submission_host_list_des: list[str]) -> str:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.sweepPQ(panda_queue_des, status_list_des, ce_list_des, submission_host_list_des)
         return ret
 
     # lock process
-    def lockProcess_PANDA(self, component, pid, time_limit=5, force=False):
+    def lockProcess_PANDA(self, component: str, pid: str, time_limit: int = 5, force: bool = False) -> bool:
         with self.proxyPool.get() as proxy:
             ret = proxy.lockProcess_PANDA(component, pid, time_limit, force)
         return ret
 
     # unlock process
-    def unlockProcess_PANDA(self, component, pid):
+    def unlockProcess_PANDA(self, component: str, pid: str) -> bool:
         with self.proxyPool.get() as proxy:
             ret = proxy.unlockProcess_PANDA(component, pid)
         return ret
 
     # check process lock
-    def checkProcessLock_PANDA(self, component, pid, time_limit, check_base=False):
+    def checkProcessLock_PANDA(self, component: str, pid: str, time_limit: int, check_base: bool = False) -> tuple[bool, Any]:
         with self.proxyPool.get() as proxy:
             ret = proxy.checkProcessLock_PANDA(component, pid, time_limit, check_base)
         return ret
 
     # insert job output report
-    def insertJobOutputReport(self, panda_id, prod_source_label, job_status, attempt_nr, data):
+    def insertJobOutputReport(self, panda_id: int, prod_source_label: str, job_status: str, attempt_nr: int, data: str) -> bool:
         with self.proxyPool.get() as proxy:
             ret = proxy.insertJobOutputReport(panda_id, prod_source_label, job_status, attempt_nr, data)
         return ret
 
     # deleted job output report
-    def deleteJobOutputReport(self, panda_id, attempt_nr):
+    def deleteJobOutputReport(self, panda_id: int, attempt_nr: int | None) -> bool:
         with self.proxyPool.get() as proxy:
             ret = proxy.deleteJobOutputReport(panda_id, attempt_nr)
         return ret
 
     # update data of job output report
-    def updateJobOutputReport(self, panda_id, attempt_nr, data):
+    def updateJobOutputReport(self, panda_id: int, attempt_nr: int, data: str) -> bool:
         with self.proxyPool.get() as proxy:
             ret = proxy.updateJobOutputReport(panda_id, attempt_nr, data)
         return ret
 
     # get job output report
-    def getJobOutputReport(self, panda_id, attempt_nr):
+    def getJobOutputReport(self, panda_id: int, attempt_nr: int | None) -> dict[str, Any]:
         with self.proxyPool.get() as proxy:
             ret = proxy.getJobOutputReport(panda_id, attempt_nr)
         return ret
 
     # lock job output report
-    def lockJobOutputReport(self, panda_id, attempt_nr, pid, time_limit, take_over_from=None):
+    def lockJobOutputReport(self, panda_id: int, attempt_nr: int, pid: str, time_limit: int, take_over_from: str | None = None) -> list[Any] | bool:
         with self.proxyPool.get() as proxy:
             ret = proxy.lockJobOutputReport(panda_id, attempt_nr, pid, time_limit, take_over_from)
         return ret
 
     # unlock job output report
-    def unlockJobOutputReport(self, panda_id, attempt_nr, pid, lock_offset):
+    def unlockJobOutputReport(self, panda_id: int, attempt_nr: int | None, pid: str | None, lock_offset: int) -> list[Any] | bool:
         with self.proxyPool.get() as proxy:
             ret = proxy.unlockJobOutputReport(panda_id, attempt_nr, pid, lock_offset)
         return ret
@@ -2530,335 +2490,366 @@ class TaskBuffer:
     # list pandaID and attemptNr of job output report
     def listJobOutputReport(
         self,
-        only_unlocked=False,
-        time_limit=5,
-        limit=999999,
-        grace_period=3,
-        labels=None,
-        anti_labels=None,
-    ):
+        only_unlocked: bool = False,
+        time_limit: int = 5,
+        limit: int = 999999,
+        grace_period: int = 3,
+        labels: list[str] | None = None,
+        anti_labels: list[str] | None = None,
+    ) -> list[Any] | None:
         with self.proxyPool.get() as proxy:
             ret = proxy.listJobOutputReport(only_unlocked, time_limit, limit, grace_period, labels, anti_labels)
         return ret
 
     # update problematic resource info for user
-    def update_problematic_resource_info(self, user_name, jedi_task_id, resource, problem_type):
+    def update_problematic_resource_info(self, user_name: str, jedi_task_id: int, resource: str, problem_type: str) -> bool | None:
         with self.proxyPool.get() as proxy:
             ret = proxy.update_problematic_resource_info(user_name, jedi_task_id, resource, problem_type)
         return ret
 
     # send command to a job
-    def send_command_to_job(self, panda_id, com):
+    def send_command_to_job(self, panda_id: int, com: str) -> tuple[bool, str]:
         with self.proxyPool.get() as proxy:
             ret = proxy.send_command_to_job(panda_id, com)
         return ret
 
     # get workers with stale states and update them with pilot information
-    def get_workers_to_synchronize(self):
+    def get_workers_to_synchronize(self) -> list[Any] | dict[str, Any]:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_workers_to_synchronize()
         return ret
 
     # set user secret
-    def set_user_secret(self, owner, key, value):
+    def set_user_secret(self, owner: str, key: str | None, value: str | None) -> tuple[bool, str]:
         with self.proxyPool.get() as proxy:
             ret = proxy.set_user_secret(owner, key, value)
         return ret
 
     # get user secrets
-    def get_user_secrets(self, owner, keys=None, get_json=False):
+    def get_user_secrets(self, owner: str, keys: str | None = None, get_json: bool = False) -> tuple[bool, Any]:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_user_secrets(owner, keys, get_json)
         return ret
 
-    def configurator_write_sites(self, sites_list):
+    def configurator_write_sites(self, sites_list: list[Any]) -> tuple[int, str | None]:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_write_sites(sites_list)
         return ret
 
-    def configurator_write_panda_sites(self, panda_site_list):
+    def configurator_write_panda_sites(self, panda_site_list: list[Any]) -> tuple[int, str | None]:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_write_panda_sites(panda_site_list)
         return ret
 
-    def configurator_write_ddm_endpoints(self, ddm_endpoint_list):
+    def configurator_write_ddm_endpoints(self, ddm_endpoint_list: list[Any]) -> tuple[int, str | None]:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_write_ddm_endpoints(ddm_endpoint_list)
         return ret
 
-    def configurator_write_panda_ddm_relations(self, relation_list):
+    def configurator_write_panda_ddm_relations(self, relation_list: list[Any]) -> tuple[int, str | None]:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_write_panda_ddm_relations(relation_list)
         return ret
 
-    def configurator_read_sites(self):
+    def configurator_read_sites(self) -> set[str]:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_read_sites()
         return ret
 
-    def configurator_read_panda_sites(self):
+    def configurator_read_panda_sites(self) -> set[str]:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_read_panda_sites()
         return ret
 
-    def configurator_read_ddm_endpoints(self):
+    def configurator_read_ddm_endpoints(self) -> set[str]:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_read_ddm_endpoints()
         return ret
 
-    def configurator_read_cric_sites(self):
+    def configurator_read_cric_sites(self) -> set[str]:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_read_cric_sites()
         return ret
 
-    def configurator_read_cric_panda_sites(self):
+    def configurator_read_cric_panda_sites(self) -> set[str]:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_read_cric_panda_sites()
         return ret
 
-    def configurator_delete_sites(self, sites_to_delete):
+    def configurator_delete_sites(self, sites_to_delete: Collection[str]) -> tuple[int, str | None] | None:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_delete_sites(sites_to_delete)
         return ret
 
-    def configurator_delete_panda_sites(self, panda_sites_to_delete):
+    def configurator_delete_panda_sites(self, panda_sites_to_delete: Collection[str]) -> tuple[int, str | None] | None:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_delete_panda_sites(panda_sites_to_delete)
         return ret
 
-    def configurator_delete_ddm_endpoints(self, ddm_endpoints_to_delete):
+    def configurator_delete_ddm_endpoints(self, ddm_endpoints_to_delete: Collection[str]) -> tuple[int, str | None] | None:
         with self.proxyPool.get() as proxy:
             ret = proxy.configurator_delete_ddm_endpoints(ddm_endpoints_to_delete)
         return ret
 
-    def carbon_write_region_emissions(self, emissions):
+    def carbon_write_region_emissions(self, emissions: list[dict[str, Any]]) -> tuple[int, str | None]:
         with self.proxyPool.get() as proxy:
             ret = proxy.carbon_write_region_emissions(emissions)
         return ret
 
-    def carbon_aggregate_emissions(self):
+    def carbon_aggregate_emissions(self) -> tuple[int, str | None]:
         with self.proxyPool.get() as proxy:
             ret = proxy.carbon_aggregate_emissions()
         return ret
 
-    def get_files_in_datasets(self, task_id, dataset_types, dataset_only=False):
+    def get_files_in_datasets(self, task_id: int, dataset_types: str | Sequence[str], dataset_only: bool = False) -> list[dict[str, Any]] | None:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_files_in_datasets(task_id, dataset_types, dataset_only)
         return ret
 
-    def get_max_worker_id(self, harvester_id):
+    def get_max_worker_id(self, harvester_id: str) -> int | None:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_max_worker_id(harvester_id)
         return ret
 
-    def get_events_status(self, ids):
+    def get_events_status(self, ids: str) -> dict[str, Any] | None:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_events_status(ids)
         return ret
 
-    def async_update_datasets(self, panda_id):
+    def async_update_datasets(self, panda_id: int | None) -> bool | None:
         with self.proxyPool.get() as proxy:
             ret = proxy.async_update_datasets(panda_id)
         return ret
 
-    def set_workload_metrics(self, jedi_task_id, panda_id, metrics):
+    def set_workload_metrics(self, jedi_task_id: int, panda_id: int | None, metrics: dict[str, Any]) -> bool:
         with self.proxyPool.get() as proxy:
             ret = proxy.set_workload_metrics(jedi_task_id, panda_id, metrics, True)
         return ret
 
-    def get_workload_metrics(self, jedi_task_id, panda_id):
+    def get_workload_metrics(self, jedi_task_id: int, panda_id: int | None) -> tuple[bool, dict[str, Any] | None]:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_workload_metrics(jedi_task_id, panda_id)
         return ret
 
-    def get_jobs_metrics_in_task(self, jedi_task_id: int):
+    def get_jobs_metrics_in_task(self, jedi_task_id: int) -> tuple[bool, list[list[Any]] | None]:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_jobs_metrics_in_task(jedi_task_id)
         return ret
 
-    def enable_job_cloning(self, jedi_task_id, mode, multiplicity, num_sites):
+    def enable_job_cloning(self, jedi_task_id: int, mode: str | None, multiplicity: int | None, num_sites: int | None) -> tuple[bool, str | None]:
         with self.proxyPool.get() as proxy:
             ret = proxy.enable_job_cloning(jedi_task_id, mode, multiplicity, num_sites)
         return ret
 
-    def disable_job_cloning(self, jedi_task_id):
+    def disable_job_cloning(self, jedi_task_id: int) -> tuple[bool, str | None]:
         with self.proxyPool.get() as proxy:
             ret = proxy.disable_job_cloning(jedi_task_id)
         return ret
 
     # gets statistics on the number of jobs with a specific status for each nucleus at each site
-    def get_num_jobs_with_status_by_nucleus(self, vo, job_status):
+    def get_num_jobs_with_status_by_nucleus(self, vo: str, job_status: str) -> tuple[bool, dict[str, dict[str, int]]]:
         with self.proxyPool.get() as proxy:
             return proxy.get_num_jobs_with_status_by_nucleus(vo, job_status)
 
     # ==== JEDI taskbuffer functions ===========================
 
     # get JEDI task with jediTaskID
-    def getTaskWithID_JEDI(self, jediTaskID, fullFlag=False, lockTask=False, pid=None, lockInterval=None, clearError=False):
+    def getTaskWithID_JEDI(
+        self, jediTaskID: int, fullFlag: bool = False, lockTask: bool = False, pid: str | None = None, lockInterval: int | None = None, clearError: bool = False
+    ) -> tuple[bool, JediTaskSpec | None]:
         with self.proxyPool.get() as proxy:
             return proxy.getTaskWithID_JEDI(jediTaskID, fullFlag, lockTask, pid, lockInterval, clearError)
 
     # update input files stage-in done (according to message from iDDS, called by other methods, etc.)
-    def updateInputFilesStaged_JEDI(self, jeditaskid, scope, filenames_dict, chunk_size=500, by=None, check_scope=True):
+    def updateInputFilesStaged_JEDI(
+        self,
+        jeditaskid: int,
+        scope: str | None,
+        filenames_dict: dict[str, tuple[int | None, int | None]],
+        chunk_size: int = 500,
+        by: str | None = None,
+        check_scope: bool = True,
+    ) -> int | None:
         with self.proxyPool.get() as proxy:
             return proxy.updateInputFilesStaged_JEDI(jeditaskid, scope, filenames_dict, chunk_size, by, check_scope)
 
     # ==== Data Carousel functions =============================
 
     # query data carousel request ID by dataset
-    def get_data_carousel_request_id_by_dataset_JEDI(self, dataset):
+    def get_data_carousel_request_id_by_dataset_JEDI(self, dataset: str) -> int | None:
         with self.proxyPool.get() as proxy:
             return proxy.get_data_carousel_request_id_by_dataset_JEDI(dataset)
 
     # insert data carousel requests
-    def insert_data_carousel_requests_JEDI(self, task_id, dc_req_specs):
+    def insert_data_carousel_requests_JEDI(self, task_id: int, dc_req_specs: list[DataCarouselRequestSpec]) -> int | None:
         with self.proxyPool.get() as proxy:
             return proxy.insert_data_carousel_requests_JEDI(task_id, dc_req_specs)
 
     # update a data carousel request
-    def update_data_carousel_request_JEDI(self, dc_req_spec):
+    def update_data_carousel_request_JEDI(self, dc_req_spec: DataCarouselRequestSpec) -> DataCarouselRequestSpec | None:
         with self.proxyPool.get() as proxy:
             return proxy.update_data_carousel_request_JEDI(dc_req_spec)
 
     # insert data carousel relations
-    def insert_data_carousel_relations_JEDI(self, task_id, request_ids):
+    def insert_data_carousel_relations_JEDI(self, task_id: int, request_ids: list[int]) -> int | None:
         with self.proxyPool.get() as proxy:
             return proxy.insert_data_carousel_relations_JEDI(task_id, request_ids)
 
     # get data carousel queued requests and info of their related tasks
-    def get_data_carousel_queued_requests_JEDI(self):
+    def get_data_carousel_queued_requests_JEDI(self) -> list[tuple[DataCarouselRequestSpec, list[JediTaskSpec]]] | None:
         with self.proxyPool.get() as proxy:
             return proxy.get_data_carousel_queued_requests_JEDI()
 
     # get data carousel requests of tasks by task status
-    def get_data_carousel_requests_by_task_status_JEDI(self, status_filter_list=None, status_exclusion_list=None):
+    def get_data_carousel_requests_by_task_status_JEDI(
+        self, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None
+    ) -> tuple[dict[Any, DataCarouselRequestSpec], dict[Any, list[Any]]] | None:
         with self.proxyPool.get() as proxy:
             return proxy.get_data_carousel_requests_by_task_status_JEDI(status_filter_list=status_filter_list, status_exclusion_list=status_exclusion_list)
 
     # get related tasks and their info of a data carousel request
-    def get_related_tasks_of_data_carousel_request_JEDI(self, request_id, status_filter_list=None, status_exclusion_list=None):
+    def get_related_tasks_of_data_carousel_request_JEDI(
+        self, request_id: int, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None
+    ) -> dict[int, Any] | None:
         with self.proxyPool.get() as proxy:
             return proxy.get_related_tasks_of_data_carousel_request_JEDI(
                 request_id, status_filter_list=status_filter_list, status_exclusion_list=status_exclusion_list
             )
 
     # get data carousel staging requests
-    def get_data_carousel_staging_requests_JEDI(self, time_limit_minutes=5):
+    def get_data_carousel_staging_requests_JEDI(self, time_limit_minutes: int = 5) -> list[DataCarouselRequestSpec] | None:
         with self.proxyPool.get() as proxy:
             return proxy.get_data_carousel_staging_requests_JEDI(time_limit_minutes=time_limit_minutes)
 
     # delete data carousel requests
-    def delete_data_carousel_requests_JEDI(self, request_id_list):
+    def delete_data_carousel_requests_JEDI(self, request_id_list: list[int]) -> int | None:
         with self.proxyPool.get() as proxy:
             return proxy.delete_data_carousel_requests_JEDI(request_id_list)
 
     # clean up data carousel requests
-    def clean_up_data_carousel_requests_JEDI(self, time_limit_days=30):
+    def clean_up_data_carousel_requests_JEDI(self, time_limit_days: int = 30) -> int | None:
         with self.proxyPool.get() as proxy:
             return proxy.clean_up_data_carousel_requests_JEDI(time_limit_days)
 
     # cancel a data carousel request
-    def cancel_data_carousel_request_JEDI(self, request_id):
+    def cancel_data_carousel_request_JEDI(self, request_id: int) -> int | None:
         with self.proxyPool.get() as proxy:
             return proxy.cancel_data_carousel_request_JEDI(request_id)
 
     # retire a data carousel request
-    def retire_data_carousel_request_JEDI(self, request_id):
+    def retire_data_carousel_request_JEDI(self, request_id: int) -> int | None:
         with self.proxyPool.get() as proxy:
             return proxy.retire_data_carousel_request_JEDI(request_id)
 
     # resubmit a data carousel request
-    def resubmit_data_carousel_request_JEDI(self, request_id, exclude_prev_dst=False):
+    def resubmit_data_carousel_request_JEDI(self, request_id: int, exclude_prev_dst: bool = False) -> DataCarouselRequestSpec | bool | None:
         with self.proxyPool.get() as proxy:
             return proxy.resubmit_data_carousel_request_JEDI(request_id, exclude_prev_dst)
 
     # ==== Workflow functions ==================================
 
-    def get_workflow(self, workflow_id):
+    def get_workflow(self, workflow_id: int) -> WorkflowSpec | None:
         with self.proxyPool.get() as proxy:
             return proxy.get_workflow(workflow_id)
 
-    def get_child_workflows(self, parent_id):
+    def get_child_workflows(self, parent_id: int) -> list[WorkflowSpec]:
         with self.proxyPool.get() as proxy:
             return proxy.get_child_workflows(parent_id)
 
-    def get_workflow_step(self, step_id):
+    def get_workflow_step(self, step_id: int) -> WFStepSpec | None:
         with self.proxyPool.get() as proxy:
             return proxy.get_workflow_step(step_id)
 
-    def get_workflow_data(self, data_id):
+    def get_workflow_data(self, data_id: int) -> WFDataSpec | None:
         with self.proxyPool.get() as proxy:
             return proxy.get_workflow_data(data_id)
 
-    def get_workflow_data_by_name(self, name, workflow_id=None):
+    def get_workflow_data_by_name(self, name: str, workflow_id: int | None = None) -> WFDataSpec | None:
         with self.proxyPool.get() as proxy:
             return proxy.get_workflow_data_by_name(name, workflow_id)
 
-    def get_steps_of_workflow(self, workflow_id, status_filter_list=None, status_exclusion_list=None):
+    def get_steps_of_workflow(
+        self, workflow_id: int, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None
+    ) -> list[WFStepSpec]:
         with self.proxyPool.get() as proxy:
             return proxy.get_steps_of_workflow(workflow_id, status_filter_list, status_exclusion_list)
 
-    def get_data_of_workflow(self, workflow_id, status_filter_list=None, status_exclusion_list=None, type_filter_list=None):
+    def get_data_of_workflow(
+        self,
+        workflow_id: int,
+        status_filter_list: list[str] | None = None,
+        status_exclusion_list: list[str] | None = None,
+        type_filter_list: list[str] | None = None,
+    ) -> list[WFDataSpec]:
         with self.proxyPool.get() as proxy:
             return proxy.get_data_of_workflow(workflow_id, status_filter_list, status_exclusion_list, type_filter_list)
 
-    def query_workflows(self, status_filter_list=None, status_exclusion_list=None, check_interval_sec=300):
+    def query_workflows(
+        self, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None, check_interval_sec: int = 300
+    ) -> list[WorkflowSpec]:
         with self.proxyPool.get() as proxy:
             return proxy.query_workflows(status_filter_list, status_exclusion_list, check_interval_sec)
 
-    def lock_workflow(self, workflow_id, locked_by, lock_expiration_sec=120):
+    def lock_workflow(self, workflow_id: int, locked_by: str, lock_expiration_sec: int = 120) -> bool | None:
         with self.proxyPool.get() as proxy:
             return proxy.lock_workflow(workflow_id, locked_by, lock_expiration_sec)
 
-    def unlock_workflow(self, workflow_id, locked_by):
+    def unlock_workflow(self, workflow_id: int, locked_by: str) -> bool | None:
         with self.proxyPool.get() as proxy:
             return proxy.unlock_workflow(workflow_id, locked_by)
 
-    def lock_workflow_step(self, step_id, locked_by, lock_expiration_sec=120):
+    def lock_workflow_step(self, step_id: int, locked_by: str, lock_expiration_sec: int = 120) -> bool | None:
         with self.proxyPool.get() as proxy:
             return proxy.lock_workflow_step(step_id, locked_by, lock_expiration_sec)
 
-    def unlock_workflow_step(self, step_id, locked_by):
+    def unlock_workflow_step(self, step_id: int, locked_by: str) -> bool | None:
         with self.proxyPool.get() as proxy:
             return proxy.unlock_workflow_step(step_id, locked_by)
 
-    def lock_workflow_data(self, data_id, locked_by, lock_expiration_sec=120):
+    def lock_workflow_data(self, data_id: int, locked_by: str, lock_expiration_sec: int = 120) -> bool | None:
         with self.proxyPool.get() as proxy:
             return proxy.lock_workflow_data(data_id, locked_by, lock_expiration_sec)
 
-    def unlock_workflow_data(self, data_id, locked_by):
+    def unlock_workflow_data(self, data_id: int, locked_by: str) -> bool | None:
         with self.proxyPool.get() as proxy:
             return proxy.unlock_workflow_data(data_id, locked_by)
 
-    def insert_workflow(self, workflow_spec):
+    def insert_workflow(self, workflow_spec: WorkflowSpec) -> int | None:
         with self.proxyPool.get() as proxy:
             return proxy.insert_workflow(workflow_spec)
 
-    def insert_workflow_step(self, wf_step_spec):
+    def insert_workflow_step(self, wf_step_spec: WFStepSpec) -> int | None:
         with self.proxyPool.get() as proxy:
             return proxy.insert_workflow_step(wf_step_spec)
 
-    def insert_workflow_data(self, wf_data_spec):
+    def insert_workflow_data(self, wf_data_spec: WFDataSpec) -> int | None:
         with self.proxyPool.get() as proxy:
             return proxy.insert_workflow_data(wf_data_spec)
 
-    def update_workflow(self, workflow_spec):
+    def update_workflow(self, workflow_spec: WorkflowSpec) -> WorkflowSpec | None:
         with self.proxyPool.get() as proxy:
             return proxy.update_workflow(workflow_spec)
 
-    def update_workflow_step(self, wf_step_spec):
+    def update_workflow_step(self, wf_step_spec: WFStepSpec) -> WFStepSpec | None:
         with self.proxyPool.get() as proxy:
             return proxy.update_workflow_step(wf_step_spec)
 
-    def update_workflow_data(self, wf_data_spec):
+    def update_workflow_data(self, wf_data_spec: WFDataSpec) -> WFDataSpec | None:
         with self.proxyPool.get() as proxy:
             return proxy.update_workflow_data(wf_data_spec)
 
-    def upsert_workflow_entities(self, workflow_id, actions_dict=None, workflow_spec=None, step_specs=None, data_specs=None):
+    def upsert_workflow_entities(
+        self,
+        workflow_id: int | None,
+        actions_dict: dict[str, str | None] | None = None,
+        workflow_spec: WorkflowSpec | None = None,
+        step_specs: list[WFStepSpec] | None = None,
+        data_specs: list[WFDataSpec] | None = None,
+    ) -> dict[str, int | None] | None:
         with self.proxyPool.get() as proxy:
             return proxy.upsert_workflow_entities(workflow_id, actions_dict, workflow_spec, step_specs, data_specs)
 
-    def get_distinct_resource_types_per_site(self, jedi_task_id, threshold=20.0):
+    def get_distinct_resource_types_per_site(self, jedi_task_id: int, threshold: float = 20.0) -> dict[str, set[str]]:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_distinct_resource_types_per_site(jedi_task_id, threshold)
         return ret

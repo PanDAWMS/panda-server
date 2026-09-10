@@ -1,4 +1,5 @@
 import sys
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
@@ -22,7 +23,7 @@ user = sys.stdin.read()
 user = user[:-1]
 
 sql = "UPDATE ATLAS_PANDA.%s set currentPriority=:prio where prodUserName=:uname and prodSourceLabel IN (:label1,:label2) and currentPriority<:prio"
-varMap = {}
+varMap: dict[str, Any] = {}
 varMap[":prio"] = 4000
 varMap[":uname"] = user
 varMap[":label1"] = "user"

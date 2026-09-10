@@ -2,11 +2,16 @@ import json
 import random
 import re
 import traceback
+from typing import Any
 
+from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.taskbuffer import JobUtils
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 
 from .TaskRefinerBase import TaskRefinerBase
 
@@ -14,11 +19,17 @@ from .TaskRefinerBase import TaskRefinerBase
 # brokerage for ATLAS analysis
 class AtlasAnalTaskRefiner(TaskRefinerBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         TaskRefinerBase.__init__(self, taskBufferIF, ddmIF)
 
     # extract common parameters
-    def extractCommon(self, jediTaskID, taskParamMap, workQueueMapper, splitRule):
+    def extractCommon(
+        self,
+        jediTaskID: int,
+        taskParamMap: dict[str, Any],
+        workQueueMapper: WorkQueueMapper,
+        splitRule: str | None,
+    ) -> None:
         processingTypes = taskParamMap["processingType"].split("-")
         # set ddmBackEnd
         if "ddmBackEnd" not in taskParamMap:
@@ -188,7 +199,7 @@ class AtlasAnalTaskRefiner(TaskRefinerBase):
         TaskRefinerBase.extractCommon(self, jediTaskID, taskParamMap, workQueueMapper, splitRule)
 
     # main
-    def doRefine(self, jediTaskID, taskParamMap):
+    def doRefine(self, jediTaskID: int, taskParamMap: dict[str, Any]) -> Interaction.StatusCode:
         # make logger
         tmpLog = self.tmpLog
         tmpLog.debug(f"start taskType={self.taskSpec.taskType}")
@@ -209,15 +220,23 @@ class AtlasAnalTaskRefiner(TaskRefinerBase):
                 # get the latest version of DBR
                 if datasetSpec.datasetName == "DBR_LATEST":
                     tmpLog.debug(f"resolving real name for {datasetSpec.datasetName}")
-                    datasetSpec.datasetName = self.ddmIF.getInterface(self.taskSpec.vo).getLatestDBRelease(useResultCache=3600)
+                    dbr_ddm_if = self.ddmIF.getInterface(self.taskSpec.vo)
+                    if dbr_ddm_if is None:
+                        errStr = f"no DDM interface for vo={self.taskSpec.vo} to resolve {datasetSpec.datasetName}"
+                        tmpLog.error(errStr)
+                        self.taskSpec.setErrDiag(errStr, None)
+                        return self.SC_FATAL
+                    datasetSpec.datasetName = dbr_ddm_if.getLatestDBRelease(useResultCache=3600)
                     datasetSpec.containerName = datasetSpec.datasetName
                 # set attributes to DBR
-                if DataServiceUtils.isDBR(datasetSpec.datasetName):
+                if datasetSpec.datasetName is not None and DataServiceUtils.isDBR(datasetSpec.datasetName):
                     datasetSpec.attributes = "repeat,nosplit"
             # check invalid characters
             for datasetSpec in self.outDatasetSpecList:
-                if not DataServiceUtils.checkInvalidCharacters(datasetSpec.datasetName):
-                    errStr = f"invalid characters in {datasetSpec.datasetName}"
+                # a dataset with no name cannot pass the name check either, and this is
+                # the error path that already reports a name the task cannot use
+                if datasetSpec.datasetName is None or not DataServiceUtils.checkInvalidCharacters(datasetSpec.datasetName):
+                    errStr = f"invalid dataset name {datasetSpec.datasetName}"
                     tmpLog.error(errStr)
                     self.taskSpec.setErrDiag(errStr, None)
                     return self.SC_FATAL

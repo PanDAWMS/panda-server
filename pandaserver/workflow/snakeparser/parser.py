@@ -8,6 +8,7 @@ import re
 from itertools import chain
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 from snakemake.api import (
     OutputSettings,
@@ -25,33 +26,37 @@ from .names import WORKFLOW_NAMES
 
 
 class ParamNotFoundException(Exception):
-    def __init__(self, param_name, rule_name):
+    def __init__(self, param_name: str, rule_name: str) -> None:
         super().__init__(f"Parameter {param_name} is not found in {rule_name} rule")
 
 
 class UnknownWorkflowTypeException(Exception):
-    def __init__(self, rule_name):
+    def __init__(self, rule_name: str) -> None:
         super().__init__(f"Unknown workflow type for rule {rule_name}")
 
 
 class UnknownRuleShellException(Exception):
-    def __init__(self, rule_name):
+    def __init__(self, rule_name: str) -> None:
         super().__init__(f"Unknown shellcmd for rule {rule_name}")
 
 
 class NoRuleShellException(Exception):
-    def __init__(self, rule_name):
+    def __init__(self, rule_name: str) -> None:
         super().__init__(f"No shellcmd for rule {rule_name}")
 
 
 class UnknownConditionTokenException(Exception):
-    def __init__(self, token):
+    def __init__(self, token: str) -> None:
         super().__init__(f"Unknown token {token}")
 
 
 # noinspection DuplicatedCode
 class Parser(object):
-    def __init__(self, workflow_file, level=None, logger=None):
+    # the snakemake workflow and its DAG, both built from the API in __init__
+    _workflow: Any
+    _dag: Any
+
+    def __init__(self, workflow_file: str, level: int | None = None, logger: Any = None) -> None:
         self._workflow = None
         self._dag = None
         if logger:
@@ -91,12 +96,12 @@ class Parser(object):
         self._dag = self._workflow.dag
 
     @property
-    def jobs(self):
+    def jobs(self) -> Any:
         if self._dag is None:
             return list()
         return self._dag.jobs
 
-    def parse_nodes(self, in_loop=False):
+    def parse_nodes(self, in_loop: bool = False) -> tuple[list[Node], dict[str, Any]]:
         try:
             return self._parse_nodes(in_loop)
         except NoRuleShellException as ex:
@@ -112,7 +117,7 @@ class Parser(object):
             self._logger.error(str(ex))
             raise ex
 
-    def _parse_nodes(self, in_loop):
+    def _parse_nodes(self, in_loop: bool) -> tuple[list[Node], dict[str, Any]]:
         root_job = next(filter(lambda o: o.rule.name == self._workflow.default_target, self.jobs))
         root_inputs = {Parser._extract_job_id(self._define_id(name)): value for name, value in root_job.params.items()}
         root_outputs = set(
@@ -237,7 +242,8 @@ class Parser(object):
                         raise UnknownConditionTokenException(token)
                     param_left = ConditionItem(param_left, param_right, param_operator)
                 node.condition = param_left
-                self._suppress_inputs(node.condition, node.inputs)
+                if node.condition is not None:
+                    self._suppress_inputs(node.condition, node.inputs)
             node.loop = bool(getattr(job.rule, "loop", False))
             if node.loop or in_loop:
                 node.in_loop = True
@@ -265,23 +271,24 @@ class Parser(object):
                         node.add_parent(parent_id)
                         parent_id_list.append(parent_id)
                 if parent_id_list:
-                    if is_str:
-                        parent_id_list = parent_id_list[0]
-                    data["parent_id"] = parent_id_list
+                    # a single source keeps the bare ID it came from, a list keeps the list
+                    data["parent_id"] = parent_id_list[0] if is_str else parent_id_list
         node_list = self._sort_node_list(node_list, set())
         return node_list, root_inputs
 
-    def verify_workflow(self):
+    def verify_workflow(self) -> bool:
         if self._workflow is None:
             return False
         self._workflow.check()
         return True
 
-    def get_dot_data(self):
+    def get_dot_data(self) -> str:
         return str(self._dag)
 
     @staticmethod
-    def _extract_job_id(job_id):
+    # Takes a URI string, a list of them, or the falsy value handed in, and answers the
+    # same shape. Its inputs come off snakemake objects, which carry no types of their own.
+    def _extract_job_id(job_id: Any) -> Any:
         if not job_id:
             return job_id
         if not isinstance(job_id, list):
@@ -289,13 +296,19 @@ class Parser(object):
             not_list = True
         else:
             not_list = False
-        items = [re.search(r"[^/]+#.+$", s).group(0) for s in job_id]
+        items = []
+        for s in job_id:
+            # the id is a URI whose fragment names the step and the parameter
+            tmp_match = re.search(r"[^/]+#.+$", s)
+            if tmp_match is None:
+                raise ValueError(f"cannot extract an id from '{s}', which has no # fragment")
+            items.append(tmp_match.group(0))
         if not_list:
             return items[0]
         return items
 
     @staticmethod
-    def _sort_node_list(node_list, visited):
+    def _sort_node_list(node_list: list[Node], visited: set[int]) -> list[Node]:
         if not node_list:
             return []
         new_list = []
@@ -313,14 +326,14 @@ class Parser(object):
                 new_list.append(node)
         return new_visited + Parser._sort_node_list(new_list, visited)
 
-    def _define_id(self, name):
+    def _define_id(self, name: str) -> str:
         return f"{pathlib.Path(os.path.abspath(self._workflow.main_snakefile)).as_uri()}#{name}"
 
     @staticmethod
-    def _define_object(dict_):
+    def _define_object(dict_: dict[str, Any]) -> SimpleNamespace:
         return SimpleNamespace(**dict_)
 
-    def _suppress_inputs(self, condition: ConditionItem, inputs):
+    def _suppress_inputs(self, condition: ConditionItem, inputs: dict[str, Any]) -> None:
         if condition.right is None and condition.operator == "not" and isinstance(condition.left, str):
             for name, data in inputs.items():
                 if condition.left == name.split("/")[-1]:

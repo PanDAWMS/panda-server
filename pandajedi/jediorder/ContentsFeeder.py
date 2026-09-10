@@ -3,10 +3,11 @@ import math
 import os
 import re
 import socket
-import sys
 import time
 import traceback
 import uuid
+from multiprocessing.connection import Connection
+from typing import TYPE_CHECKING, Any
 
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore import Interaction
@@ -14,8 +15,14 @@ from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
 from pandajedi.jedirefine import RefinerUtils
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from .JediKnight import JediKnight
+
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBuffer import JediTaskBuffer
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 try:
     import idds.common.constants
@@ -33,14 +40,21 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # worker class to take care of DatasetContents table
 class ContentsFeeder(JediKnight):
     # constructor
-    def __init__(self, commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels):
+    def __init__(
+        self,
+        commuChannel: Connection,
+        taskBufferIF: "JediTaskBufferInterface",
+        ddmIF: "DDMInterface",
+        vos: str | list[str] | None,
+        prodSourceLabels: str | list[str] | None,
+    ) -> None:
         self.vos = self.parseInit(vos)
         self.prodSourceLabels = self.parseInit(prodSourceLabels)
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}_{os.getpgrp()}-con"
         JediKnight.__init__(self, commuChannel, taskBufferIF, ddmIF, logger)
 
     # main
-    def start(self):
+    def start(self) -> None:
         # start base class
         JediKnight.start(self)
         # go into main loop
@@ -69,9 +83,8 @@ class ContentsFeeder(JediKnight):
                                 thr.start()
                             # join
                             threadPool.join()
-            except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                logger.error(f"failed in {self.__class__.__name__}.start() with {errtype.__name__} {errvalue}")
+            except Exception as e:
+                logger.error(f"failed in {self.__class__.__name__}.start() with {type(e).__name__} {e}")
             # sleep if needed
             loopCycle = jedi_config.confeeder.loopCycle
             timeDelta = naive_utcnow() - startTime
@@ -85,7 +98,16 @@ class ContentsFeeder(JediKnight):
 # thread for real worker
 class ContentsFeederThread(WorkerThread):
     # constructor
-    def __init__(self, taskDsList, threadPool, taskbufferIF, ddmIF, pid):
+    # the message-driven feeder builds one of these with no list and no pool, and calls
+    # feed_contents_to_tasks() directly, so both are Optional here
+    def __init__(
+        self,
+        taskDsList: ListWithLock | None,
+        threadPool: ThreadPool | None,
+        taskbufferIF: "JediTaskBufferInterface | JediTaskBuffer",
+        ddmIF: "DDMInterface",
+        pid: str,
+    ) -> None:
         # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributres
@@ -96,7 +118,12 @@ class ContentsFeederThread(WorkerThread):
         self.pid = pid
 
     # main
-    def runImpl(self):
+    def runImpl(self) -> None:
+        if self.taskDsList is None:
+            # only the message-driven feeder builds one of these without a list, and it
+            # calls feed_contents_to_tasks() directly rather than starting the thread
+            self.logger.error(f"{self.__class__.__name__} has no dataset list to work on")
+            return
         while True:
             try:
                 # get a part of list
@@ -112,7 +139,7 @@ class ContentsFeederThread(WorkerThread):
                 logger.error(f"{self.__class__.__name__} failed in runImpl() with {str(e)}: {traceback.format_exc()}")
 
     # feed contents to tasks
-    def feed_contents_to_tasks(self, task_ds_list, real_run=True):
+    def feed_contents_to_tasks(self, task_ds_list: list[tuple[int, list[JediDatasetSpec]]], real_run: bool = True) -> None:
         # max number of file records per dataset
         maxFileRecords = 200000
         # loop over all tasks
@@ -131,15 +158,16 @@ class ContentsFeederThread(WorkerThread):
                 self.logger.debug(f"failed to get taskSpec for jediTaskID={jediTaskID}")
                 continue
             # get constituent datasets grouped by their master input datasetID
-            constituent_by_master = {}
+            # keyed by the master input dataset's datasetID, holding (datasetID, name)
+            constituent_by_master: dict[int, list[tuple[int, str]]] = {}
             _, c_datasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(jediTaskID, [JediDatasetSpec.get_constituent_input_type()])
             if c_datasets:
                 for c_ds in c_datasets:
-                    constituent_by_master.setdefault(c_ds.masterID, []).append((c_ds.datasetID, c_ds.datasetName))
+                    constituent_by_master.setdefault(c_ds.masterID, []).append((c_ds.datasetID, c_ds.datasetName))  # type: ignore[arg-type]
 
             # make logger
             try:
-                gshare = "_".join(taskSpec.gshare.split(" "))
+                gshare = "_".join(taskSpec.gshare.split(" "))  # type: ignore[union-attr]
             except Exception:
                 gshare = "Undefined"
             tmpLog = MsgWrapper(self.logger, f"<jediTaskID={jediTaskID} gshare={gshare}>")
@@ -147,7 +175,7 @@ class ContentsFeederThread(WorkerThread):
             try:
                 # get task parameters
                 taskParam = self.taskBufferIF.getTaskParamsWithID_JEDI(jediTaskID)
-                taskParamMap = RefinerUtils.decodeJSON(taskParam)
+                taskParamMap = RefinerUtils.decodeJSON(taskParam)  # type: ignore[arg-type]
             except Exception as e:
                 tmpLog.error(f"task param conversion from json failed with {str(e)}")
                 # unlock
@@ -181,7 +209,7 @@ class ContentsFeederThread(WorkerThread):
                     # get output datasets from parent task
                     tmpParentStat, tmpParentOutDatasets = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(taskSpec.parent_tid, ["output", "log"])
                     # collect dataset names
-                    for tmpParentOutDataset in tmpParentOutDatasets:
+                    for tmpParentOutDataset in tmpParentOutDatasets:  # type: ignore[union-attr]
                         parentOutDatasets.add(tmpParentOutDataset.datasetName)
                         if tmpParentOutDataset.containerName:
                             if tmpParentOutDataset.containerName.endswith("/"):
@@ -197,16 +225,32 @@ class ContentsFeederThread(WorkerThread):
             setFrozenTime = True
             master_offset = None
             master_is_open = False
-            if not taskBroken:
-                ddmIF = self.ddmIF.getInterface(taskSpec.vo, taskSpec.cloud)
+            # the DDM plugin for the task's VO, None when the configuration has none for it
+            ddmIF = None if taskBroken else self.ddmIF.getInterface(taskSpec.vo, taskSpec.cloud)
+            if ddmIF is None and not taskBroken:
+                # not a fault of the task, so the same answer the metadata and file lookups
+                # below give for a DDM problem that may yet clear: hold it, and say what was
+                # missing instead of raising AttributeError from somewhere inside the loop
+                tmp_err_str = f"no DDM interface for vo={taskSpec.vo} cloud={taskSpec.cloud}"
+                tmpLog.error(tmp_err_str)
+                taskSpec.setErrDiag(tmp_err_str)
+                taskOnHold = True
+            if ddmIF is not None:
                 origNumFiles = None
                 if "nFiles" in taskParamMap:
                     origNumFiles = taskParamMap["nFiles"]
-                id_to_container = {}
-                [id_to_container.update({datasetSpec.datasetID: datasetSpec.containerName}) for datasetSpec in dsList]
+                # containerName is NULL for a dataset that is not in a container, and the
+                # only reader below splits it, so those entries have nothing to offer
+                id_to_container = {ds.datasetID: ds.containerName for ds in dsList if ds.containerName is not None}
                 skip_secondaries = False
                 for datasetSpec in dsList:
                     tmpLog.debug(f"start loop for {datasetSpec.datasetName}(id={datasetSpec.datasetID})")
+                    if datasetSpec.datasetName is None or datasetSpec.datasetID is None:
+                        # both are NOT NULL in the schema, so a spec read from the DB
+                        # carries them; one that does not cannot be looked up at all
+                        tmpLog.error("skip a dataset that has no name or no datasetID")
+                        allUpdated = False
+                        continue
                     if skip_secondaries and not datasetSpec.isMaster():
                         tmpLog.debug(f"skip {datasetSpec.datasetName} since it is secondary")
                         continue
@@ -218,9 +262,9 @@ class ContentsFeederThread(WorkerThread):
                         if datasetSpec.is_no_staging():
                             inputPreStaging = False
                         elif (
-                            (nStaging := self.taskBufferIF.getNumStagingFiles_JEDI(taskSpec.jediTaskID)) is not None
+                            (nStaging := self.taskBufferIF.getNumStagingFiles_JEDI(taskSpec.jediTaskID)) is not None  # type: ignore[arg-type]
                             and nStaging == 0
-                            and datasetSpec.nFiles > 0
+                            and (datasetSpec.nFiles or 0) > 0
                         ):
                             inputPreStaging = False
                         else:
@@ -251,10 +295,9 @@ class ContentsFeederThread(WorkerThread):
                         # set mutable when workflow holdup is set
                         if taskSpec.is_workflow_holdup():
                             tmpMetadata = {"state": "mutable"}
-                    except Exception:
-                        errtype, errvalue = sys.exc_info()[:2]
-                        tmpLog.error(f"{self.__class__.__name__} failed to get metadata to {errtype.__name__}:{errvalue}")
-                        if errtype == Interaction.JEDIFatalError:
+                    except Exception as e:
+                        tmpLog.error(f"{self.__class__.__name__} failed to get metadata to {type(e).__name__}:{e}")
+                        if type(e) == Interaction.JEDIFatalError:
                             # fatal error
                             datasetStatus = "broken"
                             taskBroken = True
@@ -283,9 +326,9 @@ class ContentsFeederThread(WorkerThread):
                             continue
                         # get file list specified in task parameters
                         if taskSpec.is_work_segmented() and not datasetSpec.isPseudo() and not datasetSpec.isMaster():
-                            fileList = []
-                            includePatt = []
-                            excludePatt = []
+                            fileList: list[str] = []
+                            includePatt: list[str] = []
+                            excludePatt: list[str] = []
                             try:
                                 segment_id = int(id_to_container[datasetSpec.masterID].split("/")[-1])
                                 for item in taskParamMap["segmentSpecs"]:
@@ -325,8 +368,9 @@ class ContentsFeederThread(WorkerThread):
                             else:
                                 if datasetSpec.isSeqNumber():
                                     # make dummy files for seq_number
-                                    if datasetSpec.getNumRecords() is not None:
-                                        nPFN = datasetSpec.getNumRecords()
+                                    num_records = datasetSpec.getNumRecords()
+                                    if num_records is not None:
+                                        nPFN = num_records
                                     elif origNumFiles is not None:
                                         nPFN = origNumFiles
                                         if "nEventsPerFile" in taskParamMap and taskSpec.get_min_granularity():
@@ -338,7 +382,7 @@ class ContentsFeederThread(WorkerThread):
                                         ):
                                             nPFN = nPFN * math.ceil(taskParamMap["nEventsPerFile"] / taskParamMap["nEventsPerJob"])
                                         elif "nEventsPerJob" in taskParamMap and "nEventsPerFile" not in taskParamMap:
-                                            max_events_in_file = self.taskBufferIF.get_max_events_in_dataset(jediTaskID, datasetSpec.masterID)
+                                            max_events_in_file = self.taskBufferIF.get_max_events_in_dataset(jediTaskID, datasetSpec.masterID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                                             if max_events_in_file and max_events_in_file > taskParamMap["nEventsPerJob"]:
                                                 nPFN = nPFN * math.ceil(max_events_in_file / taskParamMap["nEventsPerJob"])
                                     elif "nEvents" in taskParamMap and "nEventsPerJob" in taskParamMap:
@@ -349,7 +393,7 @@ class ContentsFeederThread(WorkerThread):
                                         # the default number of records for seq_number
                                         seqDefNumRecords = 10000
                                         # get nFiles of the master
-                                        tmpMasterAtt = self.taskBufferIF.getDatasetAttributes_JEDI(datasetSpec.jediTaskID, datasetSpec.masterID, ["nFiles"])
+                                        tmpMasterAtt = self.taskBufferIF.getDatasetAttributes_JEDI(datasetSpec.jediTaskID, datasetSpec.masterID, ["nFiles"])  # type: ignore[arg-type]  # the id is a column, which is declared optional
                                         # use nFiles of the master as the number of records if it is larger than the default
                                         if "nFiles" in tmpMasterAtt and tmpMasterAtt["nFiles"] > seqDefNumRecords:
                                             nPFN = tmpMasterAtt["nFiles"]
@@ -406,11 +450,10 @@ class ContentsFeederThread(WorkerThread):
                                             "checksum": None,
                                             "events": n_events,
                                         }
-                        except Exception:
-                            errtype, errvalue = sys.exc_info()[:2]
-                            reason = str(errvalue)
-                            tmpLog.error(f"failed to get files in {self.__class__.__name__}:{errtype.__name__} due to {reason}")
-                            if errtype == Interaction.JEDIFatalError:
+                        except Exception as e:
+                            reason = str(e)
+                            tmpLog.error(f"failed to get files in {self.__class__.__name__}:{type(e).__name__} due to {reason}")
+                            if type(e) == Interaction.JEDIFatalError:
                                 # fatal error
                                 datasetStatus = "broken"
                                 taskBroken = True
@@ -483,20 +526,21 @@ class ContentsFeederThread(WorkerThread):
                                     nMaxFiles = taskParamMap["nFiles"]
                                 else:
                                     # calculate for secondary
-                                    if not datasetSpec.isPseudo():
+                                    if not datasetSpec.isPseudo() and origNumFiles is not None:
                                         # check nFilesPerJob
                                         nFilesPerJobSec = datasetSpec.getNumFilesPerJob()
                                         if nFilesPerJobSec is not None:
                                             nMaxFiles = origNumFiles * nFilesPerJobSec
                                     # check ratio
-                                    if nMaxFiles is None:
+                                    if nMaxFiles is None and origNumFiles is not None:
                                         nMaxFiles = datasetSpec.getNumMultByRatio(origNumFiles)
                                     # multiplied by the number of jobs per file for event-level splitting
                                     if nMaxFiles is not None:
                                         if "nEventsPerFile" in taskParamMap:
-                                            if taskSpec.get_min_granularity():
-                                                if taskParamMap["nEventsPerFile"] > taskSpec.get_min_granularity():
-                                                    nMaxFiles *= float(taskParamMap["nEventsPerFile"]) / float(taskSpec.get_min_granularity())
+                                            min_granularity = taskSpec.get_min_granularity()
+                                            if min_granularity:
+                                                if taskParamMap["nEventsPerFile"] > min_granularity:
+                                                    nMaxFiles *= float(taskParamMap["nEventsPerFile"]) / float(min_granularity)
                                                     nMaxFiles = int(math.ceil(nMaxFiles))
                                             elif "nEventsPerJob" in taskParamMap:
                                                 if taskParamMap["nEventsPerFile"] > taskParamMap["nEventsPerJob"]:
@@ -696,12 +740,12 @@ class ContentsFeederThread(WorkerThread):
             if not runningTask:
                 # send prestaging request
                 if taskSpec.inputPreStaging() and taskSpec.is_first_contents_feed():
-                    tmpStat, tmpErrStr = self.send_prestaging_request(taskSpec, taskParamMap, dsList, tmpLog)
+                    tmpStat, prestagingErrStr = self.send_prestaging_request(taskSpec, taskParamMap, dsList, tmpLog)
                     if tmpStat:
                         taskSpec.set_first_contents_feed(False)
                     else:
-                        tmpLog.debug(tmpErrStr)
-                        taskSpec.setErrDiag(tmpErrStr)
+                        tmpLog.debug(prestagingErrStr)
+                        taskSpec.setErrDiag(prestagingErrStr)
                         taskOnHold = True
                 if taskOnHold:
                     # go to pending state
@@ -736,7 +780,7 @@ class ContentsFeederThread(WorkerThread):
             tmpLog.debug("done")
 
     # update dataset
-    def updateDatasetStatus(self, datasetSpec, datasetStatus, tmpLog, datasetState=None):
+    def updateDatasetStatus(self, datasetSpec: JediDatasetSpec, datasetStatus: str, tmpLog: MsgWrapper, datasetState: str | None = None) -> None:
         # update dataset status
         datasetSpec.status = datasetStatus
         datasetSpec.lockedBy = None
@@ -746,12 +790,18 @@ class ContentsFeederThread(WorkerThread):
         self.taskBufferIF.updateDataset_JEDI(datasetSpec, {"datasetID": datasetSpec.datasetID, "jediTaskID": datasetSpec.jediTaskID}, lockTask=True)
 
     # send prestaging request
-    def send_prestaging_request(self, task_spec, task_params_map, ds_list, tmp_log):
+    def send_prestaging_request(
+        self, task_spec: JediTaskSpec, task_params_map: dict[str, Any], ds_list: list[JediDatasetSpec], tmp_log: MsgWrapper
+    ) -> tuple[bool, str | None]:
         try:
             c = iDDS_Client(idds.common.utils.get_rest_host())
+            ddm_if = self.ddmIF.getInterface(task_spec.vo, task_spec.cloud)
+            if ddm_if is None:
+                return False, f"no DDM interface for vo={task_spec.vo} cloud={task_spec.cloud}"
             for datasetSpec in ds_list:
-                if datasetSpec.is_no_staging():
-                    # skip no_staging
+                if datasetSpec.is_no_staging() or datasetSpec.datasetName is None:
+                    # skip no_staging, and a nameless dataset the same way the split
+                    # below skipped one through its except
                     continue
                 # get rule
                 try:
@@ -767,13 +817,11 @@ class ContentsFeederThread(WorkerThread):
                     elif "selfPrestagingRule" in task_params_map:
                         if not datasetSpec.isMaster() or datasetSpec.isPseudo():
                             continue
-                        rule_id = self.ddmIF.getInterface(task_spec.vo, task_spec.cloud).make_staging_rule(
-                            tmp_scope + ":" + tmp_name, task_params_map["selfPrestagingRule"]
-                        )
+                        rule_id = ddm_if.make_staging_rule(tmp_scope + ":" + tmp_name, task_params_map["selfPrestagingRule"])
                         if not rule_id:
                             continue
                     else:
-                        rule_id = self.ddmIF.getInterface(task_spec.vo, task_spec.cloud).getActiveStagingRule(tmp_scope + ":" + tmp_name)
+                        rule_id = ddm_if.getActiveStagingRule(tmp_scope + ":" + tmp_name)
                         if rule_id is None:
                             continue
                 except Exception as e:
@@ -805,6 +853,12 @@ class ContentsFeederThread(WorkerThread):
 # launch
 
 
-def launcher(commuChannel, taskBufferIF, ddmIF, vos=None, prodSourceLabels=None):
+def launcher(
+    commuChannel: Connection,
+    taskBufferIF: "JediTaskBufferInterface",
+    ddmIF: "DDMInterface",
+    vos: str | list[str] | None = None,
+    prodSourceLabels: str | list[str] | None = None,
+) -> None:
     p = ContentsFeeder(commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels)
     p.start()

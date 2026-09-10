@@ -9,9 +9,12 @@ _logger = PandaLogger().getLogger("DBSchema")
 
 
 class JediDBSchemaInfo:
-    schema_version = None
+    # never read: method() below shadows it with a local of the same name. Kept because
+    # pandaserver/taskbuffer/PandaDBSchemaInfo.py is the same class with the same unused
+    # attribute, and the two are meant to be read side by side
+    schema_version: str | None = None
 
-    def method(self):
+    def method(self) -> str:
         schema_version = "0.1.1"
         _logger.debug(f"PanDA schema version required for JEDI is : {schema_version}")
         return schema_version

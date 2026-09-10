@@ -1,14 +1,17 @@
 import ast
+import collections.abc
 import inspect
 import json
+import logging
 import re
 import sys
 import threading
 import time
 import typing
+from collections.abc import Callable
 from functools import wraps
 from types import ModuleType, UnionType
-from typing import Union, get_args, get_origin
+from typing import Any, Union, get_args, get_origin
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
@@ -17,6 +20,7 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
     STRUCTURED_RESULT_KEY,
 )
@@ -31,7 +35,7 @@ MESSAGE_DATABASE = "database error in the PanDA server"
 MESSAGE_JSON = "failed to load JSON"
 
 
-def get_endpoint(protocol):
+def get_endpoint(protocol: str) -> tuple[bool, str]:
     if protocol not in ["http", "https"]:
         return False, "Protocol must be either 'http' or 'https'"
 
@@ -46,7 +50,7 @@ def get_endpoint(protocol):
     return True, endpoint
 
 
-def extract_allowed_methods(module: ModuleType) -> list:
+def extract_allowed_methods(module: ModuleType) -> list[str]:
     """
     Generate the allowed methods dynamically with all function names present in the API module, excluding
     functions imported from other modules or the init_task_buffer function
@@ -61,13 +65,13 @@ def extract_allowed_methods(module: ModuleType) -> list:
     ]
 
 
-def generate_response(success, message="", data=None):
+def generate_response(success: bool, message: str | None = "", data: Any = None) -> dict[str, Any]:
     response = {"success": success, "message": message, "data": data}
     return response
 
 
 # get FQANs
-def get_fqan(req):
+def get_fqan(req: PandaRequest) -> list[str]:
     fqans = []
     for tmp_key in req.subprocess_env:
         tmp_value = req.subprocess_env[tmp_key]
@@ -86,7 +90,15 @@ def get_fqan(req):
     return fqans
 
 
-def get_email_address(user, tmp_logger):
+# the address rucio has on file for the user, or None when the lookup did not answer.
+# clean_user_id, which is where every caller's user comes from, can hand back None; the
+# except below is what turns that into the same answer
+def get_email_address(user: str | None, tmp_logger: LogWrapper) -> str | None:
+    if user is None:
+        # clean_user_id answers None for a DN it could not read, and there is nothing to
+        # ask rucio about; the callers already treat a missing address as no address
+        tmp_logger.debug("No user to get a mail address for")
+        return None
     tmp_logger.debug(f"Getting mail address for {user}")
     n_tries = 3
     email = None
@@ -107,7 +119,7 @@ def get_email_address(user, tmp_logger):
     return email
 
 
-def get_request_method(req):
+def get_request_method(req: PandaRequest) -> str | None:
     # Extract the http method like GET, POST, ... from the request environment
     environ = req.subprocess_env
     request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
@@ -115,7 +127,7 @@ def get_request_method(req):
 
 
 # get DN
-def get_dn(req):
+def get_dn(req: PandaRequest) -> str:
     real_dn = ""
     if "SSL_CLIENT_S_DN" in req.subprocess_env:
         # remove redundant CN
@@ -124,7 +136,7 @@ def get_dn(req):
 
 
 # check role
-def has_production_role(req):
+def has_production_role(req: PandaRequest) -> bool:
     # check DN
     user = get_dn(req)
     for sdn in panda_config.production_dns:
@@ -150,8 +162,13 @@ def has_production_role(req):
 # valid access levels for reading back async request results
 ACCESS_LEVELS = ("owner", "production", "anyone")
 
+# Annotations whose values arrive from a URL as one string per element, and whose elements
+# are checked one by one. A str is itself a Sequence, so leaving Sequence out of this would
+# let a single GET value through as the string rather than as a one-element list.
+SEQUENCE_ORIGINS = (list, tuple, set, frozenset, collections.abc.Sequence)
 
-def set_owner_info(parameters: dict, req, access: str = "owner", structured_result: bool = False) -> dict:
+
+def set_owner_info(parameters: dict[str, Any], req: PandaRequest, access: str = "owner", structured_result: bool = False) -> dict[str, Any]:
     """
     Embed the requester, access level and result format into an async request's parameters dict.
     Used by the endpoints submitting async requests when building parameters_json.
@@ -176,7 +193,7 @@ def set_owner_info(parameters: dict, req, access: str = "owner", structured_resu
     return parameters
 
 
-def is_authorized_to_read(req, req_row) -> tuple[bool, str]:
+def is_authorized_to_read(req: PandaRequest, req_row: dict[str, Any]) -> tuple[bool, str]:
     """
     Authorize the caller to read an async request's results based on its access level.
 
@@ -207,9 +224,9 @@ def is_authorized_to_read(req, req_row) -> tuple[bool, str]:
     return True, f"'{caller}' is authorized (access='{access}')"
 
 
-def extract_production_working_groups(fqans):
+def extract_production_working_groups(fqans: list[str]) -> list[str]:
     # Extract working groups with production role from FQANs
-    wg_prod_roles = []
+    wg_prod_roles: list[str] = []
     for fqan in fqans:
         # Match FQANs with 'Role=production' and extract the working group
         match = re.search(r"/atlas/([^/]+)/Role=production", fqan)
@@ -222,7 +239,7 @@ def extract_production_working_groups(fqans):
     return wg_prod_roles
 
 
-def extract_primary_production_working_group(fqans):
+def extract_primary_production_working_group(fqans: list[str]) -> str | None:
     working_group = None
     for fqan in fqans:
         match = re.search("/[^/]+/([^/]+)/Role=production", fqan)
@@ -236,7 +253,7 @@ def extract_primary_production_working_group(fqans):
 
 
 # security check
-def is_secure(req, logger=None):
+def is_secure(req: PandaRequest, logger: LogWrapper | None = None) -> bool:
     # check security
     if not Protocol.isSecure(req):
         return False
@@ -250,8 +267,8 @@ def is_secure(req, logger=None):
     return True
 
 
-def normalize_type(t):
-    mapping = {
+def normalize_type(t: Any) -> Any:
+    mapping: dict[Any, Any] = {
         typing.List: list,
         typing.Dict: dict,
         typing.Set: set,
@@ -260,7 +277,44 @@ def normalize_type(t):
     return mapping.get(t, t)
 
 
-def request_validation(logger, secure=True, production=False, request_method=None, task_owner=False, task_buffer=None, task_id_param="task_id"):
+def type_name(expected_type: Any) -> str:
+    """
+    Name of an annotation, for a log line or an error message.
+
+    A PEP 604 union such as `int | None` has no __name__ at all, so reading it directly
+    raises AttributeError -- and the casting block in request_validation catches only
+    ValueError and TypeError, so that AttributeError leaves the decorator and the endpoint
+    answers a 500 instead of a response.
+    """
+    return getattr(expected_type, "__name__", None) or str(expected_type)
+
+
+def isinstance_types(expected_type: Any) -> tuple[Any, ...]:
+    """
+    The classes isinstance can be called with for an annotation.
+
+    isinstance refuses a typing.Union and a subscripted generic, so a union becomes its
+    members and a generic becomes its origin: `List[str] | None` checks as (list, NoneType)
+    and whether the elements are str is a separate test. Any becomes object, which every
+    value satisfies -- the alternative is isinstance raising on it.
+    """
+    if expected_type is Any:
+        return (object,)
+    origin = get_origin(expected_type)
+    if origin is Union or origin is UnionType:
+        return tuple(t for member in get_args(expected_type) for t in isinstance_types(member))
+    return (origin or expected_type,)
+
+
+def request_validation(
+    logger: logging.Logger,
+    secure: bool = True,
+    production: bool = False,
+    request_method: str | None = None,
+    task_owner: bool = False,
+    task_buffer: Any = None,
+    task_id_param: str = "task_id",
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Decorator that validates an incoming API request before the handler runs.
 
@@ -279,9 +333,11 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                           Defaults to "task_id". Override to "jedi_task_id" for endpoints that use that name.
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
-        def wrapper(req, *args, **kwargs):
+        # answers whatever the wrapped endpoint answers, or the response saying why the
+        # request was refused before it ran
+        def wrapper(req: PandaRequest, *args: Any, **kwargs: Any) -> Any:
             # Generate a logger with the underlying function name
             tmp_logger = LogWrapper(logger, func.__name__)
             tmp_logger_context = LogWrapper(logger, f"{func.__name__} args:{args} kwargs:{kwargs}")
@@ -334,28 +390,42 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                 if default_value == param_value:
                     continue
 
-                # Handle generics like List[int]
+                # Handle generics like List[int]. Named type_args rather than args because
+                # the enclosing wrapper's own *args is still in scope here
                 origin = get_origin(expected_type)
-                args = get_args(expected_type)
+                type_args = get_args(expected_type)
+
+                # An optional parameter is annotated `X | None` or Optional[X], and both
+                # the casting and the check below work on X: the casting compares the
+                # annotation against str/bool/int by identity, and a union is neither. So
+                # look through a union with one non-None member to that member. The check
+                # further down keeps expected_type, where None still has to be accepted.
+                cast_type = expected_type
+                if origin is Union or origin is UnionType:
+                    non_none_args = [a for a in type_args if a is not type(None)]
+                    if len(non_none_args) == 1:
+                        cast_type = non_none_args[0]
+                        origin = get_origin(cast_type)
+                        type_args = get_args(cast_type)
 
                 # GET methods are URL encoded. Parameters will lose the type and come as string. We need to cast them to the expected type
                 if received_request_method == "GET":
                     try:
-                        tmp_logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
+                        tmp_logger.debug(f"Casting '{param_name}' to type {type_name(cast_type)}.")
                         tmp_logger.debug(type(param_value))
                         if param_value == "None" and default_value is None:
                             param_value = None
                         # Don't cast if the type is already a string
-                        elif expected_type is str:
+                        elif cast_type is str:
                             pass
                         # Booleans need to be handled separately, since bool("False") == True
-                        elif expected_type is bool:
+                        elif cast_type is bool:
                             param_value = param_value.lower() in ("true", "1")
                         # Convert to float first, then to int. This is a courtesy for cases passing decimal numbers.
-                        elif expected_type is int:
+                        elif cast_type is int:
                             param_value = int(float(param_value))
-                        elif origin is list and args:
-                            element_type = args[0]  # Get the type inside List[<type>]
+                        elif origin in SEQUENCE_ORIGINS and type_args:
+                            element_type = type_args[0]  # Get the type inside List[<type>]
 
                             # If only one element, convert it to a list
                             if isinstance(param_value, str):
@@ -370,31 +440,31 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                                 param_value = [i.lower() in ("true", "1") for i in param_value]  # Convert list items to bool
                         else:
                             # Normalize type, e.g. typing.Dict -> dict
-                            expected_type = normalize_type(expected_type)
-                            if not isinstance(param_value, expected_type):
+                            cast_type = normalize_type(cast_type)
+                            if not isinstance(param_value, isinstance_types(cast_type)):
                                 param_value = ast.literal_eval(param_value)
-                            if not isinstance(param_value, expected_type):
-                                raise TypeError(f"Expected {expected_type}, received {type(param_value)}")
+                            if not isinstance(param_value, isinstance_types(cast_type)):
+                                raise TypeError(f"Expected {cast_type}, received {type(param_value)}")
                         bound_args.arguments[param_name] = param_value  # Ensure the cast value is used
                     except (ValueError, TypeError):
-                        message = f"Type error: '{param_name}' with value '{param_value}' could not be casted to type {expected_type.__name__} from {type(param_value).__name__}."
+                        message = f"Type error: '{param_name}' with value '{param_value}' could not be casted to type {type_name(cast_type)} from {type(param_value).__name__}."
                         tmp_logger_context.error(message)
                         return generate_response(False, message=message)
 
                 # Check type
                 if origin and (origin is not Union and origin is not UnionType):  # Handle generics (e.g., List[int])
-                    if not isinstance(param_value, origin):
-                        message = f"Type error: '{param_name}' must be of type {origin.__name__}, got {type(param_value).__name__}."
+                    if not isinstance(param_value, origin) and not (param_value is None and param_value == default_value):
+                        message = f"Type error: '{param_name}' must be of type {type_name(origin)}, got {type(param_value).__name__}."
                         tmp_logger_context.error(message)
                         return generate_response(False, message=message)
 
-                    if args:  # Check inner types for lists, dicts, etc.
-                        if origin is list and not all(isinstance(i, args[0]) for i in param_value):
-                            message = f"Type error: All elements in '{param_name}' must be {args[0].__name__}."
+                    if type_args and param_value is not None:  # Check inner types for lists, dicts, etc.
+                        if origin in SEQUENCE_ORIGINS and not all(isinstance(i, isinstance_types(type_args[0])) for i in param_value):
+                            message = f"Type error: All elements in '{param_name}' must be {type_name(type_args[0])}."
                             tmp_logger_context.error(message)
                             return generate_response(False, message=message)
-                elif not isinstance(param_value, expected_type) and not (param_value is None and param_value == default_value):
-                    message = f"Type error: '{param_name}' must be of type {expected_type.__name__}, got {type(param_value).__name__}."
+                elif not isinstance(param_value, isinstance_types(expected_type)) and not (param_value is None and param_value == default_value):
+                    message = f"Type error: '{param_name}' must be of type {type_name(expected_type)}, got {type(param_value).__name__}."
                     tmp_logger_context.error(message)
                     return generate_response(False, message=message)
 
@@ -418,17 +488,24 @@ def request_validation(logger, secure=True, production=False, request_method=Non
 
 # a wrapper to install timeout into a method
 class TimedMethod:
-    def __init__(self, method, timeout):
+    # whatever the wrapped method returns, or the TIME_OUT token while it has not returned
+    result: typing.Any
+
+    def __init__(self, method: Callable[..., Any], timeout: int | None) -> None:
         self.method = method
+        # kept for the callers that pass one, but not read: run() below joins without a
+        # timeout. 27f8bc38 made that change on purpose in 2009, moving the timeout to the
+        # DB proxy in the same commit. None is what pilot update_job passes for a job going
+        # to holding, which it documents as being updated without a timeout
         self.timeout = timeout
         self.result = TIME_OUT
 
     # method emulation
-    def __call__(self, *var, **kwargs):
+    def __call__(self, *var: Any, **kwargs: Any) -> None:
         self.result = self.method(*var, **kwargs)
 
     # run
-    def run(self, *var, **kwargs):
+    def run(self, *var: Any, **kwargs: Any) -> None:
         thr = threading.Thread(target=self, args=var, kwargs=kwargs)
         thr.start()
         thr.join()

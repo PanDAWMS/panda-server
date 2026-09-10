@@ -24,8 +24,13 @@ if data_carousel_interface is None:
     print(errStr)
     sys.exit(1)
 
+dc_req_spec = data_carousel_interface.get_request_by_id(request_id)
+if dc_req_spec is None:
+    print(f"no request with request_id={request_id}")
+    sys.exit(1)
+
 print(f"cancel request_id={request_id}")
-ret = data_carousel_interface.cancel_request(request_id)
+ret = data_carousel_interface.cancel_request(dc_req_spec)
 
 if not ret:
     # failed to cancel

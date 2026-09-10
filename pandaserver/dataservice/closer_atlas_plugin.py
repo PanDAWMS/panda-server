@@ -1,11 +1,16 @@
 """
 ATLAS plugin for closer
 """
+
+import logging
 import sys
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandaserver.dataservice.ddm import rucioAPI
+
 from pandaserver.dataservice import DataServiceUtils
+from pandaserver.dataservice.ddm import rucioAPI
+from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
 
 
 # plugin for ATLAS closer
@@ -33,7 +38,7 @@ class CloserAtlasPlugin:
     """
 
     # constructor
-    def __init__(self, job, datasets, log):
+    def __init__(self, job: JobSpec, datasets: list[DatasetSpec], log: logging.Logger) -> None:
         """
         Constructs all the necessary attributes for the CloserAtlasPlugin object.
 
@@ -51,7 +56,7 @@ class CloserAtlasPlugin:
         self.tmp_log = LogWrapper(log, f"{self.jobSpec.PandaID} CloserAtlasPlugin")
 
     # execute
-    def execute(self):
+    def execute(self) -> bool:
         """
         Executes the main functionality of the CloserAtlasPlugin.
 
@@ -70,7 +75,7 @@ class CloserAtlasPlugin:
             if self.jobSpec.prodSourceLabel not in ["managed", "test"]:
                 return True
             # only for urgent or high prio
-            if self.jobSpec.processingType not in ["urgent"] and self.jobSpec.currentPriority <= 1000:
+            if self.jobSpec.processingType not in ["urgent"] and self.jobSpec.currentPriority <= 1000:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                 return True
             # close datasets
             for datasetSpec in self.datasets:

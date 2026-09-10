@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Any, Dict
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -21,7 +21,7 @@ _logger = PandaLogger().getLogger("api_system")
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
+def get_attributes(req: PandaRequest, **kwargs: Any) -> Dict[str, Any]:
     """
     Get attributes
 
@@ -33,7 +33,8 @@ def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        **kwargs(dict): arbitrary keyword parameters that will be printed out
+        **kwargs: arbitrary keyword parameters that will be printed out. Each value is whatever the caller sent,
+            not a dict; only str() is ever applied to it
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
@@ -60,7 +61,7 @@ def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_voms_attributes(req: PandaRequest) -> Dict:
+def get_voms_attributes(req: PandaRequest) -> Dict[str, Any]:
     """
     Get VOMS attributes
 
@@ -94,7 +95,7 @@ def get_voms_attributes(req: PandaRequest) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_user_attributes(req: PandaRequest) -> Dict:
+def get_user_attributes(req: PandaRequest) -> Dict[str, Any]:
     """
     Get user attributes
 
@@ -162,7 +163,7 @@ def get_user_attributes(req: PandaRequest) -> Dict:
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def is_alive(req: PandaRequest) -> Dict:
+def is_alive(req: PandaRequest) -> Dict[str, Any]:
     """
     Is alive
 

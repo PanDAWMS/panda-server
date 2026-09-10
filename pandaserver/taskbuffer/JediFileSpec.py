@@ -3,10 +3,16 @@ file specification for JEDI
 
 """
 
+import datetime
 import re
 import types
+from typing import TYPE_CHECKING, Any, Sequence
 
 from pandaserver.taskbuffer.FileSpec import FileSpec as JobFileSpec
+
+if TYPE_CHECKING:
+    # JediDatasetSpec imports this module, so naming it for real here would close the cycle
+    from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
 
 
 class JediFileSpec(object):
@@ -42,13 +48,53 @@ class JediFileSpec(object):
         "proc_status",
         "constituent_id",
     )
+
+    # Column types, taken from the Oracle schema of ATLAS_PANDA.JEDI_DATASET_CONTENTS (panda-database
+    # repo, schema/oracle). The columns are installed by __init__ via setattr, so a type
+    # checker sees none of them without these declarations. They carry no value, which
+    # both keeps them out of the class dict and keeps __slots__ classes importable.
+    # Unset columns really are None here -- this class has no "NULL" sentinel.
+    jediTaskID: int | None
+    datasetID: int | None
+    fileID: int | None
+    creationDate: datetime.datetime | None
+    lastAttemptTime: datetime.datetime | None
+    lfn: str | None
+    GUID: str | None
+    type: str | None
+    status: str | None
+    fsize: int | None
+    checksum: str | None
+    scope: str | None
+    attemptNr: int | None
+    maxAttempt: int | None
+    nEvents: int | None
+    keepTrack: int | None
+    startEvent: int | None
+    endEvent: int | None
+    firstEvent: int | None
+    boundaryID: int | None
+    PandaID: int | None
+    failedAttempt: int | None
+    lumiBlockNr: int | None
+    outPandaID: int | None
+    maxFailure: int | None
+    ramCount: int | None
+    is_waiting: str | None
+    proc_status: str | None
+    constituent_id: int | None
     # attributes which have 0 by default
     _zeroAttrs = ("fsize", "attemptNr", "failedAttempt", "ramCount")
     # mapping between sequence and attr
     _seqAttrMap = {"fileID": "ATLAS_PANDA.JEDI_DATASET_CONT_FILEID_SEQ.nextval"}
 
+    # Bookkeeping attribute installed by __init__ via object.__setattr__, so a type
+    # checker does not see it without this declaration. It maps a column name to the
+    # value last assigned to it.
+    _changedAttrs: dict[str, Any]
+
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         # install attributes
         for attr in self._attributes:
             if attr in self._zeroAttrs:
@@ -63,7 +109,7 @@ class JediFileSpec(object):
         object.__setattr__(self, "sourceName", None)
 
     # override __setattr__ to collect the changed attributes
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         oldVal = getattr(self, name)
         object.__setattr__(self, name, value)
         newVal = getattr(self, name)
@@ -72,11 +118,11 @@ class JediFileSpec(object):
             self._changedAttrs[name] = value
 
     # reset changed attribute list
-    def resetChangedList(self):
+    def resetChangedList(self) -> None:
         object.__setattr__(self, "_changedAttrs", {})
 
     # return map of values
-    def valuesMap(self, useSeq=False, onlyChanged=False):
+    def valuesMap(self, useSeq: bool = False, onlyChanged: bool = False) -> dict[str, Any]:
         ret = {}
         for attr in self._attributes:
             # use sequence
@@ -96,14 +142,15 @@ class JediFileSpec(object):
         return ret
 
     # pack tuple into FileSpec
-    def pack(self, values):
+    def pack(self, values: Sequence[Any]) -> None:
         for i in range(len(self._attributes)):
             attr = self._attributes[i]
             val = values[i]
             object.__setattr__(self, attr, val)
 
     # return column names for INSERT
-    def columnNames(cls, useSeq=False, defaultVales=None, skipDefaultAttr=False):
+    @classmethod
+    def columnNames(cls, useSeq: bool = False, defaultVales: dict[str, Any] | None = None, skipDefaultAttr: bool = False) -> str:
         if defaultVales is None:
             defaultVales = {}
         ret = ""
@@ -127,10 +174,9 @@ class JediFileSpec(object):
             ret += attr
         return ret
 
-    columnNames = classmethod(columnNames)
-
     # return expression of bind variables for INSERT
-    def bindValuesExpression(cls, useSeq=True):
+    @classmethod
+    def bindValuesExpression(cls, useSeq: bool = True) -> str:
         ret = "VALUES("
         for attr in cls._attributes:
             if useSeq and attr in cls._seqAttrMap:
@@ -141,10 +187,8 @@ class JediFileSpec(object):
         ret += ")"
         return ret
 
-    bindValuesExpression = classmethod(bindValuesExpression)
-
     # return an expression of bind variables for UPDATE to update only changed attributes
-    def bindUpdateChangesExpression(self):
+    def bindUpdateChangesExpression(self) -> str:
         ret = ""
         for attr in self._attributes:
             if attr in self._changedAttrs:
@@ -154,7 +198,7 @@ class JediFileSpec(object):
         return ret
 
     # convert to job's FileSpec
-    def convertToJobFileSpec(self, datasetSpec, setType=None, useEventService=False):
+    def convertToJobFileSpec(self, datasetSpec: "JediDatasetSpec", setType: str | None = None, useEventService: bool = False) -> JobFileSpec:
         jobFileSpec = JobFileSpec()
         jobFileSpec.fileID = self.fileID
         jobFileSpec.datasetID = datasetSpec.datasetID
@@ -201,17 +245,17 @@ class JediFileSpec(object):
         return jobFileSpec
 
     # convert from job's FileSpec
-    def convertFromJobFileSpec(self, jobFileSpec):
-        self.fileID = jobFileSpec.fileID
-        self.datasetID = jobFileSpec.datasetID
-        self.jediTaskID = jobFileSpec.jediTaskID
+    def convertFromJobFileSpec(self, jobFileSpec: JobFileSpec) -> None:
+        self.fileID = jobFileSpec.fileID  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
+        self.datasetID = jobFileSpec.datasetID  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
+        self.jediTaskID = jobFileSpec.jediTaskID  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
         self.lfn = jobFileSpec.lfn
         self.GUID = jobFileSpec.GUID
         self.type = jobFileSpec.type
         self.scope = jobFileSpec.scope
-        self.fsize = jobFileSpec.fsize
+        self.fsize = jobFileSpec.fsize  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
         self.checksum = jobFileSpec.checksum
-        self.attemptNr = jobFileSpec.attemptNr
+        self.attemptNr = jobFileSpec.attemptNr  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
         # convert NULL to None
         for attr in self._attributes:
             val = getattr(self, attr)
@@ -221,7 +265,7 @@ class JediFileSpec(object):
         return
 
     # get effective number of events
-    def getEffectiveNumEvents(self):
+    def getEffectiveNumEvents(self) -> int:
         if self.endEvent is not None and self.startEvent is not None:
             evtCounts = self.endEvent - self.startEvent + 1
             if evtCounts > 0:
@@ -232,8 +276,10 @@ class JediFileSpec(object):
         return 1
 
     # extract fields string
-    def extractFieldsStr(self, fieldNumList):
+    def extractFieldsStr(self, fieldNumList: list[int]) -> str:
         tmpFieldStr = ""
+        if self.lfn is None:
+            return tmpFieldStr
         try:
             tmpMidStrList = re.split("\.|_tid\d+", self.lfn)
             for tmpFieldNum in fieldNumList:

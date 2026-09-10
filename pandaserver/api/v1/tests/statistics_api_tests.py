@@ -1,14 +1,15 @@
 # Description: Unit tests for the Statistics API methods
 import unittest
+from typing import Any
 
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 
 
 class TestTaskAPI(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.http_client = HttpClient()
 
-    def test_job_stats_by_cloud(self):
+    def test_job_stats_by_cloud(self) -> None:
         url = f"{api_url_ssl}/statistics/job_stats_by_cloud"
         print(f"Testing URL: {url}")
         data = {"type": "production"}
@@ -23,10 +24,10 @@ class TestTaskAPI(unittest.TestCase):
 
         self.assertEqual(output, expected_response)
 
-    def test_production_job_stats_by_cloud_and_processing_type(self):
+    def test_production_job_stats_by_cloud_and_processing_type(self) -> None:
         url = f"{api_url_ssl}/statistics/production_job_stats_by_cloud_and_processing_type"
         print(f"Testing URL: {url}")
-        data = {}
+        data: dict[str, Any] = {}
         status, output = self.http_client.get(url, data)
         print(output)
         output["status"] = status
@@ -38,10 +39,10 @@ class TestTaskAPI(unittest.TestCase):
 
         self.assertEqual(output, expected_response)
 
-    def test_active_job_stats_by_site(self):
+    def test_active_job_stats_by_site(self) -> None:
         url = f"{api_url_ssl}/statistics/active_job_stats_by_site"
         print(f"Testing URL: {url}")
-        data = {}
+        data: dict[str, Any] = {}
         status, output = self.http_client.get(url, data)
         print(output)
         output["status"] = status
@@ -53,10 +54,10 @@ class TestTaskAPI(unittest.TestCase):
 
         self.assertEqual(output, expected_response)
 
-    def test_active_job_detailed_stats_by_site(self):
+    def test_active_job_detailed_stats_by_site(self) -> None:
         url = f"{api_url_ssl}/statistics/active_job_detailed_stats_by_site"
         print(f"Testing URL: {url}")
-        data = {}
+        data: dict[str, Any] = {}
         status, output = self.http_client.get(url, data)
         print(output)
         output["status"] = status
@@ -68,7 +69,7 @@ class TestTaskAPI(unittest.TestCase):
 
         self.assertEqual(output, expected_response)
 
-    def test_job_stats_by_site_and_resource_type(self):
+    def test_job_stats_by_site_and_resource_type(self) -> None:
         url = f"{api_url_ssl}/statistics/job_stats_by_site_and_resource_type"
         print(f"Testing URL: {url}")
         data = {"time_window": 12 * 60}
@@ -83,7 +84,7 @@ class TestTaskAPI(unittest.TestCase):
 
         self.assertEqual(output, expected_response)
 
-    def test_job_stats_by_site_share_and_resource_type(self):
+    def test_job_stats_by_site_share_and_resource_type(self) -> None:
         url = f"{api_url_ssl}/statistics/job_stats_by_site_share_and_resource_type"
         print(f"Testing URL: {url}")
         data = {"time_window": 12 * 60}

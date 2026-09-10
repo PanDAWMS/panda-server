@@ -10,6 +10,7 @@ import socket
 import time
 import traceback
 from collections import namedtuple
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
@@ -90,7 +91,7 @@ def _get_flavor_plugin_class_map() -> Dict[str, Dict[str, Any]]:
     if _flavor_plugin_class_map_cache is not None:
         return _flavor_plugin_class_map_cache
     logger.debug("Initializing workflow plugin class map")
-    flavor_plugin_class_map = {}
+    flavor_plugin_class_map: dict[str, Any] = {}
     for plugin_type, plugins in PLUGIN_RAW_MAP.items():
         flavor_plugin_class_map[plugin_type] = {}
         for flavor, (module_name, class_name) in plugins.items():
@@ -109,7 +110,7 @@ def _get_flavor_plugin_class_map() -> Dict[str, Dict[str, Any]]:
 # ==== Functions ===============================================
 
 
-def get_plugin_class(plugin_type: str, flavor: str):
+def get_plugin_class(plugin_type: str, flavor: str) -> Any:
     """
     Get the plugin class for the given type and flavor
 
@@ -132,7 +133,7 @@ class WorkflowInterface(object):
     Interface for workflow management methods
     """
 
-    def __init__(self, task_buffer, *args, **kwargs):
+    def __init__(self, task_buffer: Any, *args: Any, **kwargs: Any) -> None:
         """
         Constructor
 
@@ -141,14 +142,18 @@ class WorkflowInterface(object):
             *args: Additional arguments
             **kwargs: Additional keyword arguments
         """
+        # A TaskBuffer when the API server builds this, or JEDI's JediTaskBufferInterface,
+        # which forwards every method to JediTaskBuffer through CommandSendInterface.
+        # panda-server cannot name the JEDI class and __getattr__ is invisible to a type
+        # checker, so Any is as close as this gets.
         self.tbif = task_buffer
         self.ddm_if = rucioAPI
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
-        self.plugin_map = {}
-        self.mb_proxy = None
+        self.plugin_map: dict[str, dict[str, Any]] = {}
+        self.mb_proxy: Any = None
         self.set_mb_proxy()
 
-    def get_plugin(self, plugin_type: str, flavor: str):
+    def get_plugin(self, plugin_type: str, flavor: str) -> Any:
         """
         Get the plugin instance for the given type and flavor
 
@@ -170,12 +175,11 @@ class WorkflowInterface(object):
                 plugin = self.plugin_map[plugin_type][flavor]
         return plugin
 
-    def set_mb_proxy(self):
+    def set_mb_proxy(self) -> None:
         """
         Set the message broker proxy for workflow manager messaging
         """
         try:
-            jedi_config = None
             try:
                 jedi_config = importlib.import_module("pandajedi.jediconfig.jedi_config")
             except Exception:
@@ -200,7 +204,7 @@ class WorkflowInterface(object):
             logger.warning(f"Failed to set mb_proxy about queue {MESSAGE_QUEUE_NAME}; skipped workflow manager messaging: {traceback.format_exc()}")
             return None
 
-    def _send_message(self, tmp_log, msg_type: str, data_dict: Dict[str, Any] = None):
+    def _send_message(self, tmp_log: LogWrapper, msg_type: str, data_dict: Dict[str, Any] | None = None) -> None:
         """
         Send a message to the workflow manager message queue
 
@@ -215,7 +219,7 @@ class WorkflowInterface(object):
             now_time = naive_utcnow()
             now_ts = int(now_time.timestamp())
             # get mbproxy
-            msg_dict = {}
+            msg_dict: dict[str, Any] = {}
             if data_dict:
                 msg_dict.update(data_dict)
             msg_dict.update(
@@ -230,7 +234,7 @@ class WorkflowInterface(object):
         except Exception:
             tmp_log.error(f"Failed to send message to workflow manager queue {MESSAGE_QUEUE_NAME}: {traceback.format_exc()}")
 
-    def send_workflow_message(self, workflow_id: int):
+    def send_workflow_message(self, workflow_id: int) -> None:
         """
         Send a message about the workflow to the workflow manager message queue
 
@@ -240,7 +244,7 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, f"send_workflow_message <workflow_id={workflow_id}>")
         self._send_message(tmp_log, "workflow", {"workflow_id": workflow_id})
 
-    def send_step_message(self, step_id: int):
+    def send_step_message(self, step_id: int) -> None:
         """
         Send a message about the workflow step to the workflow manager message queue
 
@@ -250,7 +254,7 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, f"send_step_message <step_id={step_id}>")
         self._send_message(tmp_log, "wfstep", {"step_id": step_id})
 
-    def send_data_message(self, data_id: int):
+    def send_data_message(self, data_id: int) -> None:
         """
         Send a message about the workflow data to the workflow manager message queue
 
@@ -263,7 +267,7 @@ class WorkflowInterface(object):
     # --- Context managers for locking -------------------------
 
     @contextmanager
-    def workflow_lock(self, workflow_id: int, lock_expiration_sec: int = 120):
+    def workflow_lock(self, workflow_id: int, lock_expiration_sec: int = 120) -> Iterator[WorkflowSpec | None]:
         """
         Context manager to lock a workflow
 
@@ -287,7 +291,7 @@ class WorkflowInterface(object):
             yield None
 
     @contextmanager
-    def workflow_step_lock(self, step_id: int, lock_expiration_sec: int = 120):
+    def workflow_step_lock(self, step_id: int, lock_expiration_sec: int = 120) -> Iterator[WFStepSpec | None]:
         """
         Context manager to lock a workflow step
 
@@ -311,7 +315,7 @@ class WorkflowInterface(object):
             yield None
 
     @contextmanager
-    def workflow_data_lock(self, data_id: int, lock_expiration_sec: int = 120):
+    def workflow_data_lock(self, data_id: int, lock_expiration_sec: int = 120) -> Iterator[WFDataSpec | None]:
         """
         Context manager to lock workflow data
 
@@ -341,10 +345,10 @@ class WorkflowInterface(object):
         prodsourcelabel: str,
         user_dn: str,
         workflow_name: str | None = None,
-        workflow_definition: dict | None = None,
-        raw_request_params: dict | None = None,
-        *args,
-        **kwargs,
+        workflow_definition: dict[str, Any] | None = None,
+        raw_request_params: dict[str, Any] | None = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> int | None:
         """
         Register a new workflow
@@ -383,7 +387,7 @@ class WorkflowInterface(object):
         workflow_spec.creation_time = naive_utcnow()
         workflow_spec.status = WorkflowStatus.registered
         # Insert to DB
-        ret_workflow_id = self.tbif.insert_workflow(workflow_spec)
+        ret_workflow_id: int | None = self.tbif.insert_workflow(workflow_spec)
         if ret_workflow_id is None:
             tmp_log.error(f"Failed to register workflow")
             return None
@@ -654,7 +658,7 @@ class WorkflowInterface(object):
         tmp_log.info(f"Submitted child workflow {child_workflow_id}")
         return result
 
-    def instantiate_scatter_workflow(self, workflow_spec: WorkflowSpec, scatter_definition: dict) -> WorkflowProcessResult:
+    def instantiate_scatter_workflow(self, workflow_spec: WorkflowSpec, scatter_definition: dict[str, Any]) -> WorkflowProcessResult:
         """
         Expand a scatter definition into N parallel sub-workflow steps, one per scatter item.
 
@@ -760,7 +764,7 @@ class WorkflowInterface(object):
         return process_result
 
     @staticmethod
-    def _expand_output_data_to_ddm_names(data_spec: WFDataSpec) -> list:
+    def _expand_output_data_to_ddm_names(data_spec: WFDataSpec) -> list[str]:
         """
         Expand an output data spec's base target_id into the actual DDM dataset names.
 
@@ -781,7 +785,7 @@ class WorkflowInterface(object):
             return [f"{data_spec.target_id}_{ot}" for ot in output_types]
         return [data_spec.target_id]
 
-    def resolve_sub_workflow_outputs(self, step_spec: WFStepSpec, child_workflow_id: int) -> dict:
+    def resolve_sub_workflow_outputs(self, step_spec: WFStepSpec, child_workflow_id: int) -> dict[str, list[str]]:
         """
         Collect output target_ids from a completed sub-workflow (scatter or regular) for aggregation.
 
@@ -855,9 +859,9 @@ class WorkflowInterface(object):
         self,
         tmp_log: LogWrapper,
         step_spec: WFStepSpec,
-        output_ids: dict,
-        data_spec_map: dict,
-        now_time,
+        output_ids: dict[str, list[str]],
+        data_spec_map: Dict[str, WFDataSpec],
+        now_time: datetime,
     ) -> None:
         """
         Write aggregated sub-workflow output target_ids into the parent workflow's data specs.
@@ -1379,7 +1383,7 @@ class WorkflowInterface(object):
                 tmp_log.debug(f"Data status {data_spec.status} is not handled in this context; skipped")
         return tmp_res, data_spec
 
-    def process_datas(self, data_specs: List[WFDataSpec], by: str = "dog") -> Dict:
+    def process_datas(self, data_specs: List[WFDataSpec], by: str = "dog") -> Dict[str, Any]:
         """
         Process a list of workflow data specifications
 
@@ -1395,7 +1399,8 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, f"process_datas <workflow_id={data_specs[0].workflow_id}> by={by}")
         n_data = len(data_specs)
         tmp_log.debug(f"Start, processing {n_data} data specs")
-        data_status_stats = {"n_data": n_data, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
+        # counters keyed by status name alongside plain totals, so the values are not uniform
+        data_status_stats: dict[str, Any] = {"n_data": n_data, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         for data_spec in data_specs:
             orig_status = data_spec.status
             tmp_res, data_spec = self.process_data(data_spec, by=by)
@@ -1516,7 +1521,8 @@ class WorkflowInterface(object):
         # Process
         try:
             # Decide whether to run the step: True = must run, False = can skip, None = undecided yet and must check later
-            to_run_step = False
+            # None means "cannot decide yet", distinct from a decided True/False
+            to_run_step: bool | None = False
             # scatter_child steps are pure orchestration: they submit one grandchild workflow per
             # scatter iteration and own no output datasets themselves (instantiate_scatter_workflow
             # never sets output_data_list in their definition). The output-checking logic below
@@ -2013,7 +2019,7 @@ class WorkflowInterface(object):
                 tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
         return tmp_res, step_spec
 
-    def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> Dict:
+    def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> Dict[str, Any]:
         """
         Process a list of workflow steps
 
@@ -2030,7 +2036,8 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, f"process_steps <workflow_id={step_specs[0].workflow_id}> by={by}")
         n_steps = len(step_specs)
         tmp_log.debug(f"Start, processing {n_steps} steps")
-        steps_status_stats = {"n_steps": n_steps, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
+        # counters keyed by status name alongside plain totals, so the values are not uniform
+        steps_status_stats: dict[str, Any] = {"n_steps": n_steps, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         for step_spec in step_specs:
             orig_status = step_spec.status
             tmp_res, step_spec = self.process_step(step_spec, data_spec_map=data_spec_map, by=by)
@@ -2303,7 +2310,7 @@ class WorkflowInterface(object):
                 data_specs.append(data_spec)
             # collect IDs of all nodes that are sub-nodes of workflow-type nodes; they are
             # registered as part of the child workflow, not as direct steps of this workflow
-            sub_node_ids = set()
+            sub_node_ids: set[Any] = set()
             for node in workflow_definition["nodes"]:
                 if node.get("type") == "workflow":
                     sub_node_ids.update(node.get("sub_nodes") or [])
@@ -2335,7 +2342,7 @@ class WorkflowInterface(object):
                     step_definition["user_name"] = workflow_spec.username
                     step_definition["user_dn"] = workflow_definition.get("user_dn")
                     # resolve inputs and outputs
-                    input_data_dict = dict()
+                    input_data_dict: dict[str, Any] = dict()
                     output_data_dict = dict()
                     for input_target in step_definition.get("inputs", {}).values():
                         if not input_target.get("source"):
@@ -2692,7 +2699,7 @@ class WorkflowInterface(object):
 
     # ---- Process all workflows -------------------------------------
 
-    def process_active_workflows(self) -> Dict:
+    def process_active_workflows(self) -> Dict[str, Any]:
         """
         Process all active workflows in the system
 
@@ -2702,7 +2709,8 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, "process_active_workflows")
         # tmp_log.debug("Start")
         # Initialize
-        workflows_status_stats = {"n_workflows": 0, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
+        # counters keyed by status name alongside plain totals, so the values are not uniform
+        workflows_status_stats: dict[str, Any] = {"n_workflows": 0, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         try:
             # Query active workflows to process
             workflow_specs = self.tbif.query_workflows(status_filter_list=WorkflowStatus.active_statuses, check_interval_sec=WORKFLOW_CHECK_INTERVAL_SEC)

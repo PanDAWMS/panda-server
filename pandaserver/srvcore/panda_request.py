@@ -11,6 +11,7 @@ else:
     token_decoder = TokenDecoder()
 
 import traceback
+from typing import Any
 
 import jwt
 
@@ -18,10 +19,15 @@ cache_dict = CacheDict()
 
 
 # decode token
-def decode_token(serialized_token, env, tmp_log):
+def decode_token(serialized_token: str, env: dict[str, Any], tmp_log: Any) -> dict[str, Any]:
     authenticated = False
     message_str = None
-    subprocess_env = {}
+    # every entry becomes an environment variable for the subprocess, so the values are
+    # strings even where the name they came from could have been None
+    subprocess_env: dict[str, str] = {}
+    # either an OIDC claim map or a scitokens SciToken, depending on which decoder the
+    # configuration selected at import time
+    token: Any
     try:
         vo = None
         role = None
@@ -32,6 +38,11 @@ def decode_token(serialized_token, env, tmp_log):
                 # only vo.role for auth filename which is a key of auth_vo_dict
             else:
                 vo = None
+            if vo is None:
+                # every check below keys auth_vo_dict or auth_policies by the VO, so there
+                # is nothing to authenticate against without one. Said here rather than
+                # reaching the caller as an AttributeError from the first use of it.
+                raise ValueError("no HTTP_ORIGIN to identify the VO")
             # only vo.role for auth filename which is a key of auth_vo_dict
             vo_role = vo.replace(":", ".")
             token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config, vo, tmp_log, panda_config.legacy_token_issuers)
@@ -158,15 +169,15 @@ def decode_token(serialized_token, env, tmp_log):
 
 # PanDA request object
 class PandaRequest:
-    def __init__(self, env, tmp_log):
+    def __init__(self, env: dict[str, Any], tmp_log: Any) -> None:
         # environment
         self.subprocess_env = env
         # header
-        self.headers_in = {}
+        self.headers_in: dict[str, Any] = {}
         # authentication
         self.authenticated = True
         # message
-        self.message = None
+        self.message: str | None = None
 
         # content-length
         if "CONTENT_LENGTH" in self.subprocess_env:
@@ -190,13 +201,14 @@ class PandaRequest:
             )
 
     # get remote host
-    def get_remote_host(self):
+    def get_remote_host(self) -> str:
         if "REMOTE_HOST" in self.subprocess_env:
-            return self.subprocess_env["REMOTE_HOST"]
+            remote_host: str = self.subprocess_env["REMOTE_HOST"]
+            return remote_host
         return ""
 
     # accept json
-    def acceptJson(self):
+    def acceptJson(self) -> bool:
         try:
             if "HTTP_ACCEPT" in self.subprocess_env:
                 return "application/json" in self.subprocess_env["HTTP_ACCEPT"]

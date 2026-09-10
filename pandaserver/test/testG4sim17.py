@@ -30,7 +30,7 @@ index = 0
 for lfn in files:
     index += 1
     job = JobSpec()
-    job.jobDefinitionID = (time.time()) % 10000
+    job.jobDefinitionID = int(time.time()) % 10000
     job.jobName = "%s_%d" % (str(uuid.uuid4()), index)
     job.AtlasRelease = "Atlas-17.0.5"
     job.homepackage = "AtlasProduction/17.0.5.6"

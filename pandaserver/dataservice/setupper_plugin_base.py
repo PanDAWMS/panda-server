@@ -1,8 +1,20 @@
 """
 Base class for setupper plugins. It separates normal and jumbo jobs and sets parameters.
 """
-from typing import List, Dict
+
+from typing import TYPE_CHECKING, Any, Dict, List
+
 from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer.JobSpec import JobSpec
+
+if TYPE_CHECKING:
+    # LogWrapper reads a configuration file at import time and TaskBuffer imports this
+    # package, so naming either for real here would cost this module its standalone
+    # import. Annotations are evaluated at runtime in this tree, so the uses below are
+    # quoted.
+    from pandacommon.pandalogger.LogWrapper import LogWrapper
+
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 
 class SetupperPluginBase(object):
@@ -10,7 +22,13 @@ class SetupperPluginBase(object):
     Base class for setupper plugins. It separates normal and jumbo jobs and sets parameters.
     """
 
-    def __init__(self, taskBuffer, jobs: List, logger, params: Dict, default_map: Dict) -> None:
+    # Installed by the params loop in __init__. setupper.py, the only place that builds a
+    # plugin, always passes first_submission, and every plugin puts resubmit in its
+    # default_map, so both are set by the time run() is called.
+    first_submission: bool
+    resubmit: bool
+
+    def __init__(self, taskBuffer: "TaskBuffer", jobs: List[JobSpec], logger: "LogWrapper", params: Dict[str, Any], default_map: Dict[str, Any]) -> None:
         """
         Constructor for the SetupperPluginBase class.
 
@@ -20,8 +38,8 @@ class SetupperPluginBase(object):
         :param params: Additional parameters.
         :param default_map: Default parameters.
         """
-        self.jobs = []
-        self.jumbo_jobs = []
+        self.jobs: List[JobSpec] = []
+        self.jumbo_jobs: List[JobSpec] = []
         # separate normal and jumbo jobs
         for job in jobs:
             if EventServiceUtils.isJumboJob(job):
@@ -52,7 +70,7 @@ class SetupperPluginBase(object):
         pass
 
     # update failed jobs
-    def update_failed_jobs(self, jobs: List[object]) -> None:
+    def update_failed_jobs(self, jobs: List[JobSpec]) -> None:
         """
         Updates the status of failed jobs.
 

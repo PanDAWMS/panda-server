@@ -1,5 +1,7 @@
 import sys
+from typing import Any
 
+metaID: str | None
 try:
     metaID = sys.argv[1]
 except Exception:
@@ -7,7 +9,7 @@ except Exception:
 import json
 import uuid
 
-taskParamMap = {}
+taskParamMap: dict[str, Any] = {}
 taskParamMap["taskName"] = str(uuid.uuid4())
 taskParamMap["userName"] = "pandasrv1"
 taskParamMap["vo"] = "atlas"

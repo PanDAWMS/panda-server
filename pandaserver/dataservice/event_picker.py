@@ -8,13 +8,20 @@ import os
 import re
 import sys
 import traceback
+from typing import TYPE_CHECKING, Any, TextIO
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import dyn_data_distributer
 from pandaserver.srvcore import CoreUtils
 from pandaserver.userinterface import Client
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("event_picker")
@@ -26,7 +33,7 @@ class EventPicker:
     """
 
     # constructor
-    def __init__(self, taskBuffer, siteMapper, evpFileName: str, ignoreError: bool):
+    def __init__(self, taskBuffer: "TaskBuffer", siteMapper: SiteMapper, evpFileName: str, ignoreError: bool) -> None:
         """
         Constructs all the necessary attributes for the EventPicker object.
 
@@ -54,14 +61,15 @@ class EventPicker:
         self.creation_time = ""
         self.params = ""
         self.locked_by = ""
-        self.event_picking_file = None
+        # opened by run() for the lifetime of the pick, and read by the methods it calls
+        self.event_picking_file: TextIO | None = None
         self.user_task_name = ""
         self.user_dn = ""
         # JEDI
-        self.jedi_task_id = None
+        self.jedi_task_id: int | None = None
 
     # end with error
-    def end_with_error(self, message: str):
+    def end_with_error(self, message: str) -> None:
         """
         Ends the event picker with an error.
 
@@ -75,8 +83,9 @@ class EventPicker:
         self.logger.error(message)
         # unlock evp file
         try:
-            fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_UN)
-            self.event_picking_file.close()
+            if self.event_picking_file is not None:
+                fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_UN)
+                self.event_picking_file.close()
             if not self.ignore_error:
                 # remove evp file
                 os.remove(self.event_picking_file_name)
@@ -110,6 +119,8 @@ class EventPicker:
         if self.jedi_task_id is None:
             return "cannot find jediTaskID"
         str_msg = self.logger.dumpToString()
+        # Client is the pandaclient package, which CI does not install
+        output: str
         status, output = Client.uploadLog(str_msg, self.jedi_task_id)
         if status != 0:
             return f"failed to upload log with {status}."
@@ -117,7 +128,7 @@ class EventPicker:
             return f'<a href="{output}">log</a>'
         return output
 
-    def get_options_from_file(self) -> dict:
+    def get_options_from_file(self) -> dict[str, Any]:
         """
         Gets options from the event picking file.
 
@@ -126,7 +137,7 @@ class EventPicker:
         Returns:
             dict: A dictionary containing the options extracted from the event picking file.
         """
-        options = {
+        options: dict[str, Any] = {
             "runEvent": [],
             "eventPickDataType": "",
             "eventPickStreamName": "",
@@ -147,6 +158,9 @@ class EventPicker:
             "params": "",
         }
 
+        if self.event_picking_file is None:
+            # run() opens the file before every call to this method
+            raise RuntimeError("get_options_from_file() called without an open event picking file")
         for tmp_line in self.event_picking_file:
             # regular expression to parse lines where a key and value are separated by an equal sign
             tmp_match = re.search("^([^=]+)=(.+)$", tmp_line)
@@ -171,7 +185,7 @@ class EventPicker:
                             options[key] += "_ref"
         return options
 
-    def get_jedi_task_id(self, options: dict) -> int:
+    def get_jedi_task_id(self, options: dict[str, Any]) -> int | None:
         """
         Gets the jediTaskID.
 
@@ -181,7 +195,7 @@ class EventPicker:
             options (dict): A dictionary containing the options extracted from the event picking file.
 
         Returns:
-            int: The jediTaskID.
+            int | None: The jediTaskID, or None when no task has that name.
         """
         self.user_dn = options["userName"]
         self.user_task_name = options["userTaskName"]
