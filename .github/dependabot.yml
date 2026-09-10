@@ -13,9 +13,18 @@ updates:
   #
   # Deliberately not grouped, unlike the actions above: a mypy bump can report findings
   # that need code changes, and a ruff bump can reformat, so each is easier to take on
-  # its own than in one batch. What moves here is each repo's rev; the stub versions
-  # pinned in the mypy hook's additional_dependencies are not covered, so check those
-  # against the mypy release the same PR brings in.
+  # its own than in one batch. The same holds for the type stubs in the mypy hook's
+  # additional_dependencies, which this ecosystem moves as well -- a stub is part of what
+  # mypy sees, so a stub bump on its own can report findings. One dependency per PR is
+  # what keeps a finding attributable to the version that caused it.
+  #
+  # Two things are outside this. An additional_dependencies version cannot be constrained
+  # from here: `ignore` applies to the hook revs only, so an unwanted stub bump has to be
+  # turned away with an `@dependabot ignore` comment on its own PR. And pre-commit itself
+  # is pinned in a run: step in syntax-check.yml, which no ecosystem sees.
+  #
+  # The pins here stay aligned with panda-common, which is on the same monthly schedule:
+  # take the matching PRs in the two repositories as a pair.
   - package-ecosystem: pre-commit
     directory: /
     schedule:
