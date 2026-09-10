@@ -161,7 +161,7 @@ class MiscStandaloneModule(BaseModule):
     def getTaskIDwithTaskNameJEDI(self, userName: str, taskName: str) -> int | None:
         comment = " /* DBProxy.getTaskIDwithTaskNameJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"<userName={userName} taskName={taskName}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()
@@ -194,7 +194,7 @@ class MiscStandaloneModule(BaseModule):
     def updateTaskModTimeJEDI(self, jediTaskID: int, newStatus: str | None) -> bool:
         comment = " /* DBProxy.updateTaskErrorDialogJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"<jediTaskID={jediTaskID}>")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()
@@ -213,7 +213,7 @@ class MiscStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -238,13 +238,13 @@ class MiscStandaloneModule(BaseModule):
 
         # See if there are successful jobs for this task. If yes, skip this method
         sql = (
-            f"SELECT 1 FROM "
-            f"(SELECT 1 FROM ATLAS_PANDA.jobsarchived4 "
-            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1 "
-            f"UNION ALL "
-            f"SELECT 1 FROM ATLAS_PANDAARCH.jobsarchived "
-            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1) "
-            f"WHERE ROWNUM = 1"
+            "SELECT 1 FROM "
+            "(SELECT 1 FROM ATLAS_PANDA.jobsarchived4 "
+            "WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1 "
+            "UNION ALL "
+            "SELECT 1 FROM ATLAS_PANDAARCH.jobsarchived "
+            "WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1) "
+            "WHERE ROWNUM = 1"
         )
         var_map: dict[str, Any] = {":jedi_task_id": task_id}
         self.cur.execute(sql + comment, var_map)
@@ -368,7 +368,7 @@ class MiscStandaloneModule(BaseModule):
 
         # Get the corecount and start/end time from the job spec
         var_map = {":task_id": task_id, ":job_id": job_id}
-        sql_select = f"""
+        sql_select = """
         SELECT jact4.corecount, jact4.starttime, jact4.endtime
         FROM ATLAS_PANDA.jobsactive4 jact4
         WHERE jeditaskid = :task_id AND pandaid = :job_id
@@ -742,7 +742,7 @@ class MiscStandaloneModule(BaseModule):
     def updateTaskErrorDialogJEDI(self, jediTaskID: int, msg: str) -> bool:
         comment = " /* DBProxy.updateTaskErrorDialogJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()
@@ -766,7 +766,7 @@ class MiscStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -1175,7 +1175,7 @@ class MiscStandaloneModule(BaseModule):
                 dataset = DatasetSpec()
                 dataset.pack(res[0])
                 return dataset
-            tmp_log.error(f"dataset not found")
+            tmp_log.error("dataset not found")
             return None
         except Exception:
             # roll back
@@ -1455,7 +1455,7 @@ class MiscStandaloneModule(BaseModule):
                 if not self._commit():
                     raise RuntimeError("Commit error")
             # return
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return return_list
         except Exception:
             # roll back
@@ -1515,7 +1515,7 @@ class MiscStandaloneModule(BaseModule):
     def getAssociatedDisDatasets(self, subDsName: str) -> list[str]:
         comment = " /* DBProxy.getAssociatedDisDatasets */"
         tmp_log = self.create_tagged_logger(comment, f"subDsName={subDsName}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         sqlF = (
             "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ distinct PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock"
         )
@@ -1820,7 +1820,7 @@ class MiscStandaloneModule(BaseModule):
         sqlUDP += "SET status=:status "
         sqlUDP += "WHERE vuid=:vuid AND NOT status IN (:statusR,:statusD) "
         try:
-            tmp_log.debug(f"start")
+            tmp_log.debug("start")
             # begin transaction
             self.conn.begin()
             # update dataset in panda
@@ -1914,7 +1914,7 @@ class MiscStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -3718,7 +3718,7 @@ class MiscStandaloneModule(BaseModule):
                     varMap[":type_input_constituent"] = JediDatasetSpec.get_constituent_input_type()
                     sql_get_constituent = "SELECT datasetName "
                     sql_get_constituent += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-                    sql_get_constituent += f"WHERE jediTaskID=:jediTaskID AND type=:type_input_constituent "
+                    sql_get_constituent += "WHERE jediTaskID=:jediTaskID AND type=:type_input_constituent "
                     self.cur.execute(sql_get_constituent + comment, varMap)
                     res_ds = self.cur.fetchall()
                     existing_constituent_datasets = [i[0] for i in res_ds]

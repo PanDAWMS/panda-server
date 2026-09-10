@@ -529,9 +529,9 @@ class DataCarouselModule(BaseModule):
             self.cur.execute(sql_update + comment, var_map)
             ret_req: int = self.cur.rowcount
             if not ret_req:
-                tmp_log.warning(f"already terminated; cannot be cancelled ; skipped")
+                tmp_log.warning("already terminated; cannot be cancelled ; skipped")
             else:
-                tmp_log.debug(f"cancelled request")
+                tmp_log.debug("cancelled request")
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -569,9 +569,9 @@ class DataCarouselModule(BaseModule):
             self.cur.execute(sql_update + comment, var_map)
             ret_req: int = self.cur.rowcount
             if not ret_req:
-                tmp_log.warning(f"not done; cannot be retired ; skipped")
+                tmp_log.warning("not done; cannot be retired ; skipped")
             else:
-                tmp_log.debug(f"retired request")
+                tmp_log.debug("retired request")
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -639,12 +639,12 @@ class DataCarouselModule(BaseModule):
                 self.cur.execute(sql_update + comment, var_map)
                 ret_req = self.cur.rowcount
                 if not ret_req:
-                    tmp_log.warning(f"cannot be cancelled ; skipped")
+                    tmp_log.warning("cannot be cancelled ; skipped")
                     # roll back
                     self._rollback()
                     return False
                 else:
-                    tmp_log.debug(f"cancelled request")
+                    tmp_log.debug("cancelled request")
             elif dc_req_spec.status == DataCarouselRequestStatus.done:
                 new_status = DataCarouselRequestStatus.retired
                 sql_update = (
@@ -658,12 +658,12 @@ class DataCarouselModule(BaseModule):
                 self.cur.execute(sql_update + comment, var_map)
                 ret_req = self.cur.rowcount
                 if not ret_req:
-                    tmp_log.warning(f"cannot be retired ; skipped")
+                    tmp_log.warning("cannot be retired ; skipped")
                     # roll back
                     self._rollback()
                     return False
                 else:
-                    tmp_log.debug(f"retired request")
+                    tmp_log.debug("retired request")
             else:
                 tmp_log.debug(f"already {dc_req_spec.status} ; skipped")
             # resubmit new request

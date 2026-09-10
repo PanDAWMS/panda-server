@@ -169,7 +169,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                 diskThreshold = 100
         diskThreshold *= 1024
         # cutoff for free disk in TB
-        free_disk_cutoff = self.taskBufferIF.getConfigValue(self.msgType, f"FREE_DISK_CUTOFF", "jedi", "atlas")
+        free_disk_cutoff = self.taskBufferIF.getConfigValue(self.msgType, "FREE_DISK_CUTOFF", "jedi", "atlas")
         if free_disk_cutoff is None:
             free_disk_cutoff = 1000
         # dataset type to ignore file availability check

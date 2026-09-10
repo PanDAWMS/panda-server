@@ -378,7 +378,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
 
         # cannot get local quota
         if not local_quota_ok:
-            tmpLog.error(f"failed to check local quota")
+            tmpLog.error("failed to check local quota")
             taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
             return retTmpError
 

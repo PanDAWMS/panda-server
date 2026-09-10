@@ -30,10 +30,10 @@ if data_carousel_interface is None:
 
 print("query DB for data carousel request")
 sql = (
-    f"SELECT req.* "
-    f"FROM ATLAS_PANDA.data_carousel_requests req, ATLAS_PANDA.data_carousel_relations rel "
-    f"WHERE req.request_id=rel.request_id "
-    f"AND rel.request_id=:request_id AND rel.task_id=:task_id "
+    "SELECT req.* "
+    "FROM ATLAS_PANDA.data_carousel_requests req, ATLAS_PANDA.data_carousel_relations rel "
+    "WHERE req.request_id=rel.request_id "
+    "AND rel.request_id=:request_id AND rel.task_id=:task_id "
 )
 var_map = {
     ":task_id": task_id,

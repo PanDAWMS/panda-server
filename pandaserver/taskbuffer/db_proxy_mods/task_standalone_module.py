@@ -2970,7 +2970,7 @@ class TaskStandaloneModule(BaseModule):
                 self.record_task_status_change(jediTaskID)
                 self.push_task_status_message(None, jediTaskID, varMap[":newStatus"])
             else:
-                tmpLog.debug(f"skipped")
+                tmpLog.debug("skipped")
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")

@@ -82,7 +82,7 @@ async def cl() -> None:
 
         # Make MCP calls within the context
         tools = await client.list_tools()
-        print(f"\nAvailable tools:")
+        print("\nAvailable tools:")
         for tool in tools:
             print(f"- {tool.name} -\n")
             print(f" Description: {tool.description}")

@@ -435,7 +435,7 @@ class TaskEventModule(BaseModule):
                     job_processID = int(job_processID)
                     attemptNr = int(attemptNr)
                 except Exception:
-                    tmp_log.error(f"wrongly formatted eventRangeID")
+                    tmp_log.error("wrongly formatted eventRangeID")
                     retList.append(False)
                     continue
                 # get event status
@@ -715,7 +715,7 @@ class TaskEventModule(BaseModule):
     def killEventServiceConsumers(self, job: JobSpec, killedFlag: bool, useCommit: bool = True) -> bool:
         comment = " /* DBProxy.killEventServiceConsumers */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             if useCommit:
@@ -886,7 +886,7 @@ class TaskEventModule(BaseModule):
     def killUnusedEventServiceConsumers(self, job: JobSpec, useCommit: bool = True, killAll: bool = False, checkAttemptNr: bool = False) -> bool:
         comment = " /* DBProxy.killUnusedEventServiceConsumers */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             if useCommit:
@@ -2449,7 +2449,7 @@ class TaskEventModule(BaseModule):
     def increaseRamLimitJEDI(self, jediTaskID: int, jobRamCount: int | None, noLimits: bool = False) -> bool:
         comment = " /* DBProxy.increaseRamLimitJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # RAM limit
             limitList = [1000, 2000, 3000, 4000, 6000, 8000]
@@ -2504,7 +2504,7 @@ class TaskEventModule(BaseModule):
                 except Exception:
                     tmp_log.error(f"reset_resource_type excepted with {traceback.format_exc()}")
 
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -3113,7 +3113,7 @@ class TaskEventModule(BaseModule):
     def setSiteForEsMerge(self, jobSpec: JobSpec, isFakeCJ: bool, methodName: str, comment: str) -> str | None:
         comment = " /* DBProxy.setSiteForEsMerge */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
-        tmp_log.debug(f"looking for ES merge site")
+        tmp_log.debug("looking for ES merge site")
         # merge on OS
         isMergeAtOS = EventServiceUtils.isMergeAtOS(jobSpec.specialHandling)
         # check where merge is done
@@ -3359,7 +3359,7 @@ class TaskEventModule(BaseModule):
     def setScoreSiteToEs(self, jobSpec: JobSpec, methodName: str, comment: str) -> str | None:
         comment = " /* DBProxy.setScoreSiteToEs */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
-        tmp_log.debug(f"looking for single-core site")
+        tmp_log.debug("looking for single-core site")
         # get score PQ in the nucleus associated to the site to run the small ES job
         sqlSN = "SELECT /* use_json_type */ ps2.panda_site_name "
         sqlSN += "FROM ATLAS_PANDA.panda_site ps1, ATLAS_PANDA.panda_site ps2, ATLAS_PANDA.schedconfig_json sc "
@@ -3471,7 +3471,7 @@ class TaskEventModule(BaseModule):
             if compact_dn in ["", "NULL", None]:
                 compact_dn = dn
             tmp_log = self.create_tagged_logger(comment, f"userName={compact_dn}")
-            tmp_log.debug(f"start")
+            tmp_log.debug("start")
 
             # decode json
             if decode:
@@ -3646,7 +3646,7 @@ class TaskEventModule(BaseModule):
                         goForward = False
                         retVal = f"jediTaskID={jediTaskID} is already queued for outDS={taskParamsJson['taskName']}. "
                         retVal += "You cannot submit duplicated tasks. "
-                        tmp_log.debug(f"skip since old task is already queued in DEFT")
+                        tmp_log.debug("skip since old task is already queued in DEFT")
                         errorCode = 1
                 else:
                     # task is already in JEDI table
@@ -3668,7 +3668,7 @@ class TaskEventModule(BaseModule):
                         retVal += "Or you can retry the task once it goes into running/finished/failed/done. "
                         retVal += "Note that retry != resubmission according to "
                         retVal += "https://twiki.cern.ch/twiki/bin/view/PanDA/PandaJEDI#Task_retry_and_resubmission "
-                        tmp_log.debug(f"skip since old task is not yet finalized")
+                        tmp_log.debug("skip since old task is not yet finalized")
                         errorCode = 2
                     else:
                         # extract several params for incremental execution
@@ -3815,7 +3815,7 @@ class TaskEventModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             if properErrorCode:
                 return errorCode, retVal
             return retFlag, retVal
@@ -3851,7 +3851,7 @@ class TaskEventModule(BaseModule):
 
         # Task was not found
         if row is None:
-            tmp_log.debug(f"task not found")
+            tmp_log.debug("task not found")
             return False
 
         # The user is not the owner

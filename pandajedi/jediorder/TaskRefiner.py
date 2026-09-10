@@ -189,7 +189,7 @@ class TaskRefinerThread(WorkerThread):
                                     if dc_config_map.early_access_users and dc_config_map.early_access_users[0] == "ALL":
                                         # enable input pre-staging for all users
                                         taskParamMap["inputPreStaging"] = True
-                                        tmpLog.info(f"set inputPreStaging for data carousel ALL users")
+                                        tmpLog.info("set inputPreStaging for data carousel ALL users")
                                     elif (user_name := taskParamMap.get("userName")) in dc_config_map.early_access_users:
                                         # enable input pre-staging for early access user
                                         taskParamMap["inputPreStaging"] = True

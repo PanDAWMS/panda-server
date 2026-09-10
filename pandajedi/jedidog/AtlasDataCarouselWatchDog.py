@@ -105,7 +105,7 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             # resume tasks with requests in staging
             self.data_carousel_interface.resume_tasks_from_staging()
             # done
-            tmpLog.debug(f"done")
+            tmpLog.debug("done")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
@@ -126,7 +126,7 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             # get requests of active tasks
             self.data_carousel_interface.keep_alive_ddm_rules()
             # done
-            tmpLog.debug(f"done")
+            tmpLog.debug("done")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
@@ -168,7 +168,7 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             # rescue pending tasks
             self.data_carousel_interface.rescue_pending_tasks_with_done_requests()
             # done
-            tmpLog.debug(f"done")
+            tmpLog.debug("done")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")

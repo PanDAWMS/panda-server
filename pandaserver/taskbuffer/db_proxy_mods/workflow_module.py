@@ -419,16 +419,16 @@ class WorkflowModule(BaseModule):
                 cur.execute(sql_lock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to lock; skipped")
+                    tmp_log.error("failed to update DB to lock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one workflow updated to lock; unexpected")
+                    tmp_log.error("more than one workflow updated to lock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the lock
-                    tmp_log.debug(f"did not get lock; skipped")
+                    tmp_log.debug("did not get lock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully locked the workflow
-                    tmp_log.debug(f"got lock")
+                    tmp_log.debug("got lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to lock workflow: {e}")
@@ -458,16 +458,16 @@ class WorkflowModule(BaseModule):
                 cur.execute(sql_unlock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to unlock; skipped")
+                    tmp_log.error("failed to update DB to unlock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one workflow updated to unlock; unexpected")
+                    tmp_log.error("more than one workflow updated to unlock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the unlock
-                    tmp_log.debug(f"no workflow updated to unlock; skipped")
+                    tmp_log.debug("no workflow updated to unlock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully unlocked the workflow
-                    tmp_log.debug(f"released lock")
+                    tmp_log.debug("released lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow: {e}")
@@ -507,16 +507,16 @@ class WorkflowModule(BaseModule):
                 cur.execute(sql_lock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to lock; skipped")
+                    tmp_log.error("failed to update DB to lock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one step updated to lock; unexpected")
+                    tmp_log.error("more than one step updated to lock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the lock
-                    tmp_log.debug(f"did not get lock; skipped")
+                    tmp_log.debug("did not get lock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully locked the workflow step
-                    tmp_log.debug(f"got lock")
+                    tmp_log.debug("got lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to lock workflow step: {e}")
@@ -544,16 +544,16 @@ class WorkflowModule(BaseModule):
                 cur.execute(sql_unlock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to unlock; skipped")
+                    tmp_log.error("failed to update DB to unlock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one step updated to unlock; unexpected")
+                    tmp_log.error("more than one step updated to unlock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the unlock
-                    tmp_log.debug(f"no step updated to unlock; skipped")
+                    tmp_log.debug("no step updated to unlock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully unlocked the workflow step
-                    tmp_log.debug(f"released lock")
+                    tmp_log.debug("released lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow step: {e}")
@@ -593,16 +593,16 @@ class WorkflowModule(BaseModule):
                 cur.execute(sql_lock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to lock; skipped")
+                    tmp_log.error("failed to update DB to lock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one data updated to lock; unexpected")
+                    tmp_log.error("more than one data updated to lock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the lock
-                    tmp_log.debug(f"did not get lock; skipped")
+                    tmp_log.debug("did not get lock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully locked the workflow data
-                    tmp_log.debug(f"got lock")
+                    tmp_log.debug("got lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to lock workflow data: {e}")
@@ -630,16 +630,16 @@ class WorkflowModule(BaseModule):
                 cur.execute(sql_unlock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to unlock; skipped")
+                    tmp_log.error("failed to update DB to unlock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one data updated to unlock; unexpected")
+                    tmp_log.error("more than one data updated to unlock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the unlock
-                    tmp_log.debug(f"no data updated to unlock; skipped")
+                    tmp_log.debug("no data updated to unlock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully unlocked the workflow data
-                    tmp_log.debug(f"released lock")
+                    tmp_log.debug("released lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow data: {e}")

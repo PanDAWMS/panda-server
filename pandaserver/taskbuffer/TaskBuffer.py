@@ -248,7 +248,7 @@ class TaskBuffer:
                         return [], None, unprocessedMap
                     return []
 
-            tmpLog.debug(f"checked ban user")
+            tmpLog.debug("checked ban user")
             # set parameters for user jobs
             if (
                 len(jobs) > 0
@@ -288,7 +288,7 @@ class TaskBuffer:
                         if tmpCountry in ["usatlas"]:
                             userCountry = "us"
                             break
-            tmpLog.debug(f"set user job parameters")
+            tmpLog.debug("set user job parameters")
 
             # return if DN is blocked
             if not userStatus:
@@ -337,17 +337,17 @@ class TaskBuffer:
                     prio_reduction,
                 ) = self.getPrioParameters(jobs, user, fqans, userDefinedWG, validWorkingGroup)
                 tmpLog.debug(f"workingGroup={jobs[0].workingGroup} serNum={serNum} weight={weight} pOffset={priorityOffset} reduction={prio_reduction}")
-            tmpLog.debug(f"got prio parameters")
+            tmpLog.debug("got prio parameters")
             # get DB proxy
             with self.proxyPool.get() as proxy:
-                tmpLog.debug(f"got proxy")
+                tmpLog.debug("got proxy")
                 # get total number of files
                 totalNumFiles = 0
                 for job in jobs:
                     totalNumFiles += len(job.Files)
                 # bulk fetch PandaIDs
                 new_panda_ids = proxy.bulk_fetch_panda_ids(len(jobs))
-                tmpLog.debug(f"got PandaIDs")
+                tmpLog.debug("got PandaIDs")
                 # bulk fetch fileIDs
                 fileIDPool = []
                 if totalNumFiles > 0:

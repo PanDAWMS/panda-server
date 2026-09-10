@@ -114,7 +114,7 @@ def change_staging_destination(dcif: DataCarouselInterface, request_id: int | st
         else:
             to_submit_idds = True
     else:
-        err_msg = f"failed to get corresponding request"
+        err_msg = "failed to get corresponding request"
         tmp_logger.error(err_msg)
         success, message = False, err_msg
 
@@ -144,11 +144,11 @@ def change_staging_destination(dcif: DataCarouselInterface, request_id: int | st
                     tmp_logger.warning(err_msg)
                     message += f"; {err_msg}"
                 else:
-                    tmp_logger.debug(f"submitted corresponding iDDS requests for related tasks")
+                    tmp_logger.debug("submitted corresponding iDDS requests for related tasks")
                     message += "; submitted iDDS requests"
 
             else:
-                err_msg = f"failed to get related tasks; skipped to submit iDDS requests"
+                err_msg = "failed to get related tasks; skipped to submit iDDS requests"
                 tmp_logger.warning(err_msg)
                 message += f"; {err_msg}"
 
@@ -221,7 +221,7 @@ def change_staging_source(
                     "ddm_rule_id": dc_req_spec.ddm_rule_id,
                 }
     else:
-        err_msg = f"failed to get corresponding request"
+        err_msg = "failed to get corresponding request"
         tmp_logger.error(err_msg)
         success, message = False, err_msg
 
@@ -270,7 +270,7 @@ def force_to_staging(dcif: DataCarouselInterface, request_id: int | str | None =
                 "ddm_rule_id": dc_req_spec.ddm_rule_id,
             }
     else:
-        err_msg = f"failed to get corresponding request"
+        err_msg = "failed to get corresponding request"
         tmp_logger.error(err_msg)
         success, message = False, err_msg
 
@@ -310,7 +310,7 @@ def retire_unused(dcif: DataCarouselInterface, request_id: int | str | None = No
             success, message = False, err_msg
         else:
             success = True
-            message = f"retired successfully"
+            message = "retired successfully"
             data = {
                 "request_id": dc_req_spec.request_id,
                 "dataset": dc_req_spec.dataset,
@@ -318,7 +318,7 @@ def retire_unused(dcif: DataCarouselInterface, request_id: int | str | None = No
                 "ddm_rule_id": dc_req_spec.ddm_rule_id,
             }
     else:
-        err_msg = f"failed to get corresponding request"
+        err_msg = "failed to get corresponding request"
         tmp_logger.error(err_msg)
         success, message = False, err_msg
 

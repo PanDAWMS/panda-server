@@ -1729,7 +1729,7 @@ class AtlasDDMClient(DDMClientBase):
             errCode, errMsg = self.checkError(errType)
             tmpLog.error(errMsg)
             return errCode, f"{methodName} : {errMsg}"
-        tmpLog.debug(f"got rule")
+        tmpLog.debug("got rule")
         return self.SC_SUCCEEDED, rule
 
     # list details of all replica locks for a rule by rule ID
@@ -1751,7 +1751,7 @@ class AtlasDDMClient(DDMClientBase):
             errCode, errMsg = self.checkError(errType)
             tmpLog.error(errMsg)
             return errCode, f"{methodName} : {errMsg}"
-        tmpLog.debug(f"got replica locks")
+        tmpLog.debug("got replica locks")
         return self.SC_SUCCEEDED, ret
 
     # delete replication rule by rule ID

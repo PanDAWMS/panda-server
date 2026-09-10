@@ -29,7 +29,7 @@ if data_carousel_interface is None:
 with data_carousel_interface.global_dc_lock(timeout_sec=60, lock_expiration_sec=300) as full_pid:
     # timeout
     if full_pid is None:
-        print(f"timed out without getting lock")
+        print("timed out without getting lock")
         sys.exit(1)
 
     print(f"get spec request_id={request_id}")

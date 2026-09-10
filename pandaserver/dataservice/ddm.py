@@ -1482,7 +1482,7 @@ class RucioAPI:
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
-        tmp_log.debug(f"got rule")
+        tmp_log.debug("got rule")
         return rule
 
     # list details of all replica locks for a rule by rule ID
@@ -1501,7 +1501,7 @@ class RucioAPI:
         except Exception as e:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
-        tmp_log.debug(f"got replica locks")
+        tmp_log.debug("got replica locks")
         return ret
 
     # delete replication rule by rule ID

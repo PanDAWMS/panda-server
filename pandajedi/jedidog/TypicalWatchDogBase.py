@@ -115,7 +115,7 @@ class TypicalWatchDogBase(WatchDogBase):
         if not got_lock:
             tmpLog.debug("locked by another watchdog process. Skipped to cache tokens")
         else:
-            tmpLog.info(f"cache tokens")
+            tmpLog.info("cache tokens")
             cacher = TokenCache()
             cacher.run()
 

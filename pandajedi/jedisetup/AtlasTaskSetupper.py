@@ -243,7 +243,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                             tmpLog.error(f"failed to register location {container_location} for container {targetName}")
                                             return retFatal
                                         # rule with 2 copies and no grouping
-                                        container_location = f"(type=SCRATCHDISK)\\notforextracopy=True"
+                                        container_location = "(type=SCRATCHDISK)\\notforextracopy=True"
                                         tmpLog.info(f"registering container-level 2nd copy rule for {targetName}")
                                         tmpStat = ddmIF.registerDatasetLocation(
                                             targetName,
@@ -272,7 +272,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                 tmpLog.info(f"{targetName} already registered, but will be moved to {location}")
                                 tmpStat = ddmIF.move_replication_rules(datasetSpec.datasetName, location)
                                 if not tmpStat:
-                                    tmpLog.error(f"failed to move replication rule")
+                                    tmpLog.error("failed to move replication rule")
                                     return retFatal
                             else:
                                 tmpLog.info(f"{targetName} already registered")

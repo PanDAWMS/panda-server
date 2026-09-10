@@ -2616,7 +2616,7 @@ class TaskComplexModule(BaseModule):
             tmp_var_map = MERGE_TYPES_var_map
         var_map.update(tmp_var_map)
         if not simulation_with_file_stat:
-            sql_read_secondary_dataset_ids += f"AND nFilesToBeUsed >= nFilesUsed "
+            sql_read_secondary_dataset_ids += "AND nFilesToBeUsed >= nFilesUsed "
         sql_read_secondary_dataset_ids += f"AND type IN ({tmp_var_names_str}) "
         if not is_dry_run:
             sql_read_secondary_dataset_ids += "AND status=:dsStatus "
@@ -3521,7 +3521,7 @@ class TaskComplexModule(BaseModule):
                                 if maxNumJobs is not None and not input_chunk.isMerging and input_chunk.masterDataset is not None:
                                     maxNumJobs -= int(math.ceil(float(len(input_chunk.masterDataset.Files)) / float(typical_num_files_per_job)))
                             if i_ds_per_task > n_ds_per_task:
-                                tmp_log.debug(f"escape due to too many datasets to process")
+                                tmp_log.debug("escape due to too many datasets to process")
                                 break
 
                         if maxNumJobs is not None and maxNumJobs <= 0:

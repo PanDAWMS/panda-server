@@ -126,7 +126,7 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
         jobs = self.tbIF.peekJobs(panda_ids, fromActive=False, fromArchived=False, fromWaiting=False)
         # activate jobs
         self.tbIF.activateJobs(jobs)
-        tmp_log.debug(f"done")
+        tmp_log.debug("done")
         return
 
     def trigger_component_action(self, event_type: str, message_ids: str, message_dict: dict[str, Any], tmp_log: LogWrapper.LogWrapper) -> None:

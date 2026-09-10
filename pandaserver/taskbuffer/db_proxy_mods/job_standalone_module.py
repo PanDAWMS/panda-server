@@ -191,7 +191,7 @@ class JobStandaloneModule(BaseModule):
                 n = self.cur.rowcount
                 if n == 0:
                     # already killed
-                    tmp_log.debug(f"Not found")
+                    tmp_log.debug("Not found")
                 else:
                     # update files
                     for file in job.Files:
@@ -424,7 +424,7 @@ class JobStandaloneModule(BaseModule):
                 res = self.cur.fetchone()
                 # not found
                 if res is None:
-                    raise RuntimeError(f"Not found for SELECT")
+                    raise RuntimeError("Not found for SELECT")
                 # instantiate Job
                 job = JobSpec()
                 job.pack(res)
@@ -559,7 +559,7 @@ class JobStandaloneModule(BaseModule):
                         # set metadata
                         job.metadata = resMeta
                         return job
-                tmp_log.debug(f"not found")
+                tmp_log.debug("not found")
                 return None
             except Exception:
                 # roll back
@@ -583,7 +583,7 @@ class JobStandaloneModule(BaseModule):
     def getExpressJobs(self, dn: str | None) -> dict[str, Any] | None:
         comment = " /* DBProxy.getExpressJobs */"
         tmp_log = self.create_tagged_logger(comment, f"DN={dn}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         sqlX = "SELECT specialHandling,COUNT(*) FROM %s "
         sqlX += "WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel1 "
         sqlX += "AND specialHandling IS NOT NULL "
@@ -1103,7 +1103,7 @@ class JobStandaloneModule(BaseModule):
     def addMetadata(self, pandaID: int, metadata: str, newStatus: str) -> bool:
         comment = " /* DBProxy.addMetaData */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         # discard metadata for failed jobs
         if newStatus == "failed":
             tmp_log.debug("skip")
@@ -1192,7 +1192,7 @@ class JobStandaloneModule(BaseModule):
     def addStdOut(self, pandaID: int, stdOut: str) -> bool:
         comment = " /* DBProxy.addStdOut */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         sqlJ = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID FOR UPDATE "
         sqlC = "SELECT PandaID FROM ATLAS_PANDA.jobsDebug WHERE PandaID=:PandaID "
         sqlI = "INSERT INTO ATLAS_PANDA.jobsDebug (PandaID,stdOut) VALUES (:PandaID,:stdOut) "
@@ -1251,7 +1251,7 @@ class JobStandaloneModule(BaseModule):
         excluded_states = ["merging"]
 
         # sql template for jobs table
-        sql_template = f"SELECT computingSite, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, jobStatus"
+        sql_template = "SELECT computingSite, jobStatus, COUNT(*) FROM {table_name} GROUP BY computingSite, jobStatus"
 
         # sql template for statistics table (materialized view)
         sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
@@ -1295,7 +1295,7 @@ class JobStandaloneModule(BaseModule):
                     for state in included_states:
                         ret[site].setdefault(state, 0)
 
-                tmp_log.debug(f"done")
+                tmp_log.debug("done")
                 return ret
 
             except Exception:
@@ -1325,7 +1325,7 @@ class JobStandaloneModule(BaseModule):
         excluded_states = ["merging"]
 
         # sql template for jobs table
-        sql_template = f"SELECT computingSite, resource_type, prodSourceLabel, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, resource_type, prodSourceLabel, jobStatus"
+        sql_template = "SELECT computingSite, resource_type, prodSourceLabel, jobStatus, COUNT(*) FROM {table_name} GROUP BY computingSite, resource_type, prodSourceLabel, jobStatus"
         # sql template for statistics table (materialized view)
         sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
         sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
@@ -1370,7 +1370,7 @@ class JobStandaloneModule(BaseModule):
                             for state in included_states:
                                 ret[site][resource_type][prod_source_label].setdefault(state, 0)
 
-                tmp_log.debug(f"done")
+                tmp_log.debug("done")
                 return ret
 
             except Exception:
@@ -1600,7 +1600,7 @@ class JobStandaloneModule(BaseModule):
                     ret[cloud][job_status] += count
 
             # return
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return ret
         except Exception:
             # roll back
@@ -1682,7 +1682,7 @@ class JobStandaloneModule(BaseModule):
                     ret.setdefault(cloud, {}).setdefault(processing_type, {}).setdefault(job_status, 0)
                     ret[cloud][processing_type][job_status] += count
 
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return ret
         except Exception:
             # roll back
@@ -1792,7 +1792,7 @@ class JobStandaloneModule(BaseModule):
                                 pass
                             job.addFile(file)
                         return job
-                tmp_log.debug(f"not found")
+                tmp_log.debug("not found")
                 return None
             except Exception:
                 # roll back
@@ -2008,7 +2008,7 @@ class JobStandaloneModule(BaseModule):
     def getJobdefIDsForFailedJob(self, jediTaskID: int) -> list[int]:
         comment = " /* DBProxy.getJobdefIDsForFailedJob */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()

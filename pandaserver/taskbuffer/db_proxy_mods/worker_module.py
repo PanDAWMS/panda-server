@@ -439,7 +439,7 @@ class WorkerModule(BaseModule):
         # There is the case where the grid has no workloads and running HIMEM jobs is better than running no jobs
         ignore_meanrss = self.getConfigValue("meanrss", "IGNORE_MEANRSS")
         if ignore_meanrss == True:
-            tmp_log.debug(f"Accepting all resource types since meanrss throttling is ignored")
+            tmp_log.debug("Accepting all resource types since meanrss throttling is ignored")
 
         # If the site defined a memory target, calculate the memory requested by running and queued workers
         resource_types_under_target = []
@@ -454,7 +454,7 @@ class WorkerModule(BaseModule):
                 )
                 tmp_log.debug(f"Accepting {resource_types_under_target} resource types to respect mean memory target")
             else:
-                tmp_log.debug(f"Accepting all resource types as under memory target")
+                tmp_log.debug("Accepting all resource types as under memory target")
 
         # there is only job_type = "managed" in the current implementation, but we keep the structure due to backwards compatibility
         for job_type in worker_stats[harvester_id]:
@@ -1389,7 +1389,7 @@ class WorkerModule(BaseModule):
                     "pct_within_queue": pct_within_queue,
                 }
 
-            tmp_log.debug(f"Done")
+            tmp_log.debug("Done")
             return architecture_map
 
         except Exception:
@@ -1915,7 +1915,7 @@ class WorkerModule(BaseModule):
         """
         comment = " /* DBProxy.storePilotLog */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
 
         try:
             # Prepare the bindings and var map

@@ -846,11 +846,11 @@ class EntityModule(BaseModule):
 
         if random_number <= sloppy_ratio:
             # generate the age sorting
-            tmp_log.debug(f"sorting by age")
+            tmp_log.debug("sorting by age")
             return self.getCriteriaByAge(site_name, max_jobs)
         else:
             # generate the global share sorting
-            tmp_log.debug(f"sorting by gshare")
+            tmp_log.debug("sorting by gshare")
             return self.getCriteriaForGlobalShares(site_name, max_jobs)
 
     # get selection criteria for share of production activities
@@ -863,7 +863,7 @@ class EntityModule(BaseModule):
 
         try:
             # Get the share leaves sorted by order of under-pledging
-            tmp_log.debug(f"Going to call get sorted leaves")
+            tmp_log.debug("Going to call get sorted leaves")
             t_before = time.time()
             sorted_leaves = self.get_sorted_leaves()
             t_after = time.time()
@@ -2044,7 +2044,7 @@ class EntityModule(BaseModule):
         """
         comment = " /* DBProxy.getDdmEndpoints */"
         tmp_log = self.create_tagged_logger(comment)
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
 
         # get all ddm endpoints
         sql_ddm = "SELECT * FROM ATLAS_PANDA.ddm_endpoint "
@@ -2139,7 +2139,7 @@ class EntityModule(BaseModule):
                 panda_endpoint_map[panda_site_name][scope].setdefault("output", DdmSpec())
                 panda_endpoint_map[panda_site_name][scope]["output"].add(tmp_relation, endpoint_dict)
 
-        tmp_log.debug(f"done")
+        tmp_log.debug("done")
         return panda_endpoint_map, detailed_status_summary
 
     def get_cloud_list(self) -> list[str]:
@@ -2841,7 +2841,7 @@ class EntityModule(BaseModule):
     def checkQuota(self, dn: str | None) -> float:
         comment = " /* DBProxy.checkQuota */"
         tmp_log = self.create_tagged_logger(comment, f"dn={dn}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # set autocommit on
             self.conn.begin()
@@ -2885,7 +2885,7 @@ class EntityModule(BaseModule):
                 weight = 0.0
                 tmp_log.debug(f"Weight:{weight} Quota:{quota1} CPU:{cpu1}")
             else:
-                tmp_log.debug(f"cannot found")
+                tmp_log.debug("cannot found")
             return weight
         except Exception:
             self.dump_error_message(tmp_log)

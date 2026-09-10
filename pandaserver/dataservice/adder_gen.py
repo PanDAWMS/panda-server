@@ -623,10 +623,10 @@ class AdderGen:
 
     def update_worker_node(self, json_dict: dict[str, Any]) -> None:
         try:
-            self.logger.debug(f"update_worker_node: start")
+            self.logger.debug("update_worker_node: start")
             wn_specs = json_dict.get("worker_node", {})
             if not wn_specs:
-                self.logger.debug(f"update_worker_node: done. No worker node specs found")
+                self.logger.debug("update_worker_node: done. No worker node specs found")
                 return
 
             site = wn_specs.get("site")
@@ -671,10 +671,10 @@ class AdderGen:
 
     def update_worker_node_gpu(self, json_dict: dict[str, Any]) -> None:
         try:
-            self.logger.debug(f"update_worker_node_gpu: start")
+            self.logger.debug("update_worker_node_gpu: start")
             wn_gpu_specs = json_dict.get("worker_node_gpus", {})
             if not wn_gpu_specs:
-                self.logger.debug(f"update_worker_node_gpu: done. No worker node GPU specs found")
+                self.logger.debug("update_worker_node_gpu: done. No worker node GPU specs found")
                 return
 
             site = wn_gpu_specs.get("site")
