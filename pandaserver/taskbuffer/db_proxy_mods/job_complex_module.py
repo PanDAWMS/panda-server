@@ -2903,7 +2903,7 @@ class JobComplexModule(BaseModule):
                     mb_proxy_queue = self.get_mb_proxy("panda_pilot_queue")
                     srv_msg_utils.delete_job_message(mb_proxy_queue, job.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             return retJobs, nSent
-        except Exception as e:
+        except Exception:
             self.dump_error_message(tmp_log)
             # roll back
             self._rollback()
@@ -2984,7 +2984,7 @@ class JobComplexModule(BaseModule):
             else:
                 scope = name.split(".")[0]
             return scope
-        except Exception as e:
+        except Exception:
             return None
 
     # insert job to jobsDefined

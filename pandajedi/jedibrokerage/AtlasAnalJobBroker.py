@@ -2217,7 +2217,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         taskSpec.gshare, (" merging," if inputChunk.isMerging else ""), task_class_value, n_jobs_to_submit, "\n".join(prt_str_list)
                     )
                 )
-        except Exception as e:
+        except Exception:
             tmpLog.error(f"{traceback.format_exc()}")
         # choose basic weight
         _basic_weight_version = "new"

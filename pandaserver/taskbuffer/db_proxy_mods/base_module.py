@@ -439,7 +439,7 @@ class BaseModule:
             if not self._commit():
                 raise RuntimeError("Commit error")
             return ret, res
-        except Exception as e:
+        except Exception:
             # roll back
             self._rollback(self.useOtherError)
             self.dump_error_message(tmp_log)
@@ -462,7 +462,7 @@ class BaseModule:
             if not self._commit():
                 raise RuntimeError("Commit error")
             return res
-        except Exception as e:
+        except Exception:
             # roll back
             self._rollback(self.useOtherError)
             tmp_log = self.create_tagged_logger(comment)
@@ -498,7 +498,7 @@ class BaseModule:
                 if not self._commit():
                     raise RuntimeError("Commit error")
             return ret, res
-        except Exception as e:
+        except Exception:
             # roll back
             if use_commit:
                 self._rollback()

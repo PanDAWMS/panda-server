@@ -235,7 +235,7 @@ class PandaTaskStepHandler(BaseStepHandler):
                 tmp_log.info(f"task_id={task_id} triggered jedi_contents_feeder")
             # Done
             tmp_log.debug("Done")
-        except Exception as e:
+        except Exception:
             tmp_log.error(f"Failed with: {traceback.format_exc()}")
 
     def cancel_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetCancelResult:

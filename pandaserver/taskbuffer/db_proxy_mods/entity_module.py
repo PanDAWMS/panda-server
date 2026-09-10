@@ -2031,7 +2031,7 @@ class EntityModule(BaseModule):
                 raise RuntimeError("Commit error")
             tmp_log.debug("done")
             return retList, endpoint_detailed_status_summary
-        except Exception as e:
+        except Exception:
             # roll back
             self._rollback()
             # error

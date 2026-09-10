@@ -151,7 +151,7 @@ class JobStandaloneModule(BaseModule):
                         tmp_log.debug("message queue/topic not configured")
                 tmp_log.debug("done")
                 return True
-            except Exception as e:
+            except Exception:
                 # roll back
                 self._rollback()
                 if iTry + 1 < nTry:

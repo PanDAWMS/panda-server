@@ -2740,6 +2740,6 @@ class WorkflowInterface(object):
             tmp_log.info(
                 f"Done, processed {workflows_status_stats['n_processed']}/{n_workflows} workflows, unchanged: {workflows_status_stats['unchanged']}, changed: {workflows_status_stats['changed']}"
             )
-        except Exception as e:
+        except Exception:
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return workflows_status_stats

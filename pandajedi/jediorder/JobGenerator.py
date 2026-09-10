@@ -2251,7 +2251,7 @@ class JobGeneratorThread(WorkerThread):
             jobSpec.jobParameters = self.makeBuildJobParameters(taskParamMap["preproSpec"]["jobParameters"], paramMap)
             # return
             return Interaction.SC_SUCCEEDED, jobSpec, datasetToRegister
-        except Exception as e:
+        except Exception:
             tmpLog.error(f"{self.__class__.__name__}.doGeneratePrePro() failed with {traceback.format_exc()}")
             return failedRet
 

@@ -1996,7 +1996,7 @@ class DataCarouselInterface(object):
                 tmp_log.warning("no destination_rse match; skipped")
             # return
             return destination_rse
-        except Exception as e:
+        except Exception:
             # other unexpected errors
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
@@ -2275,7 +2275,7 @@ class DataCarouselInterface(object):
                     try:
                         self._submit_idds_stagein_request(task_id, dc_req_spec)
                         tmp_log.debug(f"submitted corresponding iDDS request for related task {task_id}")
-                    except Exception as e:
+                    except Exception:
                         tmp_log.warning(f"got error while submitting iDDS request; skipped : {traceback.format_exc()}")
             else:
                 tmp_log.warning("failed to get related tasks; skipped to submit iDDS requests")

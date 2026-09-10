@@ -90,7 +90,7 @@ class WorkerModule(BaseModule):
 
             tmp_log.debug("done")
             return True, "OK"
-        except Exception as e:
+        except Exception:
             self._rollback()
             self.dump_error_message(tmp_log)
             return False, "database error"

@@ -278,7 +278,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
         # stop taskBuffer if created inside this script
         if tbuf is None:
             taskBuffer.cleanup(requester=requester_id)
-    except Exception as e:
+    except Exception:
         err_str = traceback.format_exc()
         _logger.error(f"failed to copy files: {err_str}")
     # done
