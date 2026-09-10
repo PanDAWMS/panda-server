@@ -5641,9 +5641,9 @@ class TaskComplexModule(BaseModule):
             # update files
             if to_update_files:
                 # split into groups according to whether with ids
-                filenames_dict_with_fileID = {}
-                filenames_dict_with_datasetID = {}
-                filenames_dict_without_ID = {}
+                filenames_dict_with_fileID: dict[str, tuple[int | None, int | None]] = {}
+                filenames_dict_with_datasetID: dict[str, tuple[int | None, int | None]] = {}
+                filenames_dict_without_ID: dict[str, tuple[int | None, int | None]] = {}
                 for filename, (datasetid, fileid) in filenames_dict.items():
                     if fileid is not None:
                         # with fileID from message

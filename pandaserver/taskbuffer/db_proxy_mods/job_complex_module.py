@@ -4991,7 +4991,7 @@ class JobComplexModule(BaseModule):
             else:
                 time_floor = naive_utcnow() - datetime.timedelta(minutes=int(time_window))
 
-            sql_var_list = [
+            sql_var_list: list[tuple[str, dict[str, Any]]] = [
                 (sql_defined, {}),
                 (sql_failed, {":jobStatus": "failed", ":modificationTime": time_floor}),
                 (sql_active_mv, {":jobStatus": "failed"}),

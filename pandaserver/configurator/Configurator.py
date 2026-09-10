@@ -6,6 +6,7 @@ import traceback
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
@@ -37,7 +38,7 @@ DEFAULT = "default"
 
 
 class Configurator(threading.Thread):
-    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | None = None) -> None:
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
@@ -643,7 +644,7 @@ class Configurator(threading.Thread):
 
 
 class NetworkConfigurator(threading.Thread):
-    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | None = None) -> None:
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
@@ -877,7 +878,7 @@ class SchedconfigJsonDumper(threading.Thread):
     Downloads the CRIC schedconfig dump and stores it in the DB, one row per queue
     """
 
-    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | None = None) -> None:
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         """
         Initialization and configuration
         """
@@ -918,7 +919,7 @@ class SWTagsDumper(threading.Thread):
     Downloads the CRIC tags dump, flattens it out and stores it in the DB, one row per queue
     """
 
-    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | None = None) -> None:
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         """
         Initialization and configuration
         """
