@@ -937,7 +937,7 @@ class MiscStandaloneModule(BaseModule):
             return "ERROR: DB failure"
 
     # get and lock sandbox files
-    def getLockSandboxFiles(self, time_limit: int, n_files: int) -> list[tuple[Any, ...]] | None:
+    def getLockSandboxFiles(self, time_limit: datetime.datetime, n_files: int) -> list[tuple[Any, ...]] | None:
         comment = " /* DBProxy.getLockSandboxFiles */"
         tmp_log = self.create_tagged_logger(comment)
         sqlC = (

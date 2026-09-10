@@ -1285,7 +1285,7 @@ class TaskBuffer:
         return ret
 
     # get and lock sandbox files
-    def getLockSandboxFiles(self, time_limit: int, n_files: int) -> list[tuple[Any, ...]] | None:
+    def getLockSandboxFiles(self, time_limit: datetime.datetime, n_files: int) -> list[tuple[Any, ...]] | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getLockSandboxFiles(time_limit, n_files)
