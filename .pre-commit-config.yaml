@@ -44,7 +44,7 @@ repos:
         args: []
         additional_dependencies:
         -   types-requests==2.33.0.20260906
-        -   types-PyYAML==6.0.12.20260815
+        -   types-PyYAML==6.0.12.20260906
         pass_filenames: false
 
 -   repo: local
