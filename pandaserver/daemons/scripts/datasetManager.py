@@ -1023,7 +1023,9 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
                         continue
                     _logger.debug(f"delete sub {name}")
                     if name.startswith("user.") or name.startswith("group.") or name.startswith("hc_test."):
-                        dsExists = False
+                        # these subs go straight to the status update below. Rucio erases
+                        # them on its own, so there is no point in waiting for their jobs
+                        pass
                     else:
                         # get PandaIDs
                         self.proxyLock.acquire()
