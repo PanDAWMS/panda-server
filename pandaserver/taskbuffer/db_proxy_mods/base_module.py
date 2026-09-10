@@ -23,7 +23,10 @@ from pandaserver.taskbuffer.JobSpec import (
 
 if TYPE_CHECKING:
     # imported for annotations only. WrappedCursor imports panda_config, so
-    # importing it at runtime here would close an import cycle
+    # importing it at runtime here would close an import cycle, and msg_processor
+    # is the module get_mb_proxy imports late so that a daemon opens its log first
+    from pandacommon.pandamsgbkr.msg_processor import PassiveProxies
+
     from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
     from pandaserver.taskbuffer.JobSpec import JobSpec
     from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
@@ -93,9 +96,9 @@ class BaseModule:
 
     # Message broker proxies, built on first use. The JEDI one is built by the setter that
     # set_jedi_attributes() installs, which is why both are unset until then
-    mb_proxy_dict: dict[str, Any] | None
-    jedi_mb_proxy_dict: dict[str, Any] | None
-    jedi_mb_proxy_dict_setter: "Callable[[], dict[str, Any] | None] | None"
+    mb_proxy_dict: "PassiveProxies | None"
+    jedi_mb_proxy_dict: "PassiveProxies | None"
+    jedi_mb_proxy_dict_setter: "Callable[[], PassiveProxies | None] | None"
 
     # constructor
     def __init__(self, log_stream: logging.Logger):
@@ -376,7 +379,9 @@ class BaseModule:
                 comment = " /* DBProxy.get_mb_proxy */"
                 tmp_log = self.create_tagged_logger(comment)
                 self.dump_error_message(tmp_log)
-                self.mb_proxy_dict = {}
+                # not None, so the setup above is not retried, and empty, so the
+                # lookup below returns None -- what the empty dict used to do
+                self.mb_proxy_dict = {"in": {}, "out": {}}
         if not self.mb_proxy_dict or channel not in self.mb_proxy_dict["out"]:
             return None
         return self.mb_proxy_dict["out"][channel]
@@ -539,9 +544,11 @@ class BaseModule:
             Any: the logger object for logging in DBProxy
         """
         comment = " /* DBProxy.transaction */"
+        # before the try: the handler below logs through tmp_log, and nothing is open
+        # yet for it to roll back if this raises
+        if tmp_log is None:
+            tmp_log = self.create_tagged_logger(comment, tag=name)
         try:
-            if tmp_log is None:
-                tmp_log = self.create_tagged_logger(comment, tag=name)
             tmp_log.debug("transaction start")
             # begin transaction
             self.conn.begin()
