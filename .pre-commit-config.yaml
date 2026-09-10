@@ -1,5 +1,9 @@
 repos:
 
+# What is checked, and at which version, is defined here rather than in the CI workflow,
+# so that `pre-commit run --all-files` gives a contributor the same answer CI will.
+# Do not add a check to CI without adding it here.
+
 # ruff stands in for black, isort and flynt as well as being the linter: one pin instead
 # of three, and one tool to reason about. Its formatter targets black's style but is not
 # byte-identical to it, which is why the switch came with a one-time reformat of the tree.
@@ -16,3 +20,54 @@ repos:
         args: [--fix, .]
         pass_filenames: false
     -   id: ruff-format
+
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.3.1
+    hooks:
+    # The tree is clean under the flags in [tool.mypy], so the gate is mypy itself: any
+    # finding fails the hook. Do not swap it for a count -- annotating a function turns on
+    # checking of its whole body, so improving annotations can raise the number before it
+    # lowers it. With zero as the bar that goes away.
+    #
+    # args is emptied because this mirror otherwise passes --ignore-missing-imports and
+    # --scripts-are-modules, which would override pyproject.toml. pass_filenames is off
+    # for the same reason: handing mypy the staged files would both miss files that an
+    # edit elsewhere breaks and change which flags apply.
+    #
+    # mypy and the stubs are pinned together: the stubs are part of what the run sees, so
+    # an unpinned upgrade would produce findings without a code change. When upgrading
+    # either, fix what the new version reports in the same PR.
+    #
+    # panda-common is deliberately absent. It ships py.typed, so installing it changes
+    # what mypy resolves, and this hook is the gate.
+    -   id: mypy
+        args: []
+        additional_dependencies:
+        -   types-requests==2.33.0.20260712
+        -   types-PyYAML==6.0.12.20260815
+        pass_filenames: false
+
+-   repo: local
+    hooks:
+    # None of the hooks above executes a class body, so a class that cannot be created
+    # passes all of them and fails at import time instead -- in a daemon, an outage rather
+    # than a failed check. The case this tree can actually reach is a class attribute that
+    # carries a value while its name is in __slots__, which raises ValueError when the
+    # class is built. Annotating the spec classes is exactly the work that invites it,
+    # since the obvious way to write one is `status: str = ""`.
+    #
+    # These four are the spec classes that assign __slots__ and import without a config
+    # file. The fifth, daemons/utils.py's DaemonWorker, is left out on purpose: it pulls in
+    # pandaserver.config.panda_config, which reads panda_server.cfg at import time and does
+    # not swallow the failure, so covering it would mean shipping a config.
+    #
+    # panda-common carries no version here: the hook only needs it to be importable, and
+    # the bound belongs in pyproject.toml alone. This hook gets its own environment, so
+    # installing panda-common here does not reach the mypy hook above.
+    -   id: slots-import
+        name: import the classes that build __slots__
+        language: python
+        entry: python -c "import pandaserver.taskbuffer.JobSpec, pandaserver.taskbuffer.FileSpec, pandaserver.taskbuffer.WorkerSpec, pandaserver.taskbuffer.HarvesterMetricsSpec"
+        additional_dependencies: ['panda-common']
+        pass_filenames: false
+        always_run: true
