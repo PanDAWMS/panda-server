@@ -1,5 +1,6 @@
 import copy
 import datetime
+import logging
 import random
 import re
 import time
@@ -7,7 +8,6 @@ import traceback
 import uuid
 from typing import Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -39,7 +39,7 @@ MAX_ARCHITECTURE_MATCHING_TRIES = 5
 # Module class to define job-related methods that use another module's methods or serve as their dependencies
 class JobComplexModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # update Job status in jobsActive

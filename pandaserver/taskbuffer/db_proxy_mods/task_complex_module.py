@@ -1,6 +1,7 @@
 import copy
 import datetime
 import json
+import logging
 import math
 import os
 import random
@@ -48,7 +49,7 @@ if TYPE_CHECKING:
 # Module class to define task related methods that use other modules' methods
 class TaskComplexModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # get the list of datasets to feed contents to DB

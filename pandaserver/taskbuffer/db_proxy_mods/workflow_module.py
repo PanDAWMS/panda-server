@@ -1,7 +1,7 @@
+import logging
 from datetime import timedelta
 from typing import Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -16,7 +16,7 @@ from pandaserver.workflow.workflow_base import (
 # Module class to define methods related to workflow
 class WorkflowModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     def get_workflow(self, workflow_id: int) -> WorkflowSpec | None:

@@ -1,6 +1,7 @@
 import atexit
 import datetime
 import json
+import logging
 import socket
 import sys
 import time
@@ -97,7 +98,7 @@ class BaseModule:
     jedi_mb_proxy_dict_setter: "Callable[[], dict[str, Any] | None] | None"
 
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         self._log_stream = log_stream
         self.conn = None  # type: ignore[assignment]
         self.cur = None  # type: ignore[assignment]

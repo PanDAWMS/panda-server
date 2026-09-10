@@ -1,9 +1,9 @@
 import json
+import logging
 import re
 import sys
 from typing import TYPE_CHECKING, Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 # Module class to define metrics related methods
 class MetricsModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # set job or task metrics

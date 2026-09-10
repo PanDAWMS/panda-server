@@ -1,10 +1,10 @@
 import datetime
 import json
+import logging
 import os
 import sys
 from typing import Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -24,7 +24,7 @@ DEFAULT_PRODSOURCELABEL = "managed"
 # Module class to define methods related to worker and harvester
 class WorkerModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # update stat of workers with jobtype breakdown

@@ -1,6 +1,7 @@
 import copy
 import datetime
 import json
+import logging
 import math
 import operator
 import re
@@ -42,7 +43,7 @@ except ImportError:
 # Module class to define methods related to tasks and events, being merged into a single module due to their cross-references
 class TaskEventModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # make event range ID for event service

@@ -2,13 +2,13 @@ import copy
 import datetime
 import glob
 import json
+import logging
 import os
 import random
 import re
 import time
 from typing import Any, Sequence
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -34,7 +34,7 @@ from pandaserver.taskbuffer.JobSpec import JobSpec
 # Module class to define miscellaneous standalone methods that are independent of another module's methods
 class MiscStandaloneModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # get PandaIDs with TaskID

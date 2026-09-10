@@ -1,11 +1,11 @@
 import datetime
 import json
+import logging
 import random
 import re
 import time
 from typing import Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -19,7 +19,7 @@ from pandaserver.taskbuffer.JobSpec import JobSpec
 # Module class to define miscellaneous job-related methods that are independent of another module's methods
 class JobStandaloneModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # activate job. move job from jobsDefined to jobsActive

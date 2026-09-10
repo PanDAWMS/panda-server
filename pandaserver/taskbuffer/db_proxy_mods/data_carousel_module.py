@@ -1,7 +1,7 @@
 import datetime
+import logging
 from typing import Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -17,7 +17,7 @@ from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 # Module class to define Data Carousel related methods
 class DataCarouselModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # query data carousel request ID by dataset

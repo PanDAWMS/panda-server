@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import os
 import random
 import re
@@ -8,7 +9,6 @@ import traceback
 import uuid
 from typing import TYPE_CHECKING, Any, Collection, Literal
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -61,7 +61,7 @@ class EntityModule(BaseModule):
     job_prio_boost_dict_update_time: datetime.datetime | None
 
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
         # global share variables
         self.tree = None  # type: ignore[assignment]  # Pointer to the root of the global shares tree

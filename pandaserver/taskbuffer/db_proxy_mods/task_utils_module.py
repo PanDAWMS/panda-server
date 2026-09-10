@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import math
 import random
 import re
@@ -9,7 +10,6 @@ from statistics import mean
 from typing import TYPE_CHECKING, Any
 
 import numpy
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import (
     naive_utcnow,
 )
@@ -37,7 +37,7 @@ from pandaserver.taskbuffer.task_split_rules import decode_split_rule
 # Module class to define task related methods that are used by TaskComplex methods
 class TaskUtilsModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # check if item is matched with one of list items

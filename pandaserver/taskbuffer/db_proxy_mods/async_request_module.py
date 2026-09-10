@@ -1,8 +1,8 @@
 import datetime
 import json
+import logging
 from typing import Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
@@ -27,7 +27,7 @@ PARAMETER_META_KEYS = ("requester", "access", STRUCTURED_RESULT_KEY)
 
 
 class AsyncRequestModule(BaseModule):
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     def upsert_machine_heartbeat(self, machine_name: str, service_name: str) -> bool:

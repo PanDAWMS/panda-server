@@ -1,4 +1,5 @@
 import datetime
+import logging
 import math
 import random
 import re
@@ -6,7 +7,6 @@ import socket
 import sys
 from typing import Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -29,7 +29,7 @@ from pandaserver.taskbuffer.WorkQueue import WorkQueue
 # Module class to define isolated task related methods
 class TaskStandaloneModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # get files from the JEDI contents table with jediTaskID and/or datasetID
