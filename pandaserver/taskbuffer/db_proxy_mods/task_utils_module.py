@@ -81,7 +81,7 @@ class TaskUtilsModule(BaseModule):
             varMap[":type"] = "pseudo_input"
             self.cur.execute(sqlGS + comment, varMap)
             resGDA = self.cur.fetchall()
-            secondary_id_list = [tmpID for tmpID, in resGDA]
+            secondary_id_list = [tmpID for (tmpID,) in resGDA]
         if len(secondary_id_list) == 0:
             return
         # get primary files
@@ -91,9 +91,9 @@ class TaskUtilsModule(BaseModule):
         varMap[":datasetID"] = primary_id
         self.cur.execute(sqlGP + comment, varMap)
         resFP = self.cur.fetchall()
-        primaryList = [status for status, in resFP]
+        primaryList = [status for (status,) in resFP]
         # sql to get secondary files
-        sqlGS = ("SELECT fileID,status FROM {0}.JEDI_Dataset_Contents " " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID " "ORDER BY fileID ").format(
+        sqlGS = ("SELECT fileID,status FROM {0}.JEDI_Dataset_Contents  WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID ORDER BY fileID ").format(
             panda_config.schemaJEDI
         )
         # sql to update files
@@ -530,7 +530,7 @@ class TaskUtilsModule(BaseModule):
             else:
                 extraInfo["successRate"] = 0
             tmpLog.debug(
-                f"""scout total={scTotal} finished={scOK} failed={scNG} target_rate={None if scoutSuccessRate is None else scoutSuccessRate/10} actual_rate={extraInfo["successRate"]}"""
+                f"""scout total={scTotal} finished={scOK} failed={scNG} target_rate={None if scoutSuccessRate is None else scoutSuccessRate / 10} actual_rate={extraInfo["successRate"]}"""
             )
             if scoutSuccessRate and scTotal and extraInfo["successRate"] < scoutSuccessRate / 10:
                 tmpLog.debug("not enough scouts succeeded")
@@ -1287,8 +1287,7 @@ class TaskUtilsModule(BaseModule):
                         # check expected number of jobs
                         if shortJobCutoff and min(extraInfo["expectedNumJobs"], extraInfo["expectedNumJobsWithEvent"]) < shortJobCutoff:
                             tmpLog.debug(
-                                "not to set exhausted or change split rule since expect num of jobs "
-                                "min({} file-based, {} event-based) is less than {}".format(
+                                "not to set exhausted or change split rule since expect num of jobs min({} file-based, {} event-based) is less than {}".format(
                                     extraInfo["expectedNumJobs"], extraInfo["expectedNumJobsWithEvent"], shortJobCutoff
                                 )
                             )
@@ -2087,7 +2086,6 @@ class TaskUtilsModule(BaseModule):
         tmp_log.debug("start")
         ret_val = None
         try:
-
             sql = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sql += "WHERE jediTaskID=:jediTaskID "
             var_map = {":jediTaskID": parent_task_id}

@@ -1784,7 +1784,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     for tmpPseudoSiteName, error_diag in candidates_with_problems:
                         tmpSiteSpec = self.siteMapper.getSite(tmpPseudoSiteName)
                         msg_map[tmpSiteSpec.get_unified_name()] = (
-                            f"  skip site={tmpSiteSpec.get_unified_name()} due to a temporary user-specific problem: {error_diag} " "criteria=-tmp_user_problem"
+                            f"  skip site={tmpSiteSpec.get_unified_name()} due to a temporary user-specific problem: {error_diag} criteria=-tmp_user_problem"
                         )
                     self.add_summary_message(scanSiteList, [], "temp user problem check", tmpLog, msg_map)
                     self.dump_summary(tmpLog)

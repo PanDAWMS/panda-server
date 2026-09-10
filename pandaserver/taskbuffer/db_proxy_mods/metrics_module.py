@@ -848,7 +848,7 @@ class MetricsModule(BaseModule):
                WHERE vo=:vo AND jobStatus=:job_status GROUP BY computingSite, nucleus
                """
 
-        if job_status in ["transferring", "running", "activated" "holding"]:
+        if job_status in ["transferring", "running", "activatedholding"]:
             table = f"{panda_config.schemaPANDA}.JOBS_SHARE_STATS"
         else:
             table = f"{panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS"

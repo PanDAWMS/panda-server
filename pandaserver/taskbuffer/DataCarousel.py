@@ -266,7 +266,7 @@ class DataCarouselRequestTransaction(object):
             comment = " /* DataCarouselRequestTransaction.update_spec */"
             dc_req_spec.modification_time = naive_utcnow()
             sql_update = (
-                f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests " f"SET {dc_req_spec.bindUpdateChangesExpression()} " "WHERE request_id=:request_id "
+                f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests SET {dc_req_spec.bindUpdateChangesExpression()} WHERE request_id=:request_id "
             )
             var_map = dc_req_spec.valuesMap(useSeq=False, onlyChanged=True)
             var_map[":request_id"] = dc_req_spec.request_id
@@ -553,7 +553,7 @@ class DataCarouselInterface(object):
             DataCarouselRequestSpec|None : spec of the request, or None if failed
         """
         tmp_log = LogWrapper(logger, f"get_request_by_id request_id={request_id}")
-        sql = f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id "
+        sql = f"SELECT {DataCarouselRequestSpec.columnNames()} FROM {panda_config.schemaJEDI}.data_carousel_requests WHERE request_id=:request_id "
         var_map = {":request_id": request_id}
         res_list = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
         if res_list is not None:
@@ -880,7 +880,7 @@ class DataCarouselInterface(object):
             list[int]|None : list of jediTaskID of related tasks, or None if failed
         """
         # tmp_log = LogWrapper(logger, f"_get_related_tasks request_id={request_id}")
-        sql = f"SELECT task_id " f"FROM {panda_config.schemaJEDI}.data_carousel_relations " f"WHERE request_id=:request_id " f"ORDER BY task_id "
+        sql = f"SELECT task_id FROM {panda_config.schemaJEDI}.data_carousel_relations WHERE request_id=:request_id ORDER BY task_id "
         var_map = {":request_id": request_id}
         res = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
         if res is not None:
@@ -1565,7 +1565,7 @@ class DataCarouselInterface(object):
         Returns:
             polars.DataFrame|None : dataframe of current Data Carousel requests table if successful, or None if failed
         """
-        sql = f"SELECT {','.join(DataCarouselRequestSpec.attributes)} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"ORDER BY request_id "
+        sql = f"SELECT {','.join(DataCarouselRequestSpec.attributes)} FROM {panda_config.schemaJEDI}.data_carousel_requests ORDER BY request_id "
         var_map: dict[str, Any] = {}
         res = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
         if res is not None:

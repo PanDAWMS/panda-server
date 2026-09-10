@@ -14,7 +14,6 @@ base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
 
 # panda dataset callback message processing plugin
 class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
-
     def __init__(self, **params: Any) -> None:
         super().__init__(**params)
         self.activities_with_file_callback: list[str] = []

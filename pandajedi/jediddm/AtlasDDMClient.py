@@ -341,8 +341,9 @@ class AtlasDDMClient(DDMClientBase):
         loopStart = naive_utcnow()
         try:
             tmp_log.debug(
-                "start datasetName={} check_completeness={} nFiles={} nSites={} "
-                "complete_only={}".format(dataset_spec.datasetName, check_completeness, len(dataset_spec.Files), len(site_endpoint_map), complete_only)
+                "start datasetName={} check_completeness={} nFiles={} nSites={} complete_only={}".format(
+                    dataset_spec.datasetName, check_completeness, len(dataset_spec.Files), len(site_endpoint_map), complete_only
+                )
             )
             # update the definition of all endpoints from AGIS
             self.updateEndPointDict()
@@ -1522,7 +1523,7 @@ class AtlasDDMClient(DDMClientBase):
                     if info["bytes"] > info["bytes_limit"] * limit_value > 0:
                         is_near_limit = True
                         rse_expression = info["rse_expression"]
-                        err_msg = f"close to global quota limit on {rse_expression} (Usage:{usage_in_tb} / Limit:{limit_in_tb} in TB > {int(limit_value*100)}%). see output from 'rucio list-account-usage {owner}'"
+                        err_msg = f"close to global quota limit on {rse_expression} (Usage:{usage_in_tb} / Limit:{limit_in_tb} in TB > {int(limit_value * 100)}%). see output from 'rucio list-account-usage {owner}'"
                         break
         except Exception as e:
             err_msg = f"failed to get global quota info with {str(e)}"

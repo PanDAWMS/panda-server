@@ -948,7 +948,7 @@ class MiscStandaloneModule(BaseModule):
             "WHERE modificationTime<:timeLimit AND (fileName like 'sources%' OR fileName like 'jobO%') ) "
             "WHERE rownum<:nRows "
         )
-        sqlU = "UPDATE ATLAS_PANDAMETA.userCacheUsage SET modificationTime=CURRENT_DATE " "WHERE userName=:userName AND fileName=:fileName "
+        sqlU = "UPDATE ATLAS_PANDAMETA.userCacheUsage SET modificationTime=CURRENT_DATE WHERE userName=:userName AND fileName=:fileName "
         try:
             tmp_log.debug("start")
             # begin transaction
@@ -1638,7 +1638,7 @@ class MiscStandaloneModule(BaseModule):
             allow_proxy = []
             allow_token = []
             allow_async_request = []
-            sql = "SELECT DISTINCT name, gridpref FROM ATLAS_PANDAMETA.users " "WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
+            sql = "SELECT DISTINCT name, gridpref FROM ATLAS_PANDAMETA.users WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
             var_map = {":ngStatus": "disabled"}
             self.cur.execute(sql + comment, var_map)
             res_list = self.cur.fetchall()
@@ -3223,8 +3223,8 @@ class MiscStandaloneModule(BaseModule):
             if problem_type not in ["dest", None]:
                 tmp_log.debug(f"unknown problem type: {problem_type}")
                 return None
-            sqlR = "SELECT pagecache FROM ATLAS_PANDAMETA.users " "WHERE name=:name "
-            sqlW = "UPDATE ATLAS_PANDAMETA.users SET pagecache=:data " "WHERE name=:name "
+            sqlR = "SELECT pagecache FROM ATLAS_PANDAMETA.users WHERE name=:name "
+            sqlW = "UPDATE ATLAS_PANDAMETA.users SET pagecache=:data WHERE name=:name "
             # string to use a dict key
             task_id_key = str(jedi_task_id)
             # start transaction
@@ -3367,7 +3367,7 @@ class MiscStandaloneModule(BaseModule):
             # loop over all IDs
             for tmp_id in panda_id_list:
                 tmp_log = self.create_tagged_logger(comment, f"PandaID={tmp_id}")
-                sqlL = "SELECT data FROM {0}.SQL_QUEUE WHERE topic=:topic AND PandaID=:PandaID ORDER BY " "execution_order FOR UPDATE NOWAIT ".format(
+                sqlL = "SELECT data FROM {0}.SQL_QUEUE WHERE topic=:topic AND PandaID=:PandaID ORDER BY execution_order FOR UPDATE NOWAIT ".format(
                     panda_config.schemaPANDA
                 )
                 sqlD = f"DELETE FROM {panda_config.schemaPANDA}.SQL_QUEUE WHERE PandaID=:PandaID "
@@ -3376,7 +3376,7 @@ class MiscStandaloneModule(BaseModule):
                 for i_try in range(n_try):
                     all_ok = True
                     query_list = []
-                    tmp_log.debug(f"Trying PandaID={tmp_id} {i_try+1}/{n_try}")
+                    tmp_log.debug(f"Trying PandaID={tmp_id} {i_try + 1}/{n_try}")
                     tmp_data_list = None
                     # start transaction
                     self.conn.begin()
@@ -3526,13 +3526,13 @@ class MiscStandaloneModule(BaseModule):
             # sql to check
             sqlC = f"SELECT timestamp FROM {panda_config.schemaJEDI}.JEDI_Dataset_Locality WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rse=:rse "
             # sql to insert
-            sqlI = (
-                "INSERT INTO {0}.JEDI_Dataset_Locality " "(jediTaskID, datasetID, rse, timestamp) " "VALUES (:jediTaskID, :datasetID, :rse, :timestamp)"
-            ).format(panda_config.schemaJEDI)
+            sqlI = ("INSERT INTO {0}.JEDI_Dataset_Locality (jediTaskID, datasetID, rse, timestamp) VALUES (:jediTaskID, :datasetID, :rse, :timestamp)").format(
+                panda_config.schemaJEDI
+            )
             # sql to update
-            sqlU = (
-                "UPDATE {0}.JEDI_Dataset_Locality " "SET timestamp=:timestamp " "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rse=:rse "
-            ).format(panda_config.schemaJEDI)
+            sqlU = ("UPDATE {0}.JEDI_Dataset_Locality SET timestamp=:timestamp WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rse=:rse ").format(
+                panda_config.schemaJEDI
+            )
             # start transaction
             self.conn.begin()
             # check

@@ -1856,7 +1856,7 @@ class JobStandaloneModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             # loop over all tasks
-            task_ids = [task_id for task_id, in task_rows]
+            task_ids = [task_id for (task_id,) in task_rows]
             random.shuffle(task_ids)
             total_updated = 0
             updated_per_task = {}
@@ -1954,7 +1954,7 @@ class JobStandaloneModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             # loop over all tasks
-            task_ids = [task_id for task_id, in task_rows]
+            task_ids = [task_id for (task_id,) in task_rows]
             random.shuffle(task_ids)
             total_updated = 0
             updated_per_task = {}
@@ -2392,9 +2392,9 @@ class JobStandaloneModule(BaseModule):
                 "FOR UPDATE NOWAIT "
             ).format(panda_config.schemaPANDA)
             # sql to update lock
-            sqlUL = (
-                "UPDATE {0}.Job_Output_Report " "SET lockedBy=:lockedBy, lockedTime=:lockedTime " "WHERE PandaID=:PandaID AND attemptNr=:attemptNr "
-            ).format(panda_config.schemaPANDA)
+            sqlUL = ("UPDATE {0}.Job_Output_Report SET lockedBy=:lockedBy, lockedTime=:lockedTime WHERE PandaID=:PandaID AND attemptNr=:attemptNr ").format(
+                panda_config.schemaPANDA
+            )
             # start transaction
             self.conn.begin()
             # check
@@ -2453,11 +2453,7 @@ class JobStandaloneModule(BaseModule):
             retVal = False
             # sql to get lock
             sqlGL = (
-                "SELECT PandaID,attemptNr "
-                "FROM {0}.Job_Output_Report "
-                "WHERE PandaID=:PandaID AND attemptNr=:attemptNr "
-                "AND lockedBy=:lockedBy "
-                "FOR UPDATE"
+                "SELECT PandaID,attemptNr FROM {0}.Job_Output_Report WHERE PandaID=:PandaID AND attemptNr=:attemptNr AND lockedBy=:lockedBy FOR UPDATE"
             ).format(panda_config.schemaPANDA)
             # sql to update lock
             sqlUL = f"UPDATE {panda_config.schemaPANDA}.Job_Output_Report SET lockedTime=:lockedTime WHERE PandaID=:PandaID AND attemptNr=:attemptNr "
@@ -2527,7 +2523,7 @@ class JobStandaloneModule(BaseModule):
                     anti_label_var_names_str, anti_label_var_map = get_sql_IN_bind_variables(anti_labels, prefix=":al_", value_as_suffix=True)
                     sqlGR += f"AND prodSourceLabel NOT IN ({anti_label_var_names_str}) "
                     varMap.update(anti_label_var_map)
-                sqlGR += "ORDER BY timeStamp " ") " "WHERE rownum<=:limit "
+                sqlGR += "ORDER BY timeStamp ) WHERE rownum<=:limit "
                 # start transaction
                 self.conn.begin()
                 # check
@@ -2544,13 +2540,7 @@ class JobStandaloneModule(BaseModule):
             else:
                 # sql to select
                 sqlS = (
-                    "SELECT * "
-                    "FROM ( "
-                    "SELECT PandaID,jobStatus,attemptNr,timeStamp "
-                    "FROM {0}.Job_Output_Report "
-                    "ORDER BY timeStamp "
-                    ") "
-                    "WHERE rownum<=:limit "
+                    "SELECT * FROM ( SELECT PandaID,jobStatus,attemptNr,timeStamp FROM {0}.Job_Output_Report ORDER BY timeStamp ) WHERE rownum<=:limit "
                 ).format(panda_config.schemaPANDA)
                 # start transaction
                 self.conn.begin()
@@ -2588,7 +2578,7 @@ class JobStandaloneModule(BaseModule):
                 )
             else:
                 sqlR = "SELECT commandToPilot FROM ATLAS_PANDA.{} WHERE PandaID=:PandaID FOR UPDATE "
-                sqlU = "UPDATE ATLAS_PANDA.{} SET commandToPilot=:commandToPilot " "WHERE PandaID=:PandaID "
+                sqlU = "UPDATE ATLAS_PANDA.{} SET commandToPilot=:commandToPilot WHERE PandaID=:PandaID "
                 for table in ["jobsDefined4", "jobsActive4"]:
                     # start transaction
                     self.conn.begin()

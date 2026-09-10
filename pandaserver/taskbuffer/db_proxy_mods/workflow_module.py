@@ -42,7 +42,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_workflow */"
         tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_id}")
-        sql = f"SELECT {WorkflowSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflows " f"WHERE workflow_id=:workflow_id "
+        sql = f"SELECT {WorkflowSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflows WHERE workflow_id=:workflow_id "
         var_map = {":workflow_id": workflow_id}
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
@@ -72,7 +72,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_child_workflows */"
         tmp_log = self.create_tagged_logger(comment, f"parent_id={parent_id}")
-        sql = f"SELECT {WorkflowSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflows " f"WHERE parent_id=:parent_id "
+        sql = f"SELECT {WorkflowSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflows WHERE parent_id=:parent_id "
         var_map = {":parent_id": parent_id}
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
@@ -97,7 +97,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_workflow_step */"
         tmp_log = self.create_tagged_logger(comment, f"step_id={step_id}")
-        sql = f"SELECT {WFStepSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_steps " f"WHERE step_id=:step_id "
+        sql = f"SELECT {WFStepSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflow_steps WHERE step_id=:step_id "
         var_map = {":step_id": step_id}
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
@@ -127,7 +127,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_workflow_data */"
         tmp_log = self.create_tagged_logger(comment, f"data_id={data_id}")
-        sql = f"SELECT {WFDataSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_data " f"WHERE data_id=:data_id "
+        sql = f"SELECT {WFDataSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflow_data WHERE data_id=:data_id "
         var_map = {":data_id": data_id}
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
@@ -158,7 +158,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_workflow_data_by_name */"
         tmp_log = self.create_tagged_logger(comment, f"name={name}, workflow_id={workflow_id}")
-        sql = f"SELECT {WFDataSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_data " f"WHERE name=:name "
+        sql = f"SELECT {WFDataSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflow_data WHERE name=:name "
         var_map: dict[str, Any] = {":name": name}
         if workflow_id is not None:
             sql += "AND workflow_id=:workflow_id "
@@ -196,7 +196,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_steps_of_workflow */"
         tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_id}")
-        sql = f"SELECT {WFStepSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_steps " f"WHERE workflow_id=:workflow_id "
+        sql = f"SELECT {WFStepSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflow_steps WHERE workflow_id=:workflow_id "
         var_map = {":workflow_id": workflow_id}
         if status_filter_list:
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
@@ -241,7 +241,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_data_of_workflow */"
         tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_id}")
-        sql = f"SELECT {WFDataSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_data " f"WHERE workflow_id=:workflow_id "
+        sql = f"SELECT {WFDataSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflow_data WHERE workflow_id=:workflow_id "
         var_map = {":workflow_id": workflow_id}
         if status_filter_list:
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
@@ -294,7 +294,7 @@ class WorkflowModule(BaseModule):
         comment = " /* DBProxy.query_workflows_old */"
         tmp_log = self.create_tagged_logger(comment, "query_workflows_old")
         tmp_log.debug(f"start, status_filter_list={status_filter_list} status_exclusion_list={status_exclusion_list} check_interval_sec={check_interval_sec}")
-        sql = f"SELECT {WorkflowSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflows " f"WHERE (check_time IS NULL OR check_time<:check_time) "
+        sql = f"SELECT {WorkflowSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflows WHERE (check_time IS NULL OR check_time<:check_time) "
         now_time = naive_utcnow()
         var_map = {":check_time": now_time - timedelta(seconds=check_interval_sec)}
         if status_filter_list:
@@ -356,7 +356,7 @@ class WorkflowModule(BaseModule):
         comment = " /* DBProxy.query_workflows */"
         tmp_log = self.create_tagged_logger(comment, "query_workflows")
         tmp_log.debug(f"start, status_filter_list={status_filter_list} status_exclusion_list={status_exclusion_list} check_interval_sec={check_interval_sec}")
-        sql = f"SELECT {WorkflowSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflows " f"WHERE (check_time IS NULL OR check_time<:check_time) "
+        sql = f"SELECT {WorkflowSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflows WHERE (check_time IS NULL OR check_time<:check_time) "
         now_time = naive_utcnow()
         var_map = {":check_time": now_time - timedelta(seconds=check_interval_sec)}
         if status_filter_list:
@@ -451,7 +451,7 @@ class WorkflowModule(BaseModule):
         tmp_log.debug("start")
         try:
             sql_unlock = (
-                f"UPDATE {panda_config.schemaJEDI}.workflows " "SET locked_by=NULL, lock_time=NULL " "WHERE workflow_id=:workflow_id AND locked_by=:locked_by"
+                f"UPDATE {panda_config.schemaJEDI}.workflows SET locked_by=NULL, lock_time=NULL WHERE workflow_id=:workflow_id AND locked_by=:locked_by"
             )
             var_map = {":workflow_id": workflow_id, ":locked_by": locked_by}
             with self.transaction(tmp_log=tmp_log) as (cur, _):
@@ -538,9 +538,7 @@ class WorkflowModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"step_id={step_id}, locked_by={locked_by}")
         tmp_log.debug("start")
         try:
-            sql_unlock = (
-                f"UPDATE {panda_config.schemaJEDI}.workflow_steps " "SET locked_by=NULL, lock_time=NULL " "WHERE step_id=:step_id AND locked_by=:locked_by"
-            )
+            sql_unlock = f"UPDATE {panda_config.schemaJEDI}.workflow_steps SET locked_by=NULL, lock_time=NULL WHERE step_id=:step_id AND locked_by=:locked_by"
             var_map = {":step_id": step_id, ":locked_by": locked_by}
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 cur.execute(sql_unlock + comment, var_map)
@@ -626,9 +624,7 @@ class WorkflowModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"data_id={data_id}, locked_by={locked_by}")
         tmp_log.debug("start")
         try:
-            sql_unlock = (
-                f"UPDATE {panda_config.schemaJEDI}.workflow_data " "SET locked_by=NULL, lock_time=NULL " "WHERE data_id=:data_id AND locked_by=:locked_by"
-            )
+            sql_unlock = f"UPDATE {panda_config.schemaJEDI}.workflow_data SET locked_by=NULL, lock_time=NULL WHERE data_id=:data_id AND locked_by=:locked_by"
             var_map = {":data_id": data_id, ":locked_by": locked_by}
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 cur.execute(sql_unlock + comment, var_map)
@@ -760,9 +756,7 @@ class WorkflowModule(BaseModule):
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 # sql to update workflow
                 workflow_spec.modification_time = naive_utcnow()
-                sql_update = (
-                    f"UPDATE {panda_config.schemaJEDI}.workflows " f"SET {workflow_spec.bindUpdateChangesExpression()} " "WHERE workflow_id=:workflow_id "
-                )
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflows SET {workflow_spec.bindUpdateChangesExpression()} WHERE workflow_id=:workflow_id "
                 var_map = workflow_spec.valuesMap(useSeq=False, onlyChanged=True)
                 var_map[":workflow_id"] = workflow_spec.workflow_id
                 cur.execute(sql_update + comment, var_map)
@@ -788,7 +782,7 @@ class WorkflowModule(BaseModule):
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 # sql to update workflow step
                 step_spec.modification_time = naive_utcnow()
-                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_steps " f"SET {step_spec.bindUpdateChangesExpression()} " "WHERE step_id=:step_id "
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_steps SET {step_spec.bindUpdateChangesExpression()} WHERE step_id=:step_id "
                 var_map = step_spec.valuesMap(useSeq=False, onlyChanged=True)
                 var_map[":step_id"] = step_spec.step_id
                 cur.execute(sql_update + comment, var_map)
@@ -814,7 +808,7 @@ class WorkflowModule(BaseModule):
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 # sql to update workflow data
                 data_spec.modification_time = naive_utcnow()
-                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_data " f"SET {data_spec.bindUpdateChangesExpression()} " "WHERE data_id=:data_id "
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_data SET {data_spec.bindUpdateChangesExpression()} WHERE data_id=:data_id "
                 var_map = data_spec.valuesMap(useSeq=False, onlyChanged=True)
                 var_map[":data_id"] = data_spec.data_id
                 cur.execute(sql_update + comment, var_map)
@@ -893,9 +887,7 @@ class WorkflowModule(BaseModule):
                 elif action_of_data == "update" and data_specs:
                     for data_spec in data_specs:
                         data_spec.modification_time = naive_utcnow()
-                        sql_update = (
-                            f"UPDATE {panda_config.schemaJEDI}.workflow_data " f"SET {data_spec.bindUpdateChangesExpression()} " "WHERE data_id=:data_id "
-                        )
+                        sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_data SET {data_spec.bindUpdateChangesExpression()} WHERE data_id=:data_id "
                         var_map = data_spec.valuesMap(useSeq=False, onlyChanged=True)
                         var_map[":data_id"] = data_spec.data_id
                         self.cur.execute(sql_update + comment, var_map)
@@ -920,9 +912,7 @@ class WorkflowModule(BaseModule):
                 elif action_of_steps == "update" and step_specs:
                     for step_spec in step_specs:
                         step_spec.modification_time = naive_utcnow()
-                        sql_update = (
-                            f"UPDATE {panda_config.schemaJEDI}.workflow_steps " f"SET {step_spec.bindUpdateChangesExpression()} " "WHERE step_id=:step_id "
-                        )
+                        sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_steps SET {step_spec.bindUpdateChangesExpression()} WHERE step_id=:step_id "
                         var_map = step_spec.valuesMap(useSeq=False, onlyChanged=True)
                         var_map[":step_id"] = step_spec.step_id
                         self.cur.execute(sql_update + comment, var_map)
@@ -944,9 +934,7 @@ class WorkflowModule(BaseModule):
                     tmp_log.debug(f"inserted a workflow workflow_id={workflow_id}")
                 elif action_of_workflow == "update" and workflow_spec:
                     workflow_spec.modification_time = naive_utcnow()
-                    sql_update = (
-                        f"UPDATE {panda_config.schemaJEDI}.workflows " f"SET {workflow_spec.bindUpdateChangesExpression()} " "WHERE workflow_id=:workflow_id "
-                    )
+                    sql_update = f"UPDATE {panda_config.schemaJEDI}.workflows SET {workflow_spec.bindUpdateChangesExpression()} WHERE workflow_id=:workflow_id "
                     var_map = workflow_spec.valuesMap(useSeq=False, onlyChanged=True)
                     var_map[":workflow_id"] = workflow_spec.workflow_id
                     self.cur.execute(sql_update + comment, var_map)

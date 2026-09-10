@@ -45,7 +45,7 @@ taskParamMap["log"] = {
 taskParamMap["hpoRequestData"] = {
     "sandbox": "gitlab-registry.cern.ch/zhangruihpc/steeringcontainer:latest",
     "executable": "docker",
-    "arguments": '/bin/bash -c "hpogrid generate --n_point=%NUM_POINTS ' "--max_point=%MAX_POINTS --infile=$PWD/%IN  --outfile=$PWD/%OUT " '-l=nevergrad"',
+    "arguments": '/bin/bash -c "hpogrid generate --n_point=%NUM_POINTS --max_point=%MAX_POINTS --infile=$PWD/%IN  --outfile=$PWD/%OUT -l=nevergrad"',
     "output_json": "output.json",
     "max_points": 10,
     "num_points_per_generation": 2,
@@ -54,7 +54,7 @@ taskParamMap["hpoRequestData"] = {
 taskParamMap["container_name"] = "docker://gitlab-registry.cern.ch/zhangruihpc/evaluationcontainer:mlflow"
 
 taskParamMap["jobParameters"] = [
-    {"type": "constant", "value": f"-o out.json -j \"\" -p \"{quote('bash ./exec_in_container.sh')}\""},
+    {"type": "constant", "value": f'-o out.json -j "" -p "{quote("bash ./exec_in_container.sh")}"'},
     {"type": "constant", "value": "--writeInputToTxt IN_DATA:input_ds.json --inSampleFile input_sample.json"},
     {"type": "constant", "value": "-a aaa.tgz --sourceURL https://aipanda048.cern.ch:25443"},
     {"type": "constant", "value": "--inMap \"{'IN_DATA': ${IN_DATA/T}}\""},

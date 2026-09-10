@@ -29,10 +29,7 @@ class DataCarouselModule(BaseModule):
             # sql to query request of the dataset
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.reusable_statuses, prefix=":status_")
             sql_query = (
-                f"SELECT request_id "
-                f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
-                f"WHERE dataset=:dataset "
-                f"AND status IN ({status_var_names_str}) "
+                f"SELECT request_id FROM {panda_config.schemaJEDI}.data_carousel_requests WHERE dataset=:dataset AND status IN ({status_var_names_str}) "
             )
             var_map = {":dataset": dataset}
             var_map.update(status_var_map)
@@ -70,10 +67,7 @@ class DataCarouselModule(BaseModule):
                 # sql to query request of the dataset
                 status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.reusable_statuses, prefix=":status")
                 sql_query = (
-                    f"SELECT request_id "
-                    f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
-                    f"WHERE dataset=:dataset "
-                    f"AND status IN ({status_var_names_str}) "
+                    f"SELECT request_id FROM {panda_config.schemaJEDI}.data_carousel_requests WHERE dataset=:dataset AND status IN ({status_var_names_str}) "
                 )
                 var_map = {":dataset": dc_req_spec.dataset}
                 var_map.update(status_var_map)
@@ -104,9 +98,7 @@ class DataCarouselModule(BaseModule):
                     raise RuntimeError("the_request_id is None")
                 # sql to query relation
                 sql_rel_query = (
-                    f"SELECT request_id, task_id "
-                    f"FROM {panda_config.schemaJEDI}.data_carousel_relations "
-                    f"WHERE request_id=:request_id AND task_id=:task_id "
+                    f"SELECT request_id, task_id FROM {panda_config.schemaJEDI}.data_carousel_relations WHERE request_id=:request_id AND task_id=:task_id "
                 )
                 var_map = {":request_id": the_request_id, ":task_id": task_id}
                 self.cur.execute(sql_rel_query + comment, var_map)
@@ -116,9 +108,7 @@ class DataCarouselModule(BaseModule):
                     n_rel_reused += 1
                 else:
                     # sql to insert relation
-                    sql_insert_relation = (
-                        f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_relations (request_id, task_id) " f"VALUES(:request_id, :task_id) "
-                    )
+                    sql_insert_relation = f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_relations (request_id, task_id) VALUES(:request_id, :task_id) "
                     self.cur.execute(sql_insert_relation + comment, var_map)
                     n_rel_inserted += 1
             # commit
@@ -147,7 +137,7 @@ class DataCarouselModule(BaseModule):
             # sql to update request
             dc_req_spec.modification_time = naive_utcnow()
             sql_update = (
-                f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests " f"SET {dc_req_spec.bindUpdateChangesExpression()} " "WHERE request_id=:request_id "
+                f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests SET {dc_req_spec.bindUpdateChangesExpression()} WHERE request_id=:request_id "
             )
             var_map = dc_req_spec.valuesMap(useSeq=False, onlyChanged=True)
             var_map[":request_id"] = dc_req_spec.request_id
@@ -179,9 +169,7 @@ class DataCarouselModule(BaseModule):
             for request_id in request_ids:
                 # sql to query relation
                 sql_rel_query = (
-                    f"SELECT request_id, task_id "
-                    f"FROM {panda_config.schemaJEDI}.data_carousel_relations "
-                    f"WHERE request_id=:request_id AND task_id=:task_id "
+                    f"SELECT request_id, task_id FROM {panda_config.schemaJEDI}.data_carousel_relations WHERE request_id=:request_id AND task_id=:task_id "
                 )
                 var_map = {":request_id": request_id, ":task_id": task_id}
                 self.cur.execute(sql_rel_query + comment, var_map)
@@ -191,9 +179,7 @@ class DataCarouselModule(BaseModule):
                     n_rel_reused += 1
                 else:
                     # sql to insert relation
-                    sql_insert_relation = (
-                        f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_relations (request_id, task_id) " f"VALUES(:request_id, :task_id) "
-                    )
+                    sql_insert_relation = f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_relations (request_id, task_id) VALUES(:request_id, :task_id) "
                     self.cur.execute(sql_insert_relation + comment, var_map)
                     n_rel_inserted += 1
             # commit
@@ -220,9 +206,7 @@ class DataCarouselModule(BaseModule):
             # start transaction
             self.conn.begin()
             # sql to query queued requests with gshare and priority info from related tasks
-            sql_query_req = (
-                f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status=:status "
-            )
+            sql_query_req = f"SELECT {DataCarouselRequestSpec.columnNames()} FROM {panda_config.schemaJEDI}.data_carousel_requests WHERE status=:status "
             var_map = {":status": DataCarouselRequestStatus.queued}
             self.cur.execute(sql_query_req + comment, var_map)
             res_list = self.cur.fetchall()
@@ -412,7 +396,7 @@ class DataCarouselModule(BaseModule):
             res_list = self.cur.fetchall()
             if res_list:
                 now_time = naive_utcnow()
-                sql_update = f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests " f"SET check_time=:check_time " f"WHERE request_id=:request_id "
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests SET check_time=:check_time WHERE request_id=:request_id "
                 for res in res_list:
                     # make request spec
                     dc_req_spec = DataCarouselRequestSpec()
@@ -448,7 +432,7 @@ class DataCarouselModule(BaseModule):
             # sql to delete terminated requests
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.final_statuses, prefix=":status")
             sql_delete_req = (
-                f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id " f"AND status IN ({status_var_names_str}) "
+                f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_requests WHERE request_id=:request_id AND status IN ({status_var_names_str}) "
             )
             var_map_base = {}
             var_map_base.update(status_var_map)
@@ -492,7 +476,7 @@ class DataCarouselModule(BaseModule):
             now_time = naive_utcnow()
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.final_statuses, prefix=":status")
             sql_delete_req = (
-                f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status IN ({status_var_names_str}) " f"AND end_time<=:end_time_max "
+                f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_requests WHERE status IN ({status_var_names_str}) AND end_time<=:end_time_max "
             )
             var_map = {":end_time_max": now_time - datetime.timedelta(days=time_limit_days)}
             var_map.update(status_var_map)
@@ -664,9 +648,7 @@ class DataCarouselModule(BaseModule):
             elif dc_req_spec.status == DataCarouselRequestStatus.done:
                 new_status = DataCarouselRequestStatus.retired
                 sql_update = (
-                    f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
-                    f"SET status=:new_status, modification_time=:now_time "
-                    f"WHERE request_id=:request_id "
+                    f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests SET status=:new_status, modification_time=:now_time WHERE request_id=:request_id "
                 )
                 var_map = {
                     ":request_id": request_id,
@@ -699,9 +681,7 @@ class DataCarouselModule(BaseModule):
                 raise RuntimeError("new_request_id is None")
             tmp_log.debug(f"resubmitted request with new_request_id={new_request_id}")
             # sql to update relations according to the relations of the old request
-            sql_update_relations = (
-                f"UPDATE {panda_config.schemaJEDI}.data_carousel_relations " f"SET request_id=:new_request_id " f"WHERE request_id=:old_request_id "
-            )
+            sql_update_relations = f"UPDATE {panda_config.schemaJEDI}.data_carousel_relations SET request_id=:new_request_id WHERE request_id=:old_request_id "
             var_map = {":new_request_id": new_request_id, ":old_request_id": request_id}
             self.cur.execute(sql_update_relations + comment, var_map)
             ret_rel = self.cur.rowcount

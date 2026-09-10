@@ -63,7 +63,7 @@ class WorkflowProcessor(object):
                     ops["data"]["taskParams"][task_type]["userName"] = user_name
                     if base_platform:
                         ops["data"]["taskParams"][task_type]["basePlatform"] = base_platform
-                log_token = f"< id=\"{user_name}\" test={test_mode} outDS={ops['data']['outDS']} >"
+                log_token = f'< id="{user_name}" test={test_mode} outDS={ops["data"]["outDS"]} >'
                 tmpLog = LogWrapper(self.log, log_token)
                 tmpLog.info(f"start {file_name}")
                 sandbox_url = os.path.join(ops["data"]["sourceURL"], "cache", ops["data"]["sandbox"])

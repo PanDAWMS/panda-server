@@ -1,19 +1,18 @@
 repos:
 
--   repo: https://github.com/ikamensh/flynt
-    rev: '1.0.1'  # Specify a specific version if desired
+# ruff stands in for black, isort and flynt as well as being the linter: one pin instead
+# of three, and one tool to reason about. Its formatter targets black's style but is not
+# byte-identical to it, which is why the switch came with a one-time reformat of the tree.
+#
+# The rules and the line length live in [tool.ruff] in pyproject.toml, so --isolated is
+# deliberately absent here and a developer running ruff by hand gets the same answer.
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.6
     hooks:
-    -   id: flynt
-        args: [ "--line-length", "160"]  # Flynt does not support pyproject.toml in special locations
-
--   repo: https://github.com/psf/black
-    rev: 24.10.0
-    hooks:
-    -   id: black
-        types: [python]
-
--   repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-    -   id: isort
-        name: isort (python)
+    # The whole tree, not just the staged files: the scan takes hundredths of a second,
+    # and a name can be broken by an edit somewhere else -- a renamed import, a deleted
+    # helper, a moved class.
+    -   id: ruff-check
+        args: [--fix, .]
+        pass_filenames: false
+    -   id: ruff-format

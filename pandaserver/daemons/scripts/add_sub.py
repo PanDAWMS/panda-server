@@ -204,7 +204,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                 nJob = 100
                 iJob = 0
                 while iJob < len(jediJobs):
-                    tmp_log.debug(f" killing {str(jediJobs[iJob:iJob + nJob])}")
+                    tmp_log.debug(f" killing {str(jediJobs[iJob : iJob + nJob])}")
                     Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
                     iJob += nJob
     except Exception:

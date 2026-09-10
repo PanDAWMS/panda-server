@@ -297,8 +297,10 @@ class JobThrottlerBase(object):
         configRunningCapKey = config_map[NRUNNINGCAP]["key"]
 
         tmp_log.debug(
-            msg_header + " got configuration configQueueLimit={} ({}), configQueueCap={} ({}),"
-            " configRunningCap={} ({})".format(configQueueLimit, configQueueLimitKey, configQueueCap, configQueueCapKey, configRunningCap, configRunningCapKey)
+            msg_header
+            + " got configuration configQueueLimit={} ({}), configQueueCap={} ({}), configRunningCap={} ({})".format(
+                configQueueLimit, configQueueLimitKey, configQueueCap, configQueueCapKey, configRunningCap, configRunningCapKey
+            )
         )
 
         # get the jobs statistics for our wq/gs and expand the stats map

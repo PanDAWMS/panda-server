@@ -451,7 +451,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                         # data locality
                         time_now = naive_utcnow()
                         if taskSpec.frozenTime and time_now - taskSpec.frozenTime > datetime.timedelta(days=data_location_check_period):
-                            tmpLog.info(f"disabled data check since the task was in assigning for " f"{data_location_check_period} days")
+                            tmpLog.info(f"disabled data check since the task was in assigning for {data_location_check_period} days")
                         else:
                             dataset_availability_info = {k: v for k, v in dataset_availability_info.items() if k in nucleusList}
                             if dataset_availability_info != {}:

@@ -150,9 +150,7 @@ class TaskBuffer:
                     "hammercloud",
                     "gangarobot",
                     "hammercloud-fax",
-                ] or jobs[
-                    0
-                ].processingType.startswith("gangarobot-"):
+                ] or jobs[0].processingType.startswith("gangarobot-"):
                     serNum = 0
                     weight = 0.0
                 elif jobs[0].processingType in ["gangarobot", "gangarobot-pft"]:

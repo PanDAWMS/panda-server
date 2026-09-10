@@ -338,7 +338,7 @@ class TaskEventModule(BaseModule):
             jobAttrs = {}
             # sql to update status
             sqlU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Events "
-            sqlU += "SET status=:eventStatus,objstore_ID=:objstoreID,error_code=:errorCode," "path_convention=:pathConvention,error_diag=:errorDiag"
+            sqlU += "SET status=:eventStatus,objstore_ID=:objstoreID,error_code=:errorCode,path_convention=:pathConvention,error_diag=:errorDiag"
             if version != 0:
                 sqlU += ",zipRow_ID=:zipRow_ID"
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
@@ -2601,7 +2601,7 @@ class TaskEventModule(BaseModule):
             # skip if already at largest limit
             if normalized_job_ram_count >= limit_list[-1]:
                 tmp_log.debug(
-                    f"Done. No change since job RAM limit ({normalized_job_ram_count}) " f"is larger than or equal to the highest limit ({limit_list[-1]})"
+                    f"Done. No change since job RAM limit ({normalized_job_ram_count}) is larger than or equal to the highest limit ({limit_list[-1]})"
                 )
                 return True
 
@@ -2744,9 +2744,7 @@ class TaskEventModule(BaseModule):
                              AND tabD.type IN ({1})
                              AND tabD.masterID IS NULL
                              GROUP BY ramCount
-                             """.format(
-                        panda_config.schemaJEDI, input_type_var_names_str
-                    )
+                             """.format(panda_config.schemaJEDI, input_type_var_names_str)
 
                     self.cur.execute(sqlMS + comment, varMap)
                     memory_stats = self.cur.fetchall()
@@ -3120,7 +3118,7 @@ class TaskEventModule(BaseModule):
         isMergeAtOS = EventServiceUtils.isMergeAtOS(jobSpec.specialHandling)
         # check where merge is done
         lookForMergeSite = True
-        sqlWM = "SELECT /* use_json_type */ scj.data.catchall, scj.data.objectstores " "FROM ATLAS_PANDA.schedconfig_json scj " "WHERE scj.panda_queue=:siteid "
+        sqlWM = "SELECT /* use_json_type */ scj.data.catchall, scj.data.objectstores FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteid "
 
         varMap: dict[str, Any] = {}
         varMap[":siteid"] = jobSpec.computingSite
@@ -3431,7 +3429,7 @@ class TaskEventModule(BaseModule):
         try:
             tmp_log.debug(f"try to find parent={parent_name}")
             # sql to get workers
-            sqlC = "SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Tasks " "WHERE userName=:userName AND taskName=:taskName " "ORDER BY jediTaskID DESC "
+            sqlC = "SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Tasks WHERE userName=:userName AND taskName=:taskName ORDER BY jediTaskID DESC "
             # start transaction
             self.conn.begin()
             varMap: dict[str, Any] = {}
@@ -3488,11 +3486,11 @@ class TaskEventModule(BaseModule):
             if "parentTaskName" in taskParamsJson:
                 parent_tid = self.get_parent_task_id_with_name(taskParamsJson["userName"], taskParamsJson["parentTaskName"])
                 if not parent_tid:
-                    tmpMsg = f"failed to find parent with user=\"{taskParamsJson['userName']}\" name={taskParamsJson['parentTaskName']}"
+                    tmpMsg = f'failed to find parent with user="{taskParamsJson["userName"]}" name={taskParamsJson["parentTaskName"]}'
                     tmp_log.debug(f"{tmpMsg}")
                     return 11, tmpMsg
                 else:
-                    tmp_log.debug(f"found parent {parent_tid} with user=\"{taskParamsJson['userName']}\" name={taskParamsJson['parentTaskName']}")
+                    tmp_log.debug(f'found parent {parent_tid} with user="{taskParamsJson["userName"]}" name={taskParamsJson["parentTaskName"]}')
             # set task type
             if not prodRole or "taskType" not in taskParamsJson:
                 taskParamsJson["taskType"] = "anal"
@@ -3932,7 +3930,7 @@ class TaskEventModule(BaseModule):
                 self.conn.begin()
 
             # get task status
-            sql_task_status = f"SELECT status, prodSourceLabel FROM {panda_config.schemaJEDI}.JEDI_Tasks " "WHERE jediTaskID=:jediTaskID "
+            sql_task_status = f"SELECT status, prodSourceLabel FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
             self.cur.execute(sql_task_status + comment, {":jediTaskID": jediTaskID})
             result_task_status = self.cur.fetchone()
             if result_task_status is None:
@@ -3962,7 +3960,7 @@ class TaskEventModule(BaseModule):
             notify_pilot = comStr in ("kill", "finish") and broadcast
 
             # delete command just in case
-            sql_delete_command = f"DELETE FROM {panda_config.schemaDEFT}.PRODSYS_COMM " "WHERE COMM_TASK=:jediTaskID "
+            sql_delete_command = f"DELETE FROM {panda_config.schemaDEFT}.PRODSYS_COMM WHERE COMM_TASK=:jediTaskID "
             self.cur.execute(sql_delete_command + comment, {":jediTaskID": jediTaskID})
 
             # insert command

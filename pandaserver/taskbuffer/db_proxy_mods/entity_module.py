@@ -2221,9 +2221,9 @@ class EntityModule(BaseModule):
             # sql to check data
             sqlC = "SELECT data FROM ATLAS_PANDA.Secrets WHERE owner=:owner "
             # sql to insert dummy
-            sqlI = "INSERT INTO ATLAS_PANDA.Secrets (owner, updated_at) " "VALUES(:owner,CURRENT_TIMESTAMP) "
+            sqlI = "INSERT INTO ATLAS_PANDA.Secrets (owner, updated_at) VALUES(:owner,CURRENT_TIMESTAMP) "
             # sql to update data
-            sqlU = "UPDATE ATLAS_PANDA.Secrets SET updated_at=CURRENT_TIMESTAMP,data=:data " "WHERE owner=:owner "
+            sqlU = "UPDATE ATLAS_PANDA.Secrets SET updated_at=CURRENT_TIMESTAMP,data=:data WHERE owner=:owner "
             # start transaction
             self.conn.begin()
             # check
@@ -2342,7 +2342,7 @@ class EntityModule(BaseModule):
                 self.cur.executemany(sql_update + comment, shard)
 
             tmp_log.debug("Inserting sites")
-            sql_insert = "INSERT INTO ATLAS_PANDA.site (site_name, role, tier_level) " "VALUES(:site_name, :role, :tier_level)"
+            sql_insert = "INSERT INTO ATLAS_PANDA.site (site_name, role, tier_level) VALUES(:site_name, :role, :tier_level)"
             for shard in create_shards(var_map_insert, 100):
                 self.cur.executemany(sql_insert + comment, shard)
 
@@ -2390,7 +2390,7 @@ class EntityModule(BaseModule):
                 self.cur.executemany(sql_update + comment, shard)
 
             tmp_log.debug("Inserting panda sites")
-            sql_insert = "INSERT INTO ATLAS_PANDA.panda_site (panda_site_name, site_name) " "VALUES(:panda_site_name, :site_name)"
+            sql_insert = "INSERT INTO ATLAS_PANDA.panda_site (panda_site_name, site_name) VALUES(:panda_site_name, :site_name)"
             for shard in create_shards(var_map_insert, 100):
                 self.cur.executemany(sql_insert + comment, shard)
 
@@ -2733,7 +2733,7 @@ class EntityModule(BaseModule):
             self.conn.begin()
 
             tmp_log.debug("Deleting old entries")
-            sql_delete = "DELETE FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS " "WHERE timestamp < sysdate - interval '10' day"
+            sql_delete = "DELETE FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS WHERE timestamp < sysdate - interval '10' day"
             self.cur.execute(sql_delete + comment)
 
             tmp_log.debug("Inserting emissions by region")
@@ -2822,7 +2822,7 @@ class EntityModule(BaseModule):
                 ":value": average_emissions,
             }
 
-            sql_insert = "INSERT INTO ATLAS_PANDA.carbon_region_emissions (region, timestamp, value) " "VALUES (:region, :timestamp, :value)"
+            sql_insert = "INSERT INTO ATLAS_PANDA.carbon_region_emissions (region, timestamp, value) VALUES (:region, :timestamp, :value)"
             self.cur.execute(sql_insert + comment, var_map)
 
             # commit
@@ -3183,7 +3183,7 @@ class EntityModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            retVal = {name: False for name, in res}
+            retVal = {name: False for (name,) in res}
             tmp_log.debug(f"got {retVal}")
             return True, retVal
         except Exception:

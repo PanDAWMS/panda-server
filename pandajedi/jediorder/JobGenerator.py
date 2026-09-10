@@ -782,7 +782,7 @@ class JobGeneratorThread(WorkerThread):
                                 taskSpec.setErrDiag(tmpErrStr, append=True, prepend=True)
                                 goForward = False
                             elif not pandaJobs:
-                                tmpErrStr = "candidates became full after the brokerage decision " "and skipped during the submission cycle"
+                                tmpErrStr = "candidates became full after the brokerage decision and skipped during the submission cycle"
                                 tmpLog.error(tmpErrStr)
                                 taskSpec.setOnHold()
                                 taskSpec.setErrDiag(tmpErrStr)
@@ -1963,7 +1963,9 @@ class JobGeneratorThread(WorkerThread):
                     fileSpec, datasetSpec = self.finished_lib_specs_map[buildSpecMapKey]
                 else:
                     tmpStat, fileSpec, datasetSpec = self.taskBufferIF.get_previous_build_file_spec(
-                        taskSpec.jediTaskID, siteSpec.get_unified_name(), associated_sites  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                        taskSpec.jediTaskID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                        siteSpec.get_unified_name(),
+                        associated_sites,
                     )
                     if fileSpec is not None:
                         self.finished_lib_specs_map[buildSpecMapKey] = (fileSpec, datasetSpec)
@@ -2210,7 +2212,13 @@ class JobGeneratorThread(WorkerThread):
                 jobSpec.hs06 = (jobSpec.coreCount or 1) * siteSpec.corepower  # type: ignore[assignment]
             # get log file
             outSubChunk, serialNr, datasetToRegister, siteDsMap, parallelOutMap = self.taskBufferIF.getOutputFiles_JEDI(
-                taskSpec.jediTaskID, None, simul, True, siteName, False, True  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                taskSpec.jediTaskID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                None,
+                simul,
+                True,
+                siteName,
+                False,
+                True,
             )
             if outSubChunk is None:
                 # failed

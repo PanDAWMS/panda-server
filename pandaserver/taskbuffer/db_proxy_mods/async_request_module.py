@@ -45,8 +45,8 @@ class AsyncRequestModule(BaseModule):
         try:
             now = naive_utcnow()
             sql_check = "SELECT 1 FROM ATLAS_PANDA.machine_heartbeat WHERE machine_name=:machine_name "
-            sql_update = "UPDATE ATLAS_PANDA.machine_heartbeat " "SET service_name=:service_name, last_seen=:now " "WHERE machine_name=:machine_name "
-            sql_insert = "INSERT INTO ATLAS_PANDA.machine_heartbeat (machine_name, service_name, last_seen) " "VALUES (:machine_name, :service_name, :now) "
+            sql_update = "UPDATE ATLAS_PANDA.machine_heartbeat SET service_name=:service_name, last_seen=:now WHERE machine_name=:machine_name "
+            sql_insert = "INSERT INTO ATLAS_PANDA.machine_heartbeat (machine_name, service_name, last_seen) VALUES (:machine_name, :service_name, :now) "
             self.conn.begin()
             self.cur.execute(sql_check + comment, {":machine_name": machine_name})
             exists = self.cur.fetchone() is not None
@@ -77,7 +77,7 @@ class AsyncRequestModule(BaseModule):
         tmp_log.debug("start")
         try:
             threshold = naive_utcnow() - datetime.timedelta(minutes=within_minutes)
-            sql = "SELECT machine_name FROM ATLAS_PANDA.machine_heartbeat " "WHERE service_name=:service_name AND last_seen>=:threshold "
+            sql = "SELECT machine_name FROM ATLAS_PANDA.machine_heartbeat WHERE service_name=:service_name AND last_seen>=:threshold "
             var_map = {":service_name": service_name, ":threshold": threshold}
             self.conn.begin()
             self.cur.arraysize = 1000
@@ -145,7 +145,7 @@ class AsyncRequestModule(BaseModule):
             # opportunistic prune of stale rows (child table first for FK)
             threshold = now - datetime.timedelta(days=retention_days)
             sql_del_results = (
-                "DELETE FROM ATLAS_PANDA.async_results " "WHERE request_id IN (SELECT request_id FROM ATLAS_PANDA.async_requests WHERE created_at<:threshold) "
+                "DELETE FROM ATLAS_PANDA.async_results WHERE request_id IN (SELECT request_id FROM ATLAS_PANDA.async_requests WHERE created_at<:threshold) "
             )
             self.cur.execute(sql_del_results + comment, {":threshold": threshold})
             sql_del_requests = "DELETE FROM ATLAS_PANDA.async_requests WHERE created_at<:threshold "
@@ -291,7 +291,7 @@ class AsyncRequestModule(BaseModule):
             self.conn.begin()
             now = naive_utcnow()
             # check current state under row lock to serialize concurrent claimers
-            sql_check = "SELECT status, attempts FROM ATLAS_PANDA.async_results " "WHERE request_id=:request_id AND machine_name=:machine_name FOR UPDATE "
+            sql_check = "SELECT status, attempts FROM ATLAS_PANDA.async_results WHERE request_id=:request_id AND machine_name=:machine_name FOR UPDATE "
             var_map = {":request_id": request_id, ":machine_name": machine_name}
             self.cur.arraysize = 1
             self.cur.execute(sql_check + comment, var_map)
@@ -378,7 +378,7 @@ class AsyncRequestModule(BaseModule):
             var_map_key = {":request_id": request_id, ":machine_name": machine_name}
             # for retriable failures, decide retry-vs-give-up under a row lock
             if status == "failed" and retriable:
-                sql_lock = "SELECT attempts FROM ATLAS_PANDA.async_results " "WHERE request_id=:request_id AND machine_name=:machine_name FOR UPDATE "
+                sql_lock = "SELECT attempts FROM ATLAS_PANDA.async_results WHERE request_id=:request_id AND machine_name=:machine_name FOR UPDATE "
                 self.cur.arraysize = 1
                 self.cur.execute(sql_lock + comment, var_map_key)
                 row = self.cur.fetchone()
@@ -447,7 +447,7 @@ class AsyncRequestModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id} machine={machine_name}")
         tmp_log.debug("start")
         try:
-            sql = "UPDATE ATLAS_PANDA.async_results SET started_at=:now " "WHERE request_id=:request_id AND machine_name=:machine_name AND status='running' "
+            sql = "UPDATE ATLAS_PANDA.async_results SET started_at=:now WHERE request_id=:request_id AND machine_name=:machine_name AND status='running' "
             var_map = {":request_id": request_id, ":machine_name": machine_name, ":now": naive_utcnow()}
             self.conn.begin()
             self.cur.execute(sql + comment, var_map)
@@ -524,10 +524,7 @@ class AsyncRequestModule(BaseModule):
             self.conn.begin()
             # child rows first (FK constraint)
             sql_results = (
-                "DELETE FROM ATLAS_PANDA.async_results "
-                "WHERE request_id IN ("
-                "  SELECT request_id FROM ATLAS_PANDA.async_requests WHERE created_at<:threshold"
-                ") "
+                "DELETE FROM ATLAS_PANDA.async_results WHERE request_id IN (  SELECT request_id FROM ATLAS_PANDA.async_requests WHERE created_at<:threshold) "
             )
             self.cur.execute(sql_results + comment, {":threshold": threshold})
             sql_requests = "DELETE FROM ATLAS_PANDA.async_requests WHERE created_at<:threshold "
@@ -562,7 +559,7 @@ class AsyncRequestModule(BaseModule):
             self.conn.begin()
             # fetch stale rows
             sql_select = (
-                "SELECT request_id, attempts FROM ATLAS_PANDA.async_results " "WHERE machine_name=:machine_name AND status='running' AND started_at<:threshold "
+                "SELECT request_id, attempts FROM ATLAS_PANDA.async_results WHERE machine_name=:machine_name AND status='running' AND started_at<:threshold "
             )
             var_map = {":machine_name": machine_name, ":threshold": threshold}
             self.cur.arraysize = 1000
@@ -572,8 +569,7 @@ class AsyncRequestModule(BaseModule):
             for request_id, attempts in rows or []:
                 if attempts < max_attempts:
                     sql_retry = (
-                        "UPDATE ATLAS_PANDA.async_results SET status='pending', finished_at=NULL "
-                        "WHERE request_id=:request_id AND machine_name=:machine_name "
+                        "UPDATE ATLAS_PANDA.async_results SET status='pending', finished_at=NULL WHERE request_id=:request_id AND machine_name=:machine_name "
                     )
                     self.cur.execute(sql_retry + comment, {":request_id": request_id, ":machine_name": machine_name})
                     tmp_log.debug(f"reset request_id={request_id} to pending (attempt {attempts}/{max_attempts})")

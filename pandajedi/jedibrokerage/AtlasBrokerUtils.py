@@ -472,7 +472,7 @@ def hasZeroShare(site_spec: SiteSpec.SiteSpec, task_spec: JediTaskSpec, ignore_p
                     # checks for other sites and tasks overwrite the result
                     tmpStat = eval(f"{task_spec.currentPriority}{tmp_priority}")
                     tmp_log.debug(
-                        f"Priority check for {site_spec.sitename}, {task_spec.currentPriority}): " f"{task_spec.currentPriority}{tmp_priority} = {tmpStat}"
+                        f"Priority check for {site_spec.sitename}, {task_spec.currentPriority}): {task_spec.currentPriority}{tmp_priority} = {tmpStat}"
                     )
                     if not tmpStat:
                         continue

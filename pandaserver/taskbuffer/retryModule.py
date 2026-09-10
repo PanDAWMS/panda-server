@@ -387,8 +387,13 @@ def apply_retrial_rules(task_buffer: "TaskBuffer", job: JobSpec, errors: list[di
                         try:
                             # update the task CPU time based on the failed job
                             if active:
+                                # the ids below are columns carrying the "NULL" sentinel, see spec_column.py
                                 new_cpu_time, new_cpu_time_unit = task_buffer.initialize_cpu_time_task(
-                                    job_id, job.jediTaskID, job.computingSite, job.Files, active  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                                    job_id,  # type: ignore[arg-type]
+                                    job.jediTaskID,  # type: ignore[arg-type]
+                                    job.computingSite,
+                                    job.Files,
+                                    active,
                                 )
 
                             message = (
@@ -433,8 +438,13 @@ def apply_retrial_rules(task_buffer: "TaskBuffer", job: JobSpec, errors: list[di
                         try:
                             applied = False
                             if active:
+                                # the ids below are columns carrying the "NULL" sentinel, see spec_column.py
                                 applied, _ = task_buffer.reduce_input_per_job(
-                                    job.PandaID, job.jediTaskID, job.attemptNr, parameters.get("excluded_rules"), parameters.get("steps")  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                                    job.PandaID,  # type: ignore[arg-type]
+                                    job.jediTaskID,  # type: ignore[arg-type]
+                                    job.attemptNr,  # type: ignore[arg-type]
+                                    parameters.get("excluded_rules"),
+                                    parameters.get("steps"),
                                 )
                             message = (
                                 f"action=reduceInputPerJob for PandaID={job_id} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} applied={applied} "

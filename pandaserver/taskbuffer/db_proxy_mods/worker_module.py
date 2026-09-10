@@ -768,7 +768,6 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvesterID}")
         tmp_log.debug("start")
         try:
-
             # update
             owner = CoreUtils.clean_user_id(user)
             var_map = {":harvesterID": harvesterID, ":owner": owner, ":hostName": host}
@@ -1213,10 +1212,7 @@ class WorkerModule(BaseModule):
                 if res:
                     var_map = {":site": site, ":host_name": host_name, ":panda_queue": panda_queue, ":last_seen": timestamp_utc}
 
-                    sql = (
-                        "UPDATE ATLAS_PANDA.worker_node_queue SET last_seen=:last_seen "
-                        "WHERE site=:site AND host_name=:host_name AND panda_queue=:panda_queue"
-                    )
+                    sql = "UPDATE ATLAS_PANDA.worker_node_queue SET last_seen=:last_seen WHERE site=:site AND host_name=:host_name AND panda_queue=:panda_queue"
 
                     self.cur.execute((sql + comment), var_map)
                     tmp_logger.debug("Worker node was found in the wn-queue table. Updated last_seen timestamp.")

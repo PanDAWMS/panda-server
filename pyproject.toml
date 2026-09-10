@@ -86,9 +86,6 @@ exclude = [
 ]
 
 
-[tool.black]
-line-length=160
-
 [tool.autopep8]
 # https://pypi.org/project/autopep8/#pyproject-toml
 max_line_length = 160
@@ -107,14 +104,27 @@ disable = [
     "R0914", #  R0914: Too many local variables
 ]
 
-[tool.isort]
-profile = "black"
-
-[tool.flynt]
-line-length = 160
-
 [tool.flake8]
 ignore = ['E501', 'U100']
+
+# The rules live here rather than in .pre-commit-config.yaml so that a hook, a CI job and
+# a developer running ruff by hand all get the same answer.
+[tool.ruff]
+line-length = 160
+
+[tool.ruff.lint]
+# F821: an undefined name parses fine and raises at import time instead -- in a daemon
+# that is an outage rather than a failed check -- and annotations make it easy to hit,
+# because the class named in one has to be imported even though nothing calls it.
+#
+# I: import order, in place of isort. ruff's defaults already agree with ruff-format, so
+# there is no profile to set, and they agreed with the isort-formatted tree everywhere but
+# one file.
+#
+# Widening to the rest of F is a follow-up: the tree carries 592 more findings under
+# select = ["F"], and two of them are bugs rather than lint. Do that in a PR that also
+# resolves them.
+select = ["F821", "I"]
 
 # The tree is clean under these flags, so `mypy` with no arguments answers whether a change
 # keeps it that way. Nothing in CI runs it yet -- wiring it in belongs with the pre-commit

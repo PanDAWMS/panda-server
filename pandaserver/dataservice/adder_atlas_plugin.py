@@ -240,8 +240,13 @@ class AdderAtlasPlugin(AdderPluginBase):
             campaign = tmp_ret.get("campaign")
             for file_spec in self.job.Files:
                 if file_spec.type == "input":
+                    # the ids below are columns carrying the "NULL" sentinel, see spec_column.py
                     tmp_dict = self.taskBuffer.getJediFileAttributes(
-                        file_spec.PandaID, file_spec.jediTaskID, file_spec.datasetID, file_spec.fileID, ["nEvents"]  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                        file_spec.PandaID,  # type: ignore[arg-type]
+                        file_spec.jediTaskID,  # type: ignore[arg-type]
+                        file_spec.datasetID,  # type: ignore[arg-type]
+                        file_spec.fileID,  # type: ignore[arg-type]
+                        ["nEvents"],
                     )
                     if "nEvents" in tmp_dict:
                         n_events_input[file_spec.lfn] = tmp_dict["nEvents"]

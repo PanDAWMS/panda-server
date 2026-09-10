@@ -439,7 +439,7 @@ class JobComplexModule(BaseModule):
                         # add params to execute getEventRanges later
                         if updatedFlag and is_job_cloning and jobStatus == "running" and oldJobStatus in ["sent", "starting"]:
                             action_in_downstream = {"action": "get_event", "pandaID": pandaID, "jobsetID": jobsetID, "jediTaskID": jediTaskID}
-                            tmp_log.debug(f'take action={action_in_downstream["action"]} in downstream')
+                            tmp_log.debug(f"take action={action_in_downstream['action']} in downstream")
                         # try to update the lastupdate column in the harvester_rel_job_worker table to propagate
                         # changes to ElasticSearch
                         sqlJWU = "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
@@ -1260,7 +1260,7 @@ class JobComplexModule(BaseModule):
     ) -> tuple[bool, list[Any], int, JobSpec | None]:
         comment = " /* DBProxy.archiveJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID} jediTaskID={job.jediTaskID}")
-        tmp_log.debug(f"start status={job.jobStatus} label={job.prodSourceLabel} " f"type={job.processingType} async_params={async_params}")
+        tmp_log.debug(f"start status={job.jobStatus} label={job.prodSourceLabel} type={job.processingType} async_params={async_params}")
         start_time = naive_utcnow()
         if fromJobsDefined or fromJobsWaiting:
             sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
@@ -2433,7 +2433,7 @@ class JobComplexModule(BaseModule):
                                 if indexID > maxAttemptIDx:
                                     break
                                 # lock first
-                                sqlPL = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 " "WHERE PandaID=:PandaID FOR UPDATE NOWAIT "
+                                sqlPL = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID FOR UPDATE NOWAIT "
                                 # update
                                 sqlJ = "UPDATE ATLAS_PANDA.jobsActive4 "
                                 sqlJ += "SET jobStatus=:newJobStatus,modificationTime=CURRENT_DATE,modificationHost=:modificationHost,startTime=CURRENT_DATE"
@@ -3558,8 +3558,13 @@ class JobComplexModule(BaseModule):
                 and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs
                 and not (EventServiceUtils.isEventServiceJob(job) and not origEsJob)
             ):
+                # the ids below are columns carrying the "NULL" sentinel, see spec_column.py
                 get_task_event_module(self).updateInputStatusJedi(
-                    job.jediTaskID, job.PandaID, "queued", no_late_bulk_exec=no_late_bulk_exec, extracted_sqls=extracted_sqls  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    job.jediTaskID,  # type: ignore[arg-type]
+                    job.PandaID,  # type: ignore[arg-type]
+                    "queued",
+                    no_late_bulk_exec=no_late_bulk_exec,
+                    extracted_sqls=extracted_sqls,
                 )
             # record retry history
             if oldPandaIDs is not None and len(oldPandaIDs) > 0:
@@ -4328,7 +4333,7 @@ class JobComplexModule(BaseModule):
             n_try = 5
             for i_try in range(n_try):
                 try:
-                    tmp_log.debug(f"Trying to lock file {i_try+1}/{n_try} sql:{sqlFileStat} var:{str(varMap)}")
+                    tmp_log.debug(f"Trying to lock file {i_try + 1}/{n_try} sql:{sqlFileStat} var:{str(varMap)}")
                     cur.execute(sqlFileStat + comment, varMap)
                     break
                 except Exception as e:
@@ -4603,7 +4608,7 @@ class JobComplexModule(BaseModule):
             for tmpDatasetID in tmpDatasetIDs:
                 tmp_log.debug(f"trying to lock datasetID={tmpDatasetID}")
                 tmpContentsStat = datasetContentsStat[tmpDatasetID]
-                sqlJediDL = "SELECT nFilesUsed,nFilesFailed,nFilesTobeUsed,nFilesFinished," "nFilesOnHold,type,masterID,status FROM ATLAS_PANDA.JEDI_Datasets "
+                sqlJediDL = "SELECT nFilesUsed,nFilesFailed,nFilesTobeUsed,nFilesFinished,nFilesOnHold,type,masterID,status FROM ATLAS_PANDA.JEDI_Datasets "
                 sqlJediDL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 sqlJediDLnoL = sqlJediDL
                 sqlJediDL += "FOR UPDATE "

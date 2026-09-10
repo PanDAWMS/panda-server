@@ -153,7 +153,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                                         sql_missing = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE destinationDBlock=:destinationDBlock "
                                         var_map = {":destinationDBlock": tmpFileSpec.destinationDBlock}
                                         _, res_missing = taskBuffer.querySQLS(sql_missing, var_map)
-                                        missing_ids = [p for p, in res_missing]
+                                        missing_ids = [p for (p,) in res_missing]
                                         tmp_log.debug(f"missing {tmpFileSpec.destinationDBlock} to kill {missing_ids}")
                                         Client.kill_jobs(missing_ids, 2)
                                         killed_for_bad_record = True
@@ -168,7 +168,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                                         )
                                         var_map = {":jobStatus": "merging", ":destinationDBlock": tmpFileSpec.destinationDBlock}
                                         _, res_deleted = taskBuffer.querySQLS(sql_deleted, var_map)
-                                        deleted_ids = [p for p, in res_deleted]
+                                        deleted_ids = [p for (p,) in res_deleted]
                                         tmp_log.debug(f"deleted {tmpFileSpec.destinationDBlock} to kill {deleted_ids}")
                                         Client.kill_jobs(deleted_ids, 2)
                                         killed_for_bad_record = True
@@ -588,8 +588,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                 statCheck = nStat["nq"] > nQueueLimit
                 fracCheck = nStat["nq"] > statsPerShare[gshare]["nq"] * fractionLimit
                 _logger.debug(
-                    "{} in {} : nQueue({})>nRun({})*{}: {},"
-                    " nQueue>nQueueThreshold({}):{}, nQueue>nQueue_total({})*{}:{}".format(
+                    "{} in {} : nQueue({})>nRun({})*{}: {}, nQueue>nQueueThreshold({}):{}, nQueue>nQueue_total({})*{}:{}".format(
                         computingSite,
                         gshare,
                         nStat["nq"],
@@ -625,13 +624,13 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                         var_map[":jobStatus4"] = "starting"
                         var_map[":nRows"] = excess
                         status, res = taskBuffer.querySQLS(sql, var_map)
-                        jediJobs = [p for p, in res]
+                        jediJobs = [p for (p,) in res]
                         _logger.debug(f"got {len(jediJobs)} jobs to kill excess={excess}")
                         if jediJobs:
                             nJob = 100
                             iJob = 0
                             while iJob < len(jediJobs):
-                                _logger.debug(f"reassignJobs for JEDI at Nq/Nr overshoot site {computingSite} ({str(jediJobs[iJob:iJob + nJob])})")
+                                _logger.debug(f"reassignJobs for JEDI at Nq/Nr overshoot site {computingSite} ({str(jediJobs[iJob : iJob + nJob])})")
                                 Client.kill_jobs(jediJobs[iJob : iJob + nJob], 10, keep_unmerged=True)
                                 iJob += nJob
     except Exception as e:
@@ -714,7 +713,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                 nJob = 100
                 iJob = 0
                 while iJob < len(jediJobs):
-                    _logger.debug(f"reassignJobs for JEDI at inactive site {tmpSite} ({jediJobs[iJob:iJob + nJob]})")
+                    _logger.debug(f"reassignJobs for JEDI at inactive site {tmpSite} ({jediJobs[iJob : iJob + nJob]})")
                     Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
                     iJob += nJob
 
@@ -747,7 +746,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug(f"reassignJobs for JEDI defined jobs ({jediJobs[iJob:iJob + nJob]})")
+            _logger.debug(f"reassignJobs for JEDI defined jobs ({jediJobs[iJob : iJob + nJob]})")
             Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
@@ -787,7 +786,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug(f"reassignJobs for long JEDI in defined table ({jediJobs[iJob:iJob + nJob]})")
+            _logger.debug(f"reassignJobs for long JEDI in defined table ({jediJobs[iJob : iJob + nJob]})")
             Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
@@ -828,7 +827,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug(f"reassignJobs for long activated JEDI in active table ({jediJobs[iJob:iJob + nJob]})")
+            _logger.debug(f"reassignJobs for long activated JEDI in active table ({jediJobs[iJob : iJob + nJob]})")
             Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
@@ -861,7 +860,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug(f"reassignJobs for long stating JEDI in active table ({jediJobs[iJob:iJob + nJob]})")
+            _logger.debug(f"reassignJobs for long stating JEDI in active table ({jediJobs[iJob : iJob + nJob]})")
             Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
@@ -904,7 +903,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug(f"killJobs for Pending ({str(jobs[iJob:iJob + nJob])})")
+                _logger.debug(f"killJobs for Pending ({str(jobs[iJob : iJob + nJob])})")
                 Client.kill_jobs(jobs[iJob : iJob + nJob], 4)
                 iJob += nJob
 
@@ -930,7 +929,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug(f"kick waiting ES merge ({str(jobs[iJob:iJob + nJob])})")
+                _logger.debug(f"kick waiting ES merge ({str(jobs[iJob : iJob + nJob])})")
                 Client.kill_jobs(jobs[iJob : iJob + nJob], 2)
                 iJob += nJob
 
@@ -953,7 +952,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug(f"killJobs for Waiting ({str(jobs[iJob:iJob + nJob])})")
+                _logger.debug(f"killJobs for Waiting ({str(jobs[iJob : iJob + nJob])})")
                 Client.kill_jobs(jobs[iJob : iJob + nJob], 4)
                 iJob += nJob
 
@@ -977,7 +976,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug(f"killJobs for long running ES jobs ({str(jobs[iJob:iJob + nJob])})")
+            _logger.debug(f"killJobs for long running ES jobs ({str(jobs[iJob : iJob + nJob])})")
             Client.kill_jobs(
                 jobs[iJob : iJob + nJob],
                 2,
@@ -1005,7 +1004,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug(f"killJobs for long running ES merge jobs ({str(jobs[iJob:iJob + nJob])})")
+            _logger.debug(f"killJobs for long running ES merge jobs ({str(jobs[iJob : iJob + nJob])})")
             Client.kill_jobs(jobs[iJob : iJob + nJob], 2)
             iJob += nJob
 
@@ -1218,7 +1217,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
         iJob = 0
         while iJob < len(jobs):
             # set tobekill
-            _logger.debug(f"killJobs for Running ({jobs[iJob:iJob + nJob]})")
+            _logger.debug(f"killJobs for Running ({jobs[iJob : iJob + nJob]})")
             Client.kill_jobs(jobs[iJob : iJob + nJob], 2)
             # run watcher
             for id in jobs[iJob : iJob + nJob]:
@@ -1325,7 +1324,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
         "WHERE creationTime>:timeLimit AND creationTime>modificationTime "
         "AND (fileName like 'sources%' OR fileName like 'jobO%') "
     )
-    sqlU = "UPDATE ATLAS_PANDAMETA.userCacheUsage SET modificationTime=CURRENT_DATE " "WHERE userName=:userName AND fileName=:fileName "
+    sqlU = "UPDATE ATLAS_PANDAMETA.userCacheUsage SET modificationTime=CURRENT_DATE WHERE userName=:userName AND fileName=:fileName "
     status, res = taskBuffer.querySQLS(sqlC, {":timeLimit": timeLimit})
     if res is None:
         _logger.error("failed to get files")

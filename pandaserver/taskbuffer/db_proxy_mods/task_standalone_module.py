@@ -3440,7 +3440,7 @@ class TaskStandaloneModule(BaseModule):
             if prod_source_label not in [None, "any"]:
                 var_map[":prodSourceLabel"] = prod_source_label
                 sql_get_tasks += "AND tabT.prodSourceLabel=:prodSourceLabel "
-            sql_get_tasks += "AND (actionTime IS NULL OR actionTime<:timeLimit) " f"AND rownum<{n_tasks} "
+            sql_get_tasks += f"AND (actionTime IS NULL OR actionTime<:timeLimit) AND rownum<{n_tasks} "
             # SQL to lock task
             sql_lock_task = (
                 f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET actionTime=CURRENT_DATE "
@@ -4302,9 +4302,7 @@ class TaskStandaloneModule(BaseModule):
         try:
             # sql to lock task
             sql_lock = (
-                f"SELECT lockedBy,lockedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-                "WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL "
-                "FOR UPDATE NOWAIT "
+                f"SELECT lockedBy,lockedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL FOR UPDATE NOWAIT "
             )
             # sql to get datasets
             sql_get_datasets = (
@@ -4331,7 +4329,7 @@ class TaskStandaloneModule(BaseModule):
             n_datasets = 100
             all_processed = False
             for i_loop in range(n_loop):
-                tmp_log.debug(f"loop count {i_loop+1}/{n_loop}")
+                tmp_log.debug(f"loop count {i_loop + 1}/{n_loop}")
                 self.conn.begin()
                 var_map: dict[str, Any] = dict()
                 var_map[":jediTaskID"] = jediTaskID
@@ -5025,9 +5023,9 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to set missing files
-            sqlF = (
-                "UPDATE {0}.JEDI_Dataset_Contents " "SET status=:nStatus " "WHERE jediTaskID=:jediTaskID " "AND lfn LIKE :lfn AND status!=:nStatus "
-            ).format(panda_config.schemaJEDI)
+            sqlF = ("UPDATE {0}.JEDI_Dataset_Contents SET status=:nStatus WHERE jediTaskID=:jediTaskID AND lfn LIKE :lfn AND status!=:nStatus ").format(
+                panda_config.schemaJEDI
+            )
             # begin transaction
             self.conn.begin()
             nFileRow = 0

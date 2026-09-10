@@ -630,12 +630,12 @@ class TaskComplexModule(BaseModule):
             # sql to update dataset
             sqlDU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
             sqlDU += "SET status=:status,state=:state,stateCheckTime=:stateUpdateTime,"
-            sqlDU += "nFiles=:nFiles,nFilesTobeUsed=:nFilesTobeUsed,nEvents=:nEvents," "nFilesMissing=:nFilesMissing "
+            sqlDU += "nFiles=:nFiles,nFilesTobeUsed=:nFilesTobeUsed,nEvents=:nEvents,nFilesMissing=:nFilesMissing "
             sqlDU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql to update dataset including nFilesUsed
             sqlDUx = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
             sqlDUx += "SET status=:status,state=:state,stateCheckTime=:stateUpdateTime,"
-            sqlDUx += "nFiles=:nFiles,nFilesTobeUsed=:nFilesTobeUsed,nEvents=:nEvents," "nFilesUsed=:nFilesUsed,nFilesMissing=:nFilesMissing "
+            sqlDUx += "nFiles=:nFiles,nFilesTobeUsed=:nFilesTobeUsed,nEvents=:nEvents,nFilesUsed=:nFilesUsed,nFilesMissing=:nFilesMissing "
             sqlDUx += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql to propagate number of input events to DEFT
             sqlCE = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
@@ -1072,7 +1072,7 @@ class TaskComplexModule(BaseModule):
                             tmpLog.debug(
                                 f"respecting SR nFilesToActivate={total_pending_files_to_activate} nChunksToActivate={total_pending_chunks} minChunks={nChunks} "
                                 f"isEnough={enough_pending_files_to_activate} nFilesPerJob={taskSpec.getNumFilesPerJob()} "
-                                f"maxSizePerJob={int(maxSizePerJob/1024/1024) if maxSizePerJob else None} "
+                                f"maxSizePerJob={int(maxSizePerJob / 1024 / 1024) if maxSizePerJob else None} "
                             )
                         if num_pending_files_in_first_bunch is None:
                             num_pending_files_in_first_bunch = 0
@@ -1293,7 +1293,7 @@ class TaskComplexModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             tmpLog.debug(
-                ("inserted rows={0} with activated={1}, pending={2}, ready={3}, " "unprocessed={4}, staging={5} status={6}->{7}").format(
+                ("inserted rows={0} with activated={1}, pending={2}, ready={3}, unprocessed={4}, staging={5} status={6}->{7}").format(
                     nInsert, nActivatedPending, nPending - nActivatedPending, nReady, nStaging, nFilesUnprocessed, oldDsStatus, newDsStatus
                 )
             )
@@ -2237,12 +2237,12 @@ class TaskComplexModule(BaseModule):
         sql_dn = f"SELECT dn FROM {panda_config.schemaMETA}.users WHERE name=:name "
         # sql to update task status
         sql_update_task_status = (
-            "UPDATE {0}.JEDI_Tasks " "SET lockedBy=NULL,lockedTime=NULL,status=:status,errorDialog=:err " "WHERE jediTaskID=:jediTaskID "
+            "UPDATE {0}.JEDI_Tasks SET lockedBy=NULL,lockedTime=NULL,status=:status,errorDialog=:err WHERE jediTaskID=:jediTaskID "
         ).format(panda_config.schemaJEDI)
         # sql to get number of events
-        sql_get_n_events = (
-            "SELECT COUNT(*),datasetID FROM {0}.JEDI_Events " "WHERE jediTaskID=:jediTaskID AND status=:eventStatus " "GROUP BY datasetID "
-        ).format(panda_config.schemaJEDI)
+        sql_get_n_events = ("SELECT COUNT(*),datasetID FROM {0}.JEDI_Events WHERE jediTaskID=:jediTaskID AND status=:eventStatus GROUP BY datasetID ").format(
+            panda_config.schemaJEDI
+        )
         # sql to get number of ready HPO workers
         sql_get_n_hpo_workers = (
             "SELECT COUNT(*),datasetID FROM ("
@@ -2523,11 +2523,11 @@ class TaskComplexModule(BaseModule):
                         n_ready += 1
                     else:
                         n_unknown += 1
-            tmp_msg = "jediTaskID={} datasetID={} to check due to empty memory requirements :" " nDone={} nActive={} nReady={} ".format(
+            tmp_msg = "jediTaskID={} datasetID={} to check due to empty memory requirements : nDone={} nActive={} nReady={} ".format(
                 jedi_task_id, primary_dataset_id, n_done, n_active, n_ready
             )
             tmp_msg += f"nRunning={n_running} nFinished={n_finished} nFailed={n_failed} nUnknown={n_unknown} nLost={n_lost} "
-            tmp_msg += "ds.nFilesUsed={} nFilesToBeUsed={} ds.nFilesFinished={} " "ds.nFilesFailed={}".format(
+            tmp_msg += "ds.nFilesUsed={} nFilesToBeUsed={} ds.nFilesFinished={} ds.nFilesFailed={}".format(
                 tmp_n_files_used, tmp_n_files_to_be_used, tmp_n_files_finished, tmp_n_files_failed
             )
             tmp_log.debug(tmp_msg)
@@ -2538,8 +2538,9 @@ class TaskComplexModule(BaseModule):
                 var_map[":nFilesUsed"] = n_done + n_active
                 self.cur.execute(sql_update_dataset_n_used_files + comment, var_map)
                 tmp_log.debug(
-                    "jediTaskID={} datasetID={} set nFilesUsed={} from {} "
-                    "to fix empty memory req".format(jedi_task_id, primary_dataset_id, var_map[":nFilesUsed"], tmp_n_files_used)
+                    "jediTaskID={} datasetID={} set nFilesUsed={} from {} to fix empty memory req".format(
+                        jedi_task_id, primary_dataset_id, var_map[":nFilesUsed"], tmp_n_files_used
+                    )
                 )
             if tmp_n_files_to_be_used > n_done + n_running + n_ready:
                 var_map = dict()
@@ -2548,8 +2549,9 @@ class TaskComplexModule(BaseModule):
                 var_map[":nFilesToBeUsed"] = n_done + n_running + n_ready
                 self.cur.execute(sql_update_dataset_n_unprocessed_files + comment, var_map)
                 tmp_log.debug(
-                    "jediTaskID={} datasetID={} set nFilesToBeUsed={} from {} "
-                    "to fix empty memory req ".format(jedi_task_id, primary_dataset_id, var_map[":nFilesToBeUsed"], tmp_n_files_to_be_used)
+                    "jediTaskID={} datasetID={} set nFilesToBeUsed={} from {} to fix empty memory req ".format(
+                        jedi_task_id, primary_dataset_id, var_map[":nFilesToBeUsed"], tmp_n_files_to_be_used
+                    )
                 )
             if n_active == 0:
                 var_map = dict()
@@ -5622,12 +5624,7 @@ class TaskComplexModule(BaseModule):
             sqlGD = f"SELECT datasetID,masterID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
             # sql to update file counts
             if scope != "pseudo_dataset":
-                sqlUF = (
-                    f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-                    f"SET status=:new_status "
-                    f"WHERE jediTaskID=:jediTaskID "
-                    f"AND status=:old_status "
-                )
+                sqlUF = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:new_status WHERE jediTaskID=:jediTaskID AND status=:old_status "
                 sqlUF_with_lfn = sqlUF + "AND lfn=:lfn "
                 if check_scope:
                     sqlUF_with_lfn += "AND scope=:scope "
@@ -5762,9 +5759,9 @@ class TaskComplexModule(BaseModule):
         try:
             self.conn.begin()
             # check if task is still running and brokered to the site
-            sqlT = (
-                "SELECT jediTaskID " "FROM {0}.JEDI_Tasks t " "WHERE t.jediTaskID=:jediTaskID " "AND t.site =:site " "AND t.status IN ('ready','running') "
-            ).format(panda_config.schemaJEDI)
+            sqlT = ("SELECT jediTaskID FROM {0}.JEDI_Tasks t WHERE t.jediTaskID=:jediTaskID AND t.site =:site AND t.status IN ('ready','running') ").format(
+                panda_config.schemaJEDI
+            )
             varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jedi_taskid
             varMap[":site"] = site
@@ -5775,9 +5772,9 @@ class TaskComplexModule(BaseModule):
                 tmpLog.debug("no longer brokered to site or not ready/running ; skipped")
                 return None
             # close jobs
-            sqlJC = (
-                "SELECT pandaID " "FROM {0}.jobsActive4 " "WHERE jediTaskID=:jediTaskID " "AND jobStatus='activated' " "AND computingSite!=:computingSite "
-            ).format(panda_config.schemaPANDA)
+            sqlJC = ("SELECT pandaID FROM {0}.jobsActive4 WHERE jediTaskID=:jediTaskID AND jobStatus='activated' AND computingSite!=:computingSite ").format(
+                panda_config.schemaPANDA
+            )
             varMap = {}
             varMap[":jediTaskID"] = jedi_taskid
             varMap[":computingSite"] = site

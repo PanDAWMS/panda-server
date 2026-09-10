@@ -352,12 +352,7 @@ def generate_offline_run_script(job_spec: "JobSpec") -> str:
         script_str += f"wget {transformations[0]} || exit 1\n"
         script_str += f"chmod +x {transformations[0].split('/')[-1]}\n\n"
     # the transformations run in an ALRB container
-    script_str += (
-        "temp_file=$(mktemp)\n"
-        'cat << EOF > "$temp_file"\n\n'
-        "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh\n"
-        "\n#transform commands\n\n"
-    )
+    script_str += 'temp_file=$(mktemp)\ncat << EOF > "$temp_file"\n\nsource ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh\n\n#transform commands\n\n'
     cmt_config = ""
     for tmp_idx, home_package in enumerate(home_packages):
         # asetup

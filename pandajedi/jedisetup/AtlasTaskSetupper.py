@@ -181,8 +181,9 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                     if tmpToRegister:
                                         activity = DataServiceUtils.getActivityForOut(taskSpec.prodSourceLabel)
                                         tmpLog.info(
-                                            "registering location={} lifetime={} days activity={} grouping={} "
-                                            "owner={}".format(locForRule, lifetime, activity, grouping, userName)
+                                            "registering location={} lifetime={} days activity={} grouping={} owner={}".format(
+                                                locForRule, lifetime, activity, grouping, userName
+                                            )
                                         )
                                         tmpStat = ddmIF.registerDatasetLocation(
                                             targetName, locForRule, owner=userName, lifetime=lifetime, backEnd=ddmBackEnd, activity=activity, grouping=grouping
@@ -262,8 +263,11 @@ class AtlasTaskSetupper(TaskSetupperBase):
                             elif taskSpec.toMoveDatasets() and DataServiceUtils.getDistributedDestination(datasetSpec.storageToken) is None:
                                 # get location
                                 location = siteMapper.getDdmEndpoint(
-                                    siteInNucleus.sitename, datasetSpec.storageToken, taskSpec.prodSourceLabel, 
-                                    JobUtils.translate_tasktype_to_jobtype(taskSpec.taskType))
+                                    siteInNucleus.sitename,
+                                    datasetSpec.storageToken,
+                                    taskSpec.prodSourceLabel,
+                                    JobUtils.translate_tasktype_to_jobtype(taskSpec.taskType),
+                                )
                                 # move replication rule
                                 tmpLog.info(f"{targetName} already registered, but will be moved to {location}")
                                 tmpStat = ddmIF.move_replication_rules(datasetSpec.datasetName, location)

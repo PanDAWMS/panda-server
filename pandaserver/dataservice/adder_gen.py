@@ -597,8 +597,11 @@ class AdderGen:
                 self.logger.debug("end Closer")
             # run closer for associate parallel jobs
             if EventServiceUtils.isJobCloningJob(self.job):
+                # the ids below are columns carrying the "NULL" sentinel, see spec_column.py
                 associate_dispatch_block_map = self.taskBuffer.getDestDBlocksWithSingleConsumer(
-                    self.job.jediTaskID, self.job.PandaID, destination_dispatch_block_list  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    self.job.jediTaskID,  # type: ignore[arg-type]
+                    self.job.PandaID,  # type: ignore[arg-type]
+                    destination_dispatch_block_list,
                 )
                 for associate_job_id in associate_dispatch_block_map:
                     associate_dispatch_blocks = associate_dispatch_block_map[associate_job_id]
