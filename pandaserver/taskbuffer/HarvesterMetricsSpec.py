@@ -4,26 +4,42 @@ worker specification
 """
 
 import datetime
+from typing import Any, Sequence
 
 
 class HarvesterMetricsSpec(object):
     # attributes
     _attributes = ("harvester_ID", "creation_time", "harvester_host", "metrics")
+
+    # Column types, taken from the Oracle schema of ATLAS_PANDA.HARVESTER_METRICS (panda-database
+    # repo, schema/oracle). The columns are installed by __init__ via setattr, so a type
+    # checker sees none of them without these declarations. They carry no value, which
+    # both keeps them out of the class dict and keeps __slots__ classes importable.
+    # Unset columns really are None here -- this class has no "NULL" sentinel.
+    harvester_ID: str | None
+    creation_time: datetime.datetime | None
+    harvester_host: str | None
+    metrics: str | None
     # slots
     __slots__ = _attributes + ("_changedAttrs",)
     # attributes which have 0 by default
     _zeroAttrs = ()
 
+    # Bookkeeping attribute installed by __init__ via object.__setattr__, so a type
+    # checker does not see it without this declaration. It maps a column name to the
+    # value last assigned to it.
+    _changedAttrs: dict[str, Any]
+
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         # install attributes
         for attr in self._attributes:
             object.__setattr__(self, attr, None)
         # map of changed attributes
         object.__setattr__(self, "_changedAttrs", {})
 
-    # override __setattr__ to collecte the changed attributes
-    def __setattr__(self, name, value):
+    # override __setattr__ to collect the changed attributes
+    def __setattr__(self, name: str, value: Any) -> None:
         oldVal = getattr(self, name)
         # convert string to datetime
         if isinstance(value, str) and value.startswith("datetime/"):
@@ -34,12 +50,11 @@ class HarvesterMetricsSpec(object):
             self._changedAttrs[name] = value
 
     # reset changed attribute list
-    def resetChangedList(self):
-        self._oldPandaID = self.PandaID
+    def resetChangedList(self) -> None:
         object.__setattr__(self, "_changedAttrs", {})
 
     # return map of values
-    def valuesMap(self, onlyChanged=False):
+    def valuesMap(self, onlyChanged: bool = False) -> dict[str, Any]:
         ret = {}
         for attr in self._attributes:
             if onlyChanged and attr not in self._changedAttrs:
@@ -52,24 +67,24 @@ class HarvesterMetricsSpec(object):
         return ret
 
     # pack tuple into FileSpec
-    def pack(self, values):
+    def pack(self, values: Sequence[Any]) -> None:
         for i in range(len(self._attributes)):
             attr = self._attributes[i]
             val = values[i]
             object.__setattr__(self, attr, val)
 
     # return column names for INSERT
-    def columnNames(cls):
+    @classmethod
+    def columnNames(cls) -> str:
         ret = ""
         for attr in cls._attributes:
             ret += f"{attr},"
         ret = ret[:-1]
         return ret
 
-    columnNames = classmethod(columnNames)
-
     # return expression of bind variables for INSERT
-    def bindValuesExpression(cls):
+    @classmethod
+    def bindValuesExpression(cls) -> str:
         from pandaserver.config import panda_config
 
         ret = "VALUES("
@@ -79,10 +94,8 @@ class HarvesterMetricsSpec(object):
         ret += ")"
         return ret
 
-    bindValuesExpression = classmethod(bindValuesExpression)
-
     # return an expression of bind variables for UPDATE to update only changed attributes
-    def bindUpdateChangesExpression(self):
+    def bindUpdateChangesExpression(self) -> str:
         ret = ""
         for attr in self._attributes:
             if attr not in self._changedAttrs:

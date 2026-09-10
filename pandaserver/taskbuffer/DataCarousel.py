@@ -11,7 +11,17 @@ from collections import namedtuple
 from contextlib import contextmanager
 from dataclasses import MISSING, InitVar, asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import (
+    Any,
+    Callable,
+    Concatenate,
+    Dict,
+    Iterator,
+    List,
+    Literal,
+    ParamSpec,
+    TypeVar,
+)
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -20,6 +30,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 import polars as pl  # isort:skip
 
@@ -46,7 +57,16 @@ FINAL_TASK_STATUSES = ["done", "finished", "failed", "exhausted", "aborted", "to
 # named tuple for attribute with type
 AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 
+# parameters and return value of a method wrapped by the refresh decorator below
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
 # DDM rule activity map for data carousel
+# One dataset to prestage, as get_input_datasets_to_prestage() produces it and
+# submit_data_carousel_requests() consumes it:
+# (dataset, source_rse, ddm_rule_id, to_pin, suggested_destination_rses)
+PrestagingItem = tuple[str, str | None, str | None, bool, list[str] | None]
+
 DDM_RULE_ACTIVITY_MAP = {"anal": "Data Carousel Analysis", "prod": "Data Carousel Production"}
 
 # template strings
@@ -135,7 +155,7 @@ class DataCarouselRequestSpec(SpecBase):
     _seqAttrMap = {"request_id": f"{panda_config.schemaJEDI}.JEDI_DATA_CAROUSEL_REQUEST_ID_SEQ.nextval"}
 
     @property
-    def parameter_map(self) -> dict:
+    def parameter_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by the parameters attribute in JSON
         Possible parameters:
@@ -161,10 +181,11 @@ class DataCarouselRequestSpec(SpecBase):
         if self.parameters is None:
             return {}
         else:
-            return json.loads(self.parameters)
+            parameters: dict[str, Any] = json.loads(self.parameters)
+            return parameters
 
     @parameter_map.setter
-    def parameter_map(self, value_map: dict):
+    def parameter_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in parameters attribute in JSON
 
@@ -186,7 +207,7 @@ class DataCarouselRequestSpec(SpecBase):
         tmp_dict = self.parameter_map
         return tmp_dict.get(param)
 
-    def set_parameter(self, param: str, value):
+    def set_parameter(self, param: str, value: Any) -> None:
         """
         Set the value of one parameter and store in parameters attribute in JSON
 
@@ -198,7 +219,7 @@ class DataCarouselRequestSpec(SpecBase):
         tmp_dict[param] = value
         self.parameter_map = tmp_dict
 
-    def update_parameters(self, params: dict):
+    def update_parameters(self, params: dict[str, Any]) -> None:
         """
         Update values of parameters with a dict and store in parameters attribute in JSON
 
@@ -216,7 +237,7 @@ class DataCarouselRequestTransaction(object):
     This is a wrapper for DataCarouselRequestSpec to provide additional methods about DB transaction
     """
 
-    def __init__(self, dc_req_spec: DataCarouselRequestSpec, db_cur, db_log):
+    def __init__(self, dc_req_spec: DataCarouselRequestSpec, db_cur: Any, db_log: Any) -> None:
         """
         Constructor
 
@@ -322,7 +343,7 @@ class DataCarouselMainConfig:
     excluded_destinations: List[str] = field(default_factory=list)
     early_access_users: List[str] = field(default_factory=list)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # map of the attributes with nested dict and corresponding dataclasses
         converting_attr_type_map = {
             "source_tapes_config": SourceTapeConfig,
@@ -392,6 +413,8 @@ def get_resubmit_request_spec(dc_req_spec: DataCarouselRequestSpec, exclude_prev
         return dc_req_spec_to_resubmit
     except Exception:
         tmp_log.error(f"got error ; {traceback.format_exc()}")
+    # no branch above produced a value, which the return type covers as None
+    return None
 
 
 # ==============================================================
@@ -403,21 +426,23 @@ class DataCarouselInterface(object):
     """
 
     # constructor
-    def __init__(self, taskbufferIF, *args, **kwargs):
+    def __init__(self, taskbufferIF: Any, *args: Any, **kwargs: Any) -> None:
         # attributes
         self.taskBufferIF = taskbufferIF
         self.ddmIF = rucioAPI
-        self.tape_rses = []
-        self.datadisk_rses = []
-        self.disk_rses = []
-        self.dc_config_map = None
-        self._last_update_ts_dict = {}
+        self.tape_rses: list[str] = []
+        self.datadisk_rses: list[str] = []
+        self.disk_rses: list[str] = []
+        # every field of the config defaults to empty, so an unread or unreadable config
+        # reads back as "nothing configured" rather than raising on every access
+        self.dc_config_map = DataCarouselMainConfig()
+        self._last_update_ts_dict: dict[str, datetime | None] = {}
         # full pid
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
         # refresh
         self._refresh_all_attributes()
 
-    def _refresh_all_attributes(self):
+    def _refresh_all_attributes(self) -> None:
         """
         Refresh by calling all update methods
         """
@@ -425,13 +450,17 @@ class DataCarouselInterface(object):
         self._update_dc_config(time_limit_minutes=5)
 
     @staticmethod
-    def refresh(func):
+    def refresh(func: Callable[Concatenate["DataCarouselInterface", _P], _R]) -> Callable[Concatenate["DataCarouselInterface", _P], _R]:
         """
         Decorator to call _refresh_all_attributes before the method
+
+        The signature is spelled out with ParamSpec so that the decorated methods keep their
+        parameter and return types; an untyped decorator would erase them to Any and silently
+        turn off type checking at every call site.
         """
 
         @functools.wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self: "DataCarouselInterface", *args: _P.args, **kwargs: _P.kwargs) -> _R:
             self._refresh_all_attributes()
             return func(self, *args, **kwargs)
 
@@ -469,7 +498,7 @@ class DataCarouselInterface(object):
         tmp_log.debug(f"timed out; skipped")
         return None
 
-    def _release_global_dc_lock(self, full_pid: str | None):
+    def _release_global_dc_lock(self, full_pid: str | None) -> bool:
         """
         Release global Data Carousel lock in DB
 
@@ -481,7 +510,7 @@ class DataCarouselInterface(object):
         if full_pid is None:
             full_pid = self.full_pid
         # try to release the lock
-        ret = self.taskBufferIF.unlockProcess_PANDA(
+        ret: bool = self.taskBufferIF.unlockProcess_PANDA(
             component=GLOBAL_DC_LOCK_NAME,
             pid=full_pid,
         )
@@ -494,7 +523,7 @@ class DataCarouselInterface(object):
         return ret
 
     @contextmanager
-    def global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30):
+    def global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30) -> Iterator[str | None]:
         """
         Context manager for global Data Carousel lock in DB
 
@@ -538,6 +567,8 @@ class DataCarouselInterface(object):
         else:
             tmp_log.warning("no request found; skipped")
             return None
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def get_request_by_dataset(self, dataset: str) -> DataCarouselRequestSpec | None:
         """
@@ -571,6 +602,8 @@ class DataCarouselInterface(object):
         else:
             tmp_log.warning("no reusable request; skipped")
             return None
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     # @contextmanager
     # def request_transaction_by_id(self, request_id: int):
@@ -688,7 +721,7 @@ class DataCarouselInterface(object):
     #                 db_log.debug(f"{self.full_pid} released lock for request_id={request_id}")
 
     @contextmanager
-    def request_lock(self, request_id: int, lock_expiration_sec: int = 120):
+    def request_lock(self, request_id: int, lock_expiration_sec: int = 120) -> Iterator[DataCarouselRequestSpec | None]:
         """
         Context manager to lock and unlock the Data Carousel request for update into DB
 
@@ -759,7 +792,7 @@ class DataCarouselInterface(object):
                 else:
                     tmp_log.debug(f"released lock")
 
-    def _update_rses(self, time_limit_minutes: int | float = 30):
+    def _update_rses(self, time_limit_minutes: int | float = 30) -> None:
         """
         Update RSEs per TAPE and DATADISK cached in this object
         Run if cache outdated; else do nothing
@@ -793,7 +826,7 @@ class DataCarouselInterface(object):
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
 
-    def _update_dc_config(self, time_limit_minutes: int | float = 5):
+    def _update_dc_config(self, time_limit_minutes: int | float = 5) -> None:
         """
         Update Data Carousel configuration from DB
         Run if cache outdated; else do nothing
@@ -856,7 +889,7 @@ class DataCarouselInterface(object):
         else:
             return None
 
-    def _get_input_ds_from_task_params(self, task_params_map: dict) -> dict:
+    def _get_input_ds_from_task_params(self, task_params_map: dict[str, Any]) -> dict[str, dict[str, Any]]:
         """
         Get input datasets from tasks parameters
 
@@ -878,7 +911,7 @@ class DataCarouselInterface(object):
                     ret_map[dataset] = job_param
         return ret_map
 
-    def _get_full_replicas_per_type(self, dataset: str) -> dict:
+    def _get_full_replicas_per_type(self, dataset: str) -> dict[str, list[str]]:
         """
         Get full replicas per type of a dataset
 
@@ -905,7 +938,7 @@ class DataCarouselInterface(object):
         # tmp_log.debug(f"{ret}")
         return ret
 
-    def _get_filtered_replicas(self, dataset: str) -> tuple[dict, (str | None), bool]:
+    def _get_filtered_replicas(self, dataset: str) -> tuple[dict[str, list[str]], (dict[str, Any] | None), bool, dict[str, list[str]]]:
         """
         Get filtered replicas of a dataset and the staging rule and whether all replicas are without rules
 
@@ -914,7 +947,7 @@ class DataCarouselInterface(object):
 
         Returns:
             dict : filtered replicas map (rules considered)
-            str | None : staging rule, None if not existing
+            dict | None : staging rule as returned by DDM, None if not existing
             bool : whether all replicas on datadisk are without rules
             dict : original replicas map
         """
@@ -929,13 +962,13 @@ class DataCarouselInterface(object):
                     staging_rule = rule
                 else:
                     rse_expression_list.append(rule["rse_expression"])
-        filtered_replicas_map = {"tape": [], "datadisk": []}
+        filtered_replicas_map: dict[str, list[str]] = {"tape": [], "datadisk": []}
         has_datadisk_replica = len(replicas_map["datadisk"]) > 0
         has_disk_replica = len(replicas_map["disk"]) > 0
         for replica in replicas_map["tape"]:
             if replica in rse_expression_list:
                 filtered_replicas_map["tape"].append(replica)
-        if len(replicas_map["tape"]) >= 1 and len(filtered_replicas_map["tape"]) == 0 and len(rules) == 0:
+        if len(replicas_map["tape"]) >= 1 and len(filtered_replicas_map["tape"]) == 0 and not rules:
             filtered_replicas_map["tape"] = replicas_map["tape"]
         for replica in replicas_map["datadisk"]:
             if staging_rule is not None or replica in rse_expression_list:
@@ -1017,6 +1050,10 @@ class DataCarouselInterface(object):
         tmp_log = LogWrapper(logger, f"_get_active_source_tapes")
         try:
             active_source_tapes = self._get_active_source_tapes()
+            if active_source_tapes is None:
+                # a config that cannot be read means no tape is active, which is what the
+                # per-RSE test below reached anyway, one logged traceback at a time
+                active_source_tapes = set()
             active_source_rses_set = set()
             for rse, rse_config in self.dc_config_map.source_rses_config.items():
                 try:
@@ -1035,8 +1072,8 @@ class DataCarouselInterface(object):
             return active_source_rses_set
 
     def _get_source_type_of_dataset(
-        self, dataset: str, active_source_rses_set: set | None = None
-    ) -> tuple[(str | None), (set | None), (str | None), bool, list]:
+        self, dataset: str, active_source_rses_set: set[str] | None = None
+    ) -> tuple[(str | None), set[str], (dict[str, Any] | None), bool, list[str]]:
         """
         Get source type and permanent (tape or datadisk) RSEs of a dataset
 
@@ -1046,8 +1083,8 @@ class DataCarouselInterface(object):
 
         Returns:
             str | None : source type of the dataset, "datadisk" if replica on any datadisk, "tape" if replica only on tapes, None if not found
-            set | None : set of permanent RSEs, otherwise None
-            str | None : staging rule if existing, otherwise None
+            set : set of permanent RSEs, empty if none was found
+            dict | None : staging rule as returned by DDM if existing, otherwise None
             bool : whether to pin the dataset
             list : list of suggested destination RSEs; currently only datadisks with full replicas to pin
         """
@@ -1099,7 +1136,9 @@ class DataCarouselInterface(object):
             # other unexpected errors
             raise e
 
-    def _choose_tape_source_rse(self, dataset: str, rse_set: set, staging_rule, no_cern: bool = True) -> tuple[str, (str | None), (str | None)]:
+    def _choose_tape_source_rse(
+        self, dataset: str, rse_set: set[str], staging_rule: dict[str, Any] | None, no_cern: bool = True
+    ) -> tuple[str, (str | None), (str | None)]:
         """
         Choose a TAPE source RSE
         If with existing staging rule, then get source RSE from it
@@ -1181,26 +1220,30 @@ class DataCarouselInterface(object):
             # other unexpected errors
             raise e
 
-    def _get_source_tape_from_rse(self, source_rse: str) -> str:
+    def _get_source_tape_from_rse(self, source_rse: str | None) -> str | None:
         """
         Get the source tape of a source RSE
 
         Args:
-            source_rse (str): name of the source RSE
+            source_rse (str|None): name of the source RSE, which is unset on a request whose source has not been chosen
 
         Returns:
-            str : source tape
+            str | None : source tape, or source_rse itself when it is already a physical tape or unset
         """
+        if source_rse is None:
+            return None
         try:
             # source_rse is RSE
-            source_tape = self.dc_config_map.source_rses_config[source_rse].tape
+            source_tape: str | None = self.dc_config_map.source_rses_config[source_rse].tape
         except KeyError:
             # source_rse is physical tape
             source_tape = source_rse
         return source_tape
 
     @refresh
-    def get_input_datasets_to_prestage(self, task_id: int, task_params_map: dict, dsname_list: list | None = None) -> tuple[list, dict]:
+    def get_input_datasets_to_prestage(
+        self, task_id: int, task_params_map: dict[str, Any], dsname_list: list[str] | None = None
+    ) -> tuple[list[PrestagingItem], dict[str, list[Any]]]:
         """
         Get the input datasets, their source RSEs (tape) of the task which need pre-staging from tapes, and DDM rule ID of existing DDM rule
 
@@ -1222,11 +1265,12 @@ class DataCarouselInterface(object):
             raw_coll_list = []
             raw_coll_did_list = []
             coll_on_tape_set = set()
-            ret_prestaging_list = []
+            ret_prestaging_list: list[PrestagingItem] = []
             expanded_dsname_set = set()
             # set of required dataset names for fast membership tests
             dsname_set = set(dsname_list) if dsname_list is not None else None
-            ret_map = {
+            num_given_dsnames = len(dsname_list) if dsname_list is not None else 0
+            ret_map: dict[str, list[Any]] = {
                 "pseudo_coll_list": [],
                 "unfound_coll_list": [],
                 "empty_coll_list": [],
@@ -1276,7 +1320,7 @@ class DataCarouselInterface(object):
             all_input_datasets_set |= jobparam_datasets_set
             if dsname_set is not None:
                 # tmp_log.debug(f"dsname_list={dsname_list} ; expanded_dsname_set={sorted(expanded_dsname_set)}")
-                tmp_log.debug(f"dsname_list_len={len(dsname_list)} ; expanded_dsname_set_len={len(expanded_dsname_set)}")
+                tmp_log.debug(f"dsname_list_len={num_given_dsnames} ; expanded_dsname_set_len={len(expanded_dsname_set)}")
                 # dsname_list is given; filter out extra container slash
                 master_datasets_set = set([dsname for dsname in dsname_set if not dsname.endswith("/")])
                 # extra dataset not in job parameters when task resubmitted/rerefined
@@ -1301,8 +1345,8 @@ class DataCarouselInterface(object):
                 source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
                 if staging_rule:
                     # reuse existing DDM rule
-                    if collection := jobparam_ds_coll_map.get(dataset):
-                        coll_on_tape_set.add(collection)
+                    if dataset_collection := jobparam_ds_coll_map.get(dataset):
+                        coll_on_tape_set.add(dataset_collection)
                     _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
                     tmp_log.debug(f"dataset={dataset} has existing ddm_rule_id={ddm_rule_id} ; to reuse it")
                     prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
@@ -1327,8 +1371,8 @@ class DataCarouselInterface(object):
                     # replicas only on tape
                     ret_map["tape_ds_list"].append(dataset)
                     tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
-                    if collection := jobparam_ds_coll_map.get(dataset):
-                        coll_on_tape_set.add(collection)
+                    if dataset_collection := jobparam_ds_coll_map.get(dataset):
+                        coll_on_tape_set.add(dataset_collection)
                     # choose source RSE
                     _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
                     prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
@@ -1371,6 +1415,9 @@ class DataCarouselInterface(object):
             tmp_log = LogWrapper(logger, f"_fill_total_files_and_size request_id={dc_req_spec.request_id}")
             # get dataset metadata
             dataset_meta = self.ddmIF.get_dataset_metadata(dc_req_spec.dataset)
+            if dataset_meta is None:
+                tmp_log.error(f"failed to get metadata from DDM for dataset {dc_req_spec.dataset}")
+                return False
             # fill
             dc_req_spec.total_files = dataset_meta["length"]
             dc_req_spec.dataset_size = dataset_meta["bytes"]
@@ -1397,6 +1444,9 @@ class DataCarouselInterface(object):
             tmp_log = LogWrapper(logger, f"_update_total_files_and_size request_id={dc_req_spec.request_id}")
             # get dataset metadata
             dataset_meta = self.ddmIF.get_dataset_metadata(dc_req_spec.dataset)
+            if dataset_meta is None:
+                tmp_log.warning(f"failed to get metadata from DDM for dataset {dc_req_spec.dataset} ; skipped")
+                return None
             if dataset_meta["length"] is None or dataset_meta["bytes"] is None:
                 tmp_log.warning(f"got None for length or bytes from DDM for dataset {dc_req_spec.dataset} ; skipped")
                 return None
@@ -1418,7 +1468,11 @@ class DataCarouselInterface(object):
             return False
 
     def submit_data_carousel_requests(
-        self, task_id: int, prestaging_list: list[tuple[str, str | None, str | None]], options: dict | None = None, submit_idds_request: bool = True
+        self,
+        task_id: int,
+        prestaging_list: list[PrestagingItem],
+        options: dict[str, Any] | None = None,
+        submit_idds_request: bool = True,
     ) -> bool | None:
         """
         Submit data carousel requests for a task
@@ -1512,7 +1566,7 @@ class DataCarouselInterface(object):
             polars.DataFrame|None : dataframe of current Data Carousel requests table if successful, or None if failed
         """
         sql = f"SELECT {','.join(DataCarouselRequestSpec.attributes)} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"ORDER BY request_id "
-        var_map = {}
+        var_map: dict[str, Any] = {}
         res = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
         if res is not None:
             dc_req_df = pl.DataFrame(res, schema=DataCarouselRequestSpec.attributes_with_types, orient="row")
@@ -1550,12 +1604,12 @@ class DataCarouselInterface(object):
         source_rses_config_df = pl.DataFrame(tmp_list)
         return source_rses_config_df
 
-    def _get_source_tape_stats_dataframe(self) -> pl.DataFrame | None:
+    def _get_source_tape_stats_dataframe(self) -> tuple[pl.DataFrame, pl.DataFrame] | None:
         """
         Get statistics of source tapes as dataframe
 
         Returns:
-            polars.DataFrame : dataframe of statistics of source tapes if successful, or None if failed
+            tuple[polars.DataFrame, polars.DataFrame] : dataframes of the statistics per source tape and per source RSE and gshare, or None if failed
         """
         # get Data Carousel requests dataframe of staging requests
         dc_req_df = self._get_dc_requests_table_dataframe()
@@ -1614,7 +1668,7 @@ class DataCarouselInterface(object):
         # return final dataframes
         return source_tape_stats_df, source_rse_gshare_stats_df
 
-    def _get_gshare_stats(self) -> dict:
+    def _get_gshare_stats(self) -> dict[str, Any]:
         """
         Get current gshare stats
 
@@ -1641,12 +1695,12 @@ class DataCarouselInterface(object):
         # return
         return gshare_dict
 
-    def _queued_requests_tasks_to_dataframe(self, queued_requests: list | None) -> pl.DataFrame:
+    def _queued_requests_tasks_to_dataframe(self, queued_requests: list[tuple[DataCarouselRequestSpec, list[JediTaskSpec]]]) -> pl.DataFrame:
         """
         Transfrom Data Carousel queue requests and their tasks into dataframe
 
         Args:
-            queued_requests (list|None): list of tuples in form of (queued_request, [taskspec1, taskspec2, ...])
+            queued_requests (list): list of tuples in form of (queued_request, [taskspec1, taskspec2, ...])
 
         Returns:
             polars.DataFrame : dataframe of queued requests
@@ -1655,7 +1709,9 @@ class DataCarouselInterface(object):
         # source_rses_config_df = self._get_source_rses_config_dataframe()
         # get current gshare rank
         gshare_dict = self._get_gshare_stats()
-        gshare_rank_dict = {k: v["rank"] for k, v in gshare_dict.items()}
+        # probed below with JediTaskSpec.gshare, which is nullable; a task without a gshare
+        # is meant to miss and take the default rank
+        gshare_rank_dict: dict[str | None, Any] = {k: v["rank"] for k, v in gshare_dict.items()}
         # make dataframe of queued requests and their tasks
         tmp_list = []
         for dc_req_spec, task_specs in queued_requests:
@@ -1709,7 +1765,7 @@ class DataCarouselInterface(object):
         return queued_requests_tasks_df
 
     @refresh
-    def get_requests_to_stage(self, *args, **kwargs) -> list[tuple[DataCarouselRequestSpec, dict]]:
+    def get_requests_to_stage(self, *args: Any, **kwargs: Any) -> list[tuple[DataCarouselRequestSpec, dict[str, Any]]]:
         """
         Get the queued requests which should proceed to get staging
 
@@ -1720,13 +1776,17 @@ class DataCarouselInterface(object):
             list[tuple[DataCarouselRequestSpec, dict]] : list of requests to stage and dict of extra parameters to set before to stage
         """
         tmp_log = LogWrapper(logger, "get_requests_to_stage")
-        ret_list = []
+        ret_list: list[Any] = []
         queued_requests = self.taskBufferIF.get_data_carousel_queued_requests_JEDI()
         if queued_requests is None or not queued_requests:
             tmp_log.debug(f"no requests to stage or to pin ; skipped")
             return ret_list
         # get stats of tapes
-        source_tape_stats_df, source_rse_gshare_stats_df = self._get_source_tape_stats_dataframe()
+        source_tape_stats = self._get_source_tape_stats_dataframe()
+        if source_tape_stats is None:
+            tmp_log.debug(f"failed to get stats of source tapes ; skipped")
+            return ret_list
+        source_tape_stats_df, source_rse_gshare_stats_df = source_tape_stats
         # tmp_log.debug(f"source_tape_stats_df: \n{source_tape_stats_df}")
         tmp_log.debug(f"source_rse_gshare_stats_df: \n{source_rse_gshare_stats_df.select(['source_tape', 'init_task_gshare', 'total_files', 'staging_files'])}")
         source_tape_stats_dict_list = source_tape_stats_df.to_dicts()
@@ -1792,6 +1852,12 @@ class DataCarouselInterface(object):
                         unchosen_queued_df = per_gshare_df.clear()
                     fair_share_queued_df.extend(per_gshare_df.filter(pl.col("cum_tot_files_in_gshare") <= fair_share_quota_per_gshare))
                     unchosen_queued_df.extend(per_gshare_df.filter(pl.col("cum_tot_files_in_gshare") > fair_share_quota_per_gshare))
+                if fair_share_queued_df is None or unchosen_queued_df is None:
+                    # to_stage_gshare_list is never empty: a gshare is dropped from it only
+                    # when it already has the virtual quota staging, and those quotas sum
+                    # to more than the staging files they are compared against
+                    tmp_log.warning(f"source_tape={source_tape} has no gshare to stage ; skipped")
+                    continue
                 # remaining fair share quota to distribute again
                 n_fair_share_files_to_stage = fair_share_queued_df.select("total_files").sum().to_dict()["total_files"][0]
                 fair_share_remaining_quota = fair_share_init_quota - n_fair_share_files_to_stage
@@ -1886,7 +1952,7 @@ class DataCarouselInterface(object):
         # return
         return ret_list
 
-    def _choose_destination_rse(self, expression: str, suggested_dst_list: list | None = None, excluded_dst_list: list | None = None) -> str | None:
+    def _choose_destination_rse(self, expression: str, suggested_dst_list: list[str] | None = None, excluded_dst_list: list[str] | None = None) -> str | None:
         """
         Choose a destination (datadisk) RSE based on the destination RSE expression
 
@@ -1954,6 +2020,10 @@ class DataCarouselInterface(object):
         except Exception:
             # other unexpected errors
             tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+        if source_tape is None:
+            # the request has no source RSE yet, so there is no tape config to look up
+            tmp_log.warning(f"source RSE is not set; skipped")
             return None
         # parameters about this tape source from DC config
         try:
@@ -2090,7 +2160,11 @@ class DataCarouselInterface(object):
 
     @refresh
     def stage_request(
-        self, dc_req_spec: DataCarouselRequestSpec, extra_params: dict | None = None, destination_rse: str | None = None, submit_idds_request=True
+        self,
+        dc_req_spec: DataCarouselRequestSpec,
+        extra_params: dict[str, Any] | None = None,
+        destination_rse: str | None = None,
+        submit_idds_request: bool = True,
     ) -> tuple[bool, str | None, DataCarouselRequestSpec]:
         """
         Stage the dataset of the request and update request status to staging
@@ -2222,7 +2296,7 @@ class DataCarouselInterface(object):
         """
         set_map = {"lifetime": lifetime}
         ret = self.ddmIF.update_rule_by_id(rule_id, set_map)
-        return ret
+        return bool(ret)
 
     def cancel_request(self, dc_req_spec: DataCarouselRequestSpec, by: str = "manual", reason: str | None = None) -> bool | None:
         """
@@ -2239,7 +2313,7 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, f"cancel_request request_id={dc_req_spec.request_id} by={by}" + (f" reason={reason}" if reason else " "))
         # cancel
-        ret = self.taskBufferIF.cancel_data_carousel_request_JEDI(dc_req_spec.request_id)
+        ret: bool | None = self.taskBufferIF.cancel_data_carousel_request_JEDI(dc_req_spec.request_id)
         if ret:
             tmp_log.debug(f"cancelled")
         elif ret == 0:
@@ -2286,7 +2360,9 @@ class DataCarouselInterface(object):
         # return
         return ret
 
-    def _check_ddm_rule_of_request(self, dc_req_spec: DataCarouselRequestSpec, by: str = "unknown") -> tuple[bool, str | None, dict | None]:
+    def _check_ddm_rule_of_request(
+        self, dc_req_spec: DataCarouselRequestSpec, by: str = "unknown"
+    ) -> tuple[bool, str | None, dict[str, Any] | Literal[False] | None]:
         """
         Check if the DDM rule of the request is valid.
         If rule not found, update the request and try to cancel or retire it.
@@ -2355,7 +2431,7 @@ class DataCarouselInterface(object):
         ret = False
         # check if the rule is valid
         is_valid, ddm_rule_id, the_rule = self._check_ddm_rule_of_request(dc_req_spec, by=by)
-        if not is_valid:
+        if not is_valid or ddm_rule_id is None or the_rule is None or the_rule is False:
             # rule not valid; skipped
             tmp_log.error(f"ddm_rule_id={ddm_rule_id} rule not valid; skipped")
             return ret
@@ -2381,7 +2457,7 @@ class DataCarouselInterface(object):
         # return
         return ret
 
-    def keep_alive_ddm_rules(self, by: str = "watchdog"):
+    def keep_alive_ddm_rules(self, by: str = "watchdog") -> None:
         """
         Keep alive DDM rules of requests of active tasks; also check all requests if their DDM rules are valid
 
@@ -2445,6 +2521,9 @@ class DataCarouselInterface(object):
             scope, dsname = self.ddmIF.extract_scope(dataset)
             # get lfn of files in the dataset from DDM
             lfn_set = self.ddmIF.get_files_in_dataset(dataset, ignore_unknown=True, lfn_only=True)
+            if lfn_set is None:
+                tmp_log.warning(f"failed to get files in dataset {dataset} from DDM ; skipped")
+                return None
             # make filenames_dict for updateInputFilesStaged_JEDI
             filenames_dict = {}
             dummy_value_tuple = (None, None)
@@ -2530,7 +2609,7 @@ class DataCarouselInterface(object):
                     if dc_req_spec.destination_rse is None:
                         the_replica_locks = self.ddmIF.list_replica_locks_by_id(ddm_rule_id)
                         try:
-                            the_first_file = the_replica_locks[0]
+                            the_first_file = the_replica_locks[0]  # type: ignore[index]  # None here is what the TypeError below catches
                         except IndexError:
                             tmp_log.warning(
                                 f"request_id={dc_req_spec.request_id} no file from replica lock of ddm_rule_id={ddm_rule_id} ; destination_rse not updated"
@@ -2615,7 +2694,7 @@ class DataCarouselInterface(object):
             tmp_log.warning(f"task_id={task_id} failed to resume the task: error_code={ret_val} {ret_str}")
             return False
 
-    def resume_tasks_from_staging(self):
+    def resume_tasks_from_staging(self) -> None:
         """
         Get tasks with enough staged files and resume them
         """
@@ -2699,7 +2778,7 @@ class DataCarouselInterface(object):
 
     def clean_up_requests(
         self, done_age_limit_days: int | float = DONE_LIFETIME_DAYS, outdated_age_limit_days: int | float = DONE_LIFETIME_DAYS, by: str = "watchdog"
-    ):
+    ) -> None:
         """
         Clean up terminated and outdated requests
 
@@ -2813,7 +2892,7 @@ class DataCarouselInterface(object):
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
 
-    def rescue_pending_tasks_with_done_requests(self):
+    def rescue_pending_tasks_with_done_requests(self) -> None:
         """
         Rescue pending tasks which have data carousel requests in done status by updating staged files in DB
         Usually these tasks reuse data carousel requests done previously
@@ -2824,7 +2903,7 @@ class DataCarouselInterface(object):
             status_filter_list=["pending"]
         )
         # create inverse relation map: request_id -> list of task_id
-        pending_tasked_inverse_relation_map = dict()
+        pending_tasked_inverse_relation_map: dict[str, Any] = dict()
         for task_id, request_id_list in pending_tasked_relation_map.items():
             for request_id in request_id_list:
                 pending_tasked_inverse_relation_map.setdefault(request_id, [])
@@ -2842,7 +2921,12 @@ class DataCarouselInterface(object):
                 tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
 
     def resubmit_request(
-        self, orig_dc_req_spec: DataCarouselRequestSpec, submit_idds_request=True, exclude_prev_dst: bool = False, by: str = "manual", reason: str | None = None
+        self,
+        orig_dc_req_spec: DataCarouselRequestSpec,
+        submit_idds_request: bool = True,
+        exclude_prev_dst: bool = False,
+        by: str = "manual",
+        reason: str | None = None,
     ) -> tuple[DataCarouselRequestSpec | None, str | None]:
         """
         Resubmit a request by ending the old request and submitting a new request
@@ -2880,6 +2964,10 @@ class DataCarouselInterface(object):
             orig_dc_req_spec = locked_spec
             # dummy spec to resubmit
             dummy_dc_req_spec_to_resubmit = get_resubmit_request_spec(orig_dc_req_spec, exclude_prev_dst)
+            if dummy_dc_req_spec_to_resubmit is None:
+                err_msg = f"failed to make a spec to resubmit request_id={orig_dc_req_spec.request_id}; skipped"
+                tmp_log.warning(err_msg)
+                return None, err_msg
             # check and choose available destination RSE
             destination_rse = self._choose_destination_rse_for_request(dummy_dc_req_spec_to_resubmit)
             if destination_rse is None:
@@ -3042,7 +3130,7 @@ class DataCarouselInterface(object):
                 ret = False
         elif dc_req_spec.status == DataCarouselRequestStatus.staging:
             # unset source_replica_expression of DDM rule for staging request
-            set_map = {"source_replica_expression": None}
+            set_map: dict[str, Any] = {"source_replica_expression": None}
             if change_src_expr:
                 # change source_replica_expression by replacing old source with new one
                 if not rse_set:

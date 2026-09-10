@@ -1,6 +1,15 @@
 import re
+from typing import TYPE_CHECKING
 
 from pandaserver.taskbuffer import JobUtils
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.SiteSpec import SiteSpec
+
+if TYPE_CHECKING:
+    # Importing this for real makes the module read a configuration file at import time,
+    # which nothing else here needs. Annotations are evaluated at runtime in this tree, so
+    # the uses below are quoted.
+    from pandaserver.brokerage.SiteMapper import SiteMapper
 
 # Job-level values taken from the executor metaData in job reports, mapped from the job
 # report key to the file metadata key they are registered under in DDM. This is the only
@@ -12,7 +21,7 @@ EXECUTOR_METADATA_KEYS = {"cross-section (nb)": "xsec", "GenFiltEff": "gen_filt_
 JOB_LEVEL_METADATA_KEYS = list(EXECUTOR_METADATA_KEYS.values())
 
 
-def isCachedFile(dataset_name, site_spec):
+def isCachedFile(dataset_name: str, site_spec: SiteSpec) -> bool:
     """
     Check if the file is cached on a site using CVMFS, e.g. for DB releases.
 
@@ -35,7 +44,7 @@ def isCachedFile(dataset_name, site_spec):
 
 
 # check invalid characters in dataset name
-def checkInvalidCharacters(dataset_name):
+def checkInvalidCharacters(dataset_name: str) -> bool:
     """
     Checks the validity of a dataset name.
     - The dataset name starts with an alphanumeric character ([A-Za-z0-9]).
@@ -53,7 +62,7 @@ def checkInvalidCharacters(dataset_name):
 
 
 # get dataset type
-def getDatasetType(dataset):
+def getDatasetType(dataset: str | None) -> str | None:
     """
     Get the dataset type by extracting the fifth element from the dataset name.
 
@@ -63,12 +72,12 @@ def getDatasetType(dataset):
     - 'mc23_13p6TeV.801169.Py8EG_A14NNPDF23LO_jj_JZ4.simul.HITS.e8514_e8528_a934_tid41381346_00' would return 'HITS'.
 
     Args:
-        dataset (str): The name of the dataset.
+        dataset (str): The name of the dataset, or None for a spec whose name is not set yet.
     Returns:
         str: The dataset type if it can be extracted, otherwise None.
     """
     try:
-        if dataset.startswith("user") or dataset.startswith("group"):
+        if dataset is None or dataset.startswith("user") or dataset.startswith("group"):
             return None
         dataset_type = dataset.split(".")[4]
     except Exception:
@@ -76,7 +85,7 @@ def getDatasetType(dataset):
     return dataset_type
 
 
-def getSitesShareDDM(site_mapper, site_name, prod_source_label, job_label, output_share=False):
+def getSitesShareDDM(site_mapper: "SiteMapper", site_name: str, prod_source_label: str | None, job_label: str | None, output_share: bool = False) -> list[str]:
     """
     Get sites which share the DDM endpoint.
 
@@ -98,7 +107,7 @@ def getSitesShareDDM(site_mapper, site_name, prod_source_label, job_label, outpu
     runs_production = site_spec.runs_production()
     runs_analysis = site_spec.runs_analysis()
 
-    ret_sites = []
+    ret_sites: list[str] = []
     for tmp_site_name, tmp_site_spec in site_mapper.siteSpecList.items():
         scope_tmp_site_input, scope_tmp_site_output = select_scope(tmp_site_spec, prod_source_label, job_label)
 
@@ -121,7 +130,7 @@ def getSitesShareDDM(site_mapper, site_name, prod_source_label, job_label, outpu
     return ret_sites
 
 
-def checkJobDestinationSE(tmp_job):
+def checkJobDestinationSE(tmp_job: JobSpec) -> str | None:
     """
     Check if the job has a destination storage element in a file specification.
 
@@ -137,7 +146,7 @@ def checkJobDestinationSE(tmp_job):
     return None
 
 
-def getDestinationSE(destination_dblock_token):
+def getDestinationSE(destination_dblock_token: str | None) -> str | None:
     """
     Check if the destination is specified (e.g. dst:CERN-PROD_DATADISK) and extract it.
 
@@ -154,7 +163,7 @@ def getDestinationSE(destination_dblock_token):
     return None
 
 
-def getDistributedDestination(destination_dblock_token, ignore_empty=True):
+def getDistributedDestination(destination_dblock_token: str | None, ignore_empty: bool = True) -> str | None:
     """
     Check if the destination is distributed (e.g. ddd:CERN-PROD_DATADISK) and extract it.
 
@@ -176,7 +185,7 @@ def getDistributedDestination(destination_dblock_token, ignore_empty=True):
     return None
 
 
-def extractImportantError(message):
+def extractImportantError(message: str) -> str:
     """
     Extract important error strings from a message. This function searches for specific substrings within a given message and returns
     a concatenated string of lines containing those substrings.
@@ -196,7 +205,7 @@ def extractImportantError(message):
     return return_string
 
 
-def getActivityForOut(prod_source_label):
+def getActivityForOut(prod_source_label: str | None) -> str:
     """
     Get the DDM activity type for the job output based on the production source label.
 
@@ -214,7 +223,7 @@ def getActivityForOut(prod_source_label):
     return activity
 
 
-def select_scope(site_spec, prod_source_label, job_label):
+def select_scope(site_spec: SiteSpec, prod_source_label: str | None, job_label: str | None) -> tuple[str, str]:
     """
     Select the scopes of the activity for input and output. The scope was introduced for prod-analy queues where you might want to associate
     different RSEs depending on production or analysis.
@@ -239,7 +248,7 @@ def select_scope(site_spec, prod_source_label, job_label):
     return scope_input, scope_output
 
 
-def isDBR(dataset_name):
+def isDBR(dataset_name: str) -> bool:
     """
     Check if the dataset is a DB release. A DB release dataset name starts with 'ddo'.
 

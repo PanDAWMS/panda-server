@@ -5,6 +5,7 @@ import re
 import time
 import traceback
 import uuid
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -12,13 +13,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
 from pandaserver.srvcore.hardware_matching import match_gpu_spec
-from pandaserver.taskbuffer import (
-    ErrorCode,
-    EventServiceUtils,
-    JobUtils,
-    PrioUtil,
-    SupErrors,
-)
+from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, PrioUtil
 from pandaserver.taskbuffer.db_proxy_mods.base_module import (
     BaseModule,
     SQL_QUEUE_TOPIC_async_dataset_update,
@@ -31,6 +26,8 @@ from pandaserver.taskbuffer.db_proxy_mods.worker_module import get_worker_module
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec, get_task_queued_time
+from pandaserver.taskbuffer.spec_column import Null
+from pandaserver.taskbuffer.SupErrors import SupErrors
 
 # maximum number of task IDs excluded from job dispatch due to hardware mismatch
 MAX_EXCLUDED_TASK_IDS = 500
@@ -46,7 +43,9 @@ class JobComplexModule(BaseModule):
         super().__init__(log_stream)
 
     # update Job status in jobsActive
-    def updateJobStatus(self, pandaID, jobStatus, param, updateStateChange=False, attemptNr=None):
+    def updateJobStatus(
+        self, pandaID: int, jobStatus: str, param: dict[str, Any], updateStateChange: bool = False, attemptNr: int | None = None
+    ) -> tuple[Any, Any]:
         comment = " /* DBProxy.updateJobStatus */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"attemptNr={attemptNr} status={jobStatus}")
@@ -56,7 +55,7 @@ class JobComplexModule(BaseModule):
         varMap0 = {}
         varMap0[":PandaID"] = pandaID
         sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:jobStatus"
-        varMap = {}
+        varMap: dict[str, Any] = {}
         presetEndTime = False
         for key in list(param):
             if key in ["corruptedFiles"]:
@@ -504,9 +503,12 @@ class JobComplexModule(BaseModule):
                 # dump error
                 self.dump_error_message(tmp_log)
                 return False, None
+        # the retry above only continues while another attempt is left, so the last one
+        # returns and this is not reached
+        raise RuntimeError("updateJobStatus reached the end of its retry loop without a result")
 
     # update job information in jobsActive or jobsDefined
-    def updateJob(self, job, inJobsDefined, oldJobStatus=None, extraInfo=None):
+    def updateJob(self, job: JobSpec, inJobsDefined: bool, oldJobStatus: str | None = None, extraInfo: dict[str, Any] | None = None) -> bool:
         comment = " /* DBProxy.updateJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         updatedFlag = False
@@ -543,8 +545,8 @@ class JobComplexModule(BaseModule):
                 varMap = job.valuesMap(onlyChanged=True)
                 varMap[":PandaID"] = job.PandaID
                 if inJobsDefined:
-                    varMap[":oldJobStatus1"] = "assigned"
-                    varMap[":oldJobStatus2"] = "defined"
+                    varMap[":oldJobStatus1"] = "assigned"  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
+                    varMap[":oldJobStatus2"] = "defined"  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                 tmp_log.debug(sql1 + comment + str(varMap))
                 self.cur.execute(sql1 + comment, varMap)
                 n = self.cur.rowcount
@@ -560,14 +562,14 @@ class JobComplexModule(BaseModule):
                         and hasattr(panda_config, "useJEDI")
                         and panda_config.useJEDI is True
                         and job.lockedby == "jedi"
-                        and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)
+                        and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     ):
                         useJEDI = True
                     # SQL to check JEDI files
                     sqlJediFJ = "SELECT /*+ INDEX_RS_ASC(JEDI_DATASET_CONTENTS (JEDI_DATASET_CONTENTS.JEDITASKID JEDI_DATASET_CONTENTS.DATASETID JEDI_DATASET_CONTENTS.FILEID)) */ 1 FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                     sqlJediFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     sqlJediFJ += "AND attemptNr=:attemptNr AND status=:status AND keepTrack=:keepTrack "
-                    datasetContentsStat = {}
+                    datasetContentsStat: dict[Any, dict[str, Any]] = {}
                     # loop over all files
                     for file in job.Files:
                         sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()}" + "WHERE row_ID=:row_ID"
@@ -589,7 +591,7 @@ class JobComplexModule(BaseModule):
                             varMap[":datasetID"] = file.datasetID
                             varMap[":fileID"] = file.fileID
                             varMap[":attemptNr"] = file.attemptNr
-                            varMap[":status"] = "running"
+                            varMap[":status"] = "running"  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                             varMap[":keepTrack"] = 1
                             self.cur.execute(sqlJediFJ + comment, varMap)
                             res = self.cur.fetchone()
@@ -613,9 +615,9 @@ class JobComplexModule(BaseModule):
                             varMap[":datasetID"] = file.datasetID
                             varMap[":keepTrack"] = 1
                             varMap[":jediTaskID"] = file.jediTaskID
-                            varMap[":status"] = "ready"
+                            varMap[":status"] = "ready"  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                             varMap[":boundaryID"] = job.PandaID
-                            varMap[":maxAttempt"] = file.attemptNr + 3
+                            varMap[":maxAttempt"] = file.attemptNr + 3  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                             sqlJFile = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents "
                             sqlJFile += "SET status=:status,boundaryID=:boundaryID,maxAttempt=:maxAttempt"
                             for tmpKey in ["lfn", "GUID", "fsize", "checksum"]:
@@ -699,7 +701,7 @@ class JobComplexModule(BaseModule):
                             else:
                                 sqlJediDU += "nFilesOnHold=nFilesOnHold-:diffNum "
                         elif cType == "touse":
-                            varMap[":status"] = "ready"
+                            varMap[":status"] = "ready"  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                             sqlJediDU += "nFilesTobeUsed=nFilesTobeUsed+:diffNum,status=:status "
                         sqlJediDU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                         tmp_log.debug(sqlJediDU + comment + str(varMap))
@@ -708,20 +710,20 @@ class JobComplexModule(BaseModule):
                     sqlJobP = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
                     varMap = {}
                     varMap[":PandaID"] = job.PandaID
-                    varMap[":param"] = job.jobParameters
+                    varMap[":param"] = job.jobParameters  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                     self.cur.execute(sqlJobP + comment, varMap)
                     updatedFlag = True
                     # update input
                     if useJEDI and job.jobStatus in ["transferring"]:
-                        get_task_event_module(self).updateInputStatusJedi(job.jediTaskID, job.PandaID, job.jobStatus)
+                        get_task_event_module(self).updateInputStatusJedi(job.jediTaskID, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
                 # record status change
                 try:
                     if updatedFlag and job.jobStatus != last_jobstatus:
-                        self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
-                        self.push_job_status_message(job, job.PandaID, job.jobStatus)
+                        self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                        self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 except Exception:
                     tmp_log.error("recordStatusChange in updateJob")
                 return True
@@ -734,9 +736,12 @@ class JobComplexModule(BaseModule):
                     continue
                 self.dump_error_message(tmp_log)
                 return False
+        # the retry above only continues while another attempt is left, so the last one
+        # returns and this is not reached
+        raise RuntimeError("updateJob reached the end of its retry loop without a result")
 
     # cleanup jumbo jobs
-    def cleanupJumboJobs(self, jediTaskID=None):
+    def cleanupJumboJobs(self, jediTaskID: int | None = None) -> bool:
         comment = " /* DBProxy.cleanupJumboJobs */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -752,7 +757,9 @@ class JobComplexModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # get jobs
-            varMap = {}
+            # the per-task map below binds a task ID to this same name, so the type is not
+            # the one this first use implies
+            varMap: dict[str, Any] = {}
             varMap[":eventService"] = EventServiceUtils.jumboJobFlagNumber
             self.cur.execute(sql + comment, varMap)
             resF = self.cur.fetchall()
@@ -760,7 +767,7 @@ class JobComplexModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             # get ID mapping
-            idMap = {}
+            idMap: dict[str, Any] = {}
             for pandaID, tmpJediTaskID, jobStatus in resF:
                 if jobStatus in ["transferring", "running", "holding"]:
                     continue
@@ -786,7 +793,7 @@ class JobComplexModule(BaseModule):
                     disabledFlag = False
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                if jediTaskID is not None or not get_task_event_module(self).isApplicableTaskForJumbo(tmpJediTaskID) or disabledFlag:
+                if jediTaskID is not None or not get_task_event_module(self).isApplicableTaskForJumbo(tmpJediTaskID) or disabledFlag:  # type: ignore[arg-type]  # the id comes back from the query as text
                     for pandaID in pandaIDs:
                         self.killJob(pandaID, "", "55", True)
                     tmp_log.debug(f"killed {len(pandaIDs)} jobs for jediTaskID={tmpJediTaskID}")
@@ -800,16 +807,17 @@ class JobComplexModule(BaseModule):
             return False
 
     # kill job
+    # wgProdRole and killOpts are only read, so the shared default lists cannot be changed by a call
     def killJob(
         self,
-        pandaID,
-        user,
-        code,
-        prodManager,
-        getUserInfo=False,
-        wgProdRole=[],
-        killOpts=[],
-    ):
+        pandaID: int | str,
+        user: str,
+        code: int | str | None,
+        prodManager: bool,
+        getUserInfo: bool = False,
+        wgProdRole: list[str] = [],
+        killOpts: list[str] = [],
+    ) -> Any:
         # code
         # 2  : expire
         # 3  : aborted
@@ -881,7 +889,7 @@ class JobComplexModule(BaseModule):
                 # begin transaction
                 self.conn.begin()
                 # get DN if user is not production DN
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":PandaID"] = pandaID
                 self.cur.arraysize = 10
                 self.cur.execute((sql0 + comment) % table, varMap)
@@ -1093,7 +1101,7 @@ class JobComplexModule(BaseModule):
                     hasattr(panda_config, "useJEDI")
                     and panda_config.useJEDI is True
                     and job.lockedby == "jedi"
-                    and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)
+                    and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 ):
                     # read files
                     varMap = {}
@@ -1118,9 +1126,9 @@ class JobComplexModule(BaseModule):
                                 get_task_event_module(self).killUnusedEventServiceConsumers(job, False, killAll=True, checkAttemptNr=True)
                             get_task_event_module(self).updateRelatedEventServiceJobs(job, True)
                             if not job.notDiscardEvents():
-                                get_task_event_module(self).killUnusedEventRanges(job.jediTaskID, job.jobsetID)
+                                get_task_event_module(self).killUnusedEventRanges(job.jediTaskID, job.jobsetID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                             if eventService == EventServiceUtils.jumboJobFlagNumber:
-                                get_task_event_module(self).hasDoneEvents(job.jediTaskID, job.PandaID, job, False)
+                                get_task_event_module(self).hasDoneEvents(job.jediTaskID, job.PandaID, job, False)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                         elif useEventServiceMerge:
                             get_task_event_module(self).updateRelatedEventServiceJobs(job, True)
                     # disable reattempt
@@ -1137,8 +1145,8 @@ class JobComplexModule(BaseModule):
             # record status change
             try:
                 if updatedFlag:
-                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
-                    self.push_job_status_message(job, job.PandaID, job.jobStatus)
+                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             except Exception:
                 tmp_log.error("recordStatusChange in killJob")
             if getUserInfo:
@@ -1160,15 +1168,14 @@ class JobComplexModule(BaseModule):
             return False
 
     # update unmerged jobs
-    def updateUnmergedJobs(self, job, fileIDs=None, async_params=None):
+    def updateUnmergedJobs(self, job: JobSpec, fileIDs: list[int] | set[int] | None = None, async_params: dict[str, Any] | None = None) -> None:
         comment = " /* JediDBProxy.updateUnmergedJobs */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         tmp_log.debug(f"start with {async_params}")
         # get PandaID which produced unmerged files
         umPandaIDs = []
         umCheckedIDs = []
-        if fileIDs is None:
-            fileIDs = set()
+        file_id_set: set[int] | list[int] = set() if fileIDs is None else fileIDs
         # sql to get PandaIDs
         sqlUMP = "SELECT PandaID,attemptNr FROM ATLAS_PANDA.filesTable4 "
         sqlUMP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
@@ -1179,9 +1186,9 @@ class JobComplexModule(BaseModule):
         for tmpFile in job.Files:
             if tmpFile.isUnMergedInput():
                 # only fileIDs which reach max attempt
-                if len(fileIDs) > 0 and tmpFile.fileID not in fileIDs:
+                if len(file_id_set) > 0 and tmpFile.fileID not in file_id_set:
                     continue
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = tmpFile.jediTaskID
                 varMap[":datasetID"] = tmpFile.datasetID
                 varMap[":fileID"] = tmpFile.fileID
@@ -1244,13 +1251,13 @@ class JobComplexModule(BaseModule):
     # archive job to jobArchived and remove the job from jobsActive or jobsDefined
     def archiveJob(
         self,
-        job,
-        fromJobsDefined,
-        useCommit=True,
-        extraInfo=None,
-        fromJobsWaiting=False,
-        async_params=None,
-    ):
+        job: JobSpec,
+        fromJobsDefined: bool,
+        useCommit: bool = True,
+        extraInfo: dict[str, Any] | None = None,
+        fromJobsWaiting: bool = False,
+        async_params: dict[str, Any] | None = None,
+    ) -> tuple[bool, list[Any], int, JobSpec | None]:
         comment = " /* DBProxy.archiveJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID} jediTaskID={job.jediTaskID}")
         tmp_log.debug(f"start status={job.jobStatus} label={job.prodSourceLabel} " f"type={job.processingType} async_params={async_params}")
@@ -1276,14 +1283,14 @@ class JobComplexModule(BaseModule):
                     hasattr(panda_config, "useJEDI")
                     and panda_config.useJEDI is True
                     and job.lockedby == "jedi"
-                    and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)
+                    and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 ):
                     useJEDI = True
                 if useCommit:
                     if not self._commit():
                         raise RuntimeError("Commit error")
                 # delete downstream jobs first
-                ddmIDs = []
+                ddmIDs: list[Any] = []
                 newJob = None
                 ddmAttempt = 0
                 if job.prodSourceLabel == "panda" and job.jobStatus == "failed":
@@ -1292,7 +1299,7 @@ class JobComplexModule(BaseModule):
                     for file in job.Files:
                         if file.type == "output":
                             upOutputs.append(file.lfn)
-                    toBeClosedSubList = {}
+                    toBeClosedSubList: dict[Any, Any] = {}
                     topUserDsList = []
                     # look for downstream jobs
                     sqlD = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND lfn=:lfn GROUP BY PandaID"
@@ -1315,7 +1322,7 @@ class JobComplexModule(BaseModule):
                         if useCommit:
                             self.conn.begin()
                         # select PandaID
-                        varMap = {}
+                        varMap: dict[str, Any] = {}
                         varMap[":lfn"] = upFile
                         varMap[":type"] = "input"
                         self.cur.arraysize = 100000
@@ -1489,14 +1496,14 @@ class JobComplexModule(BaseModule):
                 # actions for jobs without tasks
                 if not useJEDI:
                     # update HS06sec for non-JEDI jobs (e.g. HC)
-                    hs06sec = get_entity_module(self).setHS06sec(job.PandaID, inActive=True)
+                    hs06sec = get_entity_module(self).setHS06sec(job.PandaID, inActive=True)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     tmp_log.debug(f"calculated hs06sec {hs06sec}")
                     if hs06sec is not None:
-                        job.hs06sec = hs06sec
+                        job.hs06sec = hs06sec  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
 
                     # update the g of CO2 emitted by the job
                     try:
-                        gco2_regional, gco2_global = get_entity_module(self).set_co2_emissions(job.PandaID, in_active=True)
+                        gco2_regional, gco2_global = get_entity_module(self).set_co2_emissions(job.PandaID, in_active=True)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                         tmp_log.debug(f"calculated gCO2 regional {gco2_regional} and global {gco2_global}")
                         if gco2_regional is not None:
                             job.gco2_regional = gco2_regional
@@ -1508,13 +1515,13 @@ class JobComplexModule(BaseModule):
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) and not EventServiceUtils.isJobCloningJob(job):
                     # update some job attributes
-                    hs06sec = get_entity_module(self).setHS06sec(job.PandaID, inActive=True)
+                    hs06sec = get_entity_module(self).setHS06sec(job.PandaID, inActive=True)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     if hs06sec is not None:
-                        job.hs06sec = hs06sec
+                        job.hs06sec = hs06sec  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
 
                     # update the g of CO2 emitted by the job
                     try:
-                        gco2_regional, gco2_global = get_entity_module(self).set_co2_emissions(job.PandaID, in_active=True)
+                        gco2_regional, gco2_global = get_entity_module(self).set_co2_emissions(job.PandaID, in_active=True)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                         tmp_log.debug(f"calculated gCO2 regional {gco2_regional} and global {gco2_global}")
                         if gco2_regional is not None:
                             job.gco2_regional = gco2_regional
@@ -1608,7 +1615,7 @@ class JobComplexModule(BaseModule):
                         tmp_log.debug(f"useJumbo={useJumbo}")
                         # no new jobs
                         if retNewPandaID is None and (retEvS != 4 or EventServiceUtils.isCoJumboJob(job) or useJumbo is not None):
-                            nActiveConsumers = get_task_event_module(self).getActiveConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
+                            nActiveConsumers = get_task_event_module(self).getActiveConsumers(job.jediTaskID, job.jobsetID, job.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                             # create a fake cojumbo
                             if (
                                 nActiveConsumers == 0
@@ -1626,7 +1633,7 @@ class JobComplexModule(BaseModule):
                     # kill unused event ranges
                     if job.jobStatus == "failed":
                         if not job.notDiscardEvents():
-                            get_task_event_module(self).killUnusedEventRanges(job.jediTaskID, job.jobsetID)
+                            get_task_event_module(self).killUnusedEventRanges(job.jediTaskID, job.jobsetID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                         get_task_event_module(self).updateRelatedEventServiceJobs(job, True)
                 elif useJEDI and EventServiceUtils.isEventServiceJob(job) and EventServiceUtils.isJobCloningJob(job):
                     # check for cloned jobs
@@ -1662,7 +1669,7 @@ class JobComplexModule(BaseModule):
                         job.jobSubStatus = "fg_stumble"
                 # release unprocessed samples for HPO
                 if job.is_hpo_workflow():
-                    get_task_event_module(self).release_unprocessed_events(job.jediTaskID, job.PandaID)
+                    get_task_event_module(self).release_unprocessed_events(job.jediTaskID, job.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # delete from jobsDefined/Active
                 varMap = {}
                 varMap[":PandaID"] = job.PandaID
@@ -1742,7 +1749,7 @@ class JobComplexModule(BaseModule):
                                 if job.isCancelled():
                                     # check semaphore
                                     check_jc = self.checkClonedJob(job, False)
-                                    if check_jc["lock"] is False:
+                                    if check_jc is not None and check_jc["lock"] is False:
                                         tmp_log.debug("not propagate results to JEDI for cloning job without semaphore")
                                         to_propagate = False
                             elif job.isCancelled() or job.jobStatus == "merging":
@@ -1810,7 +1817,7 @@ class JobComplexModule(BaseModule):
                             ErrorCode.EC_EventServiceLastUnprocessed,
                             ErrorCode.EC_EventServiceUnprocessed,
                         ]
-                        and job.nEvents > 0
+                        and job.nEvents > 0  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                     ):
                         varMap = {}
                         varMap[":PandaID"] = job.PandaID
@@ -1849,7 +1856,7 @@ class JobComplexModule(BaseModule):
                 try:
                     for tmpJob in updatedJobList:
                         self.recordStatusChange(
-                            tmpJob.PandaID,
+                            tmpJob.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                             tmpJobStatus,
                             jobInfo=tmpJob,
                             useCommit=useCommit,
@@ -1865,7 +1872,7 @@ class JobComplexModule(BaseModule):
                         }
                         self.push_job_status_message(
                             tmpJob,
-                            tmpJob.PandaID,
+                            tmpJob.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                             tmpJobStatus,
                             extra_data=extra_info_dict,
                         )
@@ -1885,9 +1892,13 @@ class JobComplexModule(BaseModule):
                 if not useCommit:
                     raise RuntimeError("archiveJob failed")
                 return False, [], 0, None
+        # nTry is 1 and every path through the loop body returns or raises, so the loop cannot
+        # fall out of the bottom. Saying so here rather than returning None keeps the four-tuple
+        # promise: every caller unpacks it, so a None would fail at the caller instead of here.
+        raise RuntimeError("archiveJob reached the end of its retry loop without a result")
 
     # check fine-grained job
-    def check_fine_grained_processing(self, job_spec):
+    def check_fine_grained_processing(self, job_spec: JobSpec) -> tuple[int, int]:
         comment = " /* DBProxy.check_fine_grained_processing */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job_spec.PandaID} jediTaskID={job_spec.jediTaskID}")
         try:
@@ -1934,7 +1945,7 @@ class JobComplexModule(BaseModule):
             raise RuntimeError(comment + " failed")
 
     # check for cloned jobs
-    def checkClonedJob(self, jobSpec, useCommit=True):
+    def checkClonedJob(self, jobSpec: JobSpec, useCommit: bool = True) -> dict[str, Any] | None:
         comment = " /* DBProxy.checkClonedJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
         tmp_log.debug("start")
@@ -1951,7 +1962,7 @@ class JobComplexModule(BaseModule):
             # check if semaphore is locked
             sqlED = f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Events "
             sqlED += "WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jobSpec.jediTaskID
             varMap[":pandaID"] = jobSpec.PandaID
             self.cur.execute(sqlED + comment, varMap)
@@ -2007,7 +2018,7 @@ class JobComplexModule(BaseModule):
             self.dump_error_message(tmp_log)
             return None
 
-    def get_average_memory_jobs(self, computingsite, target):
+    def get_average_memory_jobs(self, computingsite: str, target: int) -> tuple[float, float]:
         """
         Calculates the average memory for running and queued (starting) jobs at a particular panda queue.
         This function is equivalent to the get_average_memory_workers (for PULL), but is meant for PUSH queues.
@@ -2068,22 +2079,22 @@ class JobComplexModule(BaseModule):
 
     def construct_where_clause(
         self,
-        site_name,
-        mem,
-        disk_space,
-        background,
-        resource_type,
-        prod_source_label,
-        computing_element,
-        is_gu,
-        job_type,
-        prod_user_id,
-        task_id,
-        average_memory_limit,
-        remaining_time,
-        excluded_task_ids=None,
-    ):
-        get_val_map = {":oldJobStatus": "activated", ":computingSite": site_name}
+        site_name: str,
+        mem: int | None,
+        disk_space: int | None,
+        background: bool,
+        resource_type: str | None,
+        prod_source_label: str | None,
+        computing_element: str | None,
+        is_gu: bool,
+        job_type: str | None,
+        prod_user_id: str | None,
+        task_id: int | None,
+        average_memory_limit: float | None,
+        remaining_time: int | None,
+        excluded_task_ids: list[int] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        get_val_map: dict[str, Any] = {":oldJobStatus": "activated", ":computingSite": site_name}
 
         sql_where_clause = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite "
 
@@ -2095,7 +2106,7 @@ class JobComplexModule(BaseModule):
             sql_where_clause += "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
             get_val_map[":maxDiskCount"] = disk_space
 
-        if remaining_time > 0:
+        if remaining_time is not None and remaining_time > 0:
             sql_where_clause += "AND (maxWalltime IS NULL OR maxWalltime<=:maxWalltime) "
             get_val_map[":maxWalltime"] = remaining_time
 
@@ -2165,7 +2176,7 @@ class JobComplexModule(BaseModule):
         return sql_where_clause, get_val_map
 
     # get architectures of tasks
-    def get_task_architectures(self, task_ids):
+    def get_task_architectures(self, task_ids: list[int] | set[int]) -> dict[Any, Any]:
         """
         Get the architecture of tasks. jediTaskID is the primary key of JEDI_Tasks, so that this is an index lookup.
         Task IDs without a row in JEDI_Tasks are missing from the returned dictionary.
@@ -2201,7 +2212,7 @@ class JobComplexModule(BaseModule):
             return {}
 
     # check if a task can run on the worker node
-    def check_task_architecture(self, architecture, target_architecture):
+    def check_task_architecture(self, architecture: str | None, target_architecture: Any) -> bool:
         """
         Check if the hardware requirements of a task are satisfied by the hardware of the worker node.
         Unknown requirements and unreported hardware are accepted, so that jobs are not withheld when
@@ -2232,27 +2243,27 @@ class JobComplexModule(BaseModule):
     # get jobs
     def getJobs(
         self,
-        nJobs,
-        siteName,
-        prodSourceLabel,
-        mem,
-        diskSpace,
-        node,
-        timeout,
-        computingElement,
-        prodUserID,
-        taskID,
-        background,
-        resourceType,
-        harvester_id,
-        worker_id,
-        schedulerID,
-        jobType,
-        is_gu,
-        via_topic,
-        remaining_time,
-        target_architecture,
-    ):
+        nJobs: int,
+        siteName: str,
+        prodSourceLabel: str | None,
+        mem: int | None,
+        diskSpace: int | None,
+        node: str | None,
+        timeout: int,
+        computingElement: str | None,
+        prodUserID: str | None,
+        taskID: int | None,
+        background: bool,
+        resourceType: str | None,
+        harvester_id: str | None,
+        worker_id: int | str | None,
+        schedulerID: str | None,
+        jobType: str | None,
+        is_gu: bool,
+        via_topic: bool,
+        remaining_time: int | None,
+        target_architecture: str | None,
+    ) -> tuple[list[Any], int]:
         """
         1. Construct where clause (sql_where_clause) based on applicable filters for request
         2. Select n jobs with the highest priorities and the lowest pandaids
@@ -2310,11 +2321,11 @@ class JobComplexModule(BaseModule):
         # task IDs excluded since the worker node doesn't satisfy their hardware requirements, and the
         # verdicts to avoid looking up the same task twice. They are local to this request and are reused
         # over the iterations to get multiple jobs
-        excluded_task_ids = set()
+        excluded_task_ids: set[Any] = set()
         task_match_verdict = {}
 
         # generate the WHERE clause based on the requirements for the job
-        def build_where_clause():
+        def build_where_clause() -> tuple[str, dict[str, Any]]:
             tmp_where_clause, tmp_val_map = self.construct_where_clause(
                 site_name=siteName,
                 mem=mem,
@@ -2426,7 +2437,7 @@ class JobComplexModule(BaseModule):
                                 # update
                                 sqlJ = "UPDATE ATLAS_PANDA.jobsActive4 "
                                 sqlJ += "SET jobStatus=:newJobStatus,modificationTime=CURRENT_DATE,modificationHost=:modificationHost,startTime=CURRENT_DATE"
-                                varMap = {}
+                                varMap: dict[str, Any] = {}
                                 varMap[":PandaID"] = tmpPandaID
                                 varMap[":newJobStatus"] = "sent"
                                 varMap[":oldJobStatus"] = "activated"
@@ -2612,11 +2623,11 @@ class JobComplexModule(BaseModule):
                 self.cur.arraysize = 10000
                 self.cur.execute(sqlFile + comment, varMap)
                 resFs = self.cur.fetchall()
-                eventRangeIDs = {}
-                esDonePandaIDs = []
-                esOutputZipMap = {}
+                eventRangeIDs: dict[Any, Any] = {}
+                esDonePandaIDs: list[Any] = []
+                esOutputZipMap: dict[str, Any] = {}
                 esZipRow_IDs = set()
-                esOutputFileMap = {}
+                esOutputFileMap: dict[str, Any] = {}
                 # use new file format for ES
                 useNewFileFormatForES = False
                 if job.AtlasRelease is not None:
@@ -2671,9 +2682,9 @@ class JobComplexModule(BaseModule):
                                 pathConvention,
                             ) in resRR:
                                 tmpEventRangeID = get_task_event_module(self).makeEventRangeID(
-                                    file.jediTaskID,
+                                    file.jediTaskID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                                     esPandaID,
-                                    file.fileID,
+                                    file.fileID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                                     job_processID,
                                     attemptNr,
                                 )
@@ -2758,7 +2769,7 @@ class JobComplexModule(BaseModule):
                                             }
                                         )
                 # make input for event service output merging
-                mergeInputOutputMap = {}
+                mergeInputOutputMap: dict[str, Any] = {}
                 mergeInputFiles = []
                 mergeFileObjStoreMap = {}
                 mergeZipPandaIDs = []
@@ -2841,19 +2852,26 @@ class JobComplexModule(BaseModule):
                 elif EventServiceUtils.isEventServiceMerge(job):
                     try:
                         origJobParameters = job.jobParameters
+                        # both tags are written together when the merge job is built, so
+                        # a missing first tag used to skip the second one as well through
+                        # the enclosing except -- the nesting keeps that
                         tmpMatch = re.search(
                             "<PANDA_ESMERGE_JOBP>(.*)</PANDA_ESMERGE_JOBP>",
                             origJobParameters,
                         )
-                        job.jobParameters = tmpMatch.group(1)
-                        tmpMatch = re.search(
-                            "<PANDA_ESMERGE_TRF>(.*)</PANDA_ESMERGE_TRF>",
-                            origJobParameters,
-                        )
-                        job.transformation = tmpMatch.group(1)
+                        if tmpMatch is not None:
+                            job.jobParameters = tmpMatch.group(1)
+                            tmpMatch = re.search(
+                                "<PANDA_ESMERGE_TRF>(.*)</PANDA_ESMERGE_TRF>",
+                                origJobParameters,
+                            )
+                            if tmpMatch is not None:
+                                job.transformation = tmpMatch.group(1)
                     except Exception:
                         pass
-                    # pass in/out map for merging via metadata
+                    # pass in/out map for merging via metadata. the column is a CLOB,
+                    # but this borrows the attribute as an in-memory carrier for the
+                    # merge job and never reaches the database in this form
                     job.metadata = [mergeInputOutputMap, mergeFileObjStoreMap]
 
                 # read task parameters
@@ -2876,14 +2894,14 @@ class JobComplexModule(BaseModule):
 
                 # record status change
                 try:
-                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
+                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 except Exception:
                     tmp_log.error("recordStatusChange in getJobs")
-                self.push_job_status_message(job, job.PandaID, job.jobStatus)
+                self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 if via_topic and job.is_push_job():
                     tmp_log.debug("delete job message")
                     mb_proxy_queue = self.get_mb_proxy("panda_pilot_queue")
-                    srv_msg_utils.delete_job_message(mb_proxy_queue, job.PandaID)
+                    srv_msg_utils.delete_job_message(mb_proxy_queue, job.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             return retJobs, nSent
         except Exception as e:
             self.dump_error_message(tmp_log)
@@ -2892,7 +2910,15 @@ class JobComplexModule(BaseModule):
             return [], 0
 
     # record retry history
-    def recordRetryHistoryJEDI(self, jediTaskID, newPandaID, oldPandaIDs, relationType, no_late_bulk_exec=True, extracted_sqls=None):
+    def recordRetryHistoryJEDI(
+        self,
+        jediTaskID: int,
+        newPandaID: int,
+        oldPandaIDs: list[int],
+        relationType: str | None,
+        no_late_bulk_exec: bool = True,
+        extracted_sqls: dict[str, Any] | None = None,
+    ) -> None:
         comment = " /* DBProxy.recordRetryHistoryJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={newPandaID}")
         tmp_log.debug("start")
@@ -2912,7 +2938,7 @@ class JobComplexModule(BaseModule):
             originIDs = self.getOriginPandaIDsJEDI(oldPandaID, jediTaskID, self.cur)
             for originID in originIDs:
                 # check
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jediTaskID
                 varMap[":oldPandaID"] = oldPandaID
                 varMap[":newPandaID"] = newPandaID
@@ -2930,15 +2956,17 @@ class JobComplexModule(BaseModule):
                         varMap[":relationType"] = relationType
                     if no_late_bulk_exec:
                         self.cur.execute(sqlIN + comment, varMap)
-                    else:
+                    elif extracted_sqls is not None:
                         extracted_sqls.setdefault("retry_history", {"sql": sqlIN + comment, "vars": []})
                         extracted_sqls["retry_history"]["vars"].append(varMap)
         # return
         tmp_log.debug("done")
 
     # extract scope from dataset name
-    def extractScope(self, name):
+    def extractScope(self, name: str | None) -> str | None:
         try:
+            if name is None:
+                return None
             if name.lower().startswith("user") or name.lower().startswith("group"):
                 # return None if there are not enough fields
                 if len(name.split(".")) < 2:
@@ -2960,27 +2988,29 @@ class JobComplexModule(BaseModule):
             return None
 
     # insert job to jobsDefined
+    # fileIDPool is consumed with pop(), so the shared default list would be emptied by a call
+    # that used it -- it is only reached when a caller passes its own
     def insertNewJob(
         self,
-        job,
-        user,
-        serNum,
-        weight=0.0,
-        priorityOffset=0,
-        userVO=None,
-        toPending=False,
-        origEsJob=False,
-        eventServiceInfo=None,
-        oldPandaIDs=None,
-        relationType=None,
-        fileIDPool=[],
-        origSpecialHandling=None,
-        unprocessedMap=None,
-        prio_reduction=True,
-        no_late_bulk_exec=True,
-        extracted_sqls=None,
-        new_jobset_id=None,
-    ):
+        job: JobSpec,
+        user: str | None,
+        serNum: int | None,
+        weight: float = 0.0,
+        priorityOffset: int = 0,
+        userVO: str | None = None,
+        toPending: bool = False,
+        origEsJob: bool = False,
+        eventServiceInfo: dict[str, Any] | None = None,
+        oldPandaIDs: list[int] | None = None,
+        relationType: str | None = None,
+        fileIDPool: list[int] = [],
+        origSpecialHandling: str | None = None,
+        unprocessedMap: dict[str, Any] | None = None,
+        prio_reduction: bool = True,
+        no_late_bulk_exec: bool = True,
+        extracted_sqls: dict[str, Any] | None = None,
+        new_jobset_id: int | None = None,
+    ) -> Any:
         comment = " /* DBProxy.insertNewJob */"
         tmp_log = self.create_tagged_logger(comment, f"<JediTaskID={job.jediTaskID} idPool={len(fileIDPool)}")
 
@@ -3037,10 +3067,10 @@ class JobComplexModule(BaseModule):
                     job.currentPriority = priorityOffset
                     if job.isScoutJob():
                         job.currentPriority += 1
-                elif job.currentPriority not in ["NULL", None] and (job.isScoutJob() or job.currentPriority >= JobUtils.priorityTasksToJumpOver):
+                elif job.currentPriority not in ["NULL", None] and (job.isScoutJob() or job.currentPriority >= JobUtils.priorityTasksToJumpOver):  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                     pass
                 else:
-                    job.currentPriority = PrioUtil.calculatePriority(priorityOffset, serNum, weight)
+                    job.currentPriority = PrioUtil.calculatePriority(priorityOffset, serNum, weight)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                     if "express" in job.specialHandling:
                         job.currentPriority = 6000
         elif job.prodSourceLabel == "panda":
@@ -3059,8 +3089,8 @@ class JobComplexModule(BaseModule):
                 job.maxAttempt = job.attemptNr
             else:
                 # set maxAttempt to have server/pilot retries for retried jobs
-                if job.maxAttempt <= job.attemptNr:
-                    job.maxAttempt = job.attemptNr + 2
+                if job.maxAttempt <= job.attemptNr:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
+                    job.maxAttempt = job.attemptNr + 2  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
 
         # obtain the share and resource type
         if job.gshare in ("NULL", None, ""):
@@ -3107,7 +3137,7 @@ class JobComplexModule(BaseModule):
             # get originPandaID
             originPandaID = None
             if oldPandaIDs is not None and len(oldPandaIDs) > 0:
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = job.jediTaskID
                 varMap[":pandaID"] = oldPandaIDs[0]
                 sqlOrigin = f"SELECT originPandaID FROM {panda_config.schemaJEDI}.JEDI_Job_Retry_History "
@@ -3132,15 +3162,16 @@ class JobComplexModule(BaseModule):
             if no_late_bulk_exec:
                 varMap = job.valuesMap(useSeq=False)
                 self.cur.execute(sql1 + comment, varMap)
-            else:
+            elif extracted_sqls is not None:
                 extracted_sqls["job"] = {"sql": sql1 + comment, "vars": [job.valuesMap(useSeq=False)]}
 
             # get jobsetID
             if job.jobsetID in [None, "NULL", -1]:
                 jobsetID = 0
             else:
-                jobsetID = job.jobsetID
-            jobsetID = "%06d" % jobsetID
+                jobsetID = job.jobsetID  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
+            # the $JOBSETID placeholder takes the padded form, not the number
+            jobsetID_str = "%06d" % jobsetID
             try:
                 strJediTaskID = str(job.jediTaskID)
             except Exception:
@@ -3158,11 +3189,11 @@ class JobComplexModule(BaseModule):
             sqlFileW = f"INSERT INTO ATLAS_PANDA.filesTable4 ({FileSpec.columnNames()}) "
             sqlFileW += FileSpec.bindValuesExpression(useSeq=False)
             dynNumEvents = EventServiceUtils.isDynNumEventsSH(job.specialHandling)
-            dynFileMap = {}
+            dynFileMap: dict[str, Any] = {}
             dynLfnIdMap = {}
             totalInputEvents = 0
             indexFileID = 0
-            varMapsForFile = []
+            varMapsForFile: list[dict[str, Any]] = []
             nFilesWaitingMap = {}
             nEventsToProcess = 0
 
@@ -3174,10 +3205,10 @@ class JobComplexModule(BaseModule):
                 if file.status not in ["ready", "cached"]:
                     file.status = "unknown"
                 # replace $PANDAID with real PandaID
-                file.lfn = re.sub("\$PANDAID", "%05d" % job.PandaID, file.lfn)
+                file.lfn = re.sub("\$PANDAID", "%05d" % job.PandaID, file.lfn)  # type: ignore[str-format]  # "NULL" sentinel, see spec_column.py
                 # replace $JOBSETID with real jobsetID
                 if job.prodSourceLabel not in ["managed"]:
-                    file.lfn = re.sub("\$JOBSETID", jobsetID, file.lfn)
+                    file.lfn = re.sub("\$JOBSETID", jobsetID_str, file.lfn)
                     try:
                         file.lfn = re.sub("\$JEDITASKID", strJediTaskID, file.lfn)
                     except Exception:
@@ -3369,7 +3400,7 @@ class JobComplexModule(BaseModule):
                         sqlJediEvent += ":startEvent,:startEvent,:lastEvent,:processedEvent,"
                         sqlJediEvent += ":eventOffset"
                         sqlJediEvent += ") "
-                        varMaps = []
+                        varMaps: list[dict[str, Any]] = []
                         iEvent = 1
                         while iEvent <= eventServiceInfo[file.lfn]["nEvents"]:
                             varMap = {}
@@ -3401,7 +3432,7 @@ class JobComplexModule(BaseModule):
                         tmp_log.debug(f"{job.PandaID} insert {len(varMaps)} event ranges jediTaskID:{job.jediTaskID}")
                         if no_late_bulk_exec:
                             self.cur.executemany(sqlJediEvent + comment, varMaps)
-                        else:
+                        elif extracted_sqls is not None:
                             extracted_sqls["event"] = {"sql": sqlJediEvent + comment, "vars": varMaps}
                         tmp_log.debug(f"{job.PandaID} inserted {len(varMaps)} event ranges jediTaskID:{job.jediTaskID}")
                         totalInputEvents += eventServiceInfo[file.lfn]["nEvents"]
@@ -3415,20 +3446,20 @@ class JobComplexModule(BaseModule):
                 self.cur.execute(sqlJediJSH + comment, varMap)
             # use score if not so many events are available
             if origEsJob and unprocessedMap is not None:
-                unprocessedMap[job.jobsetID] = nEventsToProcess
+                unprocessedMap[job.jobsetID] = nEventsToProcess  # type: ignore[index]  # "NULL" sentinel, see spec_column.py
             if EventServiceUtils.isEventServiceJob(job) and not EventServiceUtils.isJobCloningJob(job) and unprocessedMap is not None:
-                if job.coreCount not in [None, "", "NULL"] and job.coreCount > 1:
+                if job.coreCount not in [None, "", "NULL"] and job.coreCount > 1:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                     minUnprocessed = self.getConfigValue("dbproxy", "AES_MINEVENTSFORMCORE")
                     if minUnprocessed is not None:
                         minUnprocessed = max(minUnprocessed, job.coreCount)
-                        if unprocessedMap[job.jobsetID] < minUnprocessed and unprocessedMap[job.jobsetID] > 0:
+                        if unprocessedMap[job.jobsetID] < minUnprocessed and unprocessedMap[job.jobsetID] > 0:  # type: ignore[index]  # "NULL" sentinel, see spec_column.py
                             get_task_event_module(self).setScoreSiteToEs(job, f"insertNewJob : {job.PandaID}", comment)
             # bulk insert files
             if len(varMapsForFile) > 0:
                 tmp_log.debug(f"{job.PandaID} bulk insert {len(varMapsForFile)} files for jediTaskID:{job.jediTaskID}")
                 if no_late_bulk_exec:
                     self.cur.executemany(sqlFileW + comment, varMapsForFile)
-                else:
+                elif extracted_sqls is not None:
                     extracted_sqls["file"] = {"sql": sqlFileW + comment, "vars": varMapsForFile}
             # update nFilesWaiting
             if len(nFilesWaitingMap) > 0:
@@ -3473,7 +3504,7 @@ class JobComplexModule(BaseModule):
                         varMaps.append(varMap)
                 if no_late_bulk_exec:
                     self.cur.executemany(sqlJediEvent + comment, varMaps)
-                else:
+                elif extracted_sqls is not None:
                     extracted_sqls["dynamic"] = {"sql": sqlJediEvent + comment, "vars": varMaps}
                 tmp_log.debug(f"{job.PandaID} inserted {len(varMaps)} dyn events jediTaskID:{job.jediTaskID}")
             # update t_task
@@ -3488,7 +3519,7 @@ class JobComplexModule(BaseModule):
                 if no_late_bulk_exec:
                     tmp_log.debug(sqlTtask + comment + str(varMap))
                     self.cur.execute(sqlTtask + comment, varMap)
-                else:
+                elif extracted_sqls is not None:
                     extracted_sqls["t_task"] = {"sql": sqlTtask + comment, "vars": [varMap]}
                 tmp_log.debug(f"{job.PandaID} updated T_TASK jediTaskID:{job.jediTaskID}")
             # metadata
@@ -3500,12 +3531,12 @@ class JobComplexModule(BaseModule):
                 tmp_log.debug(f"{job.PandaID} inserting meta jediTaskID:{job.jediTaskID}")
                 if no_late_bulk_exec:
                     self.cur.execute(sqlMeta + comment, varMap)
-                else:
+                elif extracted_sqls is not None:
                     extracted_sqls["meta"] = {"sql": sqlMeta + comment, "vars": [varMap]}
                 tmp_log.debug(f"{job.PandaID} inserted meta jediTaskID:{job.jediTaskID}")
             # job parameters
             if job.prodSourceLabel not in ["managed"]:
-                job.jobParameters = re.sub("\$JOBSETID", jobsetID, job.jobParameters)
+                job.jobParameters = re.sub("\$JOBSETID", jobsetID_str, job.jobParameters)
                 try:
                     job.jobParameters = re.sub("\$JEDITASKID", strJediTaskID, job.jobParameters)
                 except Exception:
@@ -3517,7 +3548,7 @@ class JobComplexModule(BaseModule):
             tmp_log.debug(f"{job.PandaID} inserting jobParam jediTaskID:{job.jediTaskID}")
             if no_late_bulk_exec:
                 self.cur.execute(sqlJob + comment, varMap)
-            else:
+            elif extracted_sqls is not None:
                 extracted_sqls["jobparams"] = {"sql": sqlJob + comment, "vars": [varMap]}
             tmp_log.debug(f"{job.PandaID} inserted jobParam jediTaskID:{job.jediTaskID}")
             # update input
@@ -3528,19 +3559,19 @@ class JobComplexModule(BaseModule):
                 and not (EventServiceUtils.isEventServiceJob(job) and not origEsJob)
             ):
                 get_task_event_module(self).updateInputStatusJedi(
-                    job.jediTaskID, job.PandaID, "queued", no_late_bulk_exec=no_late_bulk_exec, extracted_sqls=extracted_sqls
+                    job.jediTaskID, job.PandaID, "queued", no_late_bulk_exec=no_late_bulk_exec, extracted_sqls=extracted_sqls  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 )
             # record retry history
             if oldPandaIDs is not None and len(oldPandaIDs) > 0:
                 tmp_log.debug(f"{job.PandaID} recording history nOld={len(oldPandaIDs)} jediTaskID:{job.jediTaskID}")
-                self.recordRetryHistoryJEDI(job.jediTaskID, job.PandaID, oldPandaIDs, relationType, no_late_bulk_exec, extracted_sqls)
+                self.recordRetryHistoryJEDI(job.jediTaskID, job.PandaID, oldPandaIDs, relationType, no_late_bulk_exec, extracted_sqls)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 tmp_log.debug(f"{job.PandaID} recorded history jediTaskID:{job.jediTaskID}")
             # record jobset
             if origEsJob:
                 self.recordRetryHistoryJEDI(
-                    job.jediTaskID,
-                    job.PandaID,
-                    [job.jobsetID],
+                    job.jediTaskID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    job.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    [job.jobsetID],  # type: ignore[list-item]  # "NULL" sentinel, see spec_column.py
                     EventServiceUtils.relationTypeJS_ID,
                     no_late_bulk_exec,
                     extracted_sqls,
@@ -3549,11 +3580,11 @@ class JobComplexModule(BaseModule):
                 if oldPandaIDs is not None and len(oldPandaIDs) > 0:
                     # get old jobsetID
                     for oldPandaID in oldPandaIDs:
-                        oldJobsetID = self.getJobsetIDforPandaID(oldPandaID, job.jediTaskID)
+                        oldJobsetID = self.getJobsetIDforPandaID(oldPandaID, job.jediTaskID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                         if oldJobsetID is not None:
                             self.recordRetryHistoryJEDI(
-                                job.jediTaskID,
-                                job.jobsetID,
+                                job.jediTaskID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                                job.jobsetID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                                 [oldJobsetID],
                                 EventServiceUtils.relationTypeJS_Retry,
                                 no_late_bulk_exec,
@@ -3562,9 +3593,9 @@ class JobComplexModule(BaseModule):
             # record jobset mapping for event service
             if EventServiceUtils.isEventServiceJob(job) and EventServiceUtils.isResurrectConsumers(job.specialHandling):
                 self.recordRetryHistoryJEDI(
-                    job.jediTaskID,
-                    job.jobsetID,
-                    [job.PandaID],
+                    job.jediTaskID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    job.jobsetID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    [job.PandaID],  # type: ignore[list-item]  # "NULL" sentinel, see spec_column.py
                     EventServiceUtils.relationTypeJS_Map,
                     no_late_bulk_exec,
                     extracted_sqls,
@@ -3576,12 +3607,12 @@ class JobComplexModule(BaseModule):
                 tmp_log.debug(f"{job.PandaID} all OK jediTaskID:{job.jediTaskID}")
                 # record status change
                 try:
-                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
+                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 except Exception:
                     tmp_log.error("recordStatusChange in insertNewJob")
-                self.push_job_status_message(job, job.PandaID, job.jobStatus, job.jediTaskID, origSpecialHandling)
+                self.push_job_status_message(job, job.PandaID, job.jobStatus, job.jediTaskID, origSpecialHandling)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             else:
-                self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job, no_late_bulk_exec=False, extracted_sqls=extracted_sqls)
+                self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job, no_late_bulk_exec=False, extracted_sqls=extracted_sqls)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             if unprocessedMap is not None:
                 return True, unprocessedMap
             return True
@@ -3596,7 +3627,9 @@ class JobComplexModule(BaseModule):
             return False
 
     # bulk insert new jobs
-    def bulk_insert_new_jobs(self, jedi_task_id, arg_list, new_jobset_id_list, special_handling_list):
+    def bulk_insert_new_jobs(
+        self, jedi_task_id: int, arg_list: list[Any], new_jobset_id_list: list[Any], special_handling_list: list[Any]
+    ) -> tuple[bool, Any, Any]:
         comment = " /* DBProxy.bulk_insert_new_jobs */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
         try:
@@ -3605,10 +3638,10 @@ class JobComplexModule(BaseModule):
             sql_key_list = ["job", "event", "file", "dynamic", "t_task", "meta", "jobparams", "retry_history", "state_change", "jedi_input"]
             self.conn.begin()
             return_list = []
-            extracted_sqls = {}
+            extracted_sqls: dict[str, Any] = {}
             es_jobset_map = {}
             for args, kwargs, extra_params in arg_list:
-                tmp_extracted_sqls = {}
+                tmp_extracted_sqls: dict[str, Any] = {}
                 new_kwargs = {
                     "no_late_bulk_exec": False,
                     "extracted_sqls": tmp_extracted_sqls,
@@ -3643,7 +3676,7 @@ class JobComplexModule(BaseModule):
             if "t_task" in extracted_sqls:
                 for sql in extracted_sqls["t_task"]["sqls"]:
                     old_vars = extracted_sqls["t_task"]["vars"][sql]
-                    n_jobs_map = {}
+                    n_jobs_map: dict[str, Any] = {}
                     for var in old_vars:
                         n_jobs_map.setdefault(var[":jediTaskID"], 0)
                         n_jobs_map[var[":jediTaskID"]] += var[":nJobs"]
@@ -3676,10 +3709,10 @@ class JobComplexModule(BaseModule):
             return False, None, None
 
     # get origin PandaIDs
-    def getOriginPandaIDsJEDI(self, pandaID, jediTaskID, cur):
+    def getOriginPandaIDsJEDI(self, pandaID: int, jediTaskID: int, cur: Any) -> list[int]:
         comment = " /* DBProxy.getOriginPandaIDsJEDI */"
         # get parent IDs
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":jediTaskID"] = jediTaskID
         varMap[":newPandaID"] = pandaID
         sqlFJ = f"SELECT MIN(originPandaID) FROM {panda_config.schemaJEDI}.JEDI_Job_Retry_History "
@@ -3705,10 +3738,10 @@ class JobComplexModule(BaseModule):
         return retList
 
     # get jobsetID for PandaID
-    def getJobsetIDforPandaID(self, pandaID, jediTaskID):
+    def getJobsetIDforPandaID(self, pandaID: int, jediTaskID: int) -> Any:
         comment = " /* DBProxy.getJobsetIDforPandaID */"
         # get parent IDs
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":jediTaskID"] = jediTaskID
         varMap[":newPandaID"] = pandaID
         varMap[":relationType"] = EventServiceUtils.relationTypeJS_ID
@@ -3722,7 +3755,7 @@ class JobComplexModule(BaseModule):
         return None
 
     # update JEDI for pilot retry
-    def updateForPilotRetryJEDI(self, job, cur, onlyHistory=False, relationType=None):
+    def updateForPilotRetryJEDI(self, job: JobSpec, cur: Any, onlyHistory: bool = False, relationType: str | None = None) -> None:
         comment = " /* DBProxy.updateForPilotRetryJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         # sql to update file
@@ -3742,7 +3775,7 @@ class JobComplexModule(BaseModule):
                 if tmpFile.fileID == "NULL":
                     continue
                 # update JEDI contents
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = tmpFile.jediTaskID
                 varMap[":datasetID"] = tmpFile.datasetID
                 varMap[":fileID"] = tmpFile.fileID
@@ -3763,7 +3796,7 @@ class JobComplexModule(BaseModule):
                     tmp_log.debug(sqlFP + comment + str(varMap))
                     cur.execute(sqlFP + comment, varMap)
         # get origin
-        originIDs = self.getOriginPandaIDsJEDI(job.parentID, job.jediTaskID, cur)
+        originIDs = self.getOriginPandaIDsJEDI(job.parentID, job.jediTaskID, cur)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
         # sql to record retry history
         sqlRH = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Job_Retry_History "
         sqlRH += "(jediTaskID,oldPandaID,newPandaID,originPandaID,relationType) "
@@ -3792,7 +3825,7 @@ class JobComplexModule(BaseModule):
         return
 
     # check attemptNr for more retry
-    def checkMoreRetryJEDI(self, job):
+    def checkMoreRetryJEDI(self, job: JobSpec) -> bool:
         comment = " /* DBProxy.self.checkMoreRetryJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         tmp_log.debug(f"start")
@@ -3804,7 +3837,7 @@ class JobComplexModule(BaseModule):
         sqlFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
         sqlFJ += "AND attemptNr=:attemptNr AND keepTrack=:keepTrack AND PandaID=:PandaID "
         # get files
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":PandaID"] = job.PandaID
         varMap[":type1"] = "input"
         varMap[":type2"] = "pseudo_input"
@@ -3840,15 +3873,15 @@ class JobComplexModule(BaseModule):
     # retry analysis job
     def retryJob(
         self,
-        pandaID,
-        param,
-        failedInActive=False,
-        changeJobInMem=False,
-        inMemJob=None,
-        getNewPandaID=False,
-        attemptNr=None,
-        recoverableEsMerge=False,
-    ):
+        pandaID: int | str,
+        param: dict[str, Any],
+        failedInActive: bool = False,
+        changeJobInMem: bool = False,
+        inMemJob: JobSpec | None = None,
+        getNewPandaID: bool = False,
+        attemptNr: int | None = None,
+        recoverableEsMerge: bool = False,
+    ) -> Any:
         comment = " /* DBProxy.retryJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"inActive={failedInActive}")
@@ -3865,7 +3898,7 @@ class JobComplexModule(BaseModule):
                     # begin transaction
                     self.conn.begin()
                     # select
-                    varMap = {}
+                    varMap: dict[str, Any] = {}
                     varMap[":PandaID"] = pandaID
                     if failedInActive:
                         varMap[":jobStatus"] = "failed"
@@ -3879,7 +3912,7 @@ class JobComplexModule(BaseModule):
                     job = JobSpec()
                     job.pack(res[0])
                 else:
-                    job = inMemJob
+                    job = inMemJob  # type: ignore[assignment]  # changeJobInMem is what says this was given
                 # don't use getNewPandaID for buildJob since the order of PandaIDs is broken
                 if getNewPandaID and job.prodSourceLabel in ["panda"]:
                     if not changeJobInMem:
@@ -3890,7 +3923,8 @@ class JobComplexModule(BaseModule):
                     return retValue
                 # convert attemptNr to int
                 try:
-                    attemptNr = int(attemptNr)
+                    # the except below is what handles a value int() will not take, None included
+                    attemptNr = int(attemptNr)  # type: ignore[arg-type]
                 except Exception:
                     tmp_log.debug(f"attemptNr={attemptNr} non-integer")
                     attemptNr = -999
@@ -3923,7 +3957,7 @@ class JobComplexModule(BaseModule):
                     hasattr(panda_config, "useJEDI")
                     and panda_config.useJEDI is True
                     and job.lockedby == "jedi"
-                    and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)
+                    and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 ):
                     useJEDI = True
                 # check pilot retry
@@ -3932,13 +3966,13 @@ class JobComplexModule(BaseModule):
                     job.prodSourceLabel in ["user", "panda"] + JobUtils.list_ptest_prod_sources
                     and "pilotErrorCode" in param
                     and param["pilotErrorCode"].startswith("-")
-                    and job.maxAttempt > job.attemptNr
+                    and job.maxAttempt > job.attemptNr  # type: ignore[operator]  # unset spec column reads back as the "NULL" sentinel; see spec_column.py
                     and (not job.processingType.startswith("gangarobot") or job.processingType == "gangarobot-rctest")
                     and not job.processingType.startswith("hammercloud")
                 ):
                     usePilotRetry = True
                 # retry for ES merge
-                if recoverableEsMerge and EventServiceUtils.isEventServiceMerge(job) and job.maxAttempt > job.attemptNr:
+                if recoverableEsMerge and EventServiceUtils.isEventServiceMerge(job) and job.maxAttempt > job.attemptNr:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                     usePilotRetry = True
                 # check if it's analysis job # FIXME once pilot retry works correctly the conditions below will be cleaned up
                 if (
@@ -3949,7 +3983,7 @@ class JobComplexModule(BaseModule):
                         and "pilotErrorCode" in param
                         and param["pilotErrorCode"] in ["1200", "1201", "1213"]
                         and (not job.computingSite.startswith("ANALY_LONG_"))
-                        and job.attemptNr < 2
+                        and job.attemptNr < 2  # type: ignore[operator]  # unset spec column reads back as the "NULL" sentinel; see spec_column.py
                     )
                     or failedInActive
                     or usePilotRetry
@@ -3977,9 +4011,9 @@ class JobComplexModule(BaseModule):
                         job.jobStatus = "activated"
                         job.startTime = None
                         job.modificationTime = naive_utcnow()
-                        job.attemptNr = job.attemptNr + 1
+                        job.attemptNr = job.attemptNr + 1  # type: ignore[operator]  # unset spec column reads back as the "NULL" sentinel; see spec_column.py
                         if usePilotRetry:
-                            job.currentPriority -= 10
+                            job.currentPriority -= 10  # type: ignore[operator]  # unset spec column reads back as the "NULL" sentinel; see spec_column.py
                         job.endTime = None
                         job.transExitCode = None
                         job.batchID = None
@@ -4179,8 +4213,8 @@ class JobComplexModule(BaseModule):
                     # record status change
                     try:
                         if updatedFlag:
-                            self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
-                            self.push_job_status_message(job, job.PandaID, job.jobStatus)
+                            self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                            self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     except Exception:
                         tmp_log.error("recordStatusChange in retryJob")
                 return retValue
@@ -4198,14 +4232,14 @@ class JobComplexModule(BaseModule):
     # propagate result to JEDI
     def propagateResultToJEDI(
         self,
-        jobSpec,
-        cur,
-        oldJobStatus=None,
-        extraInfo=None,
-        finishPending=False,
-        waitLock=False,
-        async_params=None,
-    ):
+        jobSpec: JobSpec,
+        cur: Any,
+        oldJobStatus: str | None = None,
+        extraInfo: dict[str, Any] | None = None,
+        finishPending: bool = False,
+        waitLock: bool = False,
+        async_params: dict[str, Any] | None = None,
+    ) -> Any:
         comment = " /* DBProxy.propagateResultToJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID} jediTaskID={jobSpec.jediTaskID}")
         datasetContentsStat = {}
@@ -4242,7 +4276,7 @@ class JobComplexModule(BaseModule):
                 if fileSpec.type not in ["input", "pseudo_input"]:
                     continue
                 # check attemptNr
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = fileSpec.jediTaskID
                 varMap[":datasetID"] = fileSpec.datasetID
                 varMap[":fileID"] = fileSpec.fileID
@@ -4655,9 +4689,9 @@ class JobComplexModule(BaseModule):
                         toSet = True
                         if jobSpec.pilotErrorCode in EventServiceUtils.PEC_corruptedInputFilesTmp:
                             # check failure count for temporary errors
-                            toSet = get_metrics_module(self).checkFailureCountWithCorruptedFiles(jobSpec.jediTaskID, jobSpec.PandaID)
+                            toSet = get_metrics_module(self).checkFailureCountWithCorruptedFiles(jobSpec.jediTaskID, jobSpec.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                         if toSet:
-                            get_task_event_module(self).setCorruptedEventRanges(jobSpec.jediTaskID, jobSpec.PandaID)
+                            get_task_event_module(self).setCorruptedEventRanges(jobSpec.jediTaskID, jobSpec.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
         # update task queued time
         if trigger_reattempt and get_task_queued_time(jobSpec.specialHandling):
             sql_update_tq = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET queuedTime=CURRENT_DATE WHERE jediTaskID=:jediTaskID AND queuedTime IS NULL "
@@ -4678,9 +4712,9 @@ class JobComplexModule(BaseModule):
         # add jobset info for job cloning
         if useJobCloning:
             self.recordRetryHistoryJEDI(
-                jobSpec.jediTaskID,
-                jobSpec.PandaID,
-                [jobSpec.jobsetID],
+                jobSpec.jediTaskID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                jobSpec.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                [jobSpec.jobsetID],  # type: ignore[list-item]  # "NULL" sentinel, see spec_column.py
                 EventServiceUtils.relationTypeJS_ID,
             )
         # update jumbo flag
@@ -4727,7 +4761,7 @@ class JobComplexModule(BaseModule):
             and not (jobSpec.computingSite == EventServiceUtils.siteIdForWaitingCoJumboJobs and not jobSpec.isCancelled())
             and jobSpec.taskBufferErrorCode not in [ErrorCode.EC_PilotRetried]
         ):
-            get_task_event_module(self).updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, jobSpec.jobStatus)
+            get_task_event_module(self).updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, jobSpec.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
         # update t_task
         if jobSpec.jobStatus == "finished" and jobSpec.prodSourceLabel not in ["panda"]:
             varMap = {}
@@ -4768,11 +4802,11 @@ class JobComplexModule(BaseModule):
         if len(finishUnmerge) > 0:
             self.updateUnmergedJobs(jobSpec, finishUnmerge, async_params=async_params)
         # update some job attributes
-        get_entity_module(self).setHS06sec(jobSpec.PandaID)
+        get_entity_module(self).setHS06sec(jobSpec.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
 
         # update the g of CO2 emitted by the job
         try:
-            gco2_regional, gco2_global = get_entity_module(self).set_co2_emissions(jobSpec.PandaID)
+            gco2_regional, gco2_global = get_entity_module(self).set_co2_emissions(jobSpec.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             tmp_log.debug(f"calculated gCO2 regional {gco2_regional} and global {gco2_global}")
         except Exception:
             tmp_log.error(f"failed calculating gCO2 with {traceback.format_exc()}")
@@ -4780,15 +4814,15 @@ class JobComplexModule(BaseModule):
         # task and job metrics
         if get_task_queued_time(jobSpec.specialHandling):
             # update task queued time
-            get_metrics_module(self).update_task_queued_activated_times(jobSpec.jediTaskID)
+            get_metrics_module(self).update_task_queued_activated_times(jobSpec.jediTaskID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             # record job queuing time if the job didn't start running
-            get_metrics_module(self).record_job_queuing_period(jobSpec.PandaID, jobSpec)
+            get_metrics_module(self).record_job_queuing_period(jobSpec.PandaID, jobSpec)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
 
         # return
         return True
 
     # finalize pending jobs
-    def finalizePendingJobs(self, prodUserName, jobDefinitionID, waitLock=False):
+    def finalizePendingJobs(self, prodUserName: str, jobDefinitionID: int, waitLock: bool = False) -> bool:
         comment = " /* DBProxy.finalizePendingJobs */"
         tmp_log = self.create_tagged_logger(comment, f"user={prodUserName} jobdefID={jobDefinitionID}")
         tmp_log.debug("start")
@@ -4810,7 +4844,7 @@ class JobComplexModule(BaseModule):
             self.conn.begin()
             self.cur.arraysize = 100000
             # select
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jobStatus"] = "failed"
             varMap[":prodUserName"] = prodUserName
             varMap[":jobDefinitionID"] = jobDefinitionID
@@ -4836,7 +4870,7 @@ class JobComplexModule(BaseModule):
                 hasattr(panda_config, "useJEDI")
                 and panda_config.useJEDI is True
                 and lockedBy == "jedi"
-                and get_task_event_module(self).checkTaskStatusJEDI(jediTaskID, self.cur)
+                and get_task_event_module(self).checkTaskStatusJEDI(jediTaskID, self.cur)  # type: ignore[arg-type]  # the id is read from the job, which carries it as an optional column
             ):
                 useJEDI = True
             # loop over all PandaIDs
@@ -4916,7 +4950,7 @@ class JobComplexModule(BaseModule):
             return False
 
     # get job statistics per site, prodsourcelabel (managed, user, test...), and resource type (SCORE, MCORE...)
-    def get_job_statistics_per_site_label_resource(self, time_window):
+    def get_job_statistics_per_site_label_resource(self, time_window: int | None) -> dict[Any, Any]:
         comment = " /* DBProxy.get_job_statistics_per_site_label_resource */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -4947,7 +4981,7 @@ class JobComplexModule(BaseModule):
             "GROUP BY computingSite, jobStatus, gshare, resource_type"
         )
 
-        ret = dict()
+        ret: dict[str, Any] = dict()
         try:
             if time_window is None:
                 time_floor = naive_utcnow() - datetime.timedelta(hours=12)
@@ -4981,7 +5015,9 @@ class JobComplexModule(BaseModule):
                         for share in get_entity_module(self).leave_shares:
                             if gshare == share.name:
                                 prod_source_label = share.prodsourcelabel
-                                if "|" in prod_source_label:
+                                # the column is optional, and a share with no label has nothing
+                                # to split; the map below then carries that None as it is
+                                if prod_source_label is not None and "|" in prod_source_label:
                                     prod_source_label = prod_source_label.split("|")[0]
                                     prod_source_label = prod_source_label.replace(".*", "")
                                 share_label_map[gshare] = prod_source_label
@@ -5014,7 +5050,7 @@ class JobComplexModule(BaseModule):
             return dict()
 
     # post-process for event service job
-    def ppEventServiceJob(self, job, currentJobStatus, useCommit=True):
+    def ppEventServiceJob(self, job: JobSpec, currentJobStatus: str | None, useCommit: bool = True) -> Any:
         comment = " /* DBProxy.ppEventServiceJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         pandaID = job.PandaID
@@ -5034,7 +5070,7 @@ class JobComplexModule(BaseModule):
             # 9 : closed in bad job status
             # 10 : generated a merge job but didn't process any events by itself
             # None : fatal error
-            retValue = 1, None
+            retValue: tuple[int, "int | Null | None"] = 1, None
             # begin transaction
             if useCommit:
                 self.conn.begin()
@@ -5068,7 +5104,7 @@ class JobComplexModule(BaseModule):
                 hasattr(panda_config, "useJEDI")
                 and panda_config.useJEDI is True
                 and jobSpec.lockedby == "jedi"
-                and get_task_event_module(self).checkTaskStatusJEDI(jobSpec.jediTaskID, self.cur)
+                and get_task_event_module(self).checkTaskStatusJEDI(jobSpec.jediTaskID, self.cur)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             ):
                 pass
             else:
@@ -5082,14 +5118,14 @@ class JobComplexModule(BaseModule):
             lockFileSpec = None
             for fileSpec in job.Files:
                 if fileSpec.type in ["input", "pseudo_input"]:
-                    if lockFileSpec is None or lockFileSpec.fileID > fileSpec.fileID:
+                    if lockFileSpec is None or lockFileSpec.fileID > fileSpec.fileID:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                         lockFileSpec = fileSpec
             if lockFileSpec is not None:
                 # sql to lock the file
                 sqlLIF = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
                 sqlLIF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                 sqlLIF += "FOR UPDATE NOWAIT "
-                varMap = dict()
+                varMap: dict[str, Any] = dict()
                 varMap[":jediTaskID"] = lockFileSpec.jediTaskID
                 varMap[":datasetID"] = lockFileSpec.datasetID
                 varMap[":fileID"] = lockFileSpec.fileID
@@ -5362,7 +5398,7 @@ class JobComplexModule(BaseModule):
                 retValue = 7, None
                 return retValue
             # fail immediately if not all events were done in the largest attemptNr
-            if (jobSpec.attemptNr >= jobSpec.maxAttempt and not (doMerging and hasDoneRange)) or (doMerging and nRowFatal > 0):
+            if (jobSpec.attemptNr >= jobSpec.maxAttempt and not (doMerging and hasDoneRange)) or (doMerging and nRowFatal > 0):  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                 tmp_log.debug(f"no more retry since not all events were done in the largest attemptNr")
                 # check if there is active consumer
                 sqlAC = "SELECT COUNT(*) FROM ("
@@ -5406,7 +5442,7 @@ class JobComplexModule(BaseModule):
                 sqlUWD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
                 sqlUWD += "SET nFilesUsed=nFilesUsed+:nDiff,nFilesWaiting=nFilesWaiting-:nDiff "
                 sqlUWD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-                nFilesUsedMap = {}
+                nFilesUsedMap: dict[str, Any] = {}
                 for fileSpec in job.Files:
                     if fileSpec.type not in ["input", "pseudo_input"]:
                         continue
@@ -5421,8 +5457,8 @@ class JobComplexModule(BaseModule):
                     self.cur.execute(sqlUWF + comment, varMap)
                     nDiff = self.cur.rowcount
                     if nDiff > 0:
-                        nFilesUsedMap.setdefault(fileSpec.datasetID, 0)
-                        nFilesUsedMap[fileSpec.datasetID] += nDiff
+                        nFilesUsedMap.setdefault(fileSpec.datasetID, 0)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                        nFilesUsedMap[fileSpec.datasetID] += nDiff  # type: ignore[index]  # "NULL" sentinel, see spec_column.py
                 for datasetID in nFilesUsedMap:
                     nDiff = nFilesUsedMap[datasetID]
                     varMap = {}
@@ -5452,7 +5488,7 @@ class JobComplexModule(BaseModule):
             jobSpec.modificationTime = jobSpec.creationTime
             jobSpec.stateChangeTime = jobSpec.creationTime
             jobSpec.prodDBUpdateTime = jobSpec.creationTime
-            jobSpec.attemptNr += 1
+            jobSpec.attemptNr += 1  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
             jobSpec.batchID = None
             jobSpec.schedulerID = None
             jobSpec.pilotID = None
@@ -5460,7 +5496,7 @@ class JobComplexModule(BaseModule):
                 jobSpec.maxAttempt = jobSpec.attemptNr
                 jobSpec.currentPriority = 5000
             else:
-                jobSpec.currentPriority += 1
+                jobSpec.currentPriority += 1  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
             jobSpec.endTime = None
             jobSpec.transExitCode = None
             jobSpec.jobMetrics = None
@@ -5557,7 +5593,7 @@ class JobComplexModule(BaseModule):
 
                     if tmpState not in ["online", "brokeroff"] or tmpJobSeed == "std":
                         noNewJob = True
-                if jobSpec.coreCount > 1 and minUnprocessed is not None and minUnprocessed > nRow:
+                if jobSpec.coreCount > 1 and minUnprocessed is not None and minUnprocessed > nRow:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                     get_task_event_module(self).setScoreSiteToEs(jobSpec, comment, comment)
                 # not to repeat useless consumers
                 if currentJobStatus in ["defined", "pending"]:
@@ -5565,17 +5601,21 @@ class JobComplexModule(BaseModule):
                     closedInBadStatus = True
             else:
                 # extract parameters for merge
+                # the tags are absent unless the job parameters were built for a merge, which
+                # the enclosing excepts used to absorb as a non-match
                 try:
                     tmpMatch = re.search(
                         "<PANDA_ESMERGE_TRF>(.*)</PANDA_ESMERGE_TRF>",
                         jobSpec.jobParameters,
                     )
-                    jobSpec.transformation = tmpMatch.group(1)
+                    if tmpMatch is not None:
+                        jobSpec.transformation = tmpMatch.group(1)
                 except Exception:
                     pass
                 try:
                     tmpMatch = re.search("<PANDA_EVSMERGE>(.*)</PANDA_EVSMERGE>", jobSpec.jobParameters)
-                    jobSpec.jobParameters = tmpMatch.group(1)
+                    if tmpMatch is not None:
+                        jobSpec.jobParameters = tmpMatch.group(1)
                 except Exception:
                     pass
                 # use siteid of jumbo jobs to generate merge jobs for fake co-jumbo
@@ -5643,9 +5683,9 @@ class JobComplexModule(BaseModule):
             else:
                 # update input
                 if doMerging:
-                    get_task_event_module(self).updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, "merging")
+                    get_task_event_module(self).updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, "merging")  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 else:
-                    get_task_event_module(self).updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, "queued", checkOthers=True)
+                    get_task_event_module(self).updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, "queued", checkOthers=True)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # insert job with new PandaID
                 if jobSpec.jobStatus in ["defined", "assigned", "pending", "waiting"]:
                     table_name = "jobsDefined4"
@@ -5696,7 +5736,7 @@ class JobComplexModule(BaseModule):
                         if doMerging:
                             fileSpec.lfn = re.sub(
                                 f"\\.{pandaID}$",
-                                "".format(jobSpec.PandaID),
+                                "",
                                 fileSpec.lfn,
                             )
                         else:
@@ -5756,12 +5796,12 @@ class JobComplexModule(BaseModule):
             try:
                 if not noNewJob:
                     self.recordStatusChange(
-                        jobSpec.PandaID,
+                        jobSpec.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                         jobSpec.jobStatus,
                         jobInfo=jobSpec,
                         useCommit=useCommit,
                     )
-                    self.push_job_status_message(jobSpec, jobSpec.PandaID, jobSpec.jobStatus)
+                    self.push_job_status_message(jobSpec, jobSpec.PandaID, jobSpec.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             except Exception:
                 tmp_log.error("recordStatusChange in ppEventServiceJob")
             tmp_log.debug(f"done for doMergeing={doMerging}")
@@ -5778,5 +5818,6 @@ class JobComplexModule(BaseModule):
 
 
 # get module
-def get_job_complex_module(base_mod) -> JobComplexModule:
-    return base_mod.get_composite_module("job_complex")
+def get_job_complex_module(base_mod: BaseModule) -> JobComplexModule:
+    module: JobComplexModule = base_mod.get_composite_module("job_complex")
+    return module

@@ -9,7 +9,9 @@ pandaserver.asyncprocess.data_carousel_handlers calls the very same functions fr
 async request daemon. Keeping the bodies here is what makes the two paths interchangeable.
 """
 
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -26,7 +28,7 @@ from pandaserver.taskbuffer.DataCarousel import (
 _logger = PandaLogger().getLogger("api_data_carousel")
 
 # (success, message, data) returned by every operation
-OperationResult = tuple[bool, str, dict | None]
+OperationResult = tuple[bool, str, dict[str, Any] | None]
 
 # cap on the threads submitting iDDS requests in parallel, so a request with many related tasks
 # can't spawn an unbounded number of threads in the API or daemon process
@@ -116,7 +118,9 @@ def change_staging_destination(dcif: DataCarouselInterface, request_id: int | st
         tmp_logger.error(err_msg)
         success, message = False, err_msg
 
-    if dc_req_spec_resubmitted and dc_req_spec_resubmitted.status == DataCarouselRequestStatus.staging:
+    # the resubmitted spec exists only when the original one was found, which is what the first
+    # check spells out; it also gives the old request_id reported beside the new one
+    if dc_req_spec is not None and dc_req_spec_resubmitted and dc_req_spec_resubmitted.status == DataCarouselRequestStatus.staging:
         success = True
         data = {"request_id": dc_req_spec.request_id, "new_request_id": dc_req_spec_resubmitted.request_id, "dataset": dc_req_spec_resubmitted.dataset}
         message = "new request resubmitted, destination changed"
@@ -199,9 +203,9 @@ def change_staging_source(
             tmp_logger.warning(err_msg)
             success, message = False, err_msg
         else:
-            ret, dc_req_spec, err_msg = dcif.change_request_source_rse(dc_req_spec, cancel_fts, change_src_expr, source_rse)
+            ret, dc_req_spec, change_err_msg = dcif.change_request_source_rse(dc_req_spec, cancel_fts, change_src_expr, source_rse)
             if not ret:
-                err_msg = f"failed to change source request_id={dc_req_spec.request_id} : {err_msg}"
+                err_msg = f"failed to change source request_id={dc_req_spec.request_id} : {change_err_msg}"
                 tmp_logger.error(err_msg)
                 success, message = False, err_msg
             else:
@@ -325,7 +329,8 @@ def retire_unused(dcif: DataCarouselInterface, request_id: int | str | None = No
 
 
 # operations addressable by name, used by the asynchronous handlers to dispatch on request_type
-OPERATIONS = {
+# the operations differ in what they take beyond the interface, hence the bare parameter list
+OPERATIONS: dict[str, Callable[..., OperationResult]] = {
     "change_staging_destination": change_staging_destination,
     "change_staging_source": change_staging_source,
     "force_to_staging": force_to_staging,

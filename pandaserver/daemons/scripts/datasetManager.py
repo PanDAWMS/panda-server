@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 import traceback
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -26,11 +27,11 @@ TRANSFER_TIMEOUT_HI_PRIORITY = 2
 TRANSFER_TIMEOUT_LO_PRIORITY = 6
 
 
-def main(tbuf=None, **kwargs):
+def main(tbuf: Any = None, **kwargs: Any) -> None:
     _logger.debug("===================== start =====================")
 
     # memory checker
-    def _memoryCheck(str):
+    def _memoryCheck(str: str) -> None:
         try:
             proc_status = f"/proc/{os.getpid()}/status"
             procfile = open(proc_status)
@@ -80,17 +81,17 @@ def main(tbuf=None, **kwargs):
 
     # list with lock
     class ListWithLock:
-        def __init__(self):
+        def __init__(self) -> None:
             self.lock = threading.Lock()
-            self.list = []
+            self.list: list[Any] = []
 
-        def __contains__(self, item):
+        def __contains__(self, item: Any) -> bool:
             self.lock.acquire()
             ret = self.list.__contains__(item)
             self.lock.release()
             return ret
 
-        def append(self, item):
+        def append(self, item: Any) -> bool:
             appended = False
             self.lock.acquire()
             if item not in self.list:
@@ -103,7 +104,7 @@ def main(tbuf=None, **kwargs):
     deletedDisList = ListWithLock()
 
     # set tobedeleted to dis dataset
-    def setTobeDeletedToDis(subDsName):
+    def setTobeDeletedToDis(subDsName: str) -> None:
         try:
             # only production sub datasets
             if subDsName.startswith("user") or subDsName.startswith("group") or re.search("_sub\d+$", subDsName) is None:
@@ -153,21 +154,21 @@ def main(tbuf=None, **kwargs):
 
     # thread pool
     class ThreadPool:
-        def __init__(self):
+        def __init__(self) -> None:
             self.lock = threading.Lock()
-            self.list = []
+            self.list: list[threading.Thread] = []
 
-        def add(self, obj):
+        def add(self, obj: threading.Thread) -> None:
             self.lock.acquire()
             self.list.append(obj)
             self.lock.release()
 
-        def remove(self, obj):
+        def remove(self, obj: threading.Thread) -> None:
             self.lock.acquire()
             self.list.remove(obj)
             self.lock.release()
 
-        def join(self):
+        def join(self) -> None:
             self.lock.acquire()
             thrlist = tuple(self.list)
             self.lock.release()
@@ -176,7 +177,7 @@ def main(tbuf=None, **kwargs):
 
     # thread to close dataset
     class CloserThr(threading.Thread):
-        def __init__(self, lock, proxyLock, datasets, pool):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, datasets: list[Any], pool: "ThreadPool") -> None:
             threading.Thread.__init__(self)
             self.datasets = datasets
             self.lock = lock
@@ -184,7 +185,7 @@ def main(tbuf=None, **kwargs):
             self.pool = pool
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 # loop over all datasets
@@ -230,9 +231,9 @@ def main(tbuf=None, **kwargs):
                         if not dsExists:
                             continue
                         # count # of files
-                        status, out = rucioAPI.get_number_of_files(name)
-                        if status is not True:
-                            if status is False:
+                        n_files_status, out = rucioAPI.get_number_of_files(name)
+                        if n_files_status is not True:
+                            if n_files_status is False:
                                 _logger.error(out)
                         else:
                             _logger.debug(out)
@@ -294,7 +295,7 @@ def main(tbuf=None, **kwargs):
 
     # thread to freeze dataset
     class Freezer(threading.Thread):
-        def __init__(self, lock, proxyLock, datasets, pool):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, datasets: list[Any], pool: "ThreadPool") -> None:
             threading.Thread.__init__(self)
             self.datasets = datasets
             self.lock = lock
@@ -302,7 +303,7 @@ def main(tbuf=None, **kwargs):
             self.pool = pool
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 for vuid, name, modDate in self.datasets:
@@ -332,13 +333,14 @@ def main(tbuf=None, **kwargs):
                         # check sub datasets in the jobset for event service job
                         if allFinished:
                             self.proxyLock.acquire()
-                            tmpJobs = taskBuffer.getFullJobStatus([onePandaID])
+                            # None when the dataset had no files at all; the lookup then finds nothing
+                            tmpJobs = taskBuffer.getFullJobStatus([onePandaID])  # type: ignore[list-item]
                             self.proxyLock.release()
                             if len(tmpJobs) > 0 and tmpJobs[0] is not None:
                                 if EventServiceUtils.isEventServiceMerge(tmpJobs[0]):
                                     self.proxyLock.acquire()
                                     cThr = Closer(taskBuffer, [], tmpJobs[0])
-                                    allFinished = cThr.checkSubDatasetsInJobset()
+                                    allFinished = cThr.check_sub_datasets_in_jobset()
                                     self.proxyLock.release()
                                     _logger.debug(f"closer checked sub datasets in the jobset for {name} : {allFinished}")
                         # no files in filesTable
@@ -425,9 +427,9 @@ def main(tbuf=None, **kwargs):
                                 # set tobedeleted to dis
                                 setTobeDeletedToDis(name)
                                 # count # of files
-                                status, out = rucioAPI.get_number_of_files(name)
-                                if status is not True:
-                                    if status is False:
+                                n_files_status, out = rucioAPI.get_number_of_files(name)
+                                if n_files_status is not True:
+                                    if n_files_status is False:
                                         _logger.error(out)
                                 else:
                                     _logger.debug(out)
@@ -536,7 +538,7 @@ def main(tbuf=None, **kwargs):
 
     # delete dis datasets
     class EraserThr(threading.Thread):
-        def __init__(self, lock, proxyLock, datasets, pool, operationType):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, datasets: list[Any], pool: "ThreadPool", operationType: str) -> None:
             threading.Thread.__init__(self)
             self.datasets = datasets
             self.lock = lock
@@ -545,7 +547,7 @@ def main(tbuf=None, **kwargs):
             self.pool.add(self)
             self.operationType = operationType
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 # loop over all datasets
@@ -633,7 +635,7 @@ def main(tbuf=None, **kwargs):
 
     # finisher thread
     class FinisherThr(threading.Thread):
-        def __init__(self, lock, proxyLock, ids, pool, timeNow):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, ids: list[Any], pool: "ThreadPool", timeNow: datetime.datetime) -> None:
             threading.Thread.__init__(self)
             self.ids = ids
             self.lock = lock
@@ -642,7 +644,7 @@ def main(tbuf=None, **kwargs):
             self.timeNow = timeNow
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 # get jobs from DB
@@ -662,6 +664,11 @@ def main(tbuf=None, **kwargs):
                         # using --destSE for analysis job to transfer output
                         seList = [job.destinationSE]
                     elif tmpNucleus is not None:
+                        if tmpNucleus.default_ddm_endpoint_out is None:
+                            # there is nothing to look replicas up against; this used to reach
+                            # Rucio as [None] and come back as a bare "failed to get file replicas"
+                            _logger.error(f"{job.PandaID} nucleus {job.nucleus} has no default output endpoint")
+                            continue
                         seList = [tmpNucleus.default_ddm_endpoint_out]
 
                     # get LFN list
@@ -723,7 +730,7 @@ def main(tbuf=None, **kwargs):
                             job.jobStatus = "failed"
                             job.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_Transfer
                             job.taskBufferErrorDiag = f"transfer timeout for {strMiss}"
-                            guidMap = {}
+                            guidMap: dict[str, Any] = {}
                             for file in job.Files:
                                 # set file status
                                 if file.status == "transferring" or file.type in [
@@ -795,7 +802,7 @@ def main(tbuf=None, **kwargs):
 
     # activator thread
     class ActivatorThr(threading.Thread):
-        def __init__(self, lock, proxyLock, ids, pool):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, ids: list[Any], pool: "ThreadPool") -> None:
             threading.Thread.__init__(self)
             self.ids = ids
             self.lock = lock
@@ -803,7 +810,7 @@ def main(tbuf=None, **kwargs):
             self.pool = pool
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 # get jobs from DB
@@ -817,7 +824,6 @@ def main(tbuf=None, **kwargs):
                         continue
                     # get LFN list
                     lfns = []
-                    guids = []
                     scopes = []
                     for tmpFile in tmpJob.Files:
                         # only input files are checked
@@ -840,10 +846,10 @@ def main(tbuf=None, **kwargs):
                                 # check RSEs
                                 if tmpFile.lfn in okFiles:
                                     for rse in okFiles[tmpFile.lfn]:
-                                        if (
-                                            siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse)
-                                            and siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)["is_tape"] == "N"
-                                        ):
+                                        # getEndPoint answers None for exactly the endpoints
+                                        # isAssociated rejects, so one call settles both
+                                        rse_endpoint = siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)
+                                        if rse_endpoint is not None and rse_endpoint["is_tape"] == "N":
                                             tmpFile.status = "ready"
                                             break
                                 # missing
@@ -899,7 +905,7 @@ def main(tbuf=None, **kwargs):
 
     # activator thread with rule
     class ActivatorWithRuleThr(threading.Thread):
-        def __init__(self, lock, proxyLock, ids, pool):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, ids: list[Any], pool: "ThreadPool") -> None:
             threading.Thread.__init__(self)
             self.ids = ids
             self.lock = lock
@@ -907,7 +913,7 @@ def main(tbuf=None, **kwargs):
             self.pool = pool
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 # get jobs from DB
@@ -936,9 +942,10 @@ def main(tbuf=None, **kwargs):
                             # check RSEs
                             for rse in replicaMap[tmpFile.dispatchDBlock]:
                                 repInfo = replicaMap[tmpFile.dispatchDBlock][rse]
+                                rse_endpoint = siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)
                                 if (
-                                    siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse)
-                                    and siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)["is_tape"] == "N"
+                                    rse_endpoint is not None
+                                    and rse_endpoint["is_tape"] == "N"
                                     and repInfo[0]["total"] == repInfo[0]["found"]
                                     and repInfo[0]["total"] is not None
                                     and repInfo[0]["total"] > 0
@@ -991,14 +998,14 @@ def main(tbuf=None, **kwargs):
         if res is None or len(res) == 0:
             break
         # run thread
-        actThr = ActivatorWithRuleThr(activatorLock, activatorProxyLock, res, activatorThreadPool)
-        actThr.start()
+        actRuleThr = ActivatorWithRuleThr(activatorLock, activatorProxyLock, res, activatorThreadPool)
+        actRuleThr.start()
     # wait
     activatorThreadPool.join()
 
     # thread to delete sub datasets
     class SubDeleter(threading.Thread):
-        def __init__(self, lock, proxyLock, datasets, pool):
+        def __init__(self, lock: threading.Semaphore, proxyLock: threading.Lock, datasets: list[Any], pool: "ThreadPool") -> None:
             threading.Thread.__init__(self)
             self.datasets = datasets
             self.lock = lock
@@ -1006,7 +1013,7 @@ def main(tbuf=None, **kwargs):
             self.pool = pool
             self.pool.add(self)
 
-        def run(self):
+        def run(self) -> None:
             self.lock.acquire()
             try:
                 for vuid, name, modDate in self.datasets:
@@ -1137,9 +1144,10 @@ def main(tbuf=None, **kwargs):
         if len(res) < 100:
             break
 
-    # release memory
-    del siteMapper
-    del deletedDisList
+    # release memory. drop the references rather than del them, since both names are
+    # read by the nested threads above and del empties the cell they share
+    siteMapper = None  # type: ignore[assignment]  # dropping the reference; nothing reads it after this
+    deletedDisList = None  # type: ignore[assignment]  # dropping the reference; nothing reads it after this
 
     _memoryCheck("end")
 

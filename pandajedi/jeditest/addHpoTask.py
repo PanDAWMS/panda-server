@@ -1,9 +1,10 @@
 import uuid
+from typing import Any
 from urllib.parse import quote
 
-from userinterface import Client
+from pandaclient import Client
 
-taskParamMap = {}
+taskParamMap: dict[str, Any] = {}
 
 taskParamMap["noInput"] = True
 taskParamMap["nEventsPerJob"] = 1

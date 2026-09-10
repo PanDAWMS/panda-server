@@ -10,7 +10,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger("ProxyCache")
 
 
-def execute(program, log_stream):
+def execute(program: str, log_stream: LogWrapper) -> tuple[bytes, bytes, int]:
     """Run a program on the command line. Return stderr, stdout and status."""
     log_stream.info(f"executable: {program}")
     pipe = subprocess.Popen(
@@ -26,7 +26,7 @@ def execute(program, log_stream):
     return stdout, stderr, pipe.wait()
 
 
-def cat(filename):
+def cat(filename: str) -> str:
     """Given filename, print its text contents."""
     with open(filename, "r") as f:
         out = f.read()
@@ -36,7 +36,7 @@ def cat(filename):
 class MyProxyInterface(object):
     """Class to store and retrieve proxies from my proxies."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__target_path = "/tmp/proxies"
         self.__cred_name = "panda"
         if not os.path.exists(self.__target_path):
@@ -44,13 +44,14 @@ class MyProxyInterface(object):
 
     def store(
         self,
-        user_dn,
-        cred_name,
-        production=False,
-        server_name="myproxy.cern.ch",
-        role=None,
-        log_stream=None,
-    ):
+        user_dn: str,
+        cred_name: str,
+        production: bool = False,
+        server_name: str = "myproxy.cern.ch",
+        role: str | None = None,
+        *,
+        log_stream: LogWrapper,
+    ) -> int:
         log_stream.info("store proxy")
 
         # Retrieve proxy from myproxy
@@ -70,9 +71,9 @@ class MyProxyInterface(object):
 
         stdout, stderr, status = execute(cmd, log_stream)
         if stdout:
-            log_stream.info(f"stdout is {stdout} ")
+            log_stream.info(f"stdout is {stdout!r} ")
         if stderr:
-            log_stream.info(f"stderr is {stderr} ")
+            log_stream.info(f"stderr is {stderr!r} ")
             # make a dummy to avoid too early reattempt
             open(proxy_path, "w").close()
         log_stream.info(f"test the status of plain... {status}")
@@ -89,9 +90,9 @@ class MyProxyInterface(object):
             prodcmd = f"voms-proxy-init -vomses /etc/vomses -valid 96:00 -rfc -cert {proxy_path} -key {proxy_path} -out {prodproxy_path} -n -voms {role}"
             stdout, stderr, status = execute(prodcmd, log_stream)
             if stdout:
-                log_stream.info(f"stdout is {stdout} ")
+                log_stream.info(f"stdout is {stdout!r} ")
             if stderr:
-                log_stream.info(f"stderr is {stderr} ")
+                log_stream.info(f"stderr is {stderr!r} ")
             log_stream.debug(f"test the status of production... {status}")
         elif production:
             log_stream.info("production proxy needed - need to add voms attributes and store it in the cache")
@@ -103,9 +104,9 @@ class MyProxyInterface(object):
             prodcmd = f"voms-proxy-init -vomses /etc/vomses -valid 96:00 -rfc -cert {proxy_path} -key {proxy_path} -out {prodproxy_path} -n -voms atlas:/atlas/Role=production"
             stdout, stderr, status = execute(prodcmd, log_stream)
             if stdout:
-                log_stream.info(f"stdout is {stdout} ")
+                log_stream.info(f"stdout is {stdout!r} ")
             if stderr:
-                log_stream.info(f"stderr is {stderr} ")
+                log_stream.info(f"stderr is {stderr!r} ")
             log_stream.info(f"test the status of production... {status}")
         else:
             # Now we need to add atlas roles and store it
@@ -113,16 +114,16 @@ class MyProxyInterface(object):
             atlasrolescmd = f"voms-proxy-init -vomses /etc/vomses -valid 96:00 -rfc -cert {proxy_path} -key {proxy_path} -out {atlasproxy_path} -n -voms atlas"
             stdout, stderr, status = execute(atlasrolescmd, log_stream)
             if stdout:
-                log_stream.info(f"stdout is {stdout} ")
+                log_stream.info(f"stdout is {stdout!r} ")
             if stderr:
-                log_stream.info(f"stderr is {stderr} ")
+                log_stream.info(f"stderr is {stderr!r} ")
             log_stream.info(f"test the status of atlas... {status}")
         # make dummy to avoid too early attempts
         if status != 0 and not os.path.exists(proxy_path):
             open(proxy_path, "w").close()
         return status
 
-    def retrieve(self, user_dn, production=False, role=None):
+    def retrieve(self, user_dn: str, production: bool = False, role: str | None = None) -> str | None:
         """Retrieve proxy from proxy cache."""
         if role is not None:
             tmpExtension = self.getExtension(role)
@@ -141,9 +142,10 @@ class MyProxyInterface(object):
             return cat(proxy_path)
         else:
             _logger.warning(f"proxy file does not exist : DN:{user_dn} role:{role} file:{proxy_path}")
+            return None
 
     # get proxy path
-    def get_proxy_path(self, user_dn, production, role):
+    def get_proxy_path(self, user_dn: str, production: bool, role: str | None) -> str:
         if role is not None:
             tmpExtension = self.getExtension(role)
             return os.path.join(
@@ -161,7 +163,7 @@ class MyProxyInterface(object):
                 hashlib.sha1(user_dn.encode("utf-8")).hexdigest(),
             )
 
-    def checkProxy(self, user_dn, production=False, role=None, name=None):
+    def checkProxy(self, user_dn: str, production: bool = False, role: str | None = None, *, name: str) -> int | None:
         log_stream = LogWrapper(_logger, f'< name="{name}" role={role} >')
         log_stream.info(f"check proxy for {user_dn}")
 
@@ -173,9 +175,9 @@ class MyProxyInterface(object):
             cmd = f"voms-proxy-info -exists -hours 94 -file {proxy_path}"
             stdout, stderr, status = execute(cmd, log_stream)
             if stdout:
-                log_stream.info(f"stdout is {stdout} ")
+                log_stream.info(f"stdout is {stdout!r} ")
             if stderr:
-                log_stream.info(f"stderr is {stderr} ")
+                log_stream.info(f"stderr is {stderr!r} ")
             if status == 1:
                 log_stream.info("proxy expires in 94h or less. We need to renew proxy!")
                 ret = self.store(
@@ -219,8 +221,9 @@ class MyProxyInterface(object):
                 return self.checkValidity(plain_path, log_stream)
             else:
                 log_stream.error("plain proxy not there at the moment!")
+        return None
 
-    def checkValidity(self, proxy_path, log_stream):
+    def checkValidity(self, proxy_path: str, log_stream: LogWrapper) -> int:
         log_stream.info("Need to check validity and expiry!")
         time_left_thresholds = [24, 94, 168]
         status = 0
@@ -234,7 +237,8 @@ class MyProxyInterface(object):
         return status
 
     # get extension
-    def getExtension(self, role):
-        if role is not None:
-            return "." + role.split("=")[-1]
-        return None
+    def getExtension(self, role: str) -> str:
+        # every call site is already inside `if role is not None`, so the None arm this
+        # used to carry was dead and its None return was what made user_dn + extension
+        # unrepresentable
+        return "." + role.split("=")[-1]

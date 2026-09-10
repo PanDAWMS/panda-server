@@ -7,18 +7,27 @@ import datetime
 import json
 import re
 import sys
-import time
 import traceback
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
+from pandacommon.pandautils.thread_utils import LockPool
 
 import pandaserver.dataservice.ErrorCode
 import pandaserver.taskbuffer.ErrorCode
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, closer
 from pandaserver.srvcore.CoreUtils import normalize_cpu_model
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.JobSpec import JobSpec
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils, retryModule
 
 _logger = PandaLogger().getLogger("adder")
@@ -32,18 +41,23 @@ class AdderGen:
     """
 
     # constructor
+    # Fetched by run() and guarded once, at the top of process_job_report(), which is
+    # the only route to every method that reads it. Declared non-Optional so those
+    # methods do not each repeat a check the caller already made.
+    job: "JobSpec"
+
     def __init__(
         self,
-        taskBuffer,
-        job_id,
-        job_status,
-        attempt_nr,
-        ignore_tmp_error=True,
-        siteMapper=None,
-        pid=None,
-        prelock_pid=None,
-        lock_offset=10,
-        lock_pool=None,
+        taskBuffer: "TaskBuffer",
+        job_id: int,
+        job_status: str,
+        attempt_nr: int | None,
+        ignore_tmp_error: bool = True,
+        siteMapper: SiteMapper | None = None,
+        pid: str | None = None,
+        prelock_pid: str | None = None,
+        lock_offset: int = 10,
+        lock_pool: LockPool | None = None,
     ) -> None:
         """
         Initialize the AdderGen.
@@ -51,15 +65,15 @@ class AdderGen:
         :param job: The job object.
         :param params: Additional parameters.
         """
-        self.job = None
+        self.job = None  # type: ignore[assignment]
         self.job_id = job_id
         self.job_status = job_status
         self.taskBuffer = taskBuffer
         self.ignore_tmp_error = ignore_tmp_error
         self.lock_offset = lock_offset
         self.siteMapper = siteMapper
-        self.dataset_map = {}
-        self.extra_info = {
+        self.dataset_map: dict[str, Any] = {}
+        self.extra_info: dict[str, Any] = {
             "surl": {},
             "nevents": {},
             "lbnr": {},
@@ -70,17 +84,19 @@ class AdderGen:
         self.attempt_nr = attempt_nr
         self.pid = pid
         self.prelock_pid = prelock_pid
-        self.data = None
+        # the output report and the plugin built from it, all installed by run() before
+        # the methods below read them
+        self.data: str | None = None
         self.lock_pool = lock_pool
-        self.report_dict = None
-        self.adder_plugin = None
-        self.add_result = None
-        self.adder_plugin_class = None
+        self.report_dict: dict[str, Any] = {}
+        self.adder_plugin: Any = None
+        self.add_result: Any = None
+        self.adder_plugin_class: Any = None
         # logger
         self.logger = LogWrapper(_logger, str(self.job_id))
 
     # main
-    def run(self):
+    def run(self) -> None:
         """
         Run the AdderGen plugin.
         """
@@ -121,7 +137,7 @@ class AdderGen:
             )
 
     # dump file report
-    def dump_file_report(self, file_catalog, attempt_nr):
+    def dump_file_report(self, file_catalog: str, attempt_nr: int | None) -> None:
         """
         Dump the file report.
 
@@ -143,7 +159,7 @@ class AdderGen:
             )
 
     # get plugin class
-    def get_plugin_class(self, tmp_vo, tmp_group):
+    def get_plugin_class(self, tmp_vo: str, tmp_group: str) -> Any:
         """
         Get the plugin class for the given VO and group.
 
@@ -217,7 +233,7 @@ class AdderGen:
             if EventServiceUtils.isJobCloningJob(self.job) and self.job_status == "finished":
                 # get semaphore for storeonce
                 if EventServiceUtils.getJobCloningType(self.job) == "storeonce":
-                    self.taskBuffer.getEventRanges(self.job.PandaID, self.job.jobsetID, self.job.jediTaskID, 1, False, False, None)
+                    self.taskBuffer.getEventRanges(self.job.PandaID, self.job.jobsetID, self.job.jediTaskID, 1, False, False, None)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # check semaphore
                 check_jc = self.taskBuffer.checkClonedJob(self.job)
                 if check_jc is None:
@@ -274,7 +290,7 @@ class AdderGen:
                         file.status = "merging"
                 self.job.jobStatus = "merging"
                 # propagate transition to prodDB
-                self.job.stateChangeTime = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+                self.job.stateChangeTime = naive_utcnow()
             elif self.add_result is not None and self.add_result.transferring_files != []:
                 # set status for transferring
                 for file in self.job.Files:
@@ -283,7 +299,7 @@ class AdderGen:
                 self.job.jobStatus = "transferring"
                 self.job.jobSubStatus = None
                 # propagate transition to prodDB
-                self.job.stateChangeTime = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+                self.job.stateChangeTime = naive_utcnow()
             else:
                 self.job.jobStatus = "finished"
 
@@ -292,8 +308,11 @@ class AdderGen:
         Handle failed job status.
         """
         # First of all: check if job failed and in this case take first actions according to error table
-        source, error_code, error_diag = None, None, None
-        errors = []
+        # the code is an int for the pilot/exe/DDM sources and a str for transExitCode
+        source: str | None = None
+        error_code: Any = None
+        error_diag: Any = None
+        errors: list[dict[str, Any]] = []
         if self.job.pilotErrorCode:
             source = "pilotErrorCode"
             error_code = self.job.pilotErrorCode
@@ -344,9 +363,9 @@ class AdderGen:
                 self.logger.debug("AdderGen.run will call job_failure_postprocessing")
                 retryModule.job_failure_postprocessing(
                     self.taskBuffer,
-                    self.job.PandaID,
+                    self.job.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     errors,
-                    self.job.attemptNr,
+                    self.job.attemptNr,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 )
                 self.logger.debug("job_failure_postprocessing is back")
             except Exception as e:
@@ -428,7 +447,7 @@ class AdderGen:
 
         # endtime
         if self.job.endTime == "NULL":
-            self.job.endTime = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+            self.job.endTime = naive_utcnow()
         # output size and # of outputs
         self.job.nOutputDataFiles = 0
         self.job.outputFileBytes = 0
@@ -436,7 +455,7 @@ class AdderGen:
             if tmp_file.type == "output":
                 self.job.nOutputDataFiles += 1
                 try:
-                    self.job.outputFileBytes += tmp_file.fsize
+                    self.job.outputFileBytes += tmp_file.fsize  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                 except Exception:
                     pass
         # protection
@@ -494,18 +513,22 @@ class AdderGen:
                             "error_diag": error_diag,
                         }
                     ]
-                    self.logger.debug("AdderGen.run 2 will call job_failure_postprocessing")
-                    retryModule.job_failure_postprocessing(
+                    # only the retry rules here, not the whole postprocessing: the error
+                    # classification reads the errors off the job spec rather than from this
+                    # list, so handle_failed_job() has already run it on this same job, and
+                    # increase_max_failure() adds one to maxFailure each time
+                    self.logger.debug("AdderGen.run 2 will call apply_retrial_rules")
+                    retryModule.apply_retrial_rules(
                         self.taskBuffer,
-                        job_tmp.PandaID,
+                        job_tmp,
                         errors,
                         job_tmp.attemptNr,
                     )
-                    self.logger.debug("job_failure_postprocessing 2 is back")
+                    self.logger.debug("apply_retrial_rules 2 is back")
             except IndexError:
                 pass
             except Exception as e:
-                self.logger.error(f"job_failure_postprocessing 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+                self.logger.error(f"apply_retrial_rules 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
             self.setup_closer()
         return True
@@ -575,7 +598,7 @@ class AdderGen:
             # run closer for associate parallel jobs
             if EventServiceUtils.isJobCloningJob(self.job):
                 associate_dispatch_block_map = self.taskBuffer.getDestDBlocksWithSingleConsumer(
-                    self.job.jediTaskID, self.job.PandaID, destination_dispatch_block_list
+                    self.job.jediTaskID, self.job.PandaID, destination_dispatch_block_list  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 )
                 for associate_job_id in associate_dispatch_block_map:
                     associate_dispatch_blocks = associate_dispatch_block_map[associate_job_id]
@@ -595,7 +618,7 @@ class AdderGen:
                         del closer_thread
                         self.logger.debug(f"end Closer for PandaID={associate_job_id}")
 
-    def update_worker_node(self, json_dict):
+    def update_worker_node(self, json_dict: dict[str, Any]) -> None:
         try:
             self.logger.debug(f"update_worker_node: start")
             wn_specs = json_dict.get("worker_node", {})
@@ -643,7 +666,7 @@ class AdderGen:
         except Exception:
             self.logger.error(f"update_worker_node: issue with updating worker node specs: {traceback.format_exc()}")
 
-    def update_worker_node_gpu(self, json_dict):
+    def update_worker_node_gpu(self, json_dict: dict[str, Any]) -> None:
         try:
             self.logger.debug(f"update_worker_node_gpu: start")
             wn_gpu_specs = json_dict.get("worker_node_gpus", {})
@@ -672,7 +695,7 @@ class AdderGen:
         except Exception:
             self.logger.error(f"update_worker_node_gpu: issue with updating worker node GPU specs: {traceback.format_exc()}")
 
-    def extract_executor_metadata(self, json_dict: dict) -> None:
+    def extract_executor_metadata(self, json_dict: dict[str, Any]) -> None:
         """
         Extract values from the executor metaData in the job report and set them in extra_info.
 
@@ -700,7 +723,7 @@ class AdderGen:
 
     # parse JSON
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
-    def parse_job_output_report(self):
+    def parse_job_output_report(self) -> int:
         """
         Parse the JSON data associated with the job to extract file information.
 
@@ -735,11 +758,11 @@ class AdderGen:
         chksums = []
         surls = []
         full_lfn_map = {}
-        n_events_map = {}
+        n_events_map: dict[str, Any] = {}
         guid_map = {}
 
         try:
-            json_dict = json.loads(self.data)
+            json_dict = json.loads(self.data or "{}")
             for lfn in json_dict:
                 file_data = json_dict[lfn]
                 lfn = str(lfn)
@@ -832,7 +855,7 @@ class AdderGen:
             self.extract_executor_metadata(json_dict)
 
         # use nEvents and GUIDs reported by the pilot if no job report
-        if self.job.metadata == "NULL" and self.job_status == "finished" and self.job.nEvents > 0 and self.job.prodSourceLabel in ["managed"]:
+        if self.job.metadata == "NULL" and self.job_status == "finished" and self.job.nEvents > 0 and self.job.prodSourceLabel in ["managed"]:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
             for file in self.job.Files:
                 if file.type == "output":
                     n_events_map[file.lfn] = self.job.nEvents
@@ -941,7 +964,7 @@ class AdderGen:
         return 0
 
     # copy files for variable number of outputs
-    def copy_files_for_variable_num_outputs(self, lfns):
+    def copy_files_for_variable_num_outputs(self, lfns: list[str]) -> bool:
         """
         Copy files for variable number of outputs.
 
@@ -958,7 +981,7 @@ class AdderGen:
             if tmp_file.type in ["output", "log"]:
                 original_output_files[tmp_file.lfn] = tmp_file
         # look for unknown files
-        orig_to_new_map = {}
+        orig_to_new_map: dict[str, Any] = {}
         for new_lfn in lfns:
             if new_lfn not in original_output_files:
                 # look for corresponding original output

@@ -1,11 +1,21 @@
 """
 This class is a dummy plugin. It inherits from the SetupperPluginBase class.
 """
-import uuid
 
-from typing import List, Dict
+import uuid
+from typing import TYPE_CHECKING, Any, List
 
 from pandaserver.dataservice.setupper_plugin_base import SetupperPluginBase
+from pandaserver.taskbuffer.JobSpec import JobSpec
+
+if TYPE_CHECKING:
+    # LogWrapper reads a configuration file at import time and TaskBuffer imports this
+    # package, so naming either for real here would cost this module its standalone
+    # import. Annotations are evaluated at runtime in this tree, so the uses below are
+    # quoted.
+    from pandacommon.pandalogger.LogWrapper import LogWrapper
+
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 
 class SetupperDummyPlugin(SetupperPluginBase):
@@ -14,7 +24,7 @@ class SetupperDummyPlugin(SetupperPluginBase):
     """
 
     # constructor
-    def __init__(self, taskBuffer, jobs: List, logger, **params: Dict) -> None:
+    def __init__(self, taskBuffer: "TaskBuffer", jobs: List[JobSpec], logger: "LogWrapper", **params: Any) -> None:
         """
         Constructor for the SetupperDummyPlugin class.
 
@@ -24,7 +34,7 @@ class SetupperDummyPlugin(SetupperPluginBase):
         :param params: Additional parameters.
         """
         # defaults
-        default_map = {}
+        default_map: dict[str, Any] = {}
         SetupperPluginBase.__init__(self, taskBuffer, jobs, logger, params, default_map)
 
     # main

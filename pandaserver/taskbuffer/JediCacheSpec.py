@@ -1,3 +1,5 @@
+from typing import Any, Sequence
+
 """
 cache specification for JEDI
 
@@ -14,13 +16,13 @@ class JediCacheSpec(object):
     )
 
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         # install attributes
         for attr in self.attributes:
             object.__setattr__(self, attr, None)
 
     # return map of values
-    def valuesMap(self):
+    def valuesMap(self) -> dict[str, Any]:
         ret = {}
         for attr in self.attributes:
             val = getattr(self, attr)
@@ -28,14 +30,14 @@ class JediCacheSpec(object):
         return ret
 
     # pack tuple into JediCacheSpec
-    def pack(self, values):
+    def pack(self, values: Sequence[Any]) -> None:
         for i, attr in enumerate(self.attributes):
             val = values[i]
             object.__setattr__(self, attr, val)
 
     # return column names for INSERT
     @classmethod
-    def columnNames(cls, prefix=None):
+    def columnNames(cls, prefix: str | None = None) -> str:
         ret = ""
         if prefix is None:
             ret = ",".join(cls.attributes)
@@ -45,13 +47,13 @@ class JediCacheSpec(object):
 
     # return expression of bind variables for INSERT
     @classmethod
-    def bindValuesExpression(cls):
+    def bindValuesExpression(cls) -> str:
         values_str = ",".join([f":{attr}" for attr in cls.attributes])
         ret = f"VALUES({values_str})"
         return ret
 
     # return an expression of bind variables for UPDATE
     @classmethod
-    def bindUpdateChangesExpression(cls):
+    def bindUpdateChangesExpression(cls) -> str:
         ret = ",".join(["{0}=:{0}".format(attr) for attr in cls.attributes])
         return ret

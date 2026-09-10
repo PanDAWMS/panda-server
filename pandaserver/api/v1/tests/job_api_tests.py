@@ -11,10 +11,10 @@ JEDI_TASK_ID = int(os.environ.get("JEDI_TASK_ID_TEST", -1))
 
 
 class TestJobAPI(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.http_client = HttpClient()
 
-    def test_get_status(self):
+    def test_get_status(self) -> None:
         # def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict:
         url = f"{api_url_ssl}/job/get_status"
         print(f"Testing URL: {url}")
@@ -29,7 +29,7 @@ class TestJobAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_description(self):
+    def test_get_description(self) -> None:
         # def get_description(req: PandaRequest, job_ids: List[int]) -> Dict:
         url = f"{api_url_ssl}/job/get_description"
         print(f"Testing URL: {url}")
@@ -44,7 +44,7 @@ class TestJobAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_description_incl_archive(self):
+    def test_get_description_incl_archive(self) -> None:
         # def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
         url = f"{api_url_ssl}/job/get_description_incl_archive"
         print(f"Testing URL: {url}")
@@ -59,7 +59,7 @@ class TestJobAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_get_metadata_for_analysis_jobs(self):
+    def test_get_metadata_for_analysis_jobs(self) -> None:
         # def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:
         url = f"{api_url_ssl}/job/get_metadata_for_analysis_jobs"
         print(f"Testing URL: {url}")
@@ -78,7 +78,7 @@ class TestJobAPI(unittest.TestCase):
             output["message"] = ""
         self.assertEqual(output, expected_response)
 
-    def test_kill(self):
+    def test_kill(self) -> None:
         # def kill(req, job_ids: List[int], code: int = None, ...) -> Dict:
         url = f"{api_url_ssl}/job/kill"
         print(f"Testing URL: {url}")
@@ -93,7 +93,7 @@ class TestJobAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
-    def test_reassign(self):
+    def test_reassign(self) -> None:
         # def reassign(req: PandaRequest, job_ids: List[int]) -> Dict:
         url = f"{api_url_ssl}/job/reassign"
         print(f"Testing URL: {url}")

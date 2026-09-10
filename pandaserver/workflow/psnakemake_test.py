@@ -4,9 +4,9 @@ import json
 import logging
 import os
 import sys
+from typing import Any
 
-from snakeparser import Parser
-
+from pandaserver.workflow.snakeparser import Parser
 from pandaserver.workflow.workflow_utils import (
     convert_nodes_to_workflow,
     dump_nodes,
@@ -18,17 +18,17 @@ from pandaserver.workflow.workflow_utils import (
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG)
 
 
-def verify_node(node):
+def verify_node(node: Any) -> None:
     result, error = node.verify()
     if not result:
         logging.info(f"Verification error in ID {node.id}: {error}")
 
 
 # noinspection PyBroadException
-def main():
+def main() -> None:
     try:
         workflow_file = sys.argv[1]
-        data = dict()
+        data: dict[str, Any] = dict()
         logging.info(f"{os.path.basename(__file__)}: workflow_file = {workflow_file}")
         parser = Parser(workflow_file, level=logging.DEBUG)
         nodes, root_in = parser.parse_nodes()

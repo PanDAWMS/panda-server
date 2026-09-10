@@ -36,3 +36,20 @@ if "ssl_keyfile" not in tmp_self.__dict__:
 
 if "ssl_certfile" not in tmp_self.__dict__:
     tmp_self.__dict__["ssl_certfile"] = None
+
+# ---------------------------------------------------------------------------
+# As in panda_config, these attributes are installed at import time by
+# expand_values() and by the defaults above, so a type checker sees none of
+# them. They are declared here without values, which records the name and its
+# type without creating anything at runtime.
+# ---------------------------------------------------------------------------
+
+# transport of the FastMCP HTTP app
+transport: str
+
+# JSON file listing the API endpoints to expose as MCP tools
+endpoint_list_file: str
+
+# TLS material for the MCP server; None to serve without TLS
+ssl_keyfile: str | None
+ssl_certfile: str | None

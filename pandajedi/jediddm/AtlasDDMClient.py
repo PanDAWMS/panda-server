@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import traceback
+from multiprocessing.connection import Connection
 from typing import Any
 
 import requests
@@ -33,7 +34,9 @@ from rucio.common.exception import (
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore.Interaction import StatusCode
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import DataServiceUtils, ddm
+from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
 
 from .DDMClientBase import DDMClientBase
 
@@ -43,24 +46,32 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # class to access to ATLAS DDM
 class AtlasDDMClient(DDMClientBase):
     # constructor
-    def __init__(self, con):
+    def __init__(self, con: Connection) -> None:
         # initialize base class
         DDMClientBase.__init__(self, con)
         # the list of fatal error
-        self.fatalErrors = []
+        self.fatalErrors: list[type[BaseException]] = []
         # how frequently update DN/token map
         self.timeIntervalBL = datetime.timedelta(seconds=60 * 10)
         # dict of endpoints
-        self.endPointDict = {}
+        self.endPointDict: dict[str, dict[str, Any]] = {}
         # time of last update for endpoint dict
-        self.lastUpdateEP = None
+        self.lastUpdateEP: datetime.datetime | None = None
         # how frequently update endpoint dict
         self.timeIntervalEP = datetime.timedelta(seconds=60 * 10)
         # pid
         self.pid = os.getpid()
 
     # get files in dataset
-    def getFilesInDataset(self, datasetName, getNumEvents=False, skipDuplicate=True, ignoreUnknown=False, longFormat=False, lfn_only=False):
+    def getFilesInDataset(
+        self,
+        datasetName: str,
+        getNumEvents: bool = False,
+        skipDuplicate: bool = True,
+        ignoreUnknown: bool = False,
+        longFormat: bool = False,
+        lfn_only: bool = False,
+    ) -> tuple[StatusCode, Any]:
         methodName = "getFilesInDataset"
         methodName += f" pid={self.pid}"
         methodName += f" <datasetName={datasetName}>"
@@ -76,8 +87,8 @@ class AtlasDDMClient(DDMClientBase):
             # get length
             tmpMeta = client.get_metadata(scope, dsn)
             # get files
-            fileMap = {}
-            baseLFNmap = {}
+            fileMap: dict[str, Any] = {}
+            baseLFNmap: dict[str, Any] = {}
             fileSet = set()
             for x in client.list_files(scope, dsn, long=longFormat):
                 # convert to old dict format
@@ -102,12 +113,12 @@ class AtlasDDMClient(DDMClientBase):
                 if skipDuplicate:
                     # extract base LFN and attempt number
                     baseLFN = re.sub("(\.(\d+))$", "", lfn)
-                    attNr = re.sub(baseLFN + "\.*", "", lfn)
-                    if attNr == "":
+                    attNrStr = re.sub(baseLFN + "\.*", "", lfn)
+                    if attNrStr == "":
                         # without attempt number
                         attNr = -1
                     else:
-                        attNr = int(attNr)
+                        attNr = int(attNrStr)
                     # compare attempt numbers
                     addMap = False
                     if baseLFN in baseLFNmap:
@@ -123,6 +134,8 @@ class AtlasDDMClient(DDMClientBase):
                         continue
                     baseLFNmap[baseLFN] = {"guid": guid, "attNr": attNr}
                 fileMap[guid] = attrs
+            # the set of LFNs when only names were asked for, the guid-keyed map otherwise
+            return_list: set[str] | dict[str, Any]
             if lfn_only:
                 return_list = fileSet
             else:
@@ -144,7 +157,16 @@ class AtlasDDMClient(DDMClientBase):
         return errCode, f"{methodName} : {errMsg}"
 
     # list dataset replicas
-    def listDatasetReplicas(self, datasetName, use_vp=False, detailed=False, skip_incomplete_element=False, use_deep=False, element_list=None):
+    # returns a third element, the detailed map, when detailed is set
+    def listDatasetReplicas(
+        self,
+        datasetName: str,
+        use_vp: bool = False,
+        detailed: bool = False,
+        skip_incomplete_element: bool = False,
+        use_deep: bool = False,
+        element_list: list[str] | None = None,
+    ) -> tuple[Any, ...]:
         methodName = "listDatasetReplicas"
         methodName += f" pid={self.pid}"
         methodName += f" <datasetName={datasetName}>"
@@ -160,7 +182,7 @@ class AtlasDDMClient(DDMClientBase):
                 return self.SC_SUCCEEDED, tmpRet
             else:
                 # list of attributes summed up
-                retMap = {}
+                retMap: dict[str, Any] = {}
                 detailedRetMap = {}
                 # get constituent datasets
                 if element_list:
@@ -214,7 +236,7 @@ class AtlasDDMClient(DDMClientBase):
             return errCode, f"{methodName} : {errMsg}"
 
     # list replicas per dataset
-    def listReplicasPerDataset(self, datasetName, deepScan=False):
+    def listReplicasPerDataset(self, datasetName: str, deepScan: bool = False) -> tuple[StatusCode, Any]:
         methodName = "listReplicasPerDataset"
         methodName += f" pid={self.pid}"
         methodName += f" <datasetName={datasetName}>"
@@ -244,7 +266,7 @@ class AtlasDDMClient(DDMClientBase):
             return errCode, f"{methodName} : {errMsg}"
 
     # get site property
-    def getSiteProperty(self, seName, attribute):
+    def getSiteProperty(self, seName: str, attribute: str) -> tuple[StatusCode, Any]:
         methodName = "getSiteProperty"
         methodName += f" pid={self.pid}"
         self.updateEndPointDict()
@@ -257,13 +279,13 @@ class AtlasDDMClient(DDMClientBase):
             return errCode, f"{methodName} : {errMsg}"
 
     # get site alternateName
-    def getSiteAlternateName(self, se_name):
+    def getSiteAlternateName(self, se_name: str) -> list[str] | None:
         self.updateEndPointDict()
         if se_name in self.endPointDict:
             return [self.endPointDict[se_name]["site"]]
         return None
 
-    def SiteHasCompleteReplica(self, dataset_replica_map, endpoint, total_files_in_dataset):
+    def SiteHasCompleteReplica(self, dataset_replica_map: dict[str, Any], endpoint: str, total_files_in_dataset: int) -> bool:
         """
         Checks the #found files at site == #total files at site == #files in dataset. VP is regarded as complete
         :return: True or False
@@ -282,18 +304,18 @@ class AtlasDDMClient(DDMClientBase):
 
     def getAvailableFiles(
         self,
-        dataset_spec,
-        site_endpoint_map,
-        site_mapper,
-        check_LFC=False,
-        check_completeness=True,
-        storage_token=None,
-        complete_only=False,
-        use_vp=True,
-        file_scan_in_container=True,
-        use_deep=False,
-        element_list=None,
-    ):
+        dataset_spec: JediDatasetSpec,
+        site_endpoint_map: dict[str, list[str]],
+        site_mapper: SiteMapper,
+        check_LFC: bool = False,
+        check_completeness: bool = True,
+        storage_token: str | None = None,
+        complete_only: bool = False,
+        use_vp: bool = True,
+        file_scan_in_container: bool = True,
+        use_deep: bool = False,
+        element_list: list[str] | None = None,
+    ) -> tuple[StatusCode, Any]:
         """
         :param dataset_spec: dataset spec object
         :param site_endpoint_map: panda sites to ddm endpoints map. The list of panda sites includes the ones to scan
@@ -325,6 +347,11 @@ class AtlasDDMClient(DDMClientBase):
             # update the definition of all endpoints from AGIS
             self.updateEndPointDict()
 
+            if dataset_spec.datasetName is None:
+                error_message = "dataset spec carries no dataset name"
+                tmp_log.error(error_message)
+                return self.SC_FAILED, f"{self.__class__.__name__}.{method_name} {error_message}"
+
             # get the file map
             tmp_status, tmp_output = self.getDatasetMetaData(dataset_spec.datasetName)
             if tmp_status != self.SC_SUCCEEDED:
@@ -351,9 +378,14 @@ class AtlasDDMClient(DDMClientBase):
 
             # collect GUIDs and LFNs
             file_map = {}  # GUID to LFN
-            lfn_filespec_map = {}  # LFN to file spec
+            lfn_filespec_map: dict[str, Any] = {}  # LFN to file spec
             scope_map = {}  # LFN to scope list
             for tmp_file in dataset_spec.Files:
+                # a file read back with the dataset carries all three; one that does not cannot
+                # be looked up in Rucio, and asking for it would fail the whole lookup
+                if tmp_file.GUID is None or tmp_file.lfn is None or tmp_file.scope is None:
+                    tmp_log.warning(f"skip fileID={tmp_file.fileID} with GUID={tmp_file.GUID} lfn={tmp_file.lfn} scope={tmp_file.scope}")
+                    continue
                 file_map[tmp_file.GUID] = tmp_file.lfn
                 lfn_filespec_map.setdefault(tmp_file.lfn, [])
                 lfn_filespec_map[tmp_file.lfn].append(tmp_file)
@@ -433,7 +465,7 @@ class AtlasDDMClient(DDMClientBase):
                             rucio_lfn_to_rse_map[tmp_file.lfn] = detailed_comp_replica_map[files_in_container[tmp_file.lfn]]
 
             # initialize the return map and add complete/cached replicas
-            return_map = {}
+            return_map: dict[str, Any] = {}
             checked_dst = set()
             for site_name, tmp_endpoints in site_endpoint_map.items():
                 return_map.setdefault(site_name, {"localdisk": [], "localtape": [], "cache": [], "remote": []})
@@ -495,7 +527,7 @@ class AtlasDDMClient(DDMClientBase):
             tmp_log.error(error_message)
             return self.SC_FAILED, f"{self.__class__.__name__}.{method_name} {error_message}"
 
-    def jedi_list_replicas(self, files, storages, scopes={}):
+    def jedi_list_replicas(self, files: dict[str, str], storages: list[str], scopes: dict[str, str] = {}) -> tuple[StatusCode, Any]:
         try:
             method_name = "jedi_list_replicas"
             method_name += f" pid={self.pid}"
@@ -540,7 +572,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, lfn_to_rses_map
 
     # list file replicas with dataset name/scope
-    def jedi_list_replicas_with_dataset(self, datasetName):
+    def jedi_list_replicas_with_dataset(self, datasetName: str) -> tuple[StatusCode, Any]:
         try:
             scope, dsn = self.extract_scope(datasetName)
             client = RucioClient()
@@ -558,7 +590,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, lfn_to_rses_map
 
     # get dataset metadata
-    def getDatasetMetaData(self, datasetName, ignore_missing=False):
+    def getDatasetMetaData(self, datasetName: str, ignore_missing: bool = False) -> tuple[StatusCode, Any]:
         # make logger
         methodName = "getDatasetMetaData"
         methodName += f" pid={self.pid}"
@@ -596,7 +628,7 @@ class AtlasDDMClient(DDMClientBase):
         return errCode, f"{methodName} : {errMsg}"
 
     # check error
-    def checkError(self, errType):
+    def checkError(self, errType: BaseException) -> tuple[StatusCode, str]:
         errMsg = f"{str(type(errType))} : {str(errType)}"
         if type(errType) in self.fatalErrors:
             # fatal error
@@ -606,7 +638,7 @@ class AtlasDDMClient(DDMClientBase):
             return self.SC_FAILED, errMsg
 
     # list dataset/container
-    def listDatasets(self, datasetName, ignorePandaDS=True):
+    def listDatasets(self, datasetName: str, ignorePandaDS: bool = True) -> tuple[StatusCode, Any]:
         methodName = "listDatasets"
         methodName += f" pid={self.pid}"
         methodName += f" <datasetName={datasetName}>"
@@ -621,12 +653,12 @@ class AtlasDDMClient(DDMClientBase):
             if dsn.endswith("/"):
                 dsn = dsn[:-1]
             filters["name"] = dsn
-            dsList = set()
+            dsSet = set()
             for name in client.list_dids(scope, filters, "dataset"):
-                dsList.add(f"{scope}:{name}")
+                dsSet.add(f"{scope}:{name}")
             for name in client.list_dids(scope, filters, "container"):
-                dsList.add(f"{scope}:{name}/")
-            dsList = list(dsList)
+                dsSet.add(f"{scope}:{name}/")
+            dsList = list(dsSet)
             # ignore panda internal datasets
             if ignorePandaDS:
                 tmpDsList = []
@@ -644,7 +676,15 @@ class AtlasDDMClient(DDMClientBase):
             return errCode, f"{methodName} : {errMsg}"
 
     # register new dataset/container
-    def registerNewDataset(self, datasetName, backEnd="rucio", location=None, lifetime=None, metaData=None, resurrect=False):
+    def registerNewDataset(
+        self,
+        datasetName: str,
+        backEnd: str = "rucio",
+        location: str | None = None,
+        lifetime: int | None = None,
+        metaData: dict[str, Any] | None = None,
+        resurrect: bool = False,
+    ) -> tuple[StatusCode, Any]:
         methodName = "registerNewDataset"
         methodName += f" pid={self.pid}"
         methodName += f" <datasetName={datasetName}>"
@@ -691,7 +731,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, True
 
     # wrapper for list_content
-    def wp_list_content(self, client, scope, dsn):
+    def wp_list_content(self, client: RucioClient, scope: str, dsn: str) -> list[str]:
         if dsn.endswith("/"):
             dsn = dsn[:-1]
         retList = []
@@ -706,7 +746,7 @@ class AtlasDDMClient(DDMClientBase):
         return retList
 
     # list datasets in container
-    def listDatasetsInContainer(self, containerName):
+    def listDatasetsInContainer(self, containerName: str) -> tuple[StatusCode, Any]:
         methodName = "listDatasetsInContainer"
         methodName += f" pid={self.pid}"
         methodName += f" <containerName={containerName}>"
@@ -728,7 +768,7 @@ class AtlasDDMClient(DDMClientBase):
             return errCode, f"{methodName} : {errMsg}"
 
     # expand Container
-    def expandContainer(self, containerName):
+    def expandContainer(self, containerName: str) -> tuple[StatusCode, Any]:
         methodName = "expandContainer"
         methodName += f" pid={self.pid}"
         methodName += f" <contName={containerName}>"
@@ -772,7 +812,7 @@ class AtlasDDMClient(DDMClientBase):
             # sort by name
             ds_size_map = dict(sorted(ds_size_map.items()))
             # reverse sort by size to have larger datasets first
-            ds_list = [k for k in sorted(ds_size_map, key=ds_size_map.get, reverse=True)]
+            ds_list = [k for k in sorted(ds_size_map, key=lambda k: ds_size_map[k], reverse=True)]
             # return
             tmpLog.debug(f"got {str(ds_list)}")
             return self.SC_SUCCEEDED, ds_list
@@ -783,7 +823,7 @@ class AtlasDDMClient(DDMClientBase):
             return errCode, f"{methodName} : {errMsg}"
 
     # add dataset to container
-    def addDatasetsToContainer(self, containerName, datasetNames, backEnd="rucio"):
+    def addDatasetsToContainer(self, containerName: str, datasetNames: list[str], backEnd: str = "rucio") -> tuple[StatusCode, Any]:
         methodName = "addDatasetsToContainer"
         methodName += f" pid={self.pid}"
         methodName += f" <contName={containerName}>"
@@ -805,9 +845,9 @@ class AtlasDDMClient(DDMClientBase):
                 client.add_datasets_to_container(scope=c_scope, name=c_name, dsns=dsns)
             except DuplicateContent:
                 # add datasets one by one
-                for ds in dsns:
+                for one_dsn in dsns:
                     try:
-                        client.add_datasets_to_container(scope=c_scope, name=c_name, dsns=[ds])
+                        client.add_datasets_to_container(scope=c_scope, name=c_name, dsns=[one_dsn])
                     except DuplicateContent:
                         pass
         except Exception as e:
@@ -819,7 +859,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, True
 
     # get latest DBRelease
-    def getLatestDBRelease(self):
+    def getLatestDBRelease(self) -> tuple[StatusCode, str | None]:
         methodName = "getLatestDBRelease"
         methodName += f" pid={self.pid}"
         tmpLog = MsgWrapper(logger, methodName)
@@ -909,7 +949,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, latestDBR
 
     # freeze dataset
-    def freezeDataset(self, datasetName, ignoreUnknown=False):
+    def freezeDataset(self, datasetName: str, ignoreUnknown: bool = False) -> tuple[StatusCode, Any]:
         methodName = "freezeDataset"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} datasetName={datasetName}"
@@ -947,7 +987,7 @@ class AtlasDDMClient(DDMClientBase):
             return errCode, f"{methodName} : {errMsg}"
 
     # finger
-    def finger(self, dn):
+    def finger(self, dn: str) -> tuple[StatusCode, Any]:
         methodName = "finger"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} userName={dn}"
@@ -963,7 +1003,7 @@ class AtlasDDMClient(DDMClientBase):
             return self.SC_FAILED, err_msg
 
     # set dataset metadata
-    def setDatasetMetadata(self, datasetName, metadataName, metadaValue):
+    def setDatasetMetadata(self, datasetName: str, metadataName: str, metadaValue: Any) -> tuple[StatusCode, Any]:
         methodName = "setDatasetMetadata"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} datasetName={datasetName} metadataName={metadataName} metadaValue={metadaValue}"
@@ -988,8 +1028,18 @@ class AtlasDDMClient(DDMClientBase):
 
     # register location
     def registerDatasetLocation(
-        self, datasetName, location, lifetime=None, owner=None, backEnd="rucio", activity=None, grouping=None, weight=None, copies=1, ignore_availability=True
-    ):
+        self,
+        datasetName: str,
+        location: str,
+        lifetime: int | None = None,
+        owner: str | None = None,
+        backEnd: str = "rucio",
+        activity: str | None = None,
+        grouping: str | None = None,
+        weight: str | None = None,
+        copies: int = 1,
+        ignore_availability: bool = True,
+    ) -> tuple[StatusCode, Any]:
         methodName = "registerDatasetLocation"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} datasetName={datasetName} location={location}"
@@ -1045,7 +1095,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, True
 
     # delete dataset
-    def deleteDataset(self, datasetName, emptyOnly, ignoreUnknown=False):
+    def deleteDataset(self, datasetName: str, emptyOnly: bool, ignoreUnknown: bool = False) -> tuple[StatusCode, Any]:
         methodName = "deleteDataset"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} datasetName={datasetName}"
@@ -1088,7 +1138,9 @@ class AtlasDDMClient(DDMClientBase):
             return errCode, f"{methodName} : {errMsg}"
 
     # register subscription
-    def registerDatasetSubscription(self, datasetName, location, activity, lifetime=None, asynchronous=False):
+    def registerDatasetSubscription(
+        self, datasetName: str, location: str, activity: str, lifetime: int | None = None, asynchronous: bool = False
+    ) -> tuple[StatusCode, Any]:
         methodName = "registerDatasetSubscription"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} datasetName={datasetName} location={location} activity={activity} asyn={asynchronous}"
@@ -1106,7 +1158,9 @@ class AtlasDDMClient(DDMClientBase):
             # check if a replication rule already exists
             for rule in client.list_did_rules(scope=scope, name=dsn):
                 if (rule["rse_expression"] == location) and (rule["account"] == client.account):
-                    return True
+                    # an existing rule is the success the caller is asking for, and every other
+                    # exit here is a (status, payload) pair
+                    return self.SC_SUCCEEDED, True
             client.add_replication_rule(
                 dids=dids,
                 copies=1,
@@ -1136,7 +1190,9 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, True
 
     # convert output of listDatasetReplicas
-    def convertOutListDatasetReplicas(self, datasetName, usefileLookup=False, use_vp=False, skip_incomplete_element=False):
+    def convertOutListDatasetReplicas(
+        self, datasetName: str, usefileLookup: bool = False, use_vp: bool = False, skip_incomplete_element: bool = False
+    ) -> dict[str, Any]:
         retMap = {}
         # get rucio API
         client = RucioClient()
@@ -1191,7 +1247,7 @@ class AtlasDDMClient(DDMClientBase):
         return retMap
 
     # delete files from dataset
-    def deleteFilesFromDataset(self, datasetName, filesToDelete):
+    def deleteFilesFromDataset(self, datasetName: str, filesToDelete: list[dict[str, Any]]) -> tuple[StatusCode, Any]:
         methodName = "deleteFilesFromDataset"
         methodName += f" pid={self.pid}"
         methodName += f" <datasetName={datasetName}>"
@@ -1221,23 +1277,24 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, True
 
     # extract scope
-    def extract_scope(self, dsn):
+    def extract_scope(self, dsn: str) -> tuple[str, str]:
         if dsn.endswith("/"):
             dsn = re.sub("/$", "", dsn)
         if ":" in dsn:
-            return dsn.split(":")[:2]
+            given_scope, given_name = dsn.split(":")[:2]
+            return given_scope, given_name
         scope = dsn.split(".")[0]
         if dsn.startswith("user") or dsn.startswith("group"):
             scope = ".".join(dsn.split(".")[0:2])
         return scope, dsn
 
     # get DID string as scope:name
-    def get_did_str(self, raw_name):
+    def get_did_str(self, raw_name: str) -> str:
         scope, name = self.extract_scope(raw_name)
         return f"{scope}:{name}"
 
     # open dataset
-    def openDataset(self, datasetName):
+    def openDataset(self, datasetName: str) -> tuple[StatusCode, Any]:
         methodName = "openDataset"
         methodName += f" pid={self.pid}"
         methodName += f" <datasetName={datasetName}>"
@@ -1265,7 +1322,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, True
 
     # update endpoint dict
-    def updateEndPointDict(self):
+    def updateEndPointDict(self) -> None:
         methodName = "updateEndPointDict"
         methodName += f" pid={self.pid}"
         tmpLog = MsgWrapper(logger, methodName)
@@ -1340,7 +1397,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, is_distributed
 
     # update replication rules
-    def updateReplicationRules(self, datasetName, dataMap):
+    def updateReplicationRules(self, datasetName: str, dataMap: dict[str, dict[str, Any]]) -> tuple[StatusCode, Any]:
         methodName = "updateReplicationRules"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} datasetName={datasetName}"
@@ -1372,7 +1429,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, True
 
     # move replication rules
-    def move_replication_rules(self, dataset_name, rse_expression):
+    def move_replication_rules(self, dataset_name: str, rse_expression: str) -> tuple[StatusCode, Any]:
         methodName = "move_replication_rules"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} datasetName={dataset_name}"
@@ -1403,7 +1460,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, True
 
     # get active staging rule
-    def getActiveStagingRule(self, dataset_name):
+    def getActiveStagingRule(self, dataset_name: str) -> tuple[StatusCode, Any]:
         methodName = "getActiveStagingRule"
         methodName += f" datasetName={dataset_name}"
         tmpLog = MsgWrapper(logger, methodName)
@@ -1475,7 +1532,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, (is_quota_ok, is_near_limit, err_msg)
 
     # get endpoints over local quota for a user
-    def get_endpoints_over_local_quota(self, user_name: str) -> tuple[StatusCode, tuple[bool, set]]:
+    def get_endpoints_over_local_quota(self, user_name: str) -> tuple[StatusCode, tuple[bool, set[str]]]:
         """
         Get a list of endpoints where the user exceeds local quota.
 
@@ -1510,7 +1567,16 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, (is_ok, full_endpoints)
 
     # make staging rule
-    def make_staging_rule(self, dataset_name, expression, activity, lifetime=None, weight=None, notify="N", source_replica_expression=None):
+    def make_staging_rule(
+        self,
+        dataset_name: str,
+        expression: str,
+        activity: str,
+        lifetime: int | None = None,
+        weight: str | None = None,
+        notify: str = "N",
+        source_replica_expression: str | None = None,
+    ) -> tuple[StatusCode, Any]:
         methodName = "make_staging_rule"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} datasetName={dataset_name} expression={expression} activity={activity} lifetime={lifetime}"
@@ -1565,7 +1631,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, ruleID
 
     # get state of all rules of a dataset
-    def get_rules_state(self, dataset_name):
+    def get_rules_state(self, dataset_name: str) -> tuple[StatusCode, Any]:
         methodName = "get_rules_state"
         methodName += f" datasetName={dataset_name}"
         tmpLog = MsgWrapper(logger, methodName)
@@ -1593,7 +1659,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, (all_ok, res_dict)
 
     # list DID rules
-    def list_did_rules(self, dataset_name, all_accounts=False):
+    def list_did_rules(self, dataset_name: str, all_accounts: bool = False) -> tuple[StatusCode, Any]:
         methodName = "list_did_rules"
         methodName += f" datasetName={dataset_name} all_accounts={all_accounts}"
         tmpLog = MsgWrapper(logger, methodName)
@@ -1617,7 +1683,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, ret_list
 
     # update replication rule by rule ID
-    def update_rule_by_id(self, rule_id, set_map):
+    def update_rule_by_id(self, rule_id: str, set_map: dict[str, Any]) -> tuple[StatusCode, Any]:
         methodName = "update_rule_by_id"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} rule_id={rule_id}"
@@ -1640,7 +1706,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, True
 
     # get replication rule by rule ID
-    def get_rule_by_id(self, rule_id, allow_missing=True):
+    def get_rule_by_id(self, rule_id: str, allow_missing: bool = True) -> tuple[StatusCode, Any]:
         methodName = "get_rule_by_id"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} rule_id={rule_id}"
@@ -1666,7 +1732,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, rule
 
     # list details of all replica locks for a rule by rule ID
-    def list_replica_locks_by_id(self, rule_id):
+    def list_replica_locks_by_id(self, rule_id: str) -> tuple[StatusCode, Any]:
         methodName = "list_replica_locks_by_id"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} rule_id={rule_id}"
@@ -1688,7 +1754,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, ret
 
     # delete replication rule by rule ID
-    def delete_replication_rule(self, rule_id, allow_missing=True):
+    def delete_replication_rule(self, rule_id: str, allow_missing: bool = True) -> tuple[StatusCode, Any]:
         methodName = "delete_replication_rule"
         methodName += f" pid={self.pid}"
         methodName = f"{methodName} rule_id={rule_id}"
@@ -1714,7 +1780,7 @@ class AtlasDDMClient(DDMClientBase):
         return self.SC_SUCCEEDED, ret
 
     # check endpoint
-    def check_endpoint(self, rse):
+    def check_endpoint(self, rse: str) -> tuple[StatusCode, tuple[bool | None, str | None]]:
         method_name = "check_endpoint"
         method_name = f"{method_name} rse={rse}"
         tmp_log = MsgWrapper(logger, method_name)
@@ -1724,7 +1790,9 @@ class AtlasDDMClient(DDMClientBase):
             client = RucioClient()
             # get rules
             ret = client.get_rse(rse)
-            # check availability for write
+            # check availability for write. False means the endpoint is bad and None that the
+            # check itself failed, which the caller tells apart to decide whether to retry
+            result: tuple[bool | None, str | None]
             if ret.get("availability_write") is False:
                 result = False, f"{rse} unavailable for write"
             else:

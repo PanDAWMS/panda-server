@@ -4,6 +4,7 @@ import random
 import re
 import socket
 import sys
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -11,6 +12,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMBER
+from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediCacheSpec import JediCacheSpec
 from pandaserver.taskbuffer.JediDatasetSpec import (
     INPUT_TYPES_var_map,
@@ -21,6 +23,7 @@ from pandaserver.taskbuffer.JediDatasetSpec import (
 )
 from pandaserver.taskbuffer.JediFileSpec import JediFileSpec
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec, is_msg_driven
+from pandaserver.taskbuffer.WorkQueue import WorkQueue
 
 
 # Module class to define isolated task related methods
@@ -30,7 +33,7 @@ class TaskStandaloneModule(BaseModule):
         super().__init__(log_stream)
 
     # get files from the JEDI contents table with jediTaskID and/or datasetID
-    def getFilesInDatasetWithID_JEDI(self, jediTaskID, datasetID, nFiles, status):
+    def getFilesInDatasetWithID_JEDI(self, jediTaskID: int | None, datasetID: int | None, nFiles: int | None, status: str | None) -> tuple[bool, Any]:
         comment = " /* JediDBProxy.getFilesInDataset_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID}")
         tmpLog.debug(f"start nFiles={nFiles} status={status}")
@@ -41,7 +44,7 @@ class TaskStandaloneModule(BaseModule):
             return failedRet
         try:
             # sql
-            varMap = {}
+            varMap: dict[str, Any] = {}
             sql = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
             sql += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
             useAND = False
@@ -89,7 +92,7 @@ class TaskStandaloneModule(BaseModule):
             return failedRet
 
     # insert task to the JEDI task table
-    def insertTask_JEDI(self, taskSpec):
+    def insertTask_JEDI(self, taskSpec: JediTaskSpec) -> bool:
         comment = " /* JediDBProxy.insertTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment)
         tmpLog.debug("start")
@@ -119,7 +122,7 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # update JEDI task lock
-    def updateTaskLock_JEDI(self, jediTaskID):
+    def updateTaskLock_JEDI(self, jediTaskID: int) -> bool:
         comment = " /* JediDBProxy.updateTaskLock_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -127,7 +130,7 @@ class TaskStandaloneModule(BaseModule):
         failedRet = False
         try:
             # sql to update lock
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             sqlS = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlS += "SET lockedTime=CURRENT_DATE "
@@ -149,7 +152,7 @@ class TaskStandaloneModule(BaseModule):
             return failedRet
 
     # get JEDI task and datasets with ID and lock it
-    def getTaskDatasetsWithID_JEDI(self, jediTaskID, pid, lockTask=True):
+    def getTaskDatasetsWithID_JEDI(self, jediTaskID: int, pid: str | None, lockTask: bool = True) -> tuple[bool, JediTaskSpec | None]:
         comment = " /* JediDBProxy.getTaskDatasetsWithID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug(f"start pid={pid}")
@@ -172,7 +175,7 @@ class TaskStandaloneModule(BaseModule):
             res = None
             try:
                 # read task
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jediTaskID
                 self.cur.execute(sql + comment, varMap)
                 res = self.cur.fetchone()
@@ -218,7 +221,7 @@ class TaskStandaloneModule(BaseModule):
             return failedRet
 
     # get JEDI tasks with selection criteria
-    def getTaskIDsWithCriteria_JEDI(self, criteria: dict, since: str | None = None, nTasks: int = 50) -> list[int] | None:
+    def getTaskIDsWithCriteria_JEDI(self, criteria: dict[str, Any], since: str | None = None, nTasks: int = 50) -> list[int] | None:
         """Get JEDI task IDs matching equality criteria and an optional time window.
 
         Args:
@@ -257,7 +260,7 @@ class TaskStandaloneModule(BaseModule):
                 timeRange = maxRange
         else:
             timeRange = maxRange
-        varMap = {}
+        varMap: dict[str, Any] = {}
         try:
             # sql
             sql = "SELECT jediTaskID "
@@ -303,7 +306,7 @@ class TaskStandaloneModule(BaseModule):
             return failedRet
 
     # insert output file templates
-    def insertOutputTemplate_JEDI(self, templates):
+    def insertOutputTemplate_JEDI(self, templates: list[dict[str, Any]]) -> bool:
         comment = " /* JediDBProxy.insertOutputTemplate_JEDI */"
         tmpLog = self.create_tagged_logger(comment)
         tmpLog.debug("start")
@@ -313,7 +316,7 @@ class TaskStandaloneModule(BaseModule):
             # loop over all templates
             for template in templates:
                 # make sql
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 sqlH = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Output_Template (outTempID,"
                 sqlL = f"VALUES({panda_config.schemaJEDI}.JEDI_OUTPUT_TEMPLATE_ID_SEQ.nextval,"
                 for tmpAttr, tmpVal in template.items():
@@ -338,14 +341,14 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # insert JobParamsTemplate
-    def insertJobParamsTemplate_JEDI(self, jediTaskID, templ):
+    def insertJobParamsTemplate_JEDI(self, jediTaskID: int, templ: str) -> bool:
         comment = " /* JediDBProxy.insertJobParamsTemplate_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
         try:
             # SQL
             sql = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_JobParams_Template (jediTaskID,jobParamsTemplate) VALUES (:jediTaskID,:templ) "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":templ"] = templ
             # begin transaction
@@ -365,7 +368,9 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # insert TaskParams
-    def insertTaskParams_JEDI(self, vo, prodSourceLabel, userName, taskName, taskParams, parent_tid=None):
+    def insertTaskParams_JEDI(
+        self, vo: str, prodSourceLabel: str, userName: str, taskName: str, taskParams: str, parent_tid: int | None = None
+    ) -> tuple[bool, int | None]:
         comment = " /* JediDBProxy.insertTaskParams_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"userName={userName} taskName={taskName}")
         tmpLog.debug("start")
@@ -383,7 +388,7 @@ class TaskStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # insert task parameters
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":param"] = taskParams
             varMap[":status"] = "waiting"
@@ -410,7 +415,9 @@ class TaskStandaloneModule(BaseModule):
             return False, None
 
     # insert new TaskParams and update parent TaskParams. mainly used by TaskGenerator
-    def insertUpdateTaskParams_JEDI(self, jediTaskID, vo, prodSourceLabel, updateTaskParams, insertTaskParamsList):
+    def insertUpdateTaskParams_JEDI(
+        self, jediTaskID: int, vo: str, prodSourceLabel: str, updateTaskParams: str | None, insertTaskParamsList: list[str]
+    ) -> tuple[bool, list[int] | None]:
         comment = " /* JediDBProxy.insertUpdateTaskParams_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -429,7 +436,7 @@ class TaskStandaloneModule(BaseModule):
             # insert task parameters
             newJediTaskIDs = []
             for taskParams in insertTaskParamsList:
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":vo"] = vo
                 varMap[":param"] = taskParams
                 varMap[":status"] = "waiting"
@@ -458,7 +465,7 @@ class TaskStandaloneModule(BaseModule):
             return False, None
 
     # reset unused files
-    def resetUnusedFiles_JEDI(self, jediTaskID, inputChunk):
+    def resetUnusedFiles_JEDI(self, jediTaskID: int, inputChunk: InputChunk) -> int:
         comment = " /* JediDBProxy.resetUnusedFiles_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -477,7 +484,7 @@ class TaskStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             for datasetSpec in inputChunk.getDatasets(includePseudo=True):
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jediTaskID
                 varMap[":datasetID"] = datasetSpec.datasetID
                 varMap[":nStatus"] = "ready"
@@ -509,7 +516,7 @@ class TaskStandaloneModule(BaseModule):
             return 0
 
     # set missing files
-    def setMissingFiles_JEDI(self, jediTaskID, datasetID, fileIDs):
+    def setMissingFiles_JEDI(self, jediTaskID: int, datasetID: int, fileIDs: list[int]) -> bool:
         comment = " /* JediDBProxy.setMissingFiles_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID}")
         tmpLog.debug("start")
@@ -525,7 +532,7 @@ class TaskStandaloneModule(BaseModule):
             nFileRow = 0
             # update contents
             for fileID in fileIDs:
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jediTaskID
                 varMap[":datasetID"] = datasetID
                 varMap[":fileID"] = fileID
@@ -553,7 +560,7 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # rescue picked files
-    def rescuePickedFiles_JEDI(self, vo, prodSourceLabel, waitTime):
+    def rescuePickedFiles_JEDI(self, vo: str | None, prodSourceLabel: str | None, waitTime: int) -> int | None:
         comment = " /* JediDBProxy.rescuePickedFiles_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
@@ -591,7 +598,7 @@ class TaskStandaloneModule(BaseModule):
             self.cur.arraysize = 10000
             timeLimit = naive_utcnow() - datetime.timedelta(minutes=waitTime)
             # get orphaned tasks
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":status1"] = "ready"
             varMap[":status2"] = "scouting"
             varMap[":status3"] = "running"
@@ -688,13 +695,13 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # rescue unlocked tasks with picked files
-    def rescueUnLockedTasksWithPicked_JEDI(self, vo, prodSourceLabel, waitTime, pid):
+    def rescueUnLockedTasksWithPicked_JEDI(self, vo: str | None, prodSourceLabel: str | None, waitTime: int, pid: str) -> int | None:
         comment = " /* JediDBProxy.rescueUnLockedTasksWithPicked_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
         try:
             timeToCheck = naive_utcnow() - datetime.timedelta(minutes=waitTime)
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":taskstatus1"] = "running"
             varMap[":taskstatus2"] = "scouting"
             varMap[":taskstatus3"] = "ready"
@@ -739,7 +746,7 @@ class TaskStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            taskDsMap = dict()
+            taskDsMap: dict[str, Any] = dict()
             for jediTaskID, datasetID in resTaskList:
                 if jediTaskID not in taskDsMap:
                     taskDsMap[jediTaskID] = []
@@ -815,7 +822,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # unlock tasks
-    def unlockTasks_JEDI(self, vo, prodSourceLabel, waitTime, hostName, pgid):
+    def unlockTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None, waitTime: int, hostName: str | None, pgid: int | None) -> int | None:
         comment = " /* JediDBProxy.unlockTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} host={hostName} pgid={pgid}")
         tmpLog.debug("start")
@@ -848,7 +855,7 @@ class TaskStandaloneModule(BaseModule):
             self.cur.arraysize = 1000
             # get locked task list
             timeLimit = timeNow - datetime.timedelta(minutes=waitTime)
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":timeLimit"] = timeLimit
             if vo not in [None, "", "any"]:
                 varMap[":vo"] = vo
@@ -925,7 +932,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get the size of input files which will be copied to the site
-    def getMovingInputSize_JEDI(self, siteName):
+    def getMovingInputSize_JEDI(self, siteName: str) -> int | None:
         comment = " /* JediDBProxy.getMovingInputSize_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"site={siteName}")
         tmpLog.debug("start")
@@ -935,7 +942,7 @@ class TaskStandaloneModule(BaseModule):
             sql += "WHERE computingSite=:computingSite "
             # begin transaction
             self.conn.begin()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":computingSite"] = siteName
             # exec
             self.cur.execute(sql + comment, varMap)
@@ -958,14 +965,14 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get typical number of input files for each gshare+processingType
-    def getTypicalNumInput_JEDI(self, vo, prodSourceLabel, workQueue):
+    def getTypicalNumInput_JEDI(self, vo: str, prodSourceLabel: str, workQueue: WorkQueue) -> dict[str, Any] | None:
         comment = " /* JediDBProxy.getTypicalNumInput_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} queue={workQueue.queue_name}")
         tmpLog.debug("start")
 
         try:
             # sql to get size
-            var_map = {}
+            var_map: dict[str, Any] = {}
             var_map[":vo"] = vo
             var_map[":prodSourceLabel"] = prodSourceLabel
             sql = f"SELECT processingtype, nInputDataFiles FROM {panda_config.schemaPANDA}.typical_num_input "
@@ -1041,11 +1048,13 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get highest prio jobs with workQueueID
-    def getHighestPrioJobStat_JEDI(self, prodSourceLabel, cloudName, workQueue, resource_name=None):
+    def getHighestPrioJobStat_JEDI(
+        self, prodSourceLabel: str, cloudName: str, workQueue: WorkQueue, resource_name: str | None = None
+    ) -> tuple[bool, dict[str, Any] | None]:
         comment = " /* JediDBProxy.getHighestPrioJobStat_JEDI */"
         tmp_log = self.create_tagged_logger(comment, f"cloud={cloudName} queue={workQueue.queue_name} resource_type={resource_name}")
         tmp_log.debug("start")
-        var_map = {}
+        var_map: dict[str, Any] = {}
         var_map[":cloud"] = cloudName
         var_map[":prodSourceLabel"] = prodSourceLabel
 
@@ -1107,7 +1116,7 @@ class TaskStandaloneModule(BaseModule):
             return False, None
 
     # get the list of tasks to refine
-    def getTasksToRefine_JEDI(self, vo=None, prodSourceLabel=None):
+    def getTasksToRefine_JEDI(self, vo: str | None = None, prodSourceLabel: str | None = None) -> list[tuple[Any, ...]] | None:
         comment = " /* JediDBProxy.getTasksToRefine_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
@@ -1116,7 +1125,7 @@ class TaskStandaloneModule(BaseModule):
             # sql to get jediTaskIDs to refine from the command table
             sqlC = f"SELECT taskid,parent_tid FROM {panda_config.schemaDEFT}.T_TASK "
             sqlC += "WHERE status=:status "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":status"] = "waiting"
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
@@ -1244,7 +1253,7 @@ class TaskStandaloneModule(BaseModule):
                                     nRowP = self.cur.rowcount
                                     tmpLog.debug(f"deleted param for jediTaskID={jediTaskID} with {nRowP}")
                                     sqlDelJT = f"DELETE FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-                                    sqlDelJT += "WHERE jediTaskID=:jediTaskID ".format(panda_config.schemaJEDI)
+                                    sqlDelJT += "WHERE jediTaskID=:jediTaskID "
                                     varMap = {}
                                     varMap[":jediTaskID"] = jediTaskID
                                     self.cur.execute(sqlDelJT + comment, varMap)
@@ -1374,14 +1383,14 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get task parameters with jediTaskID
-    def getTaskParamsWithID_JEDI(self, jediTaskID, use_commit=True):
+    def getTaskParamsWithID_JEDI(self, jediTaskID: int, use_commit: bool = True) -> str | None:
         comment = " /* JediDBProxy.getTaskParamsWithID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
         try:
             # sql
             sql = f"SELECT taskParams FROM {panda_config.schemaJEDI}.JEDI_TaskParams WHERE jediTaskID=:jediTaskID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             if use_commit:
                 # begin transaction
@@ -1409,7 +1418,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # update jobMetrics
-    def updateJobMetrics_JEDI(self, jediTaskID, pandaID, jobMetrics, tags):
+    def updateJobMetrics_JEDI(self, jediTaskID: int, pandaID: int, jobMetrics: str | None, tags: list[str]) -> None:
         comment = " /* JediDBProxy.updateJobMetrics_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskid={jediTaskID} PandaID={pandaID}")
         tmpLog.debug(f"start tags={','.join(tags)}")
@@ -1427,7 +1436,7 @@ class TaskStandaloneModule(BaseModule):
         # update live table
         sqlL = f"UPDATE {panda_config.schemaPANDA}.jobsArchived4 "
         sqlL += "SET jobMetrics=:newStr WHERE PandaID=:PandaID "
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":PandaID"] = pandaID
         varMap[":newStr"] = newSH
         self.cur.execute(sqlL + comment, varMap)
@@ -1445,7 +1454,7 @@ class TaskStandaloneModule(BaseModule):
         return
 
     # get the list of PandaIDs for a task
-    def getPandaIDsWithTask_JEDI(self, jediTaskID, onlyActive):
+    def getPandaIDsWithTask_JEDI(self, jediTaskID: int, onlyActive: bool) -> list[int] | None:
         comment = " /* JediDBProxy.getPandaIDsWithTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} onlyActive={onlyActive}")
         tmpLog.debug("start")
@@ -1465,7 +1474,7 @@ class TaskStandaloneModule(BaseModule):
                 sqlP += f"SELECT PandaID FROM {tableName} WHERE jediTaskID=:jediTaskID "
                 if tableName.startswith(panda_config.schemaPANDAARCH):
                     sqlP += "AND modificationTime>(CURRENT_DATE-30) "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # start transaction
             self.conn.begin()
@@ -1488,7 +1497,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get the list of queued PandaIDs for a task
-    def getQueuedPandaIDsWithTask_JEDI(self, jediTaskID):
+    def getQueuedPandaIDsWithTask_JEDI(self, jediTaskID: int) -> list[int] | None:
         comment = " /* JediDBProxy.getQueuedPandaIDsWithTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -1505,7 +1514,7 @@ class TaskStandaloneModule(BaseModule):
                     sqlP += "UNION ALL "
                 sqlP += f"SELECT PandaID FROM {tableName} WHERE jediTaskID=:jediTaskID "
                 sqlP += "AND jobStatus NOT IN (:st1,:st2,:st3) "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":st1"] = "running"
             varMap[":st2"] = "holding"
@@ -1532,11 +1541,11 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get jediTaskID/datasetID/FileID with dataset and file names
-    def getIDsWithFileDataset_JEDI(self, datasetName, fileName, fileType):
+    def getIDsWithFileDataset_JEDI(self, datasetName: str, fileName: str, fileType: str) -> tuple[bool, dict[str, Any] | None]:
         comment = " /* JediDBProxy.getIDsWithFileDataset_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"dataset={datasetName} file={fileName} type={fileType}")
         tmpLog.debug("start")
-        retPandaIDs = []
+        retPandaIDs: list[Any] = []
         try:
             # sql to get jediTaskID and datasetID
             sqlT = f"SELECT jediTaskID,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE "
@@ -1546,7 +1555,7 @@ class TaskStandaloneModule(BaseModule):
             sqlF += "jediTaskID=:jediTaskID AND datasetID=:datasetID and lfn=:lfn "
             # start transaction
             self.conn.begin()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":datasetName"] = datasetName
             varMap[":type"] = fileType
             self.cur.arraysize = 1000000
@@ -1580,7 +1589,7 @@ class TaskStandaloneModule(BaseModule):
             return False, None
 
     # get JOBSARCHVIEW corresponding to a timestamp
-    def getArchView(self, timeStamp):
+    def getArchView(self, timeStamp: datetime.datetime) -> str | None:
         tableList = [
             (7, "JOBSARCHVIEW_7DAYS"),
             (15, "JOBSARCHVIEW_15DAYS"),
@@ -1599,11 +1608,11 @@ class TaskStandaloneModule(BaseModule):
         return None
 
     # get PandaID for a file
-    def getPandaIDWithFileID_JEDI(self, jediTaskID, datasetID, fileID):
+    def getPandaIDWithFileID_JEDI(self, jediTaskID: int, datasetID: int, fileID: int) -> tuple[bool, int | None]:
         comment = " /* JediDBProxy.getPandaIDWithFileID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID} fileID={fileID}")
         tmpLog.debug("start")
-        retPandaIDs = []
+        retPandaIDs: list[Any] = []
         try:
             # sql to get PandaID
             sqlP = f"SELECT PandaID FROM {panda_config.schemaPANDA}.filesTable4 WHERE "
@@ -1612,7 +1621,7 @@ class TaskStandaloneModule(BaseModule):
             sqlCT = f"SELECT creationDate FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
             # start transaction
             self.conn.begin()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":datasetID"] = datasetID
             varMap[":fileID"] = fileID
@@ -1664,11 +1673,11 @@ class TaskStandaloneModule(BaseModule):
             return False, None
 
     # get JEDI files for a job
-    def getFilesWithPandaID_JEDI(self, pandaID):
+    def getFilesWithPandaID_JEDI(self, pandaID: int) -> tuple[bool, list[JediFileSpec] | None]:
         comment = " /* JediDBProxy.getFilesWithPandaID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"pandaID={pandaID}")
         tmpLog.debug("start")
-        retPandaIDs = []
+        retPandaIDs: list[Any] = []
         try:
             # sql to get fileID
             sqlT = f"SELECT jediTaskID,datasetID,fileID FROM {panda_config.schemaPANDA}.filesTable4 WHERE "
@@ -1683,12 +1692,12 @@ class TaskStandaloneModule(BaseModule):
             sqlFR += "jediTaskID=:jediTaskID AND datasetID=:datasetID and fileID=:fileID "
             # start transaction
             self.conn.begin()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":pandaID"] = pandaID
             self.cur.arraysize = 1000000
             self.cur.execute(sqlT + comment, varMap)
             resTC = self.cur.fetchall()
-            fileIDList = []
+            fileIDList: list[Any] = []
             fileSpecList = []
             # loop over all fileIDs
             for jediTaskID, datasetID, fileID in resTC:
@@ -1719,18 +1728,18 @@ class TaskStandaloneModule(BaseModule):
             return False, None
 
     # update task parameters
-    def updateTaskParams_JEDI(self, jediTaskID, taskParams):
+    def updateTaskParams_JEDI(self, jediTaskID: int, taskParams: str) -> bool | None:
         comment = " /* JediDBProxy.updateTaskParams_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
-        retPandaIDs = []
+        retPandaIDs: list[Any] = []
         try:
             # sql to update task params
             sqlT = f"UPDATE {panda_config.schemaJEDI}.JEDI_TaskParams SET taskParams=:taskParams "
             sqlT += "WHERE jediTaskID=:jediTaskID "
             # start transaction
             self.conn.begin()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":taskParams"] = taskParams
             self.cur.execute(sqlT + comment, varMap)
@@ -1752,13 +1761,13 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # restart contents update
-    def restartTasksForContentsUpdate_JEDI(self, vo, prodSourceLabel, timeLimit):
+    def restartTasksForContentsUpdate_JEDI(self, vo: str | None, prodSourceLabel: str | None, timeLimit: int) -> tuple[int | None, set[int] | None]:
         comment = " /* JediDBProxy.restartTasksForContentsUpdate_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} limit={timeLimit}min")
         tmpLog.debug("start")
         try:
             # sql to get stalled tasks in defined
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":taskStatus1"] = "defined"
             varMap[":taskStatus2"] = "ready"
             varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=timeLimit)
@@ -1849,7 +1858,7 @@ class TaskStandaloneModule(BaseModule):
                     self.cur.execute(sqlTD + comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow > 0:
-                        tmpLog.debug("jediTaskID={0} back to defined".format(jediTaskID, nRow))
+                        tmpLog.debug(f"jediTaskID={jediTaskID} back to defined")
                         nTasks += 1
                 if nRow > 0 and is_msg_driven(splitRule):
                     # added msg driven tasks
@@ -1922,13 +1931,13 @@ class TaskStandaloneModule(BaseModule):
             return None, None
 
     # kick exhausted tasks
-    def kickExhaustedTasks_JEDI(self, vo, prodSourceLabel, timeLimit):
+    def kickExhaustedTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None, timeLimit: int) -> int | None:
         comment = " /* JediDBProxy.kickExhaustedTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} limit={timeLimit}h")
         tmpLog.debug("start")
         try:
             # sql to get stalled tasks
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":taskStatus"] = "exhausted"
             varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(hours=timeLimit)
             sqlTL = "SELECT tabT.jediTaskID,tabT.splitRule "
@@ -1987,7 +1996,7 @@ class TaskStandaloneModule(BaseModule):
 
     # get file spec of lib.tgz
     def get_previous_build_file_spec(
-        self, jedi_task_id: int, site_name: str, associated_sites: list
+        self, jedi_task_id: int, site_name: str, associated_sites: list[str]
     ) -> tuple[bool, JediFileSpec | None, JediDatasetSpec | None]:
         """
         Get the file and dataset specs of lib.tgz for a given task ID and site name which was generated in a previous submission cycle.
@@ -2041,7 +2050,13 @@ class TaskStandaloneModule(BaseModule):
                     tmp_dataset_spec = JediDatasetSpec()
                     tmp_dataset_spec.pack(res_item)
                     # get file
-                    var_map = {":jediTaskID": jedi_task_id, ":datasetID": tmp_dataset_spec.datasetID, ":type": "lib", ":status1": "failed", ":status2": "cancelled"}
+                    var_map = {
+                        ":jediTaskID": jedi_task_id,
+                        ":datasetID": tmp_dataset_spec.datasetID,
+                        ":type": "lib",
+                        ":status1": "failed",
+                        ":status2": "cancelled",
+                    }
                     self.cur.execute(sql_read_file + comment, var_map)
                     res_file_list = self.cur.fetchall()
                     for res_file_item in res_file_list:
@@ -2116,7 +2131,7 @@ class TaskStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # get dataset
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":datasetID"] = datasetID
             self.cur.execute(sqlRD + comment, varMap)
@@ -2149,7 +2164,7 @@ class TaskStandaloneModule(BaseModule):
             return False, None, None
 
     # get sites used by a task
-    def getSitesUsedByTask_JEDI(self, jediTaskID):
+    def getSitesUsedByTask_JEDI(self, jediTaskID: int) -> tuple[bool, set[str] | None]:
         comment = " /* JediDBProxy.getSitesUsedByTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -2159,7 +2174,7 @@ class TaskStandaloneModule(BaseModule):
             sqlDS += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
             # start transaction
             self.conn.begin()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":type1"] = "output"
             varMap[":type2"] = "log"
@@ -2183,7 +2198,7 @@ class TaskStandaloneModule(BaseModule):
             return False, None
 
     # get random seed
-    def getRandomSeed_JEDI(self, jediTaskID, simul, n_files=1):
+    def getRandomSeed_JEDI(self, jediTaskID: int, simul: bool, n_files: int = 1) -> tuple[bool, tuple[Any, Any]]:
         comment = " /* JediDBProxy.getRandomSeed_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -2216,14 +2231,14 @@ class TaskStandaloneModule(BaseModule):
             n_reused = 0
             n_new = 0
             # get pseudo dataset for random seed
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":type"] = "random_seed"
             self.cur.execute(sqlDS + comment, varMap)
             resDS = self.cur.fetchone()
             if resDS is None:
                 # no random seed
-                retVal = (None, None)
+                retVal: tuple[list[JediFileSpec] | None, JediDatasetSpec | None] = (None, None)
                 tmpLog.debug("no random seed")
             else:
                 datasetSpec = JediDatasetSpec()
@@ -2235,7 +2250,7 @@ class TaskStandaloneModule(BaseModule):
                 varMap[":datasetID"] = datasetSpec.datasetID
                 varMap[":status"] = "ready"
                 self.cur.execute(sqlFR + comment, varMap)
-                var_maps = []
+                var_maps: list[dict[str, Any]] = []
                 for resFR in self.cur.fetchall():
                     # make FileSpec to reuse the row
                     tmpFileSpec = JediFileSpec()
@@ -2271,7 +2286,7 @@ class TaskStandaloneModule(BaseModule):
                         maxRndSeed += 1
                     # get new fileIDs
                     if not simul:
-                        var_map = {}
+                        var_map: dict[str, Any] = {}
                         var_map[":nIDs"] = n_new_files
                         self.cur.execute(sqlFID + comment, var_map)
                         new_file_ids = self.cur.fetchall()
@@ -2314,7 +2329,7 @@ class TaskStandaloneModule(BaseModule):
             return False, (None, None)
 
     # get preprocess metadata
-    def getPreprocessMetadata_JEDI(self, jediTaskID):
+    def getPreprocessMetadata_JEDI(self, jediTaskID: int) -> Any:
         comment = " /* JediDBProxy.getPreprocessMetadata_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -2332,7 +2347,7 @@ class TaskStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # get files
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":status"] = "finished"
             varMap[":type"] = "pp_input"
@@ -2368,7 +2383,7 @@ class TaskStandaloneModule(BaseModule):
             return failedRet
 
     # get log dataset for preprocessing
-    def getPreproLog_JEDI(self, jediTaskID, simul):
+    def getPreproLog_JEDI(self, jediTaskID: int, simul: bool) -> Any:
         comment = " /* JediDBProxy.getPreproLog_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -2384,13 +2399,13 @@ class TaskStandaloneModule(BaseModule):
         sqlUD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
         sqlUD += "SET nFiles=nFiles+1 "
         sqlUD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-        failedRet = False, None, None
+        failedRet: tuple[bool, JediDatasetSpec | None, JediFileSpec | None] = False, None, None
         retVal = failedRet
         try:
             # begin transaction
             self.conn.begin()
             # get dataset
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":type"] = "pp_log"
             self.cur.execute(sqlDS + comment, varMap)
@@ -2401,7 +2416,7 @@ class TaskStandaloneModule(BaseModule):
                 datasetSpec = JediDatasetSpec()
                 datasetSpec.pack(resDS)
                 # make file
-                datasetSpec.nFiles = datasetSpec.nFiles + 1
+                datasetSpec.nFiles = (datasetSpec.nFiles or 0) + 1
                 tmpFileSpec = JediFileSpec()
                 tmpFileSpec.jediTaskID = jediTaskID
                 tmpFileSpec.datasetID = datasetSpec.datasetID
@@ -2438,8 +2453,17 @@ class TaskStandaloneModule(BaseModule):
 
     # get JEDI tasks with a selection criteria
     def getTasksWithCriteria_JEDI(
-        self, vo, prodSourceLabel, taskStatusList, taskCriteria, datasetCriteria, taskParamList, datasetParamList, taskLockColumn, taskLockInterval
-    ):
+        self,
+        vo: str | None,
+        prodSourceLabel: str | None,
+        taskStatusList: list[str],
+        taskCriteria: dict[str, Any],
+        datasetCriteria: dict[str, Any] | None,
+        taskParamList: list[str],
+        datasetParamList: list[str],
+        taskLockColumn: str | None,
+        taskLockInterval: int,
+    ) -> list[Any] | None:
         comment = " /* JediDBProxy.getTasksWithCriteria_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug(f"start with tC={str(taskCriteria)} dC={str(datasetCriteria)}")
@@ -2447,7 +2471,7 @@ class TaskStandaloneModule(BaseModule):
         failedRet = None
         try:
             # sql
-            varMap = {}
+            varMap: dict[str, Any] = {}
             sqlRT = "SELECT tabT.jediTaskID,"
             for tmpPar in taskParamList:
                 sqlRT += f"tabT.{tmpPar},"
@@ -2480,7 +2504,7 @@ class TaskStandaloneModule(BaseModule):
                     varMap[f":{tmpKey}"] = tmpVal
                 else:
                     sqlRT += f"AND tabT.{tmpKey} IS NULL "
-            for tmpKey, tmpVal in datasetCriteria.items():
+            for tmpKey, tmpVal in (datasetCriteria or {}).items():
                 if isinstance(tmpVal, list):
                     tmp_var_names_str, tmp_var_map = get_sql_IN_bind_variables(tmpVal, prefix=f":{tmpKey}_", value_as_suffix=True)
                     sqlRT += f"AND tabD.{tmpKey} IN ({tmp_var_names_str}) "
@@ -2545,7 +2569,7 @@ class TaskStandaloneModule(BaseModule):
             return failedRet
 
     # get task status
-    def getTaskStatus_JEDI(self, jediTaskID):
+    def getTaskStatus_JEDI(self, jediTaskID: int) -> str | None:
         comment = " /* JediDBProxy.getTaskStatus_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -2553,7 +2577,7 @@ class TaskStandaloneModule(BaseModule):
             retVal = None
             sql = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sql += "WHERE jediTaskID=:jediTaskID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # start transaction
             self.conn.begin()
@@ -2575,7 +2599,7 @@ class TaskStandaloneModule(BaseModule):
             return retVal
 
     # get lib.tgz for waiting jobs
-    def getLibForWaitingRunJob_JEDI(self, vo, prodSourceLabel, checkInterval):
+    def getLibForWaitingRunJob_JEDI(self, vo: str, prodSourceLabel: str, checkInterval: int) -> list[Any]:
         comment = " /* JediDBProxy.getLibForWaitingRunJob_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
@@ -2603,7 +2627,7 @@ class TaskStandaloneModule(BaseModule):
             self.cur.arraysize = 100000
             retList = []
             # get the list of waiting user/jobIDs
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":prodSourceLabel"] = prodSourceLabel
             varMap[":lockedBy"] = "jedi"
@@ -2659,14 +2683,14 @@ class TaskStandaloneModule(BaseModule):
             return []
 
     # get tasks to get reassigned
-    def getTasksToReassign_JEDI(self, vo=None, prodSourceLabel=None):
+    def getTasksToReassign_JEDI(self, vo: str | None = None, prodSourceLabel: str | None = None) -> list[JediTaskSpec]:
         comment = " /* JediDBProxy.getTasksToReassign_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
         retTasks = []
         try:
             # sql to get tasks to reassign
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":status"] = "reassigning"
             varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=5)
             sqlSCF = f"SELECT {JediTaskSpec.columnNames('tabT')} "
@@ -2713,7 +2737,7 @@ class TaskStandaloneModule(BaseModule):
             return []
 
     # lock task
-    def lockTask_JEDI(self, jediTaskID, pid):
+    def lockTask_JEDI(self, jediTaskID: int, pid: str) -> bool:
         comment = " /* JediDBProxy.lockTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} pid={pid}")
         tmpLog.debug("start")
@@ -2728,7 +2752,7 @@ class TaskStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # lock
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":lockedBy"] = pid
             self.cur.execute(sqlPD + comment, varMap)
@@ -2757,7 +2781,7 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # get successful files
-    def getSuccessfulFiles_JEDI(self, jediTaskID, datasetID):
+    def getSuccessfulFiles_JEDI(self, jediTaskID: int, datasetID: int) -> list[str] | None:
         comment = " /* JediDBProxy.getSuccessfulFiles_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID}")
         tmpLog.debug("start")
@@ -2768,7 +2792,7 @@ class TaskStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # lock
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":datasetID"] = datasetID
             varMap[":status"] = "finished"
@@ -2791,7 +2815,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # unlock a single task
-    def unlockSingleTask_JEDI(self, jediTaskID, pid):
+    def unlockSingleTask_JEDI(self, jediTaskID: int, pid: str) -> bool:
         comment = " /* JediDBProxy.unlockSingleTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} pid={pid}")
         tmpLog.debug("start")
@@ -2803,7 +2827,7 @@ class TaskStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # unlock
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":pid"] = pid
             self.cur.execute(sqlTU + comment, varMap)
@@ -2821,13 +2845,13 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # get JEDI tasks to be throttled
-    def throttleTasks_JEDI(self, vo, prodSourceLabel, waitTime):
+    def throttleTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None, waitTime: int) -> int | None:
         comment = " /* JediDBProxy.throttleTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug(f"start waitTime={waitTime}min")
         try:
             # sql
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":taskStatus"] = "running"
             varMap[":fileStat1"] = "ready"
             varMap[":fileStat2"] = "running"
@@ -2881,7 +2905,7 @@ class TaskStandaloneModule(BaseModule):
                     numThrottled += 1
                     throttledTime = naive_utcnow()
                     releaseTime = throttledTime + datetime.timedelta(minutes=waitTime * numThrottled * numThrottled)
-                    errorDialog = "#ATM #KV action=throttle jediTaskID={0} due to reason=many_attempts {0} > {1}x{2} ".format(
+                    errorDialog = "#ATM #KV action=throttle jediTaskID={0} due to reason=many_attempts {1} > {2}x{3} ".format(
                         jediTaskID, largestAttemptNr, numThrottled, attemptInterval
                     )
                     errorDialog += f"from {throttledTime.strftime('%Y/%m/%d %H:%M:%S')} "
@@ -2915,7 +2939,9 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # throttle one task
-    def throttleTask_JEDI(self, jediTaskID, waitTime, errorDialog, current_status="running", old_status=None):
+    def throttleTask_JEDI(
+        self, jediTaskID: int, waitTime: int, errorDialog: str | None, current_status: str = "running", old_status: str | None = None
+    ) -> bool:
         comment = " /* JediDBProxy.throttleTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug(f"start waitTime={waitTime}min")
@@ -2928,7 +2954,7 @@ class TaskStandaloneModule(BaseModule):
             sqlTH += "AND lockedBy IS NULL "
             # begin transaction
             self.conn.begin()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":newStatus"] = "throttled"
             varMap[":currentStatus"] = current_status
@@ -2957,13 +2983,13 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # release throttled tasks
-    def releaseThrottledTasks_JEDI(self, vo, prodSourceLabel):
+    def releaseThrottledTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None) -> int | None:
         comment = " /* JediDBProxy.releaseThrottledTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
         try:
             # sql to get tasks
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":status"] = "throttled"
             sqlTL = "SELECT tabT.jediTaskID,tabT.oldStatus "
             sqlTL += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
@@ -3022,7 +3048,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # release a task with on-hold status
-    def release_task_on_hold(self, jedi_task_id: int, target_status: str = None) -> bool:
+    def release_task_on_hold(self, jedi_task_id: int, target_status: str | None = None) -> bool:
         """Release a JEDI task with non-empty old status.
         Args:
             jedi_task_id: JEDI task ID to be released.
@@ -3082,7 +3108,7 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # get throttled users and their tasks
-    def getThrottledUsersTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None) -> dict:
+    def getThrottledUsersTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None) -> dict[str, dict[str, dict[int, int]]]:
         """
         Get throttled users and their tasks.
 
@@ -3097,7 +3123,7 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get tasks
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":status"] = "throttled"
             sqlTL = "SELECT jediTaskID,userName,workingGroup,errorDialog,currentPriority "
             sqlTL += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
@@ -3114,7 +3140,7 @@ class TaskStandaloneModule(BaseModule):
             self.cur.execute(sqlTL + comment, varMap)
             resTL = self.cur.fetchall()
             # loop over all tasks
-            userTaskMap = {}
+            userTaskMap: dict[str, Any] = {}
             for jediTaskID, userName, workingGroup, errorDialog, currentPriority in resTL:
                 uid = workingGroup if workingGroup is not None else userName
                 userTaskMap.setdefault(uid, {})
@@ -3159,7 +3185,7 @@ class TaskStandaloneModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get tasks
-            var_map = {}
+            var_map: dict[str, Any] = {}
             var_map[":vo"] = vo
             var_map[":prodSourceLabel"] = prod_source_label
             var_map[":user_id"] = uid
@@ -3220,7 +3246,7 @@ class TaskStandaloneModule(BaseModule):
             return []
 
     # get JEDI tasks to be assessed
-    def getAchievedTasks_JEDI(self, vo, prodSourceLabel, timeLimit, nTasks):
+    def getAchievedTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None, timeLimit: int, nTasks: int) -> list[Any] | None:
         comment = " /* JediDBProxy.getAchievedTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
@@ -3228,7 +3254,7 @@ class TaskStandaloneModule(BaseModule):
         failedRet = None
         try:
             # sql
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":status1"] = "running"
             varMap[":status2"] = "pending"
             sqlRT = "SELECT tabT.jediTaskID,tabT.status,tabT.goal,tabT.splitRule,parent_tid "
@@ -3401,7 +3427,7 @@ class TaskStandaloneModule(BaseModule):
         failed_ret = None
         try:
             # SQL to get tasks
-            var_map = {":status1": "running", ":status2": "pending"}
+            var_map: dict[str, Any] = {":status1": "running", ":status2": "pending"}
             sql_get_tasks = (
                 "SELECT tabT.jediTaskID, tabT.status "
                 f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT,{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
@@ -3455,7 +3481,7 @@ class TaskStandaloneModule(BaseModule):
             return failed_ret
 
     # get inactive sites
-    def getInactiveSites_JEDI(self, flag, timeLimit):
+    def getInactiveSites_JEDI(self, flag: str, timeLimit: int) -> set[str]:
         comment = " /* JediDBProxy.getInactiveSites_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"flag={flag} timeLimit={timeLimit}")
         tmpLog.debug("start")
@@ -3467,7 +3493,7 @@ class TaskStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":flag"] = flag
             varMap[":hours"] = 3
             varMap[":laststart"] = naive_utcnow() - datetime.timedelta(hours=timeLimit)
@@ -3488,7 +3514,7 @@ class TaskStandaloneModule(BaseModule):
             return retVal
 
     # get total walltime
-    def getTotalWallTime_JEDI(self, vo, prodSourceLabel, workQueue, resource_name):
+    def getTotalWallTime_JEDI(self, vo: str, prodSourceLabel: str, workQueue: WorkQueue, resource_name: str | None) -> float | None:
         comment = " /* JediDBProxy.getTotalWallTime_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} queue={workQueue.queue_name}")
         tmpLog.debug("start")
@@ -3526,12 +3552,14 @@ class TaskStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
+            # the estimate is only meaningful when some job actually reported a walltime
+            scaled_walltime: int | None
             if nHasVal != 0:
-                totWalltime = int(totWalltime * (1 + float(nNoVal) / float(nHasVal)))
+                scaled_walltime = int(totWalltime * (1 + float(nNoVal) / float(nHasVal)))
             else:
-                totWalltime = None
-            tmpLog.debug(f"done totWalltime={totWalltime}")
-            return totWalltime
+                scaled_walltime = None
+            tmpLog.debug(f"done totWalltime={scaled_walltime}")
+            return scaled_walltime
         except Exception:
             # roll back
             self._rollback()
@@ -3540,7 +3568,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # check duplication with internal merge
-    def checkDuplication_JEDI(self, jediTaskID):
+    def checkDuplication_JEDI(self, jediTaskID: int) -> int | None:
         comment = " /* JediDBProxy.checkDuplication_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -3588,7 +3616,7 @@ class TaskStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check useJumbo
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             self.cur.execute(sqlJ + comment, varMap)
             resJ = self.cur.fetchone()
@@ -3651,7 +3679,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get failure counts for a task
-    def getFailureCountsForTask_JEDI(self, jediTaskID, timeWindow):
+    def getFailureCountsForTask_JEDI(self, jediTaskID: int, timeWindow: int) -> dict[str, Any]:
         comment = " /* JediDBProxy.getFailureCountsForTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -3666,7 +3694,7 @@ class TaskStandaloneModule(BaseModule):
             sql += "(jobStatus=:jobFinished) "
             sql += ") "
             sql += "GROUP BY computingSite,jobStatus "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":jobClosed"] = "closed"
             varMap[":jobFailed"] = "failed"
@@ -3681,7 +3709,7 @@ class TaskStandaloneModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             # make dict
-            retMap = {}
+            retMap: dict[str, Any] = {}
             for cnt, computingSite, jobStatus in resList:
                 if computingSite not in retMap:
                     retMap[computingSite] = {}
@@ -3698,7 +3726,7 @@ class TaskStandaloneModule(BaseModule):
             return {}
 
     # count the number of jobs and cores per user or working group
-    def countJobsPerTarget_JEDI(self, target, is_user):
+    def countJobsPerTarget_JEDI(self, target: str, is_user: bool) -> dict[str, Any]:
         comment = " /* JediDBProxy.countJobsPerTarget_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"target={target}")
         tmpLog.debug("start")
@@ -3717,7 +3745,7 @@ class TaskStandaloneModule(BaseModule):
             else:
                 sql += "WHERE workingGroup=:target "
             sql += ") GROUP BY jobStatus "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":target"] = target
             # start transaction
             self.conn.begin()
@@ -3745,7 +3773,7 @@ class TaskStandaloneModule(BaseModule):
             return {}
 
     # count the number of jobs and cores per user or working group in VO and production source label
-    def count_jobs_per_uid_JEDI(self, vo: str, prod_source_label: str) -> dict[str, dict]:
+    def count_jobs_per_uid_JEDI(self, vo: str, prod_source_label: str) -> dict[str, dict[str, int]]:
         """Count the number of jobs and cores per user or working group in VO and production source label.
         Args:
             vo: VO name to filter jobs.
@@ -3765,7 +3793,7 @@ class TaskStandaloneModule(BaseModule):
             sql += f"SELECT PandaID,jobStatus,coreCount,CASE WHEN workingGroup IS NULL THEN prodUserName ELSE workingGroup END AS user_id, CASE WHEN workingGroup IS NULL THEN 1 ELSE 0 END AS is_user FROM {panda_config.schemaPANDA}.jobsActive4 "
             sql += "WHERE vo=:vo AND prodSourceLabel=:prod_source_label "
             sql += ") GROUP BY jobStatus,user_id,is_user "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":prod_source_label"] = prod_source_label
             # start transaction
@@ -3776,7 +3804,7 @@ class TaskStandaloneModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             # make dict
-            retMap = {}
+            retMap: dict[str, Any] = {}
             for nJobs, nCores, jobStatus, uid, is_user in resList:
                 retMap.setdefault(uid, {"nQueuedJobs": 0, "nQueuedCores": 0, "nRunJobs": 0, "nRunCores": 0, "is_user": is_user})
                 if jobStatus in ["defined", "assigned", "activated", "starting", "throttled"]:
@@ -3795,7 +3823,7 @@ class TaskStandaloneModule(BaseModule):
             return {}
 
     # get old merge job PandaIDs
-    def getOldMergeJobPandaIDs_JEDI(self, jediTaskID, pandaID):
+    def getOldMergeJobPandaIDs_JEDI(self, jediTaskID: int, pandaID: int) -> list[int]:
         comment = " /* JediDBProxy.getOldMergeJobPandaIDs_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} PandaID={pandaID}")
         tmpLog.debug("start")
@@ -3806,7 +3834,7 @@ class TaskStandaloneModule(BaseModule):
             sql += "WHERE tabD.jediTaskID=:jediTaskID AND tabD.jediTaskID=tabC.jediTaskID "
             sql += "AND tabD.datasetID=tabC.datasetID "
             sql += "AND tabD.type=:dsType AND tabC.outPandaID=:pandaID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":pandaID"] = pandaID
             varMap[":dsType"] = "trn_log"
@@ -3832,7 +3860,7 @@ class TaskStandaloneModule(BaseModule):
             return []
 
     # get jobParms of the first job
-    def getJobParamsOfFirstJob_JEDI(self, jediTaskID):
+    def getJobParamsOfFirstJob_JEDI(self, jediTaskID: int) -> tuple[str | None, dict[str, Any] | None]:
         comment = " /* JediDBProxy.getJobParamsOfFirstJob_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -3840,7 +3868,7 @@ class TaskStandaloneModule(BaseModule):
             retVal = None
             outFileMap = dict()
             # sql to get PandaID of the first job
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             sql = "SELECT * FROM ("
             sql += "SELECT tabF.datasetID,tabF.fileID "
@@ -3904,6 +3932,10 @@ class TaskStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
+            if retVal is None:
+                # neither the live nor the archived job parameters table had the job
+                tmpLog.debug("no job parameters found")
+                return None, outFileMap
             tmpLog.debug(f"get {len(retVal)} bytes")
             return retVal, outFileMap
         except Exception:
@@ -3914,13 +3946,13 @@ class TaskStandaloneModule(BaseModule):
             return None, None
 
     # bulk fetch fileIDs
-    def bulkFetchFileIDs_JEDI(self, jediTaskID, nIDs):
+    def bulkFetchFileIDs_JEDI(self, jediTaskID: int, nIDs: int) -> list[int]:
         comment = " /* JediDBProxy.bulkFetchFileIDs_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} nIDs={nIDs}")
         tmpLog.debug("start")
         try:
             newFileIDs = []
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":nIDs"] = nIDs
             # sql to get fileID
             sqlFID = f"SELECT {panda_config.schemaJEDI}.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM "
@@ -3945,12 +3977,12 @@ class TaskStandaloneModule(BaseModule):
             return []
 
     # set del flag to events
-    def setDelFlagToEvents_JEDI(self, jediTaskID):
+    def setDelFlagToEvents_JEDI(self, jediTaskID: int) -> int | None:
         comment = " /* JediDBProxy.setDelFlagToEvents_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
         try:
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":delFlag"] = "Y"
             # sql to set del flag
@@ -3960,7 +3992,7 @@ class TaskStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             self.cur.execute(sqlFID + comment, varMap)
-            nRow = self.cur.rowcount
+            nRow: int = self.cur.rowcount
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -3974,7 +4006,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # set del flag to events
-    def removeFilesIndexInconsistent_JEDI(self, jediTaskID, datasetIDs):
+    def removeFilesIndexInconsistent_JEDI(self, jediTaskID: int, datasetIDs: list[int]) -> bool:
         comment = " /* JediDBProxy.removeFilesIndexInconsistent_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -3985,11 +4017,11 @@ class TaskStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # get files
-            lfnMap = {}
+            lfnMap: dict[Any, Any] = {}
             for datasetID in datasetIDs:
                 if datasetID not in lfnMap:
                     lfnMap[datasetID] = {}
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jediTaskID
                 varMap[":datasetID"] = datasetID
                 self.cur.execute(sqlFID + comment, varMap)
@@ -4067,13 +4099,13 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # throttle jobs in pauses tasks
-    def throttleJobsInPausedTasks_JEDI(self, vo, prodSourceLabel):
+    def throttleJobsInPausedTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None) -> dict[str, Any] | None:
         comment = " /* JediDBProxy.throttleJobsInPausedTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
         try:
             # sql to get tasks
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":status"] = "paused"
             varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=10)
             sqlTL = "SELECT jediTaskID "
@@ -4103,7 +4135,7 @@ class TaskStandaloneModule(BaseModule):
             self.cur.execute(sqlTL + comment, varMap)
             resTL = self.cur.fetchall()
             # loop over all tasks
-            retMap = {}
+            retMap: dict[str, Any] = {}
             for (jediTaskID,) in resTL:
                 retMap[jediTaskID] = set()
                 # lock task
@@ -4142,13 +4174,13 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get number of jobs for a task
-    def getNumJobsForTask_JEDI(self, jediTaskID):
+    def getNumJobsForTask_JEDI(self, jediTaskID: int) -> int | None:
         comment = " /* JediDBProxy.getNumJobsForTask_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
         try:
             # get num of done jobs
-            varMap = dict()
+            varMap: dict[str, Any] = dict()
             varMap[":jediTaskID"] = jediTaskID
             sql = "SELECT COUNT(*) FROM ("
             sql += "SELECT distinct c.PandaID "
@@ -4164,6 +4196,7 @@ class TaskStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
+            nDone: int
             (nDone,) = self.cur.fetchone()
             # return
             tmpLog.debug(f"got {nDone} jobs")
@@ -4176,15 +4209,15 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get number map for standby jobs
-    def getNumMapForStandbyJobs_JEDI(self, workqueue):
+    def getNumMapForStandbyJobs_JEDI(self, workqueue: WorkQueue) -> tuple[dict[str, Any], dict[str, Any]]:
         comment = " /* JediDBProxy.getNumMapForStandbyJobs_JEDI */"
         tmpLog = self.create_tagged_logger(comment)
         tmpLog.debug("start")
         try:
-            retMapStatic = dict()
-            retMapDynamic = dict()
+            retMapStatic: dict[str, Any] = dict()
+            retMapDynamic: dict[str, Any] = dict()
             # get num of done jobs
-            varMap = dict()
+            varMap: dict[str, Any] = dict()
             varMap[":status"] = "standby"
             sql = f"SELECT /* use_json_type */ panda_queue, scj.data.catchall FROM {panda_config.schemaJEDI}.schedconfig_json scj "
             sql += "WHERE scj.data.status=:status "
@@ -4300,7 +4333,7 @@ class TaskStandaloneModule(BaseModule):
             for i_loop in range(n_loop):
                 tmp_log.debug(f"loop count {i_loop+1}/{n_loop}")
                 self.conn.begin()
-                var_map = dict()
+                var_map: dict[str, Any] = dict()
                 var_map[":jediTaskID"] = jediTaskID
                 try:
                     self.cur.execute(sql_lock + comment, var_map)
@@ -4357,14 +4390,14 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # get number of staging files
-    def getNumStagingFiles_JEDI(self, jeditaskid):
+    def getNumStagingFiles_JEDI(self, jeditaskid: int) -> int | None:
         comment = " /* JediDBProxy.getNumStagingFiles_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jeditaskid}")
         tmpLog.debug("start")
         try:
-            retVal = 0
+            retVal: int = 0
             # varMap
-            varMap = dict()
+            varMap: dict[str, Any] = dict()
             varMap[":jediTaskID"] = jeditaskid
             varMap[":type1"] = "input"
             varMap[":type2"] = "pseudo_input"
@@ -4393,16 +4426,16 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get usage breakdown by users and sites
-    def getUsageBreakdown_JEDI(self, prod_source_label="user"):
+    def getUsageBreakdown_JEDI(self, prod_source_label: str = "user") -> tuple[dict[str, Any], dict[str, Any]] | None:
         comment = " /* JediDBProxy.getUsageBreakdown_JEDI */"
         tmpLog = self.create_tagged_logger(comment)
         tmpLog.debug("start")
         try:
             # get usage breakdown
-            usageBreakDownPerUser = {}
-            usageBreakDownPerSite = {}
+            usageBreakDownPerUser: dict[str, Any] = {}
+            usageBreakDownPerSite: dict[str, Any] = {}
             for table in ["jobsActive4", "jobsArchived4"]:
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":prodSourceLabel"] = prod_source_label
                 varMap[":pmerge"] = "pmerge"
                 if table == "ATLAS_PANDA.jobsActive4":
@@ -4465,14 +4498,14 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get jobs stat of each user
-    def getUsersJobsStats_JEDI(self, prod_source_label="user"):
+    def getUsersJobsStats_JEDI(self, prod_source_label: str = "user") -> dict[str, Any] | None:
         comment = " /* JediDBProxy.getUsersJobsStats_JEDI */"
         tmpLog = self.create_tagged_logger(comment)
         tmpLog.debug("start")
         try:
             # get users jobs stats
-            jobsStatsPerUser = {}
-            varMap = {}
+            jobsStatsPerUser: dict[str, Any] = {}
+            varMap: dict[str, Any] = {}
             varMap[":prodSourceLabel"] = prod_source_label
             varMap[":pmerge"] = "pmerge"
             sqlJ = (
@@ -4522,11 +4555,11 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # insert HPO pseudo event according to message from idds
-    def insertHpoEventAboutIdds_JEDI(self, jedi_task_id, event_id_list):
+    def insertHpoEventAboutIdds_JEDI(self, jedi_task_id: int, event_id_list: list[tuple[Any, Any]]) -> bool:
         comment = " /* JediDBProxy.insertHpoEventAboutIdds_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
         tmpLog.debug(f"start event_id_list={event_id_list}")
-        varMap = dict()
+        varMap: dict[str, Any] = dict()
         varMap[":jediTaskID"] = jedi_task_id
         varMap[":modificationHost"] = socket.getfqdn()
         # sql
@@ -4542,7 +4575,7 @@ class TaskStandaloneModule(BaseModule):
             ":startEvent,:startEvent,:lastEvent,:processedEvent,"
             ":eventOffset) "
         ).format(panda_config.schemaJEDI)
-        varMaps = []
+        varMaps: list[dict[str, Any]] = []
         n_events = 0
         for event_id, model_id in event_id_list:
             varMap = dict()
@@ -4575,13 +4608,13 @@ class TaskStandaloneModule(BaseModule):
             return False
 
     # get event statistics
-    def get_event_statistics(self, jedi_task_id):
+    def get_event_statistics(self, jedi_task_id: int) -> dict[int, int] | None:
         comment = " /* JediDBProxy.get_event_statistics */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
         tmpLog.debug("start")
         try:
             self.conn.begin()
-            varMap = dict()
+            varMap: dict[str, Any] = dict()
             varMap[":jediTaskID"] = jedi_task_id
             # sql
             sqlGNE = f"SELECT status,COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Events WHERE jediTaskID=:jediTaskID GROUP BY status "
@@ -4605,7 +4638,9 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get site to-running rate statistics
-    def getSiteToRunRateStats(self, vo, exclude_rwq, starttime_min, starttime_max):
+    def getSiteToRunRateStats(
+        self, vo: str, exclude_rwq: bool, starttime_min: datetime.datetime, starttime_max: datetime.datetime
+    ) -> tuple[bool, dict[str, Any]]:
         """
         :param vo: Virtual Organization
         :param exclude_rwq: True/False. Indicates whether we want to indicate special workqueues from the statistics
@@ -4637,7 +4672,7 @@ class TaskStandaloneModule(BaseModule):
         # job tables
         tables = [f"{panda_config.schemaPANDA}.jobsActive4", f"{panda_config.schemaPANDA}.jobsDefined4"]
         # get
-        return_map = {}
+        return_map: dict[str, Any] = {}
         try:
             for table in tables:
                 self.cur.arraysize = 10000
@@ -4659,7 +4694,7 @@ class TaskStandaloneModule(BaseModule):
             return False, {}
 
     # update cache
-    def updateCache_JEDI(self, main_key, sub_key, data):
+    def updateCache_JEDI(self, main_key: str, sub_key: str | None, data: str) -> bool:
         comment = " /* JediDBProxy.updateCache_JEDI */"
         # defaults
         if sub_key is None:
@@ -4680,7 +4715,7 @@ class TaskStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":main_key"] = main_key
             varMap[":sub_key"] = sub_key
             self.cur.execute(sqlC + comment, varMap)
@@ -4710,7 +4745,7 @@ class TaskStandaloneModule(BaseModule):
             return retVal
 
     # get cache
-    def getCache_JEDI(self, main_key, sub_key):
+    def getCache_JEDI(self, main_key: str, sub_key: str | None) -> JediCacheSpec | None:
         comment = " /* JediDBProxy.getCache_JEDI */"
         # defaults
         if sub_key is None:
@@ -4722,7 +4757,7 @@ class TaskStandaloneModule(BaseModule):
             # sql to get
             sqlC = f"SELECT {JediCacheSpec.columnNames()} FROM {panda_config.schemaJEDI}.Cache WHERE main_key=:main_key AND sub_key=:sub_key "
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":main_key"] = main_key
             varMap[":sub_key"] = sub_key
             self.cur.execute(sqlC + comment, varMap)
@@ -4740,9 +4775,10 @@ class TaskStandaloneModule(BaseModule):
             self._rollback()
             # error
             self.dump_error_message(tmpLog)
+        return None
 
     # turn a task into pending status for some reason
-    def makeTaskPending_JEDI(self, jedi_taskid, reason):
+    def makeTaskPending_JEDI(self, jedi_taskid: int, reason: str) -> int | None:
         comment = " /* JediDBProxy.makeTaskPending_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_taskid}")
         try:
@@ -4758,12 +4794,12 @@ class TaskStandaloneModule(BaseModule):
                 "AND status IN ('ready','running','scouting') "
                 "AND lockedBy IS NULL "
             ).format(panda_config.schemaJEDI)
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jedi_taskid
             varMap[":err"] = reason
             varMap[":status"] = "pending"
             self.cur.execute(sqlPDG + comment, varMap)
-            nRows = self.cur.rowcount
+            nRows: int = self.cur.rowcount
             # add missing record_task_status_change and push_task_status_message updates
             self.record_task_status_change(jedi_taskid)
             self.push_task_status_message(None, jedi_taskid, varMap[":status"])
@@ -4780,7 +4816,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # query tasks and turn them into pending status for some reason, sql_query should query jeditaskid
-    def queryTasksToBePending_JEDI(self, sql_query, params_map, reason):
+    def queryTasksToBePending_JEDI(self, sql_query: str, params_map: dict[str, Any], reason: str) -> int | None:
         comment = " /* JediDBProxy.queryTasksToBePending_JEDI */"
         tmpLog = self.create_tagged_logger(comment)
         try:
@@ -4801,7 +4837,7 @@ class TaskStandaloneModule(BaseModule):
             n_updated = 0
             for (jedi_taskid,) in taskIDs:
                 self.conn.begin()
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jedi_taskid
                 varMap[":err"] = reason
                 varMap[":status"] = "pending"
@@ -4827,7 +4863,9 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # query tasks and preassign them to dedicate workqueue, sql_query should query jeditaskid
-    def queryTasksToPreassign_JEDI(self, sql_query, params_map, site, blacklist, limit):
+    def queryTasksToPreassign_JEDI(
+        self, sql_query: str, params_map: dict[str, Any], site: str, blacklist: list[str] | set[str], limit: int
+    ) -> list[tuple[Any, dict[str, Any]]] | None:
         comment = " /* JediDBProxy.queryTasksToPreassign_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"site={site}")
         magic_workqueue_id = 400
@@ -4861,7 +4899,7 @@ class TaskStandaloneModule(BaseModule):
                     # skip blacklisted tasks
                     tmpLog.debug(f"skipped blacklisted jediTaskID={jedi_taskid}")
                     continue
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jedi_taskid
                 varMap[":site"] = site
                 varMap[":workQueue_ID"] = magic_workqueue_id
@@ -4890,7 +4928,9 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # undo preassigned tasks
-    def undoPreassignedTasks_JEDI(self, jedi_taskids, task_orig_attr_map, params_map, force):
+    def undoPreassignedTasks_JEDI(
+        self, jedi_taskids: list[int], task_orig_attr_map: dict[str, Any], params_map: dict[str, Any], force: bool
+    ) -> list[int] | None:
         comment = " /* JediDBProxy.undoPreassignedTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment)
         magic_workqueue_id = 400
@@ -4947,7 +4987,7 @@ class TaskStandaloneModule(BaseModule):
                 except KeyError:
                     tmpLog.warning(f"missed original attributes of jediTaskID={jedi_taskid} ; use default values ")
                     orig_workqueue_id = magic_workqueue_id
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jedi_taskid
                 varMap[":orig_workqueue_id"] = orig_workqueue_id
                 varMap[":magic_workqueue_id"] = magic_workqueue_id
@@ -4979,7 +5019,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # set missing files according to iDDS messages
-    def setMissingFilesAboutIdds_JEDI(self, jeditaskid, filenames_dict):
+    def setMissingFilesAboutIdds_JEDI(self, jeditaskid: int, filenames_dict: dict[str, Any]) -> int | None:
         comment = " /* JediDBProxy.setMissingFilesAboutIdds_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jeditaskid} nfiles={len(filenames_dict)}")
         tmpLog.debug("start")
@@ -4994,7 +5034,7 @@ class TaskStandaloneModule(BaseModule):
             # update contents
             for filename, (datasetid, fileid) in filenames_dict.items():
                 tmp_sqlF = sqlF
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jeditaskid
                 varMap[":lfn"] = "%" + filename
                 varMap[":nStatus"] = "missing"
@@ -5022,12 +5062,12 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get origin datasets
-    def get_origin_datasets(self, jedi_task_id, dataset_name, lfns):
+    def get_origin_datasets(self, jedi_task_id: int, dataset_name: str, lfns: list[str]) -> list[str] | None:
         comment = " /* JediDBProxy.get_origin_datasets */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} {dataset_name} n_files={len(lfns)}")
         tmp_log.debug("start")
         try:
-            dataset_names = []
+            dataset_names: list[str] | None = []
             known_lfns = set()
             # sql to get dataset
             sql_d = (
@@ -5046,7 +5086,7 @@ class TaskStandaloneModule(BaseModule):
                 var_map = {":lfn": lfn, ":type": "output"}
                 self.cur.execute(sql_d + comment, var_map)
                 res = self.cur.fetchone()
-                if res:
+                if res and dataset_names is not None:
                     task_id, dataset_id, dataset_name = res
                     dataset_names.append(dataset_name)
                     # get files
@@ -5076,7 +5116,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # get max number of events in a file of the dataset
-    def get_max_events_in_dataset(self, jedi_task_id, dataset_id):
+    def get_max_events_in_dataset(self, jedi_task_id: int, dataset_id: int) -> int | None:
         comment = " /* JediDBProxy.get_max_events_in_dataset */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} datasetID={dataset_id}")
         tmp_log.debug("start")
@@ -5092,6 +5132,7 @@ class TaskStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
+            max_events: int
             (max_events,) = res
             tmp_log.debug(f"got {max_events}")
             return max_events
@@ -5103,11 +5144,11 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # kick child tasks
-    def kickChildTasks_JEDI(self, jediTaskID):
+    def kickChildTasks_JEDI(self, jediTaskID: int) -> bool:
         comment = " /* JediDBProxy.kickChildTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
-        retTasks = []
+        retTasks: list[Any] = []
         try:
             # sql to get child tasks
             sqlGT = f"SELECT jediTaskID,status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
@@ -5126,7 +5167,7 @@ class TaskStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # get tasks
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             self.cur.execute(sqlGT + comment, varMap)
             resList = self.cur.fetchall()
@@ -5187,7 +5228,7 @@ class TaskStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # update task
-            var_map = {}
+            var_map: dict[str, Any] = {}
             var_map[":jediTaskID"] = task_id
             self.cur.execute(sql_update + comment, var_map)
             # commit

@@ -1,10 +1,10 @@
 import datetime
 import json
 import os
-import sys
 import time
 import traceback
-from typing import List
+from collections.abc import Callable
+from typing import Any, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -30,8 +30,11 @@ _logger = PandaLogger().getLogger("api_pilot")
 pilot_logger = PandaLogger().getLogger("PilotRequests")
 
 
-global_task_buffer = None
-global_site_mapper_cache = None
+# Installed by init_task_buffer() before any handler runs, so these are declared
+# non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
+# only push a None check onto every handler without making any of them safer.
+global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
+global_site_mapper_cache: CoreUtils.CachedObject = None  # type: ignore[assignment]
 
 VALID_JOB_STATES = ["running", "failed", "finished", "holding", "starting", "transferring"]
 
@@ -47,7 +50,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_site_mapper_cache = CoreUtils.CachedObject("site_mapper", 60 * 10, _get_site_mapper, _logger)
 
 
-def _get_site_mapper():
+def _get_site_mapper() -> tuple[bool, SiteMapper]:
     return True, SiteMapper(global_task_buffer)
 
 
@@ -56,25 +59,25 @@ def acquire_jobs(
     req: PandaRequest,
     site_name: str,
     timeout: int = 60,
-    memory: int = None,
-    disk_space: int = None,
-    prod_source_label: str = None,
-    node: str = None,
-    computing_element: str = None,
-    prod_user_id: str = None,
-    get_proxy_key: str = None,
-    task_id: int = None,
+    memory: int | None = None,
+    disk_space: int | None = None,
+    prod_source_label: str | None = None,
+    node: str | None = None,
+    computing_element: str | None = None,
+    prod_user_id: str | None = None,
+    get_proxy_key: str | None = None,
+    task_id: int | None = None,
     n_jobs: int = 1,
-    background: bool = None,
-    resource_type: str = None,
-    harvester_id: str = None,
-    worker_id: int = None,
-    scheduler_id: str = None,
-    job_type: str = None,
-    via_topic: bool = None,
-    remaining_time=None,
-    target_architecture: dict | str = None,
-) -> dict:
+    background: bool | None = None,
+    resource_type: str | None = None,
+    harvester_id: str | None = None,
+    worker_id: int | None = None,
+    scheduler_id: str | None = None,
+    job_type: str | None = None,
+    via_topic: bool | None = None,
+    remaining_time: int | None = None,
+    target_architecture: dict[str, Any] | str | None = None,
+) -> dict[str, Any]:
     """
     Acquire jobs
 
@@ -140,26 +143,23 @@ def acquire_jobs(
         prod_user_id = real_dn
 
     # allow get_proxy_key for production role
-    if get_proxy_key and is_production_manager:
-        get_proxy_key = True
-    else:
-        get_proxy_key = False
+    use_proxy_key = bool(get_proxy_key) and is_production_manager
 
     # convert memory
     try:
-        memory = max(0, memory)
+        memory = max(0, memory or 0)
     except (ValueError, TypeError):
         memory = 0
 
     # convert disk_space
     try:
-        disk_space = max(0, disk_space)
+        disk_space = max(0, disk_space or 0)
     except (ValueError, TypeError):
         disk_space = 0
 
     # convert remaining time
     try:
-        remaining_time = max(0, remaining_time)
+        remaining_time = max(0, remaining_time or 0)
     except (ValueError, TypeError):
         remaining_time = 0
 
@@ -186,7 +186,7 @@ def acquire_jobs(
 
     tmp_logger.debug(
         f"{site_name}, n_jobs={n_jobs}, memory={memory}, disk={disk_space}, source_label={prod_source_label}, "
-        f"node={node}, ce={computing_element}, user={prod_user_id}, proxy={get_proxy_key}, "
+        f"node={node}, ce={computing_element}, user={prod_user_id}, proxy={use_proxy_key}, "
         f"task_id={task_id}, DN={real_dn}, role={is_production_manager}, "
         f"bg={background}, rt={resource_type}, harvester_id={harvester_id}, worker_id={worker_id}, "
         f"scheduler_id={scheduler_id}, job_type={job_type}, via_topic={via_topic} remaining_time={remaining_time}, "
@@ -242,7 +242,11 @@ def acquire_jobs(
         return generate_response(False, message=message)
 
     # Try to get the jobs
-    jobs = []
+    jobs: list[Any] = []
+    # only read below when jobs is non-empty, which happens only in the branch that sets them
+    secrets_map: dict[str, Any] = {}
+    proxy_key: dict[str, str] = {}
+    n_sent = None
     if isinstance(timed_method.result, list):
         result = timed_method.result
         secrets_map = result.pop()
@@ -272,7 +276,7 @@ def acquire_jobs(
         response.appendNode("nSent", n_sent)
 
         # set proxy key
-        if get_proxy_key:
+        if use_proxy_key:
             response.setProxyKey(proxy_key)
 
         # set user secrets
@@ -305,7 +309,7 @@ def acquire_jobs(
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> dict:
+def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> dict[str, Any]:
     """
     Get job status
 
@@ -363,55 +367,55 @@ def update_job(
     job_id: int,
     job_status: str,
     job_output_report: str = "",
-    node: str = None,
-    cpu_consumption_time: int = None,
-    cpu_consumption_unit: str = None,
-    scheduler_id: str = None,
-    pilot_id: str = None,
-    site_name: str = None,
+    node: str | None = None,
+    cpu_consumption_time: int | None = None,
+    cpu_consumption_unit: str | None = None,
+    scheduler_id: str | None = None,
+    pilot_id: str | None = None,
+    site_name: str | None = None,
     pilot_log: str = "",
     meta_data: str = "",
-    cpu_conversion_factor: float | int = None,
-    trans_exit_code: int = None,
-    pilot_error_code: int = None,
-    pilot_error_diag: str = None,
-    exe_error_code: int = None,
-    exe_error_diag: str = None,
-    pilot_timing: str = None,
-    start_time: str = None,
-    end_time: str = None,
-    n_events: int = None,
-    n_input_files: int = None,
-    batch_id: str = None,
-    attempt_nr: int = None,
-    job_metrics: str = None,
+    cpu_conversion_factor: float | int | None = None,
+    trans_exit_code: int | None = None,
+    pilot_error_code: int | None = None,
+    pilot_error_diag: str | None = None,
+    exe_error_code: int | None = None,
+    exe_error_diag: str | None = None,
+    pilot_timing: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    n_events: int | None = None,
+    n_input_files: int | None = None,
+    batch_id: str | None = None,
+    attempt_nr: int | None = None,
+    job_metrics: str | None = None,
     stdout: str = "",
-    job_sub_status: str = None,
-    core_count: int = None,
-    max_rss: int | float = None,
-    max_vmem: int | float = None,
-    max_swap: int | float = None,
-    max_pss: int | float = None,
-    avg_rss: int | float = None,
-    avg_vmem: int | float = None,
-    avg_swap: int | float = None,
-    avg_pss: int | float = None,
-    tot_rchar: int | float = None,
-    tot_wchar: int | float = None,
-    tot_rbytes: int | float = None,
-    tot_wbytes: int | float = None,
-    rate_rchar: int | float = None,
-    rate_wchar: int | float = None,
-    rate_rbytes: int | float = None,
-    rate_wbytes: int | float = None,
-    corrupted_files: str = None,
-    mean_core_count: int = None,
-    cpu_architecture_level: str = None,
-    grid: str = None,
-    source_site: str = None,
-    destination_site: str = None,
+    job_sub_status: str | None = None,
+    core_count: int | None = None,
+    max_rss: int | float | None = None,
+    max_vmem: int | float | None = None,
+    max_swap: int | float | None = None,
+    max_pss: int | float | None = None,
+    avg_rss: int | float | None = None,
+    avg_vmem: int | float | None = None,
+    avg_swap: int | float | None = None,
+    avg_pss: int | float | None = None,
+    tot_rchar: int | float | None = None,
+    tot_wchar: int | float | None = None,
+    tot_rbytes: int | float | None = None,
+    tot_wbytes: int | float | None = None,
+    rate_rchar: int | float | None = None,
+    rate_wchar: int | float | None = None,
+    rate_rbytes: int | float | None = None,
+    rate_wbytes: int | float | None = None,
+    corrupted_files: str | None = None,
+    mean_core_count: int | None = None,
+    cpu_architecture_level: str | None = None,
+    grid: str | None = None,
+    source_site: str | None = None,
+    destination_site: str | None = None,
     timeout: int = 60,
-):
+) -> dict[str, Any]:
     """
     Update job
 
@@ -514,8 +518,8 @@ def update_job(
         return generate_response(success=False, message=message, data=response.data)
 
     # create the job parameter map
-    param = {}
-    fields = [
+    param: dict[str, Any] = {}
+    fields: list[tuple[str, Any, Callable[[Any], Any]]] = [
         ("cpuConsumptionTime", cpu_consumption_time, int),
         ("cpuConsumptionUnit", cpu_consumption_unit, str),
         ("cpu_architecture_level", cpu_architecture_level, lambda x: str(x)[:20]),
@@ -627,8 +631,9 @@ def update_job(
         param["jobDispatcherErrorDiag"] = f"set to {job_status} by the pilot at {naive_utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
 
     # update the job status in the database
-    timeout = None if job_status == "holding" else timeout
-    timed_method = TimedMethod(global_task_buffer.updateJobStatus, timeout)
+    # holding is updated without a timeout
+    effective_timeout = None if job_status == "holding" else timeout
+    timed_method = TimedMethod(global_task_buffer.updateJobStatus, effective_timeout)
     timed_method.run(job_id, tmp_status, param, update_state_change, attempt_nr)
 
     # time-out
@@ -646,7 +651,7 @@ def update_job(
         return generate_response(True, message=message, data=response.data)
 
     # generate the response with the result
-    data = {"StatusCode": Protocol.SC_Success}
+    data: dict[str, Any] = {"StatusCode": Protocol.SC_Success}
     result = timed_method.result
 
     # set the secrets
@@ -669,7 +674,7 @@ def update_job(
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
+def update_jobs_bulk(req: PandaRequest, job_list: List[dict[str, Any]], harvester_id: str | None = None) -> dict[str, Any]:
     """
     Update jobs in bulk
 
@@ -713,9 +718,8 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
             tmp_ret = update_job(req, job_id, status, **job_dict)
             data.append(tmp_ret)
         success = True
-    except Exception:
-        err_type, err_value = sys.exc_info()[:2]
-        message = f"failed with {err_type.__name__} {err_value}"
+    except Exception as e:
+        message = f"failed with {type(e).__name__} {e}"
         data = []
         tmp_logger.error(f"{message}\n{traceback.format_exc()}")
 
@@ -725,7 +729,13 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_worker_status(req: PandaRequest, worker_id, harvester_id, status, timeout=60, node_id=None):
+# worker_id takes both spellings: harvester_workers.workerID is an integer column and
+# acquire_jobs declares int, while this endpoint's docstring says str and nothing in the
+# tree shows which the pilot sends. Both work today, so both are accepted rather than
+# guessing and starting to refuse the other
+def update_worker_status(
+    req: PandaRequest, worker_id: int | str, harvester_id: str, status: str, timeout: int = 60, node_id: str | None = None
+) -> dict[str, Any]:
     """
     Update worker status
 
@@ -783,18 +793,18 @@ def update_worker_node(
     site: str,
     host_name: str,
     cpu_model: str,
-    panda_queue: str = None,
-    n_logical_cpus: int = None,
-    n_sockets: int = None,
-    cores_per_socket: int = None,
-    threads_per_core: int = None,
-    cpu_architecture: str = None,
-    cpu_architecture_level: str = None,
-    clock_speed: float = None,
-    total_memory: int = None,
-    total_local_disk: int = None,
+    panda_queue: str | None = None,
+    n_logical_cpus: int | None = None,
+    n_sockets: int | None = None,
+    cores_per_socket: int | None = None,
+    threads_per_core: int | None = None,
+    cpu_architecture: str | None = None,
+    cpu_architecture_level: str | None = None,
+    clock_speed: float | None = None,
+    total_memory: int | None = None,
+    total_local_disk: int | None = None,
     timeout: int = 60,
-):
+) -> dict[str, Any]:
     """
     Update worker node
 
@@ -867,13 +877,13 @@ def update_worker_node_gpu(
     vendor: str,
     model: str,
     count: int,
-    vram: int = None,
-    architecture: str = None,
-    framework: str = None,
-    framework_version: str = None,
-    driver_version: str = None,
+    vram: int | None = None,
+    architecture: str | None = None,
+    framework: str | None = None,
+    framework_version: str | None = None,
+    driver_version: str | None = None,
     timeout: int = 60,
-):
+) -> dict[str, Any]:
     """
     Update GPUs for a worker node
 

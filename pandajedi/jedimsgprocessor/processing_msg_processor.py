@@ -1,6 +1,8 @@
 import json
+from typing import Any
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
 
@@ -9,7 +11,7 @@ base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
 
 # processing message processing plugin
 class ProcessingMsgProcPlugin(BaseMsgProcPlugin):
-    def process(self, msg_obj, decoded_data=None):
+    def process(self, msg_obj: MsgObj, decoded_data: dict[str, Any] | None = None) -> None:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         # start
         tmp_log.info("start")
@@ -54,7 +56,7 @@ class ProcessingMsgProcPlugin(BaseMsgProcPlugin):
             # whether to proceed the targets
             if to_proceed:
                 # initialize
-                scope_name_dict_map = {}
+                scope_name_dict_map: dict[str, Any] = {}
                 missing_files_dict = {}
                 # loop over targets
                 for target in target_list:
@@ -76,7 +78,9 @@ class ProcessingMsgProcPlugin(BaseMsgProcPlugin):
                         pass
                 # run by each scope
                 for scope, name_dict in scope_name_dict_map.items():
-                    # about files or datasets in good status
+                    # about files or datasets in good status. Both branches raise when the update
+                    # failed, so n_updated is set and is a number by the time it is read below.
+                    n_updated: int
                     if msg_type == "file_processing":
                         tmp_log.debug(f"jeditaskid={jeditaskid}, scope={scope}, update about files...")
                         res = self.tbIF.updateInputFilesStaged_JEDI(jeditaskid, scope, name_dict, by="iDDS")
@@ -84,7 +88,8 @@ class ProcessingMsgProcPlugin(BaseMsgProcPlugin):
                             # got error and rollback in dbproxy
                             err_str = f"jeditaskid={jeditaskid}, scope={scope}, failed to update files"
                             raise RuntimeError(err_str)
-                        tmp_log.info(f"jeditaskid={jeditaskid}, scope={scope}, updated {res} files")
+                        n_updated = res
+                        tmp_log.info(f"jeditaskid={jeditaskid}, scope={scope}, updated {n_updated} files")
                     elif msg_type == "collection_processing":
                         tmp_log.debug(f"jeditaskid={jeditaskid}, scope={scope}, update about datasets...")
                         res = self.tbIF.updateInputDatasetsStaged_JEDI(jeditaskid, scope, name_dict, by="iDDS")
@@ -92,11 +97,12 @@ class ProcessingMsgProcPlugin(BaseMsgProcPlugin):
                             # got error and rollback in dbproxy
                             err_str = f"jeditaskid={jeditaskid}, scope={scope}, failed to update datasets"
                             raise RuntimeError(err_str)
-                        tmp_log.info(f"jeditaskid={jeditaskid}, scope={scope}, updated {res} files in {len(name_dict)} datasets")
+                        n_updated = res
+                        tmp_log.info(f"jeditaskid={jeditaskid}, scope={scope}, updated {n_updated} files in {len(name_dict)} datasets")
                     # send message to contents feeder if new files are staged
-                    if res > 0 or msg_type == "collection_processing":
+                    if n_updated > 0 or msg_type == "collection_processing":
                         tmp_s, task_spec = self.tbIF.getTaskWithID_JEDI(jeditaskid)
-                        if tmp_s and task_spec.is_msg_driven():
+                        if tmp_s and task_spec and task_spec.is_msg_driven():
                             push_ret = self.tbIF.push_task_trigger_message("jedi_contents_feeder", jeditaskid, task_spec=task_spec)
                             if push_ret:
                                 tmp_log.debug(f"pushed trigger message to jedi_contents_feeder for jeditaskid={jeditaskid}")
@@ -104,29 +110,34 @@ class ProcessingMsgProcPlugin(BaseMsgProcPlugin):
                                 tmp_log.warning(f"failed to push trigger message to jedi_contents_feeder for jeditaskid={jeditaskid}")
                     # check if all ok
                     if msg_type == "file_processing":
-                        if res == len(name_dict):
+                        if n_updated == len(name_dict):
                             tmp_log.debug(f"jeditaskid={jeditaskid}, scope={scope}, all OK")
-                        elif res < len(name_dict):
-                            tmp_log.warning(f"jeditaskid={jeditaskid}, scope={scope}, only {res} out of {len(name_dict)} done...")
+                        elif n_updated < len(name_dict):
+                            tmp_log.warning(f"jeditaskid={jeditaskid}, scope={scope}, only {n_updated} out of {len(name_dict)} done...")
                         else:
-                            tmp_log.warning(f"jeditaskid={jeditaskid}, scope={scope}, strangely, {res} out of {len(name_dict)} done...")
+                            tmp_log.warning(f"jeditaskid={jeditaskid}, scope={scope}, strangely, {n_updated} out of {len(name_dict)} done...")
                     elif msg_type == "collection_processing":
-                        if res > 0:
-                            tmp_log.debug(f"jeditaskid={jeditaskid}, scope={scope}, {res} files done")
+                        if n_updated > 0:
+                            tmp_log.debug(f"jeditaskid={jeditaskid}, scope={scope}, {n_updated} files done")
                         else:
                             tmp_log.info(f"jeditaskid={jeditaskid}, scope={scope}, no file updated")
                 # handle missing files
                 n_missing = len(missing_files_dict)
                 if n_missing > 0:
                     res = self.tbIF.setMissingFilesAboutIdds_JEDI(jeditaskid=jeditaskid, filenames_dict=missing_files_dict)
+                    if res is None:
+                        # got error and rollback in dbproxy. Raising is what the two updates above
+                        # do for the same case, and it is what nacks the message so that iDDS
+                        # redelivers it instead of the missing files being dropped
+                        err_str = f"jeditaskid={jeditaskid}, failed to mark {n_missing} files missing"
+                        raise RuntimeError(err_str)
+                    # the three comparisons below cover every number
                     if res == n_missing:
                         tmp_log.debug(f"jeditaskid={jeditaskid}, marked all {n_missing} files missing")
                     elif res < n_missing:
                         tmp_log.warning(f"jeditaskid={jeditaskid}, only {res} out of {n_missing} files marked missing...")
-                    elif res > n_missing:
-                        tmp_log.warning(f"jeditaskid={jeditaskid}, strangely, {res} out of {n_missing} files marked missing...")
                     else:
-                        tmp_log.warning(f"jeditaskid={jeditaskid}, res={res}, something unwanted happened about missing files...")
+                        tmp_log.warning(f"jeditaskid={jeditaskid}, strangely, {res} out of {n_missing} files marked missing...")
             else:
                 # do nothing
                 tmp_log.debug(f"jeditaskid={jeditaskid}, msg_type={msg_type}, relation_type={relation_type}, nothing done")

@@ -1,3 +1,5 @@
+from typing import Any
+
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
     WFDataStatus,
@@ -19,7 +21,7 @@ class BaseStepHandler:
     This class provides a common interface and some utility methods for step handlers.
     """
 
-    def __init__(self, task_buffer, *args, **kwargs):
+    def __init__(self, task_buffer: Any, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the step handler with necessary parameters.
 
@@ -28,9 +30,13 @@ class BaseStepHandler:
             *args: Additional positional arguments.
             **kwargs: Additional keyword arguments.
         """
+        # A TaskBuffer when the API server builds the workflow interface, or JEDI's
+        # JediTaskBufferInterface, which forwards every method to JediTaskBuffer through
+        # CommandSendInterface. panda-server cannot name the JEDI class and __getattr__ is
+        # invisible to a type checker, so Any is as close as this gets.
         self.tbif = task_buffer
 
-    def submit_target(self, step_spec: WFStepSpec, **kwargs) -> WFStepTargetSubmitResult:
+    def submit_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetSubmitResult:
         """
         Submit a target for processing the step.
         This method should be implemented by subclasses to handle the specifics of target submission.
@@ -45,7 +51,7 @@ class BaseStepHandler:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def check_target(self, step_spec: WFStepSpec, **kwargs) -> WFStepTargetCheckResult:
+    def check_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetCheckResult:
         """
         Check the status of the submitted target.
         This method should be implemented by subclasses to handle the specifics of target status checking.
@@ -59,7 +65,7 @@ class BaseStepHandler:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def on_all_inputs_done(self, step_spec: WFStepSpec, **kwargs) -> None:
+    def on_all_inputs_done(self, step_spec: WFStepSpec, **kwargs: Any) -> None:
         """
         Hook method called when all inputs for the step are done.
         This method can be overridden by subclasses to perform actions when all inputs are ready.
@@ -70,7 +76,7 @@ class BaseStepHandler:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def cancel_target(self, step_spec: WFStepSpec, **kwargs) -> WFStepTargetCancelResult:
+    def cancel_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetCancelResult:
         """
         Cancel the submitted target.
         This method can be overridden by subclasses to handle target cancellation.

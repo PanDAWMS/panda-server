@@ -29,7 +29,9 @@ if __name__ == "__main__":
 
     # print the current grid status
     print("--------------CURRENT GRID STATUS---------------")
-    print(proxyS.tree.pretty_print_hs_distribution(proxyS._DBProxy__hs_distribution))
+    # the attribute is private to EntityModule, so it is reached under its mangled name
+    hs_distribution = getattr(proxyS, "_EntityModule__hs_distribution")
+    print(proxyS.tree.pretty_print_hs_distribution(hs_distribution))
 
     # check a couple of shares if they are valid leave names
     share_name = "wrong_share"
@@ -38,7 +40,7 @@ if __name__ == "__main__":
     print(f"Share {share_name} is valid: {proxyS.is_valid_share(share_name)}")
 
     try:
-        from pandajedi.jedicore.JediTaskSpec import JediTaskSpec
+        from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
     except ImportError:
         print("Skipped task tests since JEDI module depency not satisfied")
         sys.exit(0)

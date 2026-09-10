@@ -1,27 +1,35 @@
 import copy
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer.InputChunk import InputChunk
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 # class to split job
 class JobSplitter:
+    # installed on this class by Interaction.installSC() at the bottom of this module
+    SC_SUCCEEDED: Interaction.StatusCode
+    SC_FAILED: Interaction.StatusCode
+    SC_FATAL: Interaction.StatusCode
+    SC_WAITING: Interaction.StatusCode
+
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         self.sizeGradientsPerInSizeForMerge = 1.2
         self.interceptsMerginForMerge = 500 * 1024 * 1024
 
     # split
-    def doSplit(self, taskSpec, inputChunk, siteMapper, allow_chunk_size_limit=False):
-        # return for failure
-        retFatal = self.SC_FATAL, []
-        retTmpError = self.SC_FAILED, []
+    def doSplit(
+        self, taskSpec: JediTaskSpec, inputChunk: InputChunk, siteMapper: SiteMapper, allow_chunk_size_limit: bool = False
+    ) -> tuple[Interaction.StatusCode, list[dict[str, Any]], bool]:
         # make logger
         tmpLog = MsgWrapper(logger, f"< jediTaskID={taskSpec.jediTaskID} datasetID={inputChunk.masterIndexName} >")
         tmpLog.debug(f"--- start chunk_size_limit={allow_chunk_size_limit}")
@@ -33,6 +41,9 @@ class JobSplitter:
             # set fsize intercepts using taskSpec
             sizeIntercepts = taskSpec.getWorkDiskSize()
             # walltime
+            # the walltime column is whole seconds, while a HS06 cpuTime is divided down to a
+            # fraction of one, so this holds either
+            walltimeGradient: float | None
             if not taskSpec.useHS06():
                 walltimeGradient = taskSpec.walltime
             else:
@@ -53,7 +64,9 @@ class JobSplitter:
             maxSizePerJob = taskSpec.getMaxSizePerJob()
             if maxSizePerJob is not None:
                 maxSizePerJob += InputChunk.defaultOutputSize
-            # multiplicity of jobs
+            # multiplicity of jobs. None means unset, which is what the merging branch below
+            # also uses and what the chunk map carries through
+            multiplicity: int | None
             if taskSpec.useJobCloning():
                 multiplicity = 1
             else:
@@ -81,13 +94,16 @@ class JobSplitter:
             interceptsMergin = self.interceptsMerginForMerge
             if sizeIntercepts < interceptsMergin:
                 sizeIntercepts = interceptsMergin
-            maxOutSize = taskSpec.getMaxSizePerMergeJob()
-            if maxOutSize is None:
+            maxSizePerMergeJob = taskSpec.getMaxSizePerMergeJob()
+            if maxSizePerMergeJob is None:
                 # max output size is 5GB for merging by default
                 maxOutSize = 5 * 1024 * 1024 * 1024
+            else:
+                maxOutSize = maxSizePerMergeJob
             # split with fields
-            if taskSpec.getFieldNumToLFN() is not None and taskSpec.useFileAsSourceLFN():
-                splitByFields = list(range(4 + 1, 4 + 1 + len(taskSpec.getFieldNumToLFN())))
+            field_num_to_lfn = taskSpec.getFieldNumToLFN()
+            if field_num_to_lfn is not None and taskSpec.useFileAsSourceLFN():
+                splitByFields = list(range(4 + 1, 4 + 1 + len(field_num_to_lfn)))
             else:
                 splitByFields = None
         # LB
@@ -110,7 +126,7 @@ class JobSplitter:
         tmpLog.debug("--- main loop")
         # split
         returnList = []
-        subChunks = []
+        subChunks: list[Any] = []
         iSubChunks = 0
         if inputChunk.useScout() and not inputChunk.isMerging:
             default_nSubChunks = 2
@@ -121,8 +137,12 @@ class JobSplitter:
         subChunk = None
         nSubChunks = default_nSubChunks
         strict_chunkSize = False
-        tmp_ng_list = []
+        tmp_ng_list: list[Any] = []
         change_site_for_dist_dataset = False
+        # carried between iterations, set by the first one that picks a site candidate. The
+        # first iteration always enters the branch that sets them, or breaks out of the loop
+        siteName = None
+        siteCandidate: Any = None
         while True:
             # change site
             if iSubChunks % nSubChunks == 0 or subChunk == [] or change_site_for_dist_dataset:
@@ -139,10 +159,9 @@ class JobSplitter:
                             "siteCandidate": siteCandidate,
                         }
                     )
-                    try:
-                        gshare = taskSpec.gshare.replace(" ", "_")
-                    except Exception:
-                        gshare = None
+                    # gshare is NULL until the task is assigned a share; the except this
+                    # replaces was catching the AttributeError that raised
+                    gshare = taskSpec.gshare.replace(" ", "_") if taskSpec.gshare is not None else None
                     tmpLog.info(f"split to nJobs={len(subChunks)} at site={siteName} gshare={gshare}")
                     # checkpoint
                     inputChunk.checkpoint_file_usage()
@@ -164,11 +183,12 @@ class JobSplitter:
                 siteName = siteCandidate.siteName
                 siteSpec = siteMapper.getSite(siteName)
                 # set chunk size
-                nSubChunks = siteSpec.get_job_chunk_size()
-                if nSubChunks is None:
+                chunk_size = siteSpec.get_job_chunk_size()
+                if chunk_size is None:
                     nSubChunks = default_nSubChunks
                     strict_chunkSize = False
                 else:
+                    nSubChunks = chunk_size
                     strict_chunkSize = True
                 # directIO
                 if not CoreUtils.use_direct_io_for_job(taskSpec, siteSpec, inputChunk):
@@ -210,7 +230,9 @@ class JobSplitter:
                     maxWalltime = taskSpec.getMaxWalltime()
                 if maxWalltime is None:
                     maxWalltime = siteSpec.maxtime
-                elif maxWalltime > siteSpec.maxtime:
+                # a site with no maxtime imposes no ceiling, which is what the branch above
+                # already leaves behind when the task has no walltime either
+                elif siteSpec.maxtime is not None and maxWalltime > siteSpec.maxtime:
                     maxWalltime = siteSpec.maxtime
                 # core count
                 if siteSpec.coreCount:
@@ -297,10 +319,9 @@ class JobSplitter:
                         "siteCandidate": siteCandidate,
                     }
                 )
-                try:
-                    gshare = taskSpec.gshare.replace(" ", "_")
-                except Exception:
-                    gshare = None
+                # gshare is NULL until the task is assigned a share; the except this
+                # replaces was catching the AttributeError that raised
+                gshare = taskSpec.gshare.replace(" ", "_") if taskSpec.gshare is not None else None
                 tmpLog.info(f"split to nJobs={len(subChunks)} at site={siteName} gshare={gshare}")
         # return
         tmpLog.debug("--- done")

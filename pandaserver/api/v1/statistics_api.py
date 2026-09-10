@@ -9,7 +9,10 @@ from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("api_statistics")
 
-global_task_buffer = None
+# Installed by init_task_buffer() before any handler runs, so these are declared
+# non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
+# only push a None check onto every handler without making any of them safer.
+global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
 
 MAX_TIME_WINDOW = 60 * 24 * 7  # 7 days
 
@@ -142,7 +145,7 @@ def active_job_detailed_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
+def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int | None = None) -> Dict[str, Any]:
     """
     Job statistics by site and resource type
 
@@ -175,7 +178,7 @@ def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int = No
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def job_stats_by_site_share_and_resource_type(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
+def job_stats_by_site_share_and_resource_type(req: PandaRequest, time_window: int | None = None) -> Dict[str, Any]:
     """
     Job statistics by site, global share and resource type
 
@@ -208,7 +211,7 @@ def job_stats_by_site_share_and_resource_type(req: PandaRequest, time_window: in
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def get_wn_metrics_by_site(req: PandaRequest, site: str, host: str = None, key: str = None, days: int = 1) -> Dict[str, Any]:
+def get_wn_metrics_by_site(req: PandaRequest, site: str, host: str | None = None, key: str | None = None, days: int = 1) -> Dict[str, Any]:
     """
     Worker node statistics for a site
 
@@ -249,7 +252,7 @@ def get_wn_metrics_by_site(req: PandaRequest, site: str, host: str = None, key: 
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def get_wn_metrics_by_queue(req: PandaRequest, panda_queue: str, host: str = None, key: str = None, days: int = 1) -> Dict[str, Any]:
+def get_wn_metrics_by_queue(req: PandaRequest, panda_queue: str, host: str | None = None, key: str | None = None, days: int = 1) -> Dict[str, Any]:
     """
     Worker node statistics for a PanDA queue
 

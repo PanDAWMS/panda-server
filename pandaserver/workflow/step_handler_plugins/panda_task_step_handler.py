@@ -1,5 +1,6 @@
 import copy
 import traceback
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -39,7 +40,7 @@ class PandaTaskStepHandler(BaseStepHandler):
     This class is responsible for managing the execution of PanDA tasks within a workflow.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the step handler with necessary parameters.
         """
@@ -48,7 +49,7 @@ class PandaTaskStepHandler(BaseStepHandler):
         # plugin flavor
         self.plugin_flavor = "panda_task"
 
-    def resolve_input_references(self, step_spec: WFStepSpec, task_param_map: dict, tmp_log: LogWrapper) -> tuple[bool, str]:
+    def resolve_input_references(self, step_spec: WFStepSpec, task_param_map: dict[str, Any], tmp_log: LogWrapper) -> tuple[bool, str]:
         """
         Replace dataset references in the task parameters with the datasets actually produced.
 
@@ -115,7 +116,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             self.tbif.update_workflow_data(data_spec)
             tmp_log.info(f"resolved output data {output_data_name} to {data_spec.target_id}")
 
-    def submit_target(self, step_spec: WFStepSpec, **kwargs) -> WFStepTargetSubmitResult:
+    def submit_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetSubmitResult:
         """
         Submit a target for processing the PanDA task step.
 
@@ -189,7 +190,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             tmp_log.error(f"Failed to submit task: {traceback.format_exc()}")
         return submit_result
 
-    def check_target(self, step_spec: WFStepSpec, **kwargs) -> WFStepTargetCheckResult:
+    def check_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetCheckResult:
         """
         Check the status of a submitted target for the given step.
         This method should be implemented to handle the specifics of status checking.
@@ -288,7 +289,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             tmp_log.error(f"Failed to check status: {traceback.format_exc()}")
         return check_result
 
-    def on_all_inputs_done(self, step_spec: WFStepSpec, **kwargs) -> None:
+    def on_all_inputs_done(self, step_spec: WFStepSpec, **kwargs: Any) -> None:
         """
         Hook method called when all inputs for the step are done.
         For PanDA task steps, unset workflowHoldup of the target task to allow it to proceed.
@@ -340,7 +341,7 @@ class PandaTaskStepHandler(BaseStepHandler):
         except Exception as e:
             tmp_log.error(f"Failed with: {traceback.format_exc()}")
 
-    def cancel_target(self, step_spec, **kwargs) -> WFStepTargetCancelResult:
+    def cancel_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetCancelResult:
         """
         Cancel the target task for the given step.
         This method should be implemented to handle the specifics of task cancellation.

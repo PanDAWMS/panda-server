@@ -5,14 +5,15 @@ client methods
 import gzip
 import os
 import socket
-import sys
 import tempfile
+from typing import Any
 
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 
 from pandaserver.api.v1.http_client import HttpClient as HttpClientV1
 from pandaserver.api.v1.http_client import api_url_ssl as api_url_ssl_v1
+from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.JobUtils import dump_jobs_json
 
 DEFAULT_CERT_PATH = "/etc/grid-security/certificates"
@@ -21,13 +22,13 @@ DEFAULT_CERT_PATH = "/etc/grid-security/certificates"
 EC_Failed = 255
 
 
-def is_https(url):
+def is_https(url: str) -> bool:
     # check if https is used
     return url.startswith("https://")
 
 
 class HttpClient:
-    def __init__(self):
+    def __init__(self) -> None:
         # verification of the host certificate
         if "PANDA_VERIFY_HOST" in os.environ and os.environ["PANDA_VERIFY_HOST"] == "off":
             self.verifyHost = False
@@ -51,7 +52,7 @@ class HttpClient:
             with open(self.id_token[5:], "r") as f:
                 self.id_token = f.read().strip()
 
-    def _x509(self):
+    def _x509(self) -> str:
         # retrieve the X509_USER_PROXY from the environment variables and check if it is readable
         try:
             if "X509_USER_PROXY" in os.environ and os.access(os.environ["X509_USER_PROXY"], os.R_OK):
@@ -68,7 +69,7 @@ class HttpClient:
         print("No valid grid proxy certificate found")
         return ""
 
-    def _prepare_url(self, url):
+    def _prepare_url(self, url: str) -> tuple[str, bool]:
         """Modify URL with HTTPS check and hostname replacement."""
         use_https = is_https(url)
         if "PANDA_BEHIND_REAL_LB" in os.environ:
@@ -77,9 +78,9 @@ class HttpClient:
             modified_url = replace_hostname_in_url_randomly(url)
         return modified_url, use_https
 
-    def _prepare_headers(self):
+    def _prepare_headers(self) -> dict[str, Any]:
         """Prepare headers based on authentication and JSON settings."""
-        headers = {}
+        headers: dict[str, Any] = {}
 
         if self.oidc:
             headers["Authorization"] = f"Bearer {self.id_token}"
@@ -90,10 +91,10 @@ class HttpClient:
 
         return headers
 
-    def _prepare_ssl(self, use_https):
+    def _prepare_ssl(self, use_https: bool) -> tuple[tuple[str, str] | None, bool | str]:
         """Prepare SSL configuration based on HTTPS usage and verification settings."""
         cert = None  # no certificate by default when no HTTS or using oidc headers
-        verify = True  # validate against default system CA certificates
+        verify: bool | str = True  # validate against default system CA certificates
 
         if use_https:
             # oidc tokens are added to the headers, we don't need to provide a certificate
@@ -112,7 +113,7 @@ class HttpClient:
 
         return cert, verify
 
-    def get(self, url, data):
+    def get(self, url: str, data: dict[str, Any]) -> tuple[int, str]:
         url, use_https = self._prepare_url(url)
         headers = self._prepare_headers()
         cert, verify = self._prepare_ssl(use_https)
@@ -124,7 +125,7 @@ class HttpClient:
         except requests.RequestException as e:
             return 255, str(e)
 
-    def post(self, url, data):
+    def post(self, url: str, data: dict[str, Any]) -> tuple[int, str]:
         url, use_https = self._prepare_url(url)
         headers = self._prepare_headers()
         cert, verify = self._prepare_ssl(use_https)
@@ -136,12 +137,12 @@ class HttpClient:
         except requests.RequestException as e:
             return 255, str(e)
 
-    def post_files(self, url, data):
+    def post_files(self, url: str, data: dict[str, Any]) -> tuple[int, str]:
         url, use_https = self._prepare_url(url)
         headers = self._prepare_headers()
         cert, verify = self._prepare_ssl(use_https)
 
-        files = {}
+        files: dict[str, Any] = {}
         try:
             for key, value in data.items():
                 if type(data[key]) == str:
@@ -169,7 +170,7 @@ Client API
 """
 
 
-def submit_jobs(jobs):
+def submit_jobs(jobs: list[JobSpec]) -> tuple[int, Any]:
     """
     Submit jobs
 
@@ -189,18 +190,18 @@ def submit_jobs(jobs):
         job.creationHost = hostname
 
     # serialize the jobs to json
-    jobs = dump_jobs_json(jobs)
+    jobs_json = dump_jobs_json(jobs)
 
     http_client = HttpClientV1()
 
     url = f"{api_url_ssl_v1}/job/submit"
-    data = {"jobs": jobs}
+    data = {"jobs": jobs_json}
 
     status, output = http_client.post(url, data)
     return status, output
 
 
-def get_job_status(job_ids):
+def get_job_status(job_ids: list[int]) -> tuple[int, Any]:
     """
     Get job status
 
@@ -221,11 +222,11 @@ def get_job_status(job_ids):
 
 
 def kill_jobs(
-    job_ids,
-    code=None,
-    keep_unmerged=False,
-    job_sub_status=None,
-):
+    job_ids: list[int],
+    code: int | None = None,
+    keep_unmerged: bool = False,
+    job_sub_status: str | None = None,
+) -> tuple[int, Any]:
     """
     Kill jobs. Normal users can kill only their own jobs.
     People with production VOMS role can kill any jobs.
@@ -256,7 +257,7 @@ def kill_jobs(
     http_client = HttpClientV1()
 
     url = f"{api_url_ssl_v1}/job/kill"
-    data = {"job_ids": job_ids}
+    data: dict[str, Any] = {"job_ids": job_ids}
 
     if code:
         data["code"] = code
@@ -273,7 +274,7 @@ def kill_jobs(
     return status, output
 
 
-def reassign_jobs(job_ids):
+def reassign_jobs(job_ids: list[int]) -> tuple[int, Any]:
     """
     Triggers reassignment of jobs.
 
@@ -296,7 +297,7 @@ def reassign_jobs(job_ids):
     return status, output
 
 
-def job_stats_by_cloud(job_type=None):
+def job_stats_by_cloud(job_type: str | None = None) -> tuple[int, Any]:
     """
     Get job statistics by cloud. Used by panglia monitor in TRIUMF
 
@@ -342,11 +343,11 @@ def job_stats_by_cloud(job_type=None):
 
 
 # alias the old name to the new function for backwards compatibility
-def getJobStatistics(sourcetype=None):
+def getJobStatistics(sourcetype: str | None = None) -> tuple[int, Any]:
     return job_stats_by_cloud(sourcetype)
 
 
-def production_job_stats_by_cloud_and_processing_type():
+def production_job_stats_by_cloud_and_processing_type() -> tuple[int, Any]:
     """
     Get job statistics by cloud and processing type. Used by panglia monitor in TRIUMF
 
@@ -392,11 +393,11 @@ def production_job_stats_by_cloud_and_processing_type():
 
 
 # alias the old name to the new function for backwards compatibility
-def getJobStatisticsForBamboo(useMorePG=False):
+def getJobStatisticsForBamboo(useMorePG: bool = False) -> tuple[int, Any]:
     return production_job_stats_by_cloud_and_processing_type()
 
 
-def job_stats_by_site_and_resource_type(time_window=None):
+def job_stats_by_site_and_resource_type(time_window: int | None = None) -> tuple[int, Any]:
     """
     Get job statistics per site and resource. Used by panglia monitor in TRIUMF
 
@@ -426,11 +427,11 @@ def job_stats_by_site_and_resource_type(time_window=None):
 
 
 # alias the old name to the new function for backwards compatibility
-def getJobStatisticsPerSiteResource(timeWindow=None):
+def getJobStatisticsPerSiteResource(timeWindow: int | None = None) -> tuple[int, Any]:
     return job_stats_by_site_and_resource_type(timeWindow)
 
 
-def job_stats_by_site_share_and_resource_type(time_window=None):
+def job_stats_by_site_share_and_resource_type(time_window: int | None = None) -> tuple[int, Any]:
     """
     Get job statistics per site, label, and resource
 
@@ -460,11 +461,11 @@ def job_stats_by_site_share_and_resource_type(time_window=None):
 
 
 # alias the old name to the new function for backwards compatibility
-def get_job_statistics_per_site_label_resource(time_window=None):
+def get_job_statistics_per_site_label_resource(time_window: int | None = None) -> tuple[int, Any]:
     return job_stats_by_site_share_and_resource_type(time_window)
 
 
-def get_site_specs(site_type=None):
+def get_site_specs(site_type: str | None = None) -> tuple[int, Any]:
     """
     Get list of site specifications. Used by panglia monitor in TRIUMF
 
@@ -501,11 +502,11 @@ def get_site_specs(site_type=None):
 
 
 # alias the old name to the new function for backwards compatibility
-def getSiteSpecs(siteType=None):
+def getSiteSpecs(siteType: str | None = None) -> tuple[int, Any]:
     return get_site_specs(siteType)
 
 
-def register_cache_file(user_name: str, file_name: str, file_size: int, checksum: str):
+def register_cache_file(user_name: str, file_name: str, file_size: int, checksum: str) -> tuple[int, Any]:
     """
     Register information about the input sandbox that is being stored in PanDA cache
 
@@ -533,7 +534,7 @@ def register_cache_file(user_name: str, file_name: str, file_size: int, checksum
     return http_client.post(url, data)
 
 
-def put_file(file):
+def put_file(file: str) -> tuple[int, Any]:
     """
     Upload input sandbox to PanDA cache
 
@@ -552,7 +553,7 @@ def put_file(file):
     return http_client.post_files(url, data)
 
 
-def touch_file(source_url, file_name):
+def touch_file(source_url: str, file_name: str) -> tuple[int, Any]:
     http_client = HttpClientV1()
     # Note the special construction of the URL here, since it is not going through the api_url_ssl_v1,
     # but directly to the source_url pointing at the concrete instance provided
@@ -561,7 +562,7 @@ def touch_file(source_url, file_name):
     return http_client.post(url, data)
 
 
-def kill_task(task_id, broadcast=False):
+def kill_task(task_id: int, broadcast: bool = False) -> tuple[int, Any]:
     """
     Kill a task
 
@@ -592,7 +593,7 @@ def kill_task(task_id, broadcast=False):
     return status, output
 
 
-def finish_task(task_id, soft=False, broadcast=False):
+def finish_task(task_id: int, soft: bool = False, broadcast: bool = False) -> tuple[int, Any]:
     """
     Finish a task
 
@@ -626,7 +627,7 @@ def finish_task(task_id, soft=False, broadcast=False):
     return status, output
 
 
-def uploadLog(log_string, log_file_name):
+def uploadLog(log_string: str, log_file_name: str | int) -> tuple[int, Any]:
     """
     Upload log
 
@@ -645,9 +646,7 @@ def uploadLog(log_string, log_file_name):
     # write log to a tmp file
     fh = tempfile.NamedTemporaryFile(delete=False)
     gfh = gzip.open(fh.name, mode="wb")
-    if sys.version_info[0] >= 3:
-        log_string = log_string.encode("utf-8")
-    gfh.write(log_string)
+    gfh.write(log_string.encode("utf-8"))
     gfh.close()
     # execute
     url = f"{api_url_ssl_v1}/file_server/upload_jedi_log"
@@ -660,7 +659,7 @@ def uploadLog(log_string, log_file_name):
     return return_value
 
 
-def set_debug_mode(job_id, mode):
+def set_debug_mode(job_id: int, mode: bool) -> tuple[int, Any]:
     """
     Turn debug mode for a job on/off
 
@@ -684,7 +683,13 @@ def set_debug_mode(job_id, mode):
     return status, output
 
 
-def retry_task(task_id, no_child_retry=False, discard_events=False, disable_staging_mode=False, keep_gshare_priority=False):
+def retry_task(
+    task_id: int,
+    no_child_retry: bool = False,
+    discard_events: bool = False,
+    disable_staging_mode: bool = False,
+    keep_gshare_priority: bool = False,
+) -> tuple[int, Any]:
     """
     Retry a task
 
@@ -725,7 +730,7 @@ def retry_task(task_id, no_child_retry=False, discard_events=False, disable_stag
     return status, output
 
 
-def reload_input(task_id):
+def reload_input(task_id: int) -> tuple[int, Any]:
     """
     Reload the input for a task
 
@@ -754,7 +759,7 @@ def reload_input(task_id):
     return status, output
 
 
-def send_command_to_job(panda_id, command):
+def send_command_to_job(panda_id: int, command: str) -> tuple[int, Any]:
     """
     Send a command to a job
 
@@ -779,7 +784,7 @@ def send_command_to_job(panda_id, command):
     return status, output
 
 
-def get_banned_users():
+def get_banned_users() -> tuple[bool, Any]:
     """
     Get list of banned users
 

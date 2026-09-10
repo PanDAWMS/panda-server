@@ -3,18 +3,21 @@ import datetime
 import math
 import random
 import re
-import sys
 import traceback
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import JobUtils
+from pandaserver.taskbuffer.InputChunk import InputChunk
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from . import AtlasBrokerUtils
 from .JobBrokerBase import JobBrokerBase
@@ -30,9 +33,9 @@ VO = "atlas"
 # brokerage for ATLAS analysis
 class AtlasAnalJobBroker(JobBrokerBase):
     # constructor
-    def __init__(self, ddmIF, taskBufferIF):
+    def __init__(self, ddmIF: Interaction.CommandSendInterface, taskBufferIF: JediTaskBufferInterface) -> None:
         JobBrokerBase.__init__(self, ddmIF, taskBufferIF)
-        self.dataSiteMap = {}
+        self.dataSiteMap: dict[str, Any] = {}
 
         # load the SW availability map
         try:
@@ -56,7 +59,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
             self.wn_gpu_map = {}
 
     # main
-    def doBrokerage(self, taskSpec, cloudName, inputChunk, taskParamMap):
+    def doBrokerage(
+        self, taskSpec: JediTaskSpec, cloudName: str | None, inputChunk: InputChunk, taskParamMap: dict[str, Any] | None
+    ) -> tuple[Interaction.StatusCode, InputChunk]:
         # make logger
         if inputChunk.masterDataset:
             msg_tag = f"<jediTaskID={taskSpec.jediTaskID} datasetID={inputChunk.masterDataset.datasetID}>"
@@ -70,6 +75,18 @@ class AtlasAnalJobBroker(JobBrokerBase):
         # return when the task is only waiting for something it cannot control, so that
         # it is not penalized with the pending timeout while it waits
         retWaiting = self.SC_WAITING, inputChunk
+        # doBrokerage returns either one of the error tuples above or None. Declared
+        # without a value, which binds nothing at runtime, so that the first assignment
+        # further down does not fix retVal to the tuple type alone.
+        retVal: tuple[Interaction.StatusCode, Any] | None
+        # the brokerage arithmetic below cannot run on a NULL column; a task read from the DB
+        # always carries these, so one that does not is reported rather than crashing mid-scan
+        if taskSpec.currentPriority is None or taskSpec.cpuEfficiency is None or taskSpec.prodSourceLabel is None or taskSpec.taskPriority is None:
+            tmpLog.error(
+                f"cannot broker with currentPriority={taskSpec.currentPriority} cpuEfficiency={taskSpec.cpuEfficiency} "
+                f"prodSourceLabel={taskSpec.prodSourceLabel} taskPriority={taskSpec.taskPriority}"
+            )
+            return retTmpError
         # new maxwdir
         newMaxwdir = {}
         # get primary site candidates
@@ -79,7 +96,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
         includeList = None
         scanSiteList = []
         # problematic sites
-        problematic_sites_dict = {}
+        problematic_sites_dict: dict[str, Any] = {}
         # not to use VP replicas for merging, scouts, and forceStaged
         if inputChunk.isMerging or taskSpec.avoid_vp() or taskSpec.useScout() or taskSpec.useLocalIO():
             useVP = False
@@ -92,8 +109,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
         # get workQueue
         workQueue = self.taskBufferIF.getWorkQueueMap().getQueueWithIDGshare(taskSpec.workQueue_ID, taskSpec.gshare)
 
-        # site limitation
-        if taskSpec.useLimitedSites():
+        # site limitation. JobGenerator fills taskParamMap in exactly when the task uses
+        # limited sites and leaves it None otherwise, so this branch is the only place
+        # here that may read it
+        if taskSpec.useLimitedSites() and taskParamMap is not None:
             if "excludedSite" in taskParamMap:
                 excludeList = taskParamMap["excludedSite"]
                 # str to list for task retry
@@ -106,13 +125,16 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 includeList = taskParamMap["includedSite"]
                 # str to list for task retry
                 if includeList == "":
+                    # nothing was pre-assigned. The split below cannot run on None, and
+                    # the AttributeError it raised into the handler was doing this check
                     includeList = None
-                try:
-                    if not isinstance(includeList, list):
-                        includeList = includeList.split(",")
-                    siteListPreAssigned = True
-                except Exception:
-                    pass
+                else:
+                    try:
+                        if not isinstance(includeList, list):
+                            includeList = includeList.split(",")
+                        siteListPreAssigned = True
+                    except Exception:
+                        pass
         # loop over all sites
         for siteName, tmpSiteSpec in self.siteMapper.siteSpecList.items():
             if tmpSiteSpec.type == "analysis" or tmpSiteSpec.is_grandly_unified():
@@ -375,7 +397,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
         loc_check_timeout_val = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, loc_check_timeout_key, "jedi", taskSpec.vo)
 
         # check input datasets
-        element_map = dict()
+        element_map: dict[str, Any] = dict()
         ddsList = set()
         complete_disk_ok = {}
         complete_tape_ok = {}
@@ -417,6 +439,11 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         tmpLog.error(f"fatal error when getting the list of sites where data is available, since {tmpRet}")
                         taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
                         return retFatal
+                    if not isinstance(tmpRet, dict):
+                        # only the error paths handled above return a message in its place
+                        tmpLog.error(f"failed to get the list of sites where data is available, since {tmpRet}")
+                        taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
+                        return retTmpError
                     # append
                     self.dataSiteMap[datasetName] = tmpRet
                     complete_disk_ok[datasetName] = tmp_complete_disk_ok
@@ -520,10 +547,11 @@ class AtlasAnalJobBroker(JobBrokerBase):
 
         retVal = None
         checkDataLocality = False
-        scanSiteWoVP = []
-        summaryList = []
-        site_list_with_data = None
-        overall_site_list = set()
+        scanSiteWoVP: list[Any] = []
+        summaryList: list[str] = []
+        # the sites that had the data in the first loop pass, kept for the ranking below
+        site_list_with_data: set[str] = set()
+        overall_site_list: set[str] = set()
         for i_loop, (scanSiteList, checkDataLocality) in enumerate(scan_site_list_loops):
             useUnionLocality = False
             self.init_summary_list("Job brokerage summary", f"data locality check: {checkDataLocality}", self.get_unified_sites(scanSiteList))
@@ -534,8 +562,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
             ######################################
             # selection for data availability
             hasDDS = False
-            dataWeight = {}
-            remoteSourceList = {}
+            dataWeight: dict[str, Any] = {}
+            remoteSourceList: dict[str, Any] = {}
             sites_in_nucleus = []
             for datasetSpec in inputChunk.getDatasets():
                 datasetSpec.reset_distributed()
@@ -552,12 +580,15 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     if datasetName in ddsList:
                         datasetSpec.setDistributed()
 
-                # get the list of sites where data is available
-                scanSiteList = None
-                scanSiteListOnDisk = None
-                scanSiteListUnion = None
-                scanSiteListOnDiskUnion = None
-                scanSiteWoVpUnion = None
+                # get the list of sites where data is available. The first dataset seeds
+                # the lists and the rest intersect with them, which is what the flag marks;
+                # with no dataset at all they stay empty and the checks below find nothing
+                scanSiteList = []
+                scanSiteListOnDisk: set[str] = set()
+                scanSiteListUnion: set[str] = set()
+                scanSiteListOnDiskUnion: set[str] = set()
+                scanSiteWoVpUnion: set[str] = set()
+                is_first_dataset = True
 
                 for datasetName, tmpDataSite in self.dataSiteMap.items():
                     # check if incomplete replica is allowed
@@ -582,7 +613,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
                             dataWeight[tmpSiteName] += 0.001
 
                     # first list
-                    if scanSiteList is None:
+                    if is_first_dataset:
+                        is_first_dataset = False
                         scanSiteList = []
                         for tmpSiteName in tmpSiteList:
                             if tmpSiteName not in oldScanUnifiedSiteList:
@@ -1072,12 +1104,13 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     if taskSpec.ramPerCore() and not inputChunk.isMerging:
                         if tmpSiteSpec.coreCount not in [None, 0]:
                             minRamCount = origMinRamCount * tmpSiteSpec.coreCount
-                    minRamCount = JobUtils.compensate_ram_count(minRamCount)
+                    compensated_min_ram_count = JobUtils.compensate_ram_count(minRamCount)
+                    minRamCount = compensated_min_ram_count if compensated_min_ram_count is not None else 0
                     # site max memory requirement
                     site_maxmemory = 0
                     if tmpSiteSpec.maxrss not in [0, None]:
                         site_maxmemory = tmpSiteSpec.maxrss
-                    if site_maxmemory not in [0, None] and minRamCount != 0 and minRamCount > site_maxmemory:
+                    if site_maxmemory not in [0, None] and minRamCount and minRamCount > site_maxmemory:
                         msg_map[tmpSiteSpec.get_unified_name()] = (
                             f"  skip site={tmpSiteSpec.get_unified_name()} due to insufficient RAM less than job's core-scaled requirement {minRamCount} MB criteria=-lowmemory"
                         )
@@ -1086,7 +1119,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     site_minmemory = 0
                     if tmpSiteSpec.minrss not in [0, None]:
                         site_minmemory = tmpSiteSpec.minrss
-                    if site_minmemory not in [0, None] and minRamCount != 0 and minRamCount < site_minmemory:
+                    if site_minmemory not in [0, None] and minRamCount and minRamCount < site_minmemory:
                         msg_map[tmpSiteSpec.get_unified_name()] = (
                             f"  skip site={tmpSiteSpec.get_unified_name()} due to RAM lower limit greater than job's core-scaled requirement {minRamCount} MB criteria=-highmemory"
                         )
@@ -1117,7 +1150,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 else:
                     maxSizePerJob //= 1024 * 1024
                 # size for direct IO sites
-                minDiskCountR = tmpOutDiskSize * tmpEffAtomSize + tmpWorkDiskSize
+                minDiskCountR: Any = tmpOutDiskSize * tmpEffAtomSize + tmpWorkDiskSize
                 minDiskCountR = minDiskCountR // 1024 // 1024
                 tmpLog.info(f"maxAtomSize={tmpMaxAtomSize} effectiveAtomSize={tmpEffAtomSize} outDiskCount={tmpOutDiskSize} workDiskSize={tmpWorkDiskSize}")
             else:
@@ -1140,9 +1173,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 # check disk space
                 if tmpSiteSpec.maxwdir:
                     if CoreUtils.use_direct_io_for_job(taskSpec, tmpSiteSpec, inputChunk):
-                        minDiskCount = minDiskCountR
+                        minDiskCount: Any = minDiskCountR
                         if maxSizePerJob is not None and not taskSpec.useLocalIO():
-                            tmpMinDiskCountR = tmpOutDiskSize * maxSizePerJob + tmpWorkDiskSize
+                            tmpMinDiskCountR: float = tmpOutDiskSize * maxSizePerJob + tmpWorkDiskSize
                             tmpMinDiskCountR /= 1024 * 1024
                             if tmpMinDiskCountR > minDiskCount:
                                 minDiskCount = tmpMinDiskCountR
@@ -1221,8 +1254,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
                                 )
                                 continue
                 # check if blacklisted
-                tmp_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available)
-                if tmp_msg is not None:
+                blacklist_msg = AtlasBrokerUtils.check_endpoints_with_blacklist(
+                    tmpSiteSpec, scope_input, scope_output, sites_in_nucleus, remote_source_available
+                )
+                if blacklist_msg is not None:
                     msg_map[tmpSiteName] = f"  skip site={tmpSiteName} since {tmpSiteSpec.ddm_output[scope_output]} is blacklisted in DDM criteria=-blacklist"
                     continue
                 # local quota
@@ -1248,8 +1283,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 strMinWalltime = f"walltime*inputSize={taskSpec.walltime}*{tmpMaxAtomSize}"
             else:
                 tmpMaxAtomSize = inputChunk.getMaxAtomSize(getNumEvents=True)
-                if taskSpec.getCpuTime() is not None:
-                    minWalltime = taskSpec.getCpuTime() * tmpMaxAtomSize
+                cpu_time = taskSpec.getCpuTime()
+                if cpu_time is not None:
+                    minWalltime = cpu_time * tmpMaxAtomSize
                 else:
                     minWalltime = None
                 strMinWalltime = f"cpuTime*nEventsPerJob={taskSpec.getCpuTime()}*{tmpMaxAtomSize}"
@@ -1567,7 +1603,9 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     for jobStatus in ["defined", "assigned", "activated", "starting"]:
                         nQueue += AtlasBrokerUtils.getNumJobs(jobStatPrioMap, tmpSiteName, jobStatus, workQueue_tag=taskSpec.gshare)
                     # skip if overloaded
-                    if nQueue > minQueue and (nRunning == 0 or float(nQueue) / float(nRunning) > grandRatio * ratioOffset):
+                    # grandRatio is None only when nothing is running in the share at all, in
+                    # which case every site takes the nRunning == 0 branch before the ratio is used
+                    if nQueue > minQueue and (nRunning == 0 or (grandRatio is not None and float(nQueue) / float(nRunning) > grandRatio * ratioOffset)):
                         tmpMsg = f"  skip site={tmpSiteName} "
                         tmpMsg += f"nQueue>minQueue({minQueue}) and "
                         if nRunning == 0:
@@ -1757,7 +1795,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
             ############
             # loop end
             overall_site_list.update(scanSiteList)
-            if site_list_with_data is None:
+            if not site_list_with_data:
                 # preserve site list with data
                 site_list_with_data = set(scanSiteList)
             if len(overall_site_list) >= taskSpec.getNumSitesPerJob():
@@ -1810,16 +1848,15 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 if tmpAvFileMap is None:
                     raise Interaction.JEDITemporaryError("ddmIF.getAvailableFiles failed")
                 availableFileMap[datasetSpec.datasetName] = tmpAvFileMap
-            except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                tmpLog.error(f"failed to get available files with {errtype.__name__} {errvalue}")
+            except Exception as e:
+                tmpLog.error(f"failed to get available files with {type(e).__name__} {e}")
                 taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
                 return retTmpError
         # make data weight
         totalSize = 0
         totalNumFiles = 0
-        totalDiskSizeMap = dict()
-        totalTapeSizeMap = dict()
+        totalDiskSizeMap: dict[str, Any] = dict()
+        totalTapeSizeMap: dict[str, Any] = dict()
         for datasetSpec in inputChunk.getDatasets():
             totalNumFiles += len(datasetSpec.Files)
             for fileSpec in datasetSpec.Files:
@@ -1841,11 +1878,11 @@ class AtlasAnalJobBroker(JobBrokerBase):
         ######################################
         # final procedure
         tmpLog.info(f"{len(scanSiteList)} candidates for final check")
-        weightMap = {}
+        weightMap: dict[str, Any] = {}
         weightStr = {}
         candidateSpecList = []
         preSiteCandidateSpec = None
-        basic_weight_compar_map = {}
+        basic_weight_compar_map: dict[str, Any] = {}
         workerStat = self.taskBufferIF.ups_load_worker_stats()
         for tmpPseudoSiteName in scanSiteList:
             tmpSiteSpec = self.siteMapper.getSite(tmpPseudoSiteName)
@@ -2049,7 +2086,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 # main weight, for User Analysis, determined by number of jobs to submit to each site class
                 main_weight_site_class_dict = {1: weight_epsilon_init, 0: weight_epsilon_init, -1: weight_epsilon_init}
                 if taskSpec.gshare in ["User Analysis", "Express Analysis"]:
-                    n_jobs_to_submit_rem = min(n_jobs_to_submit, total_rem_q_len)
+                    n_jobs_to_submit_rem: float = min(n_jobs_to_submit, total_rem_q_len)
                     if task_class_value == -1:
                         # C-task
                         main_weight_site_class_dict[-1] = n_jobs_to_submit_rem
@@ -2076,11 +2113,11 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 for site in weight_comparison_avail_sites:
                     bw_map = basic_weight_compar_map[site]
                     # main weight by site & task class for User Analysis, and constant for group shares
-                    nbw_main = n_jobs_to_submit
+                    nbw_main: float = n_jobs_to_submit
                     if taskSpec.gshare in ["User Analysis", "Express Analysis"]:
                         nbw_main = main_weight_site_class_dict[bw_map["class"]]
                     # secondary weight proportional to remaining queue length
-                    nbw_sec = 1
+                    nbw_sec: float = 1
                     if taskSpec.gshare in ["User Analysis", "Express Analysis"]:
                         _nbw_numer = max(bw_map["rem_q_len"] - nbw_main / site_class_n_site_dict[bw_map["class"]], nbw_main * 0.001)
                         reduced_site_class_rem_q_len = site_class_rem_q_len_dict[bw_map["class"]] - nbw_main

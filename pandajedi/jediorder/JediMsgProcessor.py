@@ -1,3 +1,5 @@
+from multiprocessing.synchronize import Event
+
 from pandacommon.pandalogger import logger_utils
 from pandacommon.pandamsgbkr import msg_processor
 
@@ -12,7 +14,7 @@ class MsgProcAgent(msg_processor.MsgProcAgentBase):
 
 
 # launch
-def launcher(stop_event):
+def launcher(stop_event: Event) -> None:
     tmp_log = logger_utils.make_logger(msg_processor.base_logger, method_name="launcher")
     tmp_log.debug("start")
     try:

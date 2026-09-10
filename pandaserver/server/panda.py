@@ -16,6 +16,8 @@ import sys
 import tempfile
 import traceback
 from collections import defaultdict
+from collections.abc import Callable
+from typing import Any
 from urllib.parse import parse_qsl
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -126,7 +128,7 @@ else:
     ban_user_list = CoreUtils.CachedObject("ban_list", 600, Client.get_banned_users, _logger)
 
 
-def pre_validate_request(panda_request):
+def pre_validate_request(panda_request: PandaRequest) -> str | None:
     # check authentication
     if not panda_request.authenticated:
         error_message = f"Token authentication failed. {panda_request.message}"
@@ -143,7 +145,7 @@ def pre_validate_request(panda_request):
     return None
 
 
-def read_body(environ, content_length):
+def read_body(environ: dict[str, Any], content_length: int) -> bytes:
     # read body contents
     body = b""
     while content_length > 0:
@@ -159,7 +161,7 @@ def read_body(environ, content_length):
     return body
 
 
-def parse_qsl_parameters(environ, body, request_method):
+def parse_qsl_parameters(environ: dict[str, Any], body: bytes, request_method: str | None) -> dict[str, Any]:
     # parse parameters for non-json requests
     environ["wsgi.input"] = io.BytesIO(body)
     environ["CONTENT_LENGTH"] = str(len(body))
@@ -185,13 +187,13 @@ def parse_qsl_parameters(environ, body, request_method):
     return params
 
 
-def parse_json_parameters_legacy(body):
+def parse_json_parameters_legacy(body: bytes) -> dict[str, Any]:
     # parse parameters for json requests
     # decompress the body, this was done without checking the content encoding
     body = gzip.decompress(body)
 
     # de-serialize the body and patch for True/False
-    params = json.loads(body)
+    params: dict[str, Any] = json.loads(body)
     for key in list(params):
         if params[key] is True:
             params[key] = "True"
@@ -200,19 +202,27 @@ def parse_json_parameters_legacy(body):
     return params
 
 
-def parse_json_parameters(body, content_encoding):
+def parse_json_parameters(body: bytes, content_encoding: str | None) -> dict[str, Any]:
     # parse parameters for json requests
     # decompress the body if necessary
     if content_encoding == "gzip":
         body = gzip.decompress(body)
 
     # de-serialize the body
-    params = json.loads(body)
+    params: dict[str, Any] = json.loads(body)
 
     return params
 
 
-def parse_parameters(api_module, json_app, json_body, content_encoding, environ, body, request_method):
+def parse_parameters(
+    api_module: str,
+    json_app: bool,
+    json_body: bool,
+    content_encoding: str | None,
+    environ: dict[str, Any],
+    body: bytes,
+    request_method: str | None,
+) -> dict[str, Any]:
     # parse parameters with the new refactored API
     if is_new_api(api_module):
         # the request specifies json and it's a PUT/POST request with the data in the body
@@ -231,11 +241,11 @@ def parse_parameters(api_module, json_app, json_body, content_encoding, environ,
             return parse_qsl_parameters(environ, body, request_method)
 
 
-def is_new_api(api_module):
+def is_new_api(api_module: str) -> bool:
     return api_module != "panda"
 
 
-def parse_script_name(environ):
+def parse_script_name(environ: dict[str, Any]) -> tuple[str, str, str]:
     method_name = ""
     api_module = ""
     version = "v0"
@@ -263,8 +273,8 @@ def parse_script_name(environ):
     return method_name, api_module, version
 
 
-def module_mapping(version, api_module):
-    mapping = {
+def module_mapping(version: str, api_module: str) -> dict[str, Any] | None:
+    mapping: dict[str, dict[str, dict[str, Any]]] = {
         "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},  # legacy API uses globals instead of a particular module
         "v1": {
             "async_process": {"module": async_process_api_v1, "allowed_methods": async_process_api_v1_methods},
@@ -290,7 +300,7 @@ def module_mapping(version, api_module):
         return None
 
 
-def validate_method(method_name, api_module, version):
+def validate_method(method_name: str, api_module: str, version: str) -> bool:
     # We are in the refactored API and the method is not in the specific allowed list
     mapping = module_mapping(version, api_module)
     if mapping and method_name in mapping["allowed_methods"]:
@@ -300,7 +310,7 @@ def validate_method(method_name, api_module, version):
 
 
 # Encoder: convert datetime → ISO string with a marker
-def encode_special_cases(obj):
+def encode_special_cases(obj: Any) -> Any:
     if isinstance(obj, datetime.datetime):
         return {"__datetime__": obj.isoformat()}
     if isinstance(obj, decimal.Decimal):
@@ -312,7 +322,7 @@ def encode_special_cases(obj):
 
 
 # This is the starting point for all WSGI requests
-def application(environ, start_response):
+def application(environ: dict[str, Any], start_response: Callable[[str, list[tuple[str, str]]], Any]) -> list[bytes]:
     # Parse the script name to retrieve method, module and version
     method_name, api_module, version = parse_script_name(environ)
 
@@ -342,7 +352,7 @@ def application(environ, start_response):
 
     # check method name is allowed, otherwise return 403
     if not validate_method(method_name, api_module, version):
-        error_message = f"method {method_name} is forbidden"
+        error_message: str | None = f"method {method_name} is forbidden"
         tmp_log.error(error_message)
         start_response("403 Forbidden", [("Content-Type", "text/plain")])
         return [f"ERROR : {error_message}".encode()]
@@ -350,7 +360,11 @@ def application(environ, start_response):
     # get the method object to be executed
     try:
         if new_api:
-            module = module_mapping(version, api_module)["module"]
+            # validate_method() above only returns True when this same lookup succeeded, so
+            # the mapping is there; if it somehow is not, getattr raises and the except
+            # below reports the method as undefined, exactly as the old subscript did
+            mapping = module_mapping(version, api_module)
+            module = mapping["module"] if mapping else None
             tmp_method = getattr(module, method_name)
         else:
             tmp_method = globals()[method_name]
@@ -379,7 +393,7 @@ def application(environ, start_response):
             params = parse_parameters(api_module, json_app, json_body, content_encoding, environ, body, request_method)
         except json.JSONDecodeError as e:
             error_message = f"received invalid JSON : {str(e)}"
-            tmp_log.error(error_message + (f" with {body}" if panda_config.entryVerbose else ""))
+            tmp_log.error(error_message + (f" with {body!r}" if panda_config.entryVerbose else ""))
             start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
             return [f"ERROR : {error_message}".encode()]
 

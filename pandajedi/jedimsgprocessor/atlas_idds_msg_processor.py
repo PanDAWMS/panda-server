@@ -1,6 +1,7 @@
 import json
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
 from pandajedi.jedimsgprocessor.hpo_msg_processor import HPOMsgProcPlugin
@@ -14,8 +15,8 @@ base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
 
 # Atlas iDDS message processing plugin, a bridge connect to other idds related message processing plugins
 class AtlasIddsMsgProcPlugin(BaseMsgProcPlugin):
-    def initialize(self):
-        BaseMsgProcPlugin.initialize(self)
+    def initialize(self, in_collective: bool = False) -> None:
+        BaseMsgProcPlugin.initialize(self, in_collective)
         self.plugin_TapeCarousel = TapeCarouselMsgProcPlugin()
         self.plugin_HPO = HPOMsgProcPlugin()
         self.plugin_Processing = ProcessingMsgProcPlugin()
@@ -26,7 +27,7 @@ class AtlasIddsMsgProcPlugin(BaseMsgProcPlugin):
             # use the same taskBuffer interface
             _plugin.tbIF = self.tbIF
 
-    def process(self, msg_obj):
+    def process(self, msg_obj: MsgObj) -> None:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         # start
         tmp_log.info("start")

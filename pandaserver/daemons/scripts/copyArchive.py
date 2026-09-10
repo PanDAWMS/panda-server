@@ -5,8 +5,11 @@ import re
 import sys
 import time
 import traceback
+from collections.abc import Sequence
+from typing import Any
 
 import requests
+import urllib3
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -24,16 +27,16 @@ _logger = PandaLogger().getLogger("copyArchive")
 
 
 # main
-def main(argv=tuple(), tbuf=None, **kwargs):
+def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     # password
-    requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+    urllib3.disable_warnings(category=InsecureRequestWarning)
 
     _logger.debug("===================== start =====================")
 
     # memory checker
-    def _memoryCheck(str):
+    def _memoryCheck(str: str) -> None:
         try:
             proc_status = "/proc/%d/status" % os.getpid()
             procfile = open(proc_status)
@@ -89,7 +92,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             "WHERE f.PandaID=j.PandaID AND j.prodSourceLabel=:prodSourceLabel AND j.jobStatus=:jobStatus "
             "AND f.type=:type "
         )
-        var_map = {":jobStatus": "merging", ":prodSourceLabel": "user", ":type": "log"}
+        var_map: dict[str, Any] = {":jobStatus": "merging", ":prodSourceLabel": "user", ":type": "log"}
         status, res = taskBuffer.querySQLS(sql, var_map)
         destination_blocks = {}
         if res is not None:
@@ -242,6 +245,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                                     continue
                                 sub_ds_names.add(tmpFileSpec.destinationDBlock)
                                 datasetSpec = taskBuffer.queryDatasetWithMap({"name": tmpFileSpec.destinationDBlock})
+                                if datasetSpec is None:
+                                    _logger.debug(f"sub dataset {tmpFileSpec.destinationDBlock} is missing")
+                                    continue
                                 sub_ds_list.append(datasetSpec)
                         _logger.debug(f"update unmerged datasets for jediTaskID={jediTaskID} PandaID={PandaID}")
                         taskBuffer.updateUnmergedDatasets(jobSpec, sub_ds_list, updateCompleted=True)
@@ -492,7 +498,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         {":creationTime": timeLimit},
     )
     jobs = []
-    dashFileMap = {}
     if res is not None:
         for pandaID, cloud, prodSourceLabel in res:
             # collect PandaIDs
@@ -537,8 +542,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             "(SELECT pandaqueuename FROM ATLAS_PANDA.HARVESTER_Slots) GROUP BY COMPUTINGSITE,JOBSTATUS,GSHARE "
         )
 
-        statsPerShare = {}
-        statsPerPQ = {}
+        statsPerShare: dict[str, Any] = {}
+        statsPerPQ: dict[str, Any] = {}
         for table in ["JOBS_SHARE_STATS", "JOBSDEFINED_SHARE_STATS"]:
             status, res = taskBuffer.querySQLS(sql.format(table), {})
             for computingSite, jobStatus, gshare, nJobs in res:
@@ -912,7 +917,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     sql = "SELECT PandaID,computingSite FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
     sql += "AND eventService=:esMerge ORDER BY jediTaskID "
     status, res = taskBuffer.querySQLS(sql, var_map)
-    jobsMap = {}
+    jobsMap: dict[str, Any] = {}
     if res is not None:
         for id, site in res:
             if site not in jobsMap:

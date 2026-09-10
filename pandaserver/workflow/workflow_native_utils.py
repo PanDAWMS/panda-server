@@ -3,6 +3,8 @@ import json
 import re
 import shlex
 import tempfile
+from collections.abc import Iterable
+from typing import Any
 
 from pandaclient import PhpoScript, PrunScript
 
@@ -34,20 +36,20 @@ KNOWN_STEP_TYPES = ("prun", "phpo", "junction", "reana", "gitlab", "workflow") +
 class _QuietLog:
     """Logger stand-in for validation, where warnings are collected as errors instead of logged"""
 
-    def info(self, message):
+    def info(self, message: str) -> None:
         pass
 
-    def debug(self, message):
+    def debug(self, message: str) -> None:
         pass
 
-    def warning(self, message):
+    def warning(self, message: str) -> None:
         pass
 
-    def error(self, message):
+    def error(self, message: str) -> None:
         pass
 
 
-def extract_dataset_reference(dataset):
+def extract_dataset_reference(dataset: Any) -> str | None:
     """
     Extract the reference target from a dataset field, if it is a reference
 
@@ -63,7 +65,7 @@ def extract_dataset_reference(dataset):
     return match.group(1) if match else None
 
 
-def extract_job_param_option(job_param):
+def extract_job_param_option(job_param: dict[str, Any]) -> str | None:
     """
     Extract the leading command line option name from a job parameter's value
 
@@ -80,7 +82,7 @@ def extract_job_param_option(job_param):
     return match.group(1) if match else None
 
 
-def derive_output_key(job_param, output_overrides=None):
+def derive_output_key(job_param: dict[str, Any], output_overrides: dict[str, str] | None = None) -> str | None:
     """
     Derive the short output key of an output job parameter
 
@@ -108,7 +110,7 @@ def derive_output_key(job_param, output_overrides=None):
     return option
 
 
-def build_task_step_outputs(step_name, task_params, output_overrides, log_stream):
+def build_task_step_outputs(step_name: str, task_params: dict[str, Any], output_overrides: dict[str, str] | None, log_stream: Any) -> dict[str, Any]:
     """
     Build the outputs of a raw-task-params step from its output job parameters
 
@@ -146,7 +148,7 @@ def build_task_step_outputs(step_name, task_params, output_overrides, log_stream
     return outputs
 
 
-def build_task_step_inputs(step_name, task_params, log_stream):
+def build_task_step_inputs(step_name: str, task_params: dict[str, Any], log_stream: Any) -> dict[str, Any]:
     """
     Build the inputs of a raw-task-params step from its input job parameters
 
@@ -186,7 +188,7 @@ def build_task_step_inputs(step_name, task_params, log_stream):
 
 
 # merge job parameters
-def merge_job_params(base_params, io_params):
+def merge_job_params(base_params: list[dict[str, Any]], io_params: list[dict[str, Any]]) -> list[dict[str, Any]]:
     new_params = []
     # remove exec stuff from base_params
     exec_start = False
@@ -221,52 +223,54 @@ def merge_job_params(base_params, io_params):
 
 # DAG vertex
 class Node(object):
-    def __init__(self, id, node_type, data, is_leaf, name):
+    def __init__(self, id: int, node_type: str, data: Any, is_leaf: bool, name: str) -> None:
         self.id = id
         # Per-workflow-scope sequence number (starts at 1), assigned in resolve_nodes.
         # Used only for building output dataset names. node.id stays unique within a single
         # parsed definition (the graph key used in id maps / parents / sub_nodes); it is not
         # unique across scatter iterations, which are separate workflows built later from the
         # same template. Independent scopes (each sub-workflow, each scatter template) restart at 1.
-        self.member_id = None
+        self.member_id: int | None = None
         self.type = node_type
         self.data = data
         self.is_leaf = is_leaf
         self.is_tail = False
         self.is_head = False
-        self.inputs = {}
-        self.outputs = {}
-        self.output_types = []
-        self.scatter = None
-        self.parents = set()
+        self.inputs: dict[str, Any] = {}
+        self.outputs: dict[str, Any] = {}
+        self.output_types: list[str] = []
+        self.scatter: list[str] | None = None
+        self.parents: set[int] = set()
         self.name = name
-        self.sub_nodes = set()
-        self.root_inputs = None
-        self.task_params = None
-        self.condition = None
+        # Node objects, or resolved int IDs once resolve_nodes has spliced a native
+        # sub-workflow's children into the flat list -- see _sub_nodes_are_objects()
+        self.sub_nodes: Any = set()
+        self.root_inputs: dict[str, Any] | None = None
+        self.task_params: dict[str, Any] | None = None
+        self.condition: Any = None
         self.is_workflow_output = False
         self.loop = False
         self.in_loop = False
-        self.upper_root_inputs = None
-        self.workflow_ref = None  # path or named block reference for type="workflow" nodes
+        self.upper_root_inputs: dict[str, Any] | None = None
+        self.workflow_ref: str | None = None  # path or named block reference for type="workflow" nodes
         # True for native (parse_workflow_data) type="workflow" orchestration nodes: they own an
         # output dataset and submit a child workflow at runtime. CWL/snakemake sub-workflow nodes
         # are built by other parsers and stay False, keeping the transparent recursion semantics.
         self.is_sub_workflow = False
-        self.scatter_inputs = None  # {param_name: [val1, val2, ...]} resolved at parse time; None if not a scatter step
-        self.scatter_mode = None  # scatter mode string, e.g. "zip"
+        self.scatter_inputs: dict[str, list[Any]] | None = None  # resolved at parse time; None if not a scatter step
+        self.scatter_mode: str | None = None  # scatter mode string, e.g. "zip"
         # Raw root_outputs from the referenced child YAML (set before resolve_nodes, resolved after).
         # Used so scatter templates can use the child YAML's actual tail-step output values instead
         # of the parent scatter step's pre-baked container name (which is never created for
         # panda_task-only child workflows).
-        self.child_root_outputs_raw = None
-        self.child_root_outputs = None
+        self.child_root_outputs_raw: dict[str, Any] | None = None
+        self.child_root_outputs: dict[str, Any] | None = None
 
-    def add_parent(self, id):
+    def add_parent(self, id: int) -> None:
         self.parents.add(id)
 
     # set real input values
-    def set_input_value(self, key, src_key, src_value):
+    def set_input_value(self, key: str, src_key: str, src_value: Any) -> None:
         # replace the value with a list of parameter names and indexes if value is a list,
         # and src and dst are looping params
         if isinstance(src_value, list):
@@ -288,7 +292,7 @@ class Node(object):
             self.inputs[key]["value"] = src_value
 
     # convert inputs to dict inputs
-    def convert_dict_inputs(self, skip_suppressed=False):
+    def convert_dict_inputs(self, skip_suppressed: bool = False) -> dict[str, Any]:
         data = {}
         for k, v in self.inputs.items():
             if skip_suppressed and "suppressed" in v and v["suppressed"]:
@@ -303,7 +307,7 @@ class Node(object):
         return data
 
     # convert outputs to set
-    def convert_set_outputs(self):
+    def convert_set_outputs(self) -> set[Any]:
         data = set()
         for k, v in self.outputs.items():
             if "value" in v:
@@ -311,7 +315,7 @@ class Node(object):
         return data
 
     # verify
-    def verify(self):
+    def verify(self) -> tuple[bool, str]:
         if self.is_leaf:
             dict_inputs = self.convert_dict_inputs(True)
             # check input
@@ -381,7 +385,7 @@ class Node(object):
         return True, ""
 
     # verify raw task parameters supplied by the author
-    def verify_task_params(self):
+    def verify_task_params(self) -> tuple[bool, str]:
         task_params = self.task_params or {}
         if not isinstance(task_params, dict) or not task_params:
             return False, f"task_params is missing or empty for {self.type} step"
@@ -416,7 +420,7 @@ class Node(object):
         return True, ""
 
     # string representation
-    def __str__(self):
+    def __str__(self) -> str:
         outstr = f"ID:{self.id} Name:{self.name} Type:{self.type}\n"
         outstr += f"  Parent:{','.join([str(p) for p in self.parents])}\n"
         outstr += "  Input:\n"
@@ -432,11 +436,11 @@ class Node(object):
         return outstr
 
     # short description
-    def short_desc(self):
+    def short_desc(self) -> str:
         return f"ID:{self.id} Name:{self.name} Type:{self.type}"
 
     # resolve workload-specific parameters
-    def resolve_params(self, task_template=None, id_map=None, workflow=None):
+    def resolve_params(self, task_template: dict[str, Any], id_map: "dict[int, Node]", workflow: "Node | None" = None) -> None:
         if self.type in ["prun", "junction", "reana"]:
             dict_inputs = self.convert_dict_inputs()
             if "opt_secondaryDSs" in dict_inputs:
@@ -493,7 +497,7 @@ class Node(object):
             [n.resolve_params(task_template, id_map, self) for n in self.sub_nodes]
 
     # create task params
-    def make_task_params(self, task_template, id_map, workflow_node):
+    def make_task_params(self, task_template: dict[str, Any], id_map: "dict[int, Node]", workflow_node: "Node | None") -> dict[str, Any] | None:
         # A raw-task-params step carries task parameters written by the author, so there is no
         # command line to parse and no task template to merge. The parameters are passed through
         # as they are: dataset references and ${TASKID} stay unresolved here on purpose, since
@@ -515,7 +519,7 @@ class Node(object):
             if "opt_containerImage" in dict_inputs and dict_inputs["opt_containerImage"]:
                 container_image = dict_inputs["opt_containerImage"]
             if use_athena:
-                task_params = copy.deepcopy(task_template["athena"])
+                task_params: dict[str, Any] = copy.deepcopy(task_template["athena"])
             else:
                 task_params = copy.deepcopy(task_template["container"])
             task_params["taskName"] = task_name
@@ -530,6 +534,10 @@ class Node(object):
                     dict_inputs["opt_args"] += f" --outputs {results_json}"
                 else:
                     m = re.search("(--outputs)( +|=)([^ ]+)", dict_inputs["opt_args"])
+                    if m is None:
+                        # --outputs appears in the string but carries no value, so there is
+                        # nothing to append results.json to
+                        raise ValueError(f"""--outputs has no value in opt_args '{dict_inputs["opt_args"]}'""")
                     if results_json not in m.group(3):
                         tmp_dst = m.group(1) + "=" + m.group(3) + "," + results_json
                         dict_inputs["opt_args"] = re.sub(m.group(0), tmp_dst, dict_inputs["opt_args"])
@@ -588,12 +596,16 @@ class Node(object):
                         dict_inputs["opt_args"] = re.sub(tmp_src, tmp_dst, dict_inputs["opt_args"])
             com += ["--exec", dict_inputs["opt_exec"]]
             com += ["--outDS", task_name]
+            # argv-shaped, and the else branch puts a None where the image name would be.
+            # Built with list() rather than copy.copy() so the element type comes from the
+            # declaration: com[1:] is already a fresh list, so this also drops a second copy.
+            parse_com: list[str | None]
             if container_image:
                 com += ["--containerImage", container_image]
-                parse_com = copy.copy(com[1:])
+                parse_com = list(com[1:])
             else:
                 # add dummy container to keep build step consistent
-                parse_com = copy.copy(com[1:])
+                parse_com = list(com[1:])
                 parse_com += ["--containerImage", None]
             # force a writable temp base for dry parsing regardless of process cwd
             parse_com += ["--tmpDir", tempfile.gettempdir()]
@@ -640,10 +652,16 @@ class Node(object):
             # outputs
             for tmp_item in task_params["jobParameters"]:
                 if tmp_item["type"] == "template" and tmp_item["param_type"] == "output":
+                    # the output type is the tail of the dataset name for a regex output and
+                    # the suffix of the filename template otherwise
                     if tmp_item["value"].startswith("regex|"):
-                        self.output_types.append(re.search(r"_([^_]+)/$", tmp_item["dataset"]).group(1))
+                        source, pattern = tmp_item["dataset"], r"_([^_]+)/$"
                     else:
-                        self.output_types.append(re.search(r"}\.(.+)$", tmp_item["value"]).group(1))
+                        source, pattern = tmp_item["value"], r"}\.(.+)$"
+                    tmp_match = re.search(pattern, source)
+                    if tmp_match is None:
+                        raise ValueError(f"cannot extract the output type from '{source}'")
+                    self.output_types.append(tmp_match.group(1))
             # add a dummy output if empty. this is to allow association to downstream steps which is described through outputs
             if not self.output_types:
                 self.output_types.append("dummy")
@@ -744,7 +762,7 @@ class Node(object):
         return None
 
     # get global parameters in the workflow
-    def get_global_parameters(self):
+    def get_global_parameters(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         if self.is_leaf:
             root_inputs = self.upper_root_inputs
         else:
@@ -763,7 +781,7 @@ class Node(object):
         return loop_params, workflow_params
 
     # get all sub node IDs
-    def get_all_sub_node_ids(self, all_ids=None):
+    def get_all_sub_node_ids(self, all_ids: set[int] | None = None) -> set[int]:
         if all_ids is None:
             all_ids = set()
         all_ids.add(self.id)
@@ -777,7 +795,7 @@ class Node(object):
         return all_ids
 
     # get loop param name
-    def get_loop_param_name(self, k):
+    def get_loop_param_name(self, k: str) -> str | None:
         param = k.split("#")[-1]
         m = re.search(r"^param_(.+)", param)
         if m:
@@ -785,7 +803,7 @@ class Node(object):
         return None
 
     # def get input dataset list
-    def get_input_ds_list(self, dict_inputs, id_map):
+    def get_input_ds_list(self, dict_inputs: dict[str, Any], id_map: "dict[int, Node]") -> list[str]:
         if "opt_inDS" not in dict_inputs:
             return []
         if isinstance(dict_inputs["opt_inDS"], list):
@@ -793,6 +811,12 @@ class Node(object):
         else:
             is_list_in_ds = False
         if "opt_inDsType" not in dict_inputs or not dict_inputs["opt_inDsType"]:
+            # A list when several input datasets are given, otherwise the single suffix
+            # string, and None until a parent supplies one. is_list_in_ds decides which,
+            # and every use below is guarded by that same flag -- an invariant the type
+            # system cannot express, hence Any rather than a union mypy would reject at
+            # each use.
+            in_ds_suffix: Any
             if is_list_in_ds:
                 in_ds_suffix = []
                 in_ds_list = dict_inputs["opt_inDS"]
@@ -819,7 +843,7 @@ class Node(object):
         return list_in_ds
 
 
-def _sub_nodes_are_objects(sub_nodes):
+def _sub_nodes_are_objects(sub_nodes: Any) -> bool:
     # After resolve_nodes, a native sub-workflow node stores its children as resolved int IDs
     # (the children are spliced into the flat node list and processed there). CWL/snakemake
     # sub-workflows instead keep their children as nested Node objects. Recurse only into the
@@ -828,7 +852,7 @@ def _sub_nodes_are_objects(sub_nodes):
 
 
 # dump nodes
-def dump_nodes(node_list, dump_str=None, only_leaves=False):
+def dump_nodes(node_list: Iterable[Node], dump_str: str | None = None, only_leaves: bool = False) -> str:
     if dump_str is None:
         dump_str = "\n"
     for node in node_list:
@@ -846,7 +870,7 @@ def dump_nodes(node_list, dump_str=None, only_leaves=False):
 
 
 # get id map
-def get_node_id_map(node_list, id_map=None):
+def get_node_id_map(node_list: Iterable[Node], id_map: dict[int, Node] | None = None) -> dict[int, Node]:
     if id_map is None:
         id_map = {}
     for node in node_list:
@@ -859,7 +883,7 @@ def get_node_id_map(node_list, id_map=None):
 
 
 # get all parents
-def get_all_parents(node_list, all_parents=None):
+def get_all_parents(node_list: Iterable[Node], all_parents: set[int] | None = None) -> set[int]:
     if all_parents is None:
         all_parents = set()
     for node in node_list:
@@ -872,7 +896,7 @@ def get_all_parents(node_list, all_parents=None):
 
 
 # set workflow outputs
-def set_workflow_outputs(node_list, all_parents=None):
+def set_workflow_outputs(node_list: Iterable[Node], all_parents: set[int] | None = None) -> None:
     if all_parents is None:
         all_parents = get_all_parents(node_list)
     for node in node_list:
@@ -925,7 +949,15 @@ def set_workflow_outputs(node_list, all_parents=None):
 
 
 # resolve nodes
-def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_name, log_stream):
+def resolve_nodes(
+    node_list: Iterable[Node],
+    root_inputs: dict[str, Any],
+    data: dict[str, Any],
+    serial_id: int,
+    parent_ids: set[int],
+    out_ds_name: str,
+    log_stream: Any,
+) -> tuple[int, list[Node], list[Node]]:
     # member_id is a per-call sequence (starts at 1) used only for output dataset names. node.id
     # stays unique within this parsed definition; across scatter iterations it repeats, since each
     # iteration is a separate workflow built later from this template.
@@ -934,7 +966,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
     # sub-workflow, or a scatter parent's child template) restarts member_id at 1 naturally.
     member_counter = [0]
 
-    def _next_member():
+    def _next_member() -> int:
         member_counter[0] += 1
         return member_counter[0]
 
@@ -942,8 +974,8 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
         kk = k.split("#")[-1]
         if kk in data:
             root_inputs[k] = data[kk]
-    tmp_to_real_id_map = {}
-    resolved_map = {}
+    tmp_to_real_id_map: dict[int, set[int]] = {}
+    resolved_map: dict[int, list[Node]] = {}
     # map of object identity to original temporary node ID used in resolved_map keys
     node_key_map = {}
     all_nodes = []
@@ -1012,9 +1044,10 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                     scatters = [{item: v} for v in node.inputs[item]["value"]]
                 else:
                     [i.update({item: v}) for i, v in zip(scatters, node.inputs[item]["value"])]
-            for idx, item in enumerate(scatters):
+            # scatters is filled by the loop above, which runs since node.scatter is not empty
+            for idx, scatter_item in enumerate(scatters or []):
                 sc_node = copy.deepcopy(node)
-                for k, v in item.items():
+                for k, v in scatter_item.items():
                     sc_node.inputs[k]["value"] = v
                 for tmp_node in sc_node.sub_nodes:
                     tmp_node.scatter_index = idx
@@ -1051,7 +1084,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             else:
                 serial_id, sub_tail_nodes, sc_node.sub_nodes = resolve_nodes(
                     sc_node.sub_nodes,
-                    sc_node.root_inputs,
+                    sc_node.root_inputs or {},
                     sc_node.convert_dict_inputs(),
                     serial_id,
                     sc_node.parents,
@@ -1146,7 +1179,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
     return serial_id, tail_nodes, all_nodes
 
 
-def extract_child_workflow_definition(workflow_node: dict, all_nodes: list) -> dict:
+def extract_child_workflow_definition(workflow_node: dict[str, Any], all_nodes: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Build a child workflow definition dict from a workflow-type node and its sub-nodes.
 
@@ -1168,7 +1201,7 @@ def extract_child_workflow_definition(workflow_node: dict, all_nodes: list) -> d
 
 
 # parse workflow data for native YAML workflow
-def parse_workflow_data(data, log_stream, _id_counter=None):
+def parse_workflow_data(data: dict[str, Any], log_stream: Any, _id_counter: list[int] | None = None) -> tuple[list[Node], dict[str, Any]]:
     # _id_counter is a mutable [int] shared across recursive calls to guarantee unique node IDs
     if _id_counter is None:
         _id_counter = [0]
@@ -1185,7 +1218,7 @@ def parse_workflow_data(data, log_stream, _id_counter=None):
     steps = workflow_data.get("steps", {})
     node_list = []
     node_name_map = {}
-    all_child_nodes = []  # child nodes from inline sub-workflows, to be merged at the end
+    all_child_nodes: list[Any] = []  # child nodes from inline sub-workflows, to be merged at the end
 
     # first pass: create all nodes
     for step_name, step_spec in steps.items():
@@ -1303,7 +1336,7 @@ def parse_workflow_data(data, log_stream, _id_counter=None):
     sorted_nodes = []
     node_id_map = {n.id: n for n in combined_node_list}
 
-    def visit(n):
+    def visit(n: Node) -> None:
         if n.id in visited:
             return
         for parent_id in n.parents:
@@ -1318,7 +1351,7 @@ def parse_workflow_data(data, log_stream, _id_counter=None):
     return sorted_nodes, root_inputs
 
 
-def validate_workflow_description(description) -> tuple[bool, list]:
+def validate_workflow_description(description: Any) -> tuple[bool, list[str]]:
     """
     Validate the structure of a workflow description before the workflow is registered
 

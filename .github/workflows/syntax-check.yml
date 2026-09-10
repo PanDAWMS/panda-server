@@ -23,9 +23,12 @@ jobs:
       with:
         python-version: '3.11'
 
+    # --diff-filter=d drops the paths the PR deleted. The diff names them, and
+    # py_compile is then handed a file that is no longer there, which fails the
+    # step for a deletion that was the point of the change.
     - name: Check syntax of changed files
       run: |
-        files=$(git diff --name-only origin/master...HEAD -- '*.py')
+        files=$(git diff --name-only --diff-filter=d origin/master...HEAD -- '*.py')
         if [ -n "$files" ]; then
           echo "$files" | xargs -n1 python -m py_compile
         else

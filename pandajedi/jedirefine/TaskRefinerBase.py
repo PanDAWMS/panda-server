@@ -3,14 +3,19 @@ import datetime
 import re
 import sys
 import uuid
+from typing import Any, List
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction, JediException
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.taskbuffer import EventServiceUtils, task_split_rules
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
 from pandaserver.taskbuffer.JediFileSpec import JediFileSpec
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 
 from . import RefinerUtils
 
@@ -24,41 +29,58 @@ except ImportError:
 
 # base class for task refine
 class TaskRefinerBase(object):
+    # installed on this class by Interaction.installSC() at the bottom of this module
+    SC_SUCCEEDED: Interaction.StatusCode
+    SC_FAILED: Interaction.StatusCode
+    SC_FATAL: Interaction.StatusCode
+    SC_WAITING: Interaction.StatusCode
+
+    # Set by extractCommon() before any of the methods that read it run, so it is
+    # declared non-Optional: nothing in this class guards it, and a refiner that
+    # reads the task spec before one is installed is a bug either way.
+    taskSpec: JediTaskSpec
+
+    # Installed by initializeRefiner() before any of the refine methods run, for the same
+    # reason as taskSpec: the only two callers pass a real logger, and __init__ passes None
+    # solely to create the attribute.
+    tmpLog: MsgWrapper
+
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         self.ddmIF = ddmIF
         self.taskBufferIF = taskBufferIF
         self.initializeRefiner(None)
         self.refresh()
 
     # refresh
-    def refresh(self):
+    def refresh(self) -> None:
         self.siteMapper = self.taskBufferIF.get_site_mapper()
 
     # initialize
-    def initializeRefiner(self, tmpLog):
-        self.taskSpec = None
-        self.inMasterDatasetSpec = []
-        self.inSecDatasetSpecList = []
-        self.outDatasetSpecList = []
-        self.outputTemplateMap = {}
-        self.jobParamsTemplate = None
-        self.cloudName = None
-        self.siteName = None
-        self.tmpLog = tmpLog
-        self.updatedTaskParams = None
-        self.unmergeMasterDatasetSpec = {}
-        self.unmergeDatasetSpecMap = {}
-        self.oldTaskStatus = None
-        self.unknownDatasetList = []
-        self.in_content_dataset_specs = []
+    def initializeRefiner(self, tmpLog: MsgWrapper | None) -> None:
+        self.taskSpec = None  # type: ignore[assignment]
+        self.inMasterDatasetSpec: list[JediDatasetSpec] = []
+        self.inSecDatasetSpecList: list[JediDatasetSpec] = []
+        self.outDatasetSpecList: List[JediDatasetSpec] = []
+        # keyed by JediDatasetSpec.outputMapKey(); one entry per file associated to the dataset
+        self.outputTemplateMap: dict[str, list[dict[str, Any]]] = {}
+        self.jobParamsTemplate: str | None = None
+        self.cloudName: str | None = None
+        self.siteName: str | None = None
+        self.tmpLog = tmpLog  # type: ignore[assignment]
+        self.updatedTaskParams: dict[str, Any] | None = None
+        self.unmergeMasterDatasetSpec: dict[str, JediDatasetSpec] = {}
+        self.unmergeDatasetSpecMap: dict[str, JediDatasetSpec] = {}
+        self.oldTaskStatus: str | None = None
+        self.unknownDatasetList: list[str] = []
+        self.in_content_dataset_specs: list[JediDatasetSpec] = []
 
     # set jobParamsTemplate
-    def setJobParamsTemplate(self, jobParamsTemplate):
+    def setJobParamsTemplate(self, jobParamsTemplate: str) -> None:
         self.jobParamsTemplate = jobParamsTemplate
 
     # create a unique identifier of the payload based on the task parameters
-    def create_payload_identifier(self, task_param_map: dict) -> str:
+    def create_payload_identifier(self, task_param_map: dict[str, Any]) -> str:
         """
         Create a unique identifier of the payload based on the task parameters
         :param task_param_map: dictionary of task parameters
@@ -83,7 +105,13 @@ class TaskRefinerBase(object):
         return uuid.uuid5(uuid.NAMESPACE_DNS, base_str).hex
 
     # extract common parameters
-    def extractCommon(self, jediTaskID, taskParamMap, workQueueMapper, splitRule):
+    def extractCommon(
+        self,
+        jediTaskID: int,
+        taskParamMap: dict[str, Any],
+        workQueueMapper: WorkQueueMapper,
+        splitRule: str | None,
+    ) -> None:
         # remove irrelevant
         if "maxAttempt" in taskParamMap and not taskParamMap["maxAttempt"]:
             del taskParamMap["maxAttempt"]
@@ -465,7 +493,7 @@ class TaskRefinerBase(object):
         self.taskSpec.workQueue_ID = workQueue.queue_id
 
         # Initialize the global share
-        self.taskSpec.gshare = RefinerUtils.get_initial_global_share(self.taskBufferIF, self.taskSpec.jediTaskID, taskSpec, taskParamMap)
+        self.taskSpec.gshare = RefinerUtils.get_initial_global_share(self.taskBufferIF, jediTaskID, taskSpec, taskParamMap)
 
         # Initialize the resource type
         try:
@@ -477,7 +505,7 @@ class TaskRefinerBase(object):
         return
 
     # basic refinement procedure
-    def doBasicRefine(self, taskParamMap):
+    def doBasicRefine(self, taskParamMap: dict[str, Any]) -> None:
         # get input/output/log dataset specs
         nIn = 0
         nOutMap = {}
@@ -491,7 +519,7 @@ class TaskRefinerBase(object):
             itemList += [taskParamMap["log_merge"]]
         # pseudo input
         if "noInput" in taskParamMap and taskParamMap["noInput"] is True:
-            tmpItem = {}
+            tmpItem: dict[str, Any] = {}
             tmpItem["type"] = "template"
             tmpItem["value"] = ""
             tmpItem["dataset"] = "pseudo_dataset"
@@ -512,12 +540,13 @@ class TaskRefinerBase(object):
             # look for datasets
             if tmpItem["type"] == "template" and "dataset" in tmpItem:
                 # avoid duplication
-                if tmpItem["dataset"] not in allDsList:
-                    allDsList.append(tmpItem["dataset"])
+                origDatasetName = tmpItem["dataset"]
+                if origDatasetName not in allDsList:
+                    allDsList.append(origDatasetName)
                 else:
                     continue
                 datasetSpec = JediDatasetSpec()
-                datasetSpec.datasetName = tmpItem["dataset"]
+                datasetSpec.datasetName = origDatasetName
                 datasetSpec.jediTaskID = self.taskSpec.jediTaskID
                 datasetSpec.type = tmpItem["param_type"]
                 if "container" in tmpItem:
@@ -573,7 +602,7 @@ class TaskRefinerBase(object):
                     if "expandedList" not in tmpItem:
                         tmpItem["expandedList"] = []
                     # dataset names could be comma-concatenated
-                    datasetNameList = datasetSpec.datasetName.split(",")
+                    datasetNameList = origDatasetName.split(",")
                     # datasets could be added by incexec
                     incexecDS = f"dsFor{datasetSpec.streamName}"
                     # remove /XYZ
@@ -622,7 +651,7 @@ class TaskRefinerBase(object):
                                 # get datasets in dataset container
                                 dataset_names_in_container = tmpIF.expandContainer(datasetName)
                                 # sort datasets to process online complete replicas first
-                                tmp_ok_list = []
+                                tmp_ok_list: list[Any] = []
                                 tmp_ng_list = []
                                 for tmp_dataset_name_in_container in dataset_names_in_container:
                                     # skip the check if enough datasets are OK
@@ -682,7 +711,10 @@ class TaskRefinerBase(object):
                     if inDatasetSpecList == [] and self.oldTaskStatus != "rerefine":
                         errStr = f'doBasicRefine : unknown input dataset "{datasetSpec.datasetName}"'
                         self.taskSpec.setErrDiag(errStr)
-                        if datasetSpec.datasetName not in self.unknownDatasetList:
+                        # the name is bound into an INSERT for JEDI_Datasets and into the SELECT that
+                        # guards it, so a NULL would insert a duplicate row on every refine instead of
+                        # matching. The error raised below carries the name either way.
+                        if datasetSpec.datasetName is not None and datasetSpec.datasetName not in self.unknownDatasetList:
                             self.unknownDatasetList.append(datasetSpec.datasetName)
                         raise JediException.UnknownDatasetError(errStr)
                     # set master flag
@@ -753,7 +785,7 @@ class TaskRefinerBase(object):
                     # make unmerged dataset
                     if "mergeOutput" in taskParamMap and taskParamMap["mergeOutput"] is True:
                         umDatasetSpec = JediDatasetSpec()
-                        umDatasetSpec.datasetName = "panda.um." + datasetSpec.datasetName
+                        umDatasetSpec.datasetName = "panda.um." + origDatasetName
                         umDatasetSpec.jediTaskID = self.taskSpec.jediTaskID
                         umDatasetSpec.storageToken = "TOMERGE"
                         umDatasetSpec.vo = datasetSpec.vo
@@ -873,7 +905,7 @@ class TaskRefinerBase(object):
         return
 
     # replace placeholder with dict provided by prepro job
-    def replacePlaceHolders(self, paramItem, placeHolderName, newValue):
+    def replacePlaceHolders(self, paramItem: Any, placeHolderName: str, newValue: Any) -> None:
         if isinstance(paramItem, dict):
             # loop over all dict params
             for tmpParName, tmpParVal in paramItem.items():
@@ -889,7 +921,7 @@ class TaskRefinerBase(object):
                 self.replacePlaceHolders(tmpItem, placeHolderName, newValue)
 
     # refinement procedure for preprocessing
-    def doPreProRefine(self, taskParamMap):
+    def doPreProRefine(self, taskParamMap: dict[str, Any]) -> tuple[bool | None, dict[str, Any]]:
         # no preprocessing
         if "preproSpec" not in taskParamMap:
             return None, taskParamMap
@@ -966,7 +998,7 @@ class TaskRefinerBase(object):
         return True, taskParamMap
 
     # set split rule
-    def setSplitRule(self, taskParamMap, key_or_value, rule_token):
+    def setSplitRule(self, taskParamMap: dict[str, Any] | None, key_or_value: str | int | None, rule_token: str) -> None:
         if taskParamMap is not None:
             if key_or_value not in taskParamMap:
                 self.taskSpec.splitRule = task_split_rules.remove_rule(self.taskSpec.splitRule, rule_token)
@@ -977,7 +1009,7 @@ class TaskRefinerBase(object):
                 self.taskSpec.splitRule = task_split_rules.remove_rule(self.taskSpec.splitRule, rule_token)
                 return
             tmpStr = f"{rule_token}={key_or_value}"
-        if self.taskSpec.splitRule in [None, ""]:
+        if not self.taskSpec.splitRule:
             self.taskSpec.splitRule = tmpStr
         else:
             tmpMatch = re.search(rule_token + "=(-*\d+)(,-*\d+)*", self.taskSpec.splitRule)
@@ -990,7 +1022,7 @@ class TaskRefinerBase(object):
         return
 
     # get parameters for event service merging
-    def getParamsForEventServiceMerging(self, taskParamMap):
+    def getParamsForEventServiceMerging(self, taskParamMap: dict[str, Any]) -> str | None:
         # no event service
         if not self.taskSpec.useEventService() or self.taskSpec.on_site_merging():
             return None
@@ -1001,7 +1033,7 @@ class TaskRefinerBase(object):
             if "transPath" in taskParamMap["esmergeSpec"]:
                 transPath = taskParamMap["esmergeSpec"]["transPath"]
             if "jobParameters" in taskParamMap["esmergeSpec"]:
-                jobParameters = jobParameters["esmergeSpec"]["jobParameters"]
+                jobParameters = taskParamMap["esmergeSpec"]["jobParameters"]
         # return
         return "<PANDA_ESMERGE_TRF>" + transPath + "</PANDA_ESMERGE_TRF>" + "<PANDA_ESMERGE_JOBP>" + jobParameters + "</PANDA_ESMERGE_JOBP>"
 

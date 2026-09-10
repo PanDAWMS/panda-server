@@ -2,11 +2,12 @@ import os
 import sys
 
 import requests
+
 from pandaserver.config import panda_config
 
 
 # get secret key
-def getSecretKey(pandaID):
+def getSecretKey(pandaID: int) -> tuple[str | None, str]:
     try:
         # get parameters for panda proxy
         proxyURLSSL = panda_config.pandaProxy_URLSSL

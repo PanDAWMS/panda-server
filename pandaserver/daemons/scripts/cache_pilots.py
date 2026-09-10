@@ -1,7 +1,9 @@
 import os
 import shutil
 import traceback
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -20,7 +22,7 @@ source_file_list = [
 default_dest_dir = getattr(panda_config, "pilot_cache_dir", "/var/cache/pandaserver/pilot")
 
 
-def main(argv=tuple(), tbuf=None, **kwargs):
+def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     _logger.debug("start")
     try:
         # ensure the destination directory

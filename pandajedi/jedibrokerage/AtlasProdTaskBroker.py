@@ -2,13 +2,15 @@ import copy
 import datetime
 import math
 import random
-import sys
 import traceback
+from collections.abc import Collection
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.ThreadUtils import (
     ListWithLock,
@@ -16,9 +18,12 @@ from pandajedi.jedicore.ThreadUtils import (
     ThreadPool,
     WorkerThread,
 )
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandajedi.jedirefine import RefinerUtils
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.WorkQueue import WorkQueue
 
 from . import AtlasBrokerUtils
 from .AtlasProdJobBroker import AtlasProdJobBroker
@@ -30,15 +35,15 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # brokerage for ATLAS production
 class AtlasProdTaskBroker(TaskBrokerBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         TaskBrokerBase.__init__(self, taskBufferIF, ddmIF)
 
     # main to check
-    def doCheck(self, taskSpecList):
+    def doCheck(self, taskSpecList: list[JediTaskSpec]) -> tuple[Interaction.StatusCode, dict[str, Any]]:
         return self.SC_SUCCEEDED, {}
 
     # main to assign
-    def doBrokerage(self, inputList, vo, prodSourceLabel, workQueue, resource_name):
+    def doBrokerage(self, inputList: list[Any], vo: str, prodSourceLabel: str, workQueue: WorkQueue, resource_name: str) -> Interaction.StatusCode:
         # list with a lock
         inputListWorld = ListWithLock([])
 
@@ -81,6 +86,9 @@ class AtlasProdTaskBroker(TaskBrokerBase):
             liveCounter = MapWithLock(allRwMap)
             # make workers
             ddmIF = self.ddmIF.getInterface(vo)
+            if ddmIF is None:
+                tmpLog.error(f"no DDM interface for vo={vo}")
+                return retTmpError
             for iWorker in range(4):
                 thr = AtlasProdTaskBrokerThread(inputListWorld, threadPool, self.taskBufferIF, ddmIF, fullRWs, liveCounter, workQueue)
                 thr.start()
@@ -93,7 +101,16 @@ class AtlasProdTaskBroker(TaskBrokerBase):
 # thread for real worker
 class AtlasProdTaskBrokerThread(WorkerThread):
     # constructor
-    def __init__(self, inputList, threadPool, taskbufferIF, ddmIF, fullRW, prioRW, workQueue):
+    def __init__(
+        self,
+        inputList: ListWithLock,
+        threadPool: ThreadPool,
+        taskbufferIF: JediTaskBufferInterface,
+        ddmIF: Interaction.CommandSendInterface,
+        fullRW: dict[str, Any],
+        prioRW: MapWithLock,
+        workQueue: WorkQueue,
+    ) -> None:
         # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributres
@@ -105,10 +122,10 @@ class AtlasProdTaskBrokerThread(WorkerThread):
         self.prioRW = prioRW
         self.numTasks = 0
         self.workQueue = workQueue
-        self.summaryList = None
+        self.summaryList: list[str] = []
 
     # init summary list
-    def init_summary_list(self, header, comment, initial_list):
+    def init_summary_list(self, header: str, comment: str | None, initial_list: Collection[Any]) -> None:
         self.summaryList = []
         self.summaryList.append(f"===== {header} =====")
         if comment:
@@ -116,7 +133,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
         self.summaryList.append(f"the number of initial candidates: {len(initial_list)}")
 
     # dump summary
-    def dump_summary(self, tmp_log, final_candidates=None):
+    def dump_summary(self, tmp_log: MsgWrapper, final_candidates: Collection[Any] | None = None) -> None:
         if not self.summaryList:
             return
         tmp_log.info("")
@@ -128,13 +145,13 @@ class AtlasProdTaskBrokerThread(WorkerThread):
         tmp_log.info("")
 
     # make summary
-    def add_summary_message(self, old_list, new_list, message):
+    def add_summary_message(self, old_list: Collection[Any], new_list: Collection[Any], message: str) -> None:
         if old_list and len(old_list) != len(new_list):
             red = int(math.ceil(((len(old_list) - len(new_list)) * 100) / len(old_list)))
             self.summaryList.append(f"{len(old_list):>5} -> {len(new_list):>3} candidates, {red:>3}% cut : {message}")
 
     # post-process for errors
-    def post_process_for_error(self, task_spec, tmp_log, msg, dump_summary=True):
+    def post_process_for_error(self, task_spec: JediTaskSpec, tmp_log: MsgWrapper, msg: str, dump_summary: bool = True) -> None:
         if dump_summary:
             self.dump_summary(tmp_log)
         tmp_log.error(msg)
@@ -143,7 +160,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
         self.taskBufferIF.updateTask_JEDI(task_spec, {"jediTaskID": task_spec.jediTaskID}, oldStatus=["assigning"], updateDEFT=False, setFrozenTime=False)
 
     # main function
-    def runImpl(self):
+    def runImpl(self) -> None:
         # cutoff for disk in TB
         diskThreshold = self.taskBufferIF.getConfigValue(self.msgType, f"DISK_THRESHOLD_{self.workQueue.queue_name}", "jedi", "atlas")
         if diskThreshold is None:
@@ -542,7 +559,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                         self.prioRW.acquire()
                         nucleusRW = self.prioRW[taskSpec.currentPriority]
                         self.prioRW.release()
-                        totalWeight = 0
+                        totalWeight: float = 0
                         nucleusweights = []
                         for tmpNucleus, tmpNucleusSpec in nucleusList.items():
                             if tmpNucleus not in nucleusRW:
@@ -618,9 +635,8 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                         else:
                             rwMap[candidateNucleus] = taskRW
                     self.prioRW.release()
-            except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                errMsg = f"{self.__class__.__name__}.runImpl() failed with {errtype.__name__} {errvalue} "
+            except Exception as e:
+                errMsg = f"{self.__class__.__name__}.runImpl() failed with {type(e).__name__} {e} "
                 errMsg += f"lastJediTaskID={lastJediTaskID} "
                 errMsg += traceback.format_exc()
                 logger.error(errMsg)

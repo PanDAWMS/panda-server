@@ -3,6 +3,7 @@ import os
 import re
 import sys
 from datetime import datetime, timedelta
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -57,8 +58,10 @@ class WorkflowModule(BaseModule):
         else:
             tmp_log.warning("no workflow found; skipped")
             return None
+        # no branch above produced a value, which the return type covers as None
+        return None
 
-    def get_child_workflows(self, parent_id: int) -> list:
+    def get_child_workflows(self, parent_id: int) -> list[WorkflowSpec]:
         """
         Retrieve all child workflows of a given parent workflow
 
@@ -110,6 +113,8 @@ class WorkflowModule(BaseModule):
         else:
             tmp_log.warning("no step found; skipped")
             return None
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def get_workflow_data(self, data_id: int) -> WFDataSpec | None:
         """
@@ -138,6 +143,8 @@ class WorkflowModule(BaseModule):
         else:
             tmp_log.warning("no data found; skipped")
             return None
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def get_workflow_data_by_name(self, name: str, workflow_id: int | None) -> WFDataSpec | None:
         """
@@ -153,7 +160,7 @@ class WorkflowModule(BaseModule):
         comment = " /* DBProxy.get_workflow_data_by_name */"
         tmp_log = self.create_tagged_logger(comment, f"name={name}, workflow_id={workflow_id}")
         sql = f"SELECT {WFDataSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_data " f"WHERE name=:name "
-        var_map = {":name": name}
+        var_map: dict[str, Any] = {":name": name}
         if workflow_id is not None:
             sql += "AND workflow_id=:workflow_id "
             var_map[":workflow_id"] = workflow_id
@@ -171,8 +178,12 @@ class WorkflowModule(BaseModule):
         else:
             tmp_log.warning("no data found; skipped")
             return None
+        # no branch above produced a value, which the return type covers as None
+        return None
 
-    def get_steps_of_workflow(self, workflow_id: int, status_filter_list: list | None = None, status_exclusion_list: list | None = None) -> list[WFStepSpec]:
+    def get_steps_of_workflow(
+        self, workflow_id: int, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None
+    ) -> list[WFStepSpec]:
         """
         Retrieve all workflow steps for a given workflow ID
 
@@ -211,7 +222,11 @@ class WorkflowModule(BaseModule):
             return []
 
     def get_data_of_workflow(
-        self, workflow_id: int, status_filter_list: list | None = None, status_exclusion_list: list | None = None, type_filter_list: list | None = None
+        self,
+        workflow_id: int,
+        status_filter_list: list[str] | None = None,
+        status_exclusion_list: list[str] | None = None,
+        type_filter_list: list[str] | None = None,
     ) -> list[WFDataSpec]:
         """
         Retrieve all workflow data for a given workflow ID
@@ -256,7 +271,7 @@ class WorkflowModule(BaseModule):
             return []
 
     def query_workflows_old(
-        self, status_filter_list: list | None = None, status_exclusion_list: list | None = None, check_interval_sec: int = 300
+        self, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None, check_interval_sec: int = 300
     ) -> list[WorkflowSpec]:
         """
         Retrieve list of workflows with optional status filtering
@@ -307,7 +322,7 @@ class WorkflowModule(BaseModule):
             return []
 
     def query_workflows(
-        self, status_filter_list: list | None = None, status_exclusion_list: list | None = None, check_interval_sec: int = 300
+        self, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None, check_interval_sec: int = 300
     ) -> list[WorkflowSpec]:
         """
         Retrieve list of workflows with optional status filtering, ordered for efficient
@@ -418,6 +433,8 @@ class WorkflowModule(BaseModule):
                     return True
         except Exception as e:
             tmp_log.error(f"failed to lock workflow: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def unlock_workflow(self, workflow_id: int, locked_by: str) -> bool | None:
         """
@@ -455,6 +472,8 @@ class WorkflowModule(BaseModule):
                     return True
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def lock_workflow_step(self, step_id: int, locked_by: str, lock_expiration_sec: int = 120) -> bool | None:
         """
@@ -502,6 +521,8 @@ class WorkflowModule(BaseModule):
                     return True
         except Exception as e:
             tmp_log.error(f"failed to lock workflow step: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def unlock_workflow_step(self, step_id: int, locked_by: str) -> bool | None:
         """
@@ -539,6 +560,8 @@ class WorkflowModule(BaseModule):
                     return True
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow step: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def lock_workflow_data(self, data_id: int, locked_by: str, lock_expiration_sec: int = 120) -> bool | None:
         """
@@ -586,6 +609,8 @@ class WorkflowModule(BaseModule):
                     return True
         except Exception as e:
             tmp_log.error(f"failed to lock workflow data: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def unlock_workflow_data(self, data_id: int, locked_by: str) -> bool | None:
         """
@@ -623,6 +648,8 @@ class WorkflowModule(BaseModule):
                     return True
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow data: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def get_deft_task_status(self, task_id: int) -> str | None:
         """
@@ -654,7 +681,7 @@ class WorkflowModule(BaseModule):
             tmp_log.error(f"failed to get the DEFT task status: {e}")
             return None
 
-    def insert_step_task(self, task_params_map: dict, user_dn: str, parent_tid: int | None = None) -> tuple[int | None, str]:
+    def insert_step_task(self, task_params_map: dict[str, Any], user_dn: str, parent_tid: int | None = None) -> tuple[int | None, str]:
         """
         Queue the task of a workflow step in DEFT, resolving the late-bound task ID
 
@@ -962,11 +989,11 @@ class WorkflowModule(BaseModule):
     def upsert_workflow_entities(
         self,
         workflow_id: int | None,
-        actions_dict: dict | None = None,
+        actions_dict: dict[str, str | None] | None = None,
         workflow_spec: WorkflowSpec | None = None,
         step_specs: list[WFStepSpec] | None = None,
         data_specs: list[WFDataSpec] | None = None,
-    ) -> dict | None:
+    ) -> dict[str, int | None] | None:
         """
         Update or insert (if not existing) steps and data associated with a workflow within a transaction
 
@@ -1009,8 +1036,9 @@ class WorkflowModule(BaseModule):
             n_steps_upserted = 0
             n_data_upserted = 0
             with self.transaction(tmp_log=tmp_log) as (cur, _):
-                # action for data
-                if action_of_data == "insert":
+                # action for data. Each action was only set above when the matching
+                # specs were given, which is what the second test says
+                if action_of_data == "insert" and data_specs:
                     for data_spec in data_specs:
                         data_spec.creation_time = naive_utcnow()
                         sql_insert = (
@@ -1025,7 +1053,7 @@ class WorkflowModule(BaseModule):
                         data_spec.data_id = data_id
                         n_data_upserted += 1
                         tmp_log.debug(f"inserted a data workflow_id={workflow_id} data_id={data_id}")
-                elif action_of_data == "update":
+                elif action_of_data == "update" and data_specs:
                     for data_spec in data_specs:
                         data_spec.modification_time = naive_utcnow()
                         sql_update = (
@@ -1037,7 +1065,7 @@ class WorkflowModule(BaseModule):
                         n_data_upserted += 1
                         tmp_log.debug(f"updated a data workflow_id={workflow_id} data_id={data_spec.data_id}")
                 # action for steps
-                if action_of_steps == "insert":
+                if action_of_steps == "insert" and step_specs:
                     for step_spec in step_specs:
                         step_spec.creation_time = naive_utcnow()
                         sql_insert = (
@@ -1052,7 +1080,7 @@ class WorkflowModule(BaseModule):
                         step_spec.step_id = step_id
                         n_steps_upserted += 1
                         tmp_log.debug(f"inserted a step workflow_id={workflow_id} step_id={step_id}")
-                elif action_of_steps == "update":
+                elif action_of_steps == "update" and step_specs:
                     for step_spec in step_specs:
                         step_spec.modification_time = naive_utcnow()
                         sql_update = (
@@ -1064,7 +1092,7 @@ class WorkflowModule(BaseModule):
                         n_steps_upserted += 1
                         tmp_log.debug(f"updated a step workflow_id={workflow_id} step_id={step_spec.step_id}")
                 # action for workflow
-                if action_of_workflow == "insert":
+                if action_of_workflow == "insert" and workflow_spec:
                     workflow_spec.creation_time = naive_utcnow()
                     sql_insert = (
                         f"INSERT INTO {panda_config.schemaJEDI}.workflows ({workflow_spec.columnNames()}) "
@@ -1077,7 +1105,7 @@ class WorkflowModule(BaseModule):
                     workflow_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_workflow_id"])))
                     workflow_spec.workflow_id = workflow_id
                     tmp_log.debug(f"inserted a workflow workflow_id={workflow_id}")
-                elif action_of_workflow == "update":
+                elif action_of_workflow == "update" and workflow_spec:
                     workflow_spec.modification_time = naive_utcnow()
                     sql_update = (
                         f"UPDATE {panda_config.schemaJEDI}.workflows " f"SET {workflow_spec.bindUpdateChangesExpression()} " "WHERE workflow_id=:workflow_id "

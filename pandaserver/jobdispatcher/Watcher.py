@@ -12,11 +12,13 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice.closer import Closer
 from pandaserver.jobdispatcher import ErrorCode
 from pandaserver.taskbuffer import EventServiceUtils, retryModule
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.SupErrors import SupErrors
+from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("Watcher")
@@ -24,7 +26,14 @@ _logger = PandaLogger().getLogger("Watcher")
 
 class Watcher(threading.Thread):
     # constructor
-    def __init__(self, taskBuffer, pandaID, single=False, sleepTime=360, sitemapper=None):
+    def __init__(
+        self,
+        taskBuffer: TaskBuffer,
+        pandaID: int,
+        single: bool = False,
+        sleepTime: int = 360,
+        sitemapper: SiteMapper | None = None,
+    ) -> None:
         threading.Thread.__init__(self)
         self.pandaID = pandaID
         self.taskBuffer = taskBuffer
@@ -34,7 +43,7 @@ class Watcher(threading.Thread):
         self.logger = LogWrapper(_logger, str(pandaID))
 
     # main
-    def run(self):
+    def run(self) -> None:
         try:
             while True:
                 self.logger.debug("start")
@@ -157,20 +166,29 @@ class Watcher(threading.Thread):
                                 source = "taskBufferErrorCode"
                                 error_code = job_tmp.taskBufferErrorCode
                                 error_diag = job_tmp.taskBufferErrorDiag
-                                self.logger.debug("Watcher.run 2 will call job_failure_postprocessing")
-                                retryModule.job_failure_postprocessing(
+                                errors = [
+                                    {
+                                        "source": source,
+                                        "error_code": error_code,
+                                        "error_diag": error_diag,
+                                    }
+                                ]
+                                # only the retry rules here, not the whole postprocessing: the error
+                                # classification reads the errors off the job spec rather than from
+                                # this list, so the call above has already run it on this same job,
+                                # and increase_max_failure() adds one to maxFailure each time
+                                self.logger.debug("Watcher.run 2 will call apply_retrial_rules")
+                                retryModule.apply_retrial_rules(
                                     self.taskBuffer,
-                                    job_tmp.PandaID,
-                                    source,
-                                    error_code,
-                                    error_diag,
+                                    job_tmp,
+                                    errors,
                                     job_tmp.attemptNr,
                                 )
-                                self.logger.debug("job_failure_postprocessing 2 is back")
+                                self.logger.debug("apply_retrial_rules 2 is back")
                         except IndexError:
                             pass
                         except Exception as e:
-                            self.logger.error(f"job_failure_postprocessing 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+                            self.logger.error(f"apply_retrial_rules 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
                         cThr = Closer(self.taskBuffer, destDBList, job)
                         cThr.run()

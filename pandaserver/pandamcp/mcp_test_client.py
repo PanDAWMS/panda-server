@@ -56,22 +56,22 @@ if args.token:
     headers["X-Auth-Token"] = f"Bearer {args.token}"
 if args.vo:
     headers["Origin"] = args.vo
-headers = headers or None
+request_headers = headers or None
 
 # select transport
 ssl_kwargs = {"verify": args.ca_bundle} if args.ca_bundle else {}
 
 if args.transport == "streamable-http":
-    transport = StreamableHttpTransport(url=base_url, headers=headers, **ssl_kwargs)
+    transport = StreamableHttpTransport(url=base_url, headers=request_headers, **ssl_kwargs)
 else:
-    transport = SSETransport(url=base_url, headers=headers, **ssl_kwargs)
+    transport = SSETransport(url=base_url, headers=request_headers, **ssl_kwargs)
 
 # create client
 client = Client(transport)
 
 
 # test function
-async def cl():
+async def cl() -> None:
     # Connection is established here
     async with client:
         if client.is_connected():

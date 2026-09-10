@@ -7,7 +7,7 @@ import random
 import re
 import sys
 import time
-from typing import Dict, List, Tuple
+from typing import Any, Sequence
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -39,7 +39,7 @@ class MiscStandaloneModule(BaseModule):
         super().__init__(log_stream)
 
     # get PandaIDs with TaskID
-    def getPandaIDsWithTaskID(self, jediTaskID: int, scout_only: bool = False, unsuccessful_only: bool = False, days=90) -> List[int]:
+    def getPandaIDsWithTaskID(self, jediTaskID: int, scout_only: bool = False, unsuccessful_only: bool = False, days: int = 90) -> list[int]:
         """Get PanDA job IDs for a task.
 
         Args:
@@ -51,7 +51,7 @@ class MiscStandaloneModule(BaseModule):
             days: Look for jobs in the ATLAS_PANDAARCH.jobsArchived table modified in the last N days.
 
         Returns:
-            List[int]: PanDA job IDs found in defined, active, and archived tables.
+            list[int]: PanDA job IDs found in defined, active, and archived tables.
         """
         comment = " /* DBProxy.getPandaIDsWithTaskID */"
         tmp_log = self.create_tagged_logger(comment, f"<jediTaskID={jediTaskID} scout_only={scout_only} unsuccessful_only={unsuccessful_only}>")
@@ -86,7 +86,7 @@ class MiscStandaloneModule(BaseModule):
             sql += scout_filter
         if unsuccessful_only:
             sql += unsuccessful_filter
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":jediTaskID"] = jediTaskID
         try:
             # start transaction
@@ -117,7 +117,7 @@ class MiscStandaloneModule(BaseModule):
             return []
 
     # change task priority
-    def changeTaskPriorityPanda(self, jediTaskID, newPriority):
+    def changeTaskPriorityPanda(self, jediTaskID: int, newPriority: int) -> int | None:
         comment = " /* DBProxy.changeTaskPriorityPanda */"
         tmp_log = self.create_tagged_logger(comment, f"<jediTaskID={jediTaskID}>")
         tmp_log.debug(f"newPrio={newPriority}")
@@ -133,12 +133,12 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             # select
             self.cur.arraysize = 10
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":newPriority"] = newPriority
             # update JEDI
             self.cur.execute(sqlT + comment, varMap)
-            nRow = self.cur.rowcount
+            nRow: int = self.cur.rowcount
             if nRow == 1:
                 # update jobs
                 for tableName in ["jobsActive4", "jobsDefined4"]:
@@ -158,7 +158,7 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # get jediTaskID from taskName
-    def getTaskIDwithTaskNameJEDI(self, userName, taskName):
+    def getTaskIDwithTaskNameJEDI(self, userName: str, taskName: str) -> int | None:
         comment = " /* DBProxy.getTaskIDwithTaskNameJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"<userName={userName} taskName={taskName}")
         tmp_log.debug(f"start")
@@ -168,11 +168,12 @@ class MiscStandaloneModule(BaseModule):
             # sql to get jediTaskID
             sqlGF = f"SELECT MAX(jediTaskID) FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlGF += "WHERE userName=:userName AND taskName=:taskName "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":userName"] = userName
             varMap[":taskName"] = taskName
             self.cur.execute(sqlGF + comment, varMap)
             resFJ = self.cur.fetchone()
+            jediTaskID: int | None
             if resFJ is not None:
                 (jediTaskID,) = resFJ
             else:
@@ -190,7 +191,7 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # update modificationtime for a jediTaskID to trigger subsequent process
-    def updateTaskModTimeJEDI(self, jediTaskID, newStatus):
+    def updateTaskModTimeJEDI(self, jediTaskID: int, newStatus: str | None) -> bool:
         comment = " /* DBProxy.updateTaskErrorDialogJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"<jediTaskID={jediTaskID}>")
         tmp_log.debug(f"start")
@@ -198,7 +199,7 @@ class MiscStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # update mod time
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             if newStatus is not None:
                 varMap[":newStatus"] = newStatus
@@ -221,7 +222,7 @@ class MiscStandaloneModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def initialize_cpu_time_task(self, job_id, task_id, site_id, files, active):
+    def initialize_cpu_time_task(self, job_id: int, task_id: int, site_id: str, files: list[FileSpec], active: bool) -> tuple[float | None, str | None]:
         """
         Increases the CPU time of a task
         walltime = basewalltime + cpuefficiency*CPUTime*nEvents/Corepower/Corecount
@@ -245,7 +246,7 @@ class MiscStandaloneModule(BaseModule):
             f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1) "
             f"WHERE ROWNUM = 1"
         )
-        var_map = {":jedi_task_id": task_id}
+        var_map: dict[str, Any] = {":jedi_task_id": task_id}
         self.cur.execute(sql + comment, var_map)
         exists = False
         if self.cur.fetchone():
@@ -445,7 +446,7 @@ class MiscStandaloneModule(BaseModule):
             tmp_log.debug(f"Exception while updating the task CPU time: {e}")
             return None, None
 
-    def requestTaskParameterRecalculation(self, taskID):
+    def requestTaskParameterRecalculation(self, taskID: int) -> int:
         """
         Requests the recalculation of the CPU time of a task:
          1. set the walltimeUnit to NULL and the modificationTime to Now
@@ -471,7 +472,7 @@ class MiscStandaloneModule(BaseModule):
         self.conn.begin()
         self.cur.execute(sql, varMap)
 
-        rowcount = self.cur.rowcount
+        rowcount: int = self.cur.rowcount
 
         if not self._commit():
             raise RuntimeError("Commit error")
@@ -480,7 +481,7 @@ class MiscStandaloneModule(BaseModule):
         return rowcount
 
     # get task parameters
-    def getTaskParamsPanda(self, jediTaskID):
+    def getTaskParamsPanda(self, jediTaskID: int) -> str:
         comment = " /* DBProxy.getTaskParamsPanda */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -488,7 +489,7 @@ class MiscStandaloneModule(BaseModule):
             # sql to get task parameters
             sqlRR = f"SELECT jedi_task_parameters FROM {panda_config.schemaDEFT}.T_TASK "
             sqlRR += "WHERE taskid=:jediTaskID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # start transaction
             self.conn.begin()
@@ -515,7 +516,7 @@ class MiscStandaloneModule(BaseModule):
             return ""
 
     # get task attributes
-    def getTaskAttributesPanda(self, jediTaskID, attrs):
+    def getTaskAttributesPanda(self, jediTaskID: int, attrs: list[str]) -> dict[str, Any]:
         comment = " /* DBProxy.getTaskAttributesPanda */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -527,7 +528,7 @@ class MiscStandaloneModule(BaseModule):
             sqlRR = sqlRR[:-1]
             sqlRR += f" FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlRR += "WHERE jediTaskID=:jediTaskID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # start transaction
             self.conn.begin()
@@ -550,13 +551,14 @@ class MiscStandaloneModule(BaseModule):
             return {}
 
     # get task status
-    def getTaskStatus(self, jediTaskID):
+    # the row the query produced, or an empty one when the task is not there
+    def getTaskStatus(self, jediTaskID: int) -> Sequence[Any]:
         comment = " /* DBProxy.getTaskStatus */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
         try:
             # sql to update input file status
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             sql = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sql += "WHERE jediTaskID=:jediTaskID "
@@ -565,7 +567,7 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             self.cur.arraysize = 1000
             self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchone()
+            res: Sequence[Any] = self.cur.fetchone()
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -583,13 +585,14 @@ class MiscStandaloneModule(BaseModule):
             return []
 
     # get task status and superstatus
-    def getTaskStatusSuperstatus(self, jediTaskID):
+    # the row the query produced, or an empty one when the task is not there
+    def getTaskStatusSuperstatus(self, jediTaskID: int) -> Sequence[Any]:
         comment = " /* DBProxy.getTaskStatusSuperstatus */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
         try:
             # sql to update input file status
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             sql = f"SELECT status,superStatus FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sql += "WHERE jediTaskID=:jediTaskID "
@@ -597,7 +600,7 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             self.cur.arraysize = 1000
             self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchone()
+            res: Sequence[Any] = self.cur.fetchone()
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -615,7 +618,7 @@ class MiscStandaloneModule(BaseModule):
             return []
 
     # reactivate task
-    def reactivateTask(self, jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
+    def reactivateTask(self, jediTaskID: int, keep_attempt_nr: bool = False, trigger_job_generation: bool = False) -> tuple[int | None, str]:
         comment = " /* DBProxy.reactivateTask */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -639,7 +642,7 @@ class MiscStandaloneModule(BaseModule):
             sqlD += "SET status=:status,nFilesUsed=0,nFilesTobeUsed=nFiles,nFilesFinished=0,nFilesFailed=0 "
             sqlD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # update task status
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":status"] = "ready"
             self.cur.execute(sql + comment, varMap)
@@ -702,7 +705,7 @@ class MiscStandaloneModule(BaseModule):
             return None, "DB error"
 
     # get event statistics
-    def getEventStat(self, jediTaskID, PandaID):
+    def getEventStat(self, jediTaskID: int, PandaID: int) -> dict[Any, int]:
         comment = " /* DBProxy.getEventStat */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} PandaID={PandaID}")
         tmp_log.debug("start")
@@ -715,7 +718,7 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             self.cur.arraysize = 10000
             # get stats
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":PandaID"] = PandaID
             self.cur.execute(sql + comment, varMap)
@@ -736,7 +739,7 @@ class MiscStandaloneModule(BaseModule):
             return {}
 
     # update error dialog for a jediTaskID
-    def updateTaskErrorDialogJEDI(self, jediTaskID, msg):
+    def updateTaskErrorDialogJEDI(self, jediTaskID: int, msg: str) -> bool:
         comment = " /* DBProxy.updateTaskErrorDialogJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug(f"start")
@@ -746,7 +749,7 @@ class MiscStandaloneModule(BaseModule):
             # get existing dialog
             sqlGF = f"SELECT errorDialog FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlGF += "WHERE jediTaskID=:jediTaskID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             self.cur.execute(sqlGF + comment, varMap)
             resFJ = self.cur.fetchone()
@@ -773,7 +776,7 @@ class MiscStandaloneModule(BaseModule):
             return False
 
     # increase attempt number for unprocessed files
-    def increaseAttemptNrPanda(self, jediTaskID, increasedNr):
+    def increaseAttemptNrPanda(self, jediTaskID: int, increasedNr: int) -> tuple[int | None, str]:
         comment = " /* DBProxy.increaseAttemptNrPanda */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug(f"increasedNr={increasedNr}")
@@ -785,7 +788,7 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             # select
             self.cur.arraysize = 10
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # get task status
             self.cur.execute(sqlT + comment, varMap)
@@ -890,7 +893,7 @@ class MiscStandaloneModule(BaseModule):
             return None, "DB error"
 
     # insert sandbox file info
-    def insertSandboxFileInfo(self, userName, hostName, fileName, fileSize, checkSum):
+    def insertSandboxFileInfo(self, userName: str, hostName: str, fileName: str, fileSize: int, checkSum: str) -> str:
         comment = " /* DBProxy.insertSandboxFileInfo */"
         tmp_log = self.create_tagged_logger(comment, f"userName={userName}")
         sqlC = "SELECT userName,fileSize,checkSum FROM ATLAS_PANDAMETA.userCacheUsage "
@@ -904,7 +907,7 @@ class MiscStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # check if it already exists
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":hostName"] = hostName
             varMap[":fileName"] = fileName
             self.cur.arraysize = 10
@@ -936,7 +939,7 @@ class MiscStandaloneModule(BaseModule):
             return "ERROR: DB failure"
 
     # get and lock sandbox files
-    def getLockSandboxFiles(self, time_limit, n_files):
+    def getLockSandboxFiles(self, time_limit: int, n_files: int) -> list[tuple[Any, ...]] | None:
         comment = " /* DBProxy.getLockSandboxFiles */"
         tmp_log = self.create_tagged_logger(comment)
         sqlC = (
@@ -951,7 +954,7 @@ class MiscStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # check if it already exists
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":timeLimit"] = time_limit
             varMap[":nRows"] = n_files
             self.cur.execute(sqlC + comment, varMap)
@@ -977,7 +980,7 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # check duplicated sandbox file
-    def checkSandboxFile(self, dn, fileSize, checkSum):
+    def checkSandboxFile(self, dn: str, fileSize: int, checkSum: int | str) -> str:
         comment = " /* DBProxy.checkSandboxFile */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"dn={dn} size={fileSize} checksum={checkSum}")
@@ -994,7 +997,7 @@ class MiscStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # check if it already exists
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":userName"] = compactDN
             varMap[":fileSize"] = fileSize
             varMap[":checkSum"] = str(checkSum)
@@ -1018,7 +1021,7 @@ class MiscStandaloneModule(BaseModule):
             return "ERROR: DB failure"
 
     # insert dataset
-    def insertDataset(self, dataset, tablename="ATLAS_PANDA.Datasets"):
+    def insertDataset(self, dataset: DatasetSpec, tablename: str = "ATLAS_PANDA.Datasets") -> bool:
         comment = " /* DBProxy.insertDataset */"
         tmp_log = self.create_tagged_logger(comment, f"dataset={dataset.name}")
         tmp_log.debug("start")
@@ -1043,7 +1046,7 @@ class MiscStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # check if it already exists
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vuid"] = dataset.vuid
             self.cur.execute(sql0 + comment, varMap)
             (nDS,) = self.cur.fetchone()
@@ -1070,7 +1073,7 @@ class MiscStandaloneModule(BaseModule):
             return False
 
     # get and lock dataset with a query
-    def getLockDatasets(self, sqlQuery, varMapGet, modTimeOffset="", getVersion=False):
+    def getLockDatasets(self, sqlQuery: str, varMapGet: dict[str, Any], modTimeOffset: str = "", getVersion: bool = False) -> list[Any]:
         comment = " /* DBProxy.getLockDatasets */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"{sqlQuery},{str(varMapGet)},{modTimeOffset}")
@@ -1085,7 +1088,8 @@ class MiscStandaloneModule(BaseModule):
         if getVersion:
             sqlLock += ",version=:version"
         sqlLock += " WHERE vuid=:vuid AND transferStatus=:transferStatus"
-        retList = []
+        # the rows, with the version appended when it was asked for
+        retList: list[tuple[Any, ...]] = []
         try:
             # begin transaction
             self.conn.begin()
@@ -1135,7 +1139,7 @@ class MiscStandaloneModule(BaseModule):
             return []
 
     # query dataset with map
-    def queryDatasetWithMap(self, map):
+    def queryDatasetWithMap(self, map: dict[str, Any]) -> DatasetSpec | None:
         comment = " /* DBProxy.queryDatasetWithMap */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"{map}")
@@ -1148,7 +1152,7 @@ class MiscStandaloneModule(BaseModule):
             sql1 += f"{DatasetSpec.columnNames()} FROM ATLAS_PANDA.Datasets tab"
         else:
             sql1 = f"SELECT {DatasetSpec.columnNames()} FROM ATLAS_PANDA.Datasets"
-        varMap = {}
+        varMap: dict[Any, Any] = {}
         for key in map:
             if len(varMap) == 0:
                 sql1 += f" WHERE {key}=:{key}"
@@ -1180,7 +1184,7 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # update dataset
-    def updateDataset(self, datasets, withLock, withCriteria, criteriaMap):
+    def updateDataset(self, datasets: list[DatasetSpec], withLock: bool, withCriteria: str, criteriaMap: dict[str, Any]) -> list[int]:
         comment = " /* DBProxy.updateDataset */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1255,20 +1259,17 @@ class MiscStandaloneModule(BaseModule):
             return False
 
     # get serial number for dataset, insert dummy datasets to increment SN
-    def getSerialNumber(self, datasetname, definedFreshFlag=None):
+    def getSerialNumber(self, datasetname: str, definedFreshFlag: bool | None = None) -> tuple[int, bool]:
         comment = " /* DBProxy.getSerialNumber */"
         tmp_log = self.create_tagged_logger(comment, f"datasetname={datasetname}")
         try:
             tmp_log.debug(f"fresh={definedFreshFlag}")
-            if isinstance(datasetname, str):
-                datasetname = datasetname.encode("ascii", "ignore")
-                tmp_log.debug(f"converted unicode for {datasetname}")
             # start transaction
             self.conn.begin()
             # check freshness
             if definedFreshFlag is None:
                 # select
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":name"] = datasetname
                 varMap[":type"] = "output"
                 sql = "SELECT /*+ INDEX_RS_ASC(TAB (DATASETS.NAME)) */ COUNT(*) FROM ATLAS_PANDA.Datasets tab WHERE type=:type AND name=:name"
@@ -1316,11 +1317,11 @@ class MiscStandaloneModule(BaseModule):
             return (-1, False)
 
     # count the number of files with map
-    def countFilesWithMap(self, map):
+    def countFilesWithMap(self, map: dict[str, Any]) -> int:
         comment = " /* DBProxy.countFilesWithMap */"
         tmp_log = self.create_tagged_logger(comment)
         sql1 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ COUNT(*) FROM ATLAS_PANDA.filesTable4 tab"
-        varMap = {}
+        varMap: dict[Any, Any] = {}
         for key in map:
             if len(varMap) == 0:
                 sql1 += f" WHERE {key}=:{key}"
@@ -1354,15 +1355,17 @@ class MiscStandaloneModule(BaseModule):
                     continue
                 self.dump_error_message(tmp_log)
                 return -1
+        # not reached: the loop either returns a count or falls into the last retry's error path
+        return -1
 
     # update input files and return corresponding PandaIDs
-    def updateInFilesReturnPandaIDs(self, dataset, status, fileLFN=""):
+    def updateInFilesReturnPandaIDs(self, dataset: str, status: str, fileLFN: str = "") -> list[int]:
         comment = " /* DBProxy.updateInFilesReturnPandaIDs */"
         tmp_log = self.create_tagged_logger(comment, f"dataset={dataset}")
         tmp_log.debug(f"{fileLFN})")
         sql0 = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ row_ID,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE status<>:status AND dispatchDBlock=:dispatchDBlock"
         sql1 = "UPDATE /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ ATLAS_PANDA.filesTable4 tab SET status=:status WHERE status<>:status AND dispatchDBlock=:dispatchDBlock"
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":status"] = status
         varMap[":dispatchDBlock"] = dataset
         if fileLFN != "":
@@ -1403,7 +1406,7 @@ class MiscStandaloneModule(BaseModule):
         return []
 
     # update input files for jobs at certain sites and return corresponding PandaIDs
-    def update_input_files_at_sites_and_get_panda_ids(self, filename: str, sites: list) -> list:
+    def update_input_files_at_sites_and_get_panda_ids(self, filename: str, sites: list[str]) -> list[int]:
         """
         Update input files with a LFN for jobs at certain sites and return corresponding PandaIDs
 
@@ -1461,13 +1464,13 @@ class MiscStandaloneModule(BaseModule):
         return []
 
     # update output files and return corresponding PandaIDs
-    def updateOutFilesReturnPandaIDs(self, dataset, fileLFN=""):
+    def updateOutFilesReturnPandaIDs(self, dataset: str, fileLFN: str = "") -> list[int]:
         comment = " /* DBProxy.updateOutFilesReturnPandaIDs */"
         tmp_log = self.create_tagged_logger(comment, f"dataset={dataset}")
         tmp_log.debug(f"{fileLFN}")
         sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ row_ID,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status=:status"
         sql1 = "UPDATE /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ ATLAS_PANDA.filesTable4 tab SET status='ready' WHERE destinationDBlock=:destinationDBlock AND status=:status"
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":status"] = "transferring"
         varMap[":destinationDBlock"] = dataset
         if fileLFN != "":
@@ -1483,7 +1486,7 @@ class MiscStandaloneModule(BaseModule):
                 retS = self.cur.execute(sql0 + comment, varMap)
                 resS = self.cur.fetchall()
                 # update
-                retList = []
+                retList: list[Any] = []
                 retU = self.cur.execute(sql1 + comment, varMap)
                 # commit
                 if not self._commit():
@@ -1509,7 +1512,7 @@ class MiscStandaloneModule(BaseModule):
         return []
 
     # get _dis datasets associated to _sub
-    def getAssociatedDisDatasets(self, subDsName):
+    def getAssociatedDisDatasets(self, subDsName: str) -> list[str]:
         comment = " /* DBProxy.getAssociatedDisDatasets */"
         tmp_log = self.create_tagged_logger(comment, f"subDsName={subDsName}")
         tmp_log.debug(f"start")
@@ -1521,7 +1524,7 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # get PandaIDs
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":destinationDBlock"] = subDsName
             self.cur.arraysize = 10000
             self.cur.execute(sqlF + comment, varMap)
@@ -1558,7 +1561,7 @@ class MiscStandaloneModule(BaseModule):
             return []
 
     # set GUIDs
-    def setGUIDs(self, files):
+    def setGUIDs(self, files: list[dict[str, Any]]) -> bool:
         comment = " /* DBProxy.setGUIDs */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"{files}")
@@ -1570,7 +1573,7 @@ class MiscStandaloneModule(BaseModule):
                 self.cur.arraysize = 1000000
                 # update
                 for file in files:
-                    varMap = {}
+                    varMap: dict[str, Any] = {}
                     varMap[":GUID"] = file["guid"]
                     varMap[":lfn"] = file["lfn"]
                     if file["checksum"] in ["", "NULL"]:
@@ -1603,7 +1606,7 @@ class MiscStandaloneModule(BaseModule):
         return False
 
     # get special dispatcher parameters
-    def get_special_dispatch_params(self):
+    def get_special_dispatch_params(self) -> tuple[bool, dict[str, Any]]:
         """
         Get the following special parameters for dispatcher.Z
           Authorized name lists for proxy, key-pair, and token-key retrieval
@@ -1614,12 +1617,12 @@ class MiscStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
         try:
-            return_map = {}
+            return_map: dict[str, Any] = {}
             # set autocommit on
             self.conn.begin()
             self.cur.arraysize = 100000
             # get token keys
-            token_keys = {}
+            token_keys: dict[str, Any] = {}
             sql = f"SELECT dn, credname FROM {panda_config.schemaMETA}.proxykey WHERE expires>:limit ORDER BY expires DESC "
             var_map = {":limit": naive_utcnow()}
             self.cur.execute(sql + comment, var_map)
@@ -1688,7 +1691,7 @@ class MiscStandaloneModule(BaseModule):
             return False, {}
 
     # get original consumers
-    def getOriginalConsumers(self, jediTaskID, jobsetID, pandaID):
+    def getOriginalConsumers(self, jediTaskID: int, jobsetID: int, pandaID: int) -> list[Any]:
         comment = " /* DBProxy.getOriginalConsumers */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} jobsetID={jobsetID} PandaID={pandaID}")
         tmp_log.debug("start")
@@ -1712,7 +1715,7 @@ class MiscStandaloneModule(BaseModule):
             sqlP = "SELECT jobParameters FROM {0} WHERE PandaID=:PandaID "
             # get sites
             aSites = set()
-            varMap = dict()
+            varMap: dict[str, Any] = dict()
             varMap[":jediTaskID"] = jediTaskID
             varMap[":jobsetID"] = jobsetID
             self.cur.execute(sqlA + comment, varMap)
@@ -1791,12 +1794,12 @@ class MiscStandaloneModule(BaseModule):
             return []
 
     # update unmerged datasets to trigger merging
-    def updateUnmergedDatasets(self, job, finalStatusDS, updateCompleted=False):
+    def updateUnmergedDatasets(self, job: JobSpec, finalStatusDS: list[DatasetSpec], updateCompleted: bool = False) -> bool:
         comment = " /* JediDBProxy.updateUnmergedDatasets */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         # get PandaID which produced unmerged files
-        umPandaIDs = []
-        umCheckedIDs = []
+        umPandaIDs: list[Any] = []
+        umCheckedIDs: list[Any] = []
         # sql to get file counts
         sqlGFC = "SELECT status,PandaID,outPandaID FROM ATLAS_PANDA.JEDI_Dataset_Contents "
         sqlGFC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND PandaID IS NOT NULL "
@@ -1823,7 +1826,7 @@ class MiscStandaloneModule(BaseModule):
             # update dataset in panda
             toSkip = False
             for datasetSpec in finalStatusDS:
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":vuid"] = datasetSpec.vuid
                 varMap[":status"] = "tobeclosed"
                 varMap[":statusR"] = "tobeclosed"
@@ -1921,7 +1924,7 @@ class MiscStandaloneModule(BaseModule):
             return False
 
     # get throttled users
-    def getThrottledUsers(self):
+    def getThrottledUsers(self) -> set[tuple[Any, Any]]:
         comment = " /* DBProxy.getThrottledUsers */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1934,7 +1937,7 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             # select
             self.cur.arraysize = 10
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":prodSourceLabel"] = "user"
             varMap[":relocationFlag"] = 3
             varMap[":jobStatus"] = "throttled"
@@ -1953,12 +1956,12 @@ class MiscStandaloneModule(BaseModule):
             self._rollback()
             # error
             self.dump_error_message(tmp_log)
-            return []
+            return set()
 
     # reset files in JEDI
     def resetFileStatusInJEDI(
-        self, dn: str, is_prod_manager: bool, dataset_name: str, lost_files: List[str], recover_parent: bool, simul: bool
-    ) -> Tuple[bool, int | None, Dict[str, List[str]] | None, str | None]:
+        self, dn: str, is_prod_manager: bool, dataset_name: str, lost_files: list[str], recover_parent: bool, simul: bool
+    ) -> tuple[bool, int | None, dict[str, list[str]] | None, str | None]:
         """
         Reset file status in JEDI for lost files
         1) check ownership
@@ -1986,7 +1989,7 @@ class MiscStandaloneModule(BaseModule):
         error_message = None
         try:
             # list of lost input files
-            lostInputFiles = {}
+            lostInputFiles: dict[str, Any] = {}
             # get compact DN
             compactDN = CoreUtils.clean_user_id(dn)
             if compactDN in ["", "NULL", None]:
@@ -1996,7 +1999,7 @@ class MiscStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # get jediTaskID
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":type1"] = "log"
             varMap[":type2"] = "output"
             varMap[":name1"] = dataset_name
@@ -2054,7 +2057,7 @@ class MiscStandaloneModule(BaseModule):
                 sqlCE += "AND status IN (:esFinished,:esDone,:esMerged) "
                 # get affected PandaIDs
                 lostPandaIDs = set([])
-                nDiff = {}
+                nDiff: dict[str, Any] = {}
                 for lostFile in lost_files:
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
@@ -2233,11 +2236,11 @@ class MiscStandaloneModule(BaseModule):
                 sqlUDI += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status) "
                 sqlUDI += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                 for tmpDatasetID in datasetCountMap:
-                    nDiff = datasetCountMap[tmpDatasetID]
+                    n_diff = datasetCountMap[tmpDatasetID]
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
                     varMap[":datasetID"] = tmpDatasetID
-                    varMap[":nDiff"] = nDiff
+                    varMap[":nDiff"] = n_diff
                     varMap[":status"] = "finished"
                     tmp_log.debug(sqlUDI + comment + str(varMap))
                     if not simul:
@@ -2263,7 +2266,7 @@ class MiscStandaloneModule(BaseModule):
             return False, None, None, "database error"
 
     # copy file records
-    def copy_file_records(self, new_lfns, file_spec):
+    def copy_file_records(self, new_lfns: list[str], file_spec: FileSpec) -> bool:
         comment = " /* DBProxy.copy_file_records */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={file_spec.PandaID} oldLFN={file_spec.lfn}")
         tmp_log.debug(f"start with {len(new_lfns)} files")
@@ -2283,7 +2286,7 @@ class MiscStandaloneModule(BaseModule):
                     self.cur.execute(sqlFileID + comment)
                     (newFileID,) = self.cur.fetchone()
                     # read file in JEDI
-                    varMap = {}
+                    varMap: dict[str, Any] = {}
                     varMap[":jediTaskID"] = tmpFileSpec.jediTaskID
                     varMap[":datasetID"] = tmpFileSpec.datasetID
                     varMap[":fileID"] = tmpFileSpec.fileID
@@ -2348,7 +2351,7 @@ class MiscStandaloneModule(BaseModule):
 
     # get error definitions from DB (values cached for 1 hour)
     @memoize
-    def getRetrialRules(self):
+    def getRetrialRules(self) -> dict[Any, Any]:
         # Logging
         comment = " /* DBProxy.getRetrialRules */"
         tmp_log = self.create_tagged_logger(comment)
@@ -2370,7 +2373,7 @@ class MiscStandaloneModule(BaseModule):
 
         # tmp_log.debug("definitions %s"%(definitions))
 
-        retrial_rules = {}
+        retrial_rules: dict[str, Any] = {}
         for definition in definitions:
             (
                 retryerror_id,
@@ -2423,7 +2426,7 @@ class MiscStandaloneModule(BaseModule):
         # tmp_log.debug("Loaded retrial rules from DB: %s" %retrial_rules)
         return retrial_rules
 
-    def setMaxAttempt(self, jobID, taskID, files, maxAttempt):
+    def setMaxAttempt(self, jobID: int, taskID: int, files: list[FileSpec], maxAttempt: int) -> bool:
         # Logging
         comment = " /* DBProxy.setMaxAttempt */"
         tmp_log = self.create_tagged_logger(comment, f"jobID={jobID} taskID={taskID}")
@@ -2445,7 +2448,7 @@ class MiscStandaloneModule(BaseModule):
                 # Start transaction
                 self.conn.begin()
 
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":taskID"] = taskID
                 varMap[":pandaID"] = jobID
 
@@ -2499,7 +2502,7 @@ class MiscStandaloneModule(BaseModule):
         tmp_log.debug("done")
         return True
 
-    def increase_max_failure(self, job_id, task_id, files):
+    def increase_max_failure(self, job_id: int, task_id: int, files: list[FileSpec]) -> bool:
         """Increase the max failure number by one for specific files."""
         comment = " /* DBProxy.increase_max_failure */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job_id} jediTaskID={task_id}")
@@ -2554,7 +2557,7 @@ class MiscStandaloneModule(BaseModule):
         tmp_log.debug("done")
         return True
 
-    def setNoRetry(self, jobID, taskID, files):
+    def setNoRetry(self, jobID: int, taskID: int, files: list[FileSpec]) -> bool:
         # Logging
         comment = " /* DBProxy.setNoRetry */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobID} jediTaskID={taskID}")
@@ -2578,7 +2581,7 @@ class MiscStandaloneModule(BaseModule):
 
                 # loop over all datasets
                 for datasetID in input_datasetIDs:
-                    varMap = {}
+                    varMap: dict[str, Any] = {}
                     varMap[":taskID"] = taskID
                     varMap[":datasetID"] = datasetID
                     varMap[":keepTrack"] = 1
@@ -2634,7 +2637,7 @@ class MiscStandaloneModule(BaseModule):
         return True
 
     # add associate sub datasets for single consumer job
-    def getDestDBlocksWithSingleConsumer(self, jediTaskID, PandaID, ngDatasets):
+    def getDestDBlocksWithSingleConsumer(self, jediTaskID: int, PandaID: int, ngDatasets: list[str]) -> dict[str, Any]:
         comment = " /* DBProxy.getDestDBlocksWithSingleConsumer */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} PandaID={PandaID}")
         tmp_log.debug("start")
@@ -2653,7 +2656,7 @@ class MiscStandaloneModule(BaseModule):
             # sql to get PandaIDs in merging
             sqlM = "SELECT distinct PandaID FROM ATLAS_PANDA.filesTable4 "
             sqlM += "WHERE jediTaskID=:jediTaskID ANd datasetID=:datasetID AND status=:status "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":PandaID"] = PandaID
             # begin transaction
@@ -2714,21 +2717,21 @@ class MiscStandaloneModule(BaseModule):
             return {}
 
     # get dispatch datasets per user
-    def getDispatchDatasetsPerUser(self, vo, prodSourceLabel, onlyActive, withSize):
+    def getDispatchDatasetsPerUser(self, vo: str, prodSourceLabel: str, onlyActive: bool, withSize: bool) -> dict[str, Any]:
         comment = " /* DBProxy.getDispatchDatasetsPerUser */"
         tmp_log = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmp_log.debug("start")
         # mapping for table and job status
-        tableStatMap = {"jobsDefined4": ["defined", "assigned"]}
+        tableStatMap: dict[str, Any] = {"jobsDefined4": ["defined", "assigned"]}
         if not onlyActive:
             tableStatMap["jobsActive4"] = None
             tableStatMap["jobsArchived4"] = None
         try:
-            userDispMap = {}
+            userDispMap: dict[str, Any] = {}
             for tableName in tableStatMap:
                 statusList = tableStatMap[tableName]
                 # make sql to get dispatch datasets
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":vo"] = vo
                 varMap[":label"] = prodSourceLabel
                 varMap[":dType"] = "dispatch"
@@ -2754,7 +2757,9 @@ class MiscStandaloneModule(BaseModule):
                     uid = workingGroup if workingGroup is not None else prodUserName
                     transferType = "transfer"
                     try:
-                        if dispatchDBlock.split(".")[4] == "prestaging":
+                        # panda.<taskID>.<month>.<day>.<dataType>.<transferType>.<uuid>_dis<PandaID>,
+                        # so the transfer type is the sixth field and the fifth is the data type
+                        if dispatchDBlock.split(".")[5] == "prestaging":
                             transferType = "prestaging"
                     except Exception:
                         pass
@@ -2774,13 +2779,13 @@ class MiscStandaloneModule(BaseModule):
             return {}
 
     # bulk fetch PandaIDs
-    def bulk_fetch_panda_ids(self, num_ids):
+    def bulk_fetch_panda_ids(self, num_ids: int) -> list[int]:
         comment = " /* JediDBProxy.bulk_fetch_panda_ids */"
         tmp_log = self.create_tagged_logger(comment, f"num_ids={num_ids}")
         tmp_log.debug("start")
         try:
             new_ids = []
-            var_map = {}
+            var_map: dict[str, Any] = {}
             var_map[":nIDs"] = num_ids
             # sql to get fileID
             sqlFID = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM "
@@ -2805,13 +2810,13 @@ class MiscStandaloneModule(BaseModule):
             return []
 
     # bulk fetch fileIDs
-    def bulkFetchFileIDsPanda(self, nIDs):
+    def bulkFetchFileIDsPanda(self, nIDs: int) -> list[int]:
         comment = " /* JediDBProxy.bulkFetchFileIDsPanda */"
         tmp_log = self.create_tagged_logger(comment, f"nIDs={nIDs}")
         tmp_log.debug("start")
         try:
             newFileIDs = []
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":nIDs"] = nIDs
             # sql to get fileID
             sqlFID = "SELECT ATLAS_PANDA.FILESTABLE4_ROW_ID_SEQ.nextval FROM "
@@ -2836,7 +2841,7 @@ class MiscStandaloneModule(BaseModule):
             return []
 
     # get LNFs for jumbo job
-    def getLFNsForJumbo(self, jediTaskID):
+    def getLFNsForJumbo(self, jediTaskID: int) -> Any:
         comment = " /* DBProxy.getLFNsForJumbo */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -2847,7 +2852,7 @@ class MiscStandaloneModule(BaseModule):
             retSet = set()
             # start transaction
             self.conn.begin()
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":type1"] = "input"
             varMap[":type2"] = "pseudo_input"
@@ -2869,7 +2874,7 @@ class MiscStandaloneModule(BaseModule):
             return []
 
     # get number of started events
-    def getNumStartedEvents(self, jobSpec):
+    def getNumStartedEvents(self, jobSpec: JobSpec) -> int | None:
         comment = " /* DBProxy.getNumStartedEvents */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
         tmp_log.debug("start")
@@ -2885,7 +2890,7 @@ class MiscStandaloneModule(BaseModule):
             for fileSpec in jobSpec.Files:
                 if fileSpec.type != "input":
                     continue
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = fileSpec.jediTaskID
                 varMap[":datasetID"] = fileSpec.datasetID
                 varMap[":fileID"] = fileSpec.fileID
@@ -2910,7 +2915,7 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # get JEDI file attributes
-    def getJediFileAttributes(self, PandaID, jediTaskID, datasetID, fileID, attrs):
+    def getJediFileAttributes(self, PandaID: int, jediTaskID: int, datasetID: int, fileID: int, attrs: list[str]) -> dict[str, Any]:
         comment = " /* DBProxy.getJediFileAttributes */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={PandaID}")
         tmp_log.debug(f"start for jediTaskID={jediTaskID} datasetId={datasetID} fileID={fileID}")
@@ -2922,7 +2927,7 @@ class MiscStandaloneModule(BaseModule):
             sqlRR = sqlRR[:-1]
             sqlRR += f" FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
             sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":datasetID"] = datasetID
             varMap[":fileID"] = fileID
@@ -2947,7 +2952,7 @@ class MiscStandaloneModule(BaseModule):
             return {}
 
     # get jumbo job datasets
-    def getJumboJobDatasets(self, n_days, grace_period):
+    def getJumboJobDatasets(self, n_days: int, grace_period: int) -> dict[Any, Any]:
         comment = " /* DBProxy.getJumboJobDatasets */"
         tmp_log = self.create_tagged_logger(comment, f"nDays={n_days}")
         tmp_log.debug("start")
@@ -2958,14 +2963,14 @@ class MiscStandaloneModule(BaseModule):
             sqlC += "AND t.modificationTime>CURRENT_DATE-:days AND t.modificationTime<CURRENT_DATE-:grace_period "
             sqlC += "AND t.status IN ('finished','done') "
             sqlC += "AND d.jediTaskID=t.jediTaskID AND d.type='output' "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":days"] = n_days
             varMap[":grace_period"] = grace_period
             # start transaction
             self.conn.begin()
             self.cur.execute(sqlC + comment, varMap)
             resCs = self.cur.fetchall()
-            retMap = dict()
+            retMap: dict[str, Any] = dict()
             nDS = 0
             for jediTaskID, datasetName, status in resCs:
                 retMap.setdefault(jediTaskID, {"status": status, "datasets": []})
@@ -2984,7 +2989,7 @@ class MiscStandaloneModule(BaseModule):
             return {}
 
     # get output datasets
-    def getOutputDatasetsJEDI(self, panda_id):
+    def getOutputDatasetsJEDI(self, panda_id: int) -> dict[Any, Any]:
         comment = " /* DBProxy.getOutputDatasetsJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id}")
         tmp_log.debug("start")
@@ -2992,7 +2997,7 @@ class MiscStandaloneModule(BaseModule):
             # sql to get workers
             sqlC = "SELECT d.datasetID,d.datasetName FROM ATLAS_PANDA.filesTable4 f,ATLAS_PANDA.JEDI_Datasets d "
             sqlC += "WHERE f.PandaID=:PandaID AND f.type IN (:type1,:type2) AND d.jediTaskID=f.jediTaskID AND d.datasetID=f.datasetID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = panda_id
             varMap[":type1"] = "output"
             varMap[":type2"] = "log"
@@ -3016,7 +3021,7 @@ class MiscStandaloneModule(BaseModule):
             return {}
 
     # lock process
-    def lockProcess_PANDA(self, component, pid, time_limit, force=False):
+    def lockProcess_PANDA(self, component: str, pid: str, time_limit: int, force: bool = False) -> bool:
         comment = " /* DBProxy.lockProcess_PANDA */"
         tmp_log = self.create_tagged_logger(comment, f"component={component} pid={pid}")
         # defaults
@@ -3055,7 +3060,7 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             # check
             if not force:
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":vo"] = vo
                 varMap[":prodSourceLabel"] = prodSourceLabel
                 varMap[":cloud"] = cloud
@@ -3103,7 +3108,7 @@ class MiscStandaloneModule(BaseModule):
             return retVal
 
     # unlock process
-    def unlockProcess_PANDA(self, component, pid):
+    def unlockProcess_PANDA(self, component: str, pid: str) -> bool:
         comment = " /* DBProxy.unlockProcess_PANDA */"
         tmp_log = self.create_tagged_logger(comment, f"component={component} pid={pid}")
         # defaults
@@ -3125,7 +3130,7 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":prodSourceLabel"] = prodSourceLabel
             varMap[":cloud"] = cloud
@@ -3148,7 +3153,7 @@ class MiscStandaloneModule(BaseModule):
             return retVal
 
     # check process lock
-    def checkProcessLock_PANDA(self, component, pid, time_limit, check_base=False):
+    def checkProcessLock_PANDA(self, component: str, pid: str, time_limit: int, check_base: bool = False) -> tuple[bool, Any]:
         comment = " /* DBProxy.checkProcessLock_PANDA */"
         tmp_log = self.create_tagged_logger(comment, f"component={component} pid={pid}")
         # defaults
@@ -3172,7 +3177,7 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":prodSourceLabel"] = prodSourceLabel
             varMap[":cloud"] = cloud
@@ -3209,7 +3214,7 @@ class MiscStandaloneModule(BaseModule):
             return retVal
 
     # update problematic resource info for user
-    def update_problematic_resource_info(self, user_name, jedi_task_id, resource, problem_type):
+    def update_problematic_resource_info(self, user_name: str, jedi_task_id: int, resource: str, problem_type: str) -> bool | None:
         comment = " /* DBProxy.update_problematic_resource_info */"
         tmp_log = self.create_tagged_logger(comment, f"user={user_name} jediTaskID={jedi_task_id}")
         tmp_log.debug("start")
@@ -3221,11 +3226,11 @@ class MiscStandaloneModule(BaseModule):
             sqlR = "SELECT pagecache FROM ATLAS_PANDAMETA.users " "WHERE name=:name "
             sqlW = "UPDATE ATLAS_PANDAMETA.users SET pagecache=:data " "WHERE name=:name "
             # string to use a dict key
-            jedi_task_id = str(jedi_task_id)
+            task_id_key = str(jedi_task_id)
             # start transaction
             self.conn.begin()
             # read
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":name"] = user_name
             self.cur.execute(sqlR + comment, varMap)
             data = self.cur.fetchone()
@@ -3238,14 +3243,14 @@ class MiscStandaloneModule(BaseModule):
                     data = {}
                 if problem_type is not None:
                     data.setdefault(problem_type, {})
-                    data[problem_type].setdefault(jedi_task_id, {})
-                    data[problem_type][jedi_task_id].setdefault(resource, None)
-                    old = data[problem_type][jedi_task_id][resource]
+                    data[problem_type].setdefault(task_id_key, {})
+                    data[problem_type][task_id_key].setdefault(resource, None)
+                    old = data[problem_type][task_id_key][resource]
                     if old is None or datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromtimestamp(
                         old, datetime.timezone.utc
                     ) > datetime.timedelta(days=1):
                         retVal = True
-                        data[problem_type][jedi_task_id][resource] = time.time()
+                        data[problem_type][task_id_key][resource] = time.time()
                 # delete old data
                 for p in list(data):
                     for t in list(data[p]):
@@ -3277,18 +3282,20 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # get LFNs in datasets
-    def get_files_in_datasets(self, task_id, dataset_types, dataset_only=False):
+    def get_files_in_datasets(self, task_id: int, dataset_types: str | Sequence[str], dataset_only: bool = False) -> list[dict[str, Any]] | None:
         comment = " /* DBProxy.get_lfns_in_datasets */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
         tmp_log.debug("start")
         try:
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = task_id
             sqlD = f"SELECT datasetName,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
             # Old API expects comma separated types, while new API is taking directly a tuple of dataset types
             if type(dataset_types) == str:
-                dataset_types = dataset_types.split(",")
-            dstype_var_names_str, dstype_var_map = get_sql_IN_bind_variables(dataset_types, prefix=":", value_as_suffix=True)
+                dataset_type_list: Any = dataset_types.split(",")
+            else:
+                dataset_type_list = dataset_types
+            dstype_var_names_str, dstype_var_map = get_sql_IN_bind_variables(dataset_type_list, prefix=":", value_as_suffix=True)
             sqlD += f"AND type IN ({dstype_var_names_str}) "
             varMap.update(dstype_var_map)
             sqlS = f"SELECT lfn,scope,fileID,status FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
@@ -3332,7 +3339,7 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # update datasets asynchronously outside propagateResultToJEDI to avoid row contentions
-    def async_update_datasets(self, panda_id):
+    def async_update_datasets(self, panda_id: int | None) -> bool | None:
         comment = " /* DBProxy.async_update_datasets */"
         g_tmp_log = self.create_tagged_logger(comment)
         g_tmp_log.debug("start")
@@ -3429,14 +3436,14 @@ class MiscStandaloneModule(BaseModule):
             return False
 
     # get datasets of input and lib, to update data locality records
-    def get_tasks_inputdatasets_JEDI(self, vo):
+    def get_tasks_inputdatasets_JEDI(self, vo: str) -> list[Any] | None:
         comment = " /* JediDBProxy.get_tasks_inputdatasets_JEDI */"
         # last update time
         tmpLog = self.create_tagged_logger(comment, f"vo={vo}")
         tmpLog.debug("start")
         now_ts = naive_utcnow()
         try:
-            retVal = None
+            retVal: list[Any] | None = None
             # sql to get all jediTaskID and datasetID of input
             sql = (
                 "SELECT tabT.jediTaskID,datasetID, tabD.datasetName "
@@ -3448,7 +3455,7 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # get
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             self.cur.execute(sql + comment, varMap)
             res = self.cur.fetchall()
@@ -3468,7 +3475,7 @@ class MiscStandaloneModule(BaseModule):
             return retVal
 
     # get dataset locality for a task and dataset
-    def get_dataset_locality(self, jedi_taskid: int, datasetid: int) -> list | None:
+    def get_dataset_locality(self, jedi_taskid: int, datasetid: int) -> list[str] | None:
         """
         Get the list of RSEs where the dataset is available for the given task and dataset ID.
         Args:
@@ -3487,7 +3494,7 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # get
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jedi_taskid
             varMap[":datasetID"] = datasetid
             self.cur.execute(sql + comment, varMap)
@@ -3507,7 +3514,7 @@ class MiscStandaloneModule(BaseModule):
             return ret_val
 
     # update dataset locality
-    def updateDatasetLocality_JEDI(self, jedi_taskid, datasetid, rse):
+    def updateDatasetLocality_JEDI(self, jedi_taskid: int, datasetid: int, rse: str) -> bool:
         comment = " /* JediDBProxy.updateDatasetLocality_JEDI */"
         # last update time
         timestamp = naive_utcnow()
@@ -3529,7 +3536,7 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jedi_taskid
             varMap[":datasetID"] = datasetid
             varMap[":rse"] = rse
@@ -3559,20 +3566,20 @@ class MiscStandaloneModule(BaseModule):
             return retVal
 
     # delete outdated dataset locality records
-    def deleteOutdatedDatasetLocality_JEDI(self, before_timestamp):
+    def deleteOutdatedDatasetLocality_JEDI(self, before_timestamp: datetime.datetime) -> int | None:
         comment = " /* JediDBProxy.deleteOutdatedDatasetLocality_JEDI */"
         # last update time
         before_timestamp_str = before_timestamp.strftime("%Y-%m-%d_%H:%M:%S")
         tmpLog = self.create_tagged_logger(comment, f"before_timestamp={before_timestamp_str}")
         tmpLog.debug("start")
         try:
-            retVal = 0
+            retVal: int = 0
             # sql to delete
             sqlD = f"DELETE FROM {panda_config.schemaJEDI}.Jedi_Dataset_Locality WHERE timestamp<=:timestamp "
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":timestamp"] = before_timestamp
             # delete
             self.cur.execute(sqlD + comment, varMap)
@@ -3591,7 +3598,13 @@ class MiscStandaloneModule(BaseModule):
             return retVal
 
     # append input datasets for incremental execution
-    def appendDatasets_JEDI(self, jediTaskID, inMasterDatasetSpecList, inSecDatasetSpecList, in_content_dataset_specs):
+    def appendDatasets_JEDI(
+        self,
+        jediTaskID: int,
+        inMasterDatasetSpecList: list[JediDatasetSpec],
+        inSecDatasetSpecList: list[JediDatasetSpec],
+        in_content_dataset_specs: list[JediDatasetSpec],
+    ) -> bool:
         comment = " /* JediDBProxy.appendDatasets_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
@@ -3603,7 +3616,7 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             self.cur.arraysize = 100000
             # check task status
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             sqlTK = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE "
             self.cur.execute(sqlTK + comment, varMap)
@@ -3768,7 +3781,7 @@ class MiscStandaloneModule(BaseModule):
             return False
 
     # insert dataset to the JEDI datasets table
-    def insertDataset_JEDI(self, datasetSpec):
+    def insertDataset_JEDI(self, datasetSpec: JediDatasetSpec) -> tuple[bool, int | None]:
         comment = " /* JediDBProxy.insertDataset_JEDI */"
         tmpLog = self.create_tagged_logger(comment)
         tmpLog.debug("start")
@@ -3801,7 +3814,7 @@ class MiscStandaloneModule(BaseModule):
             return False, None
 
     # update JEDI dataset
-    def updateDataset_JEDI(self, datasetSpec, criteria, lockTask):
+    def updateDataset_JEDI(self, datasetSpec: JediDatasetSpec, criteria: dict[str, Any], lockTask: bool) -> tuple[bool, int | None]:
         comment = " /* JediDBProxy.updateDataset_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"datasetID={datasetSpec.datasetID}")
         tmpLog.debug("start")
@@ -3861,7 +3874,7 @@ class MiscStandaloneModule(BaseModule):
             return failedRet
 
     # update JEDI dataset attributes
-    def updateDatasetAttributes_JEDI(self, jediTaskID, datasetID, attributes):
+    def updateDatasetAttributes_JEDI(self, jediTaskID: int, datasetID: int, attributes: dict[str, Any]) -> Any:
         comment = " /* JediDBProxy.updateDatasetAttributes_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID}")
         tmpLog.debug("start")
@@ -3871,7 +3884,7 @@ class MiscStandaloneModule(BaseModule):
             # sql for update
             sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET "
             # values for UPDATE
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":datasetID"] = datasetID
             for tmpKey, tmpVal in attributes.items():
@@ -3901,12 +3914,12 @@ class MiscStandaloneModule(BaseModule):
             return failedRet
 
     # get JEDI dataset attributes
-    def getDatasetAttributes_JEDI(self, jediTaskID, datasetID, attributes):
+    def getDatasetAttributes_JEDI(self, jediTaskID: int, datasetID: int, attributes: list[str]) -> dict[str, Any]:
         comment = " /* JediDBProxy.getDatasetAttributes_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID}")
         tmpLog.debug("start")
         # return value for failure
-        failedRet = {}
+        failedRet: dict[str, Any] = {}
         try:
             # sql for get attributes
             sql = "SELECT "
@@ -3916,7 +3929,7 @@ class MiscStandaloneModule(BaseModule):
             sql += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
             sql += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # values for UPDATE
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":datasetID"] = datasetID
             # begin transaction
@@ -3942,14 +3955,14 @@ class MiscStandaloneModule(BaseModule):
             return failedRet
 
     # get JEDI dataset attributes with map
-    def getDatasetAttributesWithMap_JEDI(self, jediTaskID, criteria, attributes):
+    def getDatasetAttributesWithMap_JEDI(self, jediTaskID: int | str, criteria: dict[str, Any], attributes: list[str]) -> dict[str, Any]:
         comment = " /* JediDBProxy.getDatasetAttributesWithMap_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} criteria={str(criteria)}")
         tmpLog.debug("start")
         # return value for failure
-        failedRet = {}
+        failedRet: dict[str, Any] = {}
         try:
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # sql for get attributes
             sql = "SELECT "
@@ -3984,7 +3997,7 @@ class MiscStandaloneModule(BaseModule):
             return failedRet
 
     # get JEDI dataset with datasetID
-    def getDatasetWithID_JEDI(self, jediTaskID, datasetID):
+    def getDatasetWithID_JEDI(self, jediTaskID: int, datasetID: int) -> tuple[bool, JediDatasetSpec | None]:
         comment = " /* JediDBProxy.getDatasetWithID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID}")
         tmpLog.debug("start")
@@ -3994,7 +4007,7 @@ class MiscStandaloneModule(BaseModule):
             # sql
             sql = f"SELECT {JediDatasetSpec.columnNames()} "
             sql += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":datasetID"] = datasetID
             # begin transaction
@@ -4020,7 +4033,7 @@ class MiscStandaloneModule(BaseModule):
             return failedRet
 
     # get JEDI datasets with jediTaskID
-    def getDatasetsWithJediTaskID_JEDI(self, jediTaskID, datasetTypes=None):
+    def getDatasetsWithJediTaskID_JEDI(self, jediTaskID: int, datasetTypes: list[str] | None = None) -> tuple[bool, list[JediDatasetSpec] | None]:
         comment = " /* JediDBProxy.getDatasetsWithJediTaskID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetTypes={datasetTypes}")
         tmpLog.debug("start")
@@ -4028,7 +4041,7 @@ class MiscStandaloneModule(BaseModule):
         failedRet = False, None
         try:
             # sql
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             sql = f"SELECT {JediDatasetSpec.columnNames()} "
             sql += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
@@ -4061,7 +4074,7 @@ class MiscStandaloneModule(BaseModule):
             return failedRet
 
     # get jediTaskIDs with dataset attributes
-    def get_task_ids_with_dataset_attributes(self, dataset_attributes: dict, only_active_tasks: bool = True) -> tuple[bool, list[int] | None]:
+    def get_task_ids_with_dataset_attributes(self, dataset_attributes: dict[str, Any], only_active_tasks: bool = True) -> tuple[bool, list[int] | None]:
         """Get jediTaskIDs with dataset attributes.
         Args:
             dataset_attributes (dict): A dictionary of dataset attributes to filter on.
@@ -4108,7 +4121,7 @@ class MiscStandaloneModule(BaseModule):
             return False, None
 
     # extend lifetime of sandbox file
-    def extendSandboxLifetime_JEDI(self, jedi_taskid, file_name):
+    def extendSandboxLifetime_JEDI(self, jedi_taskid: int, file_name: str) -> int | None:
         comment = " /* JediDBProxy.extendSandboxLifetime_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_taskid}")
         try:
@@ -4116,10 +4129,10 @@ class MiscStandaloneModule(BaseModule):
             retVal = False
             # sql to update
             sqlC = f"UPDATE {panda_config.schemaMETA}.userCacheUsage SET creationTime=CURRENT_DATE WHERE fileName=:fileName "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":fileName"] = file_name
             self.cur.execute(sqlC + comment, varMap)
-            nRows = self.cur.rowcount
+            nRows: int = self.cur.rowcount
             if not self._commit():
                 raise RuntimeError("Commit error")
             tmpLog.debug(f"done {file_name} with {nRows}")
@@ -4133,7 +4146,18 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # lock process
-    def lockProcess_JEDI(self, vo, prodSourceLabel, cloud, workqueue_id, resource_name, component, pid, forceOption, timeLimit):
+    def lockProcess_JEDI(
+        self,
+        vo: str,
+        prodSourceLabel: str,
+        cloud: str | None,
+        workqueue_id: int | None,
+        resource_name: str | None,
+        component: str | None,
+        pid: str,
+        forceOption: bool,
+        timeLimit: int,
+    ) -> bool:
         comment = " /* JediDBProxy.lockProcess_JEDI */"
         # defaults
         vo = "default" if vo is None else vo
@@ -4167,7 +4191,7 @@ class MiscStandaloneModule(BaseModule):
             self.conn.begin()
             # check
             if not forceOption:
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":vo"] = vo
                 varMap[":prodSourceLabel"] = prodSourceLabel
                 varMap[":cloud"] = cloud
@@ -4222,7 +4246,9 @@ class MiscStandaloneModule(BaseModule):
             return retVal
 
     # unlock process
-    def unlockProcess_JEDI(self, vo, prodSourceLabel, cloud, workqueue_id, resource_name, component, pid):
+    def unlockProcess_JEDI(
+        self, vo: str, prodSourceLabel: str, cloud: str | None, workqueue_id: int | None, resource_name: str | None, component: str | None, pid: str
+    ) -> bool:
         comment = " /* JediDBProxy.unlockProcess_JEDI */"
         # defaults
         vo = "default" if vo is None else vo
@@ -4245,7 +4271,7 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":prodSourceLabel"] = prodSourceLabel
             varMap[":cloud"] = cloud
@@ -4268,7 +4294,7 @@ class MiscStandaloneModule(BaseModule):
             return retVal
 
     # unlock process with PID
-    def unlockProcessWithPID_JEDI(self, vo, prodSourceLabel, workqueue_id, resource_name, pid, useBase):
+    def unlockProcessWithPID_JEDI(self, vo: str, prodSourceLabel: str, workqueue_id: int | None, resource_name: str | None, pid: str, useBase: bool) -> bool:
         comment = " /* JediDBProxy.unlockProcessWithPID_JEDI */"
         tmpLog = self.create_tagged_logger(
             comment, f"vo={vo} label={prodSourceLabel} queue={workqueue_id} resource_type={resource_name} pid={pid} useBase={useBase}"
@@ -4288,7 +4314,7 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # delete
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":prodSourceLabel"] = prodSourceLabel
             varMap[":workqueue_id"] = workqueue_id
@@ -4312,7 +4338,17 @@ class MiscStandaloneModule(BaseModule):
             return retVal
 
     # check process lock
-    def checkProcessLock_JEDI(self, vo, prodSourceLabel, cloud, workqueue_id, resource_name, component, pid, checkBase):
+    def checkProcessLock_JEDI(
+        self,
+        vo: str,
+        prodSourceLabel: str,
+        cloud: str | None,
+        workqueue_id: int | None,
+        resource_name: str | None,
+        component: str | None,
+        pid: str,
+        checkBase: bool,
+    ) -> bool:
         comment = " /* JediDBProxy.checkProcessLock_JEDI */"
         # defaults
         if cloud is None:
@@ -4338,7 +4374,7 @@ class MiscStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":prodSourceLabel"] = prodSourceLabel
             varMap[":cloud"] = cloud

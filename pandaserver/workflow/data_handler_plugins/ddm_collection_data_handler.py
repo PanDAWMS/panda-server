@@ -1,6 +1,7 @@
 import json
 import traceback
 import uuid
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -48,7 +49,7 @@ class DDMCollectionDataHandler(BaseDataHandler):
     This class is responsible for managing the DDM collection data within a workflow.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the data handler with necessary parameters.
         """
@@ -56,7 +57,7 @@ class DDMCollectionDataHandler(BaseDataHandler):
         super().__init__(*args, **kwargs)
         self.plugin_flavor = "ddm_collection"
 
-    def check_target(self, data_spec: WFDataSpec, **kwargs) -> WFDataTargetCheckResult:
+    def check_target(self, data_spec: WFDataSpec, **kwargs: Any) -> WFDataTargetCheckResult:
         """
         Check the status of the DDM collection data target.
         This method should be implemented to handle the specifics of DDM collection data status checking.
@@ -103,7 +104,7 @@ class DDMCollectionDataHandler(BaseDataHandler):
         tmp_log.info(f"Got collection {collection} check_status={check_result.check_status}")
         return check_result
 
-    def combine_targets(self, target_ids: list, combined_name: str | None = None) -> str:
+    def combine_targets(self, target_ids: list[str], combined_name: str | None = None) -> str:
         """
         Combine multiple DDM collection target IDs into a single Rucio container.
 

@@ -5,11 +5,11 @@ import sys
 from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
-from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-from pandaserver.workflow.workflow_base import WFDataType
+from pandaserver.taskbuffer.TaskBuffer import TaskBuffer, taskBuffer
+from pandaserver.workflow.workflow_base import WFDataSpec, WFDataType, WFStepSpec
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Workflow core smoke test helper",
         epilog=(
@@ -59,7 +59,7 @@ def parse_args():
 DATA_TYPE_ORDER = (WFDataType.input, WFDataType.mid, WFDataType.output)
 
 
-def data_sort_key(data_spec):
+def data_sort_key(data_spec: WFDataSpec) -> tuple[int, str]:
     try:
         type_rank = DATA_TYPE_ORDER.index(data_spec.type)
     except ValueError:
@@ -67,7 +67,7 @@ def data_sort_key(data_spec):
     return type_rank, data_spec.name or ""
 
 
-def step_source_label(step_spec):
+def step_source_label(step_spec: WFStepSpec) -> str:
     """The prodSourceLabel the step's own task parameters carry, which is not the workflow's"""
     try:
         return step_spec.definition_json_map.get("task_params", {}).get("prodSourceLabel") or "-"
@@ -75,7 +75,7 @@ def step_source_label(step_spec):
         return "-"
 
 
-def show_workflow(task_buffer, workflow_id):
+def show_workflow(task_buffer: TaskBuffer, workflow_id: int) -> None:
     """Print what the engine currently holds for a workflow, its steps and its data"""
     workflow_spec = task_buffer.get_workflow(workflow_id=workflow_id)
     if workflow_spec is None:
@@ -107,7 +107,7 @@ def show_workflow(task_buffer, workflow_id):
         print(f"    {data_spec.name:<28} {data_spec.status:<20} {data_spec.type:<7} {data_spec.target_id}")
 
 
-def main():
+def main() -> None:
     args = parse_args()
     WFID = args.workflow_id
     action = args.action

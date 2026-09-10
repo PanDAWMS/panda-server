@@ -1,13 +1,19 @@
 import sys
 import traceback
+from typing import TYPE_CHECKING
 
 # logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.workflow.workflow_core import WorkflowInterface
 
 from .WatchDogBase import WatchDogBase
+
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -18,12 +24,12 @@ class AtlasWorkflowManagerWatchDog(WatchDogBase):
     """
 
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface") -> None:
         WatchDogBase.__init__(self, taskBufferIF, ddmIF)
         self.vo = "atlas"
         self.workflow_interface = WorkflowInterface(taskBufferIF)
 
-    def doProcessWorkflows(self):
+    def doProcessWorkflows(self) -> None:
         """
         Action to process active workflows
         """
@@ -46,7 +52,7 @@ class AtlasWorkflowManagerWatchDog(WatchDogBase):
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # main
-    def doAction(self):
+    def doAction(self) -> Interaction.StatusCode:
         try:
             # get logger
             origTmpLog = MsgWrapper(logger)

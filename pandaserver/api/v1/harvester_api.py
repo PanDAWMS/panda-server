@@ -18,7 +18,10 @@ from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("api_harvester")
 
-global_task_buffer = None
+# Installed by init_task_buffer() before any handler runs, so these are declared
+# non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
+# only push a None check onto every handler without making any of them safer.
+global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -30,7 +33,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
+def update_workers(req: PandaRequest, harvester_id: str, workers: List[dict[str, Any]]) -> dict[str, Any]:
     """
     Update workers.
 
@@ -77,7 +80,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list) -> Dict[str, Any]:
+def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list[list[str]]) -> Dict[str, Any]:
     """
     Update harvester service metrics.
 
@@ -90,7 +93,9 @@ def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list) 
     Args:
         req(PandaRequest): internally generated request object
         harvester_id(str): harvester id, e.g. `harvester_central_A`
-        metrics(list): list of triplets `[[host, timestamp, metric_dict],[host, timestamp, metric_dict]...]`. The metric dictionary is json encoded, as it is stored in the database like that.
+        metrics(list): list of triplets `[[timestamp, host, metrics_json],[timestamp, host, metrics_json]...]`, all three of them strings.
+            The metrics are json encoded, as they are stored in the database like that. The order is the one
+            DBProxy.updateServiceMetrics reads and the one the example below builds.
             ```
             harvester_host = "harvester_host.cern.ch"
             creation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -135,7 +140,7 @@ def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list) 
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def add_dialogs(req: PandaRequest, harvester_id: str, dialogs: list) -> Dict[str, Any]:
+def add_dialogs(req: PandaRequest, harvester_id: str, dialogs: list[dict[str, Any]]) -> Dict[str, Any]:
     """
     Add harvester dialog messages.
 
@@ -176,7 +181,7 @@ def add_dialogs(req: PandaRequest, harvester_id: str, dialogs: list) -> Dict[str
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def heartbeat(req: PandaRequest, harvester_id: str, data: dict = None) -> Dict[str, Any]:
+def heartbeat(req: PandaRequest, harvester_id: str, data: dict[str, Any] | None = None) -> Dict[str, Any]:
     """
     Heartbeat for harvester.
 
@@ -202,7 +207,11 @@ def heartbeat(req: PandaRequest, harvester_id: str, data: dict = None) -> Dict[s
     user = get_dn(req)
     host = req.get_remote_host()
 
-    ret_message = global_task_buffer.harvesterIsAlive(user, host, harvester_id, data)
+    # data is documented as optional here, but the proxy iterates it twice without a test,
+    # so a heartbeat that sends none fails inside the proxy's own except and comes back as
+    # a database error rather than just refreshing lastUpdate. Reported, not changed here:
+    # making it work changes what a data-less heartbeat does.
+    ret_message = global_task_buffer.harvesterIsAlive(user, host, harvester_id, data)  # type: ignore[arg-type]
     if not ret_message or ret_message != "succeeded":
         tmp_logger.error(f"Error updating database: {data}")
         return generate_response(False, message=MESSAGE_DATABASE)
@@ -337,7 +346,7 @@ def acquire_commands(req: PandaRequest, harvester_id: str, n_commands: int, time
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def acknowledge_commands(req: PandaRequest, command_ids: List, timeout: int = 30) -> Dict[str, Any]:
+def acknowledge_commands(req: PandaRequest, command_ids: List[int], timeout: int = 30) -> Dict[str, Any]:
     """
     Acknowledge harvester commands.
 
@@ -411,7 +420,14 @@ def add_sweep_command(req: PandaRequest, panda_queue: str, status_list: List[str
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def add_target_slots(req, panda_queue: str, slots: int, global_share: str = None, resource_type: str = None, expiration_date: str = None):
+def add_target_slots(
+    req: PandaRequest,
+    panda_queue: str,
+    slots: int,
+    global_share: str | None = None,
+    resource_type: str | None = None,
+    expiration_date: str | None = None,
+) -> dict[str, Any]:
     """
     Set target slots.
 

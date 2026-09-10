@@ -13,7 +13,7 @@ authors = [
     { name = "PanDA Team", email = "panda-support@cern.ch" },
 ]
 dependencies = [
-    'panda-common>=0.1.9',
+    'panda-common>=0.1.11',
     'panda-client-light>=1.5.55',
     'pyOpenSSL',
     'python-daemon',
@@ -115,3 +115,57 @@ line-length = 160
 
 [tool.flake8]
 ignore = ['E501', 'U100']
+
+# The tree is clean under these flags, so `mypy` with no arguments answers whether a change
+# keeps it that way. Nothing in CI runs it yet -- wiring it in belongs with the pre-commit
+# hook that lets a contributor see the same result before opening a PR, so both go in
+# together in a follow-up.
+#
+# Widening the flags further will surface findings that were never counted; do that in a PR
+# that also resolves them. --strict is not the next step: most of what it adds is
+# disallow_untyped_calls, which reports a call into an unannotated function rather than an
+# unannotated function, so it counts the same gaps again from the other side.
+[tool.mypy]
+files = ["pandaserver", "pandajedi"]
+# Run without the third-party packages installed -- which is how a checkout with only mypy
+# in the environment runs -- and every third-party import in the tree is unresolvable,
+# which would otherwise be 455 findings that say nothing about this code. The override
+# below takes this back off for pandaserver and pandajedi.
+ignore_missing_imports = true
+# Without this, mypy skips the body of every function that has no annotations --
+# which is most of this tree, so the gate would only cover the code that needs it
+# least. New code goes through the gate whether or not its author annotates it.
+check_untyped_defs = true
+# A bare `dict` or `list` in an annotation says nothing about what is in it, and
+# nothing outside mypy -- the code map, an MCP tool schema, the next reader -- can
+# recover it. Filling the parameters in is what makes an annotation worth having,
+# so it is required rather than left to whoever writes the line.
+disallow_any_generics = true
+# A function that declares a type and then returns a value the checker knows nothing about
+# has an annotation nobody verified. Most of those values are real -- a cursor result, a
+# json.loads, a plugin the configuration named -- so this does not ask for them to go away;
+# it asks for the type to be written on the value where it is received, which is the one
+# place a reader can check it against the code that produced it.
+warn_return_any = true
+# Every function states the type of each parameter and of what it returns. A function that
+# does not is not a style problem: it is a function whose body check_untyped_defs above
+# checks in isolation and whose call sites nothing checks at all, so a wrong argument
+# reaches production. disallow_incomplete_defs is the other half -- without it a single
+# annotation on one parameter counts as annotating the function.
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+# ignore_missing_imports silences a module mypy cannot find, which for a first-party path
+# means it silences a typo: the name becomes Any and nothing is reported. py_compile parses
+# rather than imports, so an import naming a module that is not there passes it, and the
+# override below is what catches it instead. Seven of them were in the tree, two fatal in
+# production and three written by the annotation work itself. For ignore_missing_imports the
+# module patterns match the module being imported, not the file importing it, so naming the
+# two first-party roots here makes only their paths a findable-or-fail matter and leaves
+# every third-party import silent.
+[[tool.mypy.overrides]]
+module = [
+    "pandajedi.*",
+    "pandaserver.*",
+]
+ignore_missing_imports = false

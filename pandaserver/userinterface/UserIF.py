@@ -6,6 +6,7 @@ import json
 import os
 import traceback
 import uuid
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -36,7 +37,7 @@ _logger = PandaLogger().getLogger("UserIF")
 
 
 # security check
-def isSecure(req):
+def isSecure(req: PandaRequest) -> bool:
     # check security
     if not Protocol.isSecure(req):
         return False
@@ -56,7 +57,7 @@ web service interface
 
 
 # json decoder for idds constants
-def decode_idds_enum(d):
+def decode_idds_enum(d: dict[str, Any]) -> Any:
     if "__idds_const__" in d:
         items = d["__idds_const__"].split(".")
         obj = idds.common.constants
@@ -68,7 +69,14 @@ def decode_idds_enum(d):
 
 
 # relay iDDS command
-def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, json_outputs=None):
+def relay_idds_command(
+    req: PandaRequest,
+    command_name: str,
+    args: str | None = None,
+    kwargs: str | None = None,
+    manager: str | bool | None = None,
+    json_outputs: str | bool | None = None,
+) -> str:
     tmp_log = LogWrapper(
         _logger,
         f"relay_idds_command-{naive_utcnow().isoformat('/')}",
@@ -78,14 +86,14 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
         tmp_log.error(MESSAGE_SSL)
         return json.dumps((False, MESSAGE_SSL))
     try:
-        manager = resolve_bool(manager)
-        if not manager:
-            manager = False
+        # both flags arrive as strings on the legacy path, where "False" is truthy
+        use_manager = resolve_bool(manager) is True
+        use_json_outputs = resolve_bool(json_outputs) is True
         if "+" in command_name:
             command_name, idds_host = command_name.split("+")
         else:
             idds_host = idds.common.utils.get_rest_host()
-        if manager:
+        if use_manager:
             c = iDDS_ClientManager(idds_host)
         else:
             c = iDDS_Client(idds_host)
@@ -95,34 +103,37 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
             return json.dumps((False, tmp_str))
         if args:
             try:
-                args = idds.common.utils.json_loads(args)
+                parsed_args = idds.common.utils.json_loads(args)
             except Exception as e:
                 tmp_log.warning(f"failed to load args json with {str(e)}")
-                args = json.loads(args, object_hook=decode_idds_enum)
+                parsed_args = json.loads(args, object_hook=decode_idds_enum)
         else:
-            args = []
+            parsed_args = []
         if kwargs:
             try:
-                kwargs = idds.common.utils.json_loads(kwargs)
+                parsed_kwargs = idds.common.utils.json_loads(kwargs)
             except Exception as e:
                 tmp_log.warning(f"failed to load kwargs json with {str(e)}")
-                kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
+                parsed_kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
-            kwargs = {}
+            parsed_kwargs = {}
         # json outputs
-        if json_outputs and manager:
+        if use_json_outputs and use_manager:
             c.setup_json_outputs()
         # set original username
         dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
         if dn:
             c.set_original_user(user_name=clean_user_id(dn))
-        tmp_log.debug(f"execute: class={c.__class__.__name__} com={command_name} host={idds_host} args={str(args)[:200]} kwargs={str(kwargs)[:200]}")
-        ret = getattr(c, command_name)(*args, **kwargs)
+        tmp_log.debug(
+            f"execute: class={c.__class__.__name__} com={command_name} host={idds_host} args={str(parsed_args)[:200]} kwargs={str(parsed_kwargs)[:200]}"
+        )
+        ret = getattr(c, command_name)(*parsed_args, **parsed_kwargs)
         tmp_log.debug(f"ret: {str(ret)[:200]}")
         try:
             return json.dumps((True, ret))
         except Exception:
-            return idds.common.utils.json_dumps((True, ret))
+            serialized: str = idds.common.utils.json_dumps((True, ret))
+            return serialized
     except Exception as e:
         tmp_str = f"failed to execute command with {str(e)}"
         tmp_log.error(f"{tmp_str} {traceback.format_exc()}")
@@ -130,7 +141,12 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
 
 
 # relay iDDS workflow command with ownership check
-def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=None):
+def execute_idds_workflow_command(
+    req: PandaRequest,
+    command_name: str,
+    kwargs: str | None = None,
+    json_outputs: str | bool | None = None,
+) -> str:
     try:
         tmp_log = LogWrapper(
             _logger,
@@ -138,11 +154,11 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
         )
         if kwargs:
             try:
-                kwargs = idds.common.utils.json_loads(kwargs)
+                parsed_kwargs = idds.common.utils.json_loads(kwargs)
             except Exception:
-                kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
+                parsed_kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
-            kwargs = {}
+            parsed_kwargs = {}
         if "+" in command_name:
             command_name, idds_host = command_name.split("+")
         else:
@@ -158,7 +174,8 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
             return json.dumps((False, tmp_message))
         # check owner
         c = iDDS_ClientManager(idds_host)
-        if json_outputs:
+        # the flag arrives as a string on the legacy path, where "False" is truthy
+        if resolve_bool(json_outputs) is True:
             c.setup_json_outputs()
         dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
         if check_owner:
@@ -169,18 +186,18 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
                 return json.dumps((False, tmp_message))
             requester = clean_user_id(dn)
             # get request_id
-            request_id = kwargs.get("request_id")
+            request_id = parsed_kwargs.get("request_id")
             if request_id is None:
                 tmp_message = "request_id is missing"
                 tmp_log.error(tmp_message)
                 return json.dumps((False, tmp_message))
             # get request
-            req = c.get_requests(request_id=request_id)
-            if not req:
+            idds_requests = c.get_requests(request_id=request_id)
+            if not idds_requests:
                 tmp_message = f"request {request_id} is not found"
                 tmp_log.error(tmp_message)
                 return json.dumps((False, tmp_message))
-            user_name = req[0].get("username")
+            user_name = idds_requests[0].get("username")
             if user_name and user_name != requester:
                 tmp_message = f"request {request_id} is not owned by {requester}"
                 tmp_log.error(tmp_message)
@@ -189,8 +206,8 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
         if dn:
             c.set_original_user(user_name=clean_user_id(dn))
         # execute command
-        tmp_log.debug(f"com={command_name} host={idds_host} kwargs={str(kwargs)}")
-        ret = getattr(c, command_name)(**kwargs)
+        tmp_log.debug(f"com={command_name} host={idds_host} kwargs={str(parsed_kwargs)}")
+        ret = getattr(c, command_name)(**parsed_kwargs)
         tmp_log.debug(str(ret))
         if isinstance(ret, dict) and "message" in ret:
             return json.dumps((True, [ret["status"], ret["message"]]))
@@ -202,19 +219,19 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
 
 def putEventPickingRequest(
     panda_request: PandaRequest,
-    runEventList="",
-    eventPickDataType="",
-    eventPickStreamName="",
-    eventPickDS="",
-    eventPickAmiTag="",
-    userDatasetName="",
-    lockedBy="",
-    params="",
-    inputFileList="",
-    eventPickNumSites="",
-    userTaskName="",
-    ei_api="",
-    giveGUID=None,
+    runEventList: str = "",
+    eventPickDataType: str = "",
+    eventPickStreamName: str = "",
+    eventPickDS: str = "",
+    eventPickAmiTag: str = "",
+    userDatasetName: str = "",
+    lockedBy: str = "",
+    params: str = "",
+    inputFileList: str = "",
+    eventPickNumSites: str = "",
+    userTaskName: str = "",
+    ei_api: str = "",
+    giveGUID: str | None = None,
 ) -> str:
     """
     Upload event picking request to the server.
@@ -265,10 +282,7 @@ def putEventPickingRequest(
         tmp_log.debug("end")
         return "ERROR : " + error_message
 
-    if giveGUID == "True":
-        giveGUID = True
-    else:
-        giveGUID = False
+    give_guid = giveGUID == "True"
 
     try:
         # generate the filename
@@ -297,10 +311,10 @@ def putEventPickingRequest(
             run_event_guid_map = {}
             for tmp_line in runEventList.split("\n"):
                 tmp_items = tmp_line.split()
-                if (len(tmp_items) != 2 and not giveGUID) or (len(tmp_items) != 3 and giveGUID):
+                if (len(tmp_items) != 2 and not give_guid) or (len(tmp_items) != 3 and give_guid):
                     continue
                 file_object.write("runEvent=%s,%s\n" % tuple(tmp_items[:2]))
-                if giveGUID:
+                if give_guid:
                     run_event_guid_map[tuple(tmp_items[:2])] = [tmp_items[2]]
             file_object.write(f"runEvtGuidMap={str(run_event_guid_map)}\n")
 
@@ -314,7 +328,7 @@ def putEventPickingRequest(
 
 
 # upload lost file recovery request
-def put_file_recovery_request(panda_request: PandaRequest, jediTaskID: str, dryRun: bool = None) -> str:
+def put_file_recovery_request(panda_request: PandaRequest, jediTaskID: str, dryRun: bool | None = None) -> str:
     """
     Upload lost file recovery request to the server.
 

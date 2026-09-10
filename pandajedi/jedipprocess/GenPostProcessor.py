@@ -1,15 +1,21 @@
+from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jediddm.DDMInterface import DDMInterface
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+
 from .PostProcessorBase import PostProcessorBase
 
 
 # post processor for general purpose
 class GenPostProcessor(PostProcessorBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         PostProcessorBase.__init__(self, taskBufferIF, ddmIF)
         self.failOnZeroOkFile = True
 
     # main
-    def doPostProcess(self, taskSpec, tmpLog):
+    def doPostProcess(self, taskSpec: JediTaskSpec, tmpLog: MsgWrapper) -> Interaction.StatusCode:
         try:
             # get DDM I/F
             ddmIF = self.ddmIF.getInterface(taskSpec.vo, taskSpec.cloud)

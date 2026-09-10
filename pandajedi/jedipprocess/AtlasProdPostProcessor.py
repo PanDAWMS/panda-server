@@ -2,10 +2,13 @@
 Post-processor implementation for ATLAS production tasks.
 """
 
-import sys
-
+from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from . import AtlasPostProcessorUtils
 from .PostProcessorBase import PostProcessorBase
@@ -14,10 +17,10 @@ from .PostProcessorBase import PostProcessorBase
 class AtlasProdPostProcessor(PostProcessorBase):
     """Post-processor for ATLAS production tasks."""
 
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         PostProcessorBase.__init__(self, taskBufferIF, ddmIF)
 
-    def doPostProcess(self, taskSpec, tmpLog):
+    def doPostProcess(self, taskSpec: JediTaskSpec, tmpLog: MsgWrapper) -> Interaction.StatusCode:
         """
         Run post-processing steps for a finished ATLAS production task.
 
@@ -37,13 +40,16 @@ class AtlasProdPostProcessor(PostProcessorBase):
             tmpStat = self.doPreCheck(taskSpec, tmpLog)
             if tmpStat:
                 return self.SC_SUCCEEDED
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            tmpLog.error(f"doPreCheck failed with {errtype.__name__}:{errvalue}")
+        except Exception as e:
+            tmpLog.error(f"doPreCheck failed with {type(e).__name__}:{e}")
             return self.SC_FATAL
 
         # get DDM I/F
         ddmIF = self.ddmIF.getInterface(taskSpec.vo)
+        if ddmIF is None:
+            # the same answer the dataset loop below gives when DDM cannot be reached
+            tmpLog.error(f"no DDM interface for vo={taskSpec.vo}")
+            return self.SC_FAILED
 
         # loop over all datasets
         for datasetSpec in taskSpec.datasetSpecList:
@@ -70,9 +76,8 @@ class AtlasProdPostProcessor(PostProcessorBase):
                             tmpLog.debug(f"delete {attMap['lfn']} from {datasetSpec.datasetName}")
                     if toDelete != []:
                         ddmIF.deleteFilesFromDataset(datasetSpec.datasetName, toDelete)
-            except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                tmpLog.warning(f"failed to remove wrong files with {errtype.__name__}:{errvalue}")
+            except Exception as e:
+                tmpLog.warning(f"failed to remove wrong files with {type(e).__name__}:{e}")
                 return self.SC_FAILED
 
             try:
@@ -80,9 +85,8 @@ class AtlasProdPostProcessor(PostProcessorBase):
                 if datasetSpec.type in ["output", "log", "trn_log"]:
                     tmpLog.info(f"freezing datasetID={datasetSpec.datasetID}:Name={datasetSpec.datasetName}")
                     ddmIF.freezeDataset(datasetSpec.datasetName, ignoreUnknown=True)
-            except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                tmpLog.warning(f"failed to freeze datasets with {errtype.__name__}:{errvalue}")
+            except Exception as e:
+                tmpLog.warning(f"failed to freeze datasets with {type(e).__name__}:{e}")
                 return self.SC_FAILED
 
             try:
@@ -91,9 +95,8 @@ class AtlasProdPostProcessor(PostProcessorBase):
                     tmpLog.debug(f"deleting datasetID={datasetSpec.datasetID}:Name={datasetSpec.datasetName}")
                     retStr = ddmIF.deleteDataset(datasetSpec.datasetName, False, ignoreUnknown=True)
                     tmpLog.info(retStr)
-            except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                tmpLog.warning(f"failed to delete datasets with {errtype.__name__}:{errvalue}")
+            except Exception as e:
+                tmpLog.warning(f"failed to delete datasets with {type(e).__name__}:{e}")
 
         # check for duplicate tasks and pause if found
         if self.getFinalTaskStatus(taskSpec) in ["finished", "done"] and taskSpec.gshare != "Test":
@@ -113,9 +116,8 @@ class AtlasProdPostProcessor(PostProcessorBase):
                 tmpLog.debug(f"deleting ES dataset name={targetName}")
                 retStr = ddmIF.deleteDataset(targetName, False, ignoreUnknown=True)
                 tmpLog.debug(retStr)
-            except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                tmpLog.warning(f"failed to delete ES dataset with {errtype.__name__}:{errvalue}")
+            except Exception as e:
+                tmpLog.warning(f"failed to delete ES dataset with {type(e).__name__}:{e}")
 
         try:
             AtlasPostProcessorUtils.send_notification(self.taskBufferIF, ddmIF, taskSpec, tmpLog)
@@ -125,14 +127,13 @@ class AtlasProdPostProcessor(PostProcessorBase):
 
         try:
             self.doBasicPostProcess(taskSpec, tmpLog)
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            tmpLog.error(f"doBasicPostProcess failed with {errtype.__name__}:{errvalue}")
+        except Exception as e:
+            tmpLog.error(f"doBasicPostProcess failed with {type(e).__name__}:{e}")
             return self.SC_FATAL
 
         return self.SC_SUCCEEDED
 
-    def doFinalProcedure(self, taskSpec, tmpLog):
+    def doFinalProcedure(self, taskSpec: JediTaskSpec, tmpLog: MsgWrapper) -> Interaction.StatusCode:
         """
         Apply final DDM metadata updates after post-processing completes.
 
@@ -153,6 +154,9 @@ class AtlasProdPostProcessor(PostProcessorBase):
             trnLifeTime = 14 * 24 * 60 * 60
             trnLifeTimeMerge = 40 * 24 * 60 * 60
             ddmIF = self.ddmIF.getInterface(taskSpec.vo)
+            if ddmIF is None:
+                tmpLog.error(f"no DDM interface for vo={taskSpec.vo} to set lifetimes")
+                return self.SC_FAILED
 
             metaData = {"lifetime": trnLifeTime}
             datasetTypeListI = set()
@@ -203,6 +207,9 @@ class AtlasProdPostProcessor(PostProcessorBase):
         if taskSpec.status in ["failed", "broken", "aborted"]:
             trnLifeTime = 30 * 24 * 60 * 60
             ddmIF = self.ddmIF.getInterface(taskSpec.vo)
+            if ddmIF is None:
+                tmpLog.error(f"no DDM interface for vo={taskSpec.vo} to set the log lifetime")
+                return self.SC_FAILED
             metaData = {"lifetime": trnLifeTime}
             for datasetSpec in taskSpec.datasetSpecList:
                 if datasetSpec.type in ["log"]:

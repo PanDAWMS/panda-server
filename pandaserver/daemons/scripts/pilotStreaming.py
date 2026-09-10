@@ -1,6 +1,7 @@
 import sys
 import time
 import traceback
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
@@ -11,12 +12,12 @@ _logger = PandaLogger().getLogger("pilot_streaming")
 
 
 class PilotStreaming(object):
-    def __init__(self, tbuf):
+    def __init__(self, tbuf: Any) -> None:
         self._logger = _logger
         self.tbuf = tbuf
         return
 
-    def run(self):
+    def run(self) -> None:
         """
         Gets and iterates over ups queues, deciding the job requirements and sending these to Harvester
         via the command interface
@@ -79,7 +80,7 @@ class PilotStreaming(object):
 
 
 # main
-def main(tbuf=None, **kwargs):
+def main(tbuf: Any = None, **kwargs: Any) -> None:
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     # instantiate TB

@@ -1,8 +1,10 @@
 import json
 import os
 import socket
+from typing import Any
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool
 from pandajedi.jediddm.DDMInterface import DDMInterface
@@ -15,13 +17,13 @@ base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
 
 # plugin to process messages from Panda to JEDI
 class PandaToJediMsgProcPlugin(BaseMsgProcPlugin):
-    def initialize(self):
-        BaseMsgProcPlugin.initialize(self)
+    def initialize(self, in_collective: bool = False) -> None:
+        BaseMsgProcPlugin.initialize(self, in_collective)
         self.ddmIF = DDMInterface()
         self.ddmIF.setupInterface()
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}_{os.getpgrp()}-pjmsg"
 
-    def process(self, msg_obj, decoded_data=None):
+    def process(self, msg_obj: MsgObj, decoded_data: dict[str, Any] | None = None) -> None:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         # start
         tmp_log.info("start")
@@ -49,18 +51,35 @@ class PandaToJediMsgProcPlugin(BaseMsgProcPlugin):
                     # get WQ
                     vo = taskSpec.vo
                     prodSourceLabel = taskSpec.prodSourceLabel
-                    workQueue = self.tbIF.getWorkQueueMap().getQueueWithIDGshare(taskSpec.workQueue_ID, taskSpec.gshare)
+                    # the map is built on first use, so it is there by the time this asks
+                    workQueue = self.tbIF.getWorkQueueMap().getQueueWithIDGshare(taskSpec.workQueue_ID, taskSpec.gshare)  # type: ignore[union-attr]
                     # get inputs
                     tmpList = self.tbIF.getTasksToBeProcessed_JEDI(self.pid, None, workQueue, None, None, nFiles=1000, target_tasks=[jediTaskID])
                     if tmpList:
-                        inputList = ListWithLock(tmpList)
+                        # a number comes back only with isPeeking, which this does not ask for
+                        inputList = ListWithLock(tmpList)  # type: ignore[arg-type]
                         # create thread
                         threadPool = ThreadPool()
                         siteMapper = self.tbIF.get_site_mapper()
                         taskSetupper = TaskSetupper(vo, prodSourceLabel)
                         taskSetupper.initializeMods(self.tbIF, self.ddmIF)
+                        resource_types = self.tbIF.load_resource_types()
                         gen = JobGeneratorThread(
-                            inputList, threadPool, self.tbIF, self.ddmIF, siteMapper, True, taskSetupper, self.pid, workQueue, "pjmsg", None, None, None, False
+                            inputList,
+                            threadPool,
+                            self.tbIF,
+                            self.ddmIF,
+                            siteMapper,
+                            True,
+                            taskSetupper,
+                            self.pid,
+                            workQueue,
+                            "pjmsg",
+                            None,
+                            None,
+                            None,
+                            False,
+                            resource_types,
                         )
                         gen.start()
                         gen.join()

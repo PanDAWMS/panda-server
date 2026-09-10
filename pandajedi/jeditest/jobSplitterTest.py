@@ -1,4 +1,5 @@
 import sys
+from typing import Any
 
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
@@ -23,6 +24,7 @@ ddmIF = DDMInterface()
 ddmIF.setupInterface()
 
 jediTaskID = int(sys.argv[1])
+datasetID: list[int] | None
 try:
     datasetID = [int(sys.argv[2])]
 except Exception:
@@ -70,10 +72,11 @@ taskSetupper.initializeMods(tbIF, ddmIF)
 resource_types = tbIF.load_resource_types()
 
 for dummyID, tmpList in tmpListList:
-    task_common = {}
+    task_common: dict[str, Any] = {}
     for taskSpec, cloudName, inputChunk in tmpList:
         jobBroker = JobBroker(taskSpec.vo, taskSpec.prodSourceLabel)
-        tmpStat = jobBroker.initializeMods(ddmIF.getInterface(vo), tbIF)
+        # its own name: initializeMods answers a bool, tmpStat below is a StatusCode
+        initStat = jobBroker.initializeMods(ddmIF.getInterface(vo), tbIF)
         jobBrokerCore = jobBroker.getImpl(taskSpec.vo, taskSpec.prodSourceLabel)
         jobBrokerCore.setTestMode()
         jobBrokerCore.set_task_common_dict(task_common)
@@ -85,7 +88,8 @@ for dummyID, tmpList in tmpListList:
 
         taskParamMap = None
         if taskSpec.useLimitedSites():
-            tmpStat, taskParamMap = gen.readTaskParams(taskSpec, taskParamMap, tmpLog)
+            # its own name too: readTaskParams answers a bool as well
+            readStat, taskParamMap = gen.readTaskParams(taskSpec, taskParamMap, tmpLog)
         jobBroker.setLockID(taskSpec.vo, taskSpec.prodSourceLabel, 123, 0)
         tmpStat, inputChunk = jobBroker.doBrokerage(taskSpec, cloudName, inputChunk, taskParamMap)
         brokerageLockID = jobBroker.getBaseLockID(taskSpec.vo, taskSpec.prodSourceLabel)

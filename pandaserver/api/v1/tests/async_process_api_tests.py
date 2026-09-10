@@ -6,21 +6,23 @@ import json
 import socket
 import unittest
 import uuid
+from typing import Any, cast
 from unittest import mock
 
 from pandaserver.api.v1 import async_process_api, common
 from pandaserver.api.v1.http_client import HttpClient, api_url, api_url_ssl
+from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE
 
 NO_SSL_RESPONSE = {"success": False, "message": "SSL secure connection is required", "data": None}
 
 
 class TestAsyncProcessAPI(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.http_client = HttpClient()
         self.urls = [api_url, api_url_ssl]
 
-    def test_submit_grep_request_no_ssl(self):
+    def test_submit_grep_request_no_ssl(self) -> None:
         full_url = f"{api_url}/async_process/submit_grep_request"
         print(f"Testing URL: {full_url}")
         data = {"pattern": "ERROR", "log_filename": "panda-server.log", "service_name": "server"}
@@ -28,7 +30,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         print(output)
         self.assertEqual(output, NO_SSL_RESPONSE)
 
-    def test_submit_grep_request_missing_target(self):
+    def test_submit_grep_request_missing_target(self) -> None:
         full_url = f"{api_url_ssl}/async_process/submit_grep_request"
         print(f"Testing URL: {full_url}")
         data = {"pattern": "ERROR", "log_filename": "panda-server.log"}
@@ -41,7 +43,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         }
         self.assertEqual(output, expected_response)
 
-    def test_submit_grep_request_both_targets(self):
+    def test_submit_grep_request_both_targets(self) -> None:
         full_url = f"{api_url_ssl}/async_process/submit_grep_request"
         print(f"Testing URL: {full_url}")
         data = {
@@ -59,7 +61,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         }
         self.assertEqual(output, expected_response)
 
-    def test_submit_grep_request_invalid_filename(self):
+    def test_submit_grep_request_invalid_filename(self) -> None:
         full_url = f"{api_url_ssl}/async_process/submit_grep_request"
         print(f"Testing URL: {full_url}")
         data = {"pattern": "ERROR", "log_filename": "../etc/passwd", "service_name": "server"}
@@ -72,7 +74,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         }
         self.assertEqual(output, expected_response)
 
-    def test_submit_grep_request_max_matches_out_of_range(self):
+    def test_submit_grep_request_max_matches_out_of_range(self) -> None:
         full_url = f"{api_url_ssl}/async_process/submit_grep_request"
         print(f"Testing URL: {full_url}")
         data = {
@@ -90,7 +92,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         }
         self.assertEqual(output, expected_response)
 
-    def test_submit_grep_request_tail_bytes_out_of_range(self):
+    def test_submit_grep_request_tail_bytes_out_of_range(self) -> None:
         full_url = f"{api_url_ssl}/async_process/submit_grep_request"
         print(f"Testing URL: {full_url}")
         data = {
@@ -108,7 +110,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         }
         self.assertEqual(output, expected_response)
 
-    def test_submit_grep_request_bounded_success(self):
+    def test_submit_grep_request_bounded_success(self) -> None:
         """A bounded query is how a multi-gigabyte log should be asked about."""
         full_url = f"{api_url_ssl}/async_process/submit_grep_request"
         print(f"Testing URL: {full_url}")
@@ -124,7 +126,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         self.assertTrue(output["success"])
         self.assertIsInstance(output["data"]["request_id"], str)
 
-    def test_submit_grep_request_success(self):
+    def test_submit_grep_request_success(self) -> None:
         full_url = f"{api_url_ssl}/async_process/submit_grep_request"
         print(f"Testing URL: {full_url}")
         data = {
@@ -140,7 +142,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         self.assertIsInstance(request_id, str)
         self.assertEqual(len(request_id), 36)
 
-    def test_get_result_not_found(self):
+    def test_get_result_not_found(self) -> None:
         missing_id = str(uuid.uuid4())
         for url in self.urls:
             with self.subTest(base_url=url):
@@ -156,7 +158,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
                 }
                 self.assertEqual(output, expected_response)
 
-    def test_get_result_pending(self):
+    def test_get_result_pending(self) -> None:
         submit_url = f"{api_url_ssl}/async_process/submit_grep_request"
         print(f"Testing URL: {submit_url}")
         submit_data = {
@@ -180,7 +182,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         self.assertIsInstance(output["data"]["expected_machines"], list)
         self.assertIsInstance(output["data"]["results"], list)
 
-    def test_submit_sleep_echo_no_ssl(self):
+    def test_submit_sleep_echo_no_ssl(self) -> None:
         full_url = f"{api_url}/async_process/submit_sleep_echo_request"
         print(f"Testing URL: {full_url}")
         data = {"service_name": "server", "message": "hi", "seconds": 1}
@@ -188,7 +190,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         print(output)
         self.assertEqual(output, NO_SSL_RESPONSE)
 
-    def test_submit_sleep_echo_invalid_seconds(self):
+    def test_submit_sleep_echo_invalid_seconds(self) -> None:
         full_url = f"{api_url_ssl}/async_process/submit_sleep_echo_request"
         print(f"Testing URL: {full_url}")
         data = {"service_name": "server", "message": "hi", "seconds": 100000}
@@ -196,7 +198,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         print(output)
         self.assertFalse(output["success"])
 
-    def test_submit_sleep_echo_success(self):
+    def test_submit_sleep_echo_success(self) -> None:
         full_url = f"{api_url_ssl}/async_process/submit_sleep_echo_request"
         print(f"Testing URL: {full_url}")
         data = {"service_name": "server", "message": "hi", "seconds": 1}
@@ -213,59 +215,60 @@ class TestAsyncProcessAPI(unittest.TestCase):
 class TestAsyncAccessControl(unittest.TestCase):
     """Unit tests for the access-control helpers (no live server needed)."""
 
-    def _row(self, requester, access=None):
+    def _row(self, requester: str | None, access: str | None = None) -> dict[str, str]:
         params = {"requester": requester}
         if access is not None:
             params["access"] = access
         return {"parameters": json.dumps(params)}
 
-    def test_set_owner_info_default_owner(self):
+    def test_set_owner_info_default_owner(self) -> None:
         with mock.patch.object(common, "get_dn", return_value="dn"), mock.patch.object(common, "clean_user_id", return_value="alice"):
-            params = common.set_owner_info({"pattern": "x"}, req=object())
+            # get_dn is patched out, so nothing reads the request; the cast says so
+            params = common.set_owner_info({"pattern": "x"}, req=cast(PandaRequest, object()))
         self.assertEqual(params["requester"], "alice")
         self.assertEqual(params["access"], "owner")
         self.assertEqual(params["pattern"], "x")
 
-    def test_set_owner_info_explicit_access(self):
+    def test_set_owner_info_explicit_access(self) -> None:
         with mock.patch.object(common, "get_dn", return_value="dn"), mock.patch.object(common, "clean_user_id", return_value="alice"):
-            params = common.set_owner_info({}, req=object(), access="anyone")
+            params = common.set_owner_info({}, req=cast(PandaRequest, object()), access="anyone")
         self.assertEqual(params["access"], "anyone")
 
-    def _authorize(self, caller, req_row, production_role=False):
+    def _authorize(self, caller: str, req_row: dict[str, Any], production_role: bool = False) -> tuple[bool, str]:
         with (
             mock.patch.object(common, "get_dn", return_value="dn"),
             mock.patch.object(common, "clean_user_id", return_value=caller),
             mock.patch.object(common, "has_production_role", return_value=production_role),
         ):
-            return common.is_authorized_to_read(object(), req_row)
+            return common.is_authorized_to_read(cast(PandaRequest, object()), req_row)
 
-    def test_owner_matching_caller_ok(self):
+    def test_owner_matching_caller_ok(self) -> None:
         ok, _ = self._authorize("alice", self._row("alice", "owner"))
         self.assertTrue(ok)
 
-    def test_owner_other_caller_denied(self):
+    def test_owner_other_caller_denied(self) -> None:
         ok, _ = self._authorize("bob", self._row("alice", "owner"))
         self.assertFalse(ok)
 
-    def test_production_role_caller_ok(self):
+    def test_production_role_caller_ok(self) -> None:
         ok, _ = self._authorize("bob", self._row("alice", "production"), production_role=True)
         self.assertTrue(ok)
 
-    def test_production_non_role_non_owner_denied(self):
+    def test_production_non_role_non_owner_denied(self) -> None:
         ok, _ = self._authorize("bob", self._row("alice", "production"), production_role=False)
         self.assertFalse(ok)
 
-    def test_anyone_any_caller_ok(self):
+    def test_anyone_any_caller_ok(self) -> None:
         ok, _ = self._authorize("bob", self._row("alice", "anyone"))
         self.assertTrue(ok)
 
-    def test_missing_access_defaults_to_owner(self):
+    def test_missing_access_defaults_to_owner(self) -> None:
         ok, _ = self._authorize("alice", self._row("alice"))
         self.assertTrue(ok)
         ok, _ = self._authorize("bob", self._row("alice"))
         self.assertFalse(ok)
 
-    def test_unknown_access_denied(self):
+    def test_unknown_access_denied(self) -> None:
         ok, _ = self._authorize("alice", self._row("alice", "bogus"))
         self.assertFalse(ok)
 
@@ -275,7 +278,7 @@ class TestStructuredResult(unittest.TestCase):
 
     REQUEST_ROW = {"request_type": "dc_force_to_staging", "parameters": json.dumps({"requester": "alice", "access": "production", "structured_result": True})}
 
-    def _result_row(self, **over):
+    def _result_row(self, **over: Any) -> dict[str, Any]:
         row = {
             "machine_name": ANY_MACHINE,
             "status": "done",
@@ -291,7 +294,7 @@ class TestStructuredResult(unittest.TestCase):
         row.update(over)
         return row
 
-    def test_done_payload_is_hoisted(self):
+    def test_done_payload_is_hoisted(self) -> None:
         out = async_process_api._structured_result_response(self.REQUEST_ROW, [self._result_row()])
         self.assertTrue(out["success"])
         self.assertEqual(out["message"], "status has become staging")
@@ -302,7 +305,7 @@ class TestStructuredResult(unittest.TestCase):
         for key in ("stderr", "return_code", "truncated", "results", "overall_status"):
             self.assertNotIn(key, out)
 
-    def test_failed_operation_is_reported_as_success_false(self):
+    def test_failed_operation_is_reported_as_success_false(self) -> None:
         payload = json.dumps({"success": False, "message": "failed to get corresponding request", "data": None})
         out = async_process_api._structured_result_response(self.REQUEST_ROW, [self._result_row(result=payload)])
         self.assertFalse(out["success"])
@@ -310,7 +313,7 @@ class TestStructuredResult(unittest.TestCase):
         self.assertIsNone(out["data"])
         self.assertEqual(out["async_meta"]["status"], "done")
 
-    def test_pending_and_running(self):
+    def test_pending_and_running(self) -> None:
         out = async_process_api._structured_result_response(self.REQUEST_ROW, [])
         self.assertFalse(out["success"])
         self.assertEqual(out["message"], "request is pending")
@@ -321,25 +324,25 @@ class TestStructuredResult(unittest.TestCase):
         self.assertEqual(out["message"], "request is running")
         self.assertIsNone(out["async_meta"]["finished_at"])
 
-    def test_crashed_handler(self):
+    def test_crashed_handler(self) -> None:
         out = async_process_api._structured_result_response(self.REQUEST_ROW, [self._result_row(status="failed", result=None, error_msg="Traceback ... boom")])
         self.assertFalse(out["success"])
         self.assertEqual(out["message"], "request failed before producing a result")
         self.assertIn("boom", out["async_meta"]["error_msg"])
 
-    def test_payload_without_success_never_looks_unfinished(self):
+    def test_payload_without_success_never_looks_unfinished(self) -> None:
         out = async_process_api._structured_result_response(self.REQUEST_ROW, [self._result_row(result=json.dumps({"message": "odd"}))])
         self.assertFalse(out["success"])
         self.assertEqual(out["async_meta"]["status"], "done")
 
-    def test_corrupt_payload_is_a_poll_failure(self):
+    def test_corrupt_payload_is_a_poll_failure(self) -> None:
         out = async_process_api._structured_result_response(self.REQUEST_ROW, [self._result_row(result="{not json")])
         self.assertFalse(out["success"])
         self.assertIn("failed to decode stored result", out["message"])
         # a response without async_meta means the poll itself failed
         self.assertNotIn("async_meta", out)
 
-    def test_get_result_dispatches_on_the_flag(self):
+    def test_get_result_dispatches_on_the_flag(self) -> None:
         task_buffer = mock.MagicMock()
         task_buffer.get_async_request.return_value = self.REQUEST_ROW
         task_buffer.get_async_results.return_value = [self._result_row()]

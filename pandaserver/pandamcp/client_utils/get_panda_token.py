@@ -10,6 +10,7 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta
+from typing import Any
 from urllib import error, parse, request
 
 PANDA_SERVER = os.environ.get("PANDA_SERVER", "https://pandaserver.cern.ch:25443")
@@ -17,7 +18,7 @@ VO = os.environ.get("VO", "atlas")
 TOKEN_FILE = os.environ.get("TOKEN_FILE", os.path.join(os.path.expanduser("~"), ".panda_id_token"))
 
 
-def fetch_json(url, post_data=None):
+def fetch_json(url: str, post_data: dict[str, Any] | None = None) -> Any:
     import ssl
 
     ctx = ssl.create_default_context()
@@ -34,7 +35,7 @@ def fetch_json(url, post_data=None):
         return json.loads(resp.read().decode())
 
 
-def main():
+def main() -> None:
     print(f"==> Fetching auth config from {PANDA_SERVER}/auth/{VO}_auth_config.json")
     try:
         auth_config = fetch_json(f"{PANDA_SERVER}/auth/{VO}_auth_config.json")

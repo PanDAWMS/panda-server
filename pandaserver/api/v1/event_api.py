@@ -1,3 +1,5 @@
+from typing import Any
+
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -15,7 +17,10 @@ from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 _logger = PandaLogger().getLogger("api_event")
 
 # These global variables are initialized in the init_task_buffer method
-global_task_buffer = None
+# Installed by init_task_buffer() before any handler runs, so these are declared
+# non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
+# only push a None check onto every handler without making any of them safer.
+global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -28,7 +33,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="GET")
-def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: int, task_id: int, timeout=60) -> dict:
+def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: int, task_id: int, timeout: int = 60) -> dict[str, Any]:
     """
     Get available event range count
 
@@ -74,7 +79,7 @@ def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: i
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_event_range_statuses(req: PandaRequest, job_task_ids: str) -> dict:
+def get_event_range_statuses(req: PandaRequest, job_task_ids: str) -> dict[str, Any]:
     """
     Get event range statuses
 
@@ -111,12 +116,12 @@ def acquire_event_ranges(
     req: PandaRequest,
     job_id: int,
     jobset_id: int,
-    task_id: int = None,
+    task_id: int | None = None,
     n_ranges: int = 10,
     timeout: int = 60,
     scattered: bool = False,
-    segment_id: int = None,
-) -> dict:
+    segment_id: int | None = None,
+) -> dict[str, Any]:
     """
     Acquire event ranges
 
@@ -173,11 +178,11 @@ def update_single_event_range(
     req: PandaRequest,
     event_range_id: str,
     event_range_status: str,
-    core_count: int = None,
-    cpu_consumption_time: float = None,
-    object_store_id: id = None,
+    core_count: int | None = None,
+    cpu_consumption_time: float | None = None,
+    object_store_id: int | None = None,
     timeout: int = 60,
-):
+) -> dict[str, Any]:
     """
     Update single event range
 
@@ -226,7 +231,7 @@ def update_single_event_range(
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120, version: int = 0):
+def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120, version: int = 0) -> dict[str, Any]:
     """
     Update event ranges
 
