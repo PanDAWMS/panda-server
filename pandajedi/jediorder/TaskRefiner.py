@@ -1,5 +1,3 @@
-import datetime
-import itertools
 import time
 import traceback
 from multiprocessing.connection import Connection

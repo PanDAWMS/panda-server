@@ -1,4 +1,3 @@
-import sys
 import uuid
 from typing import Any
 

@@ -4,7 +4,6 @@ Inherits from AdderPluginBase.
 
 """
 
-import datetime
 import gc
 import re
 import time

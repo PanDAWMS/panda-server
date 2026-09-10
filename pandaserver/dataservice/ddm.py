@@ -5,7 +5,6 @@ Module to provide primitive methods for DDM
 
 import datetime
 import hashlib
-import json
 import re
 import threading
 import time

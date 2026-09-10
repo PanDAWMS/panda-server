@@ -19,7 +19,6 @@ from pandaserver.api.v1.common import (
     request_validation,
     set_owner_info,
 )
-from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.srvcore.panda_request import PandaRequest

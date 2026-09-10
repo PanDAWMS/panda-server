@@ -3,7 +3,6 @@ Simple plugin of Adder for VOs with Rucio
 
 """
 
-import datetime
 import time
 import traceback
 import uuid

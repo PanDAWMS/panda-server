@@ -11,7 +11,7 @@ import sys
 import time
 from datetime import datetime, timedelta
 from typing import Any
-from urllib import error, parse, request
+from urllib import parse, request
 
 PANDA_SERVER = os.environ.get("PANDA_SERVER", "https://pandaserver.cern.ch:25443")
 VO = os.environ.get("VO", "atlas")

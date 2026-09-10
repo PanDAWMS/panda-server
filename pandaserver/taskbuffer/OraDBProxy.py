@@ -28,13 +28,6 @@ from pandaserver.taskbuffer.db_proxy_mods import (
 )
 from pandaserver.taskbuffer.WrappedCursor import WrappedCursor
 
-try:
-    import idds.common.constants
-    import idds.common.utils
-    from idds.client.client import Client as iDDS_Client
-except ImportError:
-    pass
-
 if panda_config.backend == "oracle":
     import oracledb
 

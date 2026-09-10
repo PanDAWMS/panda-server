@@ -3,7 +3,6 @@ General Adder plugin. Add data to dataset
 
 """
 
-import datetime
 import json
 import re
 import sys

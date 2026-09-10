@@ -11,7 +11,6 @@ from pandaserver.workflow.workflow_base import (
     WFStepTargetCancelResult,
     WFStepTargetCheckResult,
     WFStepTargetSubmitResult,
-    WFStepType,
 )
 
 # main logger

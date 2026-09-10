@@ -5,7 +5,6 @@ from typing import Any
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
-from pandaserver.config import panda_config
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 
 DEFAULT_MAX_ATTEMPTS = 3

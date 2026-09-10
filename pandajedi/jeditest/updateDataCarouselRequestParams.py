@@ -3,7 +3,6 @@ import sys
 
 from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jediddm.DDMInterface import DDMInterface
-from pandajedi.jedirefine import RefinerUtils
 from pandaserver.taskbuffer.DataCarousel import DataCarouselInterface
 
 vo = "atlas"

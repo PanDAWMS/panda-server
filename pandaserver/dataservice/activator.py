@@ -3,7 +3,6 @@ activate job
 
 """
 
-import datetime
 from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper

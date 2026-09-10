@@ -5,7 +5,6 @@ file specification for JEDI
 
 import datetime
 import re
-import types
 from typing import TYPE_CHECKING, Any, Sequence
 
 from pandaserver.taskbuffer.FileSpec import FileSpec as JobFileSpec

@@ -1,6 +1,5 @@
 import datetime
 import optparse
-import re
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 

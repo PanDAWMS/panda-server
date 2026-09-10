@@ -1,7 +1,3 @@
-import datetime
-import os
-import re
-import socket
 import sys
 import time
 import traceback
@@ -9,15 +5,11 @@ from typing import TYPE_CHECKING
 
 # logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
-from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
 from pandaserver.taskbuffer.DataCarousel import (
     DataCarouselInterface,
-    DataCarouselRequestSpec,
-    DataCarouselRequestStatus,
 )
 
 from .WatchDogBase import WatchDogBase

@@ -18,7 +18,7 @@ from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.srvcore.hardware_matching import compare_version_string, match_gpu_spec
+from pandaserver.srvcore.hardware_matching import match_gpu_spec
 from pandaserver.taskbuffer import JobUtils, ProcessGroups, SiteSpec
 from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec

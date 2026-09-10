@@ -5,7 +5,6 @@ from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.taskbuffer.DataCarousel import (
     DataCarouselInterface,
     DataCarouselRequestSpec,
-    DataCarouselRequestStatus,
 )
 
 vo = "atlas"

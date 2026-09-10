@@ -6,7 +6,6 @@ import unittest
 import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
 from typing import Any
 from unittest import mock
 

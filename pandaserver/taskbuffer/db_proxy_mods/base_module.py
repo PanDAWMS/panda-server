@@ -207,7 +207,6 @@ class BaseModule:
                 ]
             else:
                 # mysql error codes for connection error
-                import MySQLdb
                 from MySQLdb.constants.CR import (
                     CONN_HOST_ERROR,
                     CONNECTION_ERROR,

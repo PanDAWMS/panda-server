@@ -3,7 +3,6 @@ import json
 import math
 import random
 import re
-import sys
 import traceback
 import uuid
 from statistics import mean
@@ -12,15 +11,13 @@ from typing import TYPE_CHECKING, Any
 import numpy
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import (
-    batched,
-    get_sql_IN_bind_variables,
     naive_utcnow,
 )
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
-from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMBER
+from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediDatasetSpec import (
     INPUT_TYPES_var_map,
@@ -28,15 +25,12 @@ from pandaserver.taskbuffer.JediDatasetSpec import (
     JediDatasetSpec,
     MERGE_TYPES_var_map,
     MERGE_TYPES_var_str,
-    PROCESS_TYPES_var_map,
-    PROCESS_TYPES_var_str,
 )
 from pandaserver.taskbuffer.JediFileSpec import JediFileSpec
 
 if TYPE_CHECKING:
     from pandaserver.brokerage.SiteMapper import SiteMapper
-from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec, is_msg_driven
-from pandaserver.taskbuffer.JobSpec import JobSpec, get_task_queued_time
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.task_split_rules import decode_split_rule
 
 

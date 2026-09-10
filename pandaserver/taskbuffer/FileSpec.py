@@ -3,7 +3,6 @@ file specification
 
 """
 
-import datetime
 from typing import TYPE_CHECKING, Any, Sequence
 
 from pandaserver.taskbuffer.spec_column import SpecColumn
