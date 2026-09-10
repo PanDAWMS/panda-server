@@ -15,7 +15,7 @@ from pandaserver.taskbuffer.db_proxy_mods.async_request_module import SERVICE_SE
 
 
 def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer

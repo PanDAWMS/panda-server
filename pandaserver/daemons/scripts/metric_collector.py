@@ -4,7 +4,6 @@ import functools
 import json
 import os
 import socket
-import sys
 import traceback
 from typing import Any
 from zlib import adler32
@@ -877,7 +876,7 @@ class FetchData(object):
 
 # main
 def main(tbuf: Any = None, **kwargs: Any) -> None:
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # instantiate TB
     if tbuf is None:

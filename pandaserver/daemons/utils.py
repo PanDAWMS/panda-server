@@ -9,7 +9,6 @@ import os
 import queue
 import signal
 import socket
-import sys
 import threading
 import time
 import traceback
@@ -45,7 +44,7 @@ CMD_STOP = "__STOP"
 EPOCH = datetime.datetime.fromtimestamp(0)
 
 # requester id for taskbuffer
-requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+requester_id = GenericThread().get_full_id(__name__, __file__)
 
 
 def kill_proc_tree(

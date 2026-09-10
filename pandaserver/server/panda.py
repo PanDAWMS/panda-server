@@ -12,7 +12,6 @@ import io
 import json
 import os
 import signal
-import sys
 import tempfile
 import traceback
 from collections import defaultdict
@@ -95,7 +94,7 @@ workflow_api_v1_methods = extract_allowed_methods(workflow_api_v1)
 initializer.init()
 
 # initialize TaskBuffer
-requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+requester_id = GenericThread().get_full_id(__name__, __file__)
 taskBuffer.init(
     panda_config.dbhost,
     panda_config.dbpasswd,

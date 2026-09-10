@@ -28,7 +28,7 @@ _logger = PandaLogger().getLogger("copyArchive")
 
 # main
 def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # password
     urllib3.disable_warnings(category=InsecureRequestWarning)

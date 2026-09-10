@@ -1,7 +1,6 @@
 import argparse
 import copy
 import os
-import sys
 from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -156,7 +155,7 @@ def main(
         else:
             options = parser.parse_args()
 
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     if taskBuffer is None:
         # instantiate TB
