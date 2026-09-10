@@ -617,7 +617,6 @@ def getSiteToRunRateStats(
     # rounded with 10 minutes
     starttime_max_rounded = starttime_max.replace(minute=starttime_max.minute // 10 * 10, second=0, microsecond=0)
     starttime_min_rounded = starttime_min.replace(minute=starttime_min.minute // 10 * 10, second=0, microsecond=0)
-    real_interval_hours = (starttime_max_rounded - starttime_min_rounded).total_seconds() / 3600
     # local cache key
     local_cache_key = (starttime_min_rounded, starttime_max_rounded)
     # condition of query

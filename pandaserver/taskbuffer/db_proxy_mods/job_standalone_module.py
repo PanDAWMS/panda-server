@@ -798,7 +798,6 @@ class JobStandaloneModule(BaseModule):
                 compactDN = dn
             debugStr = "debug"
             retStr = ""
-            retCode = False
             # loop over tables
             for table in ["ATLAS_PANDA.jobsDefined4", "ATLAS_PANDA.jobsActive4"]:
                 varMap: dict[str, Any] = {}
@@ -2073,7 +2072,6 @@ class JobStandaloneModule(BaseModule):
                 varMap[":type2"] = "pseudo_input"
                 self.cur.execute(sqlF + comment, varMap)
                 resF = self.cur.fetchall()
-                firstDatasetID = None
                 fileIDsMap: dict[str, Any] = {}
                 for datasetID, fileID in resF:
                     if datasetID not in fileIDsMap:

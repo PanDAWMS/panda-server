@@ -225,7 +225,6 @@ class FetchData(object):
             # tmp_site_dict = dict()
             task_dict = dict()
             # now time
-            now_time = naive_utcnow()
             # MetricsDB
             mdb = MetricsDB(self.tbuf)
             # get user evaluation
@@ -238,7 +237,6 @@ class FetchData(object):
             # get active tasks
             varMap: dict[str, Any] = {}
             active_tasks_list = self.tbuf.querySQL(sql_get_active_tasks, varMap)
-            taskID_list = [task[0] for task in active_tasks_list]
             n_tot_tasks = len(active_tasks_list)
             tmp_log.debug(f"got total {n_tot_tasks} tasks")
             # counter

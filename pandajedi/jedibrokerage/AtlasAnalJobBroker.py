@@ -548,7 +548,6 @@ class AtlasAnalJobBroker(JobBrokerBase):
         retVal = None
         checkDataLocality = False
         scanSiteWoVP: list[Any] = []
-        summaryList: list[str] = []
         # the sites that had the data in the first loop pass, kept for the ranking below
         site_list_with_data: set[str] = set()
         overall_site_list: set[str] = set()
@@ -1936,12 +1935,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 if isinstance(site_to_running_rate, dict):
                     site_to_running_rate = sum(site_to_running_rate.values())
             except KeyError:
-                to_running_rate_str = "0(unknown)"
                 to_running_rate = 0
             else:
                 site_n_running = AtlasBrokerUtils.getNumJobs(jobStatPrioMap, tmpSiteName, "running")
                 to_running_rate = nRunning * site_to_running_rate / site_n_running if site_n_running > 0 else 0
-                to_running_rate_str = f"{to_running_rate:.3f}"
             # site class value; by default mid-class (= 0) if unclassified
             site_class_value = analy_sites_class_dict.get(tmpSiteName, 0)
             site_class_value = 0 if site_class_value is None else site_class_value

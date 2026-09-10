@@ -298,7 +298,6 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
             tmpLog = MsgWrapper(logger, f"< jediTaskID={taskSpec.jediTaskID} >")
             tmpLog.debug("start to reassign")
             # DDM backend
-            ddmBackEnd = taskSpec.getDdmBackEnd()
             # get datasets
             tmpStat, datasetSpecList = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(taskSpec.jediTaskID, ["output", "log"])
             if tmpStat is not True:

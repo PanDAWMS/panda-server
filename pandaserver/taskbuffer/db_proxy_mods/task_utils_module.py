@@ -1036,7 +1036,6 @@ class TaskUtilsModule(BaseModule):
         total_jobs_including_short_jobs = 0
         longestShortExecTime = 0
         for tmpPandaID, tmpExecTime in execTimeMap.items():
-            is_copy_scratch = False
             if tmpExecTime <= datetime.timedelta(minutes=shortExecTime):
                 longestShortExecTime = max(longestShortExecTime, tmpExecTime.total_seconds())
                 if site_mapper and task_spec:
@@ -1257,7 +1256,7 @@ class TaskUtilsModule(BaseModule):
             if taskSpec.status != "exhausted":
                 memory_leak_core_max = self.getConfigValue("dbproxy", f"SCOUT_MEM_LEAK_PER_CORE_{taskSpec.prodSourceLabel}", "jedi")
                 memory_leak_core = scoutData.get("memory_leak_core")
-                memory_leak_x2 = scoutData.get("memory_leak_x2")  # TODO: decide what to do with it
+                # TODO: decide what to do with scoutData's memory_leak_x2, which nothing reads
                 if memory_leak_core and memory_leak_core_max and memory_leak_core > memory_leak_core_max:
                     errMsg = f"#ATM #KV action=set_exhausted reason=scout_memory_leak scout memory leak per core {memory_leak_core} is larger than {memory_leak_core_max}"
                     tmpLog.info(errMsg)
@@ -1547,7 +1546,6 @@ class TaskUtilsModule(BaseModule):
         comment = " /* JediDBProxy.killChildTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
-        retTasks: list[Any] = []
         try:
             # sql to get child tasks
             sqlGT = f"SELECT jediTaskID,status FROM {panda_config.schemaJEDI}.JEDI_Tasks "

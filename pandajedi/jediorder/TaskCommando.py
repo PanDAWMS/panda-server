@@ -165,7 +165,6 @@ class TaskCommandoThread(WorkerThread):
                                             reassign_target = tmp_instructions.get("target")
                                             reassign_value = tmp_instructions.get("value")
                                             back_to_old_status = tmp_instructions.get("back_to_old_status")
-                                            tmpItems = commentStr.split(":")
                                             if reassign_target == "cloud":
                                                 tmpTaskSpec.cloud = reassign_value
                                             elif reassign_target == "nucleus":

@@ -319,7 +319,6 @@ class JobThrottlerBase(object):
         nDefine_queuelimit = jobstats_map["nDefine_queuelimit"]
         nDefine_queuecap = jobstats_map["nDefine_queuecap"]
         nWaiting_rt = jobstats_map["nWaiting_rt"]
-        nWaiting_gs = jobstats_map["nWaiting_gs"]
 
         # check if higher prio tasks are waiting
         if workQueue.queue_name in non_rt_wqs:

@@ -349,11 +349,6 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             # skip site already added
             if tmpSiteName in busy_sites_dict:
                 continue
-            # initialize
-            is_busy = False
-            # site is not online viewed as busy
-            if tmpSiteSpec.status not in ("online"):
-                is_busy = True
             # tmp_num_slots as  num_slots in harvester_slots
             tmp_num_slots = tmpSiteSpec.getNumStandby(None, None)
             tmp_num_slots = 0 if tmp_num_slots is None else tmp_num_slots

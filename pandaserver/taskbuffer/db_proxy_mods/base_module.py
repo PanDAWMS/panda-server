@@ -793,7 +793,6 @@ class BaseModule:
     def setSuperStatus_JEDI(self, jediTaskID: int, superStatus: str) -> bool:
         comment = " /* JediDBProxy.setSuperStatus_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        retTasks: list[Any] = []
         try:
             # sql to set super status
             sqlCT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "

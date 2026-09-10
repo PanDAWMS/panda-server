@@ -1675,7 +1675,6 @@ class TaskComplexModule(BaseModule):
             self.cur.execute(sqlRT + comment, varMap)
             resList = self.cur.fetchall()
             retTasks = []
-            allTasks: list[Any] = []
             taskStatList = []
             for jediTaskID, taskStatus, eventService, site, useJumbo, splitRule in resList:
                 taskStatList.append((jediTaskID, taskStatus, eventService, site, useJumbo, splitRule))
@@ -5653,7 +5652,6 @@ class TaskComplexModule(BaseModule):
             varMap[":new_status"] = "pending"
             resGD = self.cur.fetchall()
             primaryID = None
-            params_key_list: list[Any] = []
             var_map_datasetids = {}
             dsid_var_names_str = ""
             if len(resGD) > 0:

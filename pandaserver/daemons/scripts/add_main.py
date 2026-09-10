@@ -95,7 +95,6 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, lock_pool: LockPool | None 
             aSiteMapper = self.aSiteMapper
             # get file list
             timeNow = naive_utcnow()
-            timeInt = naive_utcnow()
             # unique pid
             GenericThread.__init__(self)
             uniq_pid = self.get_pid()

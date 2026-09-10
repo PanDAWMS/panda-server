@@ -1545,7 +1545,6 @@ class TaskStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.getIDsWithFileDataset_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"dataset={datasetName} file={fileName} type={fileType}")
         tmpLog.debug("start")
-        retPandaIDs: list[Any] = []
         try:
             # sql to get jediTaskID and datasetID
             sqlT = f"SELECT jediTaskID,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE "
@@ -1612,7 +1611,6 @@ class TaskStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.getPandaIDWithFileID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID} fileID={fileID}")
         tmpLog.debug("start")
-        retPandaIDs: list[Any] = []
         try:
             # sql to get PandaID
             sqlP = f"SELECT PandaID FROM {panda_config.schemaPANDA}.filesTable4 WHERE "
@@ -1677,7 +1675,6 @@ class TaskStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.getFilesWithPandaID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"pandaID={pandaID}")
         tmpLog.debug("start")
-        retPandaIDs: list[Any] = []
         try:
             # sql to get fileID
             sqlT = f"SELECT jediTaskID,datasetID,fileID FROM {panda_config.schemaPANDA}.filesTable4 WHERE "
@@ -1732,7 +1729,6 @@ class TaskStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.updateTaskParams_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
-        retPandaIDs: list[Any] = []
         try:
             # sql to update task params
             sqlT = f"UPDATE {panda_config.schemaJEDI}.JEDI_TaskParams SET taskParams=:taskParams "
@@ -4751,7 +4747,6 @@ class TaskStandaloneModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment, f"main_key={main_key} sub_key={sub_key}")
         tmpLog.debug("start")
         try:
-            retVal = False
             # sql to get
             sqlC = f"SELECT {JediCacheSpec.columnNames()} FROM {panda_config.schemaJEDI}.Cache WHERE main_key=:main_key AND sub_key=:sub_key "
             # check
@@ -4781,7 +4776,6 @@ class TaskStandaloneModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_taskid}")
         try:
             self.conn.begin()
-            retVal = False
             # sql to put the task in pending
             sqlPDG = (
                 "UPDATE {0}.JEDI_Tasks "
@@ -5146,7 +5140,6 @@ class TaskStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.kickChildTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
-        retTasks: list[Any] = []
         try:
             # sql to get child tasks
             sqlGT = f"SELECT jediTaskID,status FROM {panda_config.schemaJEDI}.JEDI_Tasks "

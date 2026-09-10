@@ -48,8 +48,6 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
             raise
         # run
         try:
-            to_continue = True
-            dsn = "UNKNOWN"
             # check event type
             if not isinstance(message_dict, dict):
                 err_str = f"skip due to invalid message format:{type(message_dict).__name__}. msg:{str(message_dict)}"

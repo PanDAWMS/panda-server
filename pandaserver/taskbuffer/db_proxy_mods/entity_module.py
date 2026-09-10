@@ -2861,20 +2861,10 @@ class EntityModule(BaseModule):
                 item = res[0]
                 # cpu and quota
                 cpu1 = item[0]
-                cpu7 = item[1]
-                cpu30 = item[2]
                 if item[3] in [0, None]:
                     quota1 = 0
                 else:
                     quota1 = item[3] * 3600
-                if item[4] in [0, None]:
-                    quota7 = 0
-                else:
-                    quota7 = item[4] * 3600
-                if item[5] in [0, None]:
-                    quota30 = 0
-                else:
-                    quota30 = item[5] * 3600
                 # CPU usage
                 if cpu1 is None:
                     cpu1 = 0.0
@@ -3023,7 +3013,6 @@ class EntityModule(BaseModule):
     def checkBanUser(self, dn: str | None, sourceLabel: str | None, jediCheck: bool = False) -> bool | int:
         comment = " /* DBProxy.checkBanUser */"
         try:
-            methodName = "checkBanUser"
             # set initial values. True when the user is allowed and False when banned, or
             # 1/2 when the users table could not be updated; TaskBuffer tells the first
             # apart from the last two with `is True`

@@ -965,7 +965,7 @@ class AtlasDDMClient(DDMClientBase):
             # check metadata to avoid a bug in rucio
             if dsn.endswith("/"):
                 dsn = dsn[:-1]
-            tmpRet = client.get_metadata(scope, dsn)
+            client.get_metadata(scope, dsn)
             # close
             client.set_status(scope, dsn, open=False)
         except UnsupportedOperation:

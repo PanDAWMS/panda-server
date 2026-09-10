@@ -1025,7 +1025,6 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
                     if name.startswith("user.") or name.startswith("group.") or name.startswith("hc_test."):
                         dsExists = False
                     else:
-                        dsExists = True
                         # get PandaIDs
                         self.proxyLock.acquire()
                         retF, resF = taskBuffer.querySQLS(
@@ -1065,7 +1064,6 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
                                 _logger.debug(f"deleting sub {name}")
                                 try:
                                     rucioAPI.erase_dataset(name, grace_period=4)
-                                    status = True
                                 except Exception:
                                     errtype, errvalue = sys.exc_info()[:2]
                                     out = f"{errtype} {errvalue}"

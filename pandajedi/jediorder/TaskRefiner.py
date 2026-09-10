@@ -237,7 +237,6 @@ class TaskRefinerThread(WorkerThread):
                             tmpLog.error(impl.taskSpec.errorDialog)
                             tmpStat = Interaction.SC_FAILED
                     # check parent
-                    noWaitParent = False
                     parentState = None
                     if tmpStat == Interaction.SC_SUCCEEDED and parent_tid not in [None, jediTaskID]:
                         tmpLog.info("check parent task")
@@ -264,7 +263,6 @@ class TaskRefinerThread(WorkerThread):
                                 else:
                                     # not wait for parent
                                     tmpStat = Interaction.SC_SUCCEEDED
-                                    noWaitParent = True
                             else:
                                 # parent is corrupted
                                 tmpStat = Interaction.SC_FAILED

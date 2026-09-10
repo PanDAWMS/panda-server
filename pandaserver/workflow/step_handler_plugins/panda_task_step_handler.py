@@ -106,7 +106,6 @@ class PandaTaskStepHandler(BaseStepHandler):
         try:
             # Get step definition
             step_definition = step_spec.definition_json_map
-            user_name = step_definition.get("user_name")
             user_dn = step_definition.get("user_dn")
             task_param_map = step_definition.get("task_params", {})
             # task_param_map["userName"] = user_name

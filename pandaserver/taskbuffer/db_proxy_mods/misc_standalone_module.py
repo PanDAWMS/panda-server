@@ -645,7 +645,6 @@ class MiscStandaloneModule(BaseModule):
             varMap[":jediTaskID"] = jediTaskID
             varMap[":status"] = "ready"
             self.cur.execute(sql + comment, varMap)
-            res = self.cur.rowcount
             # get datasetIDs for master
             varMap = {}
             varMap[":jediTaskID"] = jediTaskID
@@ -1377,10 +1376,10 @@ class MiscStandaloneModule(BaseModule):
                 self.conn.begin()
                 # select
                 self.cur.arraysize = 10000
-                retS = self.cur.execute(sql0 + comment, varMap)
+                self.cur.execute(sql0 + comment, varMap)
                 resS = self.cur.fetchall()
                 # update
-                retU = self.cur.execute(sql1 + comment, varMap)
+                self.cur.execute(sql1 + comment, varMap)
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
@@ -1482,11 +1481,11 @@ class MiscStandaloneModule(BaseModule):
                 self.conn.begin()
                 # select
                 self.cur.arraysize = 10000
-                retS = self.cur.execute(sql0 + comment, varMap)
+                self.cur.execute(sql0 + comment, varMap)
                 resS = self.cur.fetchall()
                 # update
                 retList: list[Any] = []
-                retU = self.cur.execute(sql1 + comment, varMap)
+                self.cur.execute(sql1 + comment, varMap)
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
@@ -1797,8 +1796,6 @@ class MiscStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.updateUnmergedDatasets */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         # get PandaID which produced unmerged files
-        umPandaIDs: list[Any] = []
-        umCheckedIDs: list[Any] = []
         # sql to get file counts
         sqlGFC = "SELECT status,PandaID,outPandaID FROM ATLAS_PANDA.JEDI_Dataset_Contents "
         sqlGFC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND PandaID IS NOT NULL "
@@ -2682,7 +2679,6 @@ class MiscStandaloneModule(BaseModule):
                     self.cur.execute(sqlD + comment, varMap)
                     resD = self.cur.fetchall()
                     subDatasets = []
-                    subDatasetID = None
                     for destinationDBlock, datasetID in resD:
                         if destinationDBlock in ngDatasets:
                             continue
@@ -2690,7 +2686,6 @@ class MiscStandaloneModule(BaseModule):
                             continue
                         checkedDS.add(destinationDBlock)
                         subDatasets.append(destinationDBlock)
-                        subDatasetID = datasetID
                     if subDatasets == []:
                         continue
                     # get merging PandaID which uses sub dataset
@@ -3440,7 +3435,6 @@ class MiscStandaloneModule(BaseModule):
         # last update time
         tmpLog = self.create_tagged_logger(comment, f"vo={vo}")
         tmpLog.debug("start")
-        now_ts = naive_utcnow()
         try:
             retVal: list[Any] | None = None
             # sql to get all jediTaskID and datasetID of input
@@ -4125,7 +4119,6 @@ class MiscStandaloneModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_taskid}")
         try:
             self.conn.begin()
-            retVal = False
             # sql to update
             sqlC = f"UPDATE {panda_config.schemaMETA}.userCacheUsage SET creationTime=CURRENT_DATE WHERE fileName=:fileName "
             varMap: dict[str, Any] = {}

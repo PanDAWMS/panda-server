@@ -334,8 +334,6 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     WFID = args.workflow_id
-    action = args.action
-    force = args.force
 
     from pandaserver.workflow.workflow_core import WorkflowInterface
 

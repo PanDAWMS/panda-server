@@ -826,11 +826,6 @@ class JobGeneratorThread(WorkerThread):
                                 continue
                         # submit
                         if readyToSubmitJob:
-                            # check if first submission
-                            if oldStatus == "ready" and inputChunk.useScout():
-                                firstSubmission = True
-                            else:
-                                firstSubmission = False
                             # type of relation
                             if inputChunk.isMerging:
                                 relationType = "merge"
@@ -926,7 +921,7 @@ class JobGeneratorThread(WorkerThread):
                             tmpLog.debug("skip due to lock failure")
                             continue
                         # reset unused files
-                        nFileReset = self.taskBufferIF.resetUnusedFiles_JEDI(taskSpec.jediTaskID, inputChunk)
+                        self.taskBufferIF.resetUnusedFiles_JEDI(taskSpec.jediTaskID, inputChunk)
                         # set jumbo flag
                         if pendingJumbo:
                             tmpFlagStat = self.taskBufferIF.setUseJumboFlag_JEDI(taskSpec.jediTaskID, "pending")
@@ -1188,7 +1183,7 @@ class JobGeneratorThread(WorkerThread):
                             tmpLog.error("failed to generate build job")
                             return failedRet
                         if idx == 0:
-                            buildJobSpec, buildFileSpec = tmp_buildJobSpec, tmp_buildFileSpec
+                            buildFileSpec = tmp_buildFileSpec
                         # append
                         if tmp_buildJobSpec is not None:
                             jobSpecList.append(tmp_buildJobSpec)

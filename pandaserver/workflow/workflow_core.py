@@ -1005,7 +1005,6 @@ class WorkflowInterface(object):
         # Process
         try:
             # Check data availability
-            original_status = data_spec.status
             # Get the data handler plugin
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
             if data_handler is None:
@@ -1356,7 +1355,6 @@ class WorkflowInterface(object):
                 tmp_log.warning(f"Failed to acquire lock for data_id={data_spec.data_id}; skipped")
                 return None, data_spec
             data_spec = locked_data_spec
-            orig_status = data_spec.status
             # Process the data
             if data_spec.status == WFDataStatus.registered:
                 tmp_res = self.process_data_registered(data_spec)
@@ -1988,7 +1986,6 @@ class WorkflowInterface(object):
                 tmp_log.warning(f"Failed to acquire lock for step_id={step_spec.step_id}; skipped")
                 return None, step_spec
             step_spec = locked_step_spec
-            orig_status = step_spec.status
             # Process the step
             if step_spec.status == WFStepStatus.registered:
                 tmp_res = self.process_step_registered(step_spec)
@@ -2467,7 +2464,7 @@ class WorkflowInterface(object):
             # Process data specs first
             data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id, status_exclusion_list=list(WFDataStatus.terminated_statuses))
             if data_specs:
-                data_status_stats = self.process_datas(data_specs)
+                self.process_datas(data_specs)
             # Get steps in registered status
             required_step_statuses = list(WFStepStatus.to_advance_step_statuses)
             over_advanced_step_statuses = list(WFStepStatus.after_starting_uninterrupted_statuses)
@@ -2548,7 +2545,7 @@ class WorkflowInterface(object):
             # Process data specs first
             data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id, status_exclusion_list=list(WFDataStatus.terminated_statuses))
             if data_specs:
-                data_status_stats = self.process_datas(data_specs)
+                self.process_datas(data_specs)
             # Get steps
             step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id)
             if not step_specs:
@@ -2648,7 +2645,6 @@ class WorkflowInterface(object):
         tmp_log.debug(f"Start, current status={workflow_spec.status}")
         # Initialize
         process_result = WorkflowProcessResult()
-        orig_status = workflow_spec.status
         # Process based on status
         match workflow_spec.status:
             case WorkflowStatus.registered:

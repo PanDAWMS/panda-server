@@ -292,7 +292,7 @@ class JobComplexModule(BaseModule):
                             try:
                                 # lock with NOWAIT
                                 self.cur.execute(sqlIFL + comment, varMap)
-                                resIFL = self.cur.fetchall()
+                                self.cur.fetchall()
                                 self.cur.execute(sqlIF + comment, varMap)
                                 nUE = self.cur.rowcount
                                 tmp_log.debug(f"updated {nUE} fake co-jumbo jobs")
@@ -4174,7 +4174,7 @@ class JobComplexModule(BaseModule):
                                 varMap = job.valuesMap(useSeq=True)
                                 varMap[":newPandaID"] = self.cur.var(varNUMBER)
                                 # insert
-                                retI = self.cur.execute(sql1 + comment, varMap)
+                                self.cur.execute(sql1 + comment, varMap)
                                 # set PandaID
                                 val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
                                 job.PandaID = int(val)
@@ -4362,7 +4362,6 @@ class JobComplexModule(BaseModule):
                 varMap[":attemptNr"] = fileSpec.attemptNr
             # set file status
             if fileSpec.type in ["input", "pseudo_input"]:
-                hasInput = True
                 updateAttemptNr = True
                 if (
                     (
@@ -4649,7 +4648,6 @@ class JobComplexModule(BaseModule):
                     async_params["exec_order"] += 1
                 # sql to update nFiles info
                 toUpdateFlag = False
-                eventsToRead = False
                 sqlJediDS = "UPDATE ATLAS_PANDA.JEDI_Datasets SET "
                 for tmpStatKey in tmpContentsStat:
                     tmpStatVal = tmpContentsStat[tmpStatKey]
@@ -5705,7 +5703,7 @@ class JobComplexModule(BaseModule):
                 varMap[":newPandaID"] = self.cur.var(varNUMBER)
                 # insert
                 if not noNewJob:
-                    retI = self.cur.execute(sql1 + comment, varMap)
+                    self.cur.execute(sql1 + comment, varMap)
                     # set PandaID
                     val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
                     jobSpec.PandaID = int(val)

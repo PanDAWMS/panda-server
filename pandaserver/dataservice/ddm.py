@@ -1357,10 +1357,9 @@ class RucioAPI:
                 tmp_log.error(err_msg)
                 return None
             return return_list
-        except DataIdentifierNotFound as e:
+        except DataIdentifierNotFound:
             if ignore_unknown:
                 return {}
-            errType = e
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None

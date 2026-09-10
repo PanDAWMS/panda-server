@@ -962,7 +962,6 @@ class DataCarouselInterface(object):
                 else:
                     rse_expression_list.append(rule["rse_expression"])
         filtered_replicas_map: dict[str, list[str]] = {"tape": [], "datadisk": []}
-        has_datadisk_replica = len(replicas_map["datadisk"]) > 0
         has_disk_replica = len(replicas_map["disk"]) > 0
         for replica in replicas_map["tape"]:
             if replica in rse_expression_list:
@@ -1832,7 +1831,6 @@ class DataCarouselInterface(object):
                 to_stage_gshare_list = [
                     gshare for gshare in queued_gshare_list if gshare_staging_files_map.get(gshare, 0) < virtual_fair_share_quota_per_gshare
                 ]
-                n_gshares_to_stage = len(to_stage_gshare_list)
                 # initialize dataframe with schema
                 fair_share_queued_df = None
                 unchosen_queued_df = None
@@ -2077,7 +2075,6 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, f"_submit_ddm_rule request_id={dc_req_spec.request_id}")
         # initialize
-        tmp_dst_expr = None
         expression = None
         lifetime_days = 45
         weight = None

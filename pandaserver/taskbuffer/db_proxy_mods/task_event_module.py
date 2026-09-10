@@ -468,9 +468,7 @@ class TaskEventModule(BaseModule):
                     tmp_log.debug(f"<eventRangeID={eventRangeID}> eventStatus={eventStatus} skipped")
                     continue
                 # core count
-                coreCount = eventDict.get("coreCount")
                 # CPU consumption
-                cpuConsumptionTime = eventDict.get("cpuConsumptionTime")
                 # objectstore ID
                 objstoreID = eventDict.get("objstoreID")
                 # error code
@@ -4499,7 +4497,7 @@ class TaskEventModule(BaseModule):
             varMap = jobSpec.valuesMap(useSeq=True)
             varMap[":newPandaID"] = self.cur.var(varNUMBER)
             # insert
-            retI = self.cur.execute(sql1 + comment, varMap)
+            self.cur.execute(sql1 + comment, varMap)
             # set PandaID
             val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
             jobSpec.PandaID = int(val)
