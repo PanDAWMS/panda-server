@@ -230,9 +230,6 @@ class TaskBuffer:
             userStatus = True
             priorityOffset = 0
             userCountry = None
-            useExpress = False
-            nExpressJobs = 0
-            useDebugMode = False
             siteMapper = self.get_site_mapper()
 
             # check ban user
@@ -263,17 +260,6 @@ class TaskBuffer:
                         jobs[0].jobDefinitionID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
                         jobs[0].jobsetID,
                     )
-
-                    # check quota for express jobs
-                    if "express" in jobs[0].specialHandling:
-                        expressQuota = proxy.getExpressJobs(user)
-                        if expressQuota is not None and expressQuota["status"] and expressQuota["quota"] > 0:
-                            nExpressJobs = expressQuota["quota"]
-                            if nExpressJobs > 0:
-                                useExpress = True
-                    # debug mode
-                    if jobs[0].is_debug_mode() or jobs[-1].is_debug_mode():
-                        useDebugMode = True
 
                 # extract country group
                 for tmpFQAN in fqans:
