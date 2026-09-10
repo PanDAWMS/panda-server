@@ -1,5 +1,6 @@
 import datetime
 import optparse
+from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
@@ -38,7 +39,7 @@ try:
 except Exception:
     pass
 timeLimit = naive_utcnow() - datetime.timedelta(hours=options.olderThan)
-varMap = {}
+varMap: dict[str, Any] = {}
 if options.assigned:
     varMap[":jobStatus"] = "assigned"
 else:

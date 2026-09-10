@@ -470,7 +470,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
                     architecture_constraint += "AND t.architecture LIKE '%aarch64%' "
                 # only tasks with fat container if site is fat container only
                 container_name_constraint = ""
-                container_name_var_map = {}
+                container_name_var_map: dict[str, Any] = {}
                 if container_names_list := self.get_list_of_fat_container_names(site):
                     tmp_log.debug(f"{site} is fat container site")
                     container_name_var_names_str, container_name_var_map = get_sql_IN_bind_variables(container_names_list, prefix=":container_name")

@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import time
+from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
@@ -55,7 +56,7 @@ jobs = []
 jediJobs = []
 
 timeLimit = naive_utcnow() - datetime.timedelta(minutes=options.limit)
-varMap = {}
+varMap: dict[str, Any] = {}
 varMap[":modificationTime"] = timeLimit
 varMap[":taskID"] = taskid
 sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsDefined4 WHERE taskID=:taskID AND modificationTime<:modificationTime "

@@ -264,7 +264,7 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
         closeLock.acquire()
         # get datasets
         closeProxyLock.acquire()
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":modificationdateU"] = timeLimitU
         varMap[":modificationdateL"] = timeLimitL
         varMap[":type"] = "output"

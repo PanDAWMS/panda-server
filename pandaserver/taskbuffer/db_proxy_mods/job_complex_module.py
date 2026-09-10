@@ -2461,7 +2461,7 @@ class JobComplexModule(BaseModule):
                                 sqlSent += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
                                 sqlSent += "AND computingSite=:computingSite "
                                 sqlSent += "AND modificationTime>:modificationTime "
-                                varMapSent = {}
+                                varMapSent: dict[str, Any] = {}
                                 varMapSent[":jobStatus"] = "sent"
                                 varMapSent[":computingSite"] = tmpSiteID
                                 varMapSent[":modificationTime"] = sentLimit
