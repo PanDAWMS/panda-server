@@ -59,6 +59,19 @@ WORKFLOW_CHECK_INTERVAL_SEC = 60
 MAX_PROCESSING_LOOPS = 5
 MESSAGE_QUEUE_NAME = "jedi_workflow_manager"
 
+# How long a workflow whose steps have all finished keeps waiting for its output data to reach a
+# terminal status. A step goes done as soon as its task does, but the task's output dataset is
+# closed in DDM slightly later, so the data pass that moves the output from generating_suffice to
+# done_generated necessarily runs a cycle behind the step transition. Finishing the workflow on the
+# step transition alone would freeze such an output for good, since a done workflow is no longer
+# in active_statuses and is never processed again. The wait is bounded so that an output whose
+# dataset is never closed cannot keep the workflow running forever.
+OUTPUT_SETTLE_GRACE_SEC = 30 * 60
+
+# Workflow parameter holding when the steps of a workflow were first seen all final, which is what
+# the grace period above is measured from
+STEPS_FINAL_TIME_PARAM = "steps_final_time"
+
 # ==== Plugin Map ==============================================
 
 PLUGIN_RAW_MAP = {
@@ -2566,6 +2579,87 @@ class WorkflowInterface(object):
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return process_result
 
+    def are_all_outputs_good(self, output_data_spec_map: dict[str, WFDataSpec]) -> bool | None:
+        """
+        Check whether every output datum of a workflow has reached a good final status
+
+        Args:
+            output_data_spec_map (dict): Map of data name to the workflow's output data specs
+
+        Returns:
+            bool | None: True when every output is good, False when at least one is not, and None
+                when the workflow declares no output at all, so that a caller can tell "nothing to
+                wait for" apart from "all good"
+        """
+        all_outputs_good = None
+        for output_data_spec in output_data_spec_map.values():
+            if output_data_spec.status in WFDataStatus.good_output_statuses:
+                if all_outputs_good is None:
+                    all_outputs_good = True
+            else:
+                return False
+        return all_outputs_good
+
+    def record_steps_final_time(self, workflow_spec: WorkflowSpec, now_time: datetime) -> int:
+        """
+        Record when the steps of a workflow were first seen all final and report how long ago
+
+        The timestamp is kept on the workflow rather than derived from the steps, because a step
+        that is retried leaves and re-enters a final status and the grace period should restart
+        with it. The caller persists the workflow, so nothing is written here.
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow whose steps have all finished
+            now_time (datetime): Time of this processing cycle
+
+        Returns:
+            int: Seconds since the steps were first seen all final; 0 on the first cycle
+        """
+        steps_final_time = workflow_spec.get_parameter(STEPS_FINAL_TIME_PARAM)
+        if not steps_final_time:
+            workflow_spec.set_parameter(STEPS_FINAL_TIME_PARAM, now_time.isoformat())
+            return 0
+        try:
+            return max(int((now_time - datetime.fromisoformat(steps_final_time)).total_seconds()), 0)
+        except Exception:
+            # an unparsable value would otherwise hold the workflow in running for good
+            workflow_spec.set_parameter(STEPS_FINAL_TIME_PARAM, now_time.isoformat())
+            return 0
+
+    def settle_pending_outputs(self, tmp_log: LogWrapper, output_data_spec_map: dict[str, WFDataSpec], now_time: datetime) -> None:
+        """
+        Move a finished workflow's outstanding output data to their final status
+
+        Called only once the grace period for the outputs has run out, so every status changed here
+        is one that was expected to advance on its own and did not. Each is logged as a warning,
+        since it means the output was declared final without having been observed complete.
+
+        Args:
+            tmp_log (LogWrapper): Logger of the calling workflow transition
+            output_data_spec_map (dict): Map of data name to the workflow's output data specs
+            now_time (datetime): Time of this processing cycle
+        """
+        for output_data_name, output_data_spec in output_data_spec_map.items():
+            original_status = output_data_spec.status
+            if original_status in WFDataStatus.terminated_statuses:
+                continue
+            if original_status in WFDataStatus.generating_statuses:
+                output_data_spec.status = WFDataStatus.done_generated
+            elif original_status in WFDataStatus.waiting_statuses:
+                output_data_spec.status = WFDataStatus.done_waited
+            else:
+                # Not a status an output of a finished workflow can be settled from: it never got
+                # as far as being generated or waited for, so there is no final status that would
+                # be true of it. Left as it is and reported instead of being given one.
+                tmp_log.warning(f"output data {output_data_name} is still in {original_status} after the grace period; left as it is")
+                continue
+            output_data_spec.end_time = now_time
+            output_data_spec.check_time = now_time
+            self.tbif.update_workflow_data(output_data_spec)
+            tmp_log.warning(
+                f"output data {output_data_name} did not reach a final status on its own; settled from {original_status} to {output_data_spec.status}"
+            )
+
     def process_workflow_running(self, workflow_spec: WorkflowSpec) -> WorkflowProcessResult:
         """
         Process a workflow in running status
@@ -2603,14 +2697,7 @@ class WorkflowInterface(object):
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
             output_data_spec_map = {data_spec.name: data_spec for data_spec in data_specs if data_spec.type == WFDataType.output}
             # Check if all output data are good
-            all_outputs_good = None
-            for output_data_name, output_data_spec in output_data_spec_map.items():
-                if output_data_spec.status in WFDataStatus.good_output_statuses:
-                    if all_outputs_good is None:
-                        all_outputs_good = True
-                else:
-                    all_outputs_good = False
-                    break
+            all_outputs_good = self.are_all_outputs_good(output_data_spec_map)
             if all_outputs_good is True:
                 # All outputs are good, mark the workflow as done
                 workflow_spec.status = WorkflowStatus.done
@@ -2654,6 +2741,25 @@ class WorkflowInterface(object):
                 process_result.new_status = workflow_spec.status
                 tmp_log.info(f"Done, advanced to status={workflow_spec.status}")
             elif all_steps_final:
+                # Every step has finished with no failures. The outputs can still be catching up,
+                # so wait for them rather than finishing with a non-terminal output datum: once
+                # this workflow is done it leaves active_statuses and is never processed again,
+                # which would freeze that datum for good. process_steps may itself have advanced
+                # outputs (a sub-workflow step applies its child's), so the check is redone here.
+                all_outputs_good = self.are_all_outputs_good(output_data_spec_map)
+                waited_sec = self.record_steps_final_time(workflow_spec, now_time)
+                if all_outputs_good is False and waited_sec < OUTPUT_SETTLE_GRACE_SEC:
+                    workflow_spec.check_time = now_time
+                    self.tbif.update_workflow(workflow_spec)
+                    process_result.success = True
+                    tmp_log.info(
+                        f"All steps in final status but some output data are not; waited {waited_sec}s of {OUTPUT_SETTLE_GRACE_SEC}s, status remains {workflow_spec.status}"
+                    )
+                    return process_result
+                if all_outputs_good is False:
+                    # The grace period is over. The outputs are settled so the workflow can finish
+                    # without leaving a datum that nothing will ever process again.
+                    self.settle_pending_outputs(tmp_log, output_data_spec_map, now_time)
                 # All steps are in final statuses with no failures; mark workflow as done
                 workflow_spec.status = WorkflowStatus.done
                 workflow_spec.end_time = now_time
