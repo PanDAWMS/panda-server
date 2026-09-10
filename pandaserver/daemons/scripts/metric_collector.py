@@ -4,7 +4,6 @@ import functools
 import json
 import os
 import socket
-import sys
 import traceback
 from typing import Any
 from zlib import adler32
@@ -337,10 +336,8 @@ class FetchData(object):
             "AND (processingType='pmerge' OR prodUserName='gangarbt') "
             "AND modificationTime>:modificationTime "
         )
-        sql_get_latest_job_mtime_status = (
-            "SELECT jobStatus, MIN(modificationTime) " "FROM ATLAS_PANDA.jobs_StatusLog " "WHERE pandaID=:pandaID " "GROUP BY jobStatus "
-        )
-        sql_get_site_workflow = "SELECT /* use_json_type */ scj.data.workflow " "FROM ATLAS_PANDA.schedconfig_json scj " "WHERE scj.panda_queue=:computingSite "
+        sql_get_latest_job_mtime_status = "SELECT jobStatus, MIN(modificationTime) FROM ATLAS_PANDA.jobs_StatusLog WHERE pandaID=:pandaID GROUP BY jobStatus "
+        sql_get_site_workflow = "SELECT /* use_json_type */ scj.data.workflow FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:computingSite "
         sql_get_long_queuing_job_wait_time_template = (
             "SELECT COUNT(*), AVG(CURRENT_DATE-creationtime) "
             "FROM ATLAS_PANDA.jobsActive4 "
@@ -357,7 +354,7 @@ class FetchData(object):
             # now time
             now_time = naive_utcnow()
             # get user jobs
-            varMap = {
+            varMap: dict[str, Any] = {
                 ":modificationTime": now_time - datetime.timedelta(days=4),
             }
             archived4_jobs_list = self.tbuf.querySQL(sql_get_jobs_archived4, varMap)
@@ -589,7 +586,7 @@ class FetchData(object):
             class_C_set = set()
             # get resource_type of sites (GRID, hpc, cloud, ...) from schedconfig
             res = self.tbuf.querySQL(
-                ("SELECT /* use_json_type */ scj.panda_queue, scj.data.resource_type " "FROM ATLAS_PANDA.schedconfig_json scj "),
+                ("SELECT /* use_json_type */ scj.panda_queue, scj.data.resource_type FROM ATLAS_PANDA.schedconfig_json scj "),
                 {},
             )
             site_resource_type_map = {site: resource_type for site, resource_type in res}
@@ -879,7 +876,7 @@ class FetchData(object):
 
 # main
 def main(tbuf: Any = None, **kwargs: Any) -> None:
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # instantiate TB
     if tbuf is None:

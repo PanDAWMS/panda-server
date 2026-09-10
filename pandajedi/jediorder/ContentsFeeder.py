@@ -1,4 +1,3 @@
-import datetime
 import math
 import os
 import re
@@ -351,7 +350,6 @@ class ContentsFeederThread(WorkerThread):
                         # get file list from DDM
                         tmpLog.debug("get files")
                         try:
-                            useInFilesWithNewAttemptNr = False
                             skipDuplicate = not datasetSpec.useDuplicatedFiles()
                             if not datasetSpec.isPseudo():
                                 if fileList != [] and "useInFilesInContainer" in taskParamMap and datasetSpec.containerName not in ["", None]:
@@ -735,7 +733,7 @@ class ContentsFeederThread(WorkerThread):
                 tmpMsg = f"set task_status={taskSpec.status}"
                 tmpLog.info(tmpMsg)
                 tmpLog.sendMsg(tmpMsg, self.msgType)
-                allRet = self.taskBufferIF.updateTaskStatusByContFeeder_JEDI(jediTaskID, taskSpec, pid=self.pid)
+                self.taskBufferIF.updateTaskStatusByContFeeder_JEDI(jediTaskID, taskSpec, pid=self.pid)
             # change task status unless the task is running
             if not runningTask:
                 # send prestaging request
@@ -754,7 +752,7 @@ class ContentsFeederThread(WorkerThread):
                     tmpMsg = f"set task_status={taskSpec.status}"
                     tmpLog.info(tmpMsg)
                     tmpLog.sendMsg(tmpMsg, self.msgType)
-                    allRet = self.taskBufferIF.updateTaskStatusByContFeeder_JEDI(jediTaskID, taskSpec, pid=self.pid, setFrozenTime=setFrozenTime)
+                    self.taskBufferIF.updateTaskStatusByContFeeder_JEDI(jediTaskID, taskSpec, pid=self.pid, setFrozenTime=setFrozenTime)
                 elif allUpdated:
                     # all OK
                     _, newTaskStatus = self.taskBufferIF.updateTaskStatusByContFeeder_JEDI(

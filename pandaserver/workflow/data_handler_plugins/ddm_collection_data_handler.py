@@ -1,5 +1,3 @@
-import json
-import traceback
 import uuid
 from typing import Any
 
@@ -9,15 +7,8 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.workflow.data_handler_plugins.base_data_handler import BaseDataHandler
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
-    WFDataStatus,
     WFDataTargetCheckResult,
     WFDataTargetCheckStatus,
-    WFDataType,
-    WFStepSpec,
-    WFStepStatus,
-    WFStepType,
-    WorkflowSpec,
-    WorkflowStatus,
 )
 
 # main logger

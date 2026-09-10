@@ -1,7 +1,6 @@
 import datetime
 import glob
 import os.path
-import sys
 import threading
 import time
 import traceback
@@ -32,7 +31,7 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
 
     # instantiate PD2P
 
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 

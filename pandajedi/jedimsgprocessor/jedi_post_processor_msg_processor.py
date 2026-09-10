@@ -67,7 +67,7 @@ class JediPostProcessorMsgProcPlugin(BaseMsgProcPlugin):
             task_id = msg_dict["taskid"]
             vo = msg_dict["task_vo"]
             prodsourcelabel = msg_dict["task_prodsourcelabel"]
-            ret_list = self.tbIF.prepareTasksToBeFinished_JEDI(vo, prodsourcelabel, jedi_config.postprocessor.nTasks, self.get_pid())
+            ret_list = self.tbIF.prepareTasksToBeFinished_JEDI(vo, prodsourcelabel, jedi_config.postprocessor.nTasks, pid=self.get_pid())
             task_list = self.tbIF.getTasksToBeFinished_JEDI(vo, prodsourcelabel, self.get_pid(), jedi_config.postprocessor.nTasks, target_tasks=ret_list)
             if task_list and task_id in [task_spec.jediTaskID for task_spec in task_list]:
                 tmp_post_processor_thread_obj = self.post_processor_thread_dict[(vo, prodsourcelabel)]

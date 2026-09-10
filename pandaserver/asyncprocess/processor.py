@@ -262,7 +262,6 @@ def run(service_name: str, tbuf: TaskBufferLike = None) -> None:
         tmp_logger = LogWrapper(_logger, prefix=f"< request_id={request_id} >")
         handler = HANDLERS.get(request_type)
         if handler is None:
-
             tmp_logger.warning(f"unknown request_type={request_type}")
             continue
         # "any" requests share a single result row keyed by the sentinel, so the claim and the

@@ -140,7 +140,6 @@ class WorkerSpec(object):
     # return expression of bind variables for INSERT
     @classmethod
     def bindValuesExpression(cls) -> str:
-        from pandaserver.config import panda_config
 
         ret = "VALUES("
         for attr in cls._attributes:

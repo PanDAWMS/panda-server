@@ -3,7 +3,6 @@ General Adder plugin. Add data to dataset
 
 """
 
-import datetime
 import json
 import re
 import sys
@@ -597,8 +596,11 @@ class AdderGen:
                 self.logger.debug("end Closer")
             # run closer for associate parallel jobs
             if EventServiceUtils.isJobCloningJob(self.job):
+                # the ids below are columns carrying the "NULL" sentinel, see spec_column.py
                 associate_dispatch_block_map = self.taskBuffer.getDestDBlocksWithSingleConsumer(
-                    self.job.jediTaskID, self.job.PandaID, destination_dispatch_block_list  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    self.job.jediTaskID,  # type: ignore[arg-type]
+                    self.job.PandaID,  # type: ignore[arg-type]
+                    destination_dispatch_block_list,
                 )
                 for associate_job_id in associate_dispatch_block_map:
                     associate_dispatch_blocks = associate_dispatch_block_map[associate_job_id]
@@ -620,10 +622,10 @@ class AdderGen:
 
     def update_worker_node(self, json_dict: dict[str, Any]) -> None:
         try:
-            self.logger.debug(f"update_worker_node: start")
+            self.logger.debug("update_worker_node: start")
             wn_specs = json_dict.get("worker_node", {})
             if not wn_specs:
-                self.logger.debug(f"update_worker_node: done. No worker node specs found")
+                self.logger.debug("update_worker_node: done. No worker node specs found")
                 return
 
             site = wn_specs.get("site")
@@ -668,10 +670,10 @@ class AdderGen:
 
     def update_worker_node_gpu(self, json_dict: dict[str, Any]) -> None:
         try:
-            self.logger.debug(f"update_worker_node_gpu: start")
+            self.logger.debug("update_worker_node_gpu: start")
             wn_gpu_specs = json_dict.get("worker_node_gpus", {})
             if not wn_gpu_specs:
-                self.logger.debug(f"update_worker_node_gpu: done. No worker node GPU specs found")
+                self.logger.debug("update_worker_node_gpu: done. No worker node GPU specs found")
                 return
 
             site = wn_gpu_specs.get("site")

@@ -18,7 +18,7 @@ from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.srvcore.hardware_matching import compare_version_string, match_gpu_spec
+from pandaserver.srvcore.hardware_matching import match_gpu_spec
 from pandaserver.taskbuffer import JobUtils, ProcessGroups, SiteSpec
 from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
@@ -472,7 +472,7 @@ def hasZeroShare(site_spec: SiteSpec.SiteSpec, task_spec: JediTaskSpec, ignore_p
                     # checks for other sites and tasks overwrite the result
                     tmpStat = eval(f"{task_spec.currentPriority}{tmp_priority}")
                     tmp_log.debug(
-                        f"Priority check for {site_spec.sitename}, {task_spec.currentPriority}): " f"{task_spec.currentPriority}{tmp_priority} = {tmpStat}"
+                        f"Priority check for {site_spec.sitename}, {task_spec.currentPriority}): {task_spec.currentPriority}{tmp_priority} = {tmpStat}"
                     )
                     if not tmpStat:
                         continue
@@ -617,7 +617,6 @@ def getSiteToRunRateStats(
     # rounded with 10 minutes
     starttime_max_rounded = starttime_max.replace(minute=starttime_max.minute // 10 * 10, second=0, microsecond=0)
     starttime_min_rounded = starttime_min.replace(minute=starttime_min.minute // 10 * 10, second=0, microsecond=0)
-    real_interval_hours = (starttime_max_rounded - starttime_min_rounded).total_seconds() / 3600
     # local cache key
     local_cache_key = (starttime_min_rounded, starttime_max_rounded)
     # condition of query

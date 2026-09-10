@@ -1,26 +1,23 @@
 import datetime
 import json
+import logging
 import math
 import random
 import re
-import sys
 import traceback
 import uuid
 from statistics import mean
 from typing import TYPE_CHECKING, Any
 
 import numpy
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import (
-    batched,
-    get_sql_IN_bind_variables,
     naive_utcnow,
 )
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
-from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMBER
+from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediDatasetSpec import (
     INPUT_TYPES_var_map,
@@ -28,22 +25,19 @@ from pandaserver.taskbuffer.JediDatasetSpec import (
     JediDatasetSpec,
     MERGE_TYPES_var_map,
     MERGE_TYPES_var_str,
-    PROCESS_TYPES_var_map,
-    PROCESS_TYPES_var_str,
 )
 from pandaserver.taskbuffer.JediFileSpec import JediFileSpec
 
 if TYPE_CHECKING:
     from pandaserver.brokerage.SiteMapper import SiteMapper
-from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec, is_msg_driven
-from pandaserver.taskbuffer.JobSpec import JobSpec, get_task_queued_time
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.task_split_rules import decode_split_rule
 
 
 # Module class to define task related methods that are used by TaskComplex methods
 class TaskUtilsModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # check if item is matched with one of list items
@@ -81,7 +75,7 @@ class TaskUtilsModule(BaseModule):
             varMap[":type"] = "pseudo_input"
             self.cur.execute(sqlGS + comment, varMap)
             resGDA = self.cur.fetchall()
-            secondary_id_list = [tmpID for tmpID, in resGDA]
+            secondary_id_list = [tmpID for (tmpID,) in resGDA]
         if len(secondary_id_list) == 0:
             return
         # get primary files
@@ -91,9 +85,9 @@ class TaskUtilsModule(BaseModule):
         varMap[":datasetID"] = primary_id
         self.cur.execute(sqlGP + comment, varMap)
         resFP = self.cur.fetchall()
-        primaryList = [status for status, in resFP]
+        primaryList = [status for (status,) in resFP]
         # sql to get secondary files
-        sqlGS = ("SELECT fileID,status FROM {0}.JEDI_Dataset_Contents " " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID " "ORDER BY fileID ").format(
+        sqlGS = ("SELECT fileID,status FROM {0}.JEDI_Dataset_Contents  WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID ORDER BY fileID ").format(
             panda_config.schemaJEDI
         )
         # sql to update files
@@ -530,7 +524,7 @@ class TaskUtilsModule(BaseModule):
             else:
                 extraInfo["successRate"] = 0
             tmpLog.debug(
-                f"""scout total={scTotal} finished={scOK} failed={scNG} target_rate={None if scoutSuccessRate is None else scoutSuccessRate/10} actual_rate={extraInfo["successRate"]}"""
+                f"""scout total={scTotal} finished={scOK} failed={scNG} target_rate={None if scoutSuccessRate is None else scoutSuccessRate / 10} actual_rate={extraInfo["successRate"]}"""
             )
             if scoutSuccessRate and scTotal and extraInfo["successRate"] < scoutSuccessRate / 10:
                 tmpLog.debug("not enough scouts succeeded")
@@ -1042,7 +1036,6 @@ class TaskUtilsModule(BaseModule):
         total_jobs_including_short_jobs = 0
         longestShortExecTime = 0
         for tmpPandaID, tmpExecTime in execTimeMap.items():
-            is_copy_scratch = False
             if tmpExecTime <= datetime.timedelta(minutes=shortExecTime):
                 longestShortExecTime = max(longestShortExecTime, tmpExecTime.total_seconds())
                 if site_mapper and task_spec:
@@ -1263,7 +1256,7 @@ class TaskUtilsModule(BaseModule):
             if taskSpec.status != "exhausted":
                 memory_leak_core_max = self.getConfigValue("dbproxy", f"SCOUT_MEM_LEAK_PER_CORE_{taskSpec.prodSourceLabel}", "jedi")
                 memory_leak_core = scoutData.get("memory_leak_core")
-                memory_leak_x2 = scoutData.get("memory_leak_x2")  # TODO: decide what to do with it
+                # TODO: decide what to do with scoutData's memory_leak_x2, which nothing reads
                 if memory_leak_core and memory_leak_core_max and memory_leak_core > memory_leak_core_max:
                     errMsg = f"#ATM #KV action=set_exhausted reason=scout_memory_leak scout memory leak per core {memory_leak_core} is larger than {memory_leak_core_max}"
                     tmpLog.info(errMsg)
@@ -1287,8 +1280,7 @@ class TaskUtilsModule(BaseModule):
                         # check expected number of jobs
                         if shortJobCutoff and min(extraInfo["expectedNumJobs"], extraInfo["expectedNumJobsWithEvent"]) < shortJobCutoff:
                             tmpLog.debug(
-                                "not to set exhausted or change split rule since expect num of jobs "
-                                "min({} file-based, {} event-based) is less than {}".format(
+                                "not to set exhausted or change split rule since expect num of jobs min({} file-based, {} event-based) is less than {}".format(
                                     extraInfo["expectedNumJobs"], extraInfo["expectedNumJobsWithEvent"], shortJobCutoff
                                 )
                             )
@@ -1554,7 +1546,6 @@ class TaskUtilsModule(BaseModule):
         comment = " /* JediDBProxy.killChildTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
-        retTasks: list[Any] = []
         try:
             # sql to get child tasks
             sqlGT = f"SELECT jediTaskID,status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
@@ -2087,7 +2078,6 @@ class TaskUtilsModule(BaseModule):
         tmp_log.debug("start")
         ret_val = None
         try:
-
             sql = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
             sql += "WHERE jediTaskID=:jediTaskID "
             var_map = {":jediTaskID": parent_task_id}

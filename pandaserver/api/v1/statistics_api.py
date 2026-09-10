@@ -241,7 +241,7 @@ def get_wn_metrics_by_site(req: PandaRequest, site: str, host: str | None = None
 
     if key is not None and key not in ("jobs", "workers"):
         tmp_logger.error("Invalid key parameter")
-        return generate_response(False, f'Parameter "key" needs to be "jobs", "workers" or left empty for all keys.', {})
+        return generate_response(False, 'Parameter "key" needs to be "jobs", "workers" or left empty for all keys.', {})
 
     data = global_task_buffer.get_worker_node_metrics(site=site, host=host, key=key, days=days)
     success = data != {}
@@ -282,7 +282,7 @@ def get_wn_metrics_by_queue(req: PandaRequest, panda_queue: str, host: str | Non
 
     if key is not None and key not in ("jobs", "workers"):
         tmp_logger.error("Invalid key parameter")
-        return generate_response(False, f'Parameter "key" needs to be "jobs", "workers" or left empty for all keys.', {})
+        return generate_response(False, 'Parameter "key" needs to be "jobs", "workers" or left empty for all keys.', {})
 
     data = global_task_buffer.get_worker_node_metrics(panda_queue=panda_queue, host=host, key=key, days=days)
     success = data != {}

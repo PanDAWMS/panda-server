@@ -5,7 +5,6 @@ Module to provide primitive methods for DDM
 
 import datetime
 import hashlib
-import json
 import re
 import threading
 import time
@@ -117,7 +116,7 @@ class RucioAPI:
                     client = RucioClient()
                     self._rucio_client = client
                     return client
-            except CannotAuthenticate as e:
+            except CannotAuthenticate:
                 # clear cache on auth failure
                 with self._client_lock:
                     self._rucio_client = None
@@ -1225,7 +1224,7 @@ class RucioAPI:
             for rule in client.list_did_rules(scope=scope, name=dsn):
                 if rule["account"] == client.account or all_accounts:
                     ret_list.append(rule)
-        except Exception as e:
+        except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
         tmp_log.debug(f"got {len(ret_list)} rules")
@@ -1270,7 +1269,7 @@ class RucioAPI:
                 metadata = {}
                 metadata["state"] = "missing"
                 return metadata
-        except Exception as e:
+        except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
         # DataIdentifierNotFound with ignore_missing off, which has no metadata to report
@@ -1358,11 +1357,10 @@ class RucioAPI:
                 tmp_log.error(err_msg)
                 return None
             return return_list
-        except DataIdentifierNotFound as e:
+        except DataIdentifierNotFound:
             if ignore_unknown:
                 return {}
-            errType = e
-        except Exception as e:
+        except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
         # DataIdentifierNotFound with ignore_unknown off. errType above records it and
@@ -1384,7 +1382,7 @@ class RucioAPI:
             dsList = self.wp_list_content(client, scope, dsn)
             tmp_log.debug("got " + str(dsList))
             return dsList
-        except Exception as e:
+        except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
 
@@ -1455,7 +1453,7 @@ class RucioAPI:
             client = self._get_rucio_client()
             # update rule
             client.update_replication_rule(rule_id, set_map)
-        except Exception as e:
+        except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
         tmp_log.debug("done")
@@ -1479,10 +1477,10 @@ class RucioAPI:
             else:
                 tmp_log.error(f"got error ; {traceback.format_exc()}")
                 return None
-        except Exception as e:
+        except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
-        tmp_log.debug(f"got rule")
+        tmp_log.debug("got rule")
         return rule
 
     # list details of all replica locks for a rule by rule ID
@@ -1498,10 +1496,10 @@ class RucioAPI:
             res = client.list_replica_locks(rule_id)
             # turn into list
             ret = list(res)
-        except Exception as e:
+        except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
-        tmp_log.debug(f"got replica locks")
+        tmp_log.debug("got replica locks")
         return ret
 
     # delete replication rule by rule ID
@@ -1519,7 +1517,7 @@ class RucioAPI:
             if allow_missing:
                 tmp_log.debug(e)
                 return False
-        except Exception as e:
+        except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return None
         tmp_log.debug(f"deleted, return {ret}")

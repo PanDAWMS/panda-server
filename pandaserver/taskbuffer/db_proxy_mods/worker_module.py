@@ -1,10 +1,10 @@
 import datetime
 import json
+import logging
 import os
 import sys
 from typing import Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -24,7 +24,7 @@ DEFAULT_PRODSOURCELABEL = "managed"
 # Module class to define methods related to worker and harvester
 class WorkerModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # update stat of workers with jobtype breakdown
@@ -90,7 +90,7 @@ class WorkerModule(BaseModule):
 
             tmp_log.debug("done")
             return True, "OK"
-        except Exception as e:
+        except Exception:
             self._rollback()
             self.dump_error_message(tmp_log)
             return False, "database error"
@@ -439,7 +439,7 @@ class WorkerModule(BaseModule):
         # There is the case where the grid has no workloads and running HIMEM jobs is better than running no jobs
         ignore_meanrss = self.getConfigValue("meanrss", "IGNORE_MEANRSS")
         if ignore_meanrss == True:
-            tmp_log.debug(f"Accepting all resource types since meanrss throttling is ignored")
+            tmp_log.debug("Accepting all resource types since meanrss throttling is ignored")
 
         # If the site defined a memory target, calculate the memory requested by running and queued workers
         resource_types_under_target = []
@@ -454,7 +454,7 @@ class WorkerModule(BaseModule):
                 )
                 tmp_log.debug(f"Accepting {resource_types_under_target} resource types to respect mean memory target")
             else:
-                tmp_log.debug(f"Accepting all resource types as under memory target")
+                tmp_log.debug("Accepting all resource types as under memory target")
 
         # there is only job_type = "managed" in the current implementation, but we keep the structure due to backwards compatibility
         for job_type in worker_stats[harvester_id]:
@@ -768,7 +768,6 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvesterID}")
         tmp_log.debug("start")
         try:
-
             # update
             owner = CoreUtils.clean_user_id(user)
             var_map = {":harvesterID": harvesterID, ":owner": owner, ":hostName": host}
@@ -1065,7 +1064,7 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvesterID} workerID={workerID}")
 
         timestamp_utc = naive_utcnow()
-        var_map = {
+        var_map: dict[str, Any] = {
             ":status": status,
             ":harvesterID": harvesterID,
             ":workerID": workerID,
@@ -1213,10 +1212,7 @@ class WorkerModule(BaseModule):
                 if res:
                     var_map = {":site": site, ":host_name": host_name, ":panda_queue": panda_queue, ":last_seen": timestamp_utc}
 
-                    sql = (
-                        "UPDATE ATLAS_PANDA.worker_node_queue SET last_seen=:last_seen "
-                        "WHERE site=:site AND host_name=:host_name AND panda_queue=:panda_queue"
-                    )
+                    sql = "UPDATE ATLAS_PANDA.worker_node_queue SET last_seen=:last_seen WHERE site=:site AND host_name=:host_name AND panda_queue=:panda_queue"
 
                     self.cur.execute((sql + comment), var_map)
                     tmp_logger.debug("Worker node was found in the wn-queue table. Updated last_seen timestamp.")
@@ -1393,7 +1389,7 @@ class WorkerModule(BaseModule):
                     "pct_within_queue": pct_within_queue,
                 }
 
-            tmp_log.debug(f"Done")
+            tmp_log.debug("Done")
             return architecture_map
 
         except Exception:
@@ -1919,7 +1915,7 @@ class WorkerModule(BaseModule):
         """
         comment = " /* DBProxy.storePilotLog */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
 
         try:
             # Prepare the bindings and var map

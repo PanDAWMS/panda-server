@@ -86,9 +86,6 @@ exclude = [
 ]
 
 
-[tool.black]
-line-length=160
-
 [tool.autopep8]
 # https://pypi.org/project/autopep8/#pyproject-toml
 max_line_length = 160
@@ -107,19 +104,31 @@ disable = [
     "R0914", #  R0914: Too many local variables
 ]
 
-[tool.isort]
-profile = "black"
-
-[tool.flynt]
-line-length = 160
-
 [tool.flake8]
 ignore = ['E501', 'U100']
 
-# The tree is clean under these flags, so `mypy` with no arguments answers whether a change
-# keeps it that way. Nothing in CI runs it yet -- wiring it in belongs with the pre-commit
-# hook that lets a contributor see the same result before opening a PR, so both go in
-# together in a follow-up.
+# The rules live here rather than in .pre-commit-config.yaml so that a hook, a CI job and
+# a developer running ruff by hand all get the same answer.
+[tool.ruff]
+line-length = 160
+
+[tool.ruff.lint]
+# F: pyflakes, the same set panda-common enforces. An undefined name (F821) parses fine
+# and raises at import time instead -- in a daemon that is an outage rather than a failed
+# check -- and annotations make it easy to hit, because the class named in one has to be
+# imported even though nothing calls it. The rest of F earns its place too: clearing the
+# tree for it turned up a "%" applied to a "{0}" template, which raised TypeError out of
+# a daemon's main(), a name imported from two modules at once, and a DB call and a query
+# whose results went nowhere.
+#
+# I: import order, in place of isort. ruff's defaults already agree with ruff-format, so
+# there is no profile to set, and they agreed with the isort-formatted tree everywhere but
+# one file.
+select = ["F", "I"]
+
+# The tree is clean under these flags and the mypy hook in .pre-commit-config.yaml fails on
+# any finding, so a change that introduces one has to fix it. `mypy` with no arguments is
+# the same run, which is how to get the answer without waiting for the hook.
 #
 # Widening the flags further will surface findings that were never counted; do that in a PR
 # that also resolves them. --strict is not the next step: most of what it adds is

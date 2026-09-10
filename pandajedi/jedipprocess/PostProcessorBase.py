@@ -1,4 +1,3 @@
-import datetime
 import smtplib
 import time
 import uuid

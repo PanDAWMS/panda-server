@@ -1,5 +1,4 @@
 import re
-from typing import Any
 
 from pandaserver.taskbuffer.JobSpec import JobSpec
 

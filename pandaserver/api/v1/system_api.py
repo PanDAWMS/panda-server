@@ -13,7 +13,6 @@ from pandaserver.api.v1.common import (
     has_production_role,
     request_validation,
 )
-from pandaserver.config import panda_config
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.srvcore.panda_request import PandaRequest
 

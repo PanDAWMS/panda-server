@@ -1,7 +1,6 @@
 import argparse
 import copy
 import os
-import sys
 from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -156,7 +155,7 @@ def main(
         else:
             options = parser.parse_args()
 
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     if taskBuffer is None:
         # instantiate TB
@@ -220,14 +219,14 @@ def main(
                     ds_files[options.ds].append(tmpLFN)
             # get taskID
             td, to = taskBuffer.querySQLS(
-                "SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Datasets " "WHERE datasetName=:datasetName AND type=:t1 ",
+                "SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Datasets WHERE datasetName=:datasetName AND type=:t1 ",
                 {":t1": "output", ":datasetName": dsName},
             )
             (jediTaskID,) = to[0]
         else:
             # get dataset names
             dd, do = taskBuffer.querySQLS(
-                "SELECT datasetName FROM ATLAS_PANDA.JEDI_Datasets " "WHERE jediTaskID=:jediTaskID AND type=:t1 ",
+                "SELECT datasetName FROM ATLAS_PANDA.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type=:t1 ",
                 {":t1": "output", ":jediTaskID": options.jediTaskID},
             )
             # get files from rucio

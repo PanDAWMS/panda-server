@@ -782,7 +782,7 @@ class JobGeneratorThread(WorkerThread):
                                 taskSpec.setErrDiag(tmpErrStr, append=True, prepend=True)
                                 goForward = False
                             elif not pandaJobs:
-                                tmpErrStr = "candidates became full after the brokerage decision " "and skipped during the submission cycle"
+                                tmpErrStr = "candidates became full after the brokerage decision and skipped during the submission cycle"
                                 tmpLog.error(tmpErrStr)
                                 taskSpec.setOnHold()
                                 taskSpec.setErrDiag(tmpErrStr)
@@ -826,11 +826,6 @@ class JobGeneratorThread(WorkerThread):
                                 continue
                         # submit
                         if readyToSubmitJob:
-                            # check if first submission
-                            if oldStatus == "ready" and inputChunk.useScout():
-                                firstSubmission = True
-                            else:
-                                firstSubmission = False
                             # type of relation
                             if inputChunk.isMerging:
                                 relationType = "merge"
@@ -926,7 +921,7 @@ class JobGeneratorThread(WorkerThread):
                             tmpLog.debug("skip due to lock failure")
                             continue
                         # reset unused files
-                        nFileReset = self.taskBufferIF.resetUnusedFiles_JEDI(taskSpec.jediTaskID, inputChunk)
+                        self.taskBufferIF.resetUnusedFiles_JEDI(taskSpec.jediTaskID, inputChunk)
                         # set jumbo flag
                         if pendingJumbo:
                             tmpFlagStat = self.taskBufferIF.setUseJumboFlag_JEDI(taskSpec.jediTaskID, "pending")
@@ -1188,7 +1183,7 @@ class JobGeneratorThread(WorkerThread):
                             tmpLog.error("failed to generate build job")
                             return failedRet
                         if idx == 0:
-                            buildJobSpec, buildFileSpec = tmp_buildJobSpec, tmp_buildFileSpec
+                            buildFileSpec = tmp_buildFileSpec
                         # append
                         if tmp_buildJobSpec is not None:
                             jobSpecList.append(tmp_buildJobSpec)
@@ -1963,7 +1958,9 @@ class JobGeneratorThread(WorkerThread):
                     fileSpec, datasetSpec = self.finished_lib_specs_map[buildSpecMapKey]
                 else:
                     tmpStat, fileSpec, datasetSpec = self.taskBufferIF.get_previous_build_file_spec(
-                        taskSpec.jediTaskID, siteSpec.get_unified_name(), associated_sites  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                        taskSpec.jediTaskID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                        siteSpec.get_unified_name(),
+                        associated_sites,
                     )
                     if fileSpec is not None:
                         self.finished_lib_specs_map[buildSpecMapKey] = (fileSpec, datasetSpec)
@@ -2210,7 +2207,13 @@ class JobGeneratorThread(WorkerThread):
                 jobSpec.hs06 = (jobSpec.coreCount or 1) * siteSpec.corepower  # type: ignore[assignment]
             # get log file
             outSubChunk, serialNr, datasetToRegister, siteDsMap, parallelOutMap = self.taskBufferIF.getOutputFiles_JEDI(
-                taskSpec.jediTaskID, None, simul, True, siteName, False, True  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                taskSpec.jediTaskID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
+                None,
+                simul,
+                True,
+                siteName,
+                False,
+                True,
             )
             if outSubChunk is None:
                 # failed
@@ -2243,7 +2246,7 @@ class JobGeneratorThread(WorkerThread):
             jobSpec.jobParameters = self.makeBuildJobParameters(taskParamMap["preproSpec"]["jobParameters"], paramMap)
             # return
             return Interaction.SC_SUCCEEDED, jobSpec, datasetToRegister
-        except Exception as e:
+        except Exception:
             tmpLog.error(f"{self.__class__.__name__}.doGeneratePrePro() failed with {traceback.format_exc()}")
             return failedRet
 

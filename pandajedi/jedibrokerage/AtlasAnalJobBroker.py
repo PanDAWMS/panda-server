@@ -378,7 +378,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
 
         # cannot get local quota
         if not local_quota_ok:
-            tmpLog.error(f"failed to check local quota")
+            tmpLog.error("failed to check local quota")
             taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
             return retTmpError
 
@@ -548,7 +548,6 @@ class AtlasAnalJobBroker(JobBrokerBase):
         retVal = None
         checkDataLocality = False
         scanSiteWoVP: list[Any] = []
-        summaryList: list[str] = []
         # the sites that had the data in the first loop pass, kept for the ranking below
         site_list_with_data: set[str] = set()
         overall_site_list: set[str] = set()
@@ -1784,7 +1783,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     for tmpPseudoSiteName, error_diag in candidates_with_problems:
                         tmpSiteSpec = self.siteMapper.getSite(tmpPseudoSiteName)
                         msg_map[tmpSiteSpec.get_unified_name()] = (
-                            f"  skip site={tmpSiteSpec.get_unified_name()} due to a temporary user-specific problem: {error_diag} " "criteria=-tmp_user_problem"
+                            f"  skip site={tmpSiteSpec.get_unified_name()} due to a temporary user-specific problem: {error_diag} criteria=-tmp_user_problem"
                         )
                     self.add_summary_message(scanSiteList, [], "temp user problem check", tmpLog, msg_map)
                     self.dump_summary(tmpLog)
@@ -1936,12 +1935,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 if isinstance(site_to_running_rate, dict):
                     site_to_running_rate = sum(site_to_running_rate.values())
             except KeyError:
-                to_running_rate_str = "0(unknown)"
                 to_running_rate = 0
             else:
                 site_n_running = AtlasBrokerUtils.getNumJobs(jobStatPrioMap, tmpSiteName, "running")
                 to_running_rate = nRunning * site_to_running_rate / site_n_running if site_n_running > 0 else 0
-                to_running_rate_str = f"{to_running_rate:.3f}"
             # site class value; by default mid-class (= 0) if unclassified
             site_class_value = analy_sites_class_dict.get(tmpSiteName, 0)
             site_class_value = 0 if site_class_value is None else site_class_value
@@ -2217,7 +2214,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         taskSpec.gshare, (" merging," if inputChunk.isMerging else ""), task_class_value, n_jobs_to_submit, "\n".join(prt_str_list)
                     )
                 )
-        except Exception as e:
+        except Exception:
             tmpLog.error(f"{traceback.format_exc()}")
         # choose basic weight
         _basic_weight_version = "new"

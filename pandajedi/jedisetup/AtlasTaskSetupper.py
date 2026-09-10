@@ -181,8 +181,9 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                     if tmpToRegister:
                                         activity = DataServiceUtils.getActivityForOut(taskSpec.prodSourceLabel)
                                         tmpLog.info(
-                                            "registering location={} lifetime={} days activity={} grouping={} "
-                                            "owner={}".format(locForRule, lifetime, activity, grouping, userName)
+                                            "registering location={} lifetime={} days activity={} grouping={} owner={}".format(
+                                                locForRule, lifetime, activity, grouping, userName
+                                            )
                                         )
                                         tmpStat = ddmIF.registerDatasetLocation(
                                             targetName, locForRule, owner=userName, lifetime=lifetime, backEnd=ddmBackEnd, activity=activity, grouping=grouping
@@ -242,7 +243,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                             tmpLog.error(f"failed to register location {container_location} for container {targetName}")
                                             return retFatal
                                         # rule with 2 copies and no grouping
-                                        container_location = f"(type=SCRATCHDISK)\\notforextracopy=True"
+                                        container_location = "(type=SCRATCHDISK)\\notforextracopy=True"
                                         tmpLog.info(f"registering container-level 2nd copy rule for {targetName}")
                                         tmpStat = ddmIF.registerDatasetLocation(
                                             targetName,
@@ -262,13 +263,16 @@ class AtlasTaskSetupper(TaskSetupperBase):
                             elif taskSpec.toMoveDatasets() and DataServiceUtils.getDistributedDestination(datasetSpec.storageToken) is None:
                                 # get location
                                 location = siteMapper.getDdmEndpoint(
-                                    siteInNucleus.sitename, datasetSpec.storageToken, taskSpec.prodSourceLabel, 
-                                    JobUtils.translate_tasktype_to_jobtype(taskSpec.taskType))
+                                    siteInNucleus.sitename,
+                                    datasetSpec.storageToken,
+                                    taskSpec.prodSourceLabel,
+                                    JobUtils.translate_tasktype_to_jobtype(taskSpec.taskType),
+                                )
                                 # move replication rule
                                 tmpLog.info(f"{targetName} already registered, but will be moved to {location}")
                                 tmpStat = ddmIF.move_replication_rules(datasetSpec.datasetName, location)
                                 if not tmpStat:
-                                    tmpLog.error(f"failed to move replication rule")
+                                    tmpLog.error("failed to move replication rule")
                                     return retFatal
                             else:
                                 tmpLog.info(f"{targetName} already registered")

@@ -1,5 +1,3 @@
-import datetime
-import itertools
 import time
 import traceback
 from multiprocessing.connection import Connection
@@ -189,7 +187,7 @@ class TaskRefinerThread(WorkerThread):
                                     if dc_config_map.early_access_users and dc_config_map.early_access_users[0] == "ALL":
                                         # enable input pre-staging for all users
                                         taskParamMap["inputPreStaging"] = True
-                                        tmpLog.info(f"set inputPreStaging for data carousel ALL users")
+                                        tmpLog.info("set inputPreStaging for data carousel ALL users")
                                     elif (user_name := taskParamMap.get("userName")) in dc_config_map.early_access_users:
                                         # enable input pre-staging for early access user
                                         taskParamMap["inputPreStaging"] = True
@@ -239,7 +237,6 @@ class TaskRefinerThread(WorkerThread):
                             tmpLog.error(impl.taskSpec.errorDialog)
                             tmpStat = Interaction.SC_FAILED
                     # check parent
-                    noWaitParent = False
                     parentState = None
                     if tmpStat == Interaction.SC_SUCCEEDED and parent_tid not in [None, jediTaskID]:
                         tmpLog.info("check parent task")
@@ -266,7 +263,6 @@ class TaskRefinerThread(WorkerThread):
                                 else:
                                     # not wait for parent
                                     tmpStat = Interaction.SC_SUCCEEDED
-                                    noWaitParent = True
                             else:
                                 # parent is corrupted
                                 tmpStat = Interaction.SC_FAILED

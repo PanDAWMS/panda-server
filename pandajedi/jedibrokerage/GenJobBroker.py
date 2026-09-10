@@ -34,7 +34,6 @@ class GenJobBroker(JobBrokerBase):
         tmpLog = MsgWrapper(logger, f"<jediTaskID={taskSpec.jediTaskID}>")
         tmpLog.debug("start")
         # return for failure
-        retFatal = self.SC_FATAL, inputChunk
         retTmpError = self.SC_FAILED, inputChunk
         # set cloud
         try:
@@ -345,7 +344,6 @@ class GenJobBroker(JobBrokerBase):
         tmpLog.debug(f"final {len(scanSiteList)} candidates")
         weightMap: dict[Any, Any] = {}
         candidateSpecList = []
-        preSiteCandidateSpec = None
         for tmpSiteName in scanSiteList:
             # get number of jobs in each job status. Using workQueueID=None to include non-JEDI jobs
             nRunning = AtlasBrokerUtils.getNumJobs(jobStatPrioMap, tmpSiteName, "running", None, None)

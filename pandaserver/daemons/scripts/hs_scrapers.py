@@ -1,4 +1,3 @@
-import sys
 from typing import Any
 
 import polars as pl
@@ -226,7 +225,7 @@ class HS23Ingestor:
 
 
 def main(tbuf: Any = None, **kwargs: Any) -> None:
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # instantiate TB
     if tbuf is None:

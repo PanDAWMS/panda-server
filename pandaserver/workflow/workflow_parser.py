@@ -1,9 +1,4 @@
-import copy
-import json
 import os
-import re
-import shlex
-import sys
 import tarfile
 import tempfile
 import traceback
@@ -146,7 +141,7 @@ def parse_raw_request(sandbox_url: str, log_token: str, user_name: str, raw_requ
                         fs.close()
                         try:
                             _safe_extract_tar_gz(sandbox_path, tmp_dirname)
-                        except Exception as e:
+                        except Exception:
                             dump_str = f"failed to extract {sandbox_name}: {traceback.format_exc()}"
                             tmp_log.error(dump_str)
                             is_fatal = True

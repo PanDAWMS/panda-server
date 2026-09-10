@@ -1,5 +1,4 @@
 import argparse
-import sys
 
 from pandacommon.pandautils.thread_utils import GenericThread
 
@@ -334,13 +333,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     WFID = args.workflow_id
-    action = args.action
-    force = args.force
 
     from pandaserver.workflow.workflow_core import WorkflowInterface
 
     # interface for workflow operations
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
     taskBuffer.init(
         panda_config.dbhost,
         panda_config.dbpasswd,

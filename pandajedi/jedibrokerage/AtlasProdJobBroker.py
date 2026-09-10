@@ -1153,11 +1153,11 @@ class AtlasProdJobBroker(JobBrokerBase):
                 toSkip = False
                 if minWalltime_dyn and tmpSiteSpec.mintime and tmpSiteSpec.mintime > 0:
                     if minWalltime_dyn > siteMaxTime:
-                        tmp_msg = f"  skip site={tmpSiteName} due to short site walltime {tmpSiteStr} " f"(site upper limit) less than {strMinWalltime_dyn} "
+                        tmp_msg = f"  skip site={tmpSiteName} due to short site walltime {tmpSiteStr} (site upper limit) less than {strMinWalltime_dyn} "
                         toSkip = True
                 else:
                     if minWalltime and minWalltime > siteMaxTime:
-                        tmp_msg = f"  skip site={tmpSiteName} due to short site walltime {tmpSiteStr} " f"(site upper limit) less than {strMinWalltime} "
+                        tmp_msg = f"  skip site={tmpSiteName} due to short site walltime {tmpSiteStr} (site upper limit) less than {strMinWalltime} "
                         toSkip = True
                 # tmp_msg is set wherever toSkip is, in the two branches above
                 if toSkip and tmp_msg is not None:
@@ -1211,13 +1211,13 @@ class AtlasProdJobBroker(JobBrokerBase):
                 toSkip = False
                 if minWalltime_dyn and tmpSiteSpec.mintime and tmpSiteSpec.mintime > 0:
                     if minWalltime_dyn < siteMinTime and (maxWalltime_dyn is None or maxWalltime_dyn < siteMinTime):
-                        tmp_msg = f"  skip site {tmpSiteName} due to short job walltime {tmpSiteStr} " f"(site lower limit) greater than {strMinWalltime_dyn} "
+                        tmp_msg = f"  skip site {tmpSiteName} due to short job walltime {tmpSiteStr} (site lower limit) greater than {strMinWalltime_dyn} "
                         if maxWalltime_dyn:
                             tmp_msg += f"and {strMinWalltime_dyn} "
                         toSkip = True
                 else:
                     if (minWalltime is None or minWalltime < siteMinTime) and (maxWalltime is None or maxWalltime < siteMinTime):
-                        tmp_msg = f"  skip site {tmpSiteName} due to short job walltime {tmpSiteStr} " f"(site lower limit) greater than {strMinWalltime} "
+                        tmp_msg = f"  skip site {tmpSiteName} due to short job walltime {tmpSiteStr} (site lower limit) greater than {strMinWalltime} "
                         if maxWalltime:
                             tmp_msg += f"and {strMaxWalltime} "
                         toSkip = True
@@ -1411,7 +1411,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     n_starting_cores = tmp_stat_dict.get("starting", 0)
                     tmpLog.debug(f"  {tmpSiteName} running={n_running_cores} starting={n_starting_cores}")
                     if n_running_cores + n_starting_cores > tmpSiteSpec.pledgedCPU:
-                        tmp_msg = f"  skip site={tmpSiteName} since nCores(running+starting)={n_running_cores+n_starting_cores} more than pledgedCPU={tmpSiteSpec.pledgedCPU} "
+                        tmp_msg = f"  skip site={tmpSiteName} since nCores(running+starting)={n_running_cores + n_starting_cores} more than pledgedCPU={tmpSiteSpec.pledgedCPU} "
                         tmp_msg += "in case of work shortage "
                         tmp_msg += "criteria=-over_pledged"
                         msg_map[tmpSiteName] = tmp_msg

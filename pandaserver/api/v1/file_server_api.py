@@ -1,4 +1,3 @@
-import datetime
 import gc
 import gzip
 import json
@@ -265,7 +264,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
     """
 
     tmp_logger = LogWrapper(_logger, f"upload_cache_file-{naive_utcnow().isoformat('/')}")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
 
     # check if using secure connection and the proxy is not limited
     # we run these checks explicitly to trigger garbage collection
@@ -424,11 +423,11 @@ def touch_cache_file(req: PandaRequest, file_name: str) -> Dict[str, Any]:
     """
 
     tmp_logger = LogWrapper(_logger, f"touch_cache_file < {file_name} >")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
 
     try:
         os.utime(f"{panda_config.cache_dir}/{file_name.split('/')[-1]}", None)
-        tmp_logger.debug(f"Done")
+        tmp_logger.debug("Done")
         return generate_response(True)
     except Exception as e:
         message = f"Failed to touch file with: {type(e)} {e}"
@@ -456,7 +455,7 @@ def delete_cache_file(req: PandaRequest, file_name: str) -> Dict[str, Any]:
     """
 
     tmp_logger = LogWrapper(_logger, f"delete_cache_file <{file_name}>")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
 
     try:
         # may be reused for re-brokerage
@@ -586,7 +585,7 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict[str, Any
     # get the file size
     content_length = _get_content_length(req, tmp_logger)
     if not content_length:
-        error_message = f"Cannot get content-length"
+        error_message = "Cannot get content-length"
         tmp_logger.error(error_message)
         return generate_response(False, error_message)
 

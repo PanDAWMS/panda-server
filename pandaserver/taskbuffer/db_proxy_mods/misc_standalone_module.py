@@ -2,14 +2,13 @@ import copy
 import datetime
 import glob
 import json
+import logging
 import os
 import random
 import re
-import sys
 import time
 from typing import Any, Sequence
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -35,7 +34,7 @@ from pandaserver.taskbuffer.JobSpec import JobSpec
 # Module class to define miscellaneous standalone methods that are independent of another module's methods
 class MiscStandaloneModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # get PandaIDs with TaskID
@@ -161,7 +160,7 @@ class MiscStandaloneModule(BaseModule):
     def getTaskIDwithTaskNameJEDI(self, userName: str, taskName: str) -> int | None:
         comment = " /* DBProxy.getTaskIDwithTaskNameJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"<userName={userName} taskName={taskName}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()
@@ -194,7 +193,7 @@ class MiscStandaloneModule(BaseModule):
     def updateTaskModTimeJEDI(self, jediTaskID: int, newStatus: str | None) -> bool:
         comment = " /* DBProxy.updateTaskErrorDialogJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"<jediTaskID={jediTaskID}>")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()
@@ -213,7 +212,7 @@ class MiscStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -238,13 +237,13 @@ class MiscStandaloneModule(BaseModule):
 
         # See if there are successful jobs for this task. If yes, skip this method
         sql = (
-            f"SELECT 1 FROM "
-            f"(SELECT 1 FROM ATLAS_PANDA.jobsarchived4 "
-            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1 "
-            f"UNION ALL "
-            f"SELECT 1 FROM ATLAS_PANDAARCH.jobsarchived "
-            f"WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1) "
-            f"WHERE ROWNUM = 1"
+            "SELECT 1 FROM "
+            "(SELECT 1 FROM ATLAS_PANDA.jobsarchived4 "
+            "WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1 "
+            "UNION ALL "
+            "SELECT 1 FROM ATLAS_PANDAARCH.jobsarchived "
+            "WHERE jeditaskid = :jedi_task_id AND jobstatus = 'finished' AND transformation NOT LIKE '%build%' AND ROWNUM = 1) "
+            "WHERE ROWNUM = 1"
         )
         var_map: dict[str, Any] = {":jedi_task_id": task_id}
         self.cur.execute(sql + comment, var_map)
@@ -368,7 +367,7 @@ class MiscStandaloneModule(BaseModule):
 
         # Get the corecount and start/end time from the job spec
         var_map = {":task_id": task_id, ":job_id": job_id}
-        sql_select = f"""
+        sql_select = """
         SELECT jact4.corecount, jact4.starttime, jact4.endtime
         FROM ATLAS_PANDA.jobsactive4 jact4
         WHERE jeditaskid = :task_id AND pandaid = :job_id
@@ -646,7 +645,6 @@ class MiscStandaloneModule(BaseModule):
             varMap[":jediTaskID"] = jediTaskID
             varMap[":status"] = "ready"
             self.cur.execute(sql + comment, varMap)
-            res = self.cur.rowcount
             # get datasetIDs for master
             varMap = {}
             varMap[":jediTaskID"] = jediTaskID
@@ -742,7 +740,7 @@ class MiscStandaloneModule(BaseModule):
     def updateTaskErrorDialogJEDI(self, jediTaskID: int, msg: str) -> bool:
         comment = " /* DBProxy.updateTaskErrorDialogJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()
@@ -766,7 +764,7 @@ class MiscStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -939,7 +937,7 @@ class MiscStandaloneModule(BaseModule):
             return "ERROR: DB failure"
 
     # get and lock sandbox files
-    def getLockSandboxFiles(self, time_limit: int, n_files: int) -> list[tuple[Any, ...]] | None:
+    def getLockSandboxFiles(self, time_limit: datetime.datetime, n_files: int) -> list[tuple[Any, ...]] | None:
         comment = " /* DBProxy.getLockSandboxFiles */"
         tmp_log = self.create_tagged_logger(comment)
         sqlC = (
@@ -948,7 +946,7 @@ class MiscStandaloneModule(BaseModule):
             "WHERE modificationTime<:timeLimit AND (fileName like 'sources%' OR fileName like 'jobO%') ) "
             "WHERE rownum<:nRows "
         )
-        sqlU = "UPDATE ATLAS_PANDAMETA.userCacheUsage SET modificationTime=CURRENT_DATE " "WHERE userName=:userName AND fileName=:fileName "
+        sqlU = "UPDATE ATLAS_PANDAMETA.userCacheUsage SET modificationTime=CURRENT_DATE WHERE userName=:userName AND fileName=:fileName "
         try:
             tmp_log.debug("start")
             # begin transaction
@@ -1175,7 +1173,7 @@ class MiscStandaloneModule(BaseModule):
                 dataset = DatasetSpec()
                 dataset.pack(res[0])
                 return dataset
-            tmp_log.error(f"dataset not found")
+            tmp_log.error("dataset not found")
             return None
         except Exception:
             # roll back
@@ -1378,10 +1376,10 @@ class MiscStandaloneModule(BaseModule):
                 self.conn.begin()
                 # select
                 self.cur.arraysize = 10000
-                retS = self.cur.execute(sql0 + comment, varMap)
+                self.cur.execute(sql0 + comment, varMap)
                 resS = self.cur.fetchall()
                 # update
-                retU = self.cur.execute(sql1 + comment, varMap)
+                self.cur.execute(sql1 + comment, varMap)
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
@@ -1455,7 +1453,7 @@ class MiscStandaloneModule(BaseModule):
                 if not self._commit():
                     raise RuntimeError("Commit error")
             # return
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return return_list
         except Exception:
             # roll back
@@ -1483,11 +1481,11 @@ class MiscStandaloneModule(BaseModule):
                 self.conn.begin()
                 # select
                 self.cur.arraysize = 10000
-                retS = self.cur.execute(sql0 + comment, varMap)
+                self.cur.execute(sql0 + comment, varMap)
                 resS = self.cur.fetchall()
                 # update
                 retList: list[Any] = []
-                retU = self.cur.execute(sql1 + comment, varMap)
+                self.cur.execute(sql1 + comment, varMap)
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
@@ -1515,7 +1513,7 @@ class MiscStandaloneModule(BaseModule):
     def getAssociatedDisDatasets(self, subDsName: str) -> list[str]:
         comment = " /* DBProxy.getAssociatedDisDatasets */"
         tmp_log = self.create_tagged_logger(comment, f"subDsName={subDsName}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         sqlF = (
             "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ distinct PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock"
         )
@@ -1624,7 +1622,7 @@ class MiscStandaloneModule(BaseModule):
             # get token keys
             token_keys: dict[str, Any] = {}
             sql = f"SELECT dn, credname FROM {panda_config.schemaMETA}.proxykey WHERE expires>:limit ORDER BY expires DESC "
-            var_map = {":limit": naive_utcnow()}
+            var_map: dict[str, Any] = {":limit": naive_utcnow()}
             self.cur.execute(sql + comment, var_map)
             res_list = self.cur.fetchall()
             for client_name, token_key in res_list:
@@ -1638,7 +1636,7 @@ class MiscStandaloneModule(BaseModule):
             allow_proxy = []
             allow_token = []
             allow_async_request = []
-            sql = "SELECT DISTINCT name, gridpref FROM ATLAS_PANDAMETA.users " "WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
+            sql = "SELECT DISTINCT name, gridpref FROM ATLAS_PANDAMETA.users WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
             var_map = {":ngStatus": "disabled"}
             self.cur.execute(sql + comment, var_map)
             res_list = self.cur.fetchall()
@@ -1798,8 +1796,6 @@ class MiscStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.updateUnmergedDatasets */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         # get PandaID which produced unmerged files
-        umPandaIDs: list[Any] = []
-        umCheckedIDs: list[Any] = []
         # sql to get file counts
         sqlGFC = "SELECT status,PandaID,outPandaID FROM ATLAS_PANDA.JEDI_Dataset_Contents "
         sqlGFC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND PandaID IS NOT NULL "
@@ -1820,7 +1816,7 @@ class MiscStandaloneModule(BaseModule):
         sqlUDP += "SET status=:status "
         sqlUDP += "WHERE vuid=:vuid AND NOT status IN (:statusR,:statusD) "
         try:
-            tmp_log.debug(f"start")
+            tmp_log.debug("start")
             # begin transaction
             self.conn.begin()
             # update dataset in panda
@@ -1914,7 +1910,7 @@ class MiscStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -2683,7 +2679,6 @@ class MiscStandaloneModule(BaseModule):
                     self.cur.execute(sqlD + comment, varMap)
                     resD = self.cur.fetchall()
                     subDatasets = []
-                    subDatasetID = None
                     for destinationDBlock, datasetID in resD:
                         if destinationDBlock in ngDatasets:
                             continue
@@ -2691,7 +2686,6 @@ class MiscStandaloneModule(BaseModule):
                             continue
                         checkedDS.add(destinationDBlock)
                         subDatasets.append(destinationDBlock)
-                        subDatasetID = datasetID
                     if subDatasets == []:
                         continue
                     # get merging PandaID which uses sub dataset
@@ -3223,8 +3217,8 @@ class MiscStandaloneModule(BaseModule):
             if problem_type not in ["dest", None]:
                 tmp_log.debug(f"unknown problem type: {problem_type}")
                 return None
-            sqlR = "SELECT pagecache FROM ATLAS_PANDAMETA.users " "WHERE name=:name "
-            sqlW = "UPDATE ATLAS_PANDAMETA.users SET pagecache=:data " "WHERE name=:name "
+            sqlR = "SELECT pagecache FROM ATLAS_PANDAMETA.users WHERE name=:name "
+            sqlW = "UPDATE ATLAS_PANDAMETA.users SET pagecache=:data WHERE name=:name "
             # string to use a dict key
             task_id_key = str(jedi_task_id)
             # start transaction
@@ -3367,7 +3361,7 @@ class MiscStandaloneModule(BaseModule):
             # loop over all IDs
             for tmp_id in panda_id_list:
                 tmp_log = self.create_tagged_logger(comment, f"PandaID={tmp_id}")
-                sqlL = "SELECT data FROM {0}.SQL_QUEUE WHERE topic=:topic AND PandaID=:PandaID ORDER BY " "execution_order FOR UPDATE NOWAIT ".format(
+                sqlL = "SELECT data FROM {0}.SQL_QUEUE WHERE topic=:topic AND PandaID=:PandaID ORDER BY execution_order FOR UPDATE NOWAIT ".format(
                     panda_config.schemaPANDA
                 )
                 sqlD = f"DELETE FROM {panda_config.schemaPANDA}.SQL_QUEUE WHERE PandaID=:PandaID "
@@ -3376,7 +3370,7 @@ class MiscStandaloneModule(BaseModule):
                 for i_try in range(n_try):
                     all_ok = True
                     query_list = []
-                    tmp_log.debug(f"Trying PandaID={tmp_id} {i_try+1}/{n_try}")
+                    tmp_log.debug(f"Trying PandaID={tmp_id} {i_try + 1}/{n_try}")
                     tmp_data_list = None
                     # start transaction
                     self.conn.begin()
@@ -3441,7 +3435,6 @@ class MiscStandaloneModule(BaseModule):
         # last update time
         tmpLog = self.create_tagged_logger(comment, f"vo={vo}")
         tmpLog.debug("start")
-        now_ts = naive_utcnow()
         try:
             retVal: list[Any] | None = None
             # sql to get all jediTaskID and datasetID of input
@@ -3526,13 +3519,13 @@ class MiscStandaloneModule(BaseModule):
             # sql to check
             sqlC = f"SELECT timestamp FROM {panda_config.schemaJEDI}.JEDI_Dataset_Locality WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rse=:rse "
             # sql to insert
-            sqlI = (
-                "INSERT INTO {0}.JEDI_Dataset_Locality " "(jediTaskID, datasetID, rse, timestamp) " "VALUES (:jediTaskID, :datasetID, :rse, :timestamp)"
-            ).format(panda_config.schemaJEDI)
+            sqlI = ("INSERT INTO {0}.JEDI_Dataset_Locality (jediTaskID, datasetID, rse, timestamp) VALUES (:jediTaskID, :datasetID, :rse, :timestamp)").format(
+                panda_config.schemaJEDI
+            )
             # sql to update
-            sqlU = (
-                "UPDATE {0}.JEDI_Dataset_Locality " "SET timestamp=:timestamp " "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rse=:rse "
-            ).format(panda_config.schemaJEDI)
+            sqlU = ("UPDATE {0}.JEDI_Dataset_Locality SET timestamp=:timestamp WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rse=:rse ").format(
+                panda_config.schemaJEDI
+            )
             # start transaction
             self.conn.begin()
             # check
@@ -3718,7 +3711,7 @@ class MiscStandaloneModule(BaseModule):
                     varMap[":type_input_constituent"] = JediDatasetSpec.get_constituent_input_type()
                     sql_get_constituent = "SELECT datasetName "
                     sql_get_constituent += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-                    sql_get_constituent += f"WHERE jediTaskID=:jediTaskID AND type=:type_input_constituent "
+                    sql_get_constituent += "WHERE jediTaskID=:jediTaskID AND type=:type_input_constituent "
                     self.cur.execute(sql_get_constituent + comment, varMap)
                     res_ds = self.cur.fetchall()
                     existing_constituent_datasets = [i[0] for i in res_ds]
@@ -4126,7 +4119,6 @@ class MiscStandaloneModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_taskid}")
         try:
             self.conn.begin()
-            retVal = False
             # sql to update
             sqlC = f"UPDATE {panda_config.schemaMETA}.userCacheUsage SET creationTime=CURRENT_DATE WHERE fileName=:fileName "
             varMap: dict[str, Any] = {}

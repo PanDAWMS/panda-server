@@ -23,7 +23,6 @@ def getSecretKey(pandaID: int) -> tuple[str | None, str]:
             cert=(cert_file, key_file),
         )
         tmpDict = res.json()
-        statusCode = tmpDict["errorCode"]
         secretKey = tmpDict["secretKey"]
         if tmpDict["errorCode"] == 0:
             # succeeded

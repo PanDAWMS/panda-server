@@ -9,7 +9,6 @@ import os
 import queue
 import signal
 import socket
-import sys
 import threading
 import time
 import traceback
@@ -45,7 +44,7 @@ CMD_STOP = "__STOP"
 EPOCH = datetime.datetime.fromtimestamp(0)
 
 # requester id for taskbuffer
-requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+requester_id = GenericThread().get_full_id(__name__, __file__)
 
 
 def kill_proc_tree(
@@ -706,7 +705,7 @@ class DaemonMaster(object):
         # warning about delayed scripts
         if n_super_delayed_dems > 0 and (
             ((last_warn_super_delayed_ts := self.global_state_map.get("last_warn_super_delayed_ts")) is None or now_ts - last_warn_super_delayed_ts >= 300)
-            or n_super_delayed_dems != (last_n_super_delayed_dems := self.global_state_map.get("last_n_super_delayed_dems"))
+            or n_super_delayed_dems != self.global_state_map.get("last_n_super_delayed_dems")
         ):
             self.logger.warning(f"{n_super_delayed_dems} delayed scripts")
             self.global_state_map["last_warn_super_delayed_ts"] = now_ts

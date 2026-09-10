@@ -1,6 +1,8 @@
 name: Syntax Check
 
-on: [pull_request]
+on:
+  pull_request:
+  workflow_dispatch:
 
 # a new push to the PR supersedes the previous check
 concurrency:
@@ -15,22 +17,30 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
-      with:
-        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v7
       with:
         python-version: '3.11'
 
-    # --diff-filter=d drops the paths the PR deleted. The diff names them, and
-    # py_compile is then handed a file that is no longer there, which fails the
-    # step for a deletion that was the point of the change.
-    - name: Check syntax of changed files
+    - name: Cache pre-commit environments
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pre-commit
+        key: pre-commit-${{ runner.os }}-py3.11-${{ hashFiles('.pre-commit-config.yaml') }}
+
+    # What is checked, and at which version, is defined once in
+    # .pre-commit-config.yaml. This job only runs it, so a contributor who runs
+    # `pre-commit run --all-files` gets this job's result before opening the PR.
+    # Do not add a tool here without adding it there.
+    #
+    # This replaced a py_compile step over the changed files. That step is covered
+    # by the ruff hook: ruff reports syntax errors whatever rules are selected, it
+    # scans the whole tree rather than the diff, and no tracked .py file sits under
+    # one of its default excludes. Scanning the tree rather than the diff also
+    # removes the step's own failure mode -- the diff names the paths a PR deleted,
+    # and py_compile was then handed a file that is no longer there.
+    - name: Run pre-commit
       run: |
-        files=$(git diff --name-only --diff-filter=d origin/master...HEAD -- '*.py')
-        if [ -n "$files" ]; then
-          echo "$files" | xargs -n1 python -m py_compile
-        else
-          echo "No Python files changed."
-        fi
+        pip install 'pre-commit==4.6.2'
+        pre-commit run --all-files --show-diff-on-failure

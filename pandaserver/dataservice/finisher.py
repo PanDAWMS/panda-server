@@ -3,7 +3,6 @@ finish transferring jobs
 
 """
 
-import datetime
 import json
 import re
 import sys

@@ -7,7 +7,6 @@ The 'setupper.py' module uses this plugin when setting up datasets for ATLAS job
 
 """
 
-import datetime
 import os
 import re
 import sys

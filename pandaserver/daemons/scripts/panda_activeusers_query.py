@@ -1,4 +1,3 @@
-import sys
 from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -17,7 +16,7 @@ _logger = PandaLogger().getLogger("activeusers_query")
 def main(tbuf: Any = None, **kwargs: Any) -> None:
     # logger
     tmpLog = LogWrapper(_logger)
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     tmpLog.debug("================= start ==================")
     # instantiate TB

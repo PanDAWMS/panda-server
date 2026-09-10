@@ -1,6 +1,7 @@
 import copy
 import datetime
 import json
+import logging
 import math
 import operator
 import re
@@ -42,7 +43,7 @@ except ImportError:
 # Module class to define methods related to tasks and events, being merged into a single module due to their cross-references
 class TaskEventModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # make event range ID for event service
@@ -338,7 +339,7 @@ class TaskEventModule(BaseModule):
             jobAttrs = {}
             # sql to update status
             sqlU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Events "
-            sqlU += "SET status=:eventStatus,objstore_ID=:objstoreID,error_code=:errorCode," "path_convention=:pathConvention,error_diag=:errorDiag"
+            sqlU += "SET status=:eventStatus,objstore_ID=:objstoreID,error_code=:errorCode,path_convention=:pathConvention,error_diag=:errorDiag"
             if version != 0:
                 sqlU += ",zipRow_ID=:zipRow_ID"
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
@@ -435,7 +436,7 @@ class TaskEventModule(BaseModule):
                     job_processID = int(job_processID)
                     attemptNr = int(attemptNr)
                 except Exception:
-                    tmp_log.error(f"wrongly formatted eventRangeID")
+                    tmp_log.error("wrongly formatted eventRangeID")
                     retList.append(False)
                     continue
                 # get event status
@@ -467,10 +468,6 @@ class TaskEventModule(BaseModule):
                     iSkipped += 1
                     tmp_log.debug(f"<eventRangeID={eventRangeID}> eventStatus={eventStatus} skipped")
                     continue
-                # core count
-                coreCount = eventDict.get("coreCount")
-                # CPU consumption
-                cpuConsumptionTime = eventDict.get("cpuConsumptionTime")
                 # objectstore ID
                 objstoreID = eventDict.get("objstoreID")
                 # error code
@@ -715,7 +712,7 @@ class TaskEventModule(BaseModule):
     def killEventServiceConsumers(self, job: JobSpec, killedFlag: bool, useCommit: bool = True) -> bool:
         comment = " /* DBProxy.killEventServiceConsumers */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             if useCommit:
@@ -886,7 +883,7 @@ class TaskEventModule(BaseModule):
     def killUnusedEventServiceConsumers(self, job: JobSpec, useCommit: bool = True, killAll: bool = False, checkAttemptNr: bool = False) -> bool:
         comment = " /* DBProxy.killUnusedEventServiceConsumers */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             if useCommit:
@@ -1443,7 +1440,7 @@ class TaskEventModule(BaseModule):
             sqlWP += "UNION "
             sqlWP += "SELECT 1 FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
             self.cur.arraysize = 1000000
-            timeLimit = naive_utcnow() - datetime.timedelta(minutes=timeLimit)
+            timeLimitDate = naive_utcnow() - datetime.timedelta(minutes=timeLimit)
             timeLimitWaiting = naive_utcnow() - datetime.timedelta(hours=6)
             retList = []
             # get jobs
@@ -1453,7 +1450,7 @@ class TaskEventModule(BaseModule):
                 self.conn.begin()
                 varMap: dict[str, Any] = {}
                 varMap[":eventService"] = EventServiceUtils.coJumboJobFlagNumber
-                varMap[":timeLimit"] = timeLimit
+                varMap[":timeLimit"] = timeLimitDate
                 varMap[":minPriority"] = minPriority
                 self.cur.execute(sqlEOD.format(tableName) + comment, varMap)
                 tmpRes = self.cur.fetchall()
@@ -1474,7 +1471,7 @@ class TaskEventModule(BaseModule):
                     self.conn.begin()
                     varMap = {}
                     varMap[":PandaID"] = pandaID
-                    varMap[":timeLimit"] = timeLimit
+                    varMap[":timeLimit"] = timeLimitDate
                     toSkip = False
                     resPL = None
                     try:
@@ -2449,7 +2446,7 @@ class TaskEventModule(BaseModule):
     def increaseRamLimitJEDI(self, jediTaskID: int, jobRamCount: int | None, noLimits: bool = False) -> bool:
         comment = " /* DBProxy.increaseRamLimitJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # RAM limit
             limitList = [1000, 2000, 3000, 4000, 6000, 8000]
@@ -2504,7 +2501,7 @@ class TaskEventModule(BaseModule):
                 except Exception:
                     tmp_log.error(f"reset_resource_type excepted with {traceback.format_exc()}")
 
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -2601,7 +2598,7 @@ class TaskEventModule(BaseModule):
             # skip if already at largest limit
             if normalized_job_ram_count >= limit_list[-1]:
                 tmp_log.debug(
-                    f"Done. No change since job RAM limit ({normalized_job_ram_count}) " f"is larger than or equal to the highest limit ({limit_list[-1]})"
+                    f"Done. No change since job RAM limit ({normalized_job_ram_count}) is larger than or equal to the highest limit ({limit_list[-1]})"
                 )
                 return True
 
@@ -2744,9 +2741,7 @@ class TaskEventModule(BaseModule):
                              AND tabD.type IN ({1})
                              AND tabD.masterID IS NULL
                              GROUP BY ramCount
-                             """.format(
-                        panda_config.schemaJEDI, input_type_var_names_str
-                    )
+                             """.format(panda_config.schemaJEDI, input_type_var_names_str)
 
                     self.cur.execute(sqlMS + comment, varMap)
                     memory_stats = self.cur.fetchall()
@@ -3115,12 +3110,12 @@ class TaskEventModule(BaseModule):
     def setSiteForEsMerge(self, jobSpec: JobSpec, isFakeCJ: bool, methodName: str, comment: str) -> str | None:
         comment = " /* DBProxy.setSiteForEsMerge */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
-        tmp_log.debug(f"looking for ES merge site")
+        tmp_log.debug("looking for ES merge site")
         # merge on OS
         isMergeAtOS = EventServiceUtils.isMergeAtOS(jobSpec.specialHandling)
         # check where merge is done
         lookForMergeSite = True
-        sqlWM = "SELECT /* use_json_type */ scj.data.catchall, scj.data.objectstores " "FROM ATLAS_PANDA.schedconfig_json scj " "WHERE scj.panda_queue=:siteid "
+        sqlWM = "SELECT /* use_json_type */ scj.data.catchall, scj.data.objectstores FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteid "
 
         varMap: dict[str, Any] = {}
         varMap[":siteid"] = jobSpec.computingSite
@@ -3361,7 +3356,7 @@ class TaskEventModule(BaseModule):
     def setScoreSiteToEs(self, jobSpec: JobSpec, methodName: str, comment: str) -> str | None:
         comment = " /* DBProxy.setScoreSiteToEs */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
-        tmp_log.debug(f"looking for single-core site")
+        tmp_log.debug("looking for single-core site")
         # get score PQ in the nucleus associated to the site to run the small ES job
         sqlSN = "SELECT /* use_json_type */ ps2.panda_site_name "
         sqlSN += "FROM ATLAS_PANDA.panda_site ps1, ATLAS_PANDA.panda_site ps2, ATLAS_PANDA.schedconfig_json sc "
@@ -3431,7 +3426,7 @@ class TaskEventModule(BaseModule):
         try:
             tmp_log.debug(f"try to find parent={parent_name}")
             # sql to get workers
-            sqlC = "SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Tasks " "WHERE userName=:userName AND taskName=:taskName " "ORDER BY jediTaskID DESC "
+            sqlC = "SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Tasks WHERE userName=:userName AND taskName=:taskName ORDER BY jediTaskID DESC "
             # start transaction
             self.conn.begin()
             varMap: dict[str, Any] = {}
@@ -3473,7 +3468,7 @@ class TaskEventModule(BaseModule):
             if compact_dn in ["", "NULL", None]:
                 compact_dn = dn
             tmp_log = self.create_tagged_logger(comment, f"userName={compact_dn}")
-            tmp_log.debug(f"start")
+            tmp_log.debug("start")
 
             # decode json
             if decode:
@@ -3488,11 +3483,11 @@ class TaskEventModule(BaseModule):
             if "parentTaskName" in taskParamsJson:
                 parent_tid = self.get_parent_task_id_with_name(taskParamsJson["userName"], taskParamsJson["parentTaskName"])
                 if not parent_tid:
-                    tmpMsg = f"failed to find parent with user=\"{taskParamsJson['userName']}\" name={taskParamsJson['parentTaskName']}"
+                    tmpMsg = f'failed to find parent with user="{taskParamsJson["userName"]}" name={taskParamsJson["parentTaskName"]}'
                     tmp_log.debug(f"{tmpMsg}")
                     return 11, tmpMsg
                 else:
-                    tmp_log.debug(f"found parent {parent_tid} with user=\"{taskParamsJson['userName']}\" name={taskParamsJson['parentTaskName']}")
+                    tmp_log.debug(f'found parent {parent_tid} with user="{taskParamsJson["userName"]}" name={taskParamsJson["parentTaskName"]}')
             # set task type
             if not prodRole or "taskType" not in taskParamsJson:
                 taskParamsJson["taskType"] = "anal"
@@ -3648,7 +3643,7 @@ class TaskEventModule(BaseModule):
                         goForward = False
                         retVal = f"jediTaskID={jediTaskID} is already queued for outDS={taskParamsJson['taskName']}. "
                         retVal += "You cannot submit duplicated tasks. "
-                        tmp_log.debug(f"skip since old task is already queued in DEFT")
+                        tmp_log.debug("skip since old task is already queued in DEFT")
                         errorCode = 1
                 else:
                     # task is already in JEDI table
@@ -3670,7 +3665,7 @@ class TaskEventModule(BaseModule):
                         retVal += "Or you can retry the task once it goes into running/finished/failed/done. "
                         retVal += "Note that retry != resubmission according to "
                         retVal += "https://twiki.cern.ch/twiki/bin/view/PanDA/PandaJEDI#Task_retry_and_resubmission "
-                        tmp_log.debug(f"skip since old task is not yet finalized")
+                        tmp_log.debug("skip since old task is not yet finalized")
                         errorCode = 2
                     else:
                         # extract several params for incremental execution
@@ -3817,7 +3812,7 @@ class TaskEventModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             if properErrorCode:
                 return errorCode, retVal
             return retFlag, retVal
@@ -3853,7 +3848,7 @@ class TaskEventModule(BaseModule):
 
         # Task was not found
         if row is None:
-            tmp_log.debug(f"task not found")
+            tmp_log.debug("task not found")
             return False
 
         # The user is not the owner
@@ -3932,7 +3927,7 @@ class TaskEventModule(BaseModule):
                 self.conn.begin()
 
             # get task status
-            sql_task_status = f"SELECT status, prodSourceLabel FROM {panda_config.schemaJEDI}.JEDI_Tasks " "WHERE jediTaskID=:jediTaskID "
+            sql_task_status = f"SELECT status, prodSourceLabel FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
             self.cur.execute(sql_task_status + comment, {":jediTaskID": jediTaskID})
             result_task_status = self.cur.fetchone()
             if result_task_status is None:
@@ -3962,7 +3957,7 @@ class TaskEventModule(BaseModule):
             notify_pilot = comStr in ("kill", "finish") and broadcast
 
             # delete command just in case
-            sql_delete_command = f"DELETE FROM {panda_config.schemaDEFT}.PRODSYS_COMM " "WHERE COMM_TASK=:jediTaskID "
+            sql_delete_command = f"DELETE FROM {panda_config.schemaDEFT}.PRODSYS_COMM WHERE COMM_TASK=:jediTaskID "
             self.cur.execute(sql_delete_command + comment, {":jediTaskID": jediTaskID})
 
             # insert command
@@ -4501,7 +4496,7 @@ class TaskEventModule(BaseModule):
             varMap = jobSpec.valuesMap(useSeq=True)
             varMap[":newPandaID"] = self.cur.var(varNUMBER)
             # insert
-            retI = self.cur.execute(sql1 + comment, varMap)
+            self.cur.execute(sql1 + comment, varMap)
             # set PandaID
             val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
             jobSpec.PandaID = int(val)

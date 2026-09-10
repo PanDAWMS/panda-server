@@ -90,9 +90,9 @@ taskParamMap["jobParameters"] = [
 taskParamMap["mergeOutput"] = True
 taskParamMap["mergeSpec"] = {}
 taskParamMap["mergeSpec"]["transPath"] = "HITSMerge_tf.py"
-taskParamMap["mergeSpec"][
-    "jobParameters"
-] = "--AMITag s1776 --DBRelease=current --autoConfiguration=everything --outputHitsFile=${OUTPUT0} --inputHitsFile=${TRN_OUTPUT0} --inputLogsFile=${TRN_LOG0}"
+taskParamMap["mergeSpec"]["jobParameters"] = (
+    "--AMITag s1776 --DBRelease=current --autoConfiguration=everything --outputHitsFile=${OUTPUT0} --inputHitsFile=${TRN_OUTPUT0} --inputLogsFile=${TRN_LOG0}"
+)
 
 jonStr = json.dumps(taskParamMap)
 
