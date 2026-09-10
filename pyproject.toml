@@ -126,10 +126,9 @@ line-length = 160
 # resolves them.
 select = ["F821", "I"]
 
-# The tree is clean under these flags, so `mypy` with no arguments answers whether a change
-# keeps it that way. Nothing in CI runs it yet -- wiring it in belongs with the pre-commit
-# hook that lets a contributor see the same result before opening a PR, so both go in
-# together in a follow-up.
+# The tree is clean under these flags and the mypy hook in .pre-commit-config.yaml fails on
+# any finding, so a change that introduces one has to fix it. `mypy` with no arguments is
+# the same run, which is how to get the answer without waiting for the hook.
 #
 # Widening the flags further will surface findings that were never counted; do that in a PR
 # that also resolves them. --strict is not the next step: most of what it adds is
