@@ -8,3 +8,15 @@ updates:
       actions:
         patterns:
           - "*"
+
+  # The hook pins are what CI runs, so without this they go stale silently.
+  #
+  # Deliberately not grouped, unlike the actions above: a mypy bump can report findings
+  # that need code changes, and a ruff bump can reformat, so each is easier to take on
+  # its own than in one batch. What moves here is each repo's rev; the stub versions
+  # pinned in the mypy hook's additional_dependencies are not covered, so check those
+  # against the mypy release the same PR brings in.
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: monthly
