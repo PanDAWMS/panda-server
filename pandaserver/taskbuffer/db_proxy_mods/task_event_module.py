@@ -468,8 +468,6 @@ class TaskEventModule(BaseModule):
                     iSkipped += 1
                     tmp_log.debug(f"<eventRangeID={eventRangeID}> eventStatus={eventStatus} skipped")
                     continue
-                # core count
-                # CPU consumption
                 # objectstore ID
                 objstoreID = eventDict.get("objstoreID")
                 # error code
