@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 import threading
@@ -9,7 +10,22 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
 from pandaserver.configurator import aux
-from pandaserver.configurator.aux import *
+from pandaserver.configurator.aux import (
+    D1,
+    DONE,
+    EXPRESS,
+    FILES,
+    GB,
+    H1,
+    H6,
+    LATEST,
+    MBPS,
+    PROD_INPUT,
+    PROD_OUTPUT,
+    QUEUED,
+    TIMESTAMP,
+    W1,
+)
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("configurator")
