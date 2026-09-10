@@ -113,18 +113,18 @@ ignore = ['E501', 'U100']
 line-length = 160
 
 [tool.ruff.lint]
-# F821: an undefined name parses fine and raises at import time instead -- in a daemon
-# that is an outage rather than a failed check -- and annotations make it easy to hit,
-# because the class named in one has to be imported even though nothing calls it.
+# F: pyflakes, the same set panda-common enforces. An undefined name (F821) parses fine
+# and raises at import time instead -- in a daemon that is an outage rather than a failed
+# check -- and annotations make it easy to hit, because the class named in one has to be
+# imported even though nothing calls it. The rest of F earns its place too: clearing the
+# tree for it turned up a "%" applied to a "{0}" template, which raised TypeError out of
+# a daemon's main(), a name imported from two modules at once, and a DB call and a query
+# whose results went nowhere.
 #
 # I: import order, in place of isort. ruff's defaults already agree with ruff-format, so
 # there is no profile to set, and they agreed with the isort-formatted tree everywhere but
 # one file.
-#
-# Widening to the rest of F is a follow-up: the tree carries 592 more findings under
-# select = ["F"], and two of them are bugs rather than lint. Do that in a PR that also
-# resolves them.
-select = ["F821", "I"]
+select = ["F", "I"]
 
 # The tree is clean under these flags and the mypy hook in .pre-commit-config.yaml fails on
 # any finding, so a change that introduces one has to fix it. `mypy` with no arguments is
