@@ -1622,7 +1622,7 @@ class MiscStandaloneModule(BaseModule):
             # get token keys
             token_keys: dict[str, Any] = {}
             sql = f"SELECT dn, credname FROM {panda_config.schemaMETA}.proxykey WHERE expires>:limit ORDER BY expires DESC "
-            var_map = {":limit": naive_utcnow()}
+            var_map: dict[str, Any] = {":limit": naive_utcnow()}
             self.cur.execute(sql + comment, var_map)
             res_list = self.cur.fetchall()
             for client_name, token_key in res_list:

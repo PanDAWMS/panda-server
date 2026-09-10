@@ -725,7 +725,7 @@ class DataCarouselModule(BaseModule):
             # start transaction
             self.conn.begin()
             # get pending tasks
-            var_map = {":status": "pending", ":taskType": task_type}
+            var_map: dict[str, Any] = {":status": "pending", ":taskType": task_type}
             var_map[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=time_limit_minutes)
             self.cur.execute(sql_tasks + comment, var_map)
             res = self.cur.fetchall()

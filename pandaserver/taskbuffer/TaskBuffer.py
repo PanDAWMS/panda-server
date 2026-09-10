@@ -54,7 +54,7 @@ class TaskBuffer:
         # site mapper
         self.site_mapper: SiteMapper | None = None
         # update time for site mapper
-        self.last_update_site_mapper = None
+        self.last_update_site_mapper: datetime.datetime | None = None
 
     def __repr__(self) -> str:
         return "TaskBuffer"

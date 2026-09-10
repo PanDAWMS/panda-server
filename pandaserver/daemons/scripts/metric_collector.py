@@ -354,7 +354,7 @@ class FetchData(object):
             # now time
             now_time = naive_utcnow()
             # get user jobs
-            varMap = {
+            varMap: dict[str, Any] = {
                 ":modificationTime": now_time - datetime.timedelta(days=4),
             }
             archived4_jobs_list = self.tbuf.querySQL(sql_get_jobs_archived4, varMap)

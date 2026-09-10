@@ -1441,7 +1441,7 @@ class TaskEventModule(BaseModule):
             sqlWP += "UNION "
             sqlWP += "SELECT 1 FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
             self.cur.arraysize = 1000000
-            timeLimit = naive_utcnow() - datetime.timedelta(minutes=timeLimit)
+            timeLimitDate = naive_utcnow() - datetime.timedelta(minutes=timeLimit)
             timeLimitWaiting = naive_utcnow() - datetime.timedelta(hours=6)
             retList = []
             # get jobs
@@ -1451,7 +1451,7 @@ class TaskEventModule(BaseModule):
                 self.conn.begin()
                 varMap: dict[str, Any] = {}
                 varMap[":eventService"] = EventServiceUtils.coJumboJobFlagNumber
-                varMap[":timeLimit"] = timeLimit
+                varMap[":timeLimit"] = timeLimitDate
                 varMap[":minPriority"] = minPriority
                 self.cur.execute(sqlEOD.format(tableName) + comment, varMap)
                 tmpRes = self.cur.fetchall()
@@ -1472,7 +1472,7 @@ class TaskEventModule(BaseModule):
                     self.conn.begin()
                     varMap = {}
                     varMap[":PandaID"] = pandaID
-                    varMap[":timeLimit"] = timeLimit
+                    varMap[":timeLimit"] = timeLimitDate
                     toSkip = False
                     resPL = None
                     try:

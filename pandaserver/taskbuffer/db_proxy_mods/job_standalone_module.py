@@ -1514,7 +1514,7 @@ class JobStandaloneModule(BaseModule):
 
                 # select
                 self.cur.arraysize = 10000
-                var_map = {":prodSourceLabelManaged": "managed"}
+                var_map: dict[str, Any] = {":prodSourceLabelManaged": "managed"}
                 var_map.update({f":prodSourceLabel_{label}": label for label in JobUtils.list_ptest_prod_sources})
 
                 if table == "ATLAS_PANDA.jobsArchived4":

@@ -1064,7 +1064,7 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"harvesterID={harvesterID} workerID={workerID}")
 
         timestamp_utc = naive_utcnow()
-        var_map = {
+        var_map: dict[str, Any] = {
             ":status": status,
             ":harvesterID": harvesterID,
             ":workerID": workerID,
