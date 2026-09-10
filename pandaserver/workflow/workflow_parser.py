@@ -1,9 +1,4 @@
-import copy
-import json
 import os
-import re
-import shlex
-import sys
 import tarfile
 import tempfile
 import traceback
@@ -18,12 +13,12 @@ from ruamel.yaml import YAML
 from pandaserver.workflow import workflow_native_utils
 from pandaserver.workflow.workflow_base import WFID_PLACEHOLDER, substitute_placeholder
 
-# Supported workflow description languages. "yaml" is the native language and the only one being
-# extended; "cwl" and "snakemake" are legacy and kept for existing descriptions only. Their parsers
-# are imported lazily in the branches below, because each drags in a heavy third-party dependency
-# (idds via pcwl_utils, snakemake via snakeparser) that the native path never needs -- importing
-# snakemake alone reconfigures logging and emits a line on every invocation.
-SUPPORTED_WORKFLOW_LANGUAGES = ["yaml", "cwl", "snakemake"]
+# The workflow description language this engine speaks, and the only one it parses. It is also the
+# default, so a request need not name it. CWL and snakemake descriptions belong to the separate
+# iDDS-backed workflow processor (pandaserver.taskbuffer.workflow_processor), which owns pcwl_utils,
+# snakeparser and workflow_utils; keeping their parsers out of here is what keeps the engine free of
+# idds and of snakemake, whose import alone reconfigures logging.
+NATIVE_WORKFLOW_LANGUAGE = "yaml"
 
 # Raw request key holding a workflow description supplied inline instead of in a sandbox. A
 # description submitted this way needs no sandbox: production steps carry their task parameters
@@ -52,20 +47,11 @@ def json_serialize_default(obj: Any) -> Any:
     # convert set to list
     if isinstance(obj, set):
         return list(obj)
-    # Both Node classes appear here: the yaml parser builds workflow_native_utils.Node and
-    # pcwl_utils/SnakeParser build workflow_utils.Node, and a sub-workflow node carries its
-    # children as Node objects in sub_nodes. Naming only one of them left json.dumps to
-    # re-encode the object this function handed back, which raises "Circular reference
-    # detected" rather than anything that points here. Their ids are what workflow_core
-    # reads back out of sub_nodes.
-    # workflow_utils is looked up in sys.modules rather than imported, since importing it would
-    # pull in idds on the native path; a legacy Node cannot exist unless its parser, and with it
-    # workflow_utils, has already been imported.
-    legacy_utils = sys.modules.get("pandaserver.workflow.workflow_utils")
-    node_classes: tuple[type, ...] = (workflow_native_utils.Node,)
-    if legacy_utils is not None:
-        node_classes += (legacy_utils.Node,)
-    if isinstance(obj, node_classes):
+    # A sub-workflow node carries its children as Node objects in sub_nodes, and their ids are
+    # what workflow_core reads back out of it. Leaving them unhandled makes json.dumps re-encode
+    # the object this function handed back, which raises "Circular reference detected" rather
+    # than anything that points here.
+    elif isinstance(obj, workflow_native_utils.Node):
         return obj.id
     return obj
 
@@ -191,179 +177,127 @@ def parse_raw_request(
                 tmp_log.info("parse workflow")
                 workflow_name = None
                 workflow_options = None
-                # The branches below produce two different Node classes: the yaml one
-                # builds workflow_native_utils.Node, while pcwl_utils and SnakeParser
-                # both build workflow_utils.Node. Each module's helpers recognise only
-                # their own class -- _sub_nodes_are_objects tests isinstance, and the
-                # native Node carries fields the other does not -- so the resolve step
-                # below picks the module that matches the parser that ran.
-                # These hold whichever Node class the branch that ran produced
-                nodes: list[Any]
-                node: Any
-                t_nodes: list[Any]
-                id_node_map: dict[int, Any]
-                # An inline description is already a parsed mapping in the native schema, so it
-                # needs no serialization format of its own and defaults to the native language.
-                if inline_description is not None:
-                    wf_lang = raw_request_dict.get("language", "yaml")
-                else:
-                    wf_lang = raw_request_dict["language"]
-                if wf_lang in SUPPORTED_WORKFLOW_LANGUAGES:
-                    if wf_lang == "yaml":
-                        if inline_description is not None:
-                            wfd = inline_description
-                        else:
-                            workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
-                            with open(workflow_spec_file) as workflow_spec:
-                                yaml = YAML(typ="safe", pure=True)
-                                wfd = yaml.load(workflow_spec)
-                        workflow_name = wfd.get("name")
-                        id_counter = [0]
-                        nodes, root_in = workflow_native_utils.parse_workflow_data(wfd, tmp_log, _id_counter=id_counter)
-                        data = wfd.get("inputs", dict())
-                        workflow_options = wfd.get("options", None)
-                        # Resolve reference-based sub-workflow nodes (workflow_ref field)
-                        named_blocks = wfd.get("workflow_blocks", {})
-                        for node in list(nodes):
-                            if node.workflow_ref is None:
-                                continue
-                            ref = node.workflow_ref
-                            ref_data = None
-                            # named block in the same file
-                            if ref in named_blocks:
-                                ref_data = named_blocks[ref]
-                            else:
-                                # external YAML file in the same sandbox directory
-                                ref_path = os.path.join(tmp_dirname, ref)
-                                # guard against path traversal (e.g. "../../etc/passwd") escaping the sandbox dir
-                                if not _is_within_directory(tmp_dirname, ref_path):
-                                    tmp_log.error(f"workflow_ref '{ref}' resolves outside the sandbox directory")
-                                    is_fatal = True
-                                    is_ok = False
-                                    break
-                                if os.path.isfile(ref_path):
-                                    with open(ref_path) as ref_file:
-                                        yaml2 = YAML(typ="safe", pure=True)
-                                        ref_data = yaml2.load(ref_file)
-                                else:
-                                    tmp_log.error(f"workflow_ref '{ref}' not found as a named block or file")
-                                    is_fatal = True
-                                    is_ok = False
-                                    break
-                            if ref_data is not None:
-                                child_nodes, child_root_in = workflow_native_utils.parse_workflow_data(ref_data, tmp_log, _id_counter=id_counter)
-                                # Input resolution for the child template depends on the kind of
-                                # sub-workflow:
-                                #  - scatter: the parent's scatter inputs replace the corresponding
-                                #    child inputs per iteration at runtime, so the template's own
-                                #    declared inputs are not used here.
-                                #  - ordinary: the referenced template uses its own declared inputs
-                                #    (defaults), with the node's explicit inputs overriding them.
-                                if not node.scatter_inputs:
-                                    node.root_inputs = {**(child_root_in or {}), **(node.root_inputs or {})}
-                                # Keep the child template nodes as Node objects on sub_nodes (a
-                                # topologically-sorted list, not flattened into the outer node
-                                # list) so resolve_nodes can resolve them in their own recursive
-                                # scope -- restarting member_id at 1 -- and splice them back as a
-                                # flat, id-keyed list. resolve_nodes replaces sub_nodes with the
-                                # resolved child ids.
-                                node.sub_nodes = child_nodes
-                                node.workflow_ref = None
-                                # child nodes are template nodes within the scatter parent; clear is_tail
-                                # so they do not appear as tail nodes of the outer workflow
-                                for child_node in child_nodes:
-                                    child_node.is_tail = False
-                                # Stash the raw root_outputs from the child YAML so they can be
-                                # resolved to actual values after resolve_nodes runs (output
-                                # dataset names are not set until resolve_nodes assigns IDs).
-                                node.child_root_outputs_raw = ref_data.get("outputs", {}) if isinstance(ref_data, dict) else {}
-                                # Resolve scatter_inputs name references to actual value lists
-                                if node.scatter_inputs:
-                                    resolved = {}
-                                    for param_name, root_input_ref in node.scatter_inputs.items():
-                                        if root_input_ref in data:
-                                            val = data[root_input_ref]
-                                            resolved[param_name] = val if isinstance(val, list) else [val]
-                                        else:
-                                            tmp_log.warning(f"scatter_inputs ref '{root_input_ref}' not found in workflow inputs for node '{node.name}'")
-                                    node.scatter_inputs = resolved
-                    elif wf_lang == "cwl":
-                        workflow_name = raw_request_dict.get("workflow_name")
-                        workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
-                        workflow_input_file = os.path.join(tmp_dirname, raw_request_dict["workflowInputFile"])
-                        from pandaserver.workflow import pcwl_utils
-
-                        nodes, root_in = pcwl_utils.parse_workflow_file(workflow_spec_file, tmp_log)
-                        with open(workflow_input_file) as workflow_input:
-                            yaml = YAML(typ="safe", pure=True)
-                            data = yaml.load(workflow_input)
-                    elif wf_lang == "snakemake":
-                        workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
-                        from pandaserver.workflow.snakeparser import (
-                            Parser as SnakeParser,
-                        )
-
-                        parser = SnakeParser(workflow_spec_file, logger=tmp_log)
-                        nodes, root_in = parser.parse_nodes()
-                        data = dict()
-                    # resolve nodes
-                    scatter_template_ids: set[int] = set()
-                    if wf_lang == "yaml":
-                        # outDS is the prefix for engine-generated output dataset names. Steps whose
-                        # output names are supplied by the author (raw task parameters) do not use it,
-                        # so it is optional and only required when some step needs a generated name.
-                        s_id, t_nodes, nodes = workflow_native_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict.get("outDS"), tmp_log)
-                        workflow_native_utils.set_workflow_outputs(nodes)
-                        id_node_map = workflow_native_utils.get_node_id_map(nodes)
-                        # taskParams is the CLI task template used to build an analysis step's task
-                        # parameters. A step carrying raw task parameters needs no template, so a
-                        # description made up only of such steps may omit it entirely.
-                        for node in nodes:
-                            node.resolve_params(raw_request_dict.get("taskParams"), id_node_map)
-                        # Resolve child_root_outputs_raw now that resolve_nodes has set output values
-                        # and resolve_params has set output_types on all nodes.
-                        # Build a map from step-output-name (e.g. "combine/outDS") to resolved output dict.
-                        node_out_map = {}
-                        for _n in nodes:
-                            for _out_name, _out_data in (_n.outputs or {}).items():
-                                node_out_map[_out_name] = _out_data
-                        for _n in nodes:
-                            if _n.child_root_outputs_raw:
-                                _resolved = {}
-                                for _rout_name, _rout_spec in _n.child_root_outputs_raw.items():
-                                    if isinstance(_rout_spec, dict):
-                                        _from_key = _rout_spec.get("from")
-                                        _from_data = node_out_map.get(_from_key, {}) if _from_key else {}
-                                        _resolved[_rout_name] = {
-                                            "value": _from_data.get("value") if isinstance(_from_data, dict) else None,
-                                            "output_types": _rout_spec.get("output_types") or [],
-                                        }
-                                _n.child_root_outputs = _resolved
-                        dump_body = workflow_native_utils.dump_nodes(nodes)
-                        # scatter template child nodes have unresolved scatter-parameter inputs
-                        # (e.g. {signal}, {background}) that are filled in at runtime — skip them
-                        for node in nodes:
-                            if node.scatter_inputs is not None:
-                                scatter_template_ids |= node.sub_nodes
+                # The native language is the default: an inline description is already a parsed
+                # mapping in the native schema and needs no serialization format of its own, and a
+                # sandbox description has nothing else it could be written in.
+                wf_lang = raw_request_dict.get("language") or NATIVE_WORKFLOW_LANGUAGE
+                if wf_lang == NATIVE_WORKFLOW_LANGUAGE:
+                    if inline_description is not None:
+                        wfd = inline_description
                     else:
-                        # CWL and snakemake nodes are workflow_utils.Node. Sub-workflows,
-                        # scatter and the child root outputs above are all native-only
-                        # concepts, so nothing here stands in for them.
-                        # Imported here, like the parsers above, because workflow_utils drags in
-                        # idds, which the native path never needs.
-                        from pandaserver.workflow import workflow_utils
-
-                        # outDS and taskParams are optional only for the native language, whose
-                        # raw-task-params steps supply their own names and parameters; the legacy
-                        # languages have no such steps and always carry both.
-                        s_id, t_nodes, nodes = workflow_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict["outDS"], tmp_log)
-                        workflow_utils.set_workflow_outputs(nodes)
-                        id_node_map = workflow_utils.get_node_id_map(nodes)
-                        for node in nodes:
-                            node.resolve_params(raw_request_dict["taskParams"], id_node_map)
-                        dump_body = workflow_utils.dump_nodes(nodes)
-                    dump_str = "the description was internally converted as follows\n" + dump_body
+                        workflow_spec_file = os.path.join(tmp_dirname, raw_request_dict["workflowSpecFile"])
+                        with open(workflow_spec_file) as workflow_spec:
+                            yaml = YAML(typ="safe", pure=True)
+                            wfd = yaml.load(workflow_spec)
+                    workflow_name = wfd.get("name")
+                    id_counter = [0]
+                    nodes, root_in = workflow_native_utils.parse_workflow_data(wfd, tmp_log, _id_counter=id_counter)
+                    data = wfd.get("inputs", dict())
+                    workflow_options = wfd.get("options", None)
+                    # Resolve reference-based sub-workflow nodes (workflow_ref field)
+                    named_blocks = wfd.get("workflow_blocks", {})
+                    for node in list(nodes):
+                        if node.workflow_ref is None:
+                            continue
+                        ref = node.workflow_ref
+                        ref_data = None
+                        # named block in the same file
+                        if ref in named_blocks:
+                            ref_data = named_blocks[ref]
+                        else:
+                            # external YAML file in the same sandbox directory
+                            ref_path = os.path.join(tmp_dirname, ref)
+                            # guard against path traversal (e.g. "../../etc/passwd") escaping the sandbox dir
+                            if not _is_within_directory(tmp_dirname, ref_path):
+                                tmp_log.error(f"workflow_ref '{ref}' resolves outside the sandbox directory")
+                                is_fatal = True
+                                is_ok = False
+                                break
+                            if os.path.isfile(ref_path):
+                                with open(ref_path) as ref_file:
+                                    yaml2 = YAML(typ="safe", pure=True)
+                                    ref_data = yaml2.load(ref_file)
+                            else:
+                                tmp_log.error(f"workflow_ref '{ref}' not found as a named block or file")
+                                is_fatal = True
+                                is_ok = False
+                                break
+                        if ref_data is not None:
+                            child_nodes, child_root_in = workflow_native_utils.parse_workflow_data(ref_data, tmp_log, _id_counter=id_counter)
+                            # Input resolution for the child template depends on the kind of
+                            # sub-workflow:
+                            #  - scatter: the parent's scatter inputs replace the corresponding
+                            #    child inputs per iteration at runtime, so the template's own
+                            #    declared inputs are not used here.
+                            #  - ordinary: the referenced template uses its own declared inputs
+                            #    (defaults), with the node's explicit inputs overriding them.
+                            if not node.scatter_inputs:
+                                node.root_inputs = {**(child_root_in or {}), **(node.root_inputs or {})}
+                            # Keep the child template nodes as Node objects on sub_nodes (a
+                            # topologically-sorted list, not flattened into the outer node
+                            # list) so resolve_nodes can resolve them in their own recursive
+                            # scope -- restarting member_id at 1 -- and splice them back as a
+                            # flat, id-keyed list. resolve_nodes replaces sub_nodes with the
+                            # resolved child ids.
+                            node.sub_nodes = child_nodes
+                            node.workflow_ref = None
+                            # child nodes are template nodes within the scatter parent; clear is_tail
+                            # so they do not appear as tail nodes of the outer workflow
+                            for child_node in child_nodes:
+                                child_node.is_tail = False
+                            # Stash the raw root_outputs from the child YAML so they can be
+                            # resolved to actual values after resolve_nodes runs (output
+                            # dataset names are not set until resolve_nodes assigns IDs).
+                            node.child_root_outputs_raw = ref_data.get("outputs", {}) if isinstance(ref_data, dict) else {}
+                            # Resolve scatter_inputs name references to actual value lists
+                            if node.scatter_inputs:
+                                resolved = {}
+                                for param_name, root_input_ref in node.scatter_inputs.items():
+                                    if root_input_ref in data:
+                                        val = data[root_input_ref]
+                                        resolved[param_name] = val if isinstance(val, list) else [val]
+                                    else:
+                                        tmp_log.warning(f"scatter_inputs ref '{root_input_ref}' not found in workflow inputs for node '{node.name}'")
+                                node.scatter_inputs = resolved
+                    # resolve nodes
+                    # outDS is the prefix for engine-generated output dataset names. Steps whose
+                    # output names are supplied by the author (raw task parameters) do not use it,
+                    # so it is optional and only required when some step needs a generated name.
+                    s_id, t_nodes, nodes = workflow_native_utils.resolve_nodes(nodes, root_in, data, 0, set(), raw_request_dict.get("outDS"), tmp_log)
+                    workflow_native_utils.set_workflow_outputs(nodes)
+                    id_node_map = workflow_native_utils.get_node_id_map(nodes)
+                    # taskParams is the CLI task template used to build an analysis step's task
+                    # parameters. A step carrying raw task parameters needs no template, so a
+                    # description made up only of such steps may omit it entirely.
+                    for node in nodes:
+                        node.resolve_params(raw_request_dict.get("taskParams"), id_node_map)
+                    # Resolve child_root_outputs_raw now that resolve_nodes has set output values
+                    # and resolve_params has set output_types on all nodes.
+                    # Build a map from step-output-name (e.g. "combine/outDS") to resolved output dict.
+                    node_out_map = {}
+                    for _n in nodes:
+                        for _out_name, _out_data in (_n.outputs or {}).items():
+                            node_out_map[_out_name] = _out_data
+                    for _n in nodes:
+                        if _n.child_root_outputs_raw:
+                            _resolved = {}
+                            for _rout_name, _rout_spec in _n.child_root_outputs_raw.items():
+                                if isinstance(_rout_spec, dict):
+                                    _from_key = _rout_spec.get("from")
+                                    _from_data = node_out_map.get(_from_key, {}) if _from_key else {}
+                                    _resolved[_rout_name] = {
+                                        "value": _from_data.get("value") if isinstance(_from_data, dict) else None,
+                                        "output_types": _rout_spec.get("output_types") or [],
+                                    }
+                            _n.child_root_outputs = _resolved
+                    dump_str = "the description was internally converted as follows\n" + workflow_native_utils.dump_nodes(nodes)
                     tmp_log.info(dump_str)
+                    # scatter template child nodes have unresolved scatter-parameter inputs
+                    # (e.g. {signal}, {background}) that are filled in at runtime — skip them
+                    scatter_template_ids: set[int] = set()
+                    for node in nodes:
+                        if node.scatter_inputs is not None:
+                            scatter_template_ids |= node.sub_nodes
                     for node in nodes:
                         if node.id in scatter_template_ids:
                             continue
@@ -376,7 +310,9 @@ def parse_raw_request(
                             is_fatal = True
                             is_ok = False
                 else:
-                    dump_str = f"{wf_lang} is not supported to describe the workflow"
+                    # CWL and snakemake descriptions are not parsed here; they are submitted
+                    # through the iDDS workflow processor instead.
+                    dump_str = f"{wf_lang} is not supported to describe the workflow; this engine only parses the native {NATIVE_WORKFLOW_LANGUAGE} language"
                     tmp_log.error(dump_str)
                     is_fatal = True
                     is_ok = False

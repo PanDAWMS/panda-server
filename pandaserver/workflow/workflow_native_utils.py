@@ -253,9 +253,8 @@ class Node(object):
         self.in_loop = False
         self.upper_root_inputs: dict[str, Any] | None = None
         self.workflow_ref: str | None = None  # path or named block reference for type="workflow" nodes
-        # True for native (parse_workflow_data) type="workflow" orchestration nodes: they own an
-        # output dataset and submit a child workflow at runtime. CWL/snakemake sub-workflow nodes
-        # are built by other parsers and stay False, keeping the transparent recursion semantics.
+        # True for type="workflow" orchestration nodes: they own an output dataset and submit a
+        # child workflow at runtime, rather than exposing their children's outputs transparently.
         self.is_sub_workflow = False
         self.scatter_inputs: dict[str, list[Any]] | None = None  # resolved at parse time; None if not a scatter step
         self.scatter_mode: str | None = None  # scatter mode string, e.g. "zip"
@@ -491,8 +490,8 @@ class Node(object):
         # A raw-task-params step brings its own task parameters, so it needs no CLI task template
         if self.is_leaf and (task_template or self.type in RAW_TASK_PARAMS_STEP_TYPES):
             self.task_params = self.make_task_params(task_template, id_map, workflow)
-        # only recurse into nested Node objects (CWL/snakemake); native sub-workflow steps hold
-        # resolved int IDs and are processed directly as part of the flat node list
+        # only recurse into a child template still held as Node objects; once resolve_nodes has
+        # run, sub_nodes holds resolved int IDs whose nodes are in the flat node list already
         if _sub_nodes_are_objects(self.sub_nodes):
             [n.resolve_params(task_template, id_map, self) for n in self.sub_nodes]
 
@@ -572,28 +571,27 @@ class Node(object):
             if workflow_node:
                 tmp_global, tmp_workflow_global = workflow_node.get_global_parameters()
                 src_dst_list = []
-                # looping globals
-                if tmp_global:
-                    for k in tmp_global:
-                        tmp_src = f"%{{{k}}}"
-                        tmp_dst = f"___idds___user_{k}___"
-                        src_dst_list.append((tmp_src, tmp_dst))
-                # workflow globls
+                # workflow globals, which have one fixed value for the whole workflow
                 if tmp_workflow_global:
                     for k, v in tmp_workflow_global.items():
                         tmp_src = f"%{{{k}}}"
                         tmp_dst = f"{v}"
                         src_dst_list.append((tmp_src, tmp_dst))
-                # iteration count
-                tmp_src = "%{i}"
-                tmp_dst = "___idds___num_run___"
-                src_dst_list.append((tmp_src, tmp_dst))
                 # replace
                 for tmp_src, tmp_dst in src_dst_list:
                     if "opt_exec" in dict_inputs:
                         dict_inputs["opt_exec"] = re.sub(tmp_src, tmp_dst, dict_inputs["opt_exec"])
                     if "opt_args" in dict_inputs:
                         dict_inputs["opt_args"] = re.sub(tmp_src, tmp_dst, dict_inputs["opt_args"])
+                # A loop-scoped global (declared as param_*) and the iteration count %{i} take a
+                # different value on every iteration, so they can only be resolved by whatever
+                # drives the looping. This engine does not implement looping yet, so a reference
+                # to one is refused here instead of reaching the payload unresolved.
+                for loop_param in list(tmp_global or []) + ["i"]:
+                    tmp_src = f"%{{{loop_param}}}"
+                    for opt_key in ["opt_exec", "opt_args"]:
+                        if dict_inputs.get(opt_key) and tmp_src in dict_inputs[opt_key]:
+                            raise ValueError(f"{tmp_src} in {opt_key} needs looping, which the workflow engine does not support yet")
             com += ["--exec", dict_inputs["opt_exec"]]
             com += ["--outDS", task_name]
             # argv-shaped, and the else branch puts a None where the image name would be.
@@ -785,8 +783,8 @@ class Node(object):
         if all_ids is None:
             all_ids = set()
         all_ids.add(self.id)
-        # only nested Node objects (CWL/snakemake) carry .id; native sub-workflow steps hold
-        # resolved int IDs already accounted for in the flat node list
+        # only children still held as Node objects carry .id; resolved int IDs are already
+        # accounted for in the flat node list
         if _sub_nodes_are_objects(self.sub_nodes):
             for sub_node in self.sub_nodes:
                 all_ids.add(sub_node.id)
@@ -844,10 +842,10 @@ class Node(object):
 
 
 def _sub_nodes_are_objects(sub_nodes: Any) -> bool:
-    # After resolve_nodes, a native sub-workflow node stores its children as resolved int IDs
-    # (the children are spliced into the flat node list and processed there). CWL/snakemake
-    # sub-workflows instead keep their children as nested Node objects. Recurse only into the
-    # latter; iterating int IDs as if they were nodes would crash.
+    # A sub-workflow node holds its children as Node objects only between parsing and
+    # resolve_nodes; resolve_nodes splices them into the flat node list and replaces sub_nodes
+    # with their resolved int IDs. Recurse only while they are still objects; iterating int IDs
+    # as if they were nodes would crash.
     return bool(sub_nodes) and all(isinstance(n, Node) for n in sub_nodes)
 
 
@@ -875,8 +873,8 @@ def get_node_id_map(node_list: Iterable[Node], id_map: dict[int, Node] | None = 
         id_map = {}
     for node in node_list:
         id_map[node.id] = node
-        # native sub-workflow children are flat int IDs (already in node_list); only recurse into
-        # nested Node objects (CWL/snakemake)
+        # resolved sub-workflow children are flat int IDs (already in node_list); only recurse
+        # while they are still Node objects
         if _sub_nodes_are_objects(node.sub_nodes):
             id_map = get_node_id_map(node.sub_nodes, id_map)
     return id_map
@@ -888,8 +886,8 @@ def get_all_parents(node_list: Iterable[Node], all_parents: set[int] | None = No
         all_parents = set()
     for node in node_list:
         all_parents |= node.parents
-        # native sub-workflow nodes store resolved int IDs in sub_nodes (children are flat); only
-        # recurse into nested Node objects (CWL/snakemake)
+        # resolved sub-workflow nodes store flat int IDs in sub_nodes; only recurse while the
+        # children are still Node objects
         if _sub_nodes_are_objects(node.sub_nodes):
             all_parents = get_all_parents(node.sub_nodes, all_parents)
     return all_parents
@@ -902,8 +900,8 @@ def set_workflow_outputs(node_list: Iterable[Node], all_parents: set[int] | None
     for node in node_list:
         if node.is_leaf and node.id not in all_parents:
             node.is_workflow_output = True
-        # native sub-workflow nodes store resolved int IDs in sub_nodes (children are flat); only
-        # recurse into nested Node objects (CWL/snakemake)
+        # resolved sub-workflow nodes store flat int IDs in sub_nodes; only recurse while the
+        # children are still Node objects
         if _sub_nodes_are_objects(node.sub_nodes):
             set_workflow_outputs(node.sub_nodes, all_parents)
 
@@ -1075,8 +1073,8 @@ def resolve_nodes(
             # child workflow at runtime. Any Node-object child template it carries is resolved in
             # its own recursive scope below (see sub-workflow-child block). Here it is treated like
             # a leaf so it gets a serial id, a member_id in this scope, and its own output dataset
-            # name. CWL/snakemake sub-workflow nodes (is_sub_workflow False) keep the transparent
-            # recursion semantics: they own no dataset and expose their child tail outputs directly.
+            # name. A sub-workflow node with is_sub_workflow False keeps the transparent recursion
+            # semantics instead: it owns no dataset and exposes its child tail outputs directly.
             is_scatter_workflow = sc_node.scatter_inputs is not None
             if sc_node.is_leaf or sc_node.is_sub_workflow:
                 resolved_map[original_node_id].append(sc_node)
@@ -1107,15 +1105,16 @@ def resolve_nodes(
                 for tmp_name, tmp_data in sc_node.outputs.items():
                     # A raw-task-params step's output dataset names are supplied by the author and
                     # already set at parse time; they encode the physics (and any late-bound ID
-                    # placeholder) and must not be replaced by a generated name. Every other parser
-                    # -- native prun steps, CWL, snakemake -- creates outputs as empty dicts, so
-                    # this only ever skips names that were deliberately set.
+                    # placeholder) and must not be replaced by a generated name. Every other step
+                    # type creates its outputs as empty dicts, so this only ever skips names that
+                    # were deliberately set.
                     if "value" in tmp_data:
                         continue
                     tmp_data["value"] = f"{out_ds_name}_{sc_node.member_id:03d}_{sc_node.name}"
-                    # add loop count for nodes in a loop
-                    if sc_node.in_loop:
-                        tmp_data["value"] += ".___idds___num_run___"
+                    # A node inside a loop needs one output dataset per iteration, so this name
+                    # will have to be made unique per iteration. Nothing does that yet: in_loop is
+                    # never set, since the engine does not implement looping, and the suffix will
+                    # be defined together with it.
             # Resolve a native sub-workflow node's child template in its own recursive scope.
             # sub_nodes holds the child Node objects (a topo-sorted list) parsed from the referenced
             # workflow; the recursion restarts member_id at 1, threads serial_id so child ids stay
