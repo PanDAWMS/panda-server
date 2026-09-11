@@ -3,9 +3,15 @@ import sys
 import time
 import traceback
 from re import error as ReError
+from typing import TYPE_CHECKING, Any, Callable
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
+from pandaserver.taskbuffer.JobSpec import JobSpec
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("RetrialModule")
 
@@ -20,14 +26,14 @@ SYSTEM_ERROR_CLASS = "system"
 NO_ERROR_CLASS = "unknown"
 
 
-def timeit(method):
+def timeit(method: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator function to time the execution time of any given method. Use as decorator.
     """
 
-    def timed(*args, **kwargs):
+    def timed(*args: Any, **kwargs: Any) -> Any:
         tmp_log = LogWrapper(_logger, f"timed {method.__name__!r} ({args!r}, {kwargs!r})")
-        tmp_log.debug(f"Start")
+        tmp_log.debug("Start")
 
         ts = time.time()
         result = method(*args, **kwargs)
@@ -39,13 +45,13 @@ def timeit(method):
     return timed
 
 
-def safe_match(pattern, message):
+def safe_match(pattern: str, message: str) -> re.Match[str] | None:
     """
     Wrapper around re.search with simple exception handling
     """
-    tmp_log = LogWrapper(_logger, f"safe_match")
+    tmp_log = LogWrapper(_logger, "safe_match")
 
-    matches = False
+    matches: re.Match[str] | None = None
     try:
         matches = re.match(pattern, message, flags=re.DOTALL)
     except ReError:
@@ -55,23 +61,23 @@ def safe_match(pattern, message):
 
 
 def conditions_apply(
-    errordiag_job,
-    architecture_job,
-    release_job,
-    wqid_job,
-    errordiag_rule,
-    architecture_rule,
-    release_rule,
-    wqid_rule,
-):
+    errordiag_job: str | None,
+    architecture_job: str | None,
+    release_job: str | None,
+    wqid_job: int | None,
+    errordiag_rule: str | None,
+    architecture_rule: str | None,
+    release_rule: str | None,
+    wqid_rule: int | None,
+) -> bool:
     """
     Checks that the error regexp, architecture, release and work queue of rule and job match,
     only in case the attributes are defined for the rule
     """
-    tmp_log = LogWrapper(_logger, f"conditions_apply")
+    tmp_log = LogWrapper(_logger, "conditions_apply")
     tmp_log.debug(f"Start {locals()}")
     if (
-        (errordiag_rule and not safe_match(errordiag_rule, errordiag_job))
+        (errordiag_rule and (errordiag_job is None or not safe_match(errordiag_rule, errordiag_job)))
         or (architecture_rule and architecture_rule != architecture_job)
         or (release_rule and release_rule != release_job)
         or (wqid_rule and wqid_rule != wqid_job)
@@ -83,11 +89,11 @@ def conditions_apply(
     return True
 
 
-def compare_strictness(rule1, rule2):
+def compare_strictness(rule1: dict[str, Any], rule2: dict[str, Any]) -> int:
     """
     Return 1 if rule1 is stricter, 0 if equal, -1 if rule2 is stricter
     """
-    tmp_log = LogWrapper(_logger, f"compare_strictness")
+    tmp_log = LogWrapper(_logger, "compare_strictness")
     tmp_log.debug("Start")
     rule1_weight = 0
     if rule1["architecture"]:
@@ -113,7 +119,9 @@ def compare_strictness(rule1, rule2):
         return 0
 
 
-def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_job):
+def preprocess_rules(
+    rules: list[dict[str, Any]], error_diag_job: str | None, release_job: str | None, architecture_job: str | None, wqid_job: int | None
+) -> list[dict[str, Any]]:
     """
     Do some preliminary validation of the applicable rules.
     - Duplicate rules, (action=limit_retry, maxAttempt=5) vs (action=limit_retry, maxAttempt=7, release=X):
@@ -122,10 +130,10 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
          resolve into the strictest rule, in our example (limit_retry = 5)
     - Bad intended rules, e.g. (action=limit_retry, maxAttempt=5) vs (action=limit_retry, maxAttempt=7, release=X):
     """
-    tmp_log = LogWrapper(_logger, f"preprocess_rules")
+    tmp_log = LogWrapper(_logger, "preprocess_rules")
     tmp_log.debug("Start")
     filtered_rules = []
-    limit_retry_rule = {}
+    limit_retry_rule: dict[str, Any] = {}
     try:
         # See if there is a INCREASE_MEM rule.
         # The effect of INCREASE_MEM rules is the same, so take the first one that appears
@@ -234,7 +242,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
 
 
 @timeit
-def apply_retrial_rules(task_buffer, job, errors, attemptNr):
+def apply_retrial_rules(task_buffer: "TaskBuffer", job: JobSpec, errors: list[dict[str, Any]], attemptNr: int) -> None:
     """
     Get rules from DB and applies them to a failed job. Actions can be:
     - flag the job so it is not retried again (error code is a final state and retrying will not help)
@@ -273,7 +281,7 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                 _logger.debug(f"Retry rule does not apply for jobID {job_id}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")
                 continue
 
-            applicable_rules = preprocess_rules(rule, error_diag, job.AtlasRelease, job.cmtConfig, job.workQueue_ID)
+            applicable_rules = preprocess_rules(rule, error_diag, job.AtlasRelease, job.cmtConfig, job.workQueue_ID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             _logger.debug(f"Applicable rules for PandaID={job_id}: {applicable_rules}")
             for rule in applicable_rules:
                 try:
@@ -303,7 +311,7 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         error_diag,
                         job.cmtConfig,
                         job.AtlasRelease,
-                        job.workQueue_ID,
+                        job.workQueue_ID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                         error_diag_rule,
                         architecture,
                         release,
@@ -316,7 +324,7 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
 
                     if action == NO_RETRY:
                         if active:
-                            task_buffer.setNoRetry(job_id, job.jediTaskID, job.Files)
+                            task_buffer.setNoRetry(job_id, job.jediTaskID, job.Files)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                         message = (
                             f"action=setNoRetry for PandaID={job_id} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                             f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
@@ -329,8 +337,8 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         try:
                             if active:
                                 task_buffer.setMaxAttempt(
-                                    job_id,
-                                    job.jediTaskID,
+                                    job_id,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                                    job.jediTaskID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                                     job.Files,
                                     int(parameters["maxAttempt"]),
                                 )
@@ -347,7 +355,7 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                     elif action == INCREASE_MEM:
                         try:
                             if active:
-                                task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount, job.jediTaskID)
+                                task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount, job.jediTaskID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                             message = (
                                 f"action=increaseRAMLimit for PandaID={job_id} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
@@ -362,7 +370,7 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                     elif action == INCREASE_MEM_XTIMES:
                         try:
                             if active:
-                                task_buffer.increaseRamLimitJobJEDI_xtimes(job, job.minRamCount, job.jediTaskID, attemptNr)
+                                task_buffer.increaseRamLimitJobJEDI_xtimes(job, job.minRamCount, job.jediTaskID, attemptNr)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                             message = (
                                 f"action=increaseRAMLimit_xtimes for PandaID={job_id} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
@@ -379,8 +387,13 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         try:
                             # update the task CPU time based on the failed job
                             if active:
+                                # the ids below are columns carrying the "NULL" sentinel, see spec_column.py
                                 new_cpu_time, new_cpu_time_unit = task_buffer.initialize_cpu_time_task(
-                                    job_id, job.jediTaskID, job.computingSite, job.Files, active
+                                    job_id,  # type: ignore[arg-type]
+                                    job.jediTaskID,  # type: ignore[arg-type]
+                                    job.computingSite,
+                                    job.Files,
+                                    active,
                                 )
 
                             message = (
@@ -398,10 +411,10 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         if not new_cpu_time:
                             try:
                                 # request recalculation of task parameters and see if it applied
-                                applied = False
+                                applied: bool | None = False
 
                                 if active:
-                                    rowcount = task_buffer.requestTaskParameterRecalculation(job.jediTaskID)
+                                    rowcount = task_buffer.requestTaskParameterRecalculation(job.jediTaskID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                                 else:
                                     rowcount = 0
 
@@ -425,8 +438,13 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         try:
                             applied = False
                             if active:
-                                applied = task_buffer.reduce_input_per_job(
-                                    job.PandaID, job.jediTaskID, job.attemptNr, parameters.get("excluded_rules"), parameters.get("steps")
+                                # the ids below are columns carrying the "NULL" sentinel, see spec_column.py
+                                applied, _ = task_buffer.reduce_input_per_job(
+                                    job.PandaID,  # type: ignore[arg-type]
+                                    job.jediTaskID,  # type: ignore[arg-type]
+                                    job.attemptNr,  # type: ignore[arg-type]
+                                    parameters.get("excluded_rules"),
+                                    parameters.get("steps"),
                                 )
                             message = (
                                 f"action=reduceInputPerJob for PandaID={job_id} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} applied={applied} "
@@ -448,7 +466,7 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
         _logger.debug(f"No retrial rules to apply for jobID {job_id}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")
 
 
-def get_job_error_details(job_spec):
+def get_job_error_details(job_spec: JobSpec) -> list[tuple[Any, Any, str]]:
     # Possible error types
     error_sources = ["pilotError", "exeError", "supError", "ddmError", "brokerageError", "jobDispatcherError", "taskBufferError"]
     job_id = job_spec.PandaID
@@ -474,16 +492,16 @@ def get_job_error_details(job_spec):
     return job_errors
 
 
-def classify_error(task_buffer, job_id, job_errors):
+def classify_error(task_buffer: "TaskBuffer", job_id: int, job_errors: list[tuple[Any, Any, str]]) -> tuple[Any, ...] | None:
     # Get the confirmed error classification rules
     tmp_log = LogWrapper(_logger, f"classify_error PandaID={job_id}")
 
     # Query the error classification rules from the database
     sql = "SELECT id, error_source, error_code, error_diag, error_class, active FROM ATLAS_PANDA.ERROR_CLASSIFICATION"
-    var_map = []
+    var_map: dict[str, Any] = {}
     status, rules = task_buffer.querySQLS(sql, var_map)
     if not rules:
-        tmp_log.debug(f"No error classification rules defined in the database")
+        tmp_log.debug("No error classification rules defined in the database")
         return None
 
     # Iterate job errors and rules to find a match
@@ -501,19 +519,19 @@ def classify_error(task_buffer, job_id, job_errors):
                 tmp_log.debug(f"Job classified with rule {rule_id}: ({err_source}, {err_code}, {err_diag}) as {rule_class} (active: {active})")
                 return rule_id, rule_source, rule_code, rule_diag, rule_class, active
 
-    tmp_log.debug(f"No matching rule found")
+    tmp_log.debug("No matching rule found")
     return None
 
 
 @timeit
-def apply_error_classification_logic(task_buffer, job):
-    tmp_log = LogWrapper(_logger, f"apply_error_classification_logic")
+def apply_error_classification_logic(task_buffer: "TaskBuffer", job: JobSpec) -> None:
+    tmp_log = LogWrapper(_logger, "apply_error_classification_logic")
 
     # Find the error source and getting the code, diag, and source
     job_errors = get_job_error_details(job)
 
     # Classify the error
-    ret = classify_error(task_buffer, job.PandaID, job_errors)
+    ret = classify_error(task_buffer, job.PandaID, job_errors)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
     if not ret:
         return
 
@@ -533,10 +551,10 @@ def apply_error_classification_logic(task_buffer, job):
 
         # Apply the rule only for active errors
         if active:
-            task_buffer.increase_max_failure(job.PandaID, job.jediTaskID, job.Files)
+            task_buffer.increase_max_failure(job.PandaID, job.jediTaskID, job.Files)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
 
 
-def job_failure_postprocessing(task_buffer, job_id, errors, attempt_number):
+def job_failure_postprocessing(task_buffer: "TaskBuffer", job_id: int, errors: list[dict[str, Any]], attempt_number: int) -> None:
     """
     Entry point for job failure post-processing. This includes applying the retry rules and error classification logic.
     """

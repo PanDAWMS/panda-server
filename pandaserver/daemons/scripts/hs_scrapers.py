@@ -1,4 +1,4 @@
-import sys
+from typing import Any
 
 import polars as pl
 import requests
@@ -37,7 +37,7 @@ class BaseHS06Scraper:
         "Site",
     ]
 
-    def __init__(self, task_buffer, url: str):
+    def __init__(self, task_buffer: Any, url: str):
         self.url = url
         self.session = requests.Session()
         self.task_buffer = task_buffer
@@ -47,7 +47,7 @@ class BaseHS06Scraper:
         df = self._parse_html_to_polars(html)
         self._insert(df)
 
-    def _insert_cpu_perf_rows(self, rows: list[dict], source_url: str) -> None:
+    def _insert_cpu_perf_rows(self, rows: list[dict[str, Any]], source_url: str) -> None:
         sql = (
             "INSERT INTO ATLAS_PANDA.cpu_benchmarks "
             "(cpu_type, cpu_type_normalized, smt_enabled, ncores, site, score_per_core, source) "
@@ -105,12 +105,12 @@ class BaseHS06Scraper:
 
 
 class HS06ScraperSL6(BaseHS06Scraper):
-    def __init__(self, task_buffer, url: str = DEFAULT_URL_SL6):
+    def __init__(self, task_buffer: Any, url: str = DEFAULT_URL_SL6):
         super().__init__(task_buffer, url)
 
 
 class HS06ScraperSL7(BaseHS06Scraper):
-    def __init__(self, task_buffer, url: str = DEFAULT_URL_SL7):
+    def __init__(self, task_buffer: Any, url: str = DEFAULT_URL_SL7):
         super().__init__(task_buffer, url)
 
     # SL7 table provides <th> headers; reuse logic but rebuild schema from them.
@@ -153,13 +153,13 @@ class HS06ScraperSL7(BaseHS06Scraper):
 
 # ---------------------- HS23 CSV ingestor (Polars) ----------------------
 class HS23Ingestor:
-    def __init__(self, task_buffer, url: str = DEFAULT_URL_HS23):
+    def __init__(self, task_buffer: Any, url: str = DEFAULT_URL_HS23):
         self.url = url
         self.logger = logger_utils.make_logger(main_logger, "HS23Ingestor")
         self.task_buffer = task_buffer
 
     def run(self) -> None:
-        max_timestamp = self._select_max_timestamp(None)
+        max_timestamp = self._select_max_timestamp()
         df = self._fetch()
         df = self._transform(df, max_timestamp)
         self._insert(df)
@@ -168,7 +168,7 @@ class HS23Ingestor:
         df = pl.read_csv(self.url, ignore_errors=True)
         return df
 
-    def _transform(self, df: pl.DataFrame, max_timestamp) -> pl.DataFrame:
+    def _transform(self, df: pl.DataFrame, max_timestamp: Any) -> pl.DataFrame:
         out = (
             df.select(
                 pl.col("CPU").alias("cpu_type"),
@@ -200,7 +200,9 @@ class HS23Ingestor:
         )
         return out
 
-    def _select_max_timestamp(self, df: pl.DataFrame) -> None:
+    # the newest timestamp already ingested, or a polars epoch expression when there is none,
+    # both of which _transform can compare against
+    def _select_max_timestamp(self) -> Any:
         sql = "SELECT max(timestamp) FROM ATLAS_PANDA.cpu_benchmarks"
         status, res = self.task_buffer.querySQLS(sql, {})
         max_timestamp = res[0][0]
@@ -222,8 +224,8 @@ class HS23Ingestor:
             _, _ = self.task_buffer.querySQLS(sql, row)
 
 
-def main(tbuf=None, **kwargs):
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+def main(tbuf: Any = None, **kwargs: Any) -> None:
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # instantiate TB
     if tbuf is None:

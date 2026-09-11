@@ -1,4 +1,5 @@
 import traceback
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -10,7 +11,6 @@ from pandaserver.workflow.workflow_base import (
     WFStepTargetCancelResult,
     WFStepTargetCheckResult,
     WFStepTargetSubmitResult,
-    WFStepType,
 )
 
 # main logger
@@ -23,7 +23,7 @@ class PandaTaskStepHandler(BaseStepHandler):
     This class is responsible for managing the execution of PanDA tasks within a workflow.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the step handler with necessary parameters.
         """
@@ -32,7 +32,7 @@ class PandaTaskStepHandler(BaseStepHandler):
         # plugin flavor
         self.plugin_flavor = "panda_task"
 
-    def submit_target(self, step_spec: WFStepSpec, **kwargs) -> WFStepTargetSubmitResult:
+    def submit_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetSubmitResult:
         """
         Submit a target for processing the PanDA task step.
         This method should be implemented to handle the specifics of PanDA task submission.
@@ -106,7 +106,6 @@ class PandaTaskStepHandler(BaseStepHandler):
         try:
             # Get step definition
             step_definition = step_spec.definition_json_map
-            user_name = step_definition.get("user_name")
             user_dn = step_definition.get("user_dn")
             task_param_map = step_definition.get("task_params", {})
             # task_param_map["userName"] = user_name
@@ -127,7 +126,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             tmp_log.error(f"Failed to submit task: {traceback.format_exc()}")
         return submit_result
 
-    def check_target(self, step_spec: WFStepSpec, **kwargs) -> WFStepTargetCheckResult:
+    def check_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetCheckResult:
         """
         Check the status of a submitted target for the given step.
         This method should be implemented to handle the specifics of status checking.
@@ -146,7 +145,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             check_result = WFStepTargetCheckResult()
             # Check preconditions
             if step_spec.status not in allowed_step_statuses:
-                check_result.message = f"not in status to check; skipped"
+                check_result.message = "not in status to check; skipped"
                 tmp_log.warning(f"status={step_spec.status} not in status to check; skipped")
                 return check_result
             if step_spec.flavor != self.plugin_flavor:
@@ -154,8 +153,8 @@ class PandaTaskStepHandler(BaseStepHandler):
                 tmp_log.warning(f"flavor={step_spec.flavor} not {self.plugin_flavor}; skipped")
                 return check_result
             if step_spec.target_id is None:
-                check_result.message = f"target_id is None; skipped"
-                tmp_log.warning(f"target_id is None; skipped")
+                check_result.message = "target_id is None; skipped"
+                tmp_log.warning("target_id is None; skipped")
                 return check_result
             # Get task ID and status
             task_id = int(step_spec.target_id)
@@ -195,7 +194,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             tmp_log.error(f"Failed to check status: {traceback.format_exc()}")
         return check_result
 
-    def on_all_inputs_done(self, step_spec: WFStepSpec, **kwargs) -> None:
+    def on_all_inputs_done(self, step_spec: WFStepSpec, **kwargs: Any) -> None:
         """
         Hook method called when all inputs for the step are done.
         For PanDA task steps, unset workflowHoldup of the target task to allow it to proceed.
@@ -211,7 +210,7 @@ class PandaTaskStepHandler(BaseStepHandler):
                 tmp_log.warning(f"flavor={step_spec.flavor} not {self.plugin_flavor}; skipped")
                 return
             if step_spec.target_id is None:
-                tmp_log.warning(f"target_id is None; skipped")
+                tmp_log.warning("target_id is None; skipped")
                 return
             # Get task ID
             task_id = int(step_spec.target_id)
@@ -234,11 +233,11 @@ class PandaTaskStepHandler(BaseStepHandler):
                 self.tbif.push_task_trigger_message("jedi_contents_feeder", task_id)
                 tmp_log.info(f"task_id={task_id} triggered jedi_contents_feeder")
             # Done
-            tmp_log.debug(f"Done")
-        except Exception as e:
+            tmp_log.debug("Done")
+        except Exception:
             tmp_log.error(f"Failed with: {traceback.format_exc()}")
 
-    def cancel_target(self, step_spec, **kwargs) -> WFStepTargetCancelResult:
+    def cancel_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetCancelResult:
         """
         Cancel the target task for the given step.
         This method should be implemented to handle the specifics of task cancellation.
@@ -261,7 +260,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             if step_spec.target_id is None:
                 # If target_id is None, consider it as already cancelled since there is no task to cancel
                 cancel_result.success = True
-                cancel_result.message = f"target_id is None so considered already cancelled; skipped"
+                cancel_result.message = "target_id is None so considered already cancelled; skipped"
                 tmp_log.debug(f"{cancel_result.message}")
                 return cancel_result
             # Get task ID

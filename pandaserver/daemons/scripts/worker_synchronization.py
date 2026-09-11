@@ -1,6 +1,6 @@
-import sys
 import time
 import traceback
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
@@ -12,7 +12,7 @@ from pandaserver.srvcore.CoreUtils import create_shards
 _logger = PandaLogger().getLogger("worker_sync")
 
 
-def translate_status_to_command(pilot_status):
+def translate_status_to_command(pilot_status: str) -> str | None:
     if pilot_status == "running":
         return "SYNC_WORKERS_ACTIVATE"
     if pilot_status == "finished":
@@ -21,12 +21,12 @@ def translate_status_to_command(pilot_status):
 
 
 class WorkerSync(object):
-    def __init__(self, tbuf):
+    def __init__(self, tbuf: Any) -> None:
         self._logger = _logger
         self.tbuf = tbuf
         return
 
-    def run(self):
+    def run(self) -> None:
         """
         Identifies workers with stale harvester states and newer pilot states
         :return:
@@ -71,12 +71,12 @@ class WorkerSync(object):
 
 
 # main
-def main(tbuf=None, **kwargs):
+def main(tbuf: Any = None, **kwargs: Any) -> None:
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
-        requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+        requester_id = GenericThread().get_full_id(__name__, __file__)
         taskBuffer.init(
             panda_config.dbhost,
             panda_config.dbpasswd,

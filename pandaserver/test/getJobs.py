@@ -1,24 +1,26 @@
-import datetime
 import os
 import re
 import socket
 import sys
 import threading
 from http.client import HTTPSConnection
+from typing import Any
 from urllib.parse import parse_qs, urlencode
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
-from pandaserver.userinterface.Client import baseURLSSL
+from pandaserver.api.v1.http_client import api_url_ssl
 
-node = {}
-node["siteName"] = sys.argv[1]
-node["mem"] = 1000
+node: dict[str, Any] = {}
+node["site_name"] = sys.argv[1]
+node["memory"] = 1000
 node["node"] = socket.getfqdn()
-# node['prodSourceLabel']='user'
-url = f"{baseURLSSL}/getJob"
+# node['prod_source_label']='user'
+url = f"{api_url_ssl}/pilot/acquire_jobs"
 
 match = re.search("[^:/]+://([^/]+)(/.+)", url)
+if match is None:
+    sys.exit(f"cannot extract the host and the path from the server URL {url}")
 host = match.group(1)
 path = match.group(2)
 
@@ -31,10 +33,10 @@ rdata = urlencode(node)
 
 
 class Thr(threading.Thread):
-    def __init__(self):
+    def __init__(self) -> None:
         threading.Thread.__init__(self)
 
-    def run(self):
+    def run(self) -> None:
         print(naive_utcnow().isoformat(" "))
         conn = HTTPSConnection(host, key_file=certKey, cert_file=certKey)
         conn.request("POST", path, rdata)

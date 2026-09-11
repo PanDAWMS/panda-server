@@ -6,6 +6,7 @@ proxy for database connection
 import atexit
 import logging
 import warnings
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -26,13 +27,6 @@ from pandaserver.taskbuffer.db_proxy_mods import (
     workflow_module,
 )
 from pandaserver.taskbuffer.WrappedCursor import WrappedCursor
-
-try:
-    import idds.common.constants
-    import idds.common.utils
-    from idds.client.client import Client as iDDS_Client
-except ImportError:
-    pass
 
 if panda_config.backend == "oracle":
     import oracledb
@@ -79,13 +73,9 @@ class DBProxy(
     workflow_module.WorkflowModule,
 ):
     # constructor
-    def __init__(self, useOtherError=False):
-        # init modules
+    def __init__(self, useOtherError: bool = False) -> None:
+        # init modules. this also installs the connection and cursor placeholders
         super().__init__(_logger)
-        # connection object
-        self.conn = None
-        # cursor object
-        self.cur = None
 
         # use special error codes for reconnection in querySQL
         self.useOtherError = useOtherError
@@ -101,14 +91,14 @@ class DBProxy(
     # connect to DB
     def connect(
         self,
-        dbhost=panda_config.dbhost,
-        dbpasswd=panda_config.dbpasswd,
-        dbuser=panda_config.dbuser,
-        dbname=panda_config.dbname,
-        dbtimeout=panda_config.dbtimeout,
-        reconnect=False,
-        dbport=panda_config.dbport,
-    ):
+        dbhost: str = panda_config.dbhost,
+        dbpasswd: str = panda_config.dbpasswd,
+        dbuser: str = panda_config.dbuser,
+        dbname: str = panda_config.dbname,
+        dbtimeout: int | None = panda_config.dbtimeout,
+        reconnect: bool = False,
+        dbport: int = panda_config.dbport,
+    ) -> bool:
         _logger.debug(f"connect : re={reconnect}")
         # keep parameters for reconnect
         if not reconnect:
@@ -130,7 +120,7 @@ class DBProxy(
             if self.backend == "oracle":
                 conn = oracledb.connect(dsn=self.dbhost, user=self.dbuser, password=self.dbpasswd)
 
-                def OutputTypeHandler(cursor, name, defaultType, size, precision, scale):
+                def OutputTypeHandler(cursor: Any, name: str, defaultType: Any, size: int, precision: int, scale: int) -> Any:
                     if defaultType == oracledb.CLOB:
                         return cursor.var(oracledb.LONG_STRING, arraysize=cursor.arraysize)
 
@@ -163,7 +153,8 @@ class DBProxy(
                 if panda_config.dump_sql:
                     from pandaserver.taskbuffer.SQLDumper import SQLDumper
 
-                    self.cur = SQLDumper(self.cur)
+                    # SQLDumper delegates every attribute to the cursor it wraps
+                    self.cur = SQLDumper(self.cur)  # type: ignore[assignment]
             except Exception:
                 pass
             self.hostname = self.cur.initialize()

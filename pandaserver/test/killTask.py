@@ -71,7 +71,7 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print(f"kill {str(jobs[iJob:iJob + nJob])}")
+        print(f"kill {str(jobs[iJob : iJob + nJob])}")
         if options.forceKill:
             Client.kill_jobs(jobs[iJob : iJob + nJob], 9)
         else:

@@ -6,6 +6,7 @@ import datetime
 import json
 import os.path
 import pathlib
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -13,6 +14,7 @@ from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore.oidc_utils import get_access_token
+from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("token_cache")
@@ -25,7 +27,9 @@ class TokenCache:
     """
 
     # constructor
-    def __init__(self, target_path: str = None, file_prefix: str = None, refresh_interval: int = 60, task_buffer=None):
+    def __init__(
+        self, target_path: str | None = None, file_prefix: str | None = None, refresh_interval: int = 60, task_buffer: TaskBuffer | None = None
+    ) -> None:
         """
         Constructs all the necessary attributes for the TokenCache object.
 
@@ -47,7 +51,7 @@ class TokenCache:
         self.refresh_interval = refresh_interval
         self.task_buffer = task_buffer
         # cache for access tokens
-        self.cached_access_tokens = {}
+        self.cached_access_tokens: dict[str, Any] = {}
 
     # construct target path
     def construct_target_path(self, client_name: str) -> str:
@@ -60,7 +64,7 @@ class TokenCache:
         return os.path.join(self.target_path, f"{self.file_prefix}{client_name}")
 
     # main
-    def run(self):
+    def run(self) -> None:
         """ "
         Main function to download access tokens
         """
@@ -138,4 +142,5 @@ class TokenCache:
             if not token:
                 token = None
             self.cached_access_tokens[client_name] = {"token": token, "last_update": time_now}
-        return self.cached_access_tokens[client_name]["token"]
+        cached_token: str | None = self.cached_access_tokens[client_name]["token"]
+        return cached_token

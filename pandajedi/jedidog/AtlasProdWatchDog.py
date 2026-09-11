@@ -1,13 +1,14 @@
 import copy
 import os
 import socket
-import sys
 import traceback
+from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jedibrokerage import AtlasBrokerUtils
 from pandajedi.jediconfig import jedi_config
+from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.srvcore import CoreUtils
@@ -16,18 +17,22 @@ from pandaserver.taskbuffer import JediTaskSpec, JobUtils
 from .JumboWatchDog import JumboWatchDog
 from .TypicalWatchDogBase import TypicalWatchDogBase
 
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
+
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 # watchdog for ATLAS production
 class AtlasProdWatchDog(TypicalWatchDogBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface") -> None:
         TypicalWatchDogBase.__init__(self, taskBufferIF, ddmIF)
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-dog"
 
     # main
-    def doAction(self):
+    def doAction(self) -> Interaction.StatusCode:
         try:
             # get logger
             tmpLog = MsgWrapper(logger)
@@ -62,9 +67,8 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
             # action to provoke (mark files ready) data carousel tasks to start if DDM rules of input DS are done
             self.doActionToProvokeDCTasks(tmpLog)
 
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            tmpLog.error(f"failed with {errtype.__name__}:{errvalue} {traceback.format_exc()}")
+        except Exception as e:
+            tmpLog.error(f"failed with {type(e).__name__}:{e} {traceback.format_exc()}")
         # return
         tmpLog.debug("done")
         return self.SC_SUCCEEDED
@@ -254,7 +258,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                             for other_task_param, _ in tasks_with_same_request_type:
                                 other_jedi_task_id = other_task_param["jediTaskID"]
                                 # auto pause disabled
-                                if JediTaskSpec.is_auto_pause_disabled(other_jedi_task_id):
+                                if JediTaskSpec.is_auto_pause_disabled(other_task_param["splitRule"]):
                                     continue
                                 if other_jedi_task_id != jediTaskID:
                                     g_tmp_log.info(
@@ -277,9 +281,13 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                     break
 
     # action for reassignment
-    def doActionForReassign(self, gTmpLog):
+    def doActionForReassign(self, gTmpLog: MsgWrapper) -> None:
         # get DDM I/F
         ddmIF = self.ddmIF.getInterface(self.vo)
+        if ddmIF is None:
+            # nothing below can move a replication rule without it
+            gTmpLog.error(f"no DDM interface for vo={self.vo}")
+            return
         # get site mapper
         siteMapper = self.taskBufferIF.get_site_mapper()
         # get tasks to get reassigned
@@ -290,7 +298,6 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
             tmpLog = MsgWrapper(logger, f"< jediTaskID={taskSpec.jediTaskID} >")
             tmpLog.debug("start to reassign")
             # DDM backend
-            ddmBackEnd = taskSpec.getDdmBackEnd()
             # get datasets
             tmpStat, datasetSpecList = self.taskBufferIF.getDatasetsWithJediTaskID_JEDI(taskSpec.jediTaskID, ["output", "log"])
             if tmpStat is not True:
@@ -339,9 +346,8 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                         tmpLog.error("failed to move replication rules")
                         isOK = False
                         break
-                except Exception:
-                    errtype, errvalue = sys.exc_info()[:2]
-                    tmpLog.warning(f"failed to move replication rules with {errtype.__name__}:{errvalue}")
+                except Exception as e:
+                    tmpLog.warning(f"failed to move replication rules with {type(e).__name__}:{e}")
                     isOK = False
                     break
             # succeeded
@@ -356,7 +362,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                 tmpLog.debug("finished to reassign")
 
     # action for throttled tasks
-    def doActionForThrottled(self, gTmpLog):
+    def doActionForThrottled(self, gTmpLog: MsgWrapper) -> None:
         # release tasks
         nTasks = self.taskBufferIF.releaseThrottledTasks_JEDI(self.vo, self.prodSourceLabel)
         gTmpLog.debug(f"released {nTasks} tasks")
@@ -366,14 +372,14 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
         gTmpLog.debug(f"throttled {nTasks} tasks")
 
     # action for high priority pending tasks
-    def doActionForHighPrioPending(self, gTmpLog, minPriority, timeoutVal):
-        timeoutForPending = None
+    def doActionForHighPrioPending(self, gTmpLog: MsgWrapper, minPriority: int, timeoutVal: int) -> None:
+        config_timeout: str | int | None = None
         # try to get the timeout from the config files
         if hasattr(jedi_config.watchdog, "timeoutForPendingVoLabel"):
-            timeoutForPending = CoreUtils.getConfigParam(jedi_config.watchdog.timeoutForPendingVoLabel, self.vo, self.prodSourceLabel)
-        if timeoutForPending is None:
-            timeoutForPending = jedi_config.watchdog.timeoutForPending
-        timeoutForPending = int(timeoutForPending) * 24
+            config_timeout = CoreUtils.getConfigParam(jedi_config.watchdog.timeoutForPendingVoLabel, self.vo, self.prodSourceLabel)
+        if config_timeout is None:
+            config_timeout = jedi_config.watchdog.timeoutForPending
+        timeoutForPending = int(config_timeout) * 24
         tmpRet, _ = self.taskBufferIF.reactivatePendingTasks_JEDI(self.vo, self.prodSourceLabel, timeoutVal, timeoutForPending, minPriority=minPriority)
         if tmpRet is None:
             # failed
@@ -382,7 +388,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
             gTmpLog.info(f"reactivated high priority (>{minPriority}) {tmpRet} tasks")
 
     # action to throttle jobs in paused tasks
-    def doActionToThrottleJobInPausedTasks(self, gTmpLog):
+    def doActionToThrottleJobInPausedTasks(self, gTmpLog: MsgWrapper) -> None:
         tmpRet = self.taskBufferIF.throttleJobsInPausedTasks_JEDI(self.vo, self.prodSourceLabel)
         if tmpRet is None:
             # failed
@@ -394,7 +400,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                 gTmpLog.info(f"reassigned {len(pandaIDs)} jobs in paused jediTaskID={jediTaskID} with {tmpRet}")
 
     # action to provoke (mark files ready) data carousel tasks to start if DDM rules of input DS are done
-    def doActionToProvokeDCTasks(self, gTmpLog):
+    def doActionToProvokeDCTasks(self, gTmpLog: MsgWrapper) -> None:
         # lock
         got_lock = self.taskBufferIF.lockProcess_JEDI(
             vo=self.vo,
@@ -420,6 +426,10 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
         else:
             gTmpLog.debug(f"got {len(res_dict)} DC tasks to provoke")
             ddm_if = self.ddmIF.getInterface(self.vo)
+            if ddm_if is None:
+                # the rule states below cannot be read without it
+                gTmpLog.error(f"no DDM interface for vo={self.vo}")
+                return
             # loop over pending DC tasks
             for task_id, ds_name_list in res_dict.items():
                 if not ds_name_list:

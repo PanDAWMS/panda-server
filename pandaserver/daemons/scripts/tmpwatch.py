@@ -3,12 +3,14 @@ import glob
 import optparse
 import os
 import sys
+from collections.abc import Sequence
+from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 
 # main
-def main(argv=tuple(), **kwargs):
+def main(argv: Sequence[str] = (), **kwargs: Any) -> None:
     # options
     optP = optparse.OptionParser(conflict_handler="resolve")
     optP.add_option(
@@ -27,7 +29,7 @@ def main(argv=tuple(), **kwargs):
         default=12,
         help="time limit in hour",
     )
-    options, args = optP.parse_args(args=argv[1:])
+    options, args = optP.parse_args(args=list(argv[1:]))
 
     # patterns of tmp files
     tmpPatts = ["/tmp/tmp*", "/tmp/atlpan/tmp*", "/tmp/pansrv/tmp*"]
@@ -52,8 +54,7 @@ def main(argv=tuple(), **kwargs):
                 if not os.access(tmpFile, os.W_OK):
                     continue
                 # check time stamp
-                timeStamp = os.path.getmtime(tmpFile)
-                timeStamp = datetime.datetime.fromtimestamp(timeStamp)
+                timeStamp = datetime.datetime.fromtimestamp(os.path.getmtime(tmpFile))
                 if timeStamp > timeLimit:
                     continue
                 # remove

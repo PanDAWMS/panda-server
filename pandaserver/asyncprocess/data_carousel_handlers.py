@@ -16,19 +16,29 @@ import functools
 import json
 import threading
 import traceback
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Literal
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+
+from pandaserver.asyncprocess import TaskBufferLike
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
     PARAMETER_META_KEYS,
 )
 
+if TYPE_CHECKING:
+    # imported for the annotations only; the runtime import stays inside _get_dcif, which
+    # is the whole point of that function
+    from pandaserver.taskbuffer.DataCarousel import DataCarouselInterface
+
 # how often the heartbeat refreshes started_at of a running result row
 _HEARTBEAT_INTERVAL_SECONDS = 60
 
-_dcif = None
+_dcif: "DataCarouselInterface | None" = None
 _dcif_lock = threading.Lock()
 
 
-def _get_dcif(tb):
+def _get_dcif(tb: TaskBufferLike) -> "DataCarouselInterface":
     """
     Get the DataCarouselInterface, creating it on first use.
 
@@ -63,15 +73,15 @@ class _ResultHeartbeat:
     machine. Refreshing started_at keeps a legitimately slow operation from looking stale.
     """
 
-    def __init__(self, tb, request_id, machine_name, tmp_logger):
+    def __init__(self, tb: TaskBufferLike, request_id: str, machine_name: str, tmp_logger: LogWrapper) -> None:
         self._tb = tb
         self._request_id = request_id
         self._machine_name = machine_name
         self._tmp_logger = tmp_logger
         self._stop_event = threading.Event()
-        self._thread = None
+        self._thread: threading.Thread | None = None
 
-    def _beat(self):
+    def _beat(self) -> None:
         while not self._stop_event.wait(_HEARTBEAT_INTERVAL_SECONDS):
             try:
                 if not self._tb.touch_async_result(self._request_id, self._machine_name):
@@ -81,18 +91,24 @@ class _ResultHeartbeat:
             except Exception as e:
                 self._tmp_logger.warning(f"heartbeat failed with {e}")
 
-    def __enter__(self):
+    def __enter__(self) -> "_ResultHeartbeat":
         self._thread = threading.Thread(target=self._beat, daemon=True)
         self._thread.start()
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None,
+    ) -> Literal[False]:
         self._stop_event.set()
-        self._thread.join(timeout=5)
+        if self._thread is not None:
+            self._thread.join(timeout=5)
         return False
 
 
-def _handle(operation_name, row, tb, tmp_logger, result_machine):
+def _handle(operation_name: str, row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper, result_machine: str) -> None:
     """
     Run one Data Carousel operation and store its outcome as the request's result.
 

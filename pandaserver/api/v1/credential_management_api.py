@@ -2,7 +2,7 @@ import json
 import os
 import socket
 from threading import Lock
-from typing import List
+from typing import Any, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -19,12 +19,19 @@ from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 _logger = PandaLogger().getLogger("api_cred_management")
 
 # These global variables are initialized in the init_task_buffer method
-global_task_buffer = None
-global_dispatch_parameter_cache = None
+# Installed by init_task_buffer() before any handler runs, so these are declared
+# non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
+# only push a None check onto every handler without making any of them safer.
+global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
+global_dispatch_parameter_cache: CoreUtils.CachedObject = None  # type: ignore[assignment]
 
 # These global variables don't depend on DB access and can be initialized here
 global_proxy_cache = panda_proxy_cache.MyProxyInterface()
 global_token_cache = token_cache.TokenCache()
+
+# Read by init_task_buffer() from the token cacher config, and empty until then. It was
+# only ever created inside that function, so every handler raised NameError before it ran
+global_token_cache_config: dict[str, dict[str, Any]] = {}
 
 global_lock = Lock()
 
@@ -46,16 +53,17 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
         global_token_cache_config = _read_token_cache_configuration()
 
 
-def _read_token_cache_configuration():
+def _read_token_cache_configuration() -> dict[str, Any]:
     # config of token cacher
     try:
         with open(panda_config.token_cache_config) as f:
-            return json.load(f)
+            configuration: dict[str, Any] = json.load(f)
+            return configuration
     except Exception:
         return {}
 
 
-def _get_dispatch_parameters():
+def _get_dispatch_parameters() -> tuple[bool, dict[str, Any]]:
     """
     Wrapper function around taskBuffer.get_special_dispatch_params to convert list to set since task buffer cannot return set
     """
@@ -66,7 +74,7 @@ def _get_dispatch_parameters():
     return True, parameters
 
 
-def _validate_user_permissions(compact_name, tokenized=False) -> dict:
+def _validate_user_permissions(compact_name: str | None, tokenized: bool = False) -> tuple[bool, str]:
     allowed_names = global_dispatch_parameter_cache.get("allowProxy", [])
 
     # The user is allowed to get a proxy or token
@@ -81,7 +89,7 @@ def _validate_user_permissions(compact_name, tokenized=False) -> dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def set_user_secrets(req: PandaRequest, key: str = None, value: str = None) -> dict:
+def set_user_secrets(req: PandaRequest, key: str | None = None, value: str | None = None) -> dict[str, Any]:
     """
     Set user secrets
 
@@ -111,7 +119,7 @@ def set_user_secrets(req: PandaRequest, key: str = None, value: str = None) -> d
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_user_secrets(req: PandaRequest, keys: List[str] = None) -> dict:
+def get_user_secrets(req: PandaRequest, keys: List[str] | None = None) -> dict[str, Any]:
     """
     Get user secrets
 
@@ -156,7 +164,7 @@ def get_user_secrets(req: PandaRequest, keys: List[str] = None) -> dict:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str) -> dict:
+def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str) -> dict[str, Any]:
     """
     Get key pair
 
@@ -212,7 +220,7 @@ def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str)
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_proxy(req: PandaRequest, role: str = None, dn: str = None) -> dict:
+def get_proxy(req: PandaRequest, role: str | None = None, dn: str | None = None) -> dict[str, Any]:
     """
     Get proxy
 
@@ -261,12 +269,12 @@ def get_proxy(req: PandaRequest, role: str = None, dn: str = None) -> dict:
         return generate_response(False, tmp_msg)
 
     data = {"user_proxy": output}
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(True, data=data)
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_access_token(req: PandaRequest, client_name: str, token_key: str = None) -> dict:
+def get_access_token(req: PandaRequest, client_name: str, token_key: str | None = None) -> dict[str, Any]:
     """
     Get access token
 
@@ -329,7 +337,7 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str = None)
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_token_key(req: PandaRequest, client_name: str) -> dict:
+def get_token_key(req: PandaRequest, client_name: str) -> dict[str, Any]:
     """
     Get token key
 

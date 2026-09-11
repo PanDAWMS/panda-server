@@ -1,8 +1,11 @@
 import sys
 import time
+from collections.abc import Sequence
+from typing import Any
 
 from pandacommon.pandalogger import logger_utils
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 from pandaserver.configurator import Configurator as configurator_module
 from pandaserver.configurator.Configurator import (
@@ -17,8 +20,8 @@ base_logger = configurator_module._logger
 
 
 # main
-def main(argv=tuple(), tbuf=None, **kwargs):
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # instantiate TB
     if tbuf is None:

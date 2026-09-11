@@ -16,6 +16,7 @@ Both flavours are kept so callers can switch between them without a server-side 
 
 import json
 import uuid
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -37,8 +38,11 @@ from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 _logger = PandaLogger().getLogger("api_data_carousel")
 
 # These global variables are initialized in the init_task_buffer method
-global_task_buffer = None
-global_dcif = None
+# Installed by init_task_buffer() before any handler runs, so these are declared
+# non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
+# only push a None check onto every handler without making any of them safer.
+global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
+global_dcif: DataCarouselInterface = None  # type: ignore[assignment]
 
 # service whose async request daemon runs the Data Carousel operations, which must match the
 # service_name that daemon runs with (pandajedi.jedidog.AsyncRequestWatchDog); JEDI is where the
@@ -63,7 +67,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_dcif = DataCarouselInterface(global_task_buffer)
 
 
-def _submit_request(req: PandaRequest, operation: str, parameters: dict, tmp_logger: LogWrapper) -> dict:
+def _submit_request(req: PandaRequest, operation: str, parameters: dict[str, Any], tmp_logger: LogWrapper) -> dict[str, Any]:
     """
     Register an async request running the given Data Carousel operation.
 
@@ -105,7 +109,7 @@ def _submit_request(req: PandaRequest, operation: str, parameters: dict, tmp_log
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def change_staging_destination(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+def change_staging_destination(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
     Change destination of staging
 
@@ -138,7 +142,7 @@ def change_staging_source(
     cancel_fts: bool = False,
     change_src_expr: bool = False,
     source_rse: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """
     Change source of staging
 
@@ -169,7 +173,7 @@ def change_staging_source(
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
     Force to staging
 
@@ -196,7 +200,7 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+def retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
     Retire unused staging request
 
@@ -222,7 +226,7 @@ def retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def submit_change_staging_destination(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+def submit_change_staging_destination(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
     Submit a request to change destination of staging, to be processed asynchronously
 
@@ -257,7 +261,7 @@ def submit_change_staging_source(
     cancel_fts: bool = False,
     change_src_expr: bool = False,
     source_rse: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """
     Submit a request to change source of staging, to be processed asynchronously
 
@@ -298,7 +302,7 @@ def submit_change_staging_source(
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def submit_force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+def submit_force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
     Submit a request to force to staging, to be processed asynchronously
 
@@ -326,7 +330,7 @@ def submit_force_to_staging(req: PandaRequest, request_id: int | None = None, da
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def submit_retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict:
+def submit_retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
     Submit a request to retire an unused staging request, to be processed asynchronously
 

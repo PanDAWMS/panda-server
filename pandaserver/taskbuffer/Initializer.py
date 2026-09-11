@@ -16,11 +16,11 @@ class Initializer:
         bool: True if the initialization is successful, False otherwise.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.lock = Lock()
         self.first = True
 
-    def init(self):
+    def init(self) -> bool:
         _logger.debug(f"init new={self.first}")
         # do nothing when nDBConnection is 0
         if panda_config.nDBConnection == 0:

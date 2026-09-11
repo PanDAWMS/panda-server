@@ -4,6 +4,7 @@ email utilities
 
 import smtplib
 import sys
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -15,10 +16,10 @@ _logger = PandaLogger().getLogger("MailUtils")
 
 # wrapper to patch smtplib.stderr to send debug info to logger
 class StderrLogger(object):
-    def __init__(self, tmpLog):
+    def __init__(self, tmpLog: Any) -> None:
         self.tmpLog = tmpLog
 
-    def write(self, message):
+    def write(self, message: str) -> None:
         message = message.strip()
         if message != "":
             self.tmpLog.debug(message)
@@ -26,7 +27,7 @@ class StderrLogger(object):
 
 # wrapper of SMTP to redirect messages
 class MySMTP(smtplib.SMTP):
-    def set_log(self, tmp_log):
+    def set_log(self, tmp_log: StderrLogger) -> None:
         self.tmpLog = tmp_log
         try:
             self.org_stderr = getattr(smtplib, "stderr")
@@ -34,21 +35,21 @@ class MySMTP(smtplib.SMTP):
         except Exception:
             self.org_stderr = None
 
-    def _print_debug(self, *args):
+    def _print_debug(self, *args: Any) -> None:
         self.tmpLog.write(" ".join(map(str, args)))
 
-    def reset_log(self):
+    def reset_log(self) -> None:
         if self.org_stderr is not None:
             setattr(smtplib, "stderr", self.org_stderr)
 
 
 class MailUtils:
     # constructor
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     # main
-    def send(self, toAddr, mailSubject, mailBody):
+    def send(self, toAddr: str, mailSubject: str, mailBody: str) -> bool:
         _logger.debug("start SEND session")
         try:
             # remove duplicated address
@@ -62,7 +63,7 @@ class MailUtils:
 
             # make message
             fromAdd = panda_config.emailSender
-            message = f"Subject: {mailSubject}\n" f"From: {fromAdd}\n" f"To: {toAddr}\n\n" f"{mailBody}"
+            message = f"Subject: {mailSubject}\nFrom: {fromAdd}\nTo: {toAddr}\n\n{mailBody}"
             message = self.addTailer(message)
 
             # send mail
@@ -90,7 +91,7 @@ class MailUtils:
         return retVal
 
     # add tailer
-    def addTailer(self, msg):
+    def addTailer(self, msg: str) -> str:
         msg += """
 Report Panda problems of any sort to
 

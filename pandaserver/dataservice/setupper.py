@@ -5,17 +5,22 @@ The Setupper class also contains methods for running the setup process and updat
 This module uses the PandaLogger for logging and the panda_config for configuration. It also imports several other modules from the pandaserver package.
 """
 
-import sys
 import threading
 import traceback
-from typing import List
+from typing import TYPE_CHECKING, Any, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.PickleJobSpec import PickleJobSpec
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("setupper")
 
@@ -35,11 +40,11 @@ class Setupper(threading.Thread):
     # constructor
     def __init__(
         self,
-        taskBuffer,
-        jobs: List[object],
+        taskBuffer: "TaskBuffer",
+        jobs: List[Any],
         resubmit: bool = False,
         first_submission: bool = True,
-    ):
+    ) -> None:
         """
         Constructor for the Setupper class.
 
@@ -75,15 +80,17 @@ class Setupper(threading.Thread):
             # run main procedure in the same process
             tmp_log.debug("start")
             tmp_log.debug(f"first_submission={self.first_submission}")
-            # make Specs pickleable
-            p_job_list = []
+            # make Specs pickleable. Declared as the base type: the plugins below take
+            # List[JobSpec], and an inferred list[PickleJobSpec] would not be assignable
+            # to it, list being invariant
+            p_job_list: List[JobSpec] = []
             for job_spec in self.jobs:
                 p_job = PickleJobSpec()
                 p_job.update(job_spec)
                 p_job_list.append(p_job)
             self.jobs = p_job_list
             # group jobs per VO
-            vo_jobs_map = {}
+            vo_jobs_map: dict[str, Any] = {}
             tmp_log.debug(f"{len(self.jobs)} jobs in total")
             for tmp_job in self.jobs:
                 # set VO=local for DDM free
@@ -134,7 +141,7 @@ class Setupper(threading.Thread):
             tmp_log.error(f"failed with {str(error)} {traceback.format_exc()}")
 
     #  update jobs
-    def update_jobs(self, job_list: List[object], tmp_log: LogWrapper) -> None:
+    def update_jobs(self, job_list: List[Any], tmp_log: LogWrapper) -> None:
         """
         This method is responsible for updating the status of jobs in the PanDA server.
         It sorts the jobs by their status into different categories: failed, waiting, no input, and normal jobs.
@@ -146,10 +153,10 @@ class Setupper(threading.Thread):
         :param tmp_log: The logger to be used for logging.
         :return: None
         """
-        update_jobs = []
-        failed_jobs = []
-        activate_jobs = []
-        waiting_jobs = []
+        update_jobs: List[Any] = []
+        failed_jobs: List[Any] = []
+        activate_jobs: List[Any] = []
+        waiting_jobs: List[Any] = []
         # sort jobs by status
         for job in job_list:
             # failed jobs
@@ -177,7 +184,7 @@ class Setupper(threading.Thread):
             # allOkEvents() returns True if all events in the job are okay (no errors or issues)
             if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
                 # If all conditions are met, update the job in the task buffer
-                self.task_buffer.updateJobs([job])
+                self.task_buffer.activateJobs([job])
                 # Change the job status to "finished"
                 job.jobStatus = "finished"
                 # Update the job in the task buffer again with the new status

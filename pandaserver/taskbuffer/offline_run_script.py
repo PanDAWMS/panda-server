@@ -83,7 +83,7 @@ print("INFO: generated PoolFileCatalog.xml for {0} input file(s)".format(len(did
 """
 
 
-def _get_file_name_pattern(*name_str_list: str) -> re.Pattern:
+def _get_file_name_pattern(*name_str_list: str) -> re.Pattern[str]:
     """
     Compile a regex to match one of the strings in trf parameters as an entire file name or list of
     file names
@@ -152,7 +152,7 @@ def _replace_input_file_list_in_params(param_str: str, ordered_lfns: list[str]) 
 
     # python list style. other lists are kept intact, e.g. the secondary input stream of
     # --inMap "{'IN': [...], 'IN2': [...]}" and the output map of -o "{'X': [('a', 'b')]}"
-    def replace_list(match: re.Match) -> str:
+    def replace_list(match: re.Match[str]) -> str:
         try:
             if ast.literal_eval(match.group(0)) == ordered_lfns:
                 return "[${input_list}]"
@@ -352,12 +352,7 @@ def generate_offline_run_script(job_spec: "JobSpec") -> str:
         script_str += f"wget {transformations[0]} || exit 1\n"
         script_str += f"chmod +x {transformations[0].split('/')[-1]}\n\n"
     # the transformations run in an ALRB container
-    script_str += (
-        "temp_file=$(mktemp)\n"
-        'cat << EOF > "$temp_file"\n\n'
-        "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh\n"
-        "\n#transform commands\n\n"
-    )
+    script_str += 'temp_file=$(mktemp)\ncat << EOF > "$temp_file"\n\nsource ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh\n\n#transform commands\n\n'
     cmt_config = ""
     for tmp_idx, home_package in enumerate(home_packages):
         # asetup
@@ -373,7 +368,7 @@ def generate_offline_run_script(job_spec: "JobSpec") -> str:
             cmt_config = ""
         script_str += f"asetup --platform={job_spec.cmtConfig.split('@')[0]} {','.join(atlas_tags)}\n"
         # athenaMP
-        if job_spec.coreCount not in ["NULL", None] and job_spec.coreCount > 1:
+        if job_spec.coreCount not in ["NULL", None] and job_spec.coreCount > 1:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
             script_str += f"export ATHENA_PROC_NUMBER={job_spec.coreCount}\n"
             script_str += f"export ATHENA_CORE_NUMBER={job_spec.coreCount}\n"
         # add double quotes for zsh

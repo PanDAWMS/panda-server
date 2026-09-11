@@ -7,28 +7,45 @@ The 'setupper.py' module uses this plugin when setting up datasets for ATLAS job
 
 """
 
-import datetime
 import os
 import re
 import sys
 import time
 import traceback
 import uuid
-from typing import Dict, List, Optional, Tuple
+from collections.abc import Container
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+    overload,
+)
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 from rucio.common.exception import DataIdentifierNotFound
 
-import pandaserver.brokerage.broker
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.dataservice.setupper_plugin_base import SetupperPluginBase
+from pandaserver.srvcore.exceptions import SubscriptionRegistrationError
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 
 class SetupperAtlasPlugin(SetupperPluginBase):
@@ -38,8 +55,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
     ATLAS-specific functionality.
     """
 
+    # Built at the top of run(), which is the only way into the methods below that use it,
+    # so the placeholder assigned in __init__ never survives construction.
+    site_mapper: SiteMapper
+
     # constructor
-    def __init__(self, taskBuffer, jobs: List, logger, **params: Dict) -> None:
+    def __init__(self, taskBuffer: "TaskBuffer", jobs: List[JobSpec], logger: LogWrapper, **params: Any) -> None:
         """
         Constructor for the SetupperAtlasPlugin class.
 
@@ -54,20 +75,21 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         }
         SetupperPluginBase.__init__(self, taskBuffer, jobs, logger, params, default_map)
         # VUIDs of dispatchDBlocks
-        self.vuid_map = {}
+        self.vuid_map: dict[str, Any] = {}
         # file list for dispDS for PandaDDM
-        self.disp_file_list = {}
+        self.disp_file_list: dict[str, Any] = {}
         # site mapper
-        self.site_mapper = None
+        self.site_mapper = None  # type: ignore[assignment]
         # available files at satellite sites
-        self.available_lfns_in_satellites = {}
+        self.available_lfns_in_satellites: dict[str, Any] = {}
         # list of missing datasets
-        self.missing_dataset_list = {}
+        self.missing_dataset_list: dict[str, Any] = {}
         # lfn ds map
-        self.lfn_dataset_map = {}
-        # source label
-        self.prod_source_label = None
-        self.job_label = None
+        self.lfn_dataset_map: dict[str, Any] = {}
+        # source label, taken from the first job in run() and left as None when there is
+        # no job to take it from
+        self.prod_source_label: str | None = None
+        self.job_label: str | None = None
 
     # main
     def run(self) -> None:
@@ -96,9 +118,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             self.correct_lfn()
             # run full Setupper
             # invoke brokerage
-            tmp_logger.debug("running broker.schedule")
+            tmp_logger.debug("running assign_dispatch_data_blocks")
             self.memory_check()
-            pandaserver.brokerage.broker.schedule(self.jobs, self.site_mapper)
+            self.assign_dispatch_data_blocks()
 
             # remove waiting jobs
             self.remove_waiting_jobs()
@@ -114,7 +136,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 "managed",
                 "test",
             ]:
-                tmp_job_map = {}
+                tmp_job_map: dict[str, Any] = {}
                 for tmp_job in self.jobs:
                     # add site
                     if tmp_job.computingSite not in tmp_job_map:
@@ -166,7 +188,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             else:
                 # make one sub dataset per job so that each job doesn't have to wait for others to be done
                 # Special jobs for SW installation and HC seem to be above 6000
-                if self.jobs != [] and self.jobs[0].prodSourceLabel in ["user", "panda"] and self.jobs[-1].currentPriority > 6000:
+                if self.jobs != [] and self.jobs[0].prodSourceLabel in ["user", "panda"] and self.jobs[-1].currentPriority > 6000:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                     for i_bunch in range(len(self.jobs)):
                         self.setup_destination(start_idx=i_bunch, n_jobs_in_loop=1)
                 else:
@@ -216,6 +238,208 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             error_type, error_value = sys.exc_info()[:2]
             tmp_logger.error(f"{error_type} {error_value}")
 
+    # assign computing sites and dispatch data blocks
+    def assign_dispatch_data_blocks(self) -> None:
+        """
+        Group the jobs into dispatch data blocks and fill in what setup_source and
+        subscribe_dispatch_data_block read from them.
+
+        For every job this sets the computing site and cloud, the destination SE, and the
+        dispatch data block on the job and on each input file that has to be transferred,
+        marking those files pending. Log files get their GUID here.
+        """
+        tmp_logger = LogWrapper(self.logger, "<assign_dispatch_data_blocks>")
+
+        try:
+            # no jobs
+            if len(self.jobs) == 0:
+                tmp_logger.debug("finished : no jobs")
+                return
+
+            max_jobs = 20
+            max_files = 20
+
+            n_jobs_in_bunch = 0
+            file_list: list[Any] = []
+            # the SiteSpec chosen for the current bunch, and None while there is no site to
+            # choose one from
+            chosen_panda_queue: Any = None
+            prod_dblock = None
+            computing_site = None
+            dispatch_dblock = None
+            previous_cloud = None
+            prev_pro_type = None
+            prev_source_label = None
+            prev_direct_acc = None
+            prev_is_jedi = None
+            prev_has_preset_site = None
+
+            job_index = 0
+
+            # loop over all jobs + terminator(None)
+            for job in self.jobs + [None]:
+                job_index += 1
+
+                # ignore failed jobs
+                if job and job.jobStatus == "failed":
+                    continue
+
+                # whether the site was picked for the job before it got here. Bunches are cut when
+                # this changes, which is what comparing the old special-brokerage site lists did
+                has_preset_site = bool(job and job.computingSite != "NULL" and job.prodSourceLabel in ("test", "managed"))
+
+                overwrite_site = False
+
+                # check JEDI
+                is_jedi = False
+                if job and job.lockedby == "jedi":
+                    is_jedi = True
+
+                # new bunch or terminator
+                if (
+                    job is None
+                    or len(file_list) >= max_files
+                    or (dispatch_dblock is None and job.homepackage.startswith("AnalysisTransforms"))
+                    or prod_dblock != job.prodDBlock
+                    or job.computingSite != computing_site
+                    or n_jobs_in_bunch > max_jobs
+                    or previous_cloud != job.getCloud()
+                    or prev_direct_acc != job.transferType
+                    or prev_pro_type != job.processingType
+                    or prev_has_preset_site != has_preset_site
+                    or prev_is_jedi != is_jedi
+                ):
+                    if job_index > 1:
+                        tmp_logger.debug("new bunch")
+                        tmp_logger.debug(f"  nJobs          {n_jobs_in_bunch}")
+                        tmp_logger.debug(f"  cloud          {previous_cloud}")
+                        tmp_logger.debug(f"  sourceLabel    {prev_source_label}")
+                        tmp_logger.debug(f"  prodDBlock     {prod_dblock}")
+                        tmp_logger.debug(f"  computingSite  {computing_site}")
+                        tmp_logger.debug(f"  processingType {prev_pro_type}")
+                        tmp_logger.debug(f"  transferType   {prev_direct_acc}")
+
+                    # terminate
+                    if job is None:
+                        break
+                    # reset the job counter
+                    n_jobs_in_bunch = 0
+                    # reset file list
+                    file_list = []
+                    # create new dispDBlock
+                    if job.prodDBlock != "NULL":
+                        # get datatype
+                        try:
+                            tmp_data_type = job.prodDBlock.split(":")[-1].split(".")[-2]
+                        except Exception:
+                            # default
+                            tmp_data_type = "GEN"
+                        if len(tmp_data_type) > 20:
+                            # avoid too long name
+                            tmp_data_type = "GEN"
+                        transfer_type = "transfer"
+                        if job.useInputPrestaging():
+                            transfer_type = "prestaging"
+                        dispatch_dblock = f"panda.{job.taskID}.{time.strftime('%m.%d')}.{tmp_data_type}.{transfer_type}.{str(uuid.uuid4())}_dis{job.PandaID}"
+                        tmp_logger.debug(f"New dispatchDBlock: {dispatch_dblock}")
+                    prod_dblock = job.prodDBlock
+                    # already define computingSite
+                    if job.computingSite != "NULL":
+                        # instantiate KnownSite
+                        chosen_panda_queue = self.site_mapper.getSite(job.computingSite)
+
+                        # if site doesn't exist, use the default site
+                        if job.homepackage.startswith("AnalysisTransforms"):
+                            if chosen_panda_queue.sitename == panda_config.def_sitename:
+                                chosen_panda_queue = self.site_mapper.getSite(panda_config.def_queue)
+                                overwrite_site = True
+                    else:
+                        # default for Analysis jobs
+                        if job.homepackage.startswith("AnalysisTransforms"):
+                            chosen_panda_queue = self.site_mapper.getSite(panda_config.def_queue)
+                            overwrite_site = True
+                        else:
+                            # nothing picks a site here any more, so the bunch has none to run on
+                            chosen_panda_queue = None
+                # increment the job counter
+                n_jobs_in_bunch += 1
+                # reserve computingSite and cloud
+                computing_site = job.computingSite
+                previous_cloud = job.getCloud()
+                prev_pro_type = job.processingType
+                prev_source_label = job.prodSourceLabel
+                prev_direct_acc = job.transferType
+                prev_has_preset_site = has_preset_site
+                prev_is_jedi = is_jedi
+
+                # no site to run on. Letting the job through would give it a dispatch data block
+                # that subscribe_dispatch_data_block skips for want of a site, so the input would
+                # never arrive and the job would sit in assigned for ever. Fail it instead
+                if chosen_panda_queue is None:
+                    job.jobStatus = "failed"
+                    job.ddmErrorCode = ErrorCode.EC_Setupper
+                    job.ddmErrorDiag = "no computing site was set and none could be chosen for the job"
+                    tmp_logger.error(f"PandaID:{job.PandaID} failed : {job.ddmErrorDiag}")
+                    continue
+
+                # assign site
+                job.computingSite = chosen_panda_queue.sitename
+                tmp_logger.debug(f"PandaID:{job.PandaID} -> preset site:{chosen_panda_queue.sitename}")
+                # set cloud
+                if job.cloud in ["NULL", None, ""]:
+                    job.cloud = chosen_panda_queue.cloud
+
+                # set destinationSE
+                # checkJobDestinationSE below answers None when no file names one
+                dest_se: str | None = job.destinationSE
+                if self.site_mapper.checkCloud(job.getCloud()):
+                    # use cloud dest for non-existing sites
+                    if job.prodSourceLabel != "user" and job.destinationSE not in self.site_mapper.siteSpecList and job.destinationSE != "local":
+                        if DataServiceUtils.checkJobDestinationSE(job):
+                            dest_se = DataServiceUtils.checkJobDestinationSE(job)
+                        job.destinationSE = dest_se
+
+                if overwrite_site:
+                    # overwrite SE for analysis jobs which set non-existing sites
+                    dest_se = job.computingSite
+                    job.destinationSE = dest_se
+
+                # set dispatchDBlock and destinationSE
+                first = True
+                for file_spec in job.Files:
+                    # Set dispatch data block for pre-stating jobs too
+                    if file_spec.type == "input" and file_spec.dispatchDBlock == "NULL" and file_spec.status not in ["ready", "missing", "cached"]:
+                        if first:
+                            first = False
+                            job.dispatchDBlock = dispatch_dblock
+                        file_spec.dispatchDBlock = dispatch_dblock
+                        file_spec.status = "pending"
+                        if file_spec.lfn not in file_list:
+                            file_list.append(file_spec.lfn)
+
+                    # destinationSE
+                    if file_spec.type in ["output", "log"] and dest_se != "":
+                        if job.prodSourceLabel == "user" and job.computingSite == file_spec.destinationSE:
+                            pass
+                        elif job.prodSourceLabel == "user" and prev_is_jedi is True and file_spec.destinationSE not in ["", "NULL"]:
+                            pass
+                        elif dest_se == "local":
+                            pass
+                        elif DataServiceUtils.getDistributedDestination(file_spec.destinationDBlockToken):
+                            pass
+                        else:
+                            file_spec.destinationSE = dest_se
+
+                    # pre-assign GUID to log
+                    if file_spec.type == "log":
+                        # generate GUID
+                        file_spec.GUID = str(uuid.uuid4())
+
+            tmp_logger.debug("finished")
+
+        except Exception as e:
+            tmp_logger.error(f"assign_dispatch_data_blocks : {str(e)} {traceback.format_exc()}")
+
     # make dispatchDBlocks, insert prod/dispatchDBlock to database
     def setup_source(self) -> None:
         """
@@ -225,10 +449,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
 
         tmp_logger = LogWrapper(self.logger, "<setup_source>")
 
-        file_list = {}
+        file_list: dict[str, Any] = {}
         prod_list = []
         prod_error = {}
-        disp_error = {}
+        disp_error: dict[str, Any] = {}
         back_end_map = {}
         ds_task_map = dict()
         jedi_task_id = None
@@ -323,7 +547,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 file_list[job.dispatchDBlock]["md5sums"].append(f"md5:{file.md5sum}")
 
         # register dispatch dataset
-        disp_list = self.register_dispatch_datasets(file_list, use_zip_to_pin_map, ds_task_map, tmp_logger, disp_error, jedi_task_id)
+        disp_list = self.register_dispatch_datasets(file_list, use_zip_to_pin_map, ds_task_map, tmp_logger, disp_error, jedi_task_id)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
         # insert datasets to DB
         self.task_buffer.insertDatasets(prod_list + disp_list)
         # job status
@@ -341,7 +565,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
 
     def register_dispatch_datasets(
         self,
-        file_list: Dict[str, Dict[str, List[str]]],
+        # keyed by dispatch block, then by "lfns"/"guids"/"fsizes"/"chksums", so the
+        # element type differs per key
+        file_list: Dict[str, Dict[str, List[Any]]],
         use_zip_to_pin_map: Dict[str, bool],
         ds_task_map: Dict[str, int],
         tmp_logger: LogWrapper,
@@ -398,7 +624,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         dis_files["fsizes"].append(tmp_file_size)
                         dis_files["chksums"].append(tmp_checksum)
 
-            metadata = {"hidden": True, "purge_replicas": 0}
+            metadata: dict[str, Any] = {"hidden": True, "purge_replicas": 0}
             if dispatch_data_block in ds_task_map and ds_task_map[dispatch_data_block] not in ["NULL", 0]:
                 metadata["task_id"] = str(ds_task_map[dispatch_data_block])
             tmp_logger.debug(f"register_dataset {dispatch_data_block} {str(metadata)}")
@@ -443,11 +669,11 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     break
                 except Exception:
                     error_type, error_value = sys.exc_info()[:2]
-                    out = f"failed to close : {error_type} {error_value}"
+                    close_error = f"failed to close : {error_type} {error_value}"
                     time.sleep(10)
             if not status:
-                tmp_logger.error(out)
-                disp_error[dispatch_data_block] = f"setupper.setup_source() could not freeze dispatch_data_block with {out}"
+                tmp_logger.error(close_error)
+                disp_error[dispatch_data_block] = f"setupper.setup_source() could not freeze dispatch_data_block with {close_error}"
                 continue
 
             # get VUID
@@ -470,7 +696,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 self.vuid_map[dataset.name] = dataset.vuid
             except Exception:
                 error_type, error_value = sys.exc_info()[:2]
-                dispatch_data_block.error(f"{error_type} {error_value}")
+                tmp_logger.error(f"{error_type} {error_value}")
                 disp_error[dispatch_data_block] = "setupper.setup_source() could not decode VUID dispatch_data_block"
         return disp_list
 
@@ -659,7 +885,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     job.lockedby == "jedi" and job.getDdmBackEnd() == "rucio" and job.prodSourceLabel in ["panda", "user"]
                                 ) or DataServiceUtils.getDistributedDestination(file.destinationDBlockToken, ignore_empty=False) is not None:
                                     # skip registerDatasetLocations
-                                    status, out = True, ""
+                                    status, location_error = True, ""
                                 elif (
                                     name == original_name
                                     or tmp_src_ddm != tmp_dst_ddm
@@ -698,29 +924,29 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                             break
                                         for _ in range(3):
                                             try:
-                                                out = rucioAPI.register_dataset_location(
+                                                location_out = rucioAPI.register_dataset_location(
                                                     name,
                                                     [ddm_id],
                                                     lifetime=rep_life_time,
                                                     activity=activity,
                                                     grouping=grouping,
                                                 )
-                                                tmp_logger.debug(out)
+                                                tmp_logger.debug(location_out)
                                                 status = True
                                                 break
                                             except Exception:
                                                 error_type, error_value = sys.exc_info()[:2]
-                                                out = f"{error_type}:{error_value}"
-                                                tmp_logger.error(f"register_dataset_location : failed with {out}")
+                                                location_error = f"{error_type}:{error_value}"
+                                                tmp_logger.error(f"register_dataset_location : failed with {location_error}")
                                                 time.sleep(10)
                                         # failed
                                         if not status:
                                             break
                                 else:
                                     # skip registerDatasetLocations
-                                    status, out = True, ""
+                                    status, location_error = True, ""
                                 if not status:
-                                    dest_error[dest] = f"Could not register location : {name} {out.splitlines()[-1]}"
+                                    dest_error[dest] = f"Could not register location : {name} {location_error.splitlines()[-1]}"
                                     break
                         # already failed
                         if dest_error[dest] != "" and name == original_name:
@@ -786,16 +1012,16 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     )
                     # increment number of files
                     if new_dest in dataset_list:
-                        dataset_list[new_dest].numberfiles = dataset_list[new_dest].numberfiles + 1
+                        dataset_list[new_dest].numberfiles = dataset_list[new_dest].numberfiles + 1  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
         # dump
-        for dataset_name, dataset in dataset_list.items():
-            # Ensure dataset_name is a string
-            if isinstance(dataset_name, tuple):
-                dataset_name = dataset_name[0]
+        for dataset_key, dataset in dataset_list.items():
+            # the map is keyed by (destinationDBlock, destinationSE, computingSite) above,
+            # but the callers below build it with the dataset name alone
+            dataset_name = dataset_key[0] if isinstance(dataset_key, tuple) else dataset_key
             if DataServiceUtils.is_sub_dataset(dataset_name):
                 tmp_logger.debug(f"made sub:{dataset_name} for nFiles={dataset.numberfiles}")
         # insert datasets to DB
-        return self.task_buffer.insertDatasets(dataset_list.values())
+        self.task_buffer.insertDatasets(dataset_list.values())
 
     #  subscribe sites to dispatchDBlocks
     def subscribe_dispatch_data_block(self) -> None:
@@ -825,47 +1051,53 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # use input RSE with read_lan/0 as destination
                 scope_dst_input, _ = select_scope(site_spec, job.prodSourceLabel, job.job_label)
                 ddm_id = site_spec.ddm_input[scope_dst_input]
-
-                # set share and activity
-                option_activity = "Production Input"
-                if job.prodSourceLabel in ["user", "panda"]:
-                    option_activity = "Analysis Input"
-                elif job.processingType == "urgent" or job.currentPriority > 1000:
-                    option_activity = "Express"
-
-                # taskID
-                option_comment = None
-                if job.jediTaskID not in ["NULL", 0]:
-                    option_comment = f"task_id:{job.jediTaskID}"
-
-                option_owner = None
-
-                tmp_logger.debug(
-                    f"register_dataset_subscription {job.dispatchDBlock, ddm_id} "
-                    f"{{'activity': {option_activity}, 'lifetime': 7, 'dn': {option_owner}, 'comment': {option_comment}}}"
-                )
-                for _ in range(3):
-                    try:
-                        status = rucioAPI.register_dataset_subscription(
-                            job.dispatchDBlock,
-                            [ddm_id],
-                            activity=option_activity,
-                            lifetime=7,
-                            distinguished_name=option_owner,
-                            comment=option_comment,
-                        )
-                        out = "register_dataset_subscription finished correctly"
-                        break
-                    except Exception as error:
-                        status = False
-                        out = f"register_dataset_subscription failed with {str(error)} {traceback.format_exc()}"
-                        time.sleep(10)
-
-                if not status:
-                    tmp_logger.error(out)
-                    disp_error[disp] = "setupper.subscribe_dispatch_data_block() could not register subscription"
+                if ddm_id is None:
+                    # no default read endpoint for this scope, so there is nothing to subscribe
+                    # to; passing None on would fail inside Rucio without naming the queue
+                    err_msg = f"no default read RSE for computingSite={job.computingSite} scope={scope_dst_input}"
+                    tmp_logger.error(err_msg)
+                    disp_error[disp] = f"setupper.subscribe_dispatch_data_block() {err_msg}"
                 else:
-                    tmp_logger.debug(out)
+                    # set share and activity
+                    option_activity = "Production Input"
+                    if job.prodSourceLabel in ["user", "panda"]:
+                        option_activity = "Analysis Input"
+                    elif job.processingType == "urgent" or job.currentPriority > 1000:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
+                        option_activity = "Express"
+
+                    # taskID
+                    option_comment = None
+                    if job.jediTaskID not in ["NULL", 0]:
+                        option_comment = f"task_id:{job.jediTaskID}"
+
+                    option_owner = None
+
+                    tmp_logger.debug(
+                        f"register_dataset_subscription {job.dispatchDBlock, ddm_id} "
+                        f"{{'activity': {option_activity}, 'lifetime': 7, 'dn': {option_owner}, 'comment': {option_comment}}}"
+                    )
+                    for _ in range(3):
+                        try:
+                            status = rucioAPI.register_dataset_subscription(
+                                job.dispatchDBlock,
+                                [ddm_id],
+                                activity=option_activity,
+                                lifetime=7,
+                                distinguished_name=option_owner,
+                                comment=option_comment,
+                            )
+                            out = "register_dataset_subscription finished correctly"
+                            break
+                        except Exception as error:
+                            status = False
+                            out = f"register_dataset_subscription failed with {str(error)} {traceback.format_exc()}"
+                            time.sleep(10)
+
+                    if not status:
+                        tmp_logger.error(out)
+                        disp_error[disp] = "setupper.subscribe_dispatch_data_block() could not register subscription"
+                    else:
+                        tmp_logger.debug(out)
 
             # failed jobs
             if disp_error[disp] != "":
@@ -878,9 +1110,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # update failed jobs only. succeeded jobs should be activated by DDM callback
         self.update_failed_jobs(failed_jobs)
 
-    def collect_input_lfns(self):
+    def collect_input_lfns(self) -> set[str]:
         # collect input LFNs
-        input_lfns = set()
+        input_lfns: set[str] = set()
         for tmp_job in self.jobs:
             for tmp_file in tmp_job.Files:
                 if tmp_file.type == "input":
@@ -908,16 +1140,16 @@ class SetupperAtlasPlugin(SetupperPluginBase):
 
         tmp_logger = LogWrapper(self.logger, "<correct_lfn>")
 
-        lfn_map = {}
+        lfn_map: dict[str, Any] = {}
         val_map = {}
         prod_error = {}
-        missing_datasets = {}
+        missing_datasets: dict[str, Any] = {}
         jobs_waiting = []
         jobs_failed = []
         jobs_processed = []
-        all_lfns = {}
-        all_guids = {}
-        all_scopes = {}
+        all_lfns: dict[str, Any] = {}
+        all_guids: dict[str, Any] = {}
+        all_scopes: dict[str, Any] = {}
         lfn_ds_map = {}
         tmp_logger.debug("start")
 
@@ -970,8 +1202,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             missing_datasets[dataset] = out
                     # issue getting the files in dataset
                     else:
-                        # make map (key: LFN w/o attemptNr, value: LFN with attemptNr)
-                        items = out
+                        # make map (key: LFN w/o attemptNr, value: LFN with attemptNr).
+                        # status == 0 here, so out is the file map rather than an error
+                        # message -- a link the type checker cannot make on its own
+                        items = cast(Dict[str, Any], out)
                         try:
                             # loop over all files
                             for tmp_lfn in items:
@@ -1115,7 +1349,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     if tmp_file.type == "input" and (not tmp_file.dataset.startswith("ddo")) and not tmp_file.lfn.endswith(".lib.tgz"):
                         tmp_job.nInputDataFiles += 1
                         if tmp_file.fsize not in ["NULL", None, 0, "0"]:
-                            tmp_job.inputFileBytes += tmp_file.fsize
+                            tmp_job.inputFileBytes += tmp_file.fsize  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                         # get input type and project
                         if tmp_input_file_project is None:
                             tmp_input_items = tmp_file.dataset.split(".")
@@ -1209,14 +1443,19 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return
 
     # get list of files in dataset
-    def get_list_files_in_dataset(self, dataset: str, file_list: Optional[List[str]] = None, use_cache: bool = True) -> Tuple[int, List[str]]:
+    def get_list_files_in_dataset(
+        self, dataset: str, file_list: Container[str] | None = None, use_cache: bool = True
+    ) -> Tuple[Optional[int], Union[Dict[str, Any], str]]:
         """
         Get list files in dataset method for running the setup process.
 
         :param dataset: The dataset to get the list of files from.
         :param file_list: The list of files. Defaults to None.
         :param use_cache: Whether to use cache. Defaults to True.
-        :return: A tuple containing the status and the list of files.
+        :return: A tuple of the status and, when the status is 0, the lfn-keyed map that
+                 rucioAPI.list_files_in_dataset returns -- otherwise the error message.
+                 Callers must check the status before using the second element. The
+                 previous annotation, Tuple[int, List[str]], was wrong on both halves.
         """
 
         tmp_logger = LogWrapper(self.logger, "<get_list_files_in_dataset>")
@@ -1225,34 +1464,38 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         if use_cache and dataset in self.lfn_dataset_map:
             return 0, self.lfn_dataset_map[dataset]
         status = None
-        items = []
+        # rucioAPI.list_files_in_dataset returns an lfn-keyed map; the empty value here
+        # is only a placeholder for the paths that return an error message instead
+        items: Dict[str, Any] = {}
+        error_message = ""
         for _ in range(3):
             try:
                 tmp_logger.debug(f"list_files_in_dataset {dataset}")
                 items, _ = rucioAPI.list_files_in_dataset(dataset, file_list=file_list)
                 status = 0
                 break
-            except DataIdentifierNotFound:
+            except DataIdentifierNotFound as e:
                 status = -1
+                error_message = f"{type(e)} {e}"
                 break
-            except Exception:
+            except Exception as e:
                 status = -2
+                error_message = f"{type(e)} {e}"
 
         if status != 0:
-            error_type, error_value = sys.exc_info()[:2]
-            out = f"{error_type} {error_value}"
-            return status, out
+            return status, error_message
         # keep to avoid redundant lookup
         self.lfn_dataset_map[dataset] = items
         return status, items
 
     # get list of datasets in container
-    def get_list_dataset_in_container(self, container: str) -> Tuple[bool, List[str]]:
+    def get_list_dataset_in_container(self, container: str) -> Tuple[bool, Union[List[str], str]]:
         """
         Get list dataset in container method for running the setup process.
 
         :param container: The container to get the list of datasets from.
-        :return: A tuple containing a boolean indicating the status and the list of datasets.
+        :return: A tuple containing a boolean indicating the status and, when the status is
+                 True, the list of datasets -- otherwise the error message from Rucio.
         """
 
         tmp_logger = LogWrapper(self.logger, "<get_list_dataset_in_container>")
@@ -1269,9 +1512,19 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return False, out
 
     # get datasets in container
-    def get_list_dataset_replicas_in_container(self, container: str, get_map: bool = False) -> Tuple[int, str]:
+    @overload
+    def get_list_dataset_replicas_in_container(self, container: str, get_map: Literal[False] = False) -> Tuple[int, str]: ...
+
+    @overload
+    def get_list_dataset_replicas_in_container(self, container: str, get_map: Literal[True]) -> Tuple[bool, Union[Dict[str, Any], str]]: ...
+
+    def get_list_dataset_replicas_in_container(self, container: str, get_map: bool = False) -> Tuple[Union[bool, int], Union[Dict[str, Any], str]]:
         """
         Get list dataset replicas in container method for running the setup process.
+
+        The get_map flag switches both halves of the return value, which is why this has
+        overloads: with it the status is a bool and the second element is the per-dataset
+        replica map, without it the status is a return code and the map is stringified.
 
         :param container: The container to get the list of dataset replicas from.
         :param get_map: Whether to get the map. Defaults to False.
@@ -1281,21 +1534,23 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         tmp_logger.debug(container)
 
         datasets = None
-        out = ""
+        # holds the Rucio error message while listing the container, then the per-dataset
+        # replica map returned by get_list_dataset_replicas below
+        out: Union[Dict[str, Any], str] = ""
         for _ in range(3):
-            datasets, out = rucioAPI.list_datasets_in_container(container)
+            datasets, container_error = rucioAPI.list_datasets_in_container(container)
             if datasets is None:
                 time.sleep(10)
             else:
                 break
         if datasets is None:
-            tmp_logger.error(out)
+            tmp_logger.error(container_error)
             if get_map:
-                return False, out
-            return 1, out
+                return False, container_error
+            return 1, container_error
 
         # loop over all datasets
-        all_rep_map = {}
+        all_rep_map: dict[str, Any] = {}
         for dataset in datasets:
             tmp_logger.debug(f"listDatasetReplicas {dataset}")
             status, out = self.get_list_dataset_replicas(dataset)
@@ -1340,9 +1595,20 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return 0, str(all_rep_map)
 
     # get list of replicas for a dataset
-    def get_list_dataset_replicas(self, dataset: str, get_map: bool = True) -> Tuple[bool, str]:
+    @overload
+    def get_list_dataset_replicas(self, dataset: str, get_map: Literal[True] = True) -> Tuple[bool, Dict[str, Any]]: ...
+
+    @overload
+    def get_list_dataset_replicas(self, dataset: str, get_map: Literal[False]) -> Tuple[int, str]: ...
+
+    def get_list_dataset_replicas(self, dataset: str, get_map: bool = True) -> Tuple[Union[bool, int], Union[Dict[str, Any], str]]:
         """
         Get list dataset replicas method for running the setup process.
+
+        The get_map flag switches both halves of the return value, which is why this has
+        overloads: with it the status is a bool and the second element is the replica map,
+        without it the status is a return code and the map is stringified. Every failure
+        path returns an empty map rather than a message, so the map half is always a dict.
 
         :param dataset: The dataset to get the list of replicas from.
         :param get_map: Whether to get the map. Defaults to True.
@@ -1401,7 +1667,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return
         return
 
-    def collect_existing_files(self):
+    def collect_existing_files(self) -> dict[Any, Any]:
         """
         Collects existing files to avoid deletion when jobs are queued.
         This method iterates over all jobs and collects files that should not be deleted,
@@ -1409,7 +1675,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
 
         :return: A dictionary mapping (destination DDM endpoint, log dataset name) to a list of files.
         """
-        dataset_file_map = {}
+        dataset_file_map: dict[Any, Any] = {}
         n_max_jobs = 20
         n_jobs_map = {}
         for tmp_job in self.jobs:
@@ -1485,7 +1751,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 dataset_file_map[map_key][real_dest_ddm_id]["files"][tmp_file.lfn]["fileSpecs"].append(tmp_file)
         return dataset_file_map
 
-    def create_dispatch_datasets(self, dataset_file_map):
+    def create_dispatch_datasets(self, dataset_file_map: dict[Any, Any]) -> list[DatasetSpec]:
         """
         Creates dispatch datasets for the collected files.
         Returns a list of datasets to be inserted into the database.
@@ -1494,7 +1760,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         tmp_logger = LogWrapper(self.logger, "<create_dispatch_datasets>")
 
         # loop over all locations
-        disp_list = []
+        disp_list: list[DatasetSpec] = []
         for _, tmp_dum_val in dataset_file_map.items():
             for tmp_location_list in tmp_dum_val:
                 tmp_val = tmp_dum_val[tmp_location_list]
@@ -1516,7 +1782,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         guids = []
                         fsizes = []
                         chksums = []
-                        tmp_zip_out = {}
+                        tmp_zip_out: dict[str, Any] = {}
                         if tmp_val["useZipToPin"]:
                             dids = [tmp_file_list[tmp_sub_file_name]["lfn"] for tmp_sub_file_name in sub_file_names]
                             tmp_zip_stat, tmp_zip_out = rucioAPI.get_zip_files(dids, [tmp_location])
@@ -1545,7 +1811,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         i_loop += 1
                         max_attempt = 3
                         is_ok = False
-                        metadata = {"hidden": True, "purge_replicas": 0}
+                        metadata: dict[str, Any] = {"hidden": True, "purge_replicas": 0}
                         if tmp_val["taskID"] not in [None, "NULL"]:
                             metadata["task_id"] = str(tmp_val["taskID"])
 
@@ -1605,10 +1871,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 break
                             except Exception:
                                 error_type, error_value = sys.exc_info()[:2]
-                                out = f"failed to close : {error_type} {error_value}"
+                                close_error = f"failed to close : {error_type} {error_value}"
                                 time.sleep(10)
                         if not status:
-                            tmp_logger.error(out)
+                            tmp_logger.error(close_error)
                             continue
                         # register location
                         is_ok = False
@@ -1616,7 +1882,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         max_attempt = 3
                         for attempt in range(max_attempt):
                             try:
-                                out = rucioAPI.register_dataset_location(
+                                location_out = rucioAPI.register_dataset_location(
                                     dis_dispatch_block,
                                     [tmp_location],
                                     7,
@@ -1624,7 +1890,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     scope="panda",
                                     grouping="NONE",
                                 )
-                                tmp_logger.debug(out)
+                                tmp_logger.debug(location_out)
                                 is_ok = True
                                 break
                             except Exception:
@@ -1717,8 +1983,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             failed_ds.add(tmp_file_spec.dataset)
                             tmp_logger.debug(f"failed to get files in {tmp_file_spec.dataset} with {tmp_map}")
                         else:
-                            # append
-                            datasets_lfns_map[tmp_file_spec.dataset] = tmp_map
+                            # append. tmp_stat == 0 here, so tmp_map is the file map
+                            # rather than an error message
+                            datasets_lfns_map[tmp_file_spec.dataset] = cast(Dict[str, Any], tmp_map)
                 # set failed if file lookup failed
                 if tmp_file_spec.dataset in failed_ds:
                     jumbo_job_spec.jobStatus = "failed"
@@ -1742,7 +2009,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # default
                 tmp_data_type = "GEN"
             # files for jumbo job
-            lfns_for_jumbo = self.task_buffer.getLFNsForJumbo(jumbo_job_spec.jediTaskID)
+            lfns_for_jumbo = self.task_buffer.getLFNsForJumbo(jumbo_job_spec.jediTaskID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             # make dis dataset name
             dispatch_data_block = f"panda.{jumbo_job_spec.taskID}.{time.strftime('%m.%d.%H%M')}.{tmp_data_type}.jumbo_dis{jumbo_job_spec.PandaID}"
             # collect file attributes
@@ -1792,6 +2059,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         jumbo_job_spec.job_label,
                     )
                     end_point = tmp_site_spec.ddm_input[scope_input]
+                    if end_point is None:
+                        # no default read endpoint for this scope; raising here reports the queue
+                        # through the except below, which is where a Rucio rejection would land too
+                        raise SubscriptionRegistrationError(f"no default read RSE for computingSite={jumbo_job_spec.computingSite} scope={scope_input}")
                     tmp_logger.debug(f"register_dataset_subscription {dispatch_data_block} to {end_point}")
                     rucioAPI.register_dataset_subscription(
                         dispatch_data_block,
@@ -1831,13 +2102,13 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # make sub dataset name
-    def make_sub_dataset_name(self, original_name: str, serial_number: int, task_id: int) -> str:
+    def make_sub_dataset_name(self, original_name: str, serial_number: int, task_id: int | str) -> str:
         """
         Make sub dataset name method for running the setup process.
 
         :param original_name: The original name of the dataset.
         :param serial_number: The serial number.
-        :param task_id: The task ID.
+        :param task_id: The task ID, as read from a job spec, so it may be the "NULL" sentinel.
         :return: The sub dataset name.
         """
         try:

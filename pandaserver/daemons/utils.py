@@ -3,15 +3,19 @@ import datetime
 import gc
 import importlib
 import json
+import logging
 import multiprocessing
 import os
 import queue
 import signal
 import socket
-import sys
 import threading
 import time
 import traceback
+from collections.abc import Callable
+from multiprocessing.connection import Connection
+from types import FrameType
+from typing import Any
 
 import psutil
 from pandacommon.pandalogger import logger_utils
@@ -40,10 +44,16 @@ CMD_STOP = "__STOP"
 EPOCH = datetime.datetime.fromtimestamp(0)
 
 # requester id for taskbuffer
-requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+requester_id = GenericThread().get_full_id(__name__, __file__)
 
 
-def kill_proc_tree(pid, sig=signal.SIGKILL, include_parent=True, timeout=None, on_terminate=None):
+def kill_proc_tree(
+    pid: int,
+    sig: int = signal.SIGKILL,
+    include_parent: bool = True,
+    timeout: float | None = None,
+    on_terminate: Callable[[Any], Any] | None = None,
+) -> tuple[Any, Any]:
     """
     Kill a process tree (including grandchildren) with signal "sig" and return a (gone, still_alive) tuple.
     "on_terminate", if specified, is a callback function which is called as soon as a child terminates.
@@ -62,7 +72,16 @@ def kill_proc_tree(pid, sig=signal.SIGKILL, include_parent=True, timeout=None, o
     return (gone, alive)
 
 
-def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lock_pool=None):
+# tbuf is a TaskBuffer or the interface proxy that stands in for one, neither of which can be
+# named here since the module is imported inside the function on purpose, hence Any
+def daemon_loop(
+    dem_config: dict[str, Any],
+    msg_queue: "multiprocessing.Queue[str]",
+    pipe_conn: Connection,
+    worker_lifetime: int,
+    tbuf: Any = None,
+    lock_pool: LockPool | None = None,
+) -> None:
     """
     Main loop of daemon worker process
     """
@@ -75,14 +94,14 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
     tmp_log.info("daemon worker start")
 
     # signal handler
-    def got_end_sig(sig, frame):
+    def got_end_sig(sig: int, frame: FrameType | None) -> None:
         tmp_log.warning(f"(got signal {sig})")
 
     for sig in END_SIGNALS:
         signal.signal(sig, got_end_sig)
 
     # dict of all daemons and their script module object
-    module_map = {}
+    module_map: dict[str, Any] = {}
     # package of daemon scripts
     mod_package = getattr(daemon_config, "package")
     # start timestamp
@@ -107,15 +126,16 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
             return
         # taskBuffer object
         try:
-            from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf
+            from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
-            tbuf.init(
+            taskBuffer.init(
                 panda_config.dbhost,
                 panda_config.dbpasswd,
                 nDBConnection=1,
                 useTimeout=True,
                 requester=requester_id,
             )
+            tbuf = taskBuffer
             tmp_log.debug("taskBuffer initialized")
         except Exception as e:
             tmp_log.error(f"failed to initialize taskBuffer with {e.__class__.__name__}: {e} ; terminated")
@@ -226,7 +246,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
             if to_run_daemon:
                 last_run_start_ts = int(time.time())
                 # send daemon status back to master
-                status_tuple = (dem_name, to_run_daemon, has_run, last_run_start_ts, last_run_end_ts)
+                status_tuple: tuple[Any, bool, bool, int, int] = (dem_name, to_run_daemon, has_run, last_run_start_ts, last_run_end_ts)
                 pipe_conn.send(status_tuple)
                 try:
                     if is_loop:
@@ -294,11 +314,25 @@ class DaemonWorker(object):
         "dem_ts",
     )
 
+    # the daemon script the worker is currently running and the timestamp when it started.
+    # They are set together by set_dem() and cleared together by unset_dem(), and start()
+    # clears them before the process runs. Declared without a value so that __slots__ stays
+    # the only thing that creates them
+    dem_name: str | None
+    dem_ts: int | None
+
     # class lock
     _lock = threading.Lock()
 
     # constructor
-    def __init__(self, dem_config, msg_queue, worker_lifetime, tbuf=None, lock_pool=None):
+    def __init__(
+        self,
+        dem_config: dict[str, Any],
+        msg_queue: "multiprocessing.Queue[str]",
+        worker_lifetime: int,
+        tbuf: Any = None,
+        lock_pool: LockPool | None = None,
+    ) -> None:
         # synchronized with lock
         with self._lock:
             self._make_pipe()
@@ -310,20 +344,27 @@ class DaemonWorker(object):
                 lock_pool=lock_pool,
             )
 
-    def _make_pipe(self):
+    def _make_pipe(self) -> None:
         """
         make pipe connection pairs between master and this worker
         """
         self.parent_conn, self.child_conn = multiprocessing.Pipe()
 
-    def _close_pipe(self):
+    def _close_pipe(self) -> None:
         """
         close pipe connection pairs between master and this worker
         """
         self.parent_conn.close()
         self.child_conn.close()
 
-    def _make_process(self, dem_config, msg_queue, worker_lifetime, tbuf, lock_pool):
+    def _make_process(
+        self,
+        dem_config: dict[str, Any],
+        msg_queue: "multiprocessing.Queue[str]",
+        worker_lifetime: int,
+        tbuf: Any,
+        lock_pool: LockPool | None,
+    ) -> None:
         """
         make associate process of this worker
         """
@@ -337,7 +378,7 @@ class DaemonWorker(object):
         )
         self.process = multiprocessing.Process(target=daemon_loop, args=args)
 
-    def start(self):
+    def start(self) -> None:
         """
         start the worker process
         """
@@ -345,34 +386,39 @@ class DaemonWorker(object):
         self.process.start()
         self.pid = self.process.pid
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         """
         whether the worker process is alive
         """
         return self.process.is_alive()
 
-    def kill(self):
+    def kill(self) -> tuple[Any, Any]:
         """
         kill the worker process and all its subprocesses
         """
         self._close_pipe()
+        if self.process.pid is None:
+            # The process was never started. psutil.Process(None) is documented to mean
+            # the caller's own pid -- verified in psutil/__init__.py -- so passing it on
+            # would have kill_proc_tree SIGKILL the master's own tree, parent included.
+            return ([], [])
         return kill_proc_tree(self.process.pid)
 
-    def is_running_dem(self):
+    def is_running_dem(self) -> bool:
         """
         whether the worker is still running a daemon script
         """
-        return not (self.dem_name is None and self.dem_ts is None)
+        return self.dem_name is not None and self.dem_ts is not None
 
-    def set_dem(self, dem_name, dem_ts):
+    def set_dem(self, dem_name: str, dem_ts: int) -> None:
         """
         set current running daemon in this worker
         """
-        if not self.is_running_dem() or dem_ts >= self.dem_ts:
+        if self.dem_ts is None or dem_ts >= self.dem_ts:
             self.dem_name = dem_name
             self.dem_ts = dem_ts
 
-    def unset_dem(self):
+    def unset_dem(self) -> None:
         """
         unset current running daemon in this worker
         """
@@ -386,7 +432,7 @@ class DaemonMaster(object):
     """
 
     # constructor
-    def __init__(self, logger, n_workers=1, n_dbconn=1, worker_lifetime=28800, use_tbif=False):
+    def __init__(self, logger: logging.Logger, n_workers: int = 1, n_dbconn: int = 1, worker_lifetime: int = 28800, use_tbif: bool = False) -> None:
         # logger
         self.logger = logger
         # number of daemon worker processes
@@ -403,35 +449,37 @@ class DaemonMaster(object):
         # make message queue
         self._reset_msg_queue()
         # process pool
-        self.proc_pool = []
+        self.proc_pool: list[Any] = []
         # worker pool
-        self.worker_pool = set()
+        self.worker_pool: set[DaemonWorker] = set()
         # whether to stop scheduler
         self.to_stop_scheduler = False
         # make daemon config
-        self.dem_config = {}
+        self.dem_config: dict[str, Any] = {}
         self._parse_config()
         # map of run status of daemons
-        self.dem_run_map = {}
+        self.dem_run_map: dict[str, dict[str, Any]] = {}
         self._make_dem_run_map()
         # map to store global states
-        self.global_state_map = {}
-        # shared taskBufferIF
-        self.tbif = None
+        self.global_state_map: dict[str, Any] = {}
+        # shared taskBufferIF, built by _make_tbif() only when use_tbif is on. The class it
+        # holds is imported inside that method on purpose, so it cannot be named here
+        self.tbif: Any = None
         self._make_tbif()
         # shared lock pool
         self.lock_pool = LockPool()
         # spawn workers
         self._spawn_workers(self.n_workers)
 
-    def _reset_msg_queue(self):
+    def _reset_msg_queue(self) -> None:
         """
         reset the message queue for sending commands to workers
         """
-        self.msg_queue = multiprocessing.Queue()
+        # the queue carries daemon names from the scheduler thread to the workers
+        self.msg_queue: multiprocessing.Queue[str] = multiprocessing.Queue()
         self.logger.info(f"reset message queue (qid={id(self.msg_queue)})")
 
-    def _make_tbif(self):
+    def _make_tbif(self) -> None:
         """
         make common taskBuffer interface for daemon workers
         """
@@ -460,13 +508,15 @@ class DaemonMaster(object):
             self.logger.error(f"failed to initialize taskBuffer interface with {e.__class__.__name__}: {e} ; terminated")
             raise e
 
-    def _spawn_workers(self, n_workers=1, auto_start=False):
+    def _spawn_workers(self, n_workers: int = 1, auto_start: bool = False) -> None:
         """
         spawn new workers and put them into worker pool
         """
         for j in range(n_workers):
             with self._worker_lock:
-                if self.use_tbif:
+                # tbif is set by _make_tbif() exactly when use_tbif is on, so testing it
+                # is the same check and tells a type checker the interface is there
+                if self.tbif is not None:
                     tbuf = self.tbif.getInterface()
                 else:
                     tbuf = None
@@ -482,14 +532,14 @@ class DaemonMaster(object):
                     worker.start()
                     self.logger.debug(f"launched new worker_pid={worker.pid}")
 
-    def _remove_worker(self, worker):
+    def _remove_worker(self, worker: DaemonWorker) -> None:
         """
         remove a worker from pool
         """
         with self._worker_lock:
             self.worker_pool.discard(worker)
 
-    def _parse_config(self):
+    def _parse_config(self) -> None:
         """
         parse configuration of PanDA daemon
         """
@@ -534,13 +584,13 @@ class DaemonMaster(object):
             tb = traceback.format_exc()
             self.logger.error(f"failed to parse daemon config, {e.__class__.__name__}: {e}\n{tb}\n")
 
-    def _make_dem_run_map(self):
+    def _make_dem_run_map(self) -> None:
         """
         initialize daemon run status map
         """
-        dem_run_map = {}
+        dem_run_map: dict[str, dict[str, Any]] = {}
         for dem in self.dem_config:
-            attrs = {}
+            attrs: dict[str, Any] = {}
             attrs["last_run_start_ts"] = 0
             attrs["last_warn_ts"] = 0
             attrs["msg_ongoing"] = False
@@ -548,18 +598,20 @@ class DaemonMaster(object):
             dem_run_map[dem] = attrs
         self.dem_run_map = dem_run_map
 
-    def _kill_one_worker(self, worker):
+    def _kill_one_worker(self, worker: DaemonWorker) -> None:
         """
         kill one (stuck) worker (and new worker will be re-spawned in scheduler cycle)
         """
         # kill worker process and remove it from pool
         worker.kill()
         self._remove_worker(worker)
-        # reset daemon run status map of the daemon run by the worker
-        self.dem_run_map[worker.dem_name]["msg_ongoing"] = False
-        self.dem_run_map[worker.dem_name]["dem_running"] = False
+        # reset daemon run status map of the daemon run by the worker. The only caller
+        # checks this first; the check is repeated so the method stands on its own
+        if worker.dem_name is not None:
+            self.dem_run_map[worker.dem_name]["msg_ongoing"] = False
+            self.dem_run_map[worker.dem_name]["dem_running"] = False
 
-    def _scheduler_cycle(self):
+    def _scheduler_cycle(self) -> None:
         """
         main scheduler cycle
         """
@@ -603,8 +655,9 @@ class DaemonMaster(object):
                             # warning since daemon run duration longer than daemon period (non-looping)
                             self.logger.warning(f"worker_pid={worker.pid} daemon {dem_name} took {run_duration} sec , exceeding its period {run_period} sec")
                     dem_run_attrs["msg_ongoing"] = False
-                # kill the worker due to daemon run timeout
-                if worker.is_running_dem():
+                # kill the worker due to daemon run timeout. The condition is is_running_dem()
+                # spelled out, so that the two attributes are known to be set when read below
+                if worker.dem_name is not None and worker.dem_ts is not None:
                     run_till_now = now_ts - worker.dem_ts
                     run_timeout = self.dem_config[worker.dem_name].get("timeout")
                     if run_till_now > run_timeout:
@@ -652,7 +705,7 @@ class DaemonMaster(object):
         # warning about delayed scripts
         if n_super_delayed_dems > 0 and (
             ((last_warn_super_delayed_ts := self.global_state_map.get("last_warn_super_delayed_ts")) is None or now_ts - last_warn_super_delayed_ts >= 300)
-            or n_super_delayed_dems != (last_n_super_delayed_dems := self.global_state_map.get("last_n_super_delayed_dems"))
+            or n_super_delayed_dems != self.global_state_map.get("last_n_super_delayed_dems")
         ):
             self.logger.warning(f"{n_super_delayed_dems} delayed scripts")
             self.global_state_map["last_warn_super_delayed_ts"] = now_ts
@@ -669,7 +722,7 @@ class DaemonMaster(object):
         # sleep
         time.sleep(0.5)
 
-    def _stop_all_workers(self):
+    def _stop_all_workers(self) -> None:
         """
         stop all workers gracefully by sending stop command to them
         """
@@ -682,7 +735,7 @@ class DaemonMaster(object):
             self.dem_run_map[dem_name]["msg_ongoing"] = False
             self.dem_run_map[dem_name]["dem_running"] = False
 
-    def stop(self):
+    def stop(self) -> None:
         """
         stop the master (and all workers)
         """
@@ -695,13 +748,13 @@ class DaemonMaster(object):
         time.sleep(1)
         # close message queue
         self.msg_queue.close()
-        # stop taskBuffer interface
-        if self.use_tbif:
+        # stop taskBuffer interface, which exists only when use_tbif is on
+        if self.tbif is not None:
             self.tbif.stop()
         # wait a bit
         time.sleep(2)
 
-    def revive(self):
+    def revive(self) -> None:
         """
         revive: kill all workers, reset a new message queue, and spawn new workers with new queue
         """
@@ -725,7 +778,7 @@ class DaemonMaster(object):
         # done
         self.logger.info("daemon master revived")
 
-    def run(self):
+    def run(self) -> None:
         """
         main function to run the master
         """
@@ -739,7 +792,7 @@ class DaemonMaster(object):
                 self.logger.debug(f"launched worker_pid={worker.pid}")
         self.logger.debug("daemon master launched all worker processes")
         # initialize old worker pid set
-        worker_pid_list_old = []
+        worker_pid_list_old: list[Any] = []
         # loop of scheduler
         while not self.to_stop_scheduler:
             with self._worker_lock:

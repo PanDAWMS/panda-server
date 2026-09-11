@@ -3,11 +3,18 @@ activate job
 
 """
 
-import datetime
+from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
+
+from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+
+if TYPE_CHECKING:
+    # TaskBuffer imports this package, so naming it for real here would close the cycle.
+    # Annotations are evaluated at runtime in this tree, so the uses below are quoted.
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("activator")
@@ -33,7 +40,7 @@ class Activator:
     """
 
     # constructor
-    def __init__(self, taskBuffer, dataset, enforce: bool = False):
+    def __init__(self, taskBuffer: "TaskBuffer", dataset: DatasetSpec, enforce: bool = False) -> None:
         """
         Constructs all the necessary attributes for the Activator object.
 
@@ -46,12 +53,12 @@ class Activator:
             enforce : bool, optional
                 A flag to enforce activation (default is False).
         """
-        self.dataset = dataset
+        self.dataset: DatasetSpec = dataset
         self.task_buffer = taskBuffer
         self.enforce = enforce
 
     # main
-    def run(self):
+    def run(self) -> None:
         """
         Starts the thread to activate jobs.
         """

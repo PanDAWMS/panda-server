@@ -1,10 +1,13 @@
 import datetime
 import threading
 import traceback
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 from pandaserver.configurator import aux
+from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("carbon")
 
@@ -14,7 +17,7 @@ class CarbonEmissions(threading.Thread):
     Downloads the carbon information from the relevant sources
     """
 
-    def __init__(self, taskBuffer):
+    def __init__(self, taskBuffer: TaskBuffer) -> None:
         threading.Thread.__init__(self)
 
         self.bearer_token = None
@@ -23,7 +26,7 @@ class CarbonEmissions(threading.Thread):
 
         self.taskBuffer = taskBuffer
 
-    def download_region_emissions(self):
+    def download_region_emissions(self) -> list[dict[str, Any]] | None:
         # Don't indent the query
         query = """
 {"search_type": "query_then_fetch","ignore_unavailable": true,"index": ["monit_prod_green-it_raw_regionmetric*"]}
@@ -55,7 +58,7 @@ class CarbonEmissions(threading.Thread):
             _logger.error(f"download_region_emissions excepted with {traceback.format_exc()}")
             return None
 
-    def run(self):
+    def run(self) -> None:
         # download emissions and store them in the DB
         results = self.download_region_emissions()
         if results:

@@ -1,7 +1,16 @@
 import copy
+from typing import TYPE_CHECKING
 
-from pandajedi.jedicore import JediException
+from pandajedi.jedicore import Interaction, JediException
 from pandajedi.jedirefine import RefinerUtils
+
+if TYPE_CHECKING:
+    # Importing these for real makes this module read a configuration file at import time,
+    # and it has no other reason to need one. Annotations are evaluated at runtime in this
+    # tree, so the uses below are quoted.
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jedicore.MsgWrapper import MsgWrapper
+    from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 try:
     import idds.common.constants
@@ -12,7 +21,10 @@ except ImportError:
 
 
 # send notification to external system for additional post-processing
-def send_notification(taskBufferIF, ddmIF, taskSpec, tmpLog):
+# ddmIF is the proxy DDMInterface.getInterface() hands back, which forwards every call to
+# the DDM plugin the configuration selected. extract_scope() below exists only on the ATLAS
+# plugin, so this function needs that one configured -- which the only caller has.
+def send_notification(taskBufferIF: "JediTaskBufferInterface", ddmIF: Interaction.CommandSendInterface, taskSpec: "JediTaskSpec", tmpLog: "MsgWrapper") -> None:
     # send notification to external system
     try:
         taskParam = taskBufferIF.getTaskParamsWithID_JEDI(taskSpec.jediTaskID)

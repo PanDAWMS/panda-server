@@ -1,9 +1,20 @@
 import json
 import re
+from typing import TYPE_CHECKING, Any
+
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+
+if TYPE_CHECKING:
+    # Importing either of these for real makes this module read a configuration file at
+    # import time -- JediTaskBufferInterface pulls jedi_config, JediDatasetSpec pulls
+    # panda_config -- and nothing else here needs one. Annotations are evaluated at
+    # runtime in this tree, so the two uses below are quoted.
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
 
 
 # convert UTF-8 to ASCII in json dumps
-def unicodeConvert(input):
+def unicodeConvert(input: Any) -> Any:
     if isinstance(input, dict):
         retMap = {}
         for tmpKey, tmpVal in input.items():
@@ -19,17 +30,17 @@ def unicodeConvert(input):
 
 
 # decode
-def decodeJSON(inputStr):
+def decodeJSON(inputStr: str) -> Any:
     return json.loads(inputStr, object_hook=unicodeConvert)
 
 
 # encode
-def encodeJSON(inputMap):
+def encodeJSON(inputMap: Any) -> str:
     return json.dumps(inputMap)
 
 
 # extract stream name
-def extractStreamName(valStr):
+def extractStreamName(valStr: str) -> str | None:
     tmpMatch = re.search("\$\{([^\}]+)\}", valStr)
     if tmpMatch is None:
         return None
@@ -40,7 +51,7 @@ def extractStreamName(valStr):
 
 
 # extract output filename template and replace the value field
-def extractReplaceOutFileTemplate(valStr, streamName):
+def extractReplaceOutFileTemplate(valStr: str, streamName: str) -> tuple[str, str]:
     outFileTempl = valStr.split("=")[-1]
     outFileTempl = outFileTempl.replace("'", "")
     valStr = valStr.replace(outFileTempl, f"${{{streamName}}}")
@@ -48,7 +59,7 @@ def extractReplaceOutFileTemplate(valStr, streamName):
 
 
 # extract file list
-def extractFileList(taskParamMap, datasetName):
+def extractFileList(taskParamMap: dict[str, Any], datasetName: str) -> tuple[list[str], list[str], list[str]]:
     baseDatasetName = datasetName.split(":")[-1]
     if "log" in taskParamMap:
         itemList = taskParamMap["jobParameters"] + [taskParamMap["log"]]
@@ -76,9 +87,9 @@ def extractFileList(taskParamMap, datasetName):
 
 
 # append dataset
-def appendDataset(taskParamMap, datasetSpec, fileList):
+def appendDataset(taskParamMap: dict[str, Any], datasetSpec: "JediDatasetSpec", fileList: list[str]) -> dict[str, Any]:
     # make item for dataset
-    tmpItem = {}
+    tmpItem: dict[str, Any] = {}
     tmpItem["type"] = "template"
     tmpItem["value"] = ""
     tmpItem["dataset"] = datasetSpec.datasetName
@@ -93,7 +104,7 @@ def appendDataset(taskParamMap, datasetSpec, fileList):
 
 
 # check if use random seed
-def useRandomSeed(taskParamMap):
+def useRandomSeed(taskParamMap: dict[str, Any]) -> bool:
     for tmpItem in taskParamMap["jobParameters"]:
         if "value" in tmpItem:
             # get offset for random seed
@@ -104,7 +115,12 @@ def useRandomSeed(taskParamMap):
 
 
 # get initial global share
-def get_initial_global_share(task_buffer, task_id, task_spec=None, task_param_map=None):
+def get_initial_global_share(
+    task_buffer: "JediTaskBufferInterface",
+    task_id: int,
+    task_spec: JediTaskSpec | None = None,
+    task_param_map: dict[str, Any] | None = None,
+) -> str:
     """
     Get the initial global share for a task
     :param task_buffer: task buffer interface
@@ -119,7 +135,7 @@ def get_initial_global_share(task_buffer, task_id, task_spec=None, task_param_ma
         task_param_map = decodeJSON(tmp_str)
     if "gshare" in task_param_map and task_buffer.is_valid_share(task_param_map["gshare"]):
         # global share was already specified in ProdSys
-        gshare = task_param_map["gshare"]
+        gshare: str = task_param_map["gshare"]
     else:
         if task_spec is None:
             # get task specification from DB
@@ -133,7 +149,7 @@ def get_initial_global_share(task_buffer, task_id, task_spec=None, task_param_ma
 
 
 # get sandbox name
-def get_sandbox_name(task_param_map: dict) -> str | None:
+def get_sandbox_name(task_param_map: dict[str, Any]) -> str | None:
     """
     Get the sandbox name from the task parameters
     :param task_param_map: dictionary of task parameters

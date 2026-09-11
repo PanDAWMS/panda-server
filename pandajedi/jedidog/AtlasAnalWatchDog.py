@@ -3,14 +3,20 @@ import re
 import socket
 import sys
 import traceback
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.dataservice.activator import Activator
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
 
 from .TypicalWatchDogBase import TypicalWatchDogBase
+
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -18,12 +24,12 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # watchdog for ATLAS analysis
 class AtlasAnalWatchDog(TypicalWatchDogBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface") -> None:
         TypicalWatchDogBase.__init__(self, taskBufferIF, ddmIF)
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-dog"
 
     # main
-    def doAction(self):
+    def doAction(self) -> Interaction.StatusCode:
         # get logger
         orig_tmp_log = MsgWrapper(logger)
         try:
@@ -51,7 +57,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
         return self.SC_SUCCEEDED
 
     # handle waiting jobs
-    def doForWaitingJobs(self):
+    def doForWaitingJobs(self) -> None:
         try:
             tmpLog = MsgWrapper(logger, "doForWaitingJobs label=user")
             # lock
@@ -106,7 +112,11 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                     dataset = self.taskBufferIF.queryDatasetWithMap({"name": datasetName})
                     if dataset is not None:
                         # activate jobs
-                        aThr = Activator(self.taskBufferIF, dataset)
+                        # JediTaskBufferInterface forwards every method to JediTaskBuffer
+                        # through CommandSendInterface, so it stands in for the TaskBuffer
+                        # Activator declares. __getattr__ is invisible to a type checker,
+                        # and panda-server cannot name a JEDI class to widen the parameter
+                        aThr = Activator(self.taskBufferIF, dataset)  # type: ignore[arg-type]
                         aThr.run()
                         tmpLog.debug(f'  action=activated_downstream_jobs for user="{prodUserName}" with libDS={datasetName}')
                     else:
@@ -120,7 +130,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # throttle tasks if so many prestaging requests
-    def doForPreStaging(self):
+    def doForPreStaging(self) -> None:
         try:
             tmpLog = MsgWrapper(logger, " #ATM #KV doForPreStaging label=user")
             tmpLog.debug("start")
@@ -153,7 +163,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             # throttle interval
             thrInterval = 120
             # loop over all user tasks with data motion
-            user_motion_to_keep_throttled = {}
+            user_motion_to_keep_throttled: dict[str, Any] = {}
             for userName, userDict in dispUserTasks.items():
                 # loop over all transfer types
                 for transferType, maxSize in [("prestaging", maxPrestaging), ("transfer", maxTransfer)]:
@@ -286,7 +296,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # priority massage
-    def doForPriorityMassage(self):
+    def doForPriorityMassage(self) -> None:
         tmpLog = MsgWrapper(logger, " #ATM #KV doForPriorityMassage label=user")
         tmpLog.debug("start")
         # lock
@@ -309,8 +319,8 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             # get total number of users and running/done jobs
             totalUsers = 0
             totalRunDone = 0
-            usersTotalJobs = {}
-            usersTotalCores = {}
+            usersTotalJobs: dict[str, Any] = {}
+            usersTotalCores: dict[str, Any] = {}
             for prodUserName in usageBreakDownPerUser:
                 wgValMap = usageBreakDownPerUser[prodUserName]
                 for workingGroup in wgValMap:
@@ -363,7 +373,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                             if tmpNumJobs is not None:
                                 for tmpJediTaskID, tmpNumJob in tmpNumJobs.items():
                                     msg = (
-                                        'throttled {} jobs in jediTaskID={} for user="{}" group={} ' "since too many running jobs ({} > {}) or cores ({} > {}) "
+                                        'throttled {} jobs in jediTaskID={} for user="{}" group={} since too many running jobs ({} > {}) or cores ({} > {}) '
                                     ).format(tmpNumJob, tmpJediTaskID, prodUserName, workingGroup, tmpNumTotalJobs, maxNumRun, tmpNumTotalCores, maxNumCore)
                                     tmpLog.debug(msg)
                                     tmpLog.sendMsg(msg, "userCap", msgLevel="warning")
@@ -380,7 +390,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                                     tmpLog.sendMsg(msg, "userCap")
             except Exception as e:
                 errStr = f"cap failed for {prodUserName} : {str(e)}"
-                errStr.strip()
+                errStr = errStr.strip()
                 errStr += traceback.format_exc()
                 tmpLog.error(errStr)
             # to boost
@@ -389,8 +399,8 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             globalAverageRunDone = float(totalRunDone) / float(totalUsers)
             tmpLog.debug(f"global average: {globalAverageRunDone}")
             # count the number of users and run/done jobs for each site
-            siteRunDone = {}
-            siteUsers = {}
+            siteRunDone: dict[str, Any] = {}
+            siteUsers: dict[str, Any] = {}
             for computingSite in usageBreakDownPerSite:
                 userValMap = usageBreakDownPerSite[computingSite]
                 for prodUserName in userValMap:
@@ -441,7 +451,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                         continue
 
                     # set weight
-                    totalW = 0
+                    totalW: float = 0
                     defaultW = 100
                     for _ in toBeBoostedSites:
                         totalW += defaultW
@@ -461,11 +471,11 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                         # the number of boosted jobs at the site
                         numBoostedJobsSite = int(numBoostedJobs * weight / quotaFactor)
                         tmpLog.debug(f"nSite:{numBoostedJobsSite} nAll:{numBoostedJobs} W:{weight} Q:{quotaFactor} at {computingSite}")
-                        if numBoostedJobsSite / nJobsPerPrioUnit == 0:
+                        if numBoostedJobsSite // nJobsPerPrioUnit == 0:
                             tmpLog.debug(f"too small number of jobs {numBoostedJobsSite} to be boosted at {computingSite}")
                             continue
                         # get the highest prio of activated jobs at the site
-                        varMap = {}
+                        varMap: dict[str, Any] = {}
                         varMap[":jobStatus"] = "activated"
                         varMap[":prodSourceLabel"] = self.prodSourceLabel
                         varMap[":pmerge"] = "pmerge"
@@ -496,7 +506,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                             tmpLog.debug(f"already boosted (prio={maxPrio}) at {computingSite}")
                             continue
                         # lower limit
-                        minPrio = maxPrio - numBoostedJobsSite / nJobsPerPrioUnit
+                        minPrio = maxPrio - numBoostedJobsSite // nJobsPerPrioUnit
                         # SQL for priority boost
                         varMap = {}
                         varMap[":jobStatus"] = "activated"
@@ -526,7 +536,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # redo stalled analysis jobs
-    def doForRedoStalledJobs(self):
+    def doForRedoStalledJobs(self) -> None:
         tmpLog = MsgWrapper(logger, " #ATM #KV doForRedoStalledJobs label=user")
         tmpLog.debug("start")
         # lock
@@ -616,7 +626,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                                     libGUID = guid
                                     libDSName = tmpLibDsName
                                 elif filetype in ["log", "output"]:
-                                    if destinationDBlock is not None and re.search("_sub\d+$", destinationDBlock) is not None:
+                                    if destinationDBlock is not None and re.search(r"_sub\d+$", destinationDBlock) is not None:
                                         destReady = True
                             break
                     tmpLog.debug(f"  useLib:{useLib} libStatus:{libStatus} libDsName:{libDSName} libLFN:{libLFN} libGUID:{libGUID} destReady:{destReady}")
@@ -638,7 +648,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                             else:
                                 # get PandaID with lib.tgz
                                 # ids = self.taskBufferIF.updateInFilesReturnPandaIDs(libDSName,'ready')
-                                ids = []
+                                ids: list[Any] = []
                                 # get jobs
                                 jobs = self.taskBufferIF.peekJobs(ids, fromActive=False, fromArchived=False, fromWaiting=False)
                                 # remove None and unknown
@@ -663,7 +673,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             tmpLog.error(f"failed to redo stalled jobs with {errtype} {errvalue} {traceback.format_exc()}")
 
     # task share and priority boost
-    def doForTaskBoost(self):
+    def doForTaskBoost(self) -> None:
         tmpLog = MsgWrapper(logger, " #ATM #KV doForTaskBoost label=user")
         tmpLog.debug("start")
         # lock
@@ -720,7 +730,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # periodic task action
-    def do_periodic_action(self):
+    def do_periodic_action(self) -> None:
         """
         Perform periodic action on tasks
           * extend lifetime of output containers for analysis tasks
@@ -736,6 +746,10 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
             lifetime *= 24 * 60 * 60
             # get DDM interface
             ddm_if = self.ddmIF.getInterface(self.vo)
+            if ddm_if is None:
+                # the container lifetimes below cannot be extended without it
+                tmp_log.error(f"no DDM interface for vo={self.vo}")
+                return
             # get tasks
             task_list = self.taskBufferIF.get_tasks_for_periodic_action(self.vo, self.prodSourceLabel)
             for task_id in task_list:

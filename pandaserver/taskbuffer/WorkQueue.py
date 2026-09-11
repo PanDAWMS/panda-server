@@ -4,6 +4,7 @@ work queue specification
 """
 
 import re
+from typing import Any, Sequence
 
 from pandaserver.taskbuffer.GlobalShares import Share
 
@@ -28,6 +29,27 @@ class WorkQueue(object):
         "queue_function",
     )
 
+    # Column types, taken from the Oracle schema of ATLAS_PANDA.JEDI_WORK_QUEUE (panda-database
+    # repo, schema/oracle). The columns are installed by __init__ via setattr, so a type
+    # checker sees none of them without these declarations. They carry no value, which
+    # both keeps them out of the class dict and keeps __slots__ classes importable.
+    # Unset columns really are None here -- this class has no "NULL" sentinel.
+    queue_id: int | None
+    queue_name: str | None
+    queue_type: str | None
+    VO: str | None
+    queue_share: int | None
+    queue_order: int | None
+    criteria: str | None
+    # a CLOB of "key: value, ..." on the way out of the DB, but pack() replaces it with the
+    # bind-variable map parsed out of it and pack_gs() puts a map there directly, so the read
+    # type is Any
+    variables: Any
+    partitionID: int | None
+    stretchable: int | None
+    status: str | None
+    queue_function: str | None
+
     # parameters for selection criteria
     _paramsForSelection = ("prodSourceLabel", "workingGroup", "processingType", "coreCount", "site", "eventService", "splitRule", "campaign")
 
@@ -41,7 +63,7 @@ class WorkQueue(object):
         "processingtype": "processingType",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Constructor
         """
@@ -54,14 +76,14 @@ class WorkQueue(object):
         # throttled is set to True by default. Some Global Shares will overwrite it to False
         self.throttled = True
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         String representation of a workqueue
         :return: string with the representation of the work queue
         """
         return str(self.queue_name)
 
-    def dump(self):
+    def dump(self) -> str:
         """
         Creates a human-friendly string with the work queue information
         :return: string representation of the work queue
@@ -76,14 +98,14 @@ class WorkQueue(object):
 
         return dump_str
 
-    def getID(self):
+    def getID(self) -> int | None:
         """
         get ID
         :return: returns a list with the ID of the work queue
         """
         return self.queue_id
 
-    def pack(self, values):
+    def pack(self, values: Sequence[Any]) -> None:
         """
         Packs tuple into the object
         :param values: list with the values in the order declared in the attributes section
@@ -113,7 +135,7 @@ class WorkQueue(object):
         # assign map
         self.variables = tmp_map
         # make a python statement for eval
-        if self.criteria in ["", None]:
+        if not self.criteria:
             # catch all
             self.evalString = "True"
         else:
@@ -147,7 +169,7 @@ class WorkQueue(object):
             # assign
             self.evalString = tmp_eval_str
 
-    def pack_gs(self, gshare):
+    def pack_gs(self, gshare: Share) -> None:
         """
         Packs tuple into the object
         :param gshare: global share
@@ -181,47 +203,39 @@ class WorkQueue(object):
             pass
 
     # evaluate in python
-    def evaluate(self, param_map):
+    def evaluate(self, param_map: dict[str, Any]) -> tuple["WorkQueue", bool]:
         # only active queues are evaluated
         if self.isActive():
             # normal queue
-            # expand parameters to local namespace
-            for tmp_param_key, tmp_param_val in param_map.items():
-                if isinstance(tmp_param_val, str):
-                    # add quotes for string
-                    exec(f'{tmp_param_key}="{tmp_param_val}"', globals())
-                else:
-                    exec(f"{tmp_param_key}={tmp_param_val}", globals())
-            # add default parameters if missing
-            for tmp_param in self._paramsForSelection:
-                if tmp_param not in param_map:
-                    exec(f"{tmp_param}=None", globals())
-            # evaluate
-            exec(f"ret_var = {self.evalString}", globals())
+            # put the parameters in a namespace of this call. they used to be exec'ed into
+            # the module globals, where concurrent callers overwrote each other's values
+            eval_params = {tmp_param: None for tmp_param in self._paramsForSelection}
+            eval_params.update(param_map)
+            # evaluate. the globals supply re, which the LIKE criteria are rewritten to use
+            ret_var = eval(self.evalString, globals(), eval_params)
             return self, ret_var
 
         # return False
         return self, False
 
     # check if active
-    def isActive(self):
+    def isActive(self) -> bool:
         if self.status != "inactive":  # and self.queue_function in ACTIVE_FUNCTIONS:
             return True
         return False
 
     # check if its eligible after global share alignment
-    def isAligned(self):
+    def isAligned(self) -> bool:
         if self.queue_function == RESOURCE or self.is_global_share:
             return True
         return False
 
     # return column names for INSERT
-    def column_names(cls):
+    @classmethod
+    def column_names(cls) -> str:
         ret = ""
         for attr in cls._attributes:
             if ret != "":
                 ret += ","
             ret += attr
         return ret
-
-    column_names = classmethod(column_names)

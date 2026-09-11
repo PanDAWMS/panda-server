@@ -6,6 +6,9 @@ import pwd
 import signal
 import sys
 import time
+from multiprocessing.synchronize import Event
+from types import FrameType
+from typing import Any
 
 import daemon
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -20,11 +23,11 @@ from pandajedi.jediddm.DDMInterface import DDMInterface
 # the master class of JEDI which runs the main process
 class JediMaster:
     # constrictor
-    def __init__(self):
-        self.stopEventList = []
+    def __init__(self) -> None:
+        self.stopEventList: list[Event] = []
 
     # spawn a knight to have own file descriptors
-    def launcher(self, moduleName, *args, **kwargs):
+    def launcher(self, moduleName: str, *args: Any, **kwargs: Any) -> None:
         # import module
         mod = __import__(moduleName)
         for subModuleName in moduleName.split(".")[1:]:
@@ -35,9 +38,9 @@ class JediMaster:
         mod.launcher(*args, **kwargs)
 
     # convert config parameters
-    def convParams(self, itemStr):
+    def convParams(self, itemStr: str) -> list[Any]:
         items = itemStr.split(":")
-        newItems = []
+        newItems: list[Any] = []
         for item in items:
             if item == "":
                 newItems.append(None)
@@ -51,7 +54,7 @@ class JediMaster:
         return newItems
 
     # main loop
-    def start(self):
+    def start(self) -> None:
         # start zombie cleaner
         ZombieCleaner().start()
         # setup DDM I/F
@@ -161,12 +164,6 @@ class JediMaster:
             proc = multiprocessing.Process(target=self.launcher, args=("pandajedi.jediorder.JediMsgProcessor", stop_event))
             proc.start()
             knightList.append(proc)
-        # setup JediDaemon agent (only one system process)
-        if hasattr(jedi_config, "daemon") and hasattr(jedi_config.daemon, "enable") and jedi_config.daemon.enable:
-            parent_conn, child_conn = multiprocessing.Pipe()
-            proc = multiprocessing.Process(target=self.launcher, args=("pandajedi.jediorder.JediDaemon", taskBufferIF, ddmIF))
-            proc.start()
-            knightList.append(proc)
         # check initial failures
         time.sleep(5)
         for knight in knightList:
@@ -179,13 +176,13 @@ class JediMaster:
             knight.join()
 
     # graceful stop
-    def stop(self):
+    def stop(self) -> None:
         for stop_event in self.stopEventList:
             stop_event.set()
 
 
 # kill whole process
-def kill_whole(sig, frame):
+def kill_whole(sig: int, frame: FrameType | None) -> None:
     # kill
     os.killpg(os.getpgrp(), signal.SIGKILL)
 
@@ -225,7 +222,7 @@ if __name__ == "__main__":
             master = JediMaster()
 
             # set handler
-            def catch_sig(sig, frame):
+            def catch_sig(sig: int, frame: FrameType | None) -> None:
                 master.stop()
                 time.sleep(3)
                 kill_whole(sig, frame)

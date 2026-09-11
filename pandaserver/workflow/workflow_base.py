@@ -1,8 +1,8 @@
 import json
 from collections import namedtuple
-from dataclasses import MISSING, InitVar, asdict, dataclass, field
-from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
 
 # from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.base import SpecBase
@@ -141,7 +141,7 @@ class WorkflowBaseSpec(SpecBase):
     """
 
     @property
-    def parameter_map(self) -> dict:
+    def parameter_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by the parameters attribute in JSON
         Possible parameters:
@@ -153,10 +153,11 @@ class WorkflowBaseSpec(SpecBase):
         if self.parameters is None:
             return {}
         else:
-            return json.loads(self.parameters)
+            parameters: dict[str, Any] = json.loads(self.parameters)
+            return parameters
 
     @parameter_map.setter
-    def parameter_map(self, value_map: dict):
+    def parameter_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in parameters attribute in JSON
 
@@ -178,7 +179,7 @@ class WorkflowBaseSpec(SpecBase):
         tmp_dict = self.parameter_map
         return tmp_dict.get(param)
 
-    def set_parameter(self, param: str, value):
+    def set_parameter(self, param: str, value: Any) -> None:
         """
         Set the value of one parameter and store in parameters attribute in JSON
 
@@ -190,7 +191,7 @@ class WorkflowBaseSpec(SpecBase):
         tmp_dict[param] = value
         self.parameter_map = tmp_dict
 
-    def update_parameters(self, params: dict):
+    def update_parameters(self, params: dict[str, Any]) -> None:
         """
         Update values of parameters with a dict and store in parameters attribute in JSON
 
@@ -237,7 +238,7 @@ class WorkflowSpec(WorkflowBaseSpec):
     _seqAttrMap = {"workflow_id": f"{panda_config.schemaJEDI}.WORKFLOW_ID_SEQ.nextval"}
 
     @property
-    def raw_request_json_map(self) -> dict:
+    def raw_request_json_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by raw_request_json attribute in JSON
 
@@ -247,10 +248,11 @@ class WorkflowSpec(WorkflowBaseSpec):
         if self.raw_request_json is None:
             return {}
         else:
-            return json.loads(self.raw_request_json)
+            raw_request: dict[str, Any] = json.loads(self.raw_request_json)
+            return raw_request
 
     @raw_request_json_map.setter
-    def raw_request_json_map(self, value_map: dict):
+    def raw_request_json_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in raw_request_json attribute in JSON
 
@@ -260,7 +262,7 @@ class WorkflowSpec(WorkflowBaseSpec):
         self.raw_request_json = json.dumps(value_map)
 
     @property
-    def definition_json_map(self) -> dict:
+    def definition_json_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by definition_json attribute in JSON
 
@@ -270,10 +272,11 @@ class WorkflowSpec(WorkflowBaseSpec):
         if self.definition_json is None:
             return {}
         else:
-            return json.loads(self.definition_json)
+            definition: dict[str, Any] = json.loads(self.definition_json)
+            return definition
 
     @definition_json_map.setter
-    def definition_json_map(self, value_map: dict):
+    def definition_json_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in definition_json attribute in JSON
 
@@ -318,7 +321,7 @@ class WFStepSpec(WorkflowBaseSpec):
     _seqAttrMap = {"step_id": f"{panda_config.schemaJEDI}.WORKFLOW_STEP_ID_SEQ.nextval"}
 
     @property
-    def definition_json_map(self) -> dict:
+    def definition_json_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by definition_json attribute in JSON
 
@@ -328,10 +331,11 @@ class WFStepSpec(WorkflowBaseSpec):
         if self.definition_json is None:
             return {}
         else:
-            return json.loads(self.definition_json)
+            definition: dict[str, Any] = json.loads(self.definition_json)
+            return definition
 
     @definition_json_map.setter
-    def definition_json_map(self, value_map: dict):
+    def definition_json_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in definition_json attribute in JSON
 
@@ -376,7 +380,7 @@ class WFDataSpec(WorkflowBaseSpec):
     _seqAttrMap = {"data_id": f"{panda_config.schemaJEDI}.WORKFLOW_DATA_ID_SEQ.nextval"}
 
     @property
-    def metadata_map(self) -> dict:
+    def metadata_map(self) -> dict[str, Any]:
         """
         Get the dictionary parsed by metadata attribute in JSON
 
@@ -386,10 +390,11 @@ class WFDataSpec(WorkflowBaseSpec):
         if self.metadata is None:
             return {}
         else:
-            return json.loads(self.metadata)
+            metadata: dict[str, Any] = json.loads(self.metadata)
+            return metadata
 
     @metadata_map.setter
-    def metadata_map(self, value_map: dict):
+    def metadata_map(self, value_map: dict[str, Any]) -> None:
         """
         Set the dictionary and store in metadata attribute in JSON
 
@@ -409,12 +414,13 @@ class WFDataProcessResult:
 
     Fields:
         success (bool | None): Indicates if the processing was successful.
-        new_status (WFDataStatus | None): The new status of the data after processing, None if no change.
+        new_status (str | None): The new status of the data after processing, one of the
+            WFDataStatus constants, None if no change.
         message (str): A message providing additional information about the processing result.
     """
 
     success: bool | None = None
-    new_status: WFDataStatus | None = None
+    new_status: str | None = None
     message: str = ""
 
 
@@ -425,12 +431,13 @@ class WFStepProcessResult:
 
     Fields:
         success (bool | None): Indicates if the processing was successful.
-        new_status (WFStepStatus | None): The new status of the step after processing, None if no change.
+        new_status (str | None): The new status of the step after processing, one of the
+            WFStepStatus constants, None if no change.
         message (str): A message providing additional information about the processing result.
     """
 
     success: bool | None = None
-    new_status: WFStepStatus | None = None
+    new_status: str | None = None
     message: str = ""
 
 
@@ -441,13 +448,14 @@ class WorkflowProcessResult:
 
     Fields:
         success (bool | None): Indicates if the processing was successful.
-        new_status (WorkflowStatus | None): The new status of the workflow after processing, None if no change.
+        new_status (str | None): The new status of the workflow after processing, one of the
+            WorkflowStatus constants, None if no change.
         message (str): A message providing additional information about the processing result.
         immediate_recheck (bool): Indicates if an immediate re-check is requested.
     """
 
     success: bool | None = None
-    new_status: WorkflowStatus | None = None
+    new_status: str | None = None
     message: str = ""
     immediate_recheck: bool = False
 
@@ -478,7 +486,7 @@ class WFStepTargetCheckResult:
 
     Fields:
         success (bool | None): Indicates if the status check was successful.
-        status (WFStepStatus | None): The status of the step to move to.
+        status (str | None): The status of the step to move to, one of the WFStepStatus constants.
         native_status (str | None): The native status string from the target system.
         message (str): A message providing additional information about the status check result.
         output_ids (dict): Maps parent output data name to a list of raw target_id strings collected
@@ -487,10 +495,10 @@ class WFStepTargetCheckResult:
     """
 
     success: bool | None = None
-    step_status: WFStepStatus | None = None
+    step_status: str | None = None
     native_status: str | None = None
     message: str = ""
-    output_ids: dict = field(default_factory=dict)
+    output_ids: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -530,14 +538,15 @@ class WFDataTargetCheckResult:
 
     Fields:
         success (bool | None): Indicates if the status check was successful.
-        check_status (WFDataTargetCheckStatus | None): The status of the data target.
+        check_status (str | None): The status of the data target, one of the
+            WFDataTargetCheckStatus constants.
         metadata (dict | None): The native metadata from the target system.
         message (str): A message providing additional information about the status check result.
     """
 
     success: bool | None = None
-    check_status: WFDataTargetCheckStatus | None = None
-    metadata: dict | None = None
+    check_status: str | None = None
+    metadata: dict[str, Any] | None = None
     message: str = ""
 
 

@@ -1,3 +1,5 @@
+from typing import Any
+
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore import Interaction
 
@@ -5,11 +7,11 @@ from pandajedi.jedicore import Interaction
 # interface to JediTaskBuffer
 class JediTaskBufferInterface:
     # constructor
-    def __init__(self):
-        self.interface = None
+    def __init__(self) -> None:
+        self.interface: Interaction.CommandSendInterface | None = None
 
     # setup interface
-    def setupInterface(self, max_size=None):
+    def setupInterface(self, max_size: int | None = None) -> None:
         vo = "any"
         maxSize = max_size if max_size is not None else jedi_config.db.nWorkers
         moduleName = "pandajedi.jedicore.JediTaskBuffer"
@@ -17,16 +19,16 @@ class JediTaskBufferInterface:
         self.interface = Interaction.CommandSendInterface(vo, maxSize, moduleName, className)
         self.interface.initialize()
 
-    # method emulation
-    def __getattr__(self, attrName):
+    # method emulation. Everything JEDI calls on this object is a JediTaskBuffer method
+    # reached over a pipe, so a type checker can say nothing about any of them
+    def __getattr__(self, attrName: str) -> Any:
         return getattr(self.interface, attrName)
 
 
 if __name__ == "__main__":
 
-    def dummyClient(dif, stime):
+    def dummyClient(dif: JediTaskBufferInterface, stime: int) -> None:
         print("client test")
-        import time
 
         for i in range(3):
             # time.sleep(i*stime)

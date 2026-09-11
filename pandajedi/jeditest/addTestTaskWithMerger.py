@@ -1,5 +1,7 @@
 import sys
+from typing import Any
 
+metaID: str | None
 try:
     metaID = sys.argv[1]
 except Exception:
@@ -16,7 +18,7 @@ reqIdx = 100000000
 dsName = "mc12_8TeV.129933.McAtNloJimmy_AUET2CT10_WW_e_e_0_0_0_0_0.merge.AOD.e1563_s1499_s1504_r3658_r3549_tid00999168_00"
 logDatasetName = f"panda.jeditest.log.{uuid.uuid4()}"
 
-taskParamMap = {}
+taskParamMap: dict[str, Any] = {}
 
 taskParamMap["nFilesPerJob"] = 1
 taskParamMap["nFiles"] = 2
@@ -88,9 +90,9 @@ taskParamMap["jobParameters"] = [
 taskParamMap["mergeOutput"] = True
 taskParamMap["mergeSpec"] = {}
 taskParamMap["mergeSpec"]["transPath"] = "HITSMerge_tf.py"
-taskParamMap["mergeSpec"][
-    "jobParameters"
-] = "--AMITag s1776 --DBRelease=current --autoConfiguration=everything --outputHitsFile=${OUTPUT0} --inputHitsFile=${TRN_OUTPUT0} --inputLogsFile=${TRN_LOG0}"
+taskParamMap["mergeSpec"]["jobParameters"] = (
+    "--AMITag s1776 --DBRelease=current --autoConfiguration=everything --outputHitsFile=${OUTPUT0} --inputHitsFile=${TRN_OUTPUT0} --inputLogsFile=${TRN_LOG0}"
+)
 
 jonStr = json.dumps(taskParamMap)
 

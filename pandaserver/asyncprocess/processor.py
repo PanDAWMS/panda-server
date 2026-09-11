@@ -8,12 +8,14 @@ import json
 import os
 import socket
 import subprocess
+from collections.abc import Callable
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
-from pandaserver.asyncprocess import data_carousel_handlers
+from pandaserver.asyncprocess import TaskBufferLike, data_carousel_handlers
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE
 
@@ -54,14 +56,14 @@ _GZIP_SUFFIX = ".gz"
 _NO_SUCH_FILE = "No such file or directory"
 
 
-def _bounded_matcher(log_path, pattern, max_matches, from_stdin):
+def _bounded_matcher(log_path: str, pattern: str, max_matches: int, from_stdin: bool) -> list[str]:
     """The matcher command, capped, reading a path or standard input."""
     tool = "zgrep" if log_path.endswith(_GZIP_SUFFIX) else "rg"
     cmd = [tool, _MAX_COUNT_FLAG, str(max_matches), pattern]
     return cmd if from_stdin else cmd + [log_path]
 
 
-def _run_grep(log_path, pattern, max_matches, tail_bytes):
+def _run_grep(log_path: str, pattern: str, max_matches: int, tail_bytes: int | None) -> "subprocess.CompletedProcess[str]":
     """Run the matcher, optionally over just the tail of the file.
 
     The pipe is built process to process rather than through a shell: the
@@ -88,7 +90,8 @@ def _run_grep(log_path, pattern, max_matches, tail_bytes):
     # Hand the read end over completely.  Keeping a copy here would leave the
     # matcher's exit at the cap invisible to tail, which would then block on a
     # full pipe instead of being told to stop.
-    tail.stdout.close()
+    if tail.stdout is not None:
+        tail.stdout.close()
     try:
         stdout, stderr = matcher.communicate(timeout=_SUBPROCESS_TIMEOUT)
     except subprocess.TimeoutExpired:
@@ -103,7 +106,7 @@ def _run_grep(log_path, pattern, max_matches, tail_bytes):
     return subprocess.CompletedProcess(cmd, matcher.returncode, stdout, stderr)
 
 
-def _handle_grep(row, tb, tmp_logger, result_machine):
+def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper, result_machine: str) -> None:
     """Run rg or zgrep on a log file and store the output under result_machine's result row."""
     params = json.loads(row["parameters"])
     log_filename = params["log_filename"]
@@ -173,7 +176,7 @@ def _handle_grep(row, tb, tmp_logger, result_machine):
     )
 
 
-def _handle_sleep_echo(row, tb, tmp_logger, result_machine):
+def _handle_sleep_echo(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper, result_machine: str) -> None:
     """Sleep for the requested seconds, then echo the message; store echo stdout as the result."""
     params = json.loads(row["parameters"])
     seconds = params["seconds"]
@@ -219,8 +222,9 @@ def _handle_sleep_echo(row, tb, tmp_logger, result_machine):
     )
 
 
-# Register new request types here — no new daemon needed
-HANDLERS = {
+# Register new request types here — no new daemon needed. The handlers take the same four
+# arguments but are otherwise unrelated functions, hence the bare Callable
+HANDLERS: dict[str, Callable[..., None]] = {
     "grep": _handle_grep,
     "sleep_echo": _handle_sleep_echo,
     # Data Carousel operations, submitted by pandaserver.api.v1.data_carousel_api
@@ -228,7 +232,7 @@ HANDLERS = {
 }
 
 
-def run(service_name, tbuf=None):
+def run(service_name: str, tbuf: TaskBufferLike = None) -> None:
     """
     Process one daemon cycle for the given service.
     Call this from the service-specific entrypoint (daemon script or WatchDog).
@@ -258,7 +262,6 @@ def run(service_name, tbuf=None):
         tmp_logger = LogWrapper(_logger, prefix=f"< request_id={request_id} >")
         handler = HANDLERS.get(request_type)
         if handler is None:
-
             tmp_logger.warning(f"unknown request_type={request_type}")
             continue
         # "any" requests share a single result row keyed by the sentinel, so the claim and the

@@ -4,11 +4,13 @@ import random
 import sys
 import time
 import traceback
+from collections.abc import Sequence
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
-from pandacommon.pandautils.thread_utils import GenericThread, WeightedLists
+from pandacommon.pandautils.thread_utils import GenericThread, LockPool, WeightedLists
 
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
@@ -21,8 +23,8 @@ _logger = PandaLogger().getLogger("add_main")
 
 
 # main
-def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+def main(argv: Sequence[str] = (), tbuf: Any = None, lock_pool: LockPool | None = None, **kwargs: Any) -> bool:
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     prelock_pid = GenericThread().get_pid()
     tmpLog = LogWrapper(_logger, f"<pid={prelock_pid}>")
@@ -79,7 +81,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
 
     # thread for adder
     class AdderThread(GenericThread):
-        def __init__(self, taskBuffer, aSiteMapper, job_output_reports, lock_pool):
+        def __init__(self, taskBuffer: Any, aSiteMapper: SiteMapper, job_output_reports: WeightedLists, lock_pool: LockPool | None) -> None:
             GenericThread.__init__(self)
             self.taskBuffer = taskBuffer
             self.aSiteMapper = aSiteMapper
@@ -87,13 +89,12 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
             self.lock_pool = lock_pool
 
         # main loop
-        def run(self):
+        def run(self) -> None:
             # initialize
             taskBuffer = self.taskBuffer
             aSiteMapper = self.aSiteMapper
             # get file list
             timeNow = naive_utcnow()
-            timeInt = naive_utcnow()
             # unique pid
             GenericThread.__init__(self)
             uniq_pid = self.get_pid()
@@ -155,13 +156,13 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
             tmpLog.debug(f"pid={uniq_pid} : processed {n_processed}")
 
         # launcher, run with multiprocessing
-        def proc_launch(self):
+        def proc_launch(self) -> None:
             # run
             self.process = multiprocessing.Process(target=self.run)
             self.process.start()
 
         # join of multiprocessing
-        def proc_join(self):
+        def proc_join(self) -> None:
             self.process.join()
 
     # TaskBuffer with more connections behind TaskBufferInterface

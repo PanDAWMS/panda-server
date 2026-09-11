@@ -5,8 +5,11 @@ import re
 import sys
 import time
 import traceback
+from collections.abc import Sequence
+from typing import Any
 
 import requests
+import urllib3
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -24,16 +27,16 @@ _logger = PandaLogger().getLogger("copyArchive")
 
 
 # main
-def main(argv=tuple(), tbuf=None, **kwargs):
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # password
-    requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+    urllib3.disable_warnings(category=InsecureRequestWarning)
 
     _logger.debug("===================== start =====================")
 
     # memory checker
-    def _memoryCheck(str):
+    def _memoryCheck(str: str) -> None:
         try:
             proc_status = "/proc/%d/status" % os.getpid()
             procfile = open(proc_status)
@@ -89,7 +92,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             "WHERE f.PandaID=j.PandaID AND j.prodSourceLabel=:prodSourceLabel AND j.jobStatus=:jobStatus "
             "AND f.type=:type "
         )
-        var_map = {":jobStatus": "merging", ":prodSourceLabel": "user", ":type": "log"}
+        var_map: dict[str, Any] = {":jobStatus": "merging", ":prodSourceLabel": "user", ":type": "log"}
         status, res = taskBuffer.querySQLS(sql, var_map)
         destination_blocks = {}
         if res is not None:
@@ -150,7 +153,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                                         sql_missing = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE destinationDBlock=:destinationDBlock "
                                         var_map = {":destinationDBlock": tmpFileSpec.destinationDBlock}
                                         _, res_missing = taskBuffer.querySQLS(sql_missing, var_map)
-                                        missing_ids = [p for p, in res_missing]
+                                        missing_ids = [p for (p,) in res_missing]
                                         tmp_log.debug(f"missing {tmpFileSpec.destinationDBlock} to kill {missing_ids}")
                                         Client.kill_jobs(missing_ids, 2)
                                         killed_for_bad_record = True
@@ -165,7 +168,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                                         )
                                         var_map = {":jobStatus": "merging", ":destinationDBlock": tmpFileSpec.destinationDBlock}
                                         _, res_deleted = taskBuffer.querySQLS(sql_deleted, var_map)
-                                        deleted_ids = [p for p, in res_deleted]
+                                        deleted_ids = [p for (p,) in res_deleted]
                                         tmp_log.debug(f"deleted {tmpFileSpec.destinationDBlock} to kill {deleted_ids}")
                                         Client.kill_jobs(deleted_ids, 2)
                                         killed_for_bad_record = True
@@ -242,6 +245,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                                     continue
                                 sub_ds_names.add(tmpFileSpec.destinationDBlock)
                                 datasetSpec = taskBuffer.queryDatasetWithMap({"name": tmpFileSpec.destinationDBlock})
+                                if datasetSpec is None:
+                                    _logger.debug(f"sub dataset {tmpFileSpec.destinationDBlock} is missing")
+                                    continue
                                 sub_ds_list.append(datasetSpec)
                         _logger.debug(f"update unmerged datasets for jediTaskID={jediTaskID} PandaID={PandaID}")
                         taskBuffer.updateUnmergedDatasets(jobSpec, sub_ds_list, updateCompleted=True)
@@ -492,7 +498,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         {":creationTime": timeLimit},
     )
     jobs = []
-    dashFileMap = {}
     if res is not None:
         for pandaID, cloud, prodSourceLabel in res:
             # collect PandaIDs
@@ -537,8 +542,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             "(SELECT pandaqueuename FROM ATLAS_PANDA.HARVESTER_Slots) GROUP BY COMPUTINGSITE,JOBSTATUS,GSHARE "
         )
 
-        statsPerShare = {}
-        statsPerPQ = {}
+        statsPerShare: dict[str, Any] = {}
+        statsPerPQ: dict[str, Any] = {}
         for table in ["JOBS_SHARE_STATS", "JOBSDEFINED_SHARE_STATS"]:
             status, res = taskBuffer.querySQLS(sql.format(table), {})
             for computingSite, jobStatus, gshare, nJobs in res:
@@ -583,8 +588,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 statCheck = nStat["nq"] > nQueueLimit
                 fracCheck = nStat["nq"] > statsPerShare[gshare]["nq"] * fractionLimit
                 _logger.debug(
-                    "{} in {} : nQueue({})>nRun({})*{}: {},"
-                    " nQueue>nQueueThreshold({}):{}, nQueue>nQueue_total({})*{}:{}".format(
+                    "{} in {} : nQueue({})>nRun({})*{}: {}, nQueue>nQueueThreshold({}):{}, nQueue>nQueue_total({})*{}:{}".format(
                         computingSite,
                         gshare,
                         nStat["nq"],
@@ -620,13 +624,13 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         var_map[":jobStatus4"] = "starting"
                         var_map[":nRows"] = excess
                         status, res = taskBuffer.querySQLS(sql, var_map)
-                        jediJobs = [p for p, in res]
+                        jediJobs = [p for (p,) in res]
                         _logger.debug(f"got {len(jediJobs)} jobs to kill excess={excess}")
                         if jediJobs:
                             nJob = 100
                             iJob = 0
                             while iJob < len(jediJobs):
-                                _logger.debug(f"reassignJobs for JEDI at Nq/Nr overshoot site {computingSite} ({str(jediJobs[iJob:iJob + nJob])})")
+                                _logger.debug(f"reassignJobs for JEDI at Nq/Nr overshoot site {computingSite} ({str(jediJobs[iJob : iJob + nJob])})")
                                 Client.kill_jobs(jediJobs[iJob : iJob + nJob], 10, keep_unmerged=True)
                                 iJob += nJob
     except Exception as e:
@@ -709,7 +713,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 nJob = 100
                 iJob = 0
                 while iJob < len(jediJobs):
-                    _logger.debug(f"reassignJobs for JEDI at inactive site {tmpSite} ({jediJobs[iJob:iJob + nJob]})")
+                    _logger.debug(f"reassignJobs for JEDI at inactive site {tmpSite} ({jediJobs[iJob : iJob + nJob]})")
                     Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
                     iJob += nJob
 
@@ -742,7 +746,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug(f"reassignJobs for JEDI defined jobs ({jediJobs[iJob:iJob + nJob]})")
+            _logger.debug(f"reassignJobs for JEDI defined jobs ({jediJobs[iJob : iJob + nJob]})")
             Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
@@ -782,7 +786,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug(f"reassignJobs for long JEDI in defined table ({jediJobs[iJob:iJob + nJob]})")
+            _logger.debug(f"reassignJobs for long JEDI in defined table ({jediJobs[iJob : iJob + nJob]})")
             Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
@@ -808,7 +812,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 continue
             if lockedby == "jedi":
                 if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
-                    _logger.debug("retrying {0} in long activated" % pandaID)
+                    _logger.debug(f"retrying {pandaID} in long activated")
                     taskBuffer.retryJob(
                         pandaID,
                         {},
@@ -823,7 +827,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug(f"reassignJobs for long activated JEDI in active table ({jediJobs[iJob:iJob + nJob]})")
+            _logger.debug(f"reassignJobs for long activated JEDI in active table ({jediJobs[iJob : iJob + nJob]})")
             Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
@@ -856,7 +860,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug(f"reassignJobs for long stating JEDI in active table ({jediJobs[iJob:iJob + nJob]})")
+            _logger.debug(f"reassignJobs for long stating JEDI in active table ({jediJobs[iJob : iJob + nJob]})")
             Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
             iJob += nJob
 
@@ -899,7 +903,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug(f"killJobs for Pending ({str(jobs[iJob:iJob + nJob])})")
+                _logger.debug(f"killJobs for Pending ({str(jobs[iJob : iJob + nJob])})")
                 Client.kill_jobs(jobs[iJob : iJob + nJob], 4)
                 iJob += nJob
 
@@ -912,7 +916,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     sql = "SELECT PandaID,computingSite FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
     sql += "AND eventService=:esMerge ORDER BY jediTaskID "
     status, res = taskBuffer.querySQLS(sql, var_map)
-    jobsMap = {}
+    jobsMap: dict[str, Any] = {}
     if res is not None:
         for id, site in res:
             if site not in jobsMap:
@@ -925,7 +929,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug(f"kick waiting ES merge ({str(jobs[iJob:iJob + nJob])})")
+                _logger.debug(f"kick waiting ES merge ({str(jobs[iJob : iJob + nJob])})")
                 Client.kill_jobs(jobs[iJob : iJob + nJob], 2)
                 iJob += nJob
 
@@ -948,7 +952,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug(f"killJobs for Waiting ({str(jobs[iJob:iJob + nJob])})")
+                _logger.debug(f"killJobs for Waiting ({str(jobs[iJob : iJob + nJob])})")
                 Client.kill_jobs(jobs[iJob : iJob + nJob], 4)
                 iJob += nJob
 
@@ -972,7 +976,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug(f"killJobs for long running ES jobs ({str(jobs[iJob:iJob + nJob])})")
+            _logger.debug(f"killJobs for long running ES jobs ({str(jobs[iJob : iJob + nJob])})")
             Client.kill_jobs(
                 jobs[iJob : iJob + nJob],
                 2,
@@ -1000,7 +1004,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug(f"killJobs for long running ES merge jobs ({str(jobs[iJob:iJob + nJob])})")
+            _logger.debug(f"killJobs for long running ES merge jobs ({str(jobs[iJob : iJob + nJob])})")
             Client.kill_jobs(jobs[iJob : iJob + nJob], 2)
             iJob += nJob
 
@@ -1213,7 +1217,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         iJob = 0
         while iJob < len(jobs):
             # set tobekill
-            _logger.debug(f"killJobs for Running ({jobs[iJob:iJob + nJob]})")
+            _logger.debug(f"killJobs for Running ({jobs[iJob : iJob + nJob]})")
             Client.kill_jobs(jobs[iJob : iJob + nJob], 2)
             # run watcher
             for id in jobs[iJob : iJob + nJob]:
@@ -1320,7 +1324,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         "WHERE creationTime>:timeLimit AND creationTime>modificationTime "
         "AND (fileName like 'sources%' OR fileName like 'jobO%') "
     )
-    sqlU = "UPDATE ATLAS_PANDAMETA.userCacheUsage SET modificationTime=CURRENT_DATE " "WHERE userName=:userName AND fileName=:fileName "
+    sqlU = "UPDATE ATLAS_PANDAMETA.userCacheUsage SET modificationTime=CURRENT_DATE WHERE userName=:userName AND fileName=:fileName "
     status, res = taskBuffer.querySQLS(sqlC, {":timeLimit": timeLimit})
     if res is None:
         _logger.error("failed to get files")

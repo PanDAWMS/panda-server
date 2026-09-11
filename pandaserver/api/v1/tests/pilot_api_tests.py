@@ -1,16 +1,14 @@
 # Description: Unit tests for the Pilot API methods
-import os
 import unittest
-from datetime import datetime, timedelta
 
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 
 
 class TestPilotAPI(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.http_client = HttpClient()
 
-    def test_acquire_jobs(self):
+    def test_acquire_jobs(self) -> None:
         url = f"{api_url_ssl}/pilot/acquire_jobs"
         print(f"Testing URL: {url}")
         data = {
@@ -54,7 +52,7 @@ class TestPilotAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": False, "data": 2, "message": ""}
         self.assertEqual(output, expected_response)
 
-    def test_get_job_status(self):
+    def test_get_job_status(self) -> None:
         url = f"{api_url_ssl}/pilot/get_job_status"
         print(f"Testing URL: {url}")
         data = {
@@ -69,7 +67,7 @@ class TestPilotAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": False, "data": 2, "message": ""}
         self.assertEqual(output, expected_response)
 
-    def test_update_job(self):
+    def test_update_job(self) -> None:
         url = f"{api_url_ssl}/pilot/update_job"
         print(f"Testing URL: {url}")
         data = {"job_id": 4674379299, "job_status": "starting"}
@@ -81,7 +79,7 @@ class TestPilotAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": False, "data": 2, "message": ""}
         self.assertEqual(output, expected_response)
 
-    def test_update_worker_node(self):
+    def test_update_worker_node(self) -> None:
         url = f"{api_url_ssl}/pilot/update_worker_node"
         print(f"Testing URL: {url}")
         data = {
@@ -107,7 +105,7 @@ class TestPilotAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": True, "data": None, "message": "Inserted new worker node."}
         self.assertEqual(output, expected_response)
 
-    def test_update_worker_node_gpu(self):
+    def test_update_worker_node_gpu(self) -> None:
         url = f"{api_url_ssl}/pilot/update_worker_node_gpu"
         print(f"Testing URL: {url}")
         data = {

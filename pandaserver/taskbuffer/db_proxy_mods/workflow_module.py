@@ -1,32 +1,22 @@
-import json
-import os
-import re
-import sys
-from datetime import datetime, timedelta
+import logging
+from datetime import timedelta
+from typing import Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
-from pandaserver.srvcore import CoreUtils
-from pandaserver.taskbuffer import ErrorCode, JobUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMBER
-from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
-from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.workflow.workflow_base import (
     WFDataSpec,
-    WFDataStatus,
     WFStepSpec,
-    WFStepStatus,
     WorkflowSpec,
-    WorkflowStatus,
 )
 
 
 # Module class to define methods related to workflow
 class WorkflowModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     def get_workflow(self, workflow_id: int) -> WorkflowSpec | None:
@@ -41,7 +31,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_workflow */"
         tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_id}")
-        sql = f"SELECT {WorkflowSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflows " f"WHERE workflow_id=:workflow_id "
+        sql = f"SELECT {WorkflowSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflows WHERE workflow_id=:workflow_id "
         var_map = {":workflow_id": workflow_id}
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
@@ -56,8 +46,10 @@ class WorkflowModule(BaseModule):
         else:
             tmp_log.warning("no workflow found; skipped")
             return None
+        # no branch above produced a value, which the return type covers as None
+        return None
 
-    def get_child_workflows(self, parent_id: int) -> list:
+    def get_child_workflows(self, parent_id: int) -> list[WorkflowSpec]:
         """
         Retrieve all child workflows of a given parent workflow
 
@@ -69,7 +61,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_child_workflows */"
         tmp_log = self.create_tagged_logger(comment, f"parent_id={parent_id}")
-        sql = f"SELECT {WorkflowSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflows " f"WHERE parent_id=:parent_id "
+        sql = f"SELECT {WorkflowSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflows WHERE parent_id=:parent_id "
         var_map = {":parent_id": parent_id}
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
@@ -94,7 +86,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_workflow_step */"
         tmp_log = self.create_tagged_logger(comment, f"step_id={step_id}")
-        sql = f"SELECT {WFStepSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_steps " f"WHERE step_id=:step_id "
+        sql = f"SELECT {WFStepSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflow_steps WHERE step_id=:step_id "
         var_map = {":step_id": step_id}
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
@@ -109,6 +101,8 @@ class WorkflowModule(BaseModule):
         else:
             tmp_log.warning("no step found; skipped")
             return None
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def get_workflow_data(self, data_id: int) -> WFDataSpec | None:
         """
@@ -122,7 +116,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_workflow_data */"
         tmp_log = self.create_tagged_logger(comment, f"data_id={data_id}")
-        sql = f"SELECT {WFDataSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_data " f"WHERE data_id=:data_id "
+        sql = f"SELECT {WFDataSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflow_data WHERE data_id=:data_id "
         var_map = {":data_id": data_id}
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
@@ -137,6 +131,8 @@ class WorkflowModule(BaseModule):
         else:
             tmp_log.warning("no data found; skipped")
             return None
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def get_workflow_data_by_name(self, name: str, workflow_id: int | None) -> WFDataSpec | None:
         """
@@ -151,8 +147,8 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_workflow_data_by_name */"
         tmp_log = self.create_tagged_logger(comment, f"name={name}, workflow_id={workflow_id}")
-        sql = f"SELECT {WFDataSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_data " f"WHERE name=:name "
-        var_map = {":name": name}
+        sql = f"SELECT {WFDataSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflow_data WHERE name=:name "
+        var_map: dict[str, Any] = {":name": name}
         if workflow_id is not None:
             sql += "AND workflow_id=:workflow_id "
             var_map[":workflow_id"] = workflow_id
@@ -170,8 +166,12 @@ class WorkflowModule(BaseModule):
         else:
             tmp_log.warning("no data found; skipped")
             return None
+        # no branch above produced a value, which the return type covers as None
+        return None
 
-    def get_steps_of_workflow(self, workflow_id: int, status_filter_list: list | None = None, status_exclusion_list: list | None = None) -> list[WFStepSpec]:
+    def get_steps_of_workflow(
+        self, workflow_id: int, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None
+    ) -> list[WFStepSpec]:
         """
         Retrieve all workflow steps for a given workflow ID
 
@@ -185,7 +185,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_steps_of_workflow */"
         tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_id}")
-        sql = f"SELECT {WFStepSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_steps " f"WHERE workflow_id=:workflow_id "
+        sql = f"SELECT {WFStepSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflow_steps WHERE workflow_id=:workflow_id "
         var_map = {":workflow_id": workflow_id}
         if status_filter_list:
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
@@ -210,7 +210,11 @@ class WorkflowModule(BaseModule):
             return []
 
     def get_data_of_workflow(
-        self, workflow_id: int, status_filter_list: list | None = None, status_exclusion_list: list | None = None, type_filter_list: list | None = None
+        self,
+        workflow_id: int,
+        status_filter_list: list[str] | None = None,
+        status_exclusion_list: list[str] | None = None,
+        type_filter_list: list[str] | None = None,
     ) -> list[WFDataSpec]:
         """
         Retrieve all workflow data for a given workflow ID
@@ -226,7 +230,7 @@ class WorkflowModule(BaseModule):
         """
         comment = " /* DBProxy.get_data_of_workflow */"
         tmp_log = self.create_tagged_logger(comment, f"workflow_id={workflow_id}")
-        sql = f"SELECT {WFDataSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflow_data " f"WHERE workflow_id=:workflow_id "
+        sql = f"SELECT {WFDataSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflow_data WHERE workflow_id=:workflow_id "
         var_map = {":workflow_id": workflow_id}
         if status_filter_list:
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
@@ -255,7 +259,7 @@ class WorkflowModule(BaseModule):
             return []
 
     def query_workflows_old(
-        self, status_filter_list: list | None = None, status_exclusion_list: list | None = None, check_interval_sec: int = 300
+        self, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None, check_interval_sec: int = 300
     ) -> list[WorkflowSpec]:
         """
         Retrieve list of workflows with optional status filtering
@@ -279,7 +283,7 @@ class WorkflowModule(BaseModule):
         comment = " /* DBProxy.query_workflows_old */"
         tmp_log = self.create_tagged_logger(comment, "query_workflows_old")
         tmp_log.debug(f"start, status_filter_list={status_filter_list} status_exclusion_list={status_exclusion_list} check_interval_sec={check_interval_sec}")
-        sql = f"SELECT {WorkflowSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflows " f"WHERE (check_time IS NULL OR check_time<:check_time) "
+        sql = f"SELECT {WorkflowSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflows WHERE (check_time IS NULL OR check_time<:check_time) "
         now_time = naive_utcnow()
         var_map = {":check_time": now_time - timedelta(seconds=check_interval_sec)}
         if status_filter_list:
@@ -306,7 +310,7 @@ class WorkflowModule(BaseModule):
             return []
 
     def query_workflows(
-        self, status_filter_list: list | None = None, status_exclusion_list: list | None = None, check_interval_sec: int = 300
+        self, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None, check_interval_sec: int = 300
     ) -> list[WorkflowSpec]:
         """
         Retrieve list of workflows with optional status filtering, ordered for efficient
@@ -341,7 +345,7 @@ class WorkflowModule(BaseModule):
         comment = " /* DBProxy.query_workflows */"
         tmp_log = self.create_tagged_logger(comment, "query_workflows")
         tmp_log.debug(f"start, status_filter_list={status_filter_list} status_exclusion_list={status_exclusion_list} check_interval_sec={check_interval_sec}")
-        sql = f"SELECT {WorkflowSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.workflows " f"WHERE (check_time IS NULL OR check_time<:check_time) "
+        sql = f"SELECT {WorkflowSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflows WHERE (check_time IS NULL OR check_time<:check_time) "
         now_time = naive_utcnow()
         var_map = {":check_time": now_time - timedelta(seconds=check_interval_sec)}
         if status_filter_list:
@@ -404,19 +408,21 @@ class WorkflowModule(BaseModule):
                 cur.execute(sql_lock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to lock; skipped")
+                    tmp_log.error("failed to update DB to lock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one workflow updated to lock; unexpected")
+                    tmp_log.error("more than one workflow updated to lock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the lock
-                    tmp_log.debug(f"did not get lock; skipped")
+                    tmp_log.debug("did not get lock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully locked the workflow
-                    tmp_log.debug(f"got lock")
+                    tmp_log.debug("got lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to lock workflow: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def unlock_workflow(self, workflow_id: int, locked_by: str) -> bool | None:
         """
@@ -434,26 +440,28 @@ class WorkflowModule(BaseModule):
         tmp_log.debug("start")
         try:
             sql_unlock = (
-                f"UPDATE {panda_config.schemaJEDI}.workflows " "SET locked_by=NULL, lock_time=NULL " "WHERE workflow_id=:workflow_id AND locked_by=:locked_by"
+                f"UPDATE {panda_config.schemaJEDI}.workflows SET locked_by=NULL, lock_time=NULL WHERE workflow_id=:workflow_id AND locked_by=:locked_by"
             )
             var_map = {":workflow_id": workflow_id, ":locked_by": locked_by}
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 cur.execute(sql_unlock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to unlock; skipped")
+                    tmp_log.error("failed to update DB to unlock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one workflow updated to unlock; unexpected")
+                    tmp_log.error("more than one workflow updated to unlock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the unlock
-                    tmp_log.debug(f"no workflow updated to unlock; skipped")
+                    tmp_log.debug("no workflow updated to unlock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully unlocked the workflow
-                    tmp_log.debug(f"released lock")
+                    tmp_log.debug("released lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def lock_workflow_step(self, step_id: int, locked_by: str, lock_expiration_sec: int = 120) -> bool | None:
         """
@@ -488,19 +496,21 @@ class WorkflowModule(BaseModule):
                 cur.execute(sql_lock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to lock; skipped")
+                    tmp_log.error("failed to update DB to lock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one step updated to lock; unexpected")
+                    tmp_log.error("more than one step updated to lock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the lock
-                    tmp_log.debug(f"did not get lock; skipped")
+                    tmp_log.debug("did not get lock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully locked the workflow step
-                    tmp_log.debug(f"got lock")
+                    tmp_log.debug("got lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to lock workflow step: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def unlock_workflow_step(self, step_id: int, locked_by: str) -> bool | None:
         """
@@ -517,27 +527,27 @@ class WorkflowModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"step_id={step_id}, locked_by={locked_by}")
         tmp_log.debug("start")
         try:
-            sql_unlock = (
-                f"UPDATE {panda_config.schemaJEDI}.workflow_steps " "SET locked_by=NULL, lock_time=NULL " "WHERE step_id=:step_id AND locked_by=:locked_by"
-            )
+            sql_unlock = f"UPDATE {panda_config.schemaJEDI}.workflow_steps SET locked_by=NULL, lock_time=NULL WHERE step_id=:step_id AND locked_by=:locked_by"
             var_map = {":step_id": step_id, ":locked_by": locked_by}
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 cur.execute(sql_unlock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to unlock; skipped")
+                    tmp_log.error("failed to update DB to unlock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one step updated to unlock; unexpected")
+                    tmp_log.error("more than one step updated to unlock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the unlock
-                    tmp_log.debug(f"no step updated to unlock; skipped")
+                    tmp_log.debug("no step updated to unlock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully unlocked the workflow step
-                    tmp_log.debug(f"released lock")
+                    tmp_log.debug("released lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow step: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def lock_workflow_data(self, data_id: int, locked_by: str, lock_expiration_sec: int = 120) -> bool | None:
         """
@@ -572,19 +582,21 @@ class WorkflowModule(BaseModule):
                 cur.execute(sql_lock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to lock; skipped")
+                    tmp_log.error("failed to update DB to lock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one data updated to lock; unexpected")
+                    tmp_log.error("more than one data updated to lock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the lock
-                    tmp_log.debug(f"did not get lock; skipped")
+                    tmp_log.debug("did not get lock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully locked the workflow data
-                    tmp_log.debug(f"got lock")
+                    tmp_log.debug("got lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to lock workflow data: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def unlock_workflow_data(self, data_id: int, locked_by: str) -> bool | None:
         """
@@ -601,27 +613,27 @@ class WorkflowModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"data_id={data_id}, locked_by={locked_by}")
         tmp_log.debug("start")
         try:
-            sql_unlock = (
-                f"UPDATE {panda_config.schemaJEDI}.workflow_data " "SET locked_by=NULL, lock_time=NULL " "WHERE data_id=:data_id AND locked_by=:locked_by"
-            )
+            sql_unlock = f"UPDATE {panda_config.schemaJEDI}.workflow_data SET locked_by=NULL, lock_time=NULL WHERE data_id=:data_id AND locked_by=:locked_by"
             var_map = {":data_id": data_id, ":locked_by": locked_by}
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 cur.execute(sql_unlock + comment, var_map)
                 row_count = cur.rowcount
                 if row_count is None:
-                    tmp_log.error(f"failed to update DB to unlock; skipped")
+                    tmp_log.error("failed to update DB to unlock; skipped")
                 elif row_count > 1:
-                    tmp_log.error(f"more than one data updated to unlock; unexpected")
+                    tmp_log.error("more than one data updated to unlock; unexpected")
                 elif row_count == 0:
                     # no row updated; did not get the unlock
-                    tmp_log.debug(f"no data updated to unlock; skipped")
+                    tmp_log.debug("no data updated to unlock; skipped")
                     return False
                 elif row_count == 1:
                     # successfully unlocked the workflow data
-                    tmp_log.debug(f"released lock")
+                    tmp_log.debug("released lock")
                     return True
         except Exception as e:
             tmp_log.error(f"failed to unlock workflow data: {e}")
+        # no branch above produced a value, which the return type covers as None
+        return None
 
     def insert_workflow(self, workflow_spec: WorkflowSpec) -> int | None:
         """
@@ -733,9 +745,7 @@ class WorkflowModule(BaseModule):
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 # sql to update workflow
                 workflow_spec.modification_time = naive_utcnow()
-                sql_update = (
-                    f"UPDATE {panda_config.schemaJEDI}.workflows " f"SET {workflow_spec.bindUpdateChangesExpression()} " "WHERE workflow_id=:workflow_id "
-                )
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflows SET {workflow_spec.bindUpdateChangesExpression()} WHERE workflow_id=:workflow_id "
                 var_map = workflow_spec.valuesMap(useSeq=False, onlyChanged=True)
                 var_map[":workflow_id"] = workflow_spec.workflow_id
                 cur.execute(sql_update + comment, var_map)
@@ -761,7 +771,7 @@ class WorkflowModule(BaseModule):
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 # sql to update workflow step
                 step_spec.modification_time = naive_utcnow()
-                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_steps " f"SET {step_spec.bindUpdateChangesExpression()} " "WHERE step_id=:step_id "
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_steps SET {step_spec.bindUpdateChangesExpression()} WHERE step_id=:step_id "
                 var_map = step_spec.valuesMap(useSeq=False, onlyChanged=True)
                 var_map[":step_id"] = step_spec.step_id
                 cur.execute(sql_update + comment, var_map)
@@ -787,7 +797,7 @@ class WorkflowModule(BaseModule):
             with self.transaction(tmp_log=tmp_log) as (cur, _):
                 # sql to update workflow data
                 data_spec.modification_time = naive_utcnow()
-                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_data " f"SET {data_spec.bindUpdateChangesExpression()} " "WHERE data_id=:data_id "
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_data SET {data_spec.bindUpdateChangesExpression()} WHERE data_id=:data_id "
                 var_map = data_spec.valuesMap(useSeq=False, onlyChanged=True)
                 var_map[":data_id"] = data_spec.data_id
                 cur.execute(sql_update + comment, var_map)
@@ -799,11 +809,11 @@ class WorkflowModule(BaseModule):
     def upsert_workflow_entities(
         self,
         workflow_id: int | None,
-        actions_dict: dict | None = None,
+        actions_dict: dict[str, str | None] | None = None,
         workflow_spec: WorkflowSpec | None = None,
         step_specs: list[WFStepSpec] | None = None,
         data_specs: list[WFDataSpec] | None = None,
-    ) -> dict | None:
+    ) -> dict[str, int | None] | None:
         """
         Update or insert (if not existing) steps and data associated with a workflow within a transaction
 
@@ -846,8 +856,9 @@ class WorkflowModule(BaseModule):
             n_steps_upserted = 0
             n_data_upserted = 0
             with self.transaction(tmp_log=tmp_log) as (cur, _):
-                # action for data
-                if action_of_data == "insert":
+                # action for data. Each action was only set above when the matching
+                # specs were given, which is what the second test says
+                if action_of_data == "insert" and data_specs:
                     for data_spec in data_specs:
                         data_spec.creation_time = naive_utcnow()
                         sql_insert = (
@@ -862,19 +873,17 @@ class WorkflowModule(BaseModule):
                         data_spec.data_id = data_id
                         n_data_upserted += 1
                         tmp_log.debug(f"inserted a data workflow_id={workflow_id} data_id={data_id}")
-                elif action_of_data == "update":
+                elif action_of_data == "update" and data_specs:
                     for data_spec in data_specs:
                         data_spec.modification_time = naive_utcnow()
-                        sql_update = (
-                            f"UPDATE {panda_config.schemaJEDI}.workflow_data " f"SET {data_spec.bindUpdateChangesExpression()} " "WHERE data_id=:data_id "
-                        )
+                        sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_data SET {data_spec.bindUpdateChangesExpression()} WHERE data_id=:data_id "
                         var_map = data_spec.valuesMap(useSeq=False, onlyChanged=True)
                         var_map[":data_id"] = data_spec.data_id
                         self.cur.execute(sql_update + comment, var_map)
                         n_data_upserted += 1
                         tmp_log.debug(f"updated a data workflow_id={workflow_id} data_id={data_spec.data_id}")
                 # action for steps
-                if action_of_steps == "insert":
+                if action_of_steps == "insert" and step_specs:
                     for step_spec in step_specs:
                         step_spec.creation_time = naive_utcnow()
                         sql_insert = (
@@ -889,19 +898,17 @@ class WorkflowModule(BaseModule):
                         step_spec.step_id = step_id
                         n_steps_upserted += 1
                         tmp_log.debug(f"inserted a step workflow_id={workflow_id} step_id={step_id}")
-                elif action_of_steps == "update":
+                elif action_of_steps == "update" and step_specs:
                     for step_spec in step_specs:
                         step_spec.modification_time = naive_utcnow()
-                        sql_update = (
-                            f"UPDATE {panda_config.schemaJEDI}.workflow_steps " f"SET {step_spec.bindUpdateChangesExpression()} " "WHERE step_id=:step_id "
-                        )
+                        sql_update = f"UPDATE {panda_config.schemaJEDI}.workflow_steps SET {step_spec.bindUpdateChangesExpression()} WHERE step_id=:step_id "
                         var_map = step_spec.valuesMap(useSeq=False, onlyChanged=True)
                         var_map[":step_id"] = step_spec.step_id
                         self.cur.execute(sql_update + comment, var_map)
                         n_steps_upserted += 1
                         tmp_log.debug(f"updated a step workflow_id={workflow_id} step_id={step_spec.step_id}")
                 # action for workflow
-                if action_of_workflow == "insert":
+                if action_of_workflow == "insert" and workflow_spec:
                     workflow_spec.creation_time = naive_utcnow()
                     sql_insert = (
                         f"INSERT INTO {panda_config.schemaJEDI}.workflows ({workflow_spec.columnNames()}) "
@@ -914,11 +921,9 @@ class WorkflowModule(BaseModule):
                     workflow_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_workflow_id"])))
                     workflow_spec.workflow_id = workflow_id
                     tmp_log.debug(f"inserted a workflow workflow_id={workflow_id}")
-                elif action_of_workflow == "update":
+                elif action_of_workflow == "update" and workflow_spec:
                     workflow_spec.modification_time = naive_utcnow()
-                    sql_update = (
-                        f"UPDATE {panda_config.schemaJEDI}.workflows " f"SET {workflow_spec.bindUpdateChangesExpression()} " "WHERE workflow_id=:workflow_id "
-                    )
+                    sql_update = f"UPDATE {panda_config.schemaJEDI}.workflows SET {workflow_spec.bindUpdateChangesExpression()} WHERE workflow_id=:workflow_id "
                     var_map = workflow_spec.valuesMap(useSeq=False, onlyChanged=True)
                     var_map[":workflow_id"] = workflow_spec.workflow_id
                     self.cur.execute(sql_update + comment, var_map)

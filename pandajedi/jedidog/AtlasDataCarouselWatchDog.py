@@ -1,24 +1,22 @@
-import datetime
-import os
-import re
-import socket
 import sys
 import time
 import traceback
+from typing import TYPE_CHECKING
 
 # logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandautils.PandaUtils import naive_utcnow
 
+from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
-from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
 from pandaserver.taskbuffer.DataCarousel import (
     DataCarouselInterface,
-    DataCarouselRequestSpec,
-    DataCarouselRequestStatus,
 )
 
 from .WatchDogBase import WatchDogBase
+
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -40,13 +38,15 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
     """
 
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface") -> None:
         WatchDogBase.__init__(self, taskBufferIF, ddmIF)
         self.vo = "atlas"
-        self.ddmIF = ddmIF.getInterface(self.vo)
-        self.data_carousel_interface = DataCarouselInterface(taskBufferIF, self.ddmIF)
+        # DataCarouselInterface talks to Rucio through the module-level rucioAPI and takes
+        # no DDM interface, so the ATLAS plugin this used to build and pass was discarded
+        # unread by its *args; every other caller passes the task buffer alone
+        self.data_carousel_interface = DataCarouselInterface(taskBufferIF)
 
-    def doStageDCRequests(self):
+    def doStageDCRequests(self) -> None:
         """
         Action to get queued DC requests and start staging
         """
@@ -79,7 +79,7 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             errtype, errvalue = sys.exc_info()[:2]
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
-    def doCheckDCRequests(self):
+    def doCheckDCRequests(self) -> None:
         """
         Action to check active DC requests
         """
@@ -97,12 +97,12 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             # resume tasks with requests in staging
             self.data_carousel_interface.resume_tasks_from_staging()
             # done
-            tmpLog.debug(f"done")
+            tmpLog.debug("done")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
-    def doKeepRulesAlive(self):
+    def doKeepRulesAlive(self) -> None:
         """
         Action to keep DDM staging rules alive when tasks running
         """
@@ -118,12 +118,12 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             # get requests of active tasks
             self.data_carousel_interface.keep_alive_ddm_rules()
             # done
-            tmpLog.debug(f"done")
+            tmpLog.debug("done")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
-    def doCleanDCRequests(self):
+    def doCleanDCRequests(self) -> None:
         """
         Action to clean up old DC requests in DB table
         """
@@ -144,7 +144,7 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             errtype, errvalue = sys.exc_info()[:2]
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
-    def doRescuePendingTasks(self):
+    def doRescuePendingTasks(self) -> None:
         """
         Action to rescue pending tasks stuck due to never updated staged files about previously done DC requests
         """
@@ -160,13 +160,13 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             # rescue pending tasks
             self.data_carousel_interface.rescue_pending_tasks_with_done_requests()
             # done
-            tmpLog.debug(f"done")
+            tmpLog.debug("done")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
     # main
-    def doAction(self):
+    def doAction(self) -> Interaction.StatusCode:
         try:
             # get logger
             origTmpLog = MsgWrapper(logger)

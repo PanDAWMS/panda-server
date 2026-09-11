@@ -47,6 +47,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import Any
 
 try:
     import httpx
@@ -96,7 +97,7 @@ def _build_ssl_context() -> ssl.SSLContext:
 class TokenManager:
     """Thread-safe token cache with silent refresh via refresh_token."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = asyncio.Lock()
         self._id_token: str = ""
         self._exp: float = 0.0
@@ -114,14 +115,15 @@ class TokenManager:
             return 0.0
 
     @staticmethod
-    def _load_file() -> dict:
+    def _load_file() -> dict[str, Any]:
         try:
-            return json.loads(TOKEN_FILE.read_text())
+            contents: dict[str, Any] = json.loads(TOKEN_FILE.read_text())
+            return contents
         except Exception:
             return {}
 
     @staticmethod
-    def _save_file(data: dict) -> None:
+    def _save_file(data: dict[str, Any]) -> None:
         try:
             TOKEN_FILE.write_text(json.dumps(data))
         except Exception as exc:
@@ -129,18 +131,20 @@ class TokenManager:
 
     # urllib is used here (no httpx) so this can be called without an async client
     @staticmethod
-    def _http_get_json(url: str, ssl_ctx: ssl.SSLContext) -> dict:
+    def _http_get_json(url: str, ssl_ctx: ssl.SSLContext) -> dict[str, Any]:
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req, context=ssl_ctx, timeout=15) as r:
-            return json.load(r)
+            payload: dict[str, Any] = json.load(r)
+            return payload
 
     @staticmethod
-    def _http_post_form(url: str, data: dict, ssl_ctx: ssl.SSLContext) -> dict:
+    def _http_post_form(url: str, data: dict[str, str], ssl_ctx: ssl.SSLContext) -> dict[str, Any]:
         encoded = urllib.parse.urlencode(data).encode()
         req = urllib.request.Request(url, data=encoded, method="POST")
         req.add_header("Content-Type", "application/x-www-form-urlencoded")
         with urllib.request.urlopen(req, context=ssl_ctx, timeout=15) as r:
-            return json.load(r)
+            payload: dict[str, Any] = json.load(r)
+            return payload
 
     async def _do_refresh(self, refresh_token: str) -> str:
         """Use refresh_token to obtain a fresh id_token. Returns '' on failure."""
@@ -166,7 +170,7 @@ class TokenManager:
             log.error("Token refresh request failed: %s", exc)
             return ""
 
-        id_token = token_resp.get("id_token", "")
+        id_token: str = token_resp.get("id_token", "")
         if id_token:
             self._save_file(token_resp)
             log.warning("id_token refreshed successfully.")
@@ -187,7 +191,7 @@ class TokenManager:
 
             # Try token file
             data = self._load_file()
-            id_token = data.get("id_token", "")
+            id_token: str = data.get("id_token", "")
             if id_token:
                 exp = self._decode_exp(id_token)
                 if exp - now > TOKEN_REFRESH_MARGIN:
@@ -226,11 +230,11 @@ def _parse_sse(lines: list[str]) -> tuple[str, str]:
 # ── Stdio helpers (cross-platform) ────────────────────────────────────────────
 
 
-async def _read_stdin_lines(queue: asyncio.Queue) -> None:
+async def _read_stdin_lines(queue: asyncio.Queue[str]) -> None:
     """Read newline-delimited JSON from stdin and push to queue. Runs in a thread."""
     loop = asyncio.get_event_loop()
 
-    def _blocking_read():
+    def _blocking_read() -> str:
         # sys.stdin.readline returns '' on EOF; works on Windows and Unix
         return sys.stdin.readline()
 
@@ -243,11 +247,11 @@ async def _read_stdin_lines(queue: asyncio.Queue) -> None:
             await queue.put(line)
 
 
-async def _write_stdout_lines(queue: asyncio.Queue) -> None:
+async def _write_stdout_lines(queue: asyncio.Queue[str]) -> None:
     """Write newline-delimited JSON from queue to stdout."""
     loop = asyncio.get_event_loop()
 
-    def _blocking_write(msg: str):
+    def _blocking_write(msg: str) -> None:
         sys.stdout.write(msg + "\n")
         sys.stdout.flush()
 
@@ -267,13 +271,13 @@ async def _write_stdout_lines(queue: asyncio.Queue) -> None:
 
 
 class MCPProxy:
-    def __init__(self):
+    def __init__(self) -> None:
         self.tokens = TokenManager()
         self._session_id: str | None = None
-        self._outbound: asyncio.Queue = asyncio.Queue()  # stdin  → remote
-        self._inbound: asyncio.Queue = asyncio.Queue()  # remote → stdout
+        self._outbound: asyncio.Queue[str] = asyncio.Queue()  # stdin  → remote
+        self._inbound: asyncio.Queue[str] = asyncio.Queue()  # remote → stdout
 
-    async def _headers(self, extra: dict | None = None) -> dict:
+    async def _headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         token = await self.tokens.get()
         h = {
             "Authorization": f"Bearer {token}",

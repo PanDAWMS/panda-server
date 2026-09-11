@@ -1,24 +1,20 @@
 import atexit
 import copy
-import functools
 import importlib
 import json
 import os
-import random
-import re
 import socket
-import time
 import traceback
 from collections import namedtuple
+from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
-from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.workflow.workflow_base import (
@@ -90,7 +86,7 @@ def _get_flavor_plugin_class_map() -> Dict[str, Dict[str, Any]]:
     if _flavor_plugin_class_map_cache is not None:
         return _flavor_plugin_class_map_cache
     logger.debug("Initializing workflow plugin class map")
-    flavor_plugin_class_map = {}
+    flavor_plugin_class_map: dict[str, Any] = {}
     for plugin_type, plugins in PLUGIN_RAW_MAP.items():
         flavor_plugin_class_map[plugin_type] = {}
         for flavor, (module_name, class_name) in plugins.items():
@@ -109,7 +105,7 @@ def _get_flavor_plugin_class_map() -> Dict[str, Dict[str, Any]]:
 # ==== Functions ===============================================
 
 
-def get_plugin_class(plugin_type: str, flavor: str):
+def get_plugin_class(plugin_type: str, flavor: str) -> Any:
     """
     Get the plugin class for the given type and flavor
 
@@ -132,7 +128,7 @@ class WorkflowInterface(object):
     Interface for workflow management methods
     """
 
-    def __init__(self, task_buffer, *args, **kwargs):
+    def __init__(self, task_buffer: Any, *args: Any, **kwargs: Any) -> None:
         """
         Constructor
 
@@ -141,14 +137,18 @@ class WorkflowInterface(object):
             *args: Additional arguments
             **kwargs: Additional keyword arguments
         """
+        # A TaskBuffer when the API server builds this, or JEDI's JediTaskBufferInterface,
+        # which forwards every method to JediTaskBuffer through CommandSendInterface.
+        # panda-server cannot name the JEDI class and __getattr__ is invisible to a type
+        # checker, so Any is as close as this gets.
         self.tbif = task_buffer
         self.ddm_if = rucioAPI
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
-        self.plugin_map = {}
-        self.mb_proxy = None
+        self.plugin_map: dict[str, dict[str, Any]] = {}
+        self.mb_proxy: Any = None
         self.set_mb_proxy()
 
-    def get_plugin(self, plugin_type: str, flavor: str):
+    def get_plugin(self, plugin_type: str, flavor: str) -> Any:
         """
         Get the plugin instance for the given type and flavor
 
@@ -170,18 +170,17 @@ class WorkflowInterface(object):
                 plugin = self.plugin_map[plugin_type][flavor]
         return plugin
 
-    def set_mb_proxy(self):
+    def set_mb_proxy(self) -> None:
         """
         Set the message broker proxy for workflow manager messaging
         """
         try:
-            jedi_config = None
             try:
                 jedi_config = importlib.import_module("pandajedi.jediconfig.jedi_config")
             except Exception:
                 jedi_config = importlib.import_module("pandajedi.jediconfig").jedi_config
             if hasattr(jedi_config, "mq") and hasattr(jedi_config.mq, "configFile") and jedi_config.mq.configFile:
-                MsgProcAgent = importlib.import_module(f"pandajedi.jediorder.JediMsgProcessor").MsgProcAgent
+                MsgProcAgent = importlib.import_module("pandajedi.jediorder.JediMsgProcessor").MsgProcAgent
             else:
                 logger.warning("Message queue config not found in jedi_config; skipped workflow manager messaging")
                 return None
@@ -200,7 +199,7 @@ class WorkflowInterface(object):
             logger.warning(f"Failed to set mb_proxy about queue {MESSAGE_QUEUE_NAME}; skipped workflow manager messaging: {traceback.format_exc()}")
             return None
 
-    def _send_message(self, tmp_log, msg_type: str, data_dict: Dict[str, Any] = None):
+    def _send_message(self, tmp_log: LogWrapper, msg_type: str, data_dict: Dict[str, Any] | None = None) -> None:
         """
         Send a message to the workflow manager message queue
 
@@ -215,7 +214,7 @@ class WorkflowInterface(object):
             now_time = naive_utcnow()
             now_ts = int(now_time.timestamp())
             # get mbproxy
-            msg_dict = {}
+            msg_dict: dict[str, Any] = {}
             if data_dict:
                 msg_dict.update(data_dict)
             msg_dict.update(
@@ -226,11 +225,11 @@ class WorkflowInterface(object):
             )
             msg = json.dumps(msg_dict)
             self.mb_proxy.send(msg)
-            tmp_log.debug(f"Sent message")
+            tmp_log.debug("Sent message")
         except Exception:
             tmp_log.error(f"Failed to send message to workflow manager queue {MESSAGE_QUEUE_NAME}: {traceback.format_exc()}")
 
-    def send_workflow_message(self, workflow_id: int):
+    def send_workflow_message(self, workflow_id: int) -> None:
         """
         Send a message about the workflow to the workflow manager message queue
 
@@ -240,7 +239,7 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, f"send_workflow_message <workflow_id={workflow_id}>")
         self._send_message(tmp_log, "workflow", {"workflow_id": workflow_id})
 
-    def send_step_message(self, step_id: int):
+    def send_step_message(self, step_id: int) -> None:
         """
         Send a message about the workflow step to the workflow manager message queue
 
@@ -250,7 +249,7 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, f"send_step_message <step_id={step_id}>")
         self._send_message(tmp_log, "wfstep", {"step_id": step_id})
 
-    def send_data_message(self, data_id: int):
+    def send_data_message(self, data_id: int) -> None:
         """
         Send a message about the workflow data to the workflow manager message queue
 
@@ -263,7 +262,7 @@ class WorkflowInterface(object):
     # --- Context managers for locking -------------------------
 
     @contextmanager
-    def workflow_lock(self, workflow_id: int, lock_expiration_sec: int = 120):
+    def workflow_lock(self, workflow_id: int, lock_expiration_sec: int = 120) -> Iterator[WorkflowSpec | None]:
         """
         Context manager to lock a workflow
 
@@ -287,7 +286,7 @@ class WorkflowInterface(object):
             yield None
 
     @contextmanager
-    def workflow_step_lock(self, step_id: int, lock_expiration_sec: int = 120):
+    def workflow_step_lock(self, step_id: int, lock_expiration_sec: int = 120) -> Iterator[WFStepSpec | None]:
         """
         Context manager to lock a workflow step
 
@@ -311,7 +310,7 @@ class WorkflowInterface(object):
             yield None
 
     @contextmanager
-    def workflow_data_lock(self, data_id: int, lock_expiration_sec: int = 120):
+    def workflow_data_lock(self, data_id: int, lock_expiration_sec: int = 120) -> Iterator[WFDataSpec | None]:
         """
         Context manager to lock workflow data
 
@@ -341,10 +340,10 @@ class WorkflowInterface(object):
         prodsourcelabel: str,
         user_dn: str,
         workflow_name: str | None = None,
-        workflow_definition: dict | None = None,
-        raw_request_params: dict | None = None,
-        *args,
-        **kwargs,
+        workflow_definition: dict[str, Any] | None = None,
+        raw_request_params: dict[str, Any] | None = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> int | None:
         """
         Register a new workflow
@@ -378,14 +377,14 @@ class WorkflowInterface(object):
             raw_request_params["user_dn"] = user_dn
             workflow_spec.raw_request_json = json.dumps(raw_request_params, default=json_serialize_default)
         else:
-            tmp_log.error(f"Either workflow_definition or raw_request_params must be provided")
+            tmp_log.error("Either workflow_definition or raw_request_params must be provided")
             return None
         workflow_spec.creation_time = naive_utcnow()
         workflow_spec.status = WorkflowStatus.registered
         # Insert to DB
-        ret_workflow_id = self.tbif.insert_workflow(workflow_spec)
+        ret_workflow_id: int | None = self.tbif.insert_workflow(workflow_spec)
         if ret_workflow_id is None:
-            tmp_log.error(f"Failed to register workflow")
+            tmp_log.error("Failed to register workflow")
             return None
         tmp_log.info(f"Registered workflow <workflow_id={ret_workflow_id}>")
         return ret_workflow_id
@@ -406,7 +405,7 @@ class WorkflowInterface(object):
         try:
             with self.workflow_lock(workflow_id) as workflow_spec:
                 if workflow_spec is None:
-                    tmp_log.warning(f"Failed to acquire lock; skipped")
+                    tmp_log.warning("Failed to acquire lock; skipped")
                     return False
                 if workflow_spec.status in WorkflowStatus.final_statuses:
                     tmp_log.debug(f"Workflow already in final status {workflow_spec.status}; skipped")
@@ -415,7 +414,7 @@ class WorkflowInterface(object):
                 all_cancelled = True
                 step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id)
                 if step_specs is None:
-                    tmp_log.warning(f"Failed to get steps of the workflow; skipped cancelling steps")
+                    tmp_log.warning("Failed to get steps of the workflow; skipped cancelling steps")
                     all_cancelled = False
                 else:
                     for step_spec in step_specs:
@@ -423,7 +422,7 @@ class WorkflowInterface(object):
                             all_cancelled = False
                 data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id)
                 if data_specs is None:
-                    tmp_log.warning(f"Failed to get data of the workflow; skipped cancelling data")
+                    tmp_log.warning("Failed to get data of the workflow; skipped cancelling data")
                     all_cancelled = False
                 else:
                     for data_spec in data_specs:
@@ -439,14 +438,14 @@ class WorkflowInterface(object):
                                 all_cancelled = False
                 # Update workflow status to cancelled if all steps and data are cancelled
                 if not all_cancelled and not force:
-                    tmp_log.warning(f"Not all steps and data could be cancelled; skipped updating workflow status")
+                    tmp_log.warning("Not all steps and data could be cancelled; skipped updating workflow status")
                     return False
                 else:
                     workflow_spec.status = WorkflowStatus.cancelled
                     workflow_spec.end_time = naive_utcnow()
                     self.tbif.update_workflow(workflow_spec)
                     if force and not all_cancelled:
-                        tmp_log.warning(f"Force cancelled workflow without cancelling all steps and data")
+                        tmp_log.warning("Force cancelled workflow without cancelling all steps and data")
                     else:
                         tmp_log.info(f"Cancelled workflow, updated status to {workflow_spec.status}")
                     return True
@@ -473,7 +472,7 @@ class WorkflowInterface(object):
         try:
             with self.workflow_step_lock(step_id) as step_spec:
                 if step_spec is None:
-                    tmp_log.warning(f"Failed to acquire lock; skipped")
+                    tmp_log.warning("Failed to acquire lock; skipped")
                     return False
                 log_prefix += f" workflow_id={step_spec.workflow_id} member_id={step_spec.member_id}"
                 tmp_log = LogWrapper(logger, log_prefix)
@@ -505,14 +504,14 @@ class WorkflowInterface(object):
                             target_is_cancelled = True
                 # Update step status to cancelled
                 if not target_is_cancelled and not force:
-                    tmp_log.warning(f"Target not cancelled; skipped updating step status")
+                    tmp_log.warning("Target not cancelled; skipped updating step status")
                     return False
                 else:
                     step_spec.status = WFStepStatus.cancelled
                     step_spec.end_time = naive_utcnow()
                     self.tbif.update_workflow_step(step_spec)
                     if force and not target_is_cancelled:
-                        tmp_log.warning(f"Force cancelled step without cancelling target")
+                        tmp_log.warning("Force cancelled step without cancelling target")
                     else:
                         tmp_log.info(f"Cancelled step, updated status to {step_spec.status}")
                     return True
@@ -539,7 +538,7 @@ class WorkflowInterface(object):
         try:
             with self.workflow_data_lock(data_id) as data_spec:
                 if data_spec is None:
-                    tmp_log.warning(f"Failed to acquire lock; skipped")
+                    tmp_log.warning("Failed to acquire lock; skipped")
                     return False
                 log_prefix += f" workflow_id={data_spec.workflow_id}"
                 tmp_log = LogWrapper(logger, log_prefix)
@@ -654,7 +653,7 @@ class WorkflowInterface(object):
         tmp_log.info(f"Submitted child workflow {child_workflow_id}")
         return result
 
-    def instantiate_scatter_workflow(self, workflow_spec: WorkflowSpec, scatter_definition: dict) -> WorkflowProcessResult:
+    def instantiate_scatter_workflow(self, workflow_spec: WorkflowSpec, scatter_definition: dict[str, Any]) -> WorkflowProcessResult:
         """
         Expand a scatter definition into N parallel sub-workflow steps, one per scatter item.
 
@@ -700,7 +699,7 @@ class WorkflowInterface(object):
         # Determine number of iterations based on scatter_inputs; in 'zip' mode, all input lists must have the same length
         input_lengths = {name: len(values) for name, values in scatter_inputs.items()}
         if len(set(input_lengths.values())) > 1:
-            tmp_log.warning(f"scatter_inputs have mismatched lengths {input_lengths} in 'zip' mode; " f"truncating to the shortest list")
+            tmp_log.warning(f"scatter_inputs have mismatched lengths {input_lengths} in 'zip' mode; truncating to the shortest list")
         n_iterations = min(input_lengths.values())
         if n_iterations == 0:
             workflow_spec.status = WorkflowStatus.done
@@ -760,7 +759,7 @@ class WorkflowInterface(object):
         return process_result
 
     @staticmethod
-    def _expand_output_data_to_ddm_names(data_spec: WFDataSpec) -> list:
+    def _expand_output_data_to_ddm_names(data_spec: WFDataSpec) -> list[str]:
         """
         Expand an output data spec's base target_id into the actual DDM dataset names.
 
@@ -781,7 +780,7 @@ class WorkflowInterface(object):
             return [f"{data_spec.target_id}_{ot}" for ot in output_types]
         return [data_spec.target_id]
 
-    def resolve_sub_workflow_outputs(self, step_spec: WFStepSpec, child_workflow_id: int) -> dict:
+    def resolve_sub_workflow_outputs(self, step_spec: WFStepSpec, child_workflow_id: int) -> dict[str, list[str]]:
         """
         Collect output target_ids from a completed sub-workflow (scatter or regular) for aggregation.
 
@@ -855,9 +854,9 @@ class WorkflowInterface(object):
         self,
         tmp_log: LogWrapper,
         step_spec: WFStepSpec,
-        output_ids: dict,
-        data_spec_map: dict,
-        now_time,
+        output_ids: dict[str, list[str]],
+        data_spec_map: Dict[str, WFDataSpec],
+        now_time: datetime,
     ) -> None:
         """
         Write aggregated sub-workflow output target_ids into the parent workflow's data specs.
@@ -1006,7 +1005,6 @@ class WorkflowInterface(object):
         # Process
         try:
             # Check data availability
-            original_status = data_spec.status
             # Get the data handler plugin
             data_handler = self.get_plugin("data_handler", data_spec.flavor)
             if data_handler is None:
@@ -1208,7 +1206,7 @@ class WorkflowInterface(object):
                         pass
                     case WFDataTargetCheckStatus.nonexist:
                         # Data not exist anymore, unexpected, log and skip
-                        tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
+                        tmp_log.warning("Data do not exist anymore, unexpected; skipped")
                     case _:
                         process_result.message = f"Unexpected check_status {check_result.check_status} from target check result; skipped"
                         tmp_log.warning(f"{process_result.message}")
@@ -1225,10 +1223,10 @@ class WorkflowInterface(object):
                         pass
                     case WFDataTargetCheckStatus.insuffi:
                         # Data not sufficient anymore, unexpected, log and skip
-                        tmp_log.warning(f"Data are not sufficient anymore, unexpected; skipped")
+                        tmp_log.warning("Data are not sufficient anymore, unexpected; skipped")
                     case WFDataTargetCheckStatus.nonexist:
                         # Data not exist anymore, unexpected, log and skip
-                        tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
+                        tmp_log.warning("Data do not exist anymore, unexpected; skipped")
                     case _:
                         process_result.message = f"Unexpected check_status {check_result.check_status} from target check result; skipped"
                         tmp_log.warning(f"{process_result.message}")
@@ -1300,10 +1298,10 @@ class WorkflowInterface(object):
                         pass
                     case WFDataTargetCheckStatus.insuffi:
                         # Data not sufficient anymore, unexpected, log and skip
-                        tmp_log.warning(f"Data are not sufficient anymore, unexpected; skipped")
+                        tmp_log.warning("Data are not sufficient anymore, unexpected; skipped")
                     case WFDataTargetCheckStatus.nonexist:
                         # Data not exist anymore, unexpected, log and skip
-                        tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
+                        tmp_log.warning("Data do not exist anymore, unexpected; skipped")
                     case _:
                         tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
             elif original_status == WFDataStatus.waiting_insuffi:
@@ -1322,7 +1320,7 @@ class WorkflowInterface(object):
                         pass
                     case WFDataTargetCheckStatus.nonexist:
                         # Data not exist anymore, unexpected, log and skip
-                        tmp_log.warning(f"Data do not exist anymore, unexpected; skipped")
+                        tmp_log.warning("Data do not exist anymore, unexpected; skipped")
                     case _:
                         tmp_log.warning(f"Invalid check_status {check_result.check_status} from target check result; skipped")
             data_spec.check_time = now_time
@@ -1357,7 +1355,6 @@ class WorkflowInterface(object):
                 tmp_log.warning(f"Failed to acquire lock for data_id={data_spec.data_id}; skipped")
                 return None, data_spec
             data_spec = locked_data_spec
-            orig_status = data_spec.status
             # Process the data
             if data_spec.status == WFDataStatus.registered:
                 tmp_res = self.process_data_registered(data_spec)
@@ -1379,7 +1376,7 @@ class WorkflowInterface(object):
                 tmp_log.debug(f"Data status {data_spec.status} is not handled in this context; skipped")
         return tmp_res, data_spec
 
-    def process_datas(self, data_specs: List[WFDataSpec], by: str = "dog") -> Dict:
+    def process_datas(self, data_specs: List[WFDataSpec], by: str = "dog") -> Dict[str, Any]:
         """
         Process a list of workflow data specifications
 
@@ -1395,7 +1392,8 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, f"process_datas <workflow_id={data_specs[0].workflow_id}> by={by}")
         n_data = len(data_specs)
         tmp_log.debug(f"Start, processing {n_data} data specs")
-        data_status_stats = {"n_data": n_data, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
+        # counters keyed by status name alongside plain totals, so the values are not uniform
+        data_status_stats: dict[str, Any] = {"n_data": n_data, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         for data_spec in data_specs:
             orig_status = data_spec.status
             tmp_res, data_spec = self.process_data(data_spec, by=by)
@@ -1516,7 +1514,8 @@ class WorkflowInterface(object):
         # Process
         try:
             # Decide whether to run the step: True = must run, False = can skip, None = undecided yet and must check later
-            to_run_step = False
+            # None means "cannot decide yet", distinct from a decided True/False
+            to_run_step: bool | None = False
             # scatter_child steps are pure orchestration: they submit one grandchild workflow per
             # scatter iteration and own no output datasets themselves (instantiate_scatter_workflow
             # never sets output_data_list in their definition). The output-checking logic below
@@ -1641,7 +1640,7 @@ class WorkflowInterface(object):
             step_spec_definition = step_spec.definition_json_map
             input_data_dict = step_spec_definition.get("input_data_dict")
             if input_data_dict is None:
-                process_result.message = f"Step definition does not have input_data_dict; skipped"
+                process_result.message = "Step definition does not have input_data_dict; skipped"
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
             input_data_list = list(input_data_dict.keys())
@@ -1654,13 +1653,13 @@ class WorkflowInterface(object):
             all_inputs_stats = self._check_all_inputs_of_step(tmp_log, input_data_list, data_spec_map)
             # If not all inputs are sufficient as input, just return and wait for next round
             if not all_inputs_stats["all_inputs_sufficient"]:
-                tmp_log.debug(f"Some input data are not sufficient as input; skipped")
+                tmp_log.debug("Some input data are not sufficient as input; skipped")
                 process_result.success = True
                 return process_result
             # Check if input data requiring complete are all complete, if not, just return and wait for next round
             complete_inputs_stats = self._check_all_inputs_of_step(tmp_log, complete_input_data_list, data_spec_map)
             if not complete_inputs_stats["all_inputs_complete"]:
-                tmp_log.debug(f"Some input data requiring complete are not done yet; skipped")
+                tmp_log.debug("Some input data requiring complete are not done yet; skipped")
                 process_result.success = True
                 return process_result
             # All inputs are good, register outputs of the step and update step status to ready
@@ -1814,14 +1813,14 @@ class WorkflowInterface(object):
             step_spec_definition = step_spec.definition_json_map
             input_data_dict = step_spec_definition.get("input_data_dict")
             if input_data_dict is None:
-                process_result.message = f"Step definition does not have input_data_dict; skipped"
+                process_result.message = "Step definition does not have input_data_dict; skipped"
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
             input_data_list = list(input_data_dict.keys())
             # Get data spec map of the workflow
             data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
             if data_specs is None:
-                process_result.message = f"Failed to get data of the workflow"
+                process_result.message = "Failed to get data of the workflow"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
@@ -1902,14 +1901,14 @@ class WorkflowInterface(object):
             step_spec_definition = step_spec.definition_json_map
             input_data_dict = step_spec_definition.get("input_data_dict")
             if input_data_dict is None:
-                process_result.message = f"Step definition does not have input_data_dict; skipped"
+                process_result.message = "Step definition does not have input_data_dict; skipped"
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
             input_data_list = list(input_data_dict.keys())
             # Get data spec map of the workflow
             data_specs = self.tbif.get_data_of_workflow(workflow_id=step_spec.workflow_id)
             if data_specs is None:
-                process_result.message = f"Failed to get data of the workflow"
+                process_result.message = "Failed to get data of the workflow"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
             data_spec_map = {data_spec.name: data_spec for data_spec in data_specs}
@@ -1987,7 +1986,6 @@ class WorkflowInterface(object):
                 tmp_log.warning(f"Failed to acquire lock for step_id={step_spec.step_id}; skipped")
                 return None, step_spec
             step_spec = locked_step_spec
-            orig_status = step_spec.status
             # Process the step
             if step_spec.status == WFStepStatus.registered:
                 tmp_res = self.process_step_registered(step_spec)
@@ -2013,7 +2011,7 @@ class WorkflowInterface(object):
                 tmp_log.debug(f"Step status {step_spec.status} is not handled in this context; skipped")
         return tmp_res, step_spec
 
-    def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> Dict:
+    def process_steps(self, step_specs: List[WFStepSpec], data_spec_map: Dict[str, WFDataSpec] | None = None, by: str = "dog") -> Dict[str, Any]:
         """
         Process a list of workflow steps
 
@@ -2030,7 +2028,8 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, f"process_steps <workflow_id={step_specs[0].workflow_id}> by={by}")
         n_steps = len(step_specs)
         tmp_log.debug(f"Start, processing {n_steps} steps")
-        steps_status_stats = {"n_steps": n_steps, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
+        # counters keyed by status name alongside plain totals, so the values are not uniform
+        steps_status_stats: dict[str, Any] = {"n_steps": n_steps, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         for step_spec in step_specs:
             orig_status = step_spec.status
             tmp_res, step_spec = self.process_step(step_spec, data_spec_map=data_spec_map, by=by)
@@ -2084,7 +2083,7 @@ class WorkflowInterface(object):
         try:
             if workflow_spec.definition_json is not None:
                 # Already has definition, skip parsing
-                tmp_log.debug(f"Workflow already has definition; skipped parsing")
+                tmp_log.debug("Workflow already has definition; skipped parsing")
             else:
                 # Parse the workflow definition from raw request
                 raw_request_dict = workflow_spec.raw_request_json_map
@@ -2098,21 +2097,21 @@ class WorkflowInterface(object):
                 )
                 # Failure handling
                 if is_fatal:
-                    process_result.message = f"Fatal error in parsing raw request; cancelled the workflow"
+                    process_result.message = "Fatal error in parsing raw request; cancelled the workflow"
                     tmp_log.error(f"{process_result.message}")
                     workflow_spec.status = WorkflowStatus.cancelled
                     workflow_spec.set_parameter("cancel_reason", "Fatal error in parsing raw request")
                     self.tbif.update_workflow(workflow_spec)
                     return process_result
                 if not is_ok:
-                    process_result.message = f"Failed to parse raw request; skipped"
+                    process_result.message = "Failed to parse raw request; skipped"
                     tmp_log.warning(f"{process_result.message}")
                     return process_result
                 # extra info from raw request
                 workflow_definition["user_dn"] = raw_request_dict.get("user_dn")
                 # Parsed successfully, update definition
                 workflow_spec.definition_json = json.dumps(workflow_definition, default=json_serialize_default)
-                tmp_log.debug(f"Parsed raw request into definition")
+                tmp_log.debug("Parsed raw request into definition")
             # Update status to parsed
             workflow_spec.status = WorkflowStatus.parsed
             # Update DB
@@ -2148,7 +2147,7 @@ class WorkflowInterface(object):
         try:
             workflow_definition = workflow_spec.definition_json_map
             if not workflow_definition:
-                process_result.message = f"Workflow definition is missing or empty; cancelled the workflow"
+                process_result.message = "Workflow definition is missing or empty; cancelled the workflow"
                 tmp_log.error(f"{process_result.message}")
                 workflow_spec.status = WorkflowStatus.cancelled
                 workflow_spec.set_parameter("cancel_reason", "Workflow definition is missing or empty")
@@ -2188,7 +2187,7 @@ class WorkflowInterface(object):
         try:
             workflow_definition = workflow_spec.definition_json_map
             if not workflow_definition:
-                process_result.message = f"Workflow definition is missing or empty; cancelled the workflow"
+                process_result.message = "Workflow definition is missing or empty; cancelled the workflow"
                 tmp_log.error(f"{process_result.message}")
                 workflow_spec.status = WorkflowStatus.cancelled
                 workflow_spec.set_parameter("cancel_reason", "Workflow definition is missing or empty")
@@ -2261,7 +2260,7 @@ class WorkflowInterface(object):
             # Parse the workflow definition
             workflow_definition = workflow_spec.definition_json_map
             if workflow_definition is None:
-                process_result.message = f"Workflow definition is None; cancelled the workflow"
+                process_result.message = "Workflow definition is None; cancelled the workflow"
                 tmp_log.error(f"{process_result.message}")
                 workflow_spec.status = WorkflowStatus.cancelled
                 workflow_spec.set_parameter("cancel_reason", "Workflow definition is None")
@@ -2303,7 +2302,7 @@ class WorkflowInterface(object):
                 data_specs.append(data_spec)
             # collect IDs of all nodes that are sub-nodes of workflow-type nodes; they are
             # registered as part of the child workflow, not as direct steps of this workflow
-            sub_node_ids = set()
+            sub_node_ids: set[Any] = set()
             for node in workflow_definition["nodes"]:
                 if node.get("type") == "workflow":
                     sub_node_ids.update(node.get("sub_nodes") or [])
@@ -2335,7 +2334,7 @@ class WorkflowInterface(object):
                     step_definition["user_name"] = workflow_spec.username
                     step_definition["user_dn"] = workflow_definition.get("user_dn")
                     # resolve inputs and outputs
-                    input_data_dict = dict()
+                    input_data_dict: dict[str, Any] = dict()
                     output_data_dict = dict()
                     for input_target in step_definition.get("inputs", {}).values():
                         if not input_target.get("source"):
@@ -2429,7 +2428,7 @@ class WorkflowInterface(object):
                 data_specs=data_specs,
             )
             if upsert_ret is None:
-                process_result.message = f"Failed to upsert workflow entities into DB"
+                process_result.message = "Failed to upsert workflow entities into DB"
                 tmp_log.error(f"{process_result.message}")
                 return process_result
             process_result.success = True
@@ -2465,7 +2464,7 @@ class WorkflowInterface(object):
             # Process data specs first
             data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id, status_exclusion_list=list(WFDataStatus.terminated_statuses))
             if data_specs:
-                data_status_stats = self.process_datas(data_specs)
+                self.process_datas(data_specs)
             # Get steps in registered status
             required_step_statuses = list(WFStepStatus.to_advance_step_statuses)
             over_advanced_step_statuses = list(WFStepStatus.after_starting_uninterrupted_statuses)
@@ -2482,11 +2481,11 @@ class WorkflowInterface(object):
                     process_result.new_status = workflow_spec.status
                     tmp_log.info(f"All steps already in final status; advanced to status={workflow_spec.status}")
                     return process_result
-                process_result.message = f"No step in required status; skipped"
+                process_result.message = "No step in required status; skipped"
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
             if over_advanced_step_specs:
-                process_result.message = f"Some steps are not in required status; force to advance the workflow"
+                process_result.message = "Some steps are not in required status; force to advance the workflow"
                 tmp_log.warning(f"{process_result.message}")
                 # Advance the workflow to running directly
                 workflow_spec.status = WorkflowStatus.running
@@ -2546,11 +2545,11 @@ class WorkflowInterface(object):
             # Process data specs first
             data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_spec.workflow_id, status_exclusion_list=list(WFDataStatus.terminated_statuses))
             if data_specs:
-                data_status_stats = self.process_datas(data_specs)
+                self.process_datas(data_specs)
             # Get steps
             step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id)
             if not step_specs:
-                process_result.message = f"No step in required status; skipped"
+                process_result.message = "No step in required status; skipped"
                 tmp_log.warning(f"{process_result.message}")
                 return process_result
             # Get data spec map of the workflow
@@ -2600,7 +2599,7 @@ class WorkflowInterface(object):
                 # TODO: cancel all unfinished ordinary steps
                 # self.cancel_step(...)
                 # mark workflow as failed
-                tmp_log.warning(f"workflow failed due to some steps failed or cancelled")
+                tmp_log.warning("workflow failed due to some steps failed or cancelled")
                 workflow_spec.status = WorkflowStatus.failed
                 workflow_spec.end_time = now_time
                 workflow_spec.check_time = now_time
@@ -2646,7 +2645,6 @@ class WorkflowInterface(object):
         tmp_log.debug(f"Start, current status={workflow_spec.status}")
         # Initialize
         process_result = WorkflowProcessResult()
-        orig_status = workflow_spec.status
         # Process based on status
         match workflow_spec.status:
             case WorkflowStatus.registered:
@@ -2692,7 +2690,7 @@ class WorkflowInterface(object):
 
     # ---- Process all workflows -------------------------------------
 
-    def process_active_workflows(self) -> Dict:
+    def process_active_workflows(self) -> Dict[str, Any]:
         """
         Process all active workflows in the system
 
@@ -2702,7 +2700,8 @@ class WorkflowInterface(object):
         tmp_log = LogWrapper(logger, "process_active_workflows")
         # tmp_log.debug("Start")
         # Initialize
-        workflows_status_stats = {"n_workflows": 0, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
+        # counters keyed by status name alongside plain totals, so the values are not uniform
+        workflows_status_stats: dict[str, Any] = {"n_workflows": 0, "changed": {}, "unchanged": {}, "processed": {}, "n_processed": 0}
         try:
             # Query active workflows to process
             workflow_specs = self.tbif.query_workflows(status_filter_list=WorkflowStatus.active_statuses, check_interval_sec=WORKFLOW_CHECK_INTERVAL_SEC)
@@ -2737,6 +2736,6 @@ class WorkflowInterface(object):
             tmp_log.info(
                 f"Done, processed {workflows_status_stats['n_processed']}/{n_workflows} workflows, unchanged: {workflows_status_stats['unchanged']}, changed: {workflows_status_stats['changed']}"
             )
-        except Exception as e:
+        except Exception:
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
         return workflows_status_stats

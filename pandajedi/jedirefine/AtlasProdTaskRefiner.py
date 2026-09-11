@@ -3,11 +3,15 @@ import json
 import random
 import re
 import traceback
+from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
-from pandajedi.jedicore import JediException
+from pandajedi.jedicore import Interaction, JediException
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.dataservice import DataServiceUtils
+from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 
 from .TaskRefinerBase import TaskRefinerBase
 
@@ -15,11 +19,17 @@ from .TaskRefinerBase import TaskRefinerBase
 # brokerage for ATLAS production
 class AtlasProdTaskRefiner(TaskRefinerBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         TaskRefinerBase.__init__(self, taskBufferIF, ddmIF)
 
     # extract common parameters
-    def extractCommon(self, jediTaskID, taskParamMap, workQueueMapper, splitRule):
+    def extractCommon(
+        self,
+        jediTaskID: int,
+        taskParamMap: dict[str, Any],
+        workQueueMapper: WorkQueueMapper,
+        splitRule: str | None,
+    ) -> None:
         tmpLog = self.tmpLog
         # set ddmBackEnd
         if "ddmBackEnd" not in taskParamMap:
@@ -91,7 +101,7 @@ class AtlasProdTaskRefiner(TaskRefinerBase):
         TaskRefinerBase.extractCommon(self, jediTaskID, taskParamMap, workQueueMapper, splitRule)
 
     # main
-    def doRefine(self, jediTaskID, taskParamMap):
+    def doRefine(self, jediTaskID: int, taskParamMap: dict[str, Any]) -> Interaction.StatusCode:
         # make logger
         tmpLog = self.tmpLog
         tmpLog.debug(f"start taskType={self.taskSpec.taskType}")
@@ -100,7 +110,7 @@ class AtlasProdTaskRefiner(TaskRefinerBase):
             self.doBasicRefine(taskParamMap)
             # set nosplit+repeat for DBR
             for datasetSpec in self.inSecDatasetSpecList:
-                if DataServiceUtils.isDBR(datasetSpec.datasetName):
+                if datasetSpec.datasetName is not None and DataServiceUtils.isDBR(datasetSpec.datasetName):
                     datasetSpec.attributes = "repeat,nosplit"
             # enable consistency check
             if self.taskSpec.parent_tid not in [None, self.taskSpec.jediTaskID]:
@@ -146,8 +156,11 @@ class AtlasProdTaskRefiner(TaskRefinerBase):
                                         str(metaData), self.taskSpec.parent_tid, datasetSpec.datasetID, datasetSpec.datasetName
                                     )
                                 )
+                                parent_ddm_if = self.ddmIF.getInterface(self.taskSpec.vo)
+                                if parent_ddm_if is None:
+                                    raise RuntimeError(f"no DDM interface for vo={self.taskSpec.vo}")
                                 for metadataName, metadaValue in metaData.items():
-                                    self.ddmIF.getInterface(self.taskSpec.vo).setDatasetMetadata(datasetSpec.datasetName, metadataName, metadaValue)
+                                    parent_ddm_if.setDatasetMetadata(datasetSpec.datasetName, metadataName, metadaValue)
             # input prestaging
             if self.taskSpec.inputPreStaging():
                 # set first contents feed flag

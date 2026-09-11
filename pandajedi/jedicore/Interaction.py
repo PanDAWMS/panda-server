@@ -3,15 +3,21 @@ import multiprocessing
 import multiprocessing.reduction
 import os
 import signal
-import sys
 import time
+from multiprocessing.connection import Connection
+from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
+# reduce_connection is undocumented, so typeshed does not declare it and mypy reports
+# attr-defined on both imports below. Which of the two modules holds it has varied
+# between versions, which is what the fallback is for. The ignores carry no error code
+# because the line would then be long enough for isort to wrap it, and an ignore inside
+# the parentheses of a wrapped import does not apply to the statement
 try:
-    from multiprocessing.connection import reduce_connection
+    from multiprocessing.connection import reduce_connection  # type: ignore
 except ImportError:
-    from multiprocessing.reduction import reduce_connection
+    from multiprocessing.reduction import reduce_connection  # type: ignore
 
 # import multiprocessing
 # logger = multiprocessing.log_to_stderr()
@@ -25,45 +31,49 @@ except ImportError:
 
 # class for status code
 class StatusCode(object):
-    def __init__(self, value):
+    def __init__(self, value: int) -> None:
         self.value = value
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.value}"
 
-    # comparator
-    def __eq__(self, other):
+    # comparator. Anything without a matching .value compares unequal rather than raising,
+    # which is why these take object rather than StatusCode
+    def __eq__(self, other: object) -> bool:
         try:
-            return self.value == other.value
+            return bool(self.value == other.value)  # type: ignore[attr-defined]
         except Exception:
             return False
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         try:
-            return self.value != other.value
+            return bool(self.value != other.value)  # type: ignore[attr-defined]
         except Exception:
             return True
 
 
+# status codes of this module. spelled out rather than installed with installSC below,
+# so that the names this module itself uses are visible to readers and linters
+SC_SUCCEEDED = StatusCode(0)
+SC_FAILED = StatusCode(1)
+SC_FATAL = StatusCode(2)
+# the action didn't go through, but only because it is waiting for something outside
+# of the task's control, so the caller must not penalize the task for the wait
+SC_WAITING = StatusCode(3)
+
 # mapping to accessors
 statusCodeMap = {
-    "SC_SUCCEEDED": StatusCode(0),
-    "SC_FAILED": StatusCode(1),
-    "SC_FATAL": StatusCode(2),
-    # the action didn't go through, but only because it is waiting for something outside
-    # of the task's control, so the caller must not penalize the task for the wait
-    "SC_WAITING": StatusCode(3),
+    "SC_SUCCEEDED": SC_SUCCEEDED,
+    "SC_FAILED": SC_FAILED,
+    "SC_FATAL": SC_FATAL,
+    "SC_WAITING": SC_WAITING,
 }
 
 
 # install the list of status codes to a class
-def installSC(cls):
+def installSC(cls: type[Any]) -> None:
     for sc, val in statusCodeMap.items():
         setattr(cls, sc, val)
-
-
-# install SCs in this module
-installSC(sys.modules[__name__])
 
 
 ###########################################################
@@ -73,7 +83,7 @@ installSC(sys.modules[__name__])
 
 
 # log message with timestamp
-def dumpStdOut(sender, message):
+def dumpStdOut(sender: str, message: str) -> None:
     timeNow = naive_utcnow()
     print(f"{str(timeNow)} {sender}: INFO    {message}")
 
@@ -81,7 +91,7 @@ def dumpStdOut(sender, message):
 # object class for command
 class CommandObject(object):
     # constructor
-    def __init__(self, methodName, argList, argMap):
+    def __init__(self, methodName: str, argList: tuple[Any, ...], argMap: dict[str, Any]) -> None:
         self.methodName = methodName
         self.argList = argList
         self.argMap = argMap
@@ -90,34 +100,37 @@ class CommandObject(object):
 # object class for response
 class ReturnObject(object):
     # constructor
-    def __init__(self):
-        self.statusCode = None
-        self.errorValue = None
-        self.returnValue = None
+    def __init__(self) -> None:
+        self.statusCode: StatusCode | None = None
+        # whatever the called method returned, or the error text that replaced it
+        self.errorValue: Any = None
+        self.returnValue: Any = None
 
 
 # process class
 class ProcessClass(object):
     # constructor
-    def __init__(self, pid, connection):
+    def __init__(self, pid: int, connection: Connection) -> None:
         self.pid = pid
         self.nused = 0
-        self.usedMemory = 0
+        # resident size in MB, which the parse below divides down to
+        self.usedMemory: float = 0
         self.nMemLookup = 20
         # reduce connection to make it picklable
         self.reduced_pipe = reduce_connection(connection)
 
     # get connection
-    def connection(self):
+    def connection(self) -> Connection:
         # rebuild connection
-        return self.reduced_pipe[0](*self.reduced_pipe[1])
+        rebuilt: Connection = self.reduced_pipe[0](*self.reduced_pipe[1])
+        return rebuilt
 
     # reduce connection
-    def reduceConnection(self, connection):
+    def reduceConnection(self, connection: Connection) -> None:
         self.reduced_pipe = reduce_connection(connection)
 
-    # get memory usage
-    def getMemUsage(self):
+    # get memory usage. None every time but the one lookup in nMemLookup that reads /proc
+    def getMemUsage(self) -> float | None:
         # update memory info
         if self.nused % self.nMemLookup == 0:
             try:
@@ -125,7 +138,7 @@ class ProcessClass(object):
                 t = open(f"/proc/{self.pid}/status")
                 v = t.read()
                 t.close()
-                value = 0
+                value: float = 0
                 for line in v.split("\n"):
                     if line.startswith("VmRSS"):
                         items = line.split()
@@ -146,21 +159,24 @@ class ProcessClass(object):
 # method class
 class MethodClass(object):
     # constructor
-    def __init__(self, className, methodName, vo, connectionQueue, voIF):
+    def __init__(self, className: str, methodName: str, vo: str, connectionQueue: "multiprocessing.Queue[ProcessClass]", voIF: "CommandSendInterface") -> None:
         self.className = className
         self.methodName = methodName
         self.vo = vo
         self.connectionQueue = connectionQueue
         self.voIF = voIF
-        self.pipeList = []
+        self.pipeList: list[Connection] = []
 
-    # method emulation
-    def __call__(self, *args, **kwargs):
+    # method emulation. The return value is whatever the method on the far side of the
+    # pipe returned, which this class knows nothing about
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         commandObj = CommandObject(self.methodName, args, kwargs)
         nTry = 3
         for iTry in range(nTry):
             # exceptions
-            retException = None
+            # either one of the two JEDI errors below, picked from the status code, or
+            # whatever the try block raised, so the declaration has to cover both
+            retException: type[BaseException] | None = None
             strException = None
             try:
                 stepIdx = 0
@@ -174,7 +190,7 @@ class MethodClass(object):
                 timeoutPeriodACK = 30
                 if not pipe.poll(timeoutPeriodACK):
                     raise JEDITimeoutError(f"did not get ACK for {timeoutPeriodACK}sec")
-                ack = pipe.recv()
+                pipe.recv()
                 # send command
                 stepIdx = 3
                 pipe.send(commandObj)
@@ -202,11 +218,10 @@ class MethodClass(object):
                     retException = JEDITemporaryError
                 elif ret.statusCode == SC_FATAL:
                     retException = JEDIFatalError
-            except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                retException = errtype
+            except Exception as e:
+                retException = type(e)
                 argStr = f"args={str(args)} kargs={str(kwargs)}"
-                strException = f"VO={self.vo} type={errtype.__name__} stepIdx={stepIdx} : {self.className}.{self.methodName} {errvalue} {argStr[:200]}"
+                strException = f"VO={self.vo} type={type(e).__name__} stepIdx={stepIdx} : {self.className}.{self.methodName} {e} {argStr[:200]}"
             # increment nused
             child_process.nused += 1
             # memory check
@@ -236,10 +251,9 @@ class MethodClass(object):
                     dumpStdOut(self.className, f"waiting pid={child_process.pid}")
                     os.waitpid(child_process.pid, 0)
                     dumpStdOut(self.className, f"terminated pid={child_process.pid}")
-                except Exception:
-                    errtype, errvalue = sys.exc_info()[:2]
-                    if "No child processes" not in str(errvalue):
-                        dumpStdOut(self.className, f"failed to terminate {child_process.pid} with {errtype}:{errvalue}")
+                except Exception as e:
+                    if "No child processes" not in str(e):
+                        dumpStdOut(self.className, f"failed to terminate {child_process.pid} with {type(e)}:{e}")
                 # make new child process
                 self.voIF.launchChild()
             else:
@@ -260,25 +274,28 @@ class MethodClass(object):
         if ret.statusCode == SC_SUCCEEDED:
             return ret.returnValue
         else:
-            raise retException(f"VO={self.vo} {ret.errorValue}")
+            # a status code other than the three known ones leaves retException unset, so the
+            # error is spelled out here rather than calling None
+            raise JEDITemporaryError(f"VO={self.vo} {ret.errorValue}")
 
 
 # interface class to send command
 class CommandSendInterface(object):
     # constructor
-    def __init__(self, vo, maxChild, moduleName, className):
+    def __init__(self, vo: str, maxChild: int, moduleName: str, className: str) -> None:
         self.vo = vo
         self.maxChild = maxChild
-        self.connectionQueue = multiprocessing.Queue(maxChild)
+        self.connectionQueue: multiprocessing.Queue[ProcessClass] = multiprocessing.Queue(maxChild)
         self.moduleName = moduleName
         self.className = className
 
-    # factory method
-    def __getattr__(self, attrName):
+    # factory method. Every attribute that is not one of the four set above resolves to a
+    # remote call, so a type checker can say nothing about the methods reached this way
+    def __getattr__(self, attrName: str) -> MethodClass:
         return MethodClass(self.className, attrName, self.vo, self.connectionQueue, self)
 
     # launcher for child processe
-    def launcher(self, channel):
+    def launcher(self, channel: Connection) -> None:
         # import module
         mod = __import__(self.moduleName)
         for subModuleName in self.moduleName.split(".")[1:]:
@@ -288,15 +305,13 @@ class CommandSendInterface(object):
         # start child process
         msg = f"start {self.className} with pid={os.getpid()}"
         dumpStdOut(self.moduleName, msg)
-        timeNow = naive_utcnow()
         try:
             cls(channel).start()
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            dumpStdOut(self.className, f"launcher crashed with {errtype}:{errvalue}")
+        except Exception as e:
+            dumpStdOut(self.className, f"launcher crashed with {type(e)}:{e}")
 
     # launch child processes to interact with DDM
-    def launchChild(self):
+    def launchChild(self) -> None:
         # make pipe
         parent_conn, child_conn = multiprocessing.Pipe()
         # make child process
@@ -304,6 +319,11 @@ class CommandSendInterface(object):
         # start child process
         child_process.daemon = True
         child_process.start()
+        if child_process.pid is None:
+            # start() either sets the pid or raises, so this is unreachable. It is spelled
+            # out because the pid goes on to os.kill() in MethodClass.__call__, and passing
+            # None there is a TypeError inside the block that is already handling a failure
+            raise JEDIFatalError(f"failed to start a child process for {self.className}")
         # keep process in queue
         processObj = ProcessClass(child_process.pid, parent_conn)
         # sync to wait until object in the child process is instantiated
@@ -314,20 +334,27 @@ class CommandSendInterface(object):
         self.connectionQueue.put(processObj)
 
     # initialize
-    def initialize(self):
+    def initialize(self) -> None:
         for i in range(self.maxChild):
             self.launchChild()
 
 
 # interface class to receive command
 class CommandReceiveInterface(object):
-    # constructor
-    def __init__(self, con):
+    # installed on this class by Interaction.installSC() at the bottom of this module
+    SC_SUCCEEDED: StatusCode
+    SC_FAILED: StatusCode
+    SC_FATAL: StatusCode
+    SC_WAITING: StatusCode
+
+    # constructor. con is None in the jeditest drivers, which build a knight to call one
+    # of its methods directly and never reach start()
+    def __init__(self, con: Connection | None) -> None:
         self.con = con
-        self.cacheMap = {}
+        self.cacheMap: dict[str, dict[str, Any]] = {}
 
     # make key for cache
-    def makeKey(self, className, methodName, argList, argMap):
+    def makeKey(self, className: str, methodName: str, argList: tuple[Any, ...], argMap: dict[str, Any]) -> str | None:
         try:
             tmpKey = f"{className}:{methodName}:"
             for argItem in argList:
@@ -339,8 +366,12 @@ class CommandReceiveInterface(object):
         except Exception:
             return None
 
-    # main loop
-    def start(self):
+    # main loop, which only ever leaves through an exception on the pipe
+    def start(self) -> None:
+        if self.con is None:
+            # only the test drivers construct this without a channel, and they call the
+            # methods directly instead of getting here
+            raise JEDIFatalError(f"{self.__class__.__name__} was built without a channel")
         # sync
         self.con.send("ready")
         # main loop
@@ -363,6 +394,7 @@ class CommandReceiveInterface(object):
                     # use cache
                     useCache = False
                     doExec = True
+                    tmpCacheKey = None
                     if "useResultCache" in commandObj.argMap:
                         # get time range
                         timeRange = commandObj.argMap["useResultCache"]
@@ -402,13 +434,12 @@ class CommandReceiveInterface(object):
                     else:
                         retObj.statusCode = self.SC_SUCCEEDED
                         retObj.returnValue = tmpRet
-                except Exception:
-                    errtype, errvalue = sys.exc_info()[:2]
+                except Exception as e:
                     # failed
                     retObj.statusCode = self.SC_FATAL
-                    retObj.errorValue = f"type={errtype.__name__} : {className}.{commandObj.methodName} : {errvalue}"
+                    retObj.errorValue = f"type={type(e).__name__} : {className}.{commandObj.methodName} : {e}"
                 # cache
-                if useCache and doExec and retObj.statusCode == self.SC_SUCCEEDED:
+                if useCache and doExec and tmpCacheKey is not None and retObj.statusCode == self.SC_SUCCEEDED:
                     self.cacheMap[tmpCacheKey] = {"utime": naive_utcnow(), "value": tmpRet}
             # return
             self.con.send(retObj)

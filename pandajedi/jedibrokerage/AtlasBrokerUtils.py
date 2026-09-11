@@ -6,25 +6,38 @@ import socket
 import sys
 import time
 import traceback
+from collections.abc import Collection
 from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandajedi.jedicore import Interaction
-from pandajedi.jediddm.DDMInterface import DDMInterface
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.srvcore.hardware_matching import (
-    compare_version_string,
-    match_gpu_spec,
-)
+from pandaserver.srvcore.hardware_matching import match_gpu_spec
 from pandaserver.taskbuffer import JobUtils, ProcessGroups, SiteSpec
 from pandaserver.taskbuffer.DdmSpec import DOWNTIME_STATUSES
+from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
 
 
 # get nuclei where data is available
-def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=False):
+def getNucleiWithData(
+    siteMapper: SiteMapper,
+    ddmIF: Interaction.CommandSendInterface,
+    datasetName: str,
+    candidateNuclei: Collection[str],
+    deepScan: bool = False,
+) -> tuple[Any, Any, bool | None]:
+    """
+    :return: (status, per-nucleus availability map on success or an error message on failure,
+        whether a remote source is available)
+    """
     # get replicas
     try:
         replica_map = ddmIF.listReplicasPerDataset(datasetName, deepScan)
@@ -46,6 +59,9 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
     return_map = {}
     for tmpNucleus in candidateNuclei:
         tmpNucleusSpec = siteMapper.getNucleus(tmpNucleus)
+        if tmpNucleusSpec is None:
+            # a candidate the site mapper does not know has no endpoints to sum over
+            continue
         # loop over all datasets
         totalNum = 0
         totalSize = 0
@@ -73,11 +89,13 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
                     if siteMapper.is_readable_remotely(tmpLoc):
                         can_be_remote_source = True
                     # sum
+                    # is_associated_for_input above is the same test getEndpoint makes, so
+                    # this is set whenever that one passed
                     tmpEndpoint = tmpNucleusSpec.getEndpoint(tmpLoc)
                     tmpAvaNum = locData[0]["found"]
                     tmpAvaSize = locData[0]["asize"]
                     # disk
-                    if tmpEndpoint["is_tape"] != "Y":
+                    if tmpEndpoint is not None and tmpEndpoint["is_tape"] != "Y":
                         # complete replica is available at DISK
                         if tmpTotalNum == tmpAvaNum and tmpTotalNum > 0:
                             tmpAvaNumDisk = tmpAvaNum
@@ -116,14 +134,14 @@ def getNucleiWithData(siteMapper, ddmIF, datasetName, candidateNuclei, deepScan=
 
 # get sites where data is available and check if complete replica is available at online RSE
 def get_sites_with_data(
-    site_list: list,
+    site_list: list[str],
     site_mapper: SiteMapper,
-    ddm_if: DDMInterface,
+    ddm_if: Interaction.CommandSendInterface,
     dataset_name: str,
-    element_list: list,
+    element_list: list[str] | None,
     max_missing_input_files: int,
     min_input_completeness: int,
-) -> tuple[Any, dict | str, bool | None, bool | None, bool | None, bool | None, bool | None, list]:
+) -> tuple[Any, dict[str, Any] | str, bool | None, bool | None, bool | None, bool | None, bool | None, list[str]]:
     """
     Get sites where data is available and check if complete replica is available at online RSE
     1) regarded_as_complete_disk: True if a replica is regarded as complete at disk (missing files within threshold)
@@ -136,9 +154,11 @@ def get_sites_with_data(
 
     :param site_list: list of site names to be checked
     :param site_mapper: SiteMapper object
-    :param ddm_if: DDMInterface object
+    :param ddm_if: the VO's DDM client, as DDMInterface.getInterface() returns it. It is the
+        proxy, not the plugin class: it forwards each call to the plugin in a child process and
+        hands back only the payload, with the status code already turned into an exception
     :param dataset_name: dataset name
-    :param element_list: list of constituent datasets
+    :param element_list: list of constituent datasets, or None when the dataset has none
     :param max_missing_input_files: maximum number of missing files to be regarded as complete
     :param min_input_completeness: minimum completeness (%) to be regarded as complete
 
@@ -213,16 +233,14 @@ def get_sites_with_data(
     complete_tape = False
     can_be_local_source = False
     can_be_remote_source = False
-    return_map = {}
-    if not site_list:
-        # make sure at least one loop to set the flags
-        site_list = [None]
+    return_map: dict[str, Any] = {}
     for tmp_site_name in site_list:
         if not site_mapper.checkSite(tmp_site_name):
             continue
         # get associated DDM endpoints
         tmp_site_spec = site_mapper.getSite(tmp_site_name)
         scope_input, scope_output = select_scope(tmp_site_spec, JobUtils.ANALY_PS, JobUtils.ANALY_PS)
+        input_endpoints: Collection[str]
         try:
             input_endpoints = tmp_site_spec.ddm_endpoints_input[scope_input].all.keys()
         except Exception:
@@ -273,7 +291,9 @@ def get_sites_with_data(
 
 
 # get analysis sites where data is available at disk
-def getAnalSitesWithDataDisk(dataSiteMap, includeTape=False, use_vp=True, use_incomplete=False):
+def getAnalSitesWithDataDisk(
+    dataSiteMap: dict[str, dict[str, dict[str, Any]]], includeTape: bool = False, use_vp: bool = True, use_incomplete: bool = False
+) -> list[str]:
     sites_with_complete_replicas = []
     sites_with_incomplete_replicas = []
     sites_with_non_vp_disk_replicas = set()
@@ -317,7 +337,9 @@ def getAnalSitesWithDataDisk(dataSiteMap, includeTape=False, use_vp=True, use_in
 
 
 # get the number of jobs in a status
-def getNumJobs(jobStatMap, computingSite, jobStatus, cloud=None, workQueue_tag=None):
+def getNumJobs(
+    jobStatMap: dict[str, dict[Any, dict[str, int]]], computingSite: str, jobStatus: str, cloud: str | None = None, workQueue_tag: Any = None
+) -> int:
     if computingSite not in jobStatMap:
         return 0
     nJobs = 0
@@ -334,7 +356,7 @@ def getNumJobs(jobStatMap, computingSite, jobStatus, cloud=None, workQueue_tag=N
     return nJobs
 
 
-def get_total_nq_nr_ratio(job_stat_map, work_queue_tag=None):
+def get_total_nq_nr_ratio(job_stat_map: dict[str, dict[Any, dict[str, int]]], work_queue_tag: Any = None) -> float | None:
     """
     Get the ratio of number of queued jobs to number of running jobs
     """
@@ -362,7 +384,7 @@ def get_total_nq_nr_ratio(job_stat_map, work_queue_tag=None):
     return ratio
 
 
-def hasZeroShare(site_spec, task_spec, ignore_priority, tmp_log):
+def hasZeroShare(site_spec: SiteSpec.SiteSpec, task_spec: JediTaskSpec, ignore_priority: bool, tmp_log: MsgWrapper) -> bool:
     """
     Check if the site has a zero share for the given task. Zero share means there is a policy preventing the site to be used for the task.
 
@@ -412,7 +434,7 @@ def hasZeroShare(site_spec, task_spec, ignore_priority, tmp_log):
                     tmp_priority = re.sub("priority", "", tmp_field)
 
             # check for a matching processing type
-            if tmp_processing_type not in ["any", None]:
+            if tmp_processing_type is not None and tmp_processing_type != "any":
                 if "*" in tmp_processing_type:
                     tmp_processing_type = tmp_processing_type.replace("*", ".*")
                 # if there is no match between the site's fair share policy and the task's processing type,
@@ -421,7 +443,7 @@ def hasZeroShare(site_spec, task_spec, ignore_priority, tmp_log):
                     continue
 
             # check for matching working group
-            if tmp_working_group not in ["any", None]:
+            if tmp_working_group is not None and tmp_working_group != "any":
                 # None causes an exception in re.search, so convert to empty string
                 task_working_group = task_spec.workingGroup or ""
                 if "*" in tmp_working_group:
@@ -433,7 +455,7 @@ def hasZeroShare(site_spec, task_spec, ignore_priority, tmp_log):
 
             # check for matching gshare. Note that this only works for "leave gshares" in the fairsharePolicy,
             # i.e. the ones that have no sub-gshares, since the task only gets "leave gshares" assigned
-            if tmp_gshare not in ["any", None] and task_spec.gshare is not None:
+            if tmp_gshare is not None and tmp_gshare != "any" and task_spec.gshare is not None:
                 # None causes an exception in re.search, so convert to empty string
                 task_gshare = task_spec.gshare or ""
                 if "*" in tmp_gshare:
@@ -446,9 +468,11 @@ def hasZeroShare(site_spec, task_spec, ignore_priority, tmp_log):
             # check priority
             if tmp_priority is not None and not ignore_priority:
                 try:
-                    exec(f"tmpStat = {task_spec.currentPriority}{tmp_priority}", globals())
+                    # eval to a local, since exec'ing into the module globals let concurrent
+                    # checks for other sites and tasks overwrite the result
+                    tmpStat = eval(f"{task_spec.currentPriority}{tmp_priority}")
                     tmp_log.debug(
-                        f"Priority check for {site_spec.sitename}, {task_spec.currentPriority}): " f"{task_spec.currentPriority}{tmp_priority} = {tmpStat}"
+                        f"Priority check for {site_spec.sitename}, {task_spec.currentPriority}): {task_spec.currentPriority}{tmp_priority} = {tmpStat}"
                     )
                     if not tmpStat:
                         continue
@@ -473,7 +497,7 @@ def hasZeroShare(site_spec, task_spec, ignore_priority, tmp_log):
 
 
 # check if site name is matched with one of list items
-def isMatched(siteName, nameList):
+def isMatched(siteName: str, nameList: Collection[str]) -> bool:
     for tmpName in nameList:
         # ignore empty
         if tmpName == "":
@@ -492,9 +516,9 @@ def isMatched(siteName, nameList):
 
 
 # get dict to set nucleus
-def getDictToSetNucleus(nucleusSpec, tmpDatasetSpecs):
+def getDictToSetNucleus(nucleusSpec: NucleusSpec, tmpDatasetSpecs: Collection[JediDatasetSpec]) -> dict[str, Any]:
     # get destinations
-    return_map = {"datasets": [], "nucleus": nucleusSpec.name}
+    return_map: dict[str, Any] = {"datasets": [], "nucleus": nucleusSpec.name}
     for datasetSpec in tmpDatasetSpecs:
         # skip distributed datasets
         if DataServiceUtils.getDistributedDestination(datasetSpec.storageToken) is not None:
@@ -515,7 +539,14 @@ def getDictToSetNucleus(nucleusSpec, tmpDatasetSpecs):
 
 
 # remove problematic sites
-def skipProblematicSites(candidateSpecList, ngSites, sitesUsedByTask, preSetSiteSpec, maxNumSites, tmpLog):
+def skipProblematicSites(
+    candidateSpecList: list[SiteCandidate],
+    ngSites: Collection[str],
+    sitesUsedByTask: Collection[str],
+    preSetSiteSpec: SiteCandidate | None,
+    maxNumSites: int | None,
+    tmpLog: MsgWrapper,
+) -> list[SiteCandidate]:
     skippedSites = set()
     usedSitesGood = []
     newSitesGood = []
@@ -543,7 +574,9 @@ def skipProblematicSites(candidateSpecList, ngSites, sitesUsedByTask, preSetSite
 
 
 # get mapping between sites and input storage endpoints
-def getSiteInputStorageEndpointMap(site_list, site_mapper, prod_source_label, job_label):
+def getSiteInputStorageEndpointMap(
+    site_list: Collection[str], site_mapper: SiteMapper, prod_source_label: str | None, job_label: str | None
+) -> dict[str, list[str]]:
     # make a map of panda sites to ddm endpoints
     ret_map = {}
     for site_name in site_list:
@@ -561,10 +594,12 @@ def getSiteInputStorageEndpointMap(site_list, site_mapper, prod_source_label, jo
 
 
 # get to-running rate of sites from various resources
-CACHE_SiteToRunRateStats = {}
+CACHE_SiteToRunRateStats: dict[Any, Any] = {}
 
 
-def getSiteToRunRateStats(tbIF, vo, time_window=21600, cutoff=300, cache_lifetime=600):
+def getSiteToRunRateStats(
+    tbIF: JediTaskBufferInterface, vo: str | None, time_window: int = 21600, cutoff: int = 300, cache_lifetime: int = 600
+) -> tuple[bool, dict[str, Any]]:
     # initialize
     ret_val = False
     ret_map = {}
@@ -582,7 +617,6 @@ def getSiteToRunRateStats(tbIF, vo, time_window=21600, cutoff=300, cache_lifetim
     # rounded with 10 minutes
     starttime_max_rounded = starttime_max.replace(minute=starttime_max.minute // 10 * 10, second=0, microsecond=0)
     starttime_min_rounded = starttime_min.replace(minute=starttime_min.minute // 10 * 10, second=0, microsecond=0)
-    real_interval_hours = (starttime_max_rounded - starttime_min_rounded).total_seconds() / 3600
     # local cache key
     local_cache_key = (starttime_min_rounded, starttime_max_rounded)
     # condition of query
@@ -662,10 +696,10 @@ def getSiteToRunRateStats(tbIF, vo, time_window=21600, cutoff=300, cache_lifetim
 
 
 # get users jobs stats from various resources
-CACHE_UsersJobsStats = {}
+CACHE_UsersJobsStats: dict[str, Any] = {}
 
 
-def getUsersJobsStats(tbIF, vo, prod_source_label, cache_lifetime=60):
+def getUsersJobsStats(tbIF: JediTaskBufferInterface, vo: str | None, prod_source_label: str | None, cache_lifetime: int = 60) -> tuple[bool, dict[str, Any]]:
     # initialize
     ret_val = False
     ret_map = {}
@@ -750,7 +784,7 @@ def getUsersJobsStats(tbIF, vo, prod_source_label, cache_lifetime=60):
 
 
 # get gshare usage
-def getGShareUsage(tbIF, gshare, fresher_than_minutes_ago=15):
+def getGShareUsage(tbIF: JediTaskBufferInterface, gshare: str | None, fresher_than_minutes_ago: int = 15) -> tuple[bool, dict[str, Any]]:
     # initialize
     ret_val = False
     ret_map = {}
@@ -792,10 +826,10 @@ def getGShareUsage(tbIF, gshare, fresher_than_minutes_ago=15):
 
 
 # get user evaluation
-def getUserEval(tbIF, user, fresher_than_minutes_ago=20):
+def getUserEval(tbIF: JediTaskBufferInterface, user: str | None, fresher_than_minutes_ago: int = 20) -> tuple[bool, dict[str, Any] | None]:
     # initialize
     ret_val = False
-    ret_map = {}
+    ret_map: dict[str, Any] | None = {}
     # timestamps
     current_time = naive_utcnow()
     # try some times
@@ -833,10 +867,10 @@ def getUserEval(tbIF, user, fresher_than_minutes_ago=20):
 
 
 # get user task evaluation
-def getUserTaskEval(tbIF, taskID, fresher_than_minutes_ago=15):
+def getUserTaskEval(tbIF: JediTaskBufferInterface, taskID: int | None, fresher_than_minutes_ago: int = 15) -> tuple[bool, dict[str, Any] | None]:
     # initialize
     ret_val = False
-    ret_map = {}
+    ret_map: dict[str, Any] | None = {}
     # timestamps
     current_time = naive_utcnow()
     # try some times
@@ -881,7 +915,7 @@ def getUserTaskEval(tbIF, taskID, fresher_than_minutes_ago=15):
 
 
 # get analysis sites class
-def getAnalySitesClass(tbIF, fresher_than_minutes_ago=60):
+def getAnalySitesClass(tbIF: JediTaskBufferInterface, fresher_than_minutes_ago: int = 60) -> tuple[bool, dict[str, Any]]:
     # initialize
     ret_val = False
     ret_map = {}
@@ -922,7 +956,13 @@ def getAnalySitesClass(tbIF, fresher_than_minutes_ago=60):
 # check SW with json
 class JsonSoftwareCheck:
     # constructor
-    def __init__(self, site_mapper, sw_map, wn_architecture_level_map, wn_gpu_map=None):
+    def __init__(
+        self,
+        site_mapper: SiteMapper,
+        sw_map: dict[str, dict[str, Any]],
+        wn_architecture_level_map: dict[str, Any],
+        wn_gpu_map: dict[str, Any] | None = None,
+    ) -> None:
         self.siteMapper = site_mapper
         self.sw_map = sw_map
         self.wn_architecture_level_map = wn_architecture_level_map
@@ -931,21 +971,21 @@ class JsonSoftwareCheck:
     # get lists
     def check(
         self,
-        site_list,
-        cvmfs_tag,
-        sw_project,
-        sw_version,
-        cmt_config,
-        need_cvmfs,
-        cmt_config_only,
-        need_container=False,
-        container_name=None,
-        only_tags_fc=False,
-        host_cpu_specs=None,
-        host_cpu_pref=None,
-        host_gpu_spec=None,
-        log_stream=None,
-    ):
+        site_list: Collection[str],
+        cvmfs_tag: str | None,
+        sw_project: str | None,
+        sw_version: str | None,
+        cmt_config: str | None,
+        need_cvmfs: bool,
+        cmt_config_only: bool,
+        need_container: bool = False,
+        container_name: str | None = None,
+        only_tags_fc: bool = False,
+        host_cpu_specs: list[dict[str, Any]] | None = None,
+        host_cpu_pref: dict[str, Any] | None = None,
+        host_gpu_spec: dict[str, Any] | None = None,
+        log_stream: MsgWrapper | None = None,
+    ) -> tuple[list[str], list[str], dict[str, Any]]:
         ok_sites = []
         no_auto_sites = []
         preference_weight_map = {}
@@ -1132,7 +1172,7 @@ ARCH_ALTERNATION_IN_CMT_CONFIG = re.compile(r"^\(([A-Za-z0-9_.+-]+(?:\|[A-Za-z0-
 
 
 # get CPU architectures of a queue
-def get_queue_cpu_architectures(queue_name: str, sw_map: dict) -> list:
+def get_queue_cpu_architectures(queue_name: str, sw_map: dict[str, dict[str, Any]]) -> list[str]:
     """
     get CPU architectures of a queue
     :param queue_name: queue name
@@ -1147,7 +1187,7 @@ def get_queue_cpu_architectures(queue_name: str, sw_map: dict) -> list:
 
 
 # resolve the architecture of cmt_config
-def resolve_arch_in_cmt_config(queue_name: str, cmt_config: str, sw_map: dict) -> str | None:
+def resolve_arch_in_cmt_config(queue_name: str, cmt_config: str, sw_map: dict[str, dict[str, Any]]) -> str | None:
     """
     resolve the architecture alternation of a cmt_config with the queue's CPU architectures,
     e.g. (x86_64|aarch64)-el9-gcc15-opt to x86_64-el9-gcc15-opt at an x86_64 queue.
@@ -1174,7 +1214,7 @@ def resolve_arch_in_cmt_config(queue_name: str, cmt_config: str, sw_map: dict) -
 
 
 # resolve cmt_config
-def resolve_cmt_config(queue_name: str, cmt_config: str, base_platform, sw_map: dict) -> str | None:
+def resolve_cmt_config(queue_name: str, cmt_config: str, base_platform: str | None, sw_map: dict[str, dict[str, Any]]) -> str | None:
     """
     resolve cmt config at a given queue_name
     :param queue_name: queue name
@@ -1213,8 +1253,13 @@ def resolve_cmt_config(queue_name: str, cmt_config: str, base_platform, sw_map: 
 
 
 def check_endpoints_with_blacklist(
-    site_spec: SiteSpec.SiteSpec, scope_input: str, scope_output: str, sites_in_nucleus: list, remote_source_available: bool,
-    storage_type: str = None, complete_replica_locations: set = None
+    site_spec: SiteSpec.SiteSpec,
+    scope_input: str,
+    scope_output: str,
+    sites_in_nucleus: list[str],
+    remote_source_available: bool,
+    storage_type: str | None = None,
+    complete_replica_locations: set[str] | None = None,
 ) -> str | None:
     """
     Check if site's endpoints are in the blacklist
@@ -1245,7 +1290,9 @@ def check_endpoints_with_blacklist(
             if tmp_read_input_over_lan not in DOWNTIME_STATUSES:
                 read_input_over_lan = True
             # can receive input from remote to local
-            if tmp_site_name not in sites_in_nucleus or (complete_replica_locations and tmp_input_endpoint["ddm_endpoint_name"] not in complete_replica_locations):
+            if tmp_site_name not in sites_in_nucleus or (
+                complete_replica_locations and tmp_input_endpoint["ddm_endpoint_name"] not in complete_replica_locations
+            ):
                 # satellite sites
                 if tmp_receive_input_over_wan not in DOWNTIME_STATUSES:
                     receive_input_over_wan = True

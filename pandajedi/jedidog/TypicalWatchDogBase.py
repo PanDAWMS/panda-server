@@ -1,5 +1,6 @@
 import os
 import socket
+from typing import TYPE_CHECKING, Any
 
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore import Interaction
@@ -8,11 +9,20 @@ from pandaserver.srvcore import CoreUtils
 
 from .WatchDogBase import WatchDogBase
 
+if TYPE_CHECKING:
+    from pandajedi.jedicore.MsgWrapper import MsgWrapper
+
 
 # base class for typical watchdog (for production and analysis, etc.)
 class TypicalWatchDogBase(WatchDogBase):
+    # installed on this class by Interaction.installSC() at the bottom of this module
+    SC_SUCCEEDED: Interaction.StatusCode
+    SC_FAILED: Interaction.StatusCode
+    SC_FATAL: Interaction.StatusCode
+    SC_WAITING: Interaction.StatusCode
+
     # pre-action
-    def pre_action(self, tmpLog, vo, prodSourceLabel, pid, *args, **kwargs):
+    def pre_action(self, tmpLog: "MsgWrapper", vo: str | None, prodSourceLabel: str | None, pid: str, *args: Any, **kwargs: Any) -> None:
         # rescue picked files
         tmpLog.info(f"rescue tasks with picked files for vo={vo} label={prodSourceLabel}")
         tmpRet = self.taskBufferIF.rescuePickedFiles_JEDI(vo, prodSourceLabel, jedi_config.watchdog.waitForPicked)
@@ -105,12 +115,12 @@ class TypicalWatchDogBase(WatchDogBase):
         if not got_lock:
             tmpLog.debug("locked by another watchdog process. Skipped to cache tokens")
         else:
-            tmpLog.info(f"cache tokens")
+            tmpLog.info("cache tokens")
             cacher = TokenCache()
             cacher.run()
 
     # action to set scout job data w/o scouts
-    def doActionToSetScoutJobData(self, gTmpLog):
+    def doActionToSetScoutJobData(self, gTmpLog: "MsgWrapper") -> None:
         tmpRet = self.taskBufferIF.setScoutJobDataToTasks_JEDI(self.vo, self.prodSourceLabel)
         if tmpRet is None:
             # failed

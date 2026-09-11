@@ -1,17 +1,11 @@
-import datetime
 import json
-from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
-from typing import Any, Dict, List
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.api.v1.common import (
-    MESSAGE_DATABASE,
-    TIME_OUT,
-    TimedMethod,
     generate_response,
     get_dn,
     has_production_role,
@@ -24,8 +18,11 @@ from pandaserver.workflow.workflow_core import WorkflowInterface
 _logger = PandaLogger().getLogger("api_workflow")
 
 # These global variables are initialized in the init_task_buffer method
-global_task_buffer = None
-global_wfif = None
+# Installed by init_task_buffer() before any handler runs, so these are declared
+# non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
+# only push a None check onto every handler without making any of them safer.
+global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
+global_wfif: WorkflowInterface = None  # type: ignore[assignment]
 
 # These global variables don't depend on DB access and can be initialized here
 # global_proxy_cache = panda_proxy_cache.MyProxyInterface()
@@ -44,7 +41,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, production=False, request_method="POST")
-def submit_workflow_raw_request(req: PandaRequest, params: dict | str) -> dict:
+def submit_workflow_raw_request(req: PandaRequest, params: dict[str, Any] | str) -> dict[str, Any]:
     """
     Submit raw request of PanDA native workflow.
 
@@ -74,13 +71,15 @@ def submit_workflow_raw_request(req: PandaRequest, params: dict | str) -> dict:
 
     if isinstance(params, str):
         try:
-            params = json.loads(params)
+            request_params = json.loads(params)
         except Exception as exc:
             message = f"Failed to parse params: {params} {str(exc)}"
             tmp_logger.error(message)
             return generate_response(success, message, data)
+    else:
+        request_params = params
 
-    workflow_id = global_wfif.register_workflow(prodsourcelabel, user_dn, raw_request_params=params)
+    workflow_id = global_wfif.register_workflow(prodsourcelabel, user_dn, raw_request_params=request_params)
 
     if workflow_id is not None:
         success = True
@@ -95,7 +94,7 @@ def submit_workflow_raw_request(req: PandaRequest, params: dict | str) -> dict:
 
 
 @request_validation(_logger, secure=True, production=False, request_method="POST")
-def submit_workflow(req: PandaRequest, workflow_definition: dict) -> dict:
+def submit_workflow(req: PandaRequest, workflow_definition: dict[str, Any]) -> dict[str, Any]:
     """
     Submit a PanDA native workflow.
 

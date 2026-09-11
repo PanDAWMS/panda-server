@@ -3,6 +3,8 @@ import re
 import socket
 import time
 import traceback
+from multiprocessing.connection import Connection
+from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -17,20 +19,31 @@ from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from .JediKnight import JediKnight
 
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
+
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 # worker class to kill/amend tasks
 class TaskCommando(JediKnight):
     # constructor
-    def __init__(self, commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels):
-        self.vos = self.parseInit(vos)        
+    def __init__(
+        self,
+        commuChannel: Connection,
+        taskBufferIF: "JediTaskBufferInterface",
+        ddmIF: "DDMInterface",
+        vos: str | list[str] | None,
+        prodSourceLabels: str | list[str] | None,
+    ) -> None:
+        self.vos = self.parseInit(vos)
         self.prodSourceLabels = self.parseInit(prodSourceLabels)
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-dog"
         JediKnight.__init__(self, commuChannel, taskBufferIF, ddmIF, logger)
 
     # main
-    def start(self):
+    def start(self) -> None:
         # start base classes
         JediKnight.start(self)
         # go into main loop
@@ -85,7 +98,7 @@ class TaskCommando(JediKnight):
 # thread for real worker
 class TaskCommandoThread(WorkerThread):
     # constructor
-    def __init__(self, taskList, threadPool, taskbufferIF, ddmIF, pid):
+    def __init__(self, taskList: ListWithLock, threadPool: ThreadPool, taskbufferIF: "JediTaskBufferInterface", ddmIF: "DDMInterface", pid: str) -> None:
         # initialize worker with no semaphore
         WorkerThread.__init__(self, None, threadPool, logger)
         # attributres
@@ -96,7 +109,7 @@ class TaskCommandoThread(WorkerThread):
         self.pid = pid
 
     # main
-    def runImpl(self):
+    def runImpl(self) -> None:
         while True:
             try:
                 # get a part of list
@@ -152,7 +165,6 @@ class TaskCommandoThread(WorkerThread):
                                             reassign_target = tmp_instructions.get("target")
                                             reassign_value = tmp_instructions.get("value")
                                             back_to_old_status = tmp_instructions.get("back_to_old_status")
-                                            tmpItems = commentStr.split(":")
                                             if reassign_target == "cloud":
                                                 tmpTaskSpec.cloud = reassign_value
                                             elif reassign_target == "nucleus":
@@ -272,8 +284,12 @@ class TaskCommandoThread(WorkerThread):
                                 tmpLog.error(f"failed to change task params with {str(e)} {traceback.format_exc()}")
                                 continue
                         else:
-                            # command qualifiers for retry
-                            command_qualifiers = commentStr.split()
+                            # Command qualifiers for retry. The comment is NULL when the
+                            # command was inserted without one -- the kill branch above
+                            # guards against that in three places -- and no comment means
+                            # no qualifiers rather than an AttributeError that abandons
+                            # the rest of this worker's batch
+                            command_qualifiers = commentStr.split() if commentStr else []
                         # retry child tasks
                         retryChildTasks = "sole" not in command_qualifiers
                         # discard events
@@ -336,6 +352,12 @@ class TaskCommandoThread(WorkerThread):
 # launch
 
 
-def launcher(commuChannel, taskBufferIF, ddmIF, vos=None, prodSourceLabels=None):
+def launcher(
+    commuChannel: Connection,
+    taskBufferIF: "JediTaskBufferInterface",
+    ddmIF: "DDMInterface",
+    vos: str | list[str] | None = None,
+    prodSourceLabels: str | list[str] | None = None,
+) -> None:
     p = TaskCommando(commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels)
     p.start()

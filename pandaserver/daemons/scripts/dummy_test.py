@@ -1,10 +1,10 @@
 import math
 import os
-import sys
+from typing import Any
 
 
 # run
-def main(tbuf=None, **kwargs):
+def main(tbuf: Any = None, **kwargs: Any) -> None:
     print("Dummy test of PanDA daemon ---- START")
 
     res = math.cos(math.pi / 3)

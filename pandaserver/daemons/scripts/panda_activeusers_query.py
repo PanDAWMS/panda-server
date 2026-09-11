@@ -1,4 +1,4 @@
-import sys
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -13,10 +13,10 @@ _logger = PandaLogger().getLogger("activeusers_query")
 
 
 # main
-def main(tbuf=None, **kwargs):
+def main(tbuf: Any = None, **kwargs: Any) -> None:
     # logger
     tmpLog = LogWrapper(_logger)
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     tmpLog.debug("================= start ==================")
     # instantiate TB
@@ -57,6 +57,9 @@ def main(tbuf=None, **kwargs):
             continue
         realDN = CoreUtils.get_bare_dn(realDN, keep_digits=False)
         name = CoreUtils.clean_user_id(realDN)
+        if name is None:
+            tmpLog.debug(f"skip {realDN} which has no user name")
+            continue
         # check proxy
         tmpLog.debug(f"check proxy cache for {name}")
         for role in roles:

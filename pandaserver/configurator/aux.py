@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
@@ -27,7 +28,7 @@ TIMESTAMP = "timestamp"
 REQUESTS_TIMEOUT = 30
 
 
-def get_dump(url):
+def get_dump(url: str) -> Any:
     """
     Retrieves a json file from the given URL and loads it into memory
     """
@@ -39,6 +40,8 @@ def get_dump(url):
                 return json.load(f)
         except Exception:
             return None
+    # ca_certs is the requests verify argument: a CA directory, or False to skip verification
+    ca_certs: str | bool
     if panda_config.configurator_use_cert:
         key_file = os.environ["X509_USER_PROXY"]
         cert_file = os.environ["X509_USER_PROXY"]
@@ -57,7 +60,7 @@ def get_dump(url):
     return None
 
 
-def query_grafana_proxy(query, bearer_token):
+def query_grafana_proxy(query: str, bearer_token: str | None) -> Any:
     headers = {
         "Content-Type": "application/x-ndjson",
         "Authorization": f"Bearer {bearer_token}",

@@ -1,9 +1,10 @@
 import json
 import os
+from typing import Any
 
 
 # load configmap
-def load_config_map(section, target_dict):
+def load_config_map(section: str, target_dict: dict[str, Any]) -> None:
     if "PANDA_HOME" not in os.environ:
         return
     config_map_name = "panda_server_config.json"

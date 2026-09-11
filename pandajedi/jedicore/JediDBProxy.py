@@ -1,10 +1,17 @@
 import atexit
 import logging
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jediconfig import jedi_config
+from pandaserver.config import panda_config
 from pandaserver.taskbuffer import OraDBProxy
+
+if TYPE_CHECKING:
+    # annotations only: msg_processor is what MsgProcAgent is imported late from, so
+    # that a daemon opens its log file before the broker code runs
+    from pandacommon.pandamsgbkr.msg_processor import PassiveProxies
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 OraDBProxy._logger = logger
@@ -18,26 +25,28 @@ for tmpHdr in tmpLoggerFiltered.handlers:
     tmpLoggerFiltered.removeHandler(tmpHdr)
 
 
-# get mb proxies used in DBProxy methods
-def get_mb_proxy_dict():
+# get mb proxies used in DBProxy methods, or None when no message queue is configured
+def get_mb_proxy_dict() -> "PassiveProxies | None":
     if hasattr(jedi_config, "mq") and hasattr(jedi_config.mq, "configFile") and jedi_config.mq.configFile:
         # delay import to open logger file inside python daemon
         from pandajedi.jediorder.JediMsgProcessor import MsgProcAgent
 
-        in_q_list = []
+        in_q_list: list[Any] = []
         out_q_list = ["jedi_jobtaskstatus", "jedi_contents_feeder", "jedi_job_generator"]
         mq_agent = MsgProcAgent(config_file=jedi_config.mq.configFile)
-        mb_proxy_dict = mq_agent.start_passive_mode(in_q_list=in_q_list, out_q_list=out_q_list)
+        mb_proxy_dict: "PassiveProxies" = mq_agent.start_passive_mode(in_q_list=in_q_list, out_q_list=out_q_list)
         # stop with atexit
         atexit.register(mq_agent.stop_passive_mode)
         # return
         return mb_proxy_dict
+    # no message queue configured, which every caller of this reads as "no proxies"
+    return None
 
 
 # main class
 class DBProxy(OraDBProxy.DBProxy):
     # constructor
-    def __init__(self, useOtherError=False):
+    def __init__(self, useOtherError: bool = False) -> None:
         OraDBProxy.DBProxy.__init__(self, useOtherError)
 
         # set JEDI attributes
@@ -46,11 +55,15 @@ class DBProxy(OraDBProxy.DBProxy):
     # connect to DB (just for INTR)
     def connect(
         self,
-        dbhost=jedi_config.db.dbhost,
-        dbpasswd=jedi_config.db.dbpasswd,
-        dbuser=jedi_config.db.dbuser,
-        dbname=jedi_config.db.dbname,
-        dbtimeout=None,
-        reconnect=False,
-    ):
-        return OraDBProxy.DBProxy.connect(self, dbhost=dbhost, dbpasswd=dbpasswd, dbuser=dbuser, dbname=dbname, dbtimeout=dbtimeout, reconnect=reconnect)
+        dbhost: str = jedi_config.db.dbhost,
+        dbpasswd: str = jedi_config.db.dbpasswd,
+        dbuser: str = jedi_config.db.dbuser,
+        dbname: str = jedi_config.db.dbname,
+        dbtimeout: int | None = None,
+        reconnect: bool = False,
+        # the JEDI config has no port of its own, so this is the value DBProxy defaults to
+        dbport: int = panda_config.dbport,
+    ) -> bool:
+        return OraDBProxy.DBProxy.connect(
+            self, dbhost=dbhost, dbpasswd=dbpasswd, dbuser=dbuser, dbname=dbname, dbtimeout=dbtimeout, reconnect=reconnect, dbport=dbport
+        )

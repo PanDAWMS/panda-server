@@ -1,16 +1,14 @@
-import datetime
 import gc
 import gzip
 import json
 import os
 import re
 import struct
-import sys
 import traceback
 import uuid
 import zlib
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -51,7 +49,10 @@ ERROR_OVERWRITE = "ERROR: cannot overwrite file"
 ERROR_WRITE = "ERROR: cannot write file"
 ERROR_SIZE_LIMIT = "ERROR: upload failure. Exceeded size limit"
 
-global_task_buffer = None
+# Installed by init_task_buffer() before any handler runs, so these are declared
+# non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
+# only push a None check onto every handler without making any of them safer.
+global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -87,7 +88,7 @@ def _get_content_length(req: PandaRequest, tmp_logger: LogWrapper) -> int:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
+def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
     """
     Upload a JEDI log file
 
@@ -150,16 +151,15 @@ def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
         tmp_logger.debug("Done")
         return generate_response(True, data=file_url)
 
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_message = f"failed to write log with {error_type.__name__}:{error_value}"
+    except Exception as e:
+        error_message = f"failed to write log with {type(e).__name__}:{e}"
         tmp_logger.error(error_message)
         tmp_logger.debug("Done")
         return generate_response(False, error_message)
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
+def update_jedi_log(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
     """
     Update a JEDI log file
 
@@ -188,14 +188,13 @@ def update_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
         # stdout name
         log_name = f"{panda_config.cache_dir}/{file.filename.split('/')[-1]}"
 
-        # append to file end
-        with open(log_name, "a") as file_object:
+        # append to file end. The mode is binary since the decompressed content is bytes
+        with open(log_name, "ab") as file_object:
             file_object.write(new_content)
 
-    except Exception:
-        error_type, error_value, _ = sys.exc_info()
-        tmp_logger.error(f"{error_type} {error_value}")
-        return generate_response(False, f"ERROR: cannot update file with {error_type} {error_value}")
+    except Exception as e:
+        tmp_logger.error(f"{type(e)} {e}")
+        return generate_response(False, f"ERROR: cannot update file with {type(e)} {e}")
 
     tmp_logger.debug("Done")
     return generate_response(True)
@@ -235,9 +234,8 @@ def download_jedi_log(req: PandaRequest, log_name: str, offset: int = 0) -> str:
             file_object.seek(int(offset))
             return_string += file_object.read()
 
-    except Exception:
-        error_type, error_value, _ = sys.exc_info()
-        tmp_logger.error(f"Failed with: {error_type} {error_value}")
+    except Exception as e:
+        tmp_logger.error(f"Failed with: {type(e)} {e}")
 
     tmp_logger.debug(f"Read {len(return_string)} bytes")
     tmp_logger.debug("Done")
@@ -245,7 +243,7 @@ def download_jedi_log(req: PandaRequest, log_name: str, offset: int = 0) -> str:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
+def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
     """
     Upload a cache file
 
@@ -266,7 +264,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
     """
 
     tmp_logger = LogWrapper(_logger, f"upload_cache_file-{naive_utcnow().isoformat('/')}")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
 
     # check if using secure connection and the proxy is not limited
     # we run these checks explicitly to trigger garbage collection
@@ -285,6 +283,10 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
     # user name
     user_name = CoreUtils.clean_user_id(req.subprocess_env["SSL_CLIENT_S_DN"])
     tmp_logger.debug(f"user_name={user_name} file_path={file.filename}")
+    if user_name is None:
+        error_message = "SSL_CLIENT_S_DN is missing in the request"
+        tmp_logger.error(error_message)
+        return generate_response(False, message=error_message)
 
     # get file size limit
     # log file
@@ -402,7 +404,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def touch_cache_file(req: PandaRequest, file_name: str) -> Dict:
+def touch_cache_file(req: PandaRequest, file_name: str) -> Dict[str, Any]:
     """
     Touch file in the cache directory.
 
@@ -421,21 +423,20 @@ def touch_cache_file(req: PandaRequest, file_name: str) -> Dict:
     """
 
     tmp_logger = LogWrapper(_logger, f"touch_cache_file < {file_name} >")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
 
     try:
         os.utime(f"{panda_config.cache_dir}/{file_name.split('/')[-1]}", None)
-        tmp_logger.debug(f"Done")
+        tmp_logger.debug("Done")
         return generate_response(True)
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        message = f"Failed to touch file with: {error_type} {error_value}"
+    except Exception as e:
+        message = f"Failed to touch file with: {type(e)} {e}"
         _logger.error(message)
         return generate_response(False, message)
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def delete_cache_file(req: PandaRequest, file_name: str) -> Dict:
+def delete_cache_file(req: PandaRequest, file_name: str) -> Dict[str, Any]:
     """
     Delete cache file
 
@@ -454,7 +455,7 @@ def delete_cache_file(req: PandaRequest, file_name: str) -> Dict:
     """
 
     tmp_logger = LogWrapper(_logger, f"delete_cache_file <{file_name}>")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
 
     try:
         # may be reused for re-brokerage
@@ -465,7 +466,7 @@ def delete_cache_file(req: PandaRequest, file_name: str) -> Dict:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_size: int, checksum: str) -> Dict:
+def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_size: int, checksum: str) -> Dict[str, Any]:
     """
     Register cache file
 
@@ -506,7 +507,7 @@ def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def validate_cache_file(req: PandaRequest, file_size: int, checksum: int | str) -> Dict:
+def validate_cache_file(req: PandaRequest, file_size: int, checksum: int | str) -> Dict[str, Any]:
     """
     Validate cache file
 
@@ -536,7 +537,7 @@ def validate_cache_file(req: PandaRequest, file_size: int, checksum: int | str) 
     return generate_response(True, message)
 
 
-def _get_checkpoint_filename(task_id: str, sub_id: str) -> Dict:
+def _get_checkpoint_filename(task_id: str, sub_id: str) -> str:
     """
     Get the checkpoint file name.
 
@@ -551,7 +552,7 @@ def _get_checkpoint_filename(task_id: str, sub_id: str) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
+def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
     """
     Upload a HPO checkpoint file
 
@@ -584,7 +585,7 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
     # get the file size
     content_length = _get_content_length(req, tmp_logger)
     if not content_length:
-        error_message = f"Cannot get content-length"
+        error_message = "Cannot get content-length"
         tmp_logger.error(error_message)
         return generate_response(False, error_message)
 
@@ -612,7 +613,7 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def delete_hpo_checkpoint(req: PandaRequest, task_id: str, sub_id: str) -> Dict:
+def delete_hpo_checkpoint(req: PandaRequest, task_id: str, sub_id: str) -> Dict[str, Any]:
     """
     Delete a HPO checkpoint file.
 
@@ -649,16 +650,16 @@ def delete_hpo_checkpoint(req: PandaRequest, task_id: str, sub_id: str) -> Dict:
 @request_validation(_logger, secure=True, request_method="POST", task_owner=True, task_buffer=lambda: global_task_buffer)
 def upload_file_recovery_request(
     req: PandaRequest,
-    task_id: int = None,
-    dry_run: bool = None,
-    dataset: str = None,
-    files: List[str] = None,
+    task_id: int | None = None,
+    dry_run: bool | None = None,
+    dataset: str | None = None,
+    files: List[str] | None = None,
     no_child_retry: bool = True,
     resurrect_datasets: bool = False,
     force: bool = False,
     reproduce_parent: bool = False,
     reproduce_upto_nth_gen: int = 0,
-) -> Dict:
+) -> Dict[str, Any]:
     """
     Upload file recovery request
 
@@ -753,7 +754,7 @@ def upload_file_recovery_request(
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_workflow_request(req: PandaRequest, data: str, dry_run: bool = False, sync: bool = False) -> Dict:
+def upload_workflow_request(req: PandaRequest, data: str, dry_run: bool = False, sync: bool = False) -> Dict[str, Any]:
     """
     Upload workflow request to the server.
 
@@ -841,7 +842,7 @@ def upload_event_picking_request(
     user_task_name: str = "",
     ei_api: str = "",
     include_guids: bool = False,
-) -> Dict:
+) -> Dict[str, Any]:
     """
     Upload event picking request to the server.
 

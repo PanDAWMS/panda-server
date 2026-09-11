@@ -1,13 +1,33 @@
+import json
+import logging
 import sys
 import threading
 import traceback
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
 from pandaserver.configurator import aux
-from pandaserver.configurator.aux import *
+from pandaserver.configurator.aux import (
+    D1,
+    DONE,
+    EXPRESS,
+    FILES,
+    GB,
+    H1,
+    H6,
+    LATEST,
+    MBPS,
+    PROD_INPUT,
+    PROD_OUTPUT,
+    QUEUED,
+    TIMESTAMP,
+    W1,
+)
+from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("configurator")
 
@@ -18,7 +38,7 @@ DEFAULT = "default"
 
 
 class Configurator(threading.Thread):
-    def __init__(self, taskBuffer, log_stream=None):
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
@@ -62,7 +82,7 @@ class Configurator(threading.Thread):
         else:
             self.RUCIO_RSE_USAGE = "https://rucio-hadoop.cern.ch/dumps/rse_usage/current.json"
 
-    def retrieve_data(self):
+    def retrieve_data(self) -> bool:
         self.log_stream.debug("Getting site dump...")
         self.site_dump = aux.get_dump(self.CRIC_URL_SITES)
         if not self.site_dump:
@@ -171,7 +191,7 @@ class Configurator(threading.Thread):
             self.rse_usage = {}
         return True
 
-    def get_site_info(self, site):
+    def get_site_info(self, site: dict[str, Any]) -> tuple[str, str, int]:
         """
         Gets the relevant information from a site
         """
@@ -185,11 +205,11 @@ class Configurator(threading.Thread):
 
         return role, state, tier_level
 
-    def parse_endpoints(self):
+    def parse_endpoints(self) -> dict[str, Any]:
         """
         Puts the relevant information from endpoint_dump into a more usable format
         """
-        endpoint_token_dict = {}
+        endpoint_token_dict: dict[str, Any] = {}
         for endpoint, endpoint_config in self.endpoint_dump.items():
             # Filter out testing and inactive endpoints
             if endpoint_config["state"] == "ACTIVE":  # and endpoint['type'] != 'TEST'
@@ -206,7 +226,7 @@ class Configurator(threading.Thread):
 
         return endpoint_token_dict
 
-    def process_site_dumps(self):
+    def process_site_dumps(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         """
         Parses the CRIC site and endpoint dumps and prepares a format loadable to the DB
         """
@@ -222,7 +242,7 @@ class Configurator(threading.Thread):
             panda_ddm_relation_list = self.get_panda_ddm_relations()
         except Exception:
             # Temporary protection to prevent issues
-            self.log_stream.error(f"get_panda_ddm_relations excepted with {traceback.print_exc()}")
+            self.log_stream.error(f"get_panda_ddm_relations excepted with {traceback.format_exc()}")
             panda_ddm_relation_list = []
 
         # Iterate the site dump
@@ -351,7 +371,7 @@ class Configurator(threading.Thread):
 
         return sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_list
 
-    def parse_role(self, role):
+    def parse_role(self, role: str) -> tuple[str, str]:
         """
         Traditionally roles have been "read_lan" or "write_lan". We will consider them the default roles.
         If you want to overwrite the role for specific jobs in CRIC, you can define e.g. "read_lan_analysis". Here we
@@ -381,7 +401,7 @@ class Configurator(threading.Thread):
         else:
             return role, DEFAULT
 
-    def get_panda_ddm_relations(self):
+    def get_panda_ddm_relations(self) -> list[dict[str, Any]]:
         """
         Gets the DDM endpoints assigned to a panda queue, based on the CRIC astorages field of the panda queue definition
         """
@@ -391,7 +411,7 @@ class Configurator(threading.Thread):
         for long_panda_site_name in self.schedconfig_dump:
             panda_site_name = self.schedconfig_dump[long_panda_site_name]["panda_resource"]
             cpu_site_name = self.schedconfig_dump[long_panda_site_name]["atlas_site"]
-            dict_ddm_endpoint = {}
+            dict_ddm_endpoint: dict[str, Any] = {}
 
             # get the astorages field
             if self.schedconfig_dump[long_panda_site_name]["astorages"]:
@@ -474,7 +494,7 @@ class Configurator(threading.Thread):
 
         return relation_list
 
-    def consistency_check(self):
+    def consistency_check(self) -> None:
         """
         Point out sites, panda sites and DDM endpoints that are missing in one of the sources
         """
@@ -486,7 +506,7 @@ class Configurator(threading.Thread):
         schedconfig_sites = self.taskBuffer.configurator_read_cric_sites()
         self.log_stream.debug(f"Sites in Schedconfig {schedconfig_sites}")
 
-        all_sites = sorted(filter(None, CRIC_sites | configurator_sites | schedconfig_sites))
+        all_sites: list[Any] = sorted(filter(None, CRIC_sites | configurator_sites | schedconfig_sites))
 
         for site in all_sites:
             missing = []
@@ -548,13 +568,13 @@ class Configurator(threading.Thread):
 
     def cleanup_configurator(
         self,
-        CRIC_sites,
-        CRIC_panda_sites,
-        CRIC_ddm_endpoints,
-        configurator_sites,
-        configurator_panda_sites,
-        configurator_ddm_endpoints,
-    ):
+        CRIC_sites: set[str],
+        CRIC_panda_sites: set[str],
+        CRIC_ddm_endpoints: set[str],
+        configurator_sites: set[str],
+        configurator_panda_sites: set[str],
+        configurator_ddm_endpoints: set[str],
+    ) -> None:
         """
         Cleans up information from configurator that is not in CRIC
         """
@@ -573,7 +593,11 @@ class Configurator(threading.Thread):
         ddm_endpoints_to_delete = configurator_ddm_endpoints - CRIC_ddm_endpoints
         self.taskBuffer.configurator_delete_ddm_endpoints(ddm_endpoints_to_delete)
 
-    def run(self):
+    # Thread.run() returns None, but nothing ever start()s these classes: the configurator
+    # daemon constructs one and calls run() directly, then reports on what it returns. The
+    # base class is vestigial and dropping it is the real fix, which is a decision about the
+    # public class rather than a typing one.
+    def run(self) -> bool:  # type: ignore[override]
         """
         Principal function
         """
@@ -620,7 +644,7 @@ class Configurator(threading.Thread):
 
 
 class NetworkConfigurator(threading.Thread):
-    def __init__(self, taskBuffer, log_stream=None):
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
@@ -639,7 +663,7 @@ class NetworkConfigurator(threading.Thread):
         else:
             self.CRIC_URL_CM = "https://atlas-cric.cern.ch/api/core/sitematrix/query/?json&json_pretty=0"
 
-    def retrieve_data(self):
+    def retrieve_data(self) -> bool:
         self.log_stream.debug("Getting NWS dump...")
         self.nws_dump = aux.get_dump(self.NWS_URL)
         if not self.nws_dump:
@@ -656,7 +680,7 @@ class NetworkConfigurator(threading.Thread):
 
         return True
 
-    def process_nws_dump(self):
+    def process_nws_dump(self) -> list[tuple[Any, ...]]:
         """
         Gets the second generation NWS information dump, filters out irrelevant information
         and prepares it for insertion into the PanDA DB
@@ -779,7 +803,7 @@ class NetworkConfigurator(threading.Thread):
 
         return data
 
-    def process_CRIC_cm_dump(self):
+    def process_CRIC_cm_dump(self) -> list[tuple[Any, ...]]:
         """
         Gets the CRIC CM information dump, filters out irrelevant information
         and prepares it for insertion into the PanDA DB
@@ -819,7 +843,11 @@ class NetworkConfigurator(threading.Thread):
 
         return data
 
-    def run(self):
+    # Thread.run() returns None, but nothing ever start()s these classes: the configurator
+    # daemon constructs one and calls run() directly, then reports on what it returns. The
+    # base class is vestigial and dropping it is the real fix, which is a decision about the
+    # public class rather than a typing one.
+    def run(self) -> bool:  # type: ignore[override]
         """
         Principal function
         """
@@ -850,7 +878,7 @@ class SchedconfigJsonDumper(threading.Thread):
     Downloads the CRIC schedconfig dump and stores it in the DB, one row per queue
     """
 
-    def __init__(self, taskBuffer, log_stream=None):
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         """
         Initialization and configuration
         """
@@ -871,7 +899,11 @@ class SchedconfigJsonDumper(threading.Thread):
         self.schedconfig_dump = aux.get_dump(self.CRIC_URL_SCHEDCONFIG)
         self.log_stream.debug("Done")
 
-    def run(self):
+    # Thread.run() returns None, but nothing ever start()s these classes: the configurator
+    # daemon constructs one and calls run() directly, then reports on what it returns. The
+    # base class is vestigial and dropping it is the real fix, which is a decision about the
+    # public class rather than a typing one.
+    def run(self) -> bool | str | None:  # type: ignore[override]
         """
         Principal function
         """
@@ -887,7 +919,7 @@ class SWTagsDumper(threading.Thread):
     Downloads the CRIC tags dump, flattens it out and stores it in the DB, one row per queue
     """
 
-    def __init__(self, taskBuffer, log_stream=None):
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         """
         Initialization and configuration
         """
@@ -908,7 +940,11 @@ class SWTagsDumper(threading.Thread):
         self.tags_dump = aux.get_dump(self.CRIC_URL_TAGS)
         self.log_stream.debug("Done")
 
-    def run(self):
+    # Thread.run() returns None, but nothing ever start()s these classes: the configurator
+    # daemon constructs one and calls run() directly, then reports on what it returns. The
+    # base class is vestigial and dropping it is the real fix, which is a decision about the
+    # public class rather than a typing one.
+    def run(self) -> bool | str | None:  # type: ignore[override]
         """
         Principal function
         """

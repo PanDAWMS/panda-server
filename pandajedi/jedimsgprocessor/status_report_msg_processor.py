@@ -4,6 +4,7 @@ import re
 import traceback
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
@@ -50,8 +51,8 @@ class StatusReportMsgProcPlugin(BaseMsgProcPlugin):
     Return the processed message to send to iDDS via MQ
     """
 
-    def initialize(self):
-        BaseMsgProcPlugin.initialize(self)
+    def initialize(self, in_collective: bool = False) -> None:
+        BaseMsgProcPlugin.initialize(self, in_collective)
         # forwarding plugins: incoming message will be forwarded to process method of these plugins
         self.forwarding_plugins = []
         forwarding_plugin_names = self.params.get("forwarding_plugins", [])
@@ -65,7 +66,7 @@ class StatusReportMsgProcPlugin(BaseMsgProcPlugin):
             plugin_inst.initialize()
             self.forwarding_plugins.append(plugin_inst)
 
-    def process(self, msg_obj):
+    def process(self, msg_obj: MsgObj) -> str | None:
         tmp_log = logger_utils.make_logger(base_logger, token=self.get_pid(), method_name="process")
         # start
         tmp_log.info("start")
@@ -80,7 +81,7 @@ class StatusReportMsgProcPlugin(BaseMsgProcPlugin):
         # sanity check
         try:
             msg_type = msg_dict["msg_type"]
-        except Exception as e:
+        except Exception as exc:
             err_str = f"failed to parse message object dict {msg_dict} , skipped. {exc.__class__.__name__} : {exc} ; {traceback.format_exc()}"
             tmp_log.error(err_str)
             raise
@@ -126,4 +127,7 @@ class StatusReportMsgProcPlugin(BaseMsgProcPlugin):
         tmp_log.debug(f"{msg_dict}; to_return={to_return_message}")
         tmp_log.info("done")
         if to_return_message:
-            return msg_obj.data
+            data: str = msg_obj.data
+            return data
+        # nothing goes to the outgoing queue for a status this plugin does not report
+        return None

@@ -1,5 +1,4 @@
 import argparse
-import sys
 
 from pandacommon.pandautils.thread_utils import GenericThread
 
@@ -7,7 +6,7 @@ from pandaserver.config import panda_config
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Workflow core smoke test helper")
     parser.add_argument("action", choices=["cancel_workflow"], help="Action to perform in the smoke test")
     parser.add_argument("--force", action="store_true", help="Force into cancelled status")
@@ -331,16 +330,14 @@ def parse_args():
 # )
 
 
-def main():
+def main() -> None:
     args = parse_args()
     WFID = args.workflow_id
-    action = args.action
-    force = args.force
 
     from pandaserver.workflow.workflow_core import WorkflowInterface
 
     # interface for workflow operations
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
     taskBuffer.init(
         panda_config.dbhost,
         panda_config.dbpasswd,

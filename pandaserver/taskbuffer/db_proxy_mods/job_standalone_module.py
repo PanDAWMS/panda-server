@@ -1,10 +1,11 @@
 import datetime
 import json
+import logging
 import random
 import re
 import time
+from typing import Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -18,11 +19,11 @@ from pandaserver.taskbuffer.JobSpec import JobSpec
 # Module class to define miscellaneous job-related methods that are independent of another module's methods
 class JobStandaloneModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # activate job. move job from jobsDefined to jobsActive
-    def activateJob(self, job):
+    def activateJob(self, job: JobSpec) -> bool:
         comment = " /* DBProxy.activateJob */"
         if job is None:
             tmp_id = None
@@ -57,7 +58,7 @@ class JobStandaloneModule(BaseModule):
                 # begin transaction
                 self.conn.begin()
                 # check all inputs are ready
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":type"] = "input"
                 varMap[":status1"] = "ready"
                 varMap[":status2"] = "cached"
@@ -135,22 +136,22 @@ class JobStandaloneModule(BaseModule):
                 # record status change
                 try:
                     if updatedFlag:
-                        self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
+                        self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 except Exception:
                     tmp_log.error("recordStatusChange failed")
-                self.push_job_status_message(job, job.PandaID, job.jobStatus)
+                self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # push job
                 if to_push:
                     mb_proxy_queue = self.get_mb_proxy("panda_pilot_queue")
                     mb_proxy_topic = self.get_mb_proxy("panda_pilot_topic")
                     if mb_proxy_queue and mb_proxy_topic:
                         tmp_log.debug("push job")
-                        srv_msg_utils.send_job_message(mb_proxy_queue, mb_proxy_topic, job.jediTaskID, job.PandaID)
+                        srv_msg_utils.send_job_message(mb_proxy_queue, mb_proxy_topic, job.jediTaskID, job.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     else:
                         tmp_log.debug("message queue/topic not configured")
                 tmp_log.debug("done")
                 return True
-            except Exception as e:
+            except Exception:
                 # roll back
                 self._rollback()
                 if iTry + 1 < nTry:
@@ -159,9 +160,12 @@ class JobStandaloneModule(BaseModule):
                     continue
                 self.dump_error_message(tmp_log)
                 return False
+        # the retry above only continues while another attempt is left, so the last one
+        # returns and this is not reached
+        raise RuntimeError("activateJob reached the end of its retry loop without a result")
 
     # send job to jobsWaiting
-    def keepJob(self, job):
+    def keepJob(self, job: JobSpec) -> bool:
         comment = " /* DBProxy.keepJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         tmp_log.debug("start")
@@ -187,7 +191,7 @@ class JobStandaloneModule(BaseModule):
                 n = self.cur.rowcount
                 if n == 0:
                     # already killed
-                    tmp_log.debug(f"Not found")
+                    tmp_log.debug("Not found")
                 else:
                     # update files
                     for file in job.Files:
@@ -209,8 +213,8 @@ class JobStandaloneModule(BaseModule):
                 # record status change
                 try:
                     if updatedFlag:
-                        self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
-                        self.push_job_status_message(job, job.PandaID, job.jobStatus)
+                        self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                        self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 except Exception:
                     tmp_log.error("recordStatusChange in keepJob")
                 return True
@@ -224,16 +228,18 @@ class JobStandaloneModule(BaseModule):
                 # dump error
                 self.dump_error_message(tmp_log)
                 return False
+        # the retry above only continues while another attempt is left, so the last one
+        # returns and this is not reached
+        raise RuntimeError("keepJob reached the end of its retry loop without a result")
 
     # reset job in jobsActive
     def resetJob(
         self,
-        pandaID,
-        activeTable=True,
-        keepSite=False,
-        getOldSubs=False,
-        forPending=True,
-    ):
+        pandaID: int,
+        activeTable: bool = True,
+        getOldSubs: bool = False,
+        forPending: bool = True,
+    ) -> Any:
         comment = " /* DBProxy.resetJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"activeTable={activeTable}")
@@ -249,7 +255,7 @@ class JobStandaloneModule(BaseModule):
             # transaction causes Request ndbd time-out in ATLAS_PANDA.jobsActive4
             self.conn.begin()
             # select
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = pandaID
             self.cur.arraysize = 10
             self.cur.execute(sql1 + comment, varMap)
@@ -301,15 +307,14 @@ class JobStandaloneModule(BaseModule):
             sqlD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
             self.cur.execute(sqlD + comment, varMap)
             # increase priority
-            if job.jobStatus == "activated" and job.currentPriority < 100:
+            if job.jobStatus == "activated" and job.currentPriority < 100:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                 job.currentPriority = 100
-            # reset computing site and dispatchDBlocks
+            # reset dispatchDBlocks so that the setupper makes a new one. The computing site is
+            # kept: the server no longer brokers, so re-brokerage is JEDI's to do and erasing
+            # the site here would only leave the job without one
             job.jobStatus = "defined"
             if job.prodSourceLabel not in ["user", "panda"]:
                 job.dispatchDBlock = None
-                # erase old assignment
-                if (not keepSite) and job.relocationFlag not in [1, 2]:
-                    job.computingSite = None
                 job.computingElement = None
             # host and time information
             job.modificationHost = self.hostname
@@ -366,10 +371,10 @@ class JobStandaloneModule(BaseModule):
                 raise RuntimeError("Commit error")
             # record status change
             try:
-                self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
+                self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             except Exception:
                 tmp_log.error("recordStatusChange in resetJobs")
-            self.push_job_status_message(job, job.PandaID, job.jobStatus)
+            self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             tmp_log.debug(f"done with {job is not None}")
             if getOldSubs:
                 return job, oldSubList
@@ -382,7 +387,7 @@ class JobStandaloneModule(BaseModule):
             return None
 
     # reset jobs in jobsDefined
-    def resetDefinedJob(self, pandaID):
+    def resetDefinedJob(self, pandaID: int) -> JobSpec | None:
         comment = " /* DBProxy.resetDefinedJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug("start")
@@ -397,7 +402,7 @@ class JobStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # update
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = pandaID
             varMap[":newJobStatus"] = "defined"
             varMap[":oldJobStatus1"] = "assigned"
@@ -407,11 +412,9 @@ class JobStandaloneModule(BaseModule):
             self.cur.execute(sql1 + comment, varMap)
             retU = self.cur.rowcount
             # not found
-            updatedFlag = True
             job = None
             if retU == 0:
                 tmp_log.debug("Not found for UPDATE")
-                updatedFlag = False
             else:
                 # select
                 varMap = {}
@@ -421,7 +424,7 @@ class JobStandaloneModule(BaseModule):
                 res = self.cur.fetchone()
                 # not found
                 if res is None:
-                    raise RuntimeError(f"Not found for SELECT")
+                    raise RuntimeError("Not found for SELECT")
                 # instantiate Job
                 job = JobSpec()
                 job.pack(res)
@@ -450,9 +453,10 @@ class JobStandaloneModule(BaseModule):
                 raise RuntimeError("Commit error")
             # record status change
             try:
-                if updatedFlag:
-                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
-                    self.push_job_status_message(job, job.PandaID, job.jobStatus)
+                # the job is set only when the update above changed a row
+                if job is not None:
+                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             except Exception:
                 tmp_log.error("recordStatusChange in resetDefinedJobs")
             tmp_log.debug(f"done with {job is not None}")
@@ -464,7 +468,7 @@ class JobStandaloneModule(BaseModule):
             return None
 
     # peek at job
-    def peekJob(self, pandaID, fromDefined, fromActive, fromArchived, fromWaiting, forAnal=False):
+    def peekJob(self, pandaID: int | str, fromDefined: bool, fromActive: bool, fromArchived: bool, fromWaiting: bool, forAnal: bool = False) -> JobSpec | None:
         comment = " /* DBProxy.peekJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         # return None for NULL PandaID
@@ -492,7 +496,7 @@ class JobStandaloneModule(BaseModule):
                     # for jobs which are just reset
                     tables.append("ATLAS_PANDA.jobsDefined4")
                 # select
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":PandaID"] = pandaID
                 for table in tables:
                     # start transaction
@@ -555,7 +559,7 @@ class JobStandaloneModule(BaseModule):
                         # set metadata
                         job.metadata = resMeta
                         return job
-                tmp_log.debug(f"not found")
+                tmp_log.debug("not found")
                 return None
             except Exception:
                 # roll back
@@ -570,156 +574,17 @@ class JobStandaloneModule(BaseModule):
                     return None
                 # return 'unknown'
                 job = JobSpec()
-                job.PandaID = pandaID
+                job.PandaID = pandaID  # type: ignore[assignment]
                 job.jobStatus = "unknown"
                 return job
-
-    # get express jobs
-    def getExpressJobs(self, dn):
-        comment = " /* DBProxy.getExpressJobs */"
-        tmp_log = self.create_tagged_logger(comment, f"DN={dn}")
-        tmp_log.debug(f"start")
-        sqlX = "SELECT specialHandling,COUNT(*) FROM %s "
-        sqlX += "WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel1 "
-        sqlX += "AND specialHandling IS NOT NULL "
-        sqlXJob = "SELECT PandaID,jobStatus,prodSourceLabel,modificationTime,jobDefinitionID,jobsetID,startTime,endTime FROM %s "
-        sqlXJob += "WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel1 "
-        sqlXJob += "AND specialHandling IS NOT NULL AND specialHandling=:specialHandling "
-        sqlQ = sqlX
-        sqlQ += "GROUP BY specialHandling "
-        sqlQJob = sqlXJob
-        sqlA = sqlX
-        sqlA += "AND modificationTime>:modificationTime GROUP BY specialHandling "
-        sqlAJob = sqlXJob
-        sqlAJob += "AND modificationTime>:modificationTime "
-        try:
-            # get compact DN
-            compactDN = CoreUtils.clean_user_id(dn)
-            if compactDN in ["", "NULL", None]:
-                compactDN = dn
-            expressStr = "express"
-            activeExpressU = []
-            timeUsageU = datetime.timedelta(0)
-            executionTimeU = datetime.timedelta(hours=1)
-            jobCreditU = 3
-            timeCreditU = executionTimeU * jobCreditU
-            timeNow = naive_utcnow()
-            timeLimit = timeNow - datetime.timedelta(hours=6)
-            # loop over tables
-            for table in [
-                "ATLAS_PANDA.jobsDefined4",
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsArchived4",
-            ]:
-                varMap = {}
-                varMap[":prodUserName"] = compactDN
-                varMap[":prodSourceLabel1"] = "user"
-                if table == "ATLAS_PANDA.jobsArchived4":
-                    varMap[":modificationTime"] = timeLimit
-                    sql = sqlA % table
-                    sqlJob = sqlAJob % table
-                else:
-                    sql = sqlQ % table
-                    sqlJob = sqlQJob % table
-                # start transaction
-                self.conn.begin()
-                # get the number of jobs for each specialHandling
-                self.cur.arraysize = 10
-                tmp_log.debug(sql + comment + str(varMap))
-                self.cur.execute(sql + comment, varMap)
-                res = self.cur.fetchall()
-                tmp_log.debug(f"{str(res)}")
-                for specialHandling, countJobs in res:
-                    if specialHandling is None:
-                        continue
-                    # look for express jobs
-                    if expressStr in specialHandling:
-                        varMap[":specialHandling"] = specialHandling
-                        self.cur.arraysize = 1000
-                        self.cur.execute(sqlJob + comment, varMap)
-                        resJobs = self.cur.fetchall()
-                        tmp_log.debug(f"{str(resJobs)}")
-                        for (
-                            tmp_PandaID,
-                            tmp_jobStatus,
-                            tmp_prodSourceLabel,
-                            tmp_modificationTime,
-                            tmp_jobDefinitionID,
-                            tmp_jobsetID,
-                            tmp_startTime,
-                            tmp_endTime,
-                        ) in resJobs:
-                            # collect active jobs
-                            if tmp_jobStatus not in [
-                                "finished",
-                                "failed",
-                                "cancelled",
-                                "closed",
-                            ]:
-                                activeExpressU.append((tmp_PandaID, tmp_jobsetID, tmp_jobDefinitionID))
-                            # get time usage
-                            if tmp_jobStatus not in ["defined", "activated"]:
-                                # check only jobs which actually use or used CPU on WN
-                                if tmp_startTime is not None:
-                                    # running or not
-                                    if tmp_endTime is None:
-                                        # job got started before/after the time limit
-                                        if timeLimit > tmp_startTime:
-                                            timeDelta = timeNow - timeLimit
-                                        else:
-                                            timeDelta = timeNow - tmp_startTime
-                                    else:
-                                        # job got started before/after the time limit
-                                        if timeLimit > tmp_startTime:
-                                            timeDelta = tmp_endTime - timeLimit
-                                        else:
-                                            timeDelta = tmp_endTime - tmp_startTime
-                                    # add
-                                    if timeDelta > datetime.timedelta(0):
-                                        timeUsageU += timeDelta
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-            # check quota
-            rRet = True
-            rRetStr = ""
-            rQuota = 0
-            if len(activeExpressU) >= jobCreditU:
-                rRetStr += f"The number of queued runXYZ exceeds the limit = {jobCreditU}. "
-                rRet = False
-            if timeUsageU >= timeCreditU:
-                rRetStr += f"The total execution time for runXYZ exceeds the limit = {timeCreditU.seconds / 60} min. "
-                rRet = False
-            # calculate available quota
-            if rRet:
-                tmpQuota = jobCreditU - len(activeExpressU) - timeUsageU.seconds / executionTimeU.seconds
-                if tmpQuota < 0:
-                    rRetStr += "Quota for runXYZ exceeds. "
-                    rRet = False
-                else:
-                    rQuota = tmpQuota
-            # return
-            retVal = {
-                "status": rRet,
-                "quota": rQuota,
-                "output": rRetStr,
-                "usage": timeUsageU,
-                "jobs": activeExpressU,
-            }
-            tmp_log.debug(f"{str(retVal)}")
-            return retVal
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dump_error_message(tmp_log)
-            return None
+        return None
 
     # get active debug jobs
-    def getActiveDebugJobs(self, dn=None, workingGroup=None, prodRole=False):
+    def getActiveDebugJobs(self, dn: str | None = None, workingGroup: str | None = None, prodRole: bool = False) -> list[Any] | None:
         comment = " /* DBProxy.getActiveDebugJobs */"
         tmp_log = self.create_tagged_logger(comment, f"DN={dn}")
         tmp_log.debug(f"wg={workingGroup} prodRole={prodRole}")
-        varMap = {}
+        varMap: dict[str, Any] = {}
         sqlX = "SELECT PandaID,jobStatus,specialHandling FROM %s "
         sqlX += "WHERE "
         if prodRole:
@@ -778,7 +643,7 @@ class JobStandaloneModule(BaseModule):
             return None
 
     # set debug mode
-    def setDebugMode(self, dn, pandaID, prodManager, modeOn, workingGroup):
+    def setDebugMode(self, dn: str, pandaID: int, prodManager: bool, modeOn: bool, workingGroup: str | None) -> str | None:
         comment = " /* DBProxy.setDebugMode */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"dn={dn} prod={prodManager} wg={workingGroup} mode={modeOn}")
@@ -793,10 +658,9 @@ class JobStandaloneModule(BaseModule):
                 compactDN = dn
             debugStr = "debug"
             retStr = ""
-            retCode = False
             # loop over tables
             for table in ["ATLAS_PANDA.jobsDefined4", "ATLAS_PANDA.jobsActive4"]:
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":PandaID"] = pandaID
                 sql = sqlX % table
                 # start transaction
@@ -910,18 +774,18 @@ class JobStandaloneModule(BaseModule):
     # lock jobs for reassign
     def lockJobsForReassign(
         self,
-        tableName,
-        timeLimit,
-        statList,
-        labels,
-        processTypes,
-        sites,
-        clouds,
-        useJEDI=False,
-        onlyReassignable=False,
-        useStateChangeTime=False,
-        getEventService=False,
-    ):
+        tableName: str,
+        timeLimit: datetime.datetime,
+        statList: list[str],
+        labels: list[str],
+        processTypes: list[str],
+        sites: list[str],
+        clouds: list[str],
+        useJEDI: bool = False,
+        onlyReassignable: bool = False,
+        useStateChangeTime: bool = False,
+        getEventService: bool = False,
+    ) -> tuple[bool, list[Any]]:
         comment = " /* DBProxy.lockJobsForReassign */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"{tableName} {timeLimit} {statList} {labels} {processTypes} {sites} {clouds} {useJEDI}")
@@ -937,7 +801,7 @@ class JobStandaloneModule(BaseModule):
                 sql += "WHERE modificationTime<:modificationTime "
             else:
                 sql += "WHERE stateChangeTime<:modificationTime "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":modificationTime"] = timeLimit
             if statList != []:
                 stat_var_names_str, stat_var_map = get_sql_IN_bind_variables(statList, prefix=":stat")
@@ -997,12 +861,12 @@ class JobStandaloneModule(BaseModule):
             return False, []
 
     # lock jobs for finisher
-    def lockJobsForFinisher(self, timeNow, rownum, highPrio):
+    def lockJobsForFinisher(self, timeNow: datetime.datetime, rownum: int, highPrio: bool) -> tuple[bool, list[Any]]:
         comment = " /* DBProxy.lockJobsForFinisher */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"{timeNow} {rownum} {highPrio}")
         try:
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jobStatus"] = "transferring"
             varMap[":currentPriority"] = 800
             varMap[":pLabel1"] = "managed"
@@ -1048,12 +912,12 @@ class JobStandaloneModule(BaseModule):
             return False, []
 
     # lock jobs for activator
-    def lockJobsForActivator(self, timeLimit, rownum, prio):
+    def lockJobsForActivator(self, timeLimit: datetime.datetime, rownum: int, prio: int) -> tuple[bool, list[Any]]:
         comment = " /* DBProxy.lockJobsForActivator */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
         try:
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jobStatus"] = "assigned"
             if prio > 0:
                 varMap[":currentPriority"] = prio
@@ -1095,10 +959,10 @@ class JobStandaloneModule(BaseModule):
             return False, []
 
     # add metadata
-    def addMetadata(self, pandaID, metadata, newStatus):
+    def addMetadata(self, pandaID: int, metadata: str, newStatus: str) -> bool:
         comment = " /* DBProxy.addMetaData */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         # discard metadata for failed jobs
         if newStatus == "failed":
             tmp_log.debug("skip")
@@ -1116,7 +980,7 @@ class JobStandaloneModule(BaseModule):
                 self.conn.begin()
                 self.cur.arraysize = 10
                 # check job status
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":PandaID"] = pandaID
                 self.cur.execute(sqlJ + comment, varMap)
                 resJ = self.cur.fetchone()
@@ -1179,12 +1043,15 @@ class JobStandaloneModule(BaseModule):
                     continue
                 self.dump_error_message(tmp_log)
                 return False
+        # the retry above only continues while another attempt is left, so the last one
+        # returns and this is not reached
+        raise RuntimeError("addMetadata reached the end of its retry loop without a result")
 
     # add stdout
-    def addStdOut(self, pandaID, stdOut):
+    def addStdOut(self, pandaID: int, stdOut: str) -> bool:
         comment = " /* DBProxy.addStdOut */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         sqlJ = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID FOR UPDATE "
         sqlC = "SELECT PandaID FROM ATLAS_PANDA.jobsDebug WHERE PandaID=:PandaID "
         sqlI = "INSERT INTO ATLAS_PANDA.jobsDebug (PandaID,stdOut) VALUES (:PandaID,:stdOut) "
@@ -1193,7 +1060,7 @@ class JobStandaloneModule(BaseModule):
             # autocommit on
             self.conn.begin()
             # select
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = pandaID
             self.cur.arraysize = 10
             # check job table
@@ -1228,7 +1095,7 @@ class JobStandaloneModule(BaseModule):
             return False
 
     # get job statistics
-    def getJobStatistics(self):
+    def getJobStatistics(self) -> dict[Any, Any] | None:
         comment = " /* DBProxy.getJobStatistics */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1243,12 +1110,12 @@ class JobStandaloneModule(BaseModule):
         excluded_states = ["merging"]
 
         # sql template for jobs table
-        sql_template = f"SELECT computingSite, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, jobStatus"
+        sql_template = "SELECT computingSite, jobStatus, COUNT(*) FROM {table_name} GROUP BY computingSite, jobStatus"
 
         # sql template for statistics table (materialized view)
         sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
         sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
-        ret = {}
+        ret: dict[str, Any] = {}
         max_retries = 3
 
         for retry in range(max_retries):
@@ -1256,7 +1123,7 @@ class JobStandaloneModule(BaseModule):
                 for table in tables:
                     # start transaction
                     self.conn.begin()
-                    var_map = {}
+                    var_map: dict[str, Any] = {}
                     self.cur.arraysize = 10000
 
                     # for active jobs we will query the summarized materialized view
@@ -1287,7 +1154,7 @@ class JobStandaloneModule(BaseModule):
                     for state in included_states:
                         ret[site].setdefault(state, 0)
 
-                tmp_log.debug(f"done")
+                tmp_log.debug("done")
                 return ret
 
             except Exception:
@@ -1299,9 +1166,10 @@ class JobStandaloneModule(BaseModule):
                 else:  # reached max retries - leave
                     self.dump_error_message(tmp_log)
                     return {}
+        return None
 
     # get detailed job statistics with resource_type and prodsourcelabel
-    def getDetailedJobStatistics(self):
+    def getDetailedJobStatistics(self) -> dict[Any, Any] | None:
         comment = " /* DBProxy.getDetailedJobStatistics */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1316,11 +1184,11 @@ class JobStandaloneModule(BaseModule):
         excluded_states = ["merging"]
 
         # sql template for jobs table
-        sql_template = f"SELECT computingSite, resource_type, prodSourceLabel, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, resource_type, prodSourceLabel, jobStatus"
+        sql_template = "SELECT computingSite, resource_type, prodSourceLabel, jobStatus, COUNT(*) FROM {table_name} GROUP BY computingSite, resource_type, prodSourceLabel, jobStatus"
         # sql template for statistics table (materialized view)
         sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
         sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
-        ret = {}
+        ret: dict[str, Any] = {}
         max_retries = 3
 
         for retry in range(max_retries):
@@ -1328,7 +1196,7 @@ class JobStandaloneModule(BaseModule):
                 for table in tables:
                     # start transaction
                     self.conn.begin()
-                    var_map = {}
+                    var_map: dict[str, Any] = {}
                     self.cur.arraysize = 10000
 
                     # for active jobs we will query the summarized materialized view
@@ -1361,7 +1229,7 @@ class JobStandaloneModule(BaseModule):
                             for state in included_states:
                                 ret[site][resource_type][prod_source_label].setdefault(state, 0)
 
-                tmp_log.debug(f"done")
+                tmp_log.debug("done")
                 return ret
 
             except Exception:
@@ -1373,9 +1241,10 @@ class JobStandaloneModule(BaseModule):
                 else:  # reached max retries - leave
                     self.dump_error_message(tmp_log)
                     return {}
+        return None
 
     # get job statistics per site and resource type (SCORE, MCORE, ...)
-    def getJobStatisticsPerSiteResource(self, time_window):
+    def getJobStatisticsPerSiteResource(self, time_window: int | None) -> dict[Any, Any]:
         comment = " /* DBProxy.getJobStatisticsPerSiteResource */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1396,7 +1265,7 @@ class JobStandaloneModule(BaseModule):
         sql_mv = re.sub("COUNT\(\*\)", "SUM(njobs)", sql)
         sql_mv = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sql_mv)
 
-        ret = dict()
+        ret: dict[str, Any] = dict()
         try:
             # calculate the time floor based on the window specified by the caller
             if time_window is None:
@@ -1410,7 +1279,7 @@ class JobStandaloneModule(BaseModule):
                 self.cur.arraysize = 10000
                 # select
 
-                var_map = {}
+                var_map: dict[str, Any] = {}
                 if table == "ATLAS_PANDA.jobsArchived4":
                     var_map[":modificationTime"] = time_floor
                     sql_tmp = sql_archive + comment
@@ -1448,7 +1317,7 @@ class JobStandaloneModule(BaseModule):
             return dict()
 
     # get the number of job for a user
-    def getNumberJobsUser(self, dn, workingGroup=None):
+    def getNumberJobsUser(self, dn: str | None, workingGroup: str | None = None) -> int:
         comment = " /* DBProxy.getNumberJobsUser */"
         tmp_log = self.create_tagged_logger(comment, f"DN={dn}")
         tmp_log.debug(f"workingGroup={workingGroup})")
@@ -1494,9 +1363,12 @@ class JobStandaloneModule(BaseModule):
                     continue
                 self.dump_error_message(tmp_log)
                 return 0
+        # the retry above only continues while another attempt is left, so the last one
+        # returns and this is not reached
+        raise RuntimeError("getNumberJobsUser reached the end of its retry loop without a result")
 
     # get job statistics for ExtIF. Source type is analysis or production
-    def getJobStatisticsForExtIF(self, source_type=None):
+    def getJobStatisticsForExtIF(self, source_type: str | None = None) -> dict[Any, Any]:
         comment = " /* DBProxy.getJobStatisticsForExtIF */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"start source_type={source_type}")
@@ -1540,7 +1412,7 @@ class JobStandaloneModule(BaseModule):
         sql_active_mv = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql)
         sql_active_mv = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sql_active_mv)
 
-        ret = {}
+        ret: dict[str, Any] = {}
 
         tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsArchived4", "ATLAS_PANDA.jobsDefined4"]
         try:
@@ -1549,7 +1421,7 @@ class JobStandaloneModule(BaseModule):
                 self.conn.begin()
 
                 # select
-                var_map = {}
+                var_map: dict[str, Any] = {}
                 if source_type == "analysis":
                     var_map[":prodSourceLabel1"] = "user"
                     var_map[":prodSourceLabel2"] = "panda"
@@ -1587,7 +1459,7 @@ class JobStandaloneModule(BaseModule):
                     ret[cloud][job_status] += count
 
             # return
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return ret
         except Exception:
             # roll back
@@ -1597,7 +1469,7 @@ class JobStandaloneModule(BaseModule):
             return {}
 
     # get statistics for production jobs per processingType
-    def getJobStatisticsPerProcessingType(self):
+    def getJobStatisticsPerProcessingType(self) -> dict[Any, Any]:
         comment = " /* DBProxy.getJobStatisticsPerProcessingType */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1634,7 +1506,7 @@ class JobStandaloneModule(BaseModule):
         sql_active_mv = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql_active)
         sql_active_mv = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sql_active_mv)
 
-        ret = {}
+        ret: dict[str, Any] = {}
         try:
             for table in tables:
                 # start transaction
@@ -1642,7 +1514,7 @@ class JobStandaloneModule(BaseModule):
 
                 # select
                 self.cur.arraysize = 10000
-                var_map = {":prodSourceLabelManaged": "managed"}
+                var_map: dict[str, Any] = {":prodSourceLabelManaged": "managed"}
                 var_map.update({f":prodSourceLabel_{label}": label for label in JobUtils.list_ptest_prod_sources})
 
                 if table == "ATLAS_PANDA.jobsArchived4":
@@ -1669,7 +1541,7 @@ class JobStandaloneModule(BaseModule):
                     ret.setdefault(cloud, {}).setdefault(processing_type, {}).setdefault(job_status, 0)
                     ret[cloud][processing_type][job_status] += count
 
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return ret
         except Exception:
             # roll back
@@ -1679,7 +1551,7 @@ class JobStandaloneModule(BaseModule):
             return {}
 
     # peek at job
-    def peekJobLog(self, pandaID, days=None):
+    def peekJobLog(self, pandaID: int | str, days: int | None = None) -> JobSpec | None:
         comment = " /* DBProxy.peekJobLog */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"days={days}")
@@ -1734,7 +1606,7 @@ class JobStandaloneModule(BaseModule):
 
                         # metadata
                         var_map = {}
-                        var_map[":PandaID"] = job.PandaID
+                        var_map[":PandaID"] = job.PandaID  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                         job.metadata = None
                         meta_table_name = re.sub("jobsArchived", "metaTable_ARCH", table)
                         sql_get_meta = f"SELECT metaData FROM {meta_table_name} WHERE PandaID=:PandaID"
@@ -1752,7 +1624,7 @@ class JobStandaloneModule(BaseModule):
                         job_param_table_name = re.sub("jobsArchived", "jobParamsTable_ARCH", table)
                         sql_get_job_params = f"SELECT jobParameters FROM {job_param_table_name} WHERE PandaID=:PandaID"
                         var_map = {}
-                        var_map[":PandaID"] = job.PandaID
+                        var_map[":PandaID"] = job.PandaID  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
                         self.cur.execute(sql_get_job_params + comment, var_map)
                         for (clob_job_params,) in self.cur:
                             if clob_job_params is not None:
@@ -1779,7 +1651,7 @@ class JobStandaloneModule(BaseModule):
                                 pass
                             job.addFile(file)
                         return job
-                tmp_log.debug(f"not found")
+                tmp_log.debug("not found")
                 return None
             except Exception:
                 # roll back
@@ -1791,9 +1663,10 @@ class JobStandaloneModule(BaseModule):
                 self.dump_error_message(tmp_log)
                 # return None
                 return None
+        return None
 
     # throttle user jobs
-    def throttleUserJobs(self, prodUserName, workingGroup, get_dict):
+    def throttleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool) -> Any:
         comment = " /* DBProxy.throttleUserJobs */"
         tmp_log = self.create_tagged_logger(comment, f"user={prodUserName} group={workingGroup}")
         tmp_log.debug("start")
@@ -1842,7 +1715,7 @@ class JobStandaloneModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             # loop over all tasks
-            task_ids = [task_id for task_id, in task_rows]
+            task_ids = [task_id for (task_id,) in task_rows]
             random.shuffle(task_ids)
             total_updated = 0
             updated_per_task = {}
@@ -1873,7 +1746,7 @@ class JobStandaloneModule(BaseModule):
                 for panda_id, job_info in job_info_map.items():
                     self.recordStatusChange(
                         panda_id,
-                        var_map[":newJobStatus"],
+                        var_map[":newJobStatus"],  # type: ignore[arg-type]  # a bind map holds what each column holds
                         infoMap=job_info,
                         useCommit=False,
                     )
@@ -1893,7 +1766,7 @@ class JobStandaloneModule(BaseModule):
             return None
 
     # unthrottle user jobs
-    def unThrottleUserJobs(self, prodUserName, workingGroup, get_dict):
+    def unThrottleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool) -> Any:
         comment = " /* DBProxy.unThrottleUserJobs */"
         tmp_log = self.create_tagged_logger(comment, f"user={prodUserName} group={workingGroup}")
         tmp_log.debug("start")
@@ -1940,7 +1813,7 @@ class JobStandaloneModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             # loop over all tasks
-            task_ids = [task_id for task_id, in task_rows]
+            task_ids = [task_id for (task_id,) in task_rows]
             random.shuffle(task_ids)
             total_updated = 0
             updated_per_task = {}
@@ -1971,7 +1844,7 @@ class JobStandaloneModule(BaseModule):
                 for panda_id, job_info in job_info_map.items():
                     self.recordStatusChange(
                         panda_id,
-                        var_map[":newJobStatus"],
+                        var_map[":newJobStatus"],  # type: ignore[arg-type]  # a bind map holds what each column holds
                         infoMap=job_info,
                         useCommit=False,
                     )
@@ -1991,10 +1864,10 @@ class JobStandaloneModule(BaseModule):
             return None
 
     # get the list of jobdefIDs for failed jobs in a task
-    def getJobdefIDsForFailedJob(self, jediTaskID):
+    def getJobdefIDsForFailedJob(self, jediTaskID: int) -> list[int]:
         comment = " /* DBProxy.getJobdefIDsForFailedJob */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()
@@ -2002,7 +1875,7 @@ class JobStandaloneModule(BaseModule):
             sqlGF = "SELECT distinct jobDefinitionID FROM ATLAS_PANDA.jobsActive4 "
             sqlGF += "WHERE jediTaskID=:jediTaskID AND jobStatus=:jobStatus "
             sqlGF += "AND attemptNr<maxAttempt "
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":jobStatus"] = "failed"
             self.cur.execute(sqlGF + comment, varMap)
@@ -2023,7 +1896,7 @@ class JobStandaloneModule(BaseModule):
             return []
 
     # check validity of merge job
-    def isValidMergeJob(self, pandaID, jediTaskID):
+    def isValidMergeJob(self, pandaID: int, jediTaskID: int) -> tuple[bool | None, str]:
         comment = " /* DBProxy.isValidMergeJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID} jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -2045,7 +1918,7 @@ class JobStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # check if merge job is active
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = pandaID
             self.cur.execute(sqlJ + comment, varMap)
             resJ = self.cur.fetchone()
@@ -2059,8 +1932,7 @@ class JobStandaloneModule(BaseModule):
                 varMap[":type2"] = "pseudo_input"
                 self.cur.execute(sqlF + comment, varMap)
                 resF = self.cur.fetchall()
-                firstDatasetID = None
-                fileIDsMap = {}
+                fileIDsMap: dict[str, Any] = {}
                 for datasetID, fileID in resF:
                     if datasetID not in fileIDsMap:
                         fileIDsMap[datasetID] = set()
@@ -2096,7 +1968,7 @@ class JobStandaloneModule(BaseModule):
                         break
                     elif resC[0] != "merging":
                         # not in merging
-                        tmp_log.debug("pre-merge job in {0} != merging".format(tmpPandaID, resC[0]))
+                        tmp_log.debug(f"pre-merge job {tmpPandaID} in {resC[0]} != merging")
                         retVal = False
                         retMsg = tmpPandaID
                         break
@@ -2113,11 +1985,11 @@ class JobStandaloneModule(BaseModule):
             return None, ""
 
     # check Job status
-    def checkJobStatus(self, pandaID):
+    def checkJobStatus(self, pandaID: int | str) -> dict[str, Any]:
         comment = " /* DBProxy.checkJobStatus */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug("start")
-        retVal = {"command": None, "status": None}
+        retVal: dict[str, Any] = {"command": None, "status": None}
         try:
             sqlC = (
                 "SELECT jobStatus,commandToPilot FROM ATLAS_PANDA.jobsActive4 "
@@ -2127,7 +1999,7 @@ class JobStandaloneModule(BaseModule):
                 "jobStatus,commandToPilot FROM ATLAS_PANDA.jobsArchived4 "
                 "WHERE PandaID=:pandaID AND modificationTime>:timeLimit "
             )
-            varMap = dict()
+            varMap: dict[str, Any] = dict()
             varMap[":pandaID"] = int(pandaID)
             varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(hours=1)
             # begin transaction
@@ -2152,7 +2024,7 @@ class JobStandaloneModule(BaseModule):
             return retVal
 
     # get user job metadata
-    def getUserJobMetadata(self, jediTaskID):
+    def getUserJobMetadata(self, jediTaskID: int) -> dict[Any, Any]:
         comment = " /* DBProxy.getUserJobMetadata */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
@@ -2166,7 +2038,7 @@ class JobStandaloneModule(BaseModule):
                 ("ATLAS_PANDAARCH.jobsArchived", "ATLAS_PANDAARCH.metaTable_ARCH"),
             ]:
                 sql = sqlC.format(a, m)
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":jediTaskID"] = jediTaskID
                 varMap[":label"] = "user"
                 varMap[":jobStatus"] = "finished"
@@ -2196,7 +2068,7 @@ class JobStandaloneModule(BaseModule):
             return {}
 
     # insert job output report
-    def insertJobOutputReport(self, panda_id, prod_source_label, job_status, attempt_nr, data):
+    def insertJobOutputReport(self, panda_id: int, prod_source_label: str, job_status: str, attempt_nr: int, data: str) -> bool:
         comment = " /* DBProxy.insertJobOutputReport */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id} attemptNr={attempt_nr}")
         tmp_log.debug("start")
@@ -2211,7 +2083,7 @@ class JobStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # insert
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = panda_id
             varMap[":prodSourceLabel"] = prod_source_label
             varMap[":jobStatus"] = job_status
@@ -2234,7 +2106,7 @@ class JobStandaloneModule(BaseModule):
             return retVal
 
     # update data of job output report
-    def updateJobOutputReport(self, panda_id, attempt_nr, data):
+    def updateJobOutputReport(self, panda_id: int, attempt_nr: int, data: str) -> bool:
         comment = " /* DBProxy.updateJobOutputReport */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id} attemptNr={attempt_nr}")
         tmp_log.debug("start")
@@ -2246,7 +2118,7 @@ class JobStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # update
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = panda_id
             varMap[":attemptNr"] = attempt_nr
             varMap[":data"] = data
@@ -2273,7 +2145,7 @@ class JobStandaloneModule(BaseModule):
             return retVal
 
     # deleted job output report
-    def deleteJobOutputReport(self, panda_id, attempt_nr):
+    def deleteJobOutputReport(self, panda_id: int, attempt_nr: int | None) -> bool:
         comment = " /* DBProxy.deleteJobOutputReport */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id} attemptNr={attempt_nr}")
         tmp_log.debug("start")
@@ -2284,7 +2156,7 @@ class JobStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # delete
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = panda_id
             varMap[":attemptNr"] = attempt_nr
             self.cur.execute(sqlD + comment, varMap)
@@ -2303,7 +2175,7 @@ class JobStandaloneModule(BaseModule):
             return retVal
 
     # get record of a job output report
-    def getJobOutputReport(self, panda_id, attempt_nr):
+    def getJobOutputReport(self, panda_id: int, attempt_nr: int | None) -> dict[str, Any]:
         comment = " /* DBProxy.getJobOutputReport */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id} attemptNr={attempt_nr}")
         tmp_log.debug("start")
@@ -2319,7 +2191,7 @@ class JobStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = panda_id
             varMap[":attemptNr"] = attempt_nr
             self.cur.execute(sqlGR + comment, varMap)
@@ -2361,13 +2233,14 @@ class JobStandaloneModule(BaseModule):
             return retVal
 
     # lock job output report
-    def lockJobOutputReport(self, panda_id, attempt_nr, pid, time_limit, take_over_from=None):
+    def lockJobOutputReport(self, panda_id: int, attempt_nr: int, pid: str, time_limit: int, take_over_from: str | None = None) -> list[Any] | bool:
         comment = " /* DBProxy.lockJobOutputReport */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id} attemptNr={attempt_nr}")
         tmp_log.debug("start")
         # try to lock
         try:
-            retVal = []
+            # whether the row was locked; the callers only test it for truth
+            retVal = False
             # sql to get lock
             sqlGL = (
                 "SELECT PandaID,attemptNr "
@@ -2377,13 +2250,13 @@ class JobStandaloneModule(BaseModule):
                 "FOR UPDATE NOWAIT "
             ).format(panda_config.schemaPANDA)
             # sql to update lock
-            sqlUL = (
-                "UPDATE {0}.Job_Output_Report " "SET lockedBy=:lockedBy, lockedTime=:lockedTime " "WHERE PandaID=:PandaID AND attemptNr=:attemptNr "
-            ).format(panda_config.schemaPANDA)
+            sqlUL = ("UPDATE {0}.Job_Output_Report SET lockedBy=:lockedBy, lockedTime=:lockedTime WHERE PandaID=:PandaID AND attemptNr=:attemptNr ").format(
+                panda_config.schemaPANDA
+            )
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = panda_id
             varMap[":attemptNr"] = attempt_nr
             if take_over_from is None:
@@ -2428,27 +2301,24 @@ class JobStandaloneModule(BaseModule):
             return retVal
 
     # unlock job output report
-    def unlockJobOutputReport(self, panda_id, attempt_nr, pid, lock_offset):
+    def unlockJobOutputReport(self, panda_id: int, attempt_nr: int | None, pid: str | None, lock_offset: int) -> list[Any] | bool:
         comment = " /* DBProxy.unlockJobOutputReport */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id} attemptNr={attempt_nr}")
         tmp_log.debug("start")
         # try to lock
         try:
-            retVal = []
+            # whether the row was locked; the callers only test it for truth
+            retVal = False
             # sql to get lock
             sqlGL = (
-                "SELECT PandaID,attemptNr "
-                "FROM {0}.Job_Output_Report "
-                "WHERE PandaID=:PandaID AND attemptNr=:attemptNr "
-                "AND lockedBy=:lockedBy "
-                "FOR UPDATE"
+                "SELECT PandaID,attemptNr FROM {0}.Job_Output_Report WHERE PandaID=:PandaID AND attemptNr=:attemptNr AND lockedBy=:lockedBy FOR UPDATE"
             ).format(panda_config.schemaPANDA)
             # sql to update lock
             sqlUL = f"UPDATE {panda_config.schemaPANDA}.Job_Output_Report SET lockedTime=:lockedTime WHERE PandaID=:PandaID AND attemptNr=:attemptNr "
             # start transaction
             self.conn.begin()
             # check
-            varMap = {}
+            varMap: dict[str, Any] = {}
             varMap[":PandaID"] = panda_id
             varMap[":attemptNr"] = attempt_nr
             varMap[":lockedBy"] = pid
@@ -2480,15 +2350,17 @@ class JobStandaloneModule(BaseModule):
             return retVal
 
     # list pandaID, jobStatus, attemptNr, timeStamp of job output report
-    def listJobOutputReport(self, only_unlocked, time_limit, limit, grace_period, labels, anti_labels):
+    def listJobOutputReport(
+        self, only_unlocked: bool, time_limit: int, limit: int, grace_period: int, labels: list[str] | None, anti_labels: list[str] | None
+    ) -> list[Any] | None:
         comment = " /* DBProxy.listJobOutputReport */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"start label={str(labels)} limit={limit} anti_label={str(anti_labels)}")
         try:
-            retVal = None
+            retVal: list[Any] | None = None
             if only_unlocked:
                 # try to get only records unlocked or with expired lock
-                varMap = {}
+                varMap: dict[str, Any] = {}
                 varMap[":limit"] = limit * 10
                 varMap[":lockedTime"] = naive_utcnow() - datetime.timedelta(minutes=time_limit)
                 varMap[":timeStamp"] = naive_utcnow() - datetime.timedelta(seconds=grace_period)
@@ -2509,7 +2381,7 @@ class JobStandaloneModule(BaseModule):
                     anti_label_var_names_str, anti_label_var_map = get_sql_IN_bind_variables(anti_labels, prefix=":al_", value_as_suffix=True)
                     sqlGR += f"AND prodSourceLabel NOT IN ({anti_label_var_names_str}) "
                     varMap.update(anti_label_var_map)
-                sqlGR += "ORDER BY timeStamp " ") " "WHERE rownum<=:limit "
+                sqlGR += "ORDER BY timeStamp ) WHERE rownum<=:limit "
                 # start transaction
                 self.conn.begin()
                 # check
@@ -2526,13 +2398,7 @@ class JobStandaloneModule(BaseModule):
             else:
                 # sql to select
                 sqlS = (
-                    "SELECT * "
-                    "FROM ( "
-                    "SELECT PandaID,jobStatus,attemptNr,timeStamp "
-                    "FROM {0}.Job_Output_Report "
-                    "ORDER BY timeStamp "
-                    ") "
-                    "WHERE rownum<=:limit "
+                    "SELECT * FROM ( SELECT PandaID,jobStatus,attemptNr,timeStamp FROM {0}.Job_Output_Report ORDER BY timeStamp ) WHERE rownum<=:limit "
                 ).format(panda_config.schemaPANDA)
                 # start transaction
                 self.conn.begin()
@@ -2555,7 +2421,7 @@ class JobStandaloneModule(BaseModule):
             return retVal
 
     # send command to a job
-    def send_command_to_job(self, panda_id, com):
+    def send_command_to_job(self, panda_id: int, com: str) -> tuple[bool, str]:
         comment = " /* DBProxy.send_command_to_job */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id}")
         tmp_log.debug("start")
@@ -2570,12 +2436,12 @@ class JobStandaloneModule(BaseModule):
                 )
             else:
                 sqlR = "SELECT commandToPilot FROM ATLAS_PANDA.{} WHERE PandaID=:PandaID FOR UPDATE "
-                sqlU = "UPDATE ATLAS_PANDA.{} SET commandToPilot=:commandToPilot " "WHERE PandaID=:PandaID "
+                sqlU = "UPDATE ATLAS_PANDA.{} SET commandToPilot=:commandToPilot WHERE PandaID=:PandaID "
                 for table in ["jobsDefined4", "jobsActive4"]:
                     # start transaction
                     self.conn.begin()
                     # read
-                    varMap = {}
+                    varMap: dict[str, Any] = {}
                     varMap[":PandaID"] = panda_id
                     self.cur.execute(sqlR.format(table) + comment, varMap)
                     data = self.cur.fetchone()

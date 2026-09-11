@@ -1,33 +1,33 @@
 class SQLQueryManager:
-    def __init__(self, sql_query):
+    def __init__(self, sql_query: str) -> None:
         self.sql_query = sql_query
 
-    def format_query(self):
+    def format_query(self) -> str:
         """Format the SQL query by removing line breaks and redundant spaces."""
         # Replace newline characters with a single space
-        formatted_query = self.sql_query.replace('\n', ' ')
+        formatted_query = self.sql_query.replace("\n", " ")
         # Remove redundant spaces (more than one space in a row)
-        formatted_query = ' '.join(formatted_query.split())
+        formatted_query = " ".join(formatted_query.split())
         return formatted_query
 
-    def set_query(self, sql_query):
+    def set_query(self, sql_query: str) -> None:
         """Set a new SQL query."""
         self.sql_query = sql_query
 
-    def get_query(self):
+    def get_query(self) -> str:
         """Get the current SQL query."""
         return self.sql_query
 
-    def log_query(self):
+    def log_query(self) -> None:
         """Log the formatted SQL query."""
         formatted_query = self.format_query()
         print(f"SQL Query: {formatted_query}")
 
-    def append(self, sql_text):
+    def append(self, sql_text: str) -> None:
         """Append more text to the existing SQL query."""
-        self.sql_query += ' ' + sql_text
+        self.sql_query += " " + sql_text
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Custom string representation of the SQLQueryManager instance."""
         return self.format_query()
 
@@ -35,12 +35,14 @@ class SQLQueryManager:
 # Example usage:
 if __name__ == "__main__":
     # Initialize the SQLQueryManager with an SQL query
-    sql_manager = SQLQueryManager("""
+    sql_manager = SQLQueryManager(
+        """
         SELECT *
         FROM your_table
         WHERE condition = 'something'
         ORDER BY column_name
-    """)
+    """
+    )
 
     # Log the SQL query
     print(sql_manager)  # This will print the formatted SQL query
@@ -52,9 +54,11 @@ if __name__ == "__main__":
         WHERE condition = 'another condition'
     """
     sql_manager.set_query(new_query)
-    sql_manager.append("""
+    sql_manager.append(
+        """
     AND condition2 = 'more conditions'
-    """)
+    """
+    )
 
     # Log the updated SQL query
     print(sql_manager)  # This will print the updated formatted SQL query

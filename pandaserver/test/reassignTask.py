@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import time
+from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
@@ -55,7 +56,7 @@ jobs = []
 jediJobs = []
 
 timeLimit = naive_utcnow() - datetime.timedelta(minutes=options.limit)
-varMap = {}
+varMap: dict[str, Any] = {}
 varMap[":modificationTime"] = timeLimit
 varMap[":taskID"] = taskid
 sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsDefined4 WHERE taskID=:taskID AND modificationTime<:modificationTime "
@@ -101,7 +102,7 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print(f"reassign  {str(jobs[iJob:iJob + nJob])}")
+        print(f"reassign  {str(jobs[iJob : iJob + nJob])}")
         Client.reassign_jobs(jobs[iJob : iJob + nJob])
         iJob += nJob
         time.sleep(10)
@@ -110,7 +111,7 @@ if len(jediJobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jediJobs):
-        print(f"kill JEDI jobs {str(jediJobs[iJob:iJob + nJob])}")
+        print(f"kill JEDI jobs {str(jediJobs[iJob : iJob + nJob])}")
         Client.kill_jobs(jediJobs[iJob : iJob + nJob], codeV, keep_unmerged=options.keepUnmerged)
         iJob += nJob
 

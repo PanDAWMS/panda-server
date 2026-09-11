@@ -1,10 +1,17 @@
 import traceback
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.spec_column import Null
 
 from .TaskSetupperBase import TaskSetupperBase
 
@@ -14,14 +21,14 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # task setup for ATLAS
 class AtlasTaskSetupper(TaskSetupperBase):
     # constructor
-    def __init__(self, taskBufferIF, ddmIF):
+    def __init__(self, taskBufferIF: JediTaskBufferInterface, ddmIF: DDMInterface) -> None:
         TaskSetupperBase.__init__(self, taskBufferIF, ddmIF)
         self.user_container_lifetime = taskBufferIF.getConfigValue("user_output", "OUTPUT_CONTAINER_LIFETIME", "jedi")
         if not self.user_container_lifetime:
             self.user_container_lifetime = 14
 
     # main to setup task
-    def doSetup(self, taskSpec, datasetToRegister, pandaJobs):
+    def doSetup(self, taskSpec: JediTaskSpec, datasetToRegister: list[int | Null], pandaJobs: list[JobSpec]) -> Interaction.StatusCode:
         # make logger
         tmpLog = MsgWrapper(logger, f"< jediTaskID={taskSpec.jediTaskID} >")
         tmpLog.info(f"start label={taskSpec.prodSourceLabel} taskType={taskSpec.taskType}")
@@ -33,6 +40,11 @@ class AtlasTaskSetupper(TaskSetupperBase):
         try:
             # get DDM I/F
             ddmIF = self.ddmIF.getInterface(taskSpec.vo)
+            if ddmIF is None:
+                # nothing below can run without one, and the AttributeError this replaces
+                # reached the same return through the except at the bottom
+                tmpLog.error(f"no DDM interface for vo={taskSpec.vo}")
+                return retFatal
             # register datasets
             if datasetToRegister != [] or taskSpec.prodSourceLabel in ["user"]:
                 # prod vs anal
@@ -114,6 +126,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                 if locForRule is None:
                                     locForRule = location
                                 # set metadata
+                                metaData: dict[str, Any] | None
                                 if taskSpec.prodSourceLabel in ["managed", "test"] and targetName == datasetSpec.datasetName:
                                     metaData = {}
                                     metaData["task_id"] = taskSpec.jediTaskID
@@ -145,7 +158,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                     tmpToRegister = False
                                     if userSetup and targetName == datasetSpec.datasetName and datasetSpec.site not in ["", None]:
                                         if taskSpec.workingGroup:
-                                            userName = taskSpec.workingGroup
+                                            userName: str | None = taskSpec.workingGroup
                                         else:
                                             userName = taskSpec.userName
                                         grouping = None
@@ -168,8 +181,9 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                     if tmpToRegister:
                                         activity = DataServiceUtils.getActivityForOut(taskSpec.prodSourceLabel)
                                         tmpLog.info(
-                                            "registering location={} lifetime={} days activity={} grouping={} "
-                                            "owner={}".format(locForRule, lifetime, activity, grouping, userName)
+                                            "registering location={} lifetime={} days activity={} grouping={} owner={}".format(
+                                                locForRule, lifetime, activity, grouping, userName
+                                            )
                                         )
                                         tmpStat = ddmIF.registerDatasetLocation(
                                             targetName, locForRule, owner=userName, lifetime=lifetime, backEnd=ddmBackEnd, activity=activity, grouping=grouping
@@ -229,7 +243,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                             tmpLog.error(f"failed to register location {container_location} for container {targetName}")
                                             return retFatal
                                         # rule with 2 copies and no grouping
-                                        container_location = f"(type=SCRATCHDISK)\\notforextracopy=True"
+                                        container_location = "(type=SCRATCHDISK)\\notforextracopy=True"
                                         tmpLog.info(f"registering container-level 2nd copy rule for {targetName}")
                                         tmpStat = ddmIF.registerDatasetLocation(
                                             targetName,
@@ -249,13 +263,16 @@ class AtlasTaskSetupper(TaskSetupperBase):
                             elif taskSpec.toMoveDatasets() and DataServiceUtils.getDistributedDestination(datasetSpec.storageToken) is None:
                                 # get location
                                 location = siteMapper.getDdmEndpoint(
-                                    siteInNucleus.sitename, datasetSpec.storageToken, taskSpec.prodSourceLabel, 
-                                    JobUtils.translate_tasktype_to_jobtype(taskSpec.taskType))
+                                    siteInNucleus.sitename,
+                                    datasetSpec.storageToken,
+                                    taskSpec.prodSourceLabel,
+                                    JobUtils.translate_tasktype_to_jobtype(taskSpec.taskType),
+                                )
                                 # move replication rule
                                 tmpLog.info(f"{targetName} already registered, but will be moved to {location}")
                                 tmpStat = ddmIF.move_replication_rules(datasetSpec.datasetName, location)
                                 if not tmpStat:
-                                    tmpLog.error(f"failed to move replication rule")
+                                    tmpLog.error("failed to move replication rule")
                                     return retFatal
                             else:
                                 tmpLog.info(f"{targetName} already registered")

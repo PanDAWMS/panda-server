@@ -1,14 +1,18 @@
 import random
 import re
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.SiteCandidate import SiteCandidate
 from pandajedi.jedirefine import RefinerUtils
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
+from pandaserver.taskbuffer.InputChunk import InputChunk
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from . import AtlasBrokerUtils
 from .JobBrokerBase import JobBrokerBase
@@ -19,16 +23,17 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 # brokerage for general purpose
 class GenJobBroker(JobBrokerBase):
     # constructor
-    def __init__(self, ddmIF, taskBufferIF):
+    def __init__(self, ddmIF: Interaction.CommandSendInterface, taskBufferIF: JediTaskBufferInterface) -> None:
         JobBrokerBase.__init__(self, ddmIF, taskBufferIF)
 
     # main
-    def doBrokerage(self, taskSpec, cloudName, inputChunk, taskParamMap):
+    def doBrokerage(
+        self, taskSpec: JediTaskSpec, cloudName: str | None, inputChunk: InputChunk, taskParamMap: dict[str, Any] | None
+    ) -> tuple[Interaction.StatusCode, InputChunk]:
         # make logger
         tmpLog = MsgWrapper(logger, f"<jediTaskID={taskSpec.jediTaskID}>")
         tmpLog.debug("start")
         # return for failure
-        retFatal = self.SC_FATAL, inputChunk
         retTmpError = self.SC_FAILED, inputChunk
         # set cloud
         try:
@@ -39,6 +44,13 @@ class GenJobBroker(JobBrokerBase):
                 taskSpec.cloud = taskParamMap["cloud"]
         except Exception:
             pass
+        if taskParamMap is None:
+            # the decode above failed and the except swallowed it. The PandaSite check
+            # further down cannot run without the map, and the TypeError it raised into
+            # JobGenerator's handler named neither the task nor what was missing
+            tmpLog.error(f"failed to read task params for jediTaskID={taskSpec.jediTaskID}")
+            taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
+            return retTmpError
         # get sites in the cloud
         site_preassigned = True
         if taskSpec.site not in ["", None]:
@@ -55,7 +67,8 @@ class GenJobBroker(JobBrokerBase):
                     taskSpec.setErrDiag(tmpLog.uploadLog(taskSpec.jediTaskID))
                     return retTmpError
         elif inputChunk.getPreassignedSite() is not None:
-            scanSiteList = [inputChunk.getPreassignedSite()]
+            preassigned_site = inputChunk.getPreassignedSite()
+            scanSiteList = [preassigned_site] if preassigned_site is not None else []
             tmpLog.debug(f"site={inputChunk.getPreassignedSite()} is pre-assigned in masterDS")
         else:
             site_preassigned = False
@@ -329,9 +342,8 @@ class GenJobBroker(JobBrokerBase):
         ######################################
         # final procedure
         tmpLog.debug(f"final {len(scanSiteList)} candidates")
-        weightMap = {}
+        weightMap: dict[Any, Any] = {}
         candidateSpecList = []
-        preSiteCandidateSpec = None
         for tmpSiteName in scanSiteList:
             # get number of jobs in each job status. Using workQueueID=None to include non-JEDI jobs
             nRunning = AtlasBrokerUtils.getNumJobs(jobStatPrioMap, tmpSiteName, "running", None, None)

@@ -1,8 +1,12 @@
+import logging
 import os
 import socket
+from typing import Any
 
 from pandajedi.jedicore import Interaction
+from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandaserver.taskbuffer.WorkQueue import WorkQueue
 
 # throttle level
 THR_LEVEL5 = 5
@@ -24,7 +28,13 @@ non_rt_wqs = ["eventservice"]
 
 # base class for job throttle
 class JobThrottlerBase(object):
-    def __init__(self, taskBufferIF):
+    # installed on this class by Interaction.installSC() at the bottom of this module
+    SC_SUCCEEDED: Interaction.StatusCode
+    SC_FAILED: Interaction.StatusCode
+    SC_FATAL: Interaction.StatusCode
+    SC_WAITING: Interaction.StatusCode
+
+    def __init__(self, taskBufferIF: JediTaskBufferInterface) -> None:
         self.taskBufferIF = taskBufferIF
         # returns
         self.retTmpError = self.SC_FAILED, True
@@ -39,36 +49,36 @@ class JobThrottlerBase(object):
         self.pid = f"{socket.getfqdn().split('.')[0]}-{os.getpid()}-{self.msgType}"
 
     # refresh
-    def refresh(self):
-        self.maxNumJobs = None
-        self.minPriority = None
+    def refresh(self) -> None:
+        self.maxNumJobs: float | None = None
+        self.minPriority: int | None = None
         self.underNqLimit = False
         self.siteMapper = self.taskBufferIF.get_site_mapper()
 
     # set maximum number of jobs to be submitted
-    def setMaxNumJobs(self, maxNumJobs):
+    def setMaxNumJobs(self, maxNumJobs: float) -> None:
         self.maxNumJobs = maxNumJobs
 
     # set min priority of jobs to be submitted
-    def setMinPriority(self, minPriority):
+    def setMinPriority(self, minPriority: int) -> None:
         self.minPriority = minPriority
 
     # check throttle level
-    def mergeThrottled(self, thrLevel):
+    def mergeThrottled(self, thrLevel: bool | int) -> bool:
         # un-leveled flag
         if thrLevel in [True, False]:
-            return thrLevel
+            return bool(thrLevel)
         return thrLevel > THR_LEVEL5
 
     # check if lack of jobs
-    def lackOfJobs(self):
+    def lackOfJobs(self) -> bool:
         return self.underNqLimit
 
     # not enough jobs are queued
-    def notEnoughJobsQueued(self):
+    def notEnoughJobsQueued(self) -> None:
         self.underNqLimit = True
 
-    def __getConfiguration(self, vo, queue_name, resource_name):
+    def __getConfiguration(self, vo: str, queue_name: str, resource_name: str) -> dict[str, dict[str, Any]]:
         # component name
         comp_name = self.comp_name
         app = self.app
@@ -81,7 +91,7 @@ class JobThrottlerBase(object):
             resource_ms = "SCORE"
 
         # Read the WQ config values from the DB
-        config_map = {
+        config_map: dict[str, dict[str, Any]] = {
             NQUEUELIMIT: {"value": None, "level": LEVEL_None, "key": None},
             NRUNNINGCAP: {"value": None, "level": LEVEL_None, "key": None},
             NQUEUECAP: {"value": None, "level": LEVEL_None, "key": None},
@@ -110,7 +120,7 @@ class JobThrottlerBase(object):
 
         return config_map
 
-    def __prepareJobStats(self, work_queue, resource_name, config_map):
+    def __prepareJobStats(self, work_queue: WorkQueue, resource_name: str, config_map: dict[str, dict[str, Any]]) -> dict[str, Any]:
         """
         Calculates the jobs at resource level (SCORE or MCORE) and in total.
 
@@ -232,8 +242,21 @@ class JobThrottlerBase(object):
         return return_map
 
     # check if throttled
-    def toBeThrottledBase(self, vo, prodSourceLabel, cloud_name, workQueue, resource_name, logger):
+    def toBeThrottledBase(
+        self,
+        vo: str,
+        prodSourceLabel: str,
+        cloud_name: str | None,
+        workQueue: WorkQueue,
+        resource_name: str,
+        logger: logging.Logger,
+    ) -> tuple[Interaction.StatusCode, bool | int]:
         workqueue_id = workQueue.getID()
+        # queue_name is a nullable column, and everything below keys configuration off it, so a
+        # nameless queue is reported the way the configuration failures further down are
+        if workQueue.queue_name is None:
+            MsgWrapper(logger).error(f"{vo}:{prodSourceLabel} work queue {workqueue_id} has no name")
+            return self.retTmpError
         workqueue_name = "_".join(workQueue.queue_name.split(" "))
 
         # params
@@ -274,8 +297,10 @@ class JobThrottlerBase(object):
         configRunningCapKey = config_map[NRUNNINGCAP]["key"]
 
         tmp_log.debug(
-            msg_header + " got configuration configQueueLimit={} ({}), configQueueCap={} ({}),"
-            " configRunningCap={} ({})".format(configQueueLimit, configQueueLimitKey, configQueueCap, configQueueCapKey, configRunningCap, configRunningCapKey)
+            msg_header
+            + " got configuration configQueueLimit={} ({}), configQueueCap={} ({}), configRunningCap={} ({})".format(
+                configQueueLimit, configQueueLimitKey, configQueueCap, configQueueCapKey, configRunningCap, configRunningCapKey
+            )
         )
 
         # get the jobs statistics for our wq/gs and expand the stats map
@@ -294,7 +319,6 @@ class JobThrottlerBase(object):
         nDefine_queuelimit = jobstats_map["nDefine_queuelimit"]
         nDefine_queuecap = jobstats_map["nDefine_queuecap"]
         nWaiting_rt = jobstats_map["nWaiting_rt"]
-        nWaiting_gs = jobstats_map["nWaiting_gs"]
 
         # check if higher prio tasks are waiting
         if workQueue.queue_name in non_rt_wqs:
@@ -490,7 +514,9 @@ class JobThrottlerBase(object):
             ):
                 tmp_log.debug(msg_header + " not enough jobs queued")
                 self.notEnoughJobsQueued()
-                self.setMaxNumJobs(max(self.maxNumJobs, nQueueLimit / 20))
+                # setMaxNumJobs above is unconditional, so this is never None by now
+                current_max = self.maxNumJobs if self.maxNumJobs is not None else 0
+                self.setMaxNumJobs(max(current_max, nQueueLimit / 20))
 
         msg_body = f"PASS - not throttled since priority limit={limitPriorityValue} maxNumJobs={self.maxNumJobs}"
         tmp_log.info(msg_header + " " + msg_body)

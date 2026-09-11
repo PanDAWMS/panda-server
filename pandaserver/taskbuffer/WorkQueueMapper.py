@@ -4,19 +4,22 @@ mapper to map task/job to a work queue
 """
 
 import re
+from typing import Any, Sequence
 
+from .GlobalShares import Share
 from .WorkQueue import WorkQueue
 
 
 class WorkQueueMapper:
     # constructor
-    def __init__(self):
-        # Initialize maps
-        self.work_queue_map = {}
-        self.work_queue_global_dic_by_name = {}
-        self.work_queue_global_dic_by_id = {}
+    def __init__(self) -> None:
+        # Initialize maps. The keys are WorkQueue columns, which are declared as optional
+        # because a freshly built spec has them unset, so that is what a key can be here
+        self.work_queue_map: dict[str | None, dict[str | None, list[WorkQueue]]] = {}
+        self.work_queue_global_dic_by_name: dict[str | None, WorkQueue] = {}
+        self.work_queue_global_dic_by_id: dict[int | None, WorkQueue] = {}
 
-    def getSqlQuery(self):
+    def getSqlQuery(self) -> str:
         """
         Generates the SQL to get all work queues
         """
@@ -24,7 +27,7 @@ class WorkQueueMapper:
 
         return sql
 
-    def makeMap(self, work_queues, global_leave_shares):
+    def makeMap(self, work_queues: Sequence[Sequence[Any]], global_leave_shares: Sequence[Share]) -> None:
         """
         Creates the mapping with work queues and global shares
         :param work_queues: work queues
@@ -58,17 +61,17 @@ class WorkQueueMapper:
         for vo in self.work_queue_map:
             for type in self.work_queue_map[vo]:
                 # make ordered map
-                ordered_map = {}
+                ordered_map: dict[int | None, list[WorkQueue]] = {}
                 queue_map = self.work_queue_map[vo][type]
-                for wq in queue_map:
-                    if wq.queue_order not in ordered_map:
-                        ordered_map[wq.queue_order] = []
+                for queue in queue_map:
+                    if queue.queue_order not in ordered_map:
+                        ordered_map[queue.queue_order] = []
                     # append
-                    ordered_map[wq.queue_order].append(wq)
+                    ordered_map[queue.queue_order].append(queue)
                 # make sorted list
                 ordered_list = list(ordered_map.keys())
                 ordered_list.sort(key=lambda x: (x is None, x))
-                new_list = []
+                new_list: list[WorkQueue] = []
                 for order_val in ordered_list:
                     new_list += ordered_map[order_val]
                 # set new list
@@ -97,7 +100,7 @@ class WorkQueueMapper:
         # return
         return
 
-    def dump(self):
+    def dump(self) -> str:
         """
         Creates a human-friendly string showing the work queue mappings
         :return: string representation of the work queue mappings
@@ -112,7 +115,7 @@ class WorkQueueMapper:
         # return
         return dump_str
 
-    def getQueueWithSelParams(self, vo, type, **param_map):
+    def getQueueWithSelParams(self, vo: str | None, type: str | None, **param_map: Any) -> tuple[WorkQueue | None, str]:
         """
         Used for tagging of work queues in task refiner. Get a work queue based on the selection parameters
         :param vo: vo
@@ -144,13 +147,13 @@ class WorkQueueMapper:
             if ret_str != "":
                 new_ret_str = f"eval with VO={vo} "
                 for tmp_param_key, tmp_param_val in param_map.items():
-                    new_ret_str += "{0}={1} failed for {0}".format(tmp_param_key, tmp_param_val, ret_str)
+                    new_ret_str += f"{tmp_param_key}={tmp_param_val} failed for {ret_str}"
                 ret_str = new_ret_str
 
         # no queue matched to selection parameters
         return None, ret_str
 
-    def getQueueByName(self, vo, type, queue_name):
+    def getQueueByName(self, vo: str | None, type: str | None, queue_name: str | None) -> WorkQueue | None:
         """
         # get queue by name
         :param queue_name: name of the queue
@@ -165,7 +168,7 @@ class WorkQueueMapper:
         return None
 
     # get queue with ID
-    def getQueueWithIDGshare(self, queue_id, gshare_name):
+    def getQueueWithIDGshare(self, queue_id: int | None, gshare_name: str | None) -> WorkQueue | None:
         # 1. Check for a Resource queue
         if queue_id in self.work_queue_global_dic_by_id and self.work_queue_global_dic_by_id[queue_id].queue_function == "Resource":
             return self.work_queue_global_dic_by_id[queue_id]
@@ -178,17 +181,20 @@ class WorkQueueMapper:
         return None
 
     # get queue list with VO and type
-    def getAlignedQueueList(self, vo, queue_type):
+    def getAlignedQueueList(self, vo: str | None, queue_type: str | None) -> list[WorkQueue]:
         """
         NOTE: Returns ONLY resource queues and global shares (old non-resource queues are skipped)
         """
-        ret_list = []
+        ret_list: list[WorkQueue] = []
 
         if vo in self.work_queue_map:
-            # if queue type was specified
-            if queue_type not in ["", None, "any"]:
+            # if queue type was specified. Spelled as an explicit None test rather than a
+            # membership one so that the re.match below is known to have a pattern and a string:
+            # both come from queue_type columns, which are declared optional, and re.match
+            # raises TypeError on a None either side
+            if queue_type is not None and queue_type not in ["", "any"]:
                 for map_queue_type in self.work_queue_map[vo]:
-                    if re.match(map_queue_type, queue_type):
+                    if map_queue_type is not None and re.match(map_queue_type, queue_type):
                         for tmp_wq in self.work_queue_map[vo][map_queue_type]:
                             if tmp_wq.isAligned():
                                 ret_list.append(tmp_wq)

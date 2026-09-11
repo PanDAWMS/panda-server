@@ -1,6 +1,7 @@
 import json
 import unittest
 from datetime import datetime, timezone
+from typing import Any
 
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 
@@ -14,10 +15,10 @@ PANDA_QUEUE = "test_queue"
 
 
 class TestHarvesterAPI(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.http_client = HttpClient()
 
-    def test_update_service_metrics(self):
+    def test_update_service_metrics(self) -> None:
         url = f"{api_url_ssl}/harvester/update_service_metrics"
         print(f"Testing URL: {url}")
         harvester_id = HARVESTER_ID
@@ -45,7 +46,7 @@ class TestHarvesterAPI(unittest.TestCase):
         expected_response = {"success": True, "message": "", "data": [True]}
         self.assertEqual(output, expected_response)
 
-    def test_add_dialogs(self):
+    def test_add_dialogs(self) -> None:
         url = f"{api_url_ssl}/harvester/add_dialogs"
         print(f"Testing URL: {url}")
         harvester_id = HARVESTER_ID
@@ -67,7 +68,7 @@ class TestHarvesterAPI(unittest.TestCase):
         expected_response = {"success": True, "message": "", "data": None}
         self.assertEqual(output, expected_response)
 
-    def test_heartbeat(self):
+    def test_heartbeat(self) -> None:
         url = f"{api_url_ssl}/harvester/heartbeat"
         print(f"Testing URL: {url}")
         harvester_id = HARVESTER_ID
@@ -77,17 +78,17 @@ class TestHarvesterAPI(unittest.TestCase):
         expected_response = {"success": True, "message": "", "data": None}
         self.assertEqual(output, expected_response)
 
-    def test_get_worker_statistics(self):
+    def test_get_worker_statistics(self) -> None:
         url = f"{api_url_ssl}/harvester/get_worker_statistics"
         print(f"Testing URL: {url}")
-        data = {}
+        data: dict[str, Any] = {}
         status, output = self.http_client.get(url, data)
         print(output)
         # the statistics can't be predicted, so we just check the type of the response
         self.assertEqual(True, output["success"])
         self.assertEqual(dict, type(output["data"]))
 
-    def test_get_current_worker_id(self):
+    def test_get_current_worker_id(self) -> None:
         url = f"{api_url_ssl}/harvester/get_current_worker_id"
         print(f"Testing URL: {url}")
         data = {"harvester_id": HARVESTER_ID}
@@ -97,7 +98,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(True, output["success"])
         self.assertEqual(int, type(output["data"]))
 
-    def test_report_worker_statistics(self):
+    def test_report_worker_statistics(self) -> None:
         url = f"{api_url_ssl}/harvester/report_worker_statistics"
         print(f"Testing URL: {url}")
         harvester_id = HARVESTER_ID
@@ -110,7 +111,7 @@ class TestHarvesterAPI(unittest.TestCase):
         expected_response = {"success": True, "message": "OK", "data": None}
         self.assertEqual(output, expected_response)
 
-    def test_update_workers(self):
+    def test_update_workers(self) -> None:
         url = f"{api_url_ssl}/harvester/update_workers"
         print(f"Testing URL: {url}")
         worker = {
@@ -148,7 +149,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
         self.assertEqual(output, expected_response)
 
-    def test_acquire_commands(self):
+    def test_acquire_commands(self) -> None:
         url = f"{api_url_ssl}/harvester/acquire_commands"
         print(f"Testing URL: {url}")
 
@@ -161,7 +162,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(True, output["success"])
         self.assertEqual(list, type(output["data"]))
 
-    def test_acknowledge_commands(self):
+    def test_acknowledge_commands(self) -> None:
         url = f"{api_url_ssl}/harvester/acknowledge_commands"
         print(f"Testing URL: {url}")
         command_ids = [1]
@@ -171,7 +172,7 @@ class TestHarvesterAPI(unittest.TestCase):
         expected_response = {"success": True, "message": "", "data": None}
         self.assertEqual(output, expected_response)
 
-    def test_add_target_slots(self):
+    def test_add_target_slots(self) -> None:
         url = f"{api_url_ssl}/harvester/add_target_slots"
         print(f"Testing URL: {url}")
         panda_queue = PANDA_QUEUE

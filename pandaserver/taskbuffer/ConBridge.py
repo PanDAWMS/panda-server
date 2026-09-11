@@ -13,6 +13,7 @@ import threading
 import time
 import traceback
 import types
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -34,15 +35,15 @@ class HarmlessEx(Exception):
 # terminate child process by itself when master has gone
 class Terminator(threading.Thread):
     # constructor
-    def __init__(self, consock):
+    def __init__(self, consock: socket.socket) -> None:
         threading.Thread.__init__(self)
         self.consock = consock
 
     # main
-    def run(self):
+    def run(self) -> None:
         # watching control socket
         try:
-            rcvSize = self.consock.recv(1)
+            self.consock.recv(1)
         except Exception:
             pass
         # get PID
@@ -62,7 +63,13 @@ class Terminator(threading.Thread):
 # connection bridge with timeout
 class ConBridge(object):
     # constructor
-    def __init__(self):
+    # the socket pair for this side of the bridge and the DB proxy behind it, all
+    # installed by connect() before any of the methods below run
+    mysock: Any
+    consock: Any
+    proxy: Any
+
+    def __init__(self) -> None:
         self.child_pid = 0
         self.isMaster = False
         self.mysock = None
@@ -81,20 +88,22 @@ class ConBridge(object):
             self.verbose = False
 
     # destructor
-    def __del__(self):
+    def __del__(self) -> None:
         # kill old child process
         self.bridge_killChild()
 
     # connect
+    # dbuser, dbname and reconnect are accepted to match the proxy this class fronts and
+    # are not read here
     def connect(
         self,
-        dbhost=panda_config.dbhost,
-        dbpasswd=panda_config.dbpasswd,
-        dbuser=panda_config.dbuser,
-        dbname=panda_config.dbname,
-        dbtimeout=None,
-        reconnect=False,
-    ):
+        dbhost: str = panda_config.dbhost,
+        dbpasswd: str = panda_config.dbpasswd,
+        dbuser: str = panda_config.dbuser,
+        dbname: str = panda_config.dbname,
+        dbtimeout: int | None = None,
+        reconnect: bool = False,
+    ) -> bool:
         # kill old child process
         self.bridge_killChild()
         _logger.debug(f"master {self.pid} connecting")
@@ -135,6 +144,8 @@ class ConBridge(object):
             self.bridge_run()
             # exit
             self.bridge_childExit(0)
+            # not reached: the child has called os._exit above
+            return False
         else:
             # master
             self.isMaster = True
@@ -159,7 +170,7 @@ class ConBridge(object):
     # communication methods
 
     # send packet
-    def bridge_send(self, val):
+    def bridge_send(self, val: Any) -> None:
         try:
             # set timeout
             if self.isMaster:
@@ -186,7 +197,7 @@ class ConBridge(object):
             raise e
 
     # receive packet
-    def bridge_recv(self):
+    def bridge_recv(self) -> tuple[bool, Any]:
         try:
             # set timeout
             if self.isMaster:
@@ -259,7 +270,7 @@ class ConBridge(object):
     # child's methods
 
     # send error
-    def bridge_sendError(self, val):
+    def bridge_sendError(self, val: Any) -> None:
         # send status
         self.bridge_send("NG")
         # check if pickle-able
@@ -272,14 +283,14 @@ class ConBridge(object):
         self.bridge_send(val)
 
     # send response
-    def bridge_sendResponse(self, val):
+    def bridge_sendResponse(self, val: Any) -> None:
         # send status
         self.bridge_send("OK")
         # send response
         self.bridge_send(val)
 
     # termination of child
-    def bridge_childExit(self, exitCode=1):
+    def bridge_childExit(self, exitCode: int = 1) -> None:
         if not self.isMaster:
             # close database connection
             _logger.debug(f"child  {self.pid} closing database connection")
@@ -300,7 +311,7 @@ class ConBridge(object):
             os._exit(exitCode)
 
     # child main
-    def bridge_run(self):
+    def bridge_run(self) -> None:
         comStr = ""
         while True:
             try:
@@ -345,7 +356,7 @@ class ConBridge(object):
     # master's methods
 
     # kill child
-    def bridge_killChild(self):
+    def bridge_killChild(self) -> None:
         # kill old child process
         if self.child_pid != 0:
             # close sockets
@@ -383,7 +394,7 @@ class ConBridge(object):
             _logger.debug(f"master {self.pid} killed child={self.child_pid}")
 
     # get response
-    def bridge_getResponse(self):
+    def bridge_getResponse(self) -> Any:
         # get status
         status, strStatus = self.bridge_recv()
         if not status:
@@ -406,13 +417,13 @@ class ConBridge(object):
     # method wrapper class
     class bridge_masterMethod:
         # constructor
-        def __init__(self, name, parent):
+        def __init__(self, name: str, parent: "ConBridge") -> None:
             self.name = name
             self.parent = parent
             self.pid = os.getpid()
 
         # copy changes in taskbuff objects to master
-        def copyTbObjChanges(self, oldPar, newPar):
+        def copyTbObjChanges(self, oldPar: Any, newPar: Any) -> bool:
             # check they have the same type
             if not isinstance(oldPar, type(newPar)):
                 return False
@@ -429,7 +440,7 @@ class ConBridge(object):
             return False
 
         # copy changes in objects to master
-        def copyChanges(self, oldPar, newPar):
+        def copyChanges(self, oldPar: Any, newPar: Any) -> None:
             if isinstance(oldPar, list):
                 # delete all elements first
                 while len(oldPar) > 0:
@@ -445,7 +456,7 @@ class ConBridge(object):
                 self.copyTbObjChanges(oldPar, newPar)
 
         # method emulation
-        def __call__(self, *args, **keywords):
+        def __call__(self, *args: Any, **keywords: Any) -> Any:
             while True:
                 try:
                     # send command name
@@ -488,7 +499,7 @@ class ConBridge(object):
                         time.sleep(120)
 
     # get atter for cursor attributes
-    def __getattribute__(self, name):
+    def __getattribute__(self, name: str) -> Any:
         if object.__getattribute__(self, "isMaster"):
             try:
                 # return original attribute

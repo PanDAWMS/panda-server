@@ -1,6 +1,5 @@
-from taskbuffer.Initializer import initializer
-
 from pandajedi.jedicore import JediTaskBuffer
+from pandaserver.taskbuffer.Initializer import initializer
 
 # initialize DB using dummy connection
 initializer.init()

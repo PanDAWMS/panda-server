@@ -1,6 +1,7 @@
 import base64
 import datetime
 from threading import Lock
+from typing import Any
 
 import jwt
 import requests
@@ -11,40 +12,41 @@ from jwt.exceptions import InvalidTokenError
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 
-def decode_value(val):
+def decode_value(val: str | bytes) -> int:
     if isinstance(val, str):
         val = val.encode()
     decoded = base64.urlsafe_b64decode(val + b"==")
     return int.from_bytes(decoded, "big")
 
 
-def rsa_pem_from_jwk(jwk):
+def rsa_pem_from_jwk(jwk: dict[str, Any]) -> bytes:
     public_num = RSAPublicNumbers(n=decode_value(jwk["n"]), e=decode_value(jwk["e"]))
     public_key = public_num.public_key(default_backend())
-    pem = public_key.public_bytes(
+    pem: bytes = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
     return pem
 
 
-def get_jwk(kid, jwks):
-    for jwk in jwks.get("keys", []):
+def get_jwk(kid: str, jwks: dict[str, Any]) -> dict[str, Any]:
+    keys: list[dict[str, Any]] = jwks.get("keys", [])
+    for jwk in keys:
         if jwk.get("kid") == kid:
             return jwk
-    raise InvalidTokenError("JWK not found for kid={0}".format(kid, str(jwks)))
+    raise InvalidTokenError(f"JWK not found for kid={kid}")
 
 
 # token decoder
 class TokenDecoder:
     # constructor
-    def __init__(self, refresh_interval=10):
+    def __init__(self, refresh_interval: int = 10) -> None:
         self.lock = Lock()
-        self.data = {}
+        self.data: dict[str, dict[str, Any]] = {}
         self.refresh_interval = refresh_interval
 
     # get cached data
-    def get_data(self, url, log_stream):
+    def get_data(self, url: str, log_stream: Any) -> Any:
         try:
             with self.lock:
                 if url not in self.data or naive_utcnow() - self.data[url]["last_update"] > datetime.timedelta(minutes=self.refresh_interval):
@@ -61,7 +63,9 @@ class TokenDecoder:
             raise
 
     # decode and verify JWT token
-    def deserialize_token(self, token, auth_config, vo, log_stream, legacy_token_issuers):
+    def deserialize_token(
+        self, token: str, auth_config: dict[str, Any], vo: str | None, log_stream: Any, legacy_token_issuers: list[str] | None
+    ) -> dict[str, Any]:
         try:
             # check audience
             unverified = jwt.decode(token, verify=False, options={"verify_signature": False})
@@ -107,7 +111,7 @@ class TokenDecoder:
                 issuers = list(dict.fromkeys([issuer] + legacy_token_issuers))
             else:
                 issuers = [issuer]
-            decoded = None
+            decoded: dict[str, Any] | None = None
             err_msg = None
             for tmp_issuer in issuers:
                 try:
@@ -136,7 +140,7 @@ class TokenDecoder:
 
 
 # get an access token with client_credentials flow
-def get_access_token(token_endpoint: str, client_id: str, client_secret: str, scope: str = None, timeout: int = 180) -> tuple[bool, str]:
+def get_access_token(token_endpoint: str, client_id: str, client_secret: str, scope: str | None = None, timeout: int = 180) -> tuple[bool, str]:
     """
     Get an access token with client_credentials flow
 

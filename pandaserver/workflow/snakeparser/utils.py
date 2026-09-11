@@ -1,14 +1,17 @@
 __author__ = "retmas"
 
+from collections.abc import Callable
+from typing import Any
+
 from snakemake.workflow import Rule, RuleProxy
 
 
 class ParamRule(object):
-    def __init__(self, name: str, source_rule: Rule = None):
+    def __init__(self, name: str, source_rule: Rule | None = None) -> None:
         self._name = name
         self._source_rule = source_rule
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"param.{self.name}"
 
     @property
@@ -20,10 +23,10 @@ class ParamRule(object):
         return self._source_rule
 
 
-def param_of(name, source: RuleProxy = None) -> ParamRule:
+def param_of(name: str, source: RuleProxy | None = None) -> ParamRule:
     rule = source.rule if source is not None else None
     return ParamRule(name, rule)
 
 
-def param_exp(template):
+def param_exp(template: Any) -> Callable[[Any], Any]:
     return lambda wildcards: template

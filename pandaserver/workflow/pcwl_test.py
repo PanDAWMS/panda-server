@@ -1,6 +1,8 @@
 import logging
 import sys
 
+from ruamel import yaml
+
 from pandaserver.workflow.pcwl_utils import parse_workflow_file, resolve_nodes
 from pandaserver.workflow.workflow_utils import (
     convert_nodes_to_workflow,
@@ -8,7 +10,6 @@ from pandaserver.workflow.workflow_utils import (
     get_node_id_map,
     set_workflow_outputs,
 )
-from ruamel import yaml
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG)
 with open(sys.argv[2]) as f:
@@ -20,7 +21,7 @@ id_map = get_node_id_map(nodes)
 # task template
 template = {
     "buildSpec": {
-        "jobParameters": "-i ${IN} -o ${OUT} --sourceURL ${SURL} " "-r ./ --useAthenaPackages --useCMake --cmtConfig x86_64-slc6-gcc49-opt ",
+        "jobParameters": "-i ${IN} -o ${OUT} --sourceURL ${SURL} -r ./ --useAthenaPackages --useCMake --cmtConfig x86_64-slc6-gcc49-opt ",
         "archiveName": "sources.5bca61db-3b0d-4e65-b102-7d56d82f4567.tar.gz",
         "prodSourceLabel": "panda",
     },
@@ -53,7 +54,7 @@ template = {
         {"type": "constant", "value": "-l ${LIB}"},
         {
             "type": "constant",
-            "value": "--useAthenaPackages " "--useCMake --cmtConfig x86_64-slc6-gcc49-opt ",
+            "value": "--useAthenaPackages --useCMake --cmtConfig x86_64-slc6-gcc49-opt ",
         },
     ],
     "prodSourceLabel": "user",
@@ -64,7 +65,7 @@ template = {
 
 c_template = {
     "sourceURL": "https://aipanda048.cern.ch:25443",
-    "cliParams": "prun --cwl test.cwl --yaml a.yaml " "--relayHost aipanda059.cern.ch --outDS " "user.tmaeno.1f2860f0-30d6-4352-9f87-9b9dde82fd80",
+    "cliParams": "prun --cwl test.cwl --yaml a.yaml --relayHost aipanda059.cern.ch --outDS user.tmaeno.1f2860f0-30d6-4352-9f87-9b9dde82fd80",
     "site": None,
     "vo": "atlas",
     "respectSplitRule": True,
@@ -88,7 +89,7 @@ c_template = {
         "preprocess": {"args": "--preprocess ${TRF_ARGS}", "command": "${TRF}"},
         "containerOptions": {
             "containerImage": "__dummy_container__",
-            "containerExec": 'echo "=== cat exec script ==="; ' "cat __run_main_exec.sh; echo; " 'echo "=== exec script ==="; ' "/bin/sh __run_main_exec.sh",
+            "containerExec": 'echo "=== cat exec script ==="; cat __run_main_exec.sh; echo; echo "=== exec script ==="; /bin/sh __run_main_exec.sh',
         },
         "postprocess": {"args": "--postprocess ${TRF_ARGS}", "command": "${TRF}"},
     },
@@ -110,7 +111,8 @@ c_template = {
 
 task_template = {"athena": template, "container": c_template}
 
-[node.resolve_params(task_template, id_map) for node in nodes]
+for node in nodes:
+    node.resolve_params(task_template, id_map)
 print(dump_nodes(nodes))
 
 workflow, dump_str_list = convert_nodes_to_workflow(nodes)

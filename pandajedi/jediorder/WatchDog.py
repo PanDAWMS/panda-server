@@ -1,8 +1,8 @@
-import datetime
 import os
 import socket
-import sys
 import time
+from multiprocessing.connection import Connection
+from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -14,13 +14,26 @@ from pandajedi.jedicore.MsgWrapper import MsgWrapper
 
 from .JediKnight import JediKnight
 
+if TYPE_CHECKING:
+    from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jediddm.DDMInterface import DDMInterface
+
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 # worker class for watchdog
 class WatchDog(JediKnight, FactoryBase):
     # constructor
-    def __init__(self, commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels, subStr, period):
+    def __init__(
+        self,
+        commuChannel: Connection,
+        taskBufferIF: "JediTaskBufferInterface",
+        ddmIF: "DDMInterface",
+        vos: str | list[str] | None,
+        prodSourceLabels: str | list[str] | None,
+        subStr: str | None,
+        period: int | None,
+    ) -> None:
         self.vos = self.parseInit(vos)
         self.prodSourceLabels = self.parseInit(prodSourceLabels)
         self.subStr = subStr
@@ -30,7 +43,7 @@ class WatchDog(JediKnight, FactoryBase):
         FactoryBase.__init__(self, self.vos, self.prodSourceLabels, logger, jedi_config.watchdog.modConfig)
 
     # main
-    def start(self):
+    def start(self) -> None:
         # start base classes
         JediKnight.start(self)
         FactoryBase.initializeMods(self, self.taskBufferIF, self.ddmIF)
@@ -60,9 +73,8 @@ class WatchDog(JediKnight, FactoryBase):
                         else:
                             tmpLog.warning(f"no plugin for vo={vo} label={prodSourceLabel} subType={self.subStr}")
                 tmpLog.info("done")
-            except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                tmpLog.error(f"failed in {self.__class__.__name__}.start() with {errtype.__name__} {errvalue}")
+            except Exception as e:
+                tmpLog.error(f"failed in {self.__class__.__name__}.start() with {type(e).__name__} {e}")
             # sleep if needed
             loopCycle = jedi_config.watchdog.loopCycle if self.period is None else self.period
             timeDelta = naive_utcnow() - startTime
@@ -76,6 +88,14 @@ class WatchDog(JediKnight, FactoryBase):
 # launch
 
 
-def launcher(commuChannel, taskBufferIF, ddmIF, vos=None, prodSourceLabels=None, subStr=None, period=None):
+def launcher(
+    commuChannel: Connection,
+    taskBufferIF: "JediTaskBufferInterface",
+    ddmIF: "DDMInterface",
+    vos: str | list[str] | None = None,
+    prodSourceLabels: str | list[str] | None = None,
+    subStr: str | None = None,
+    period: int | None = None,
+) -> None:
     p = WatchDog(commuChannel, taskBufferIF, ddmIF, vos, prodSourceLabels, subStr, period)
     p.start()

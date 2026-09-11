@@ -1,6 +1,7 @@
 import json
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
 from pandaserver.workflow.workflow_core import WorkflowInterface
@@ -14,14 +15,14 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
     Message-driven workflow manager
     """
 
-    def initialize(self):
+    def initialize(self, in_collective: bool = False) -> None:
         """
         Initialize the plugin
         """
-        BaseMsgProcPlugin.initialize(self)
+        BaseMsgProcPlugin.initialize(self, in_collective)
         self.workflow_interface = WorkflowInterface(self.tbIF)
 
-    def process(self, msg_obj):
+    def process(self, msg_obj: MsgObj) -> None:
         """
         Process the message
         Typical message data looks like:
@@ -63,7 +64,7 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
                 if workflow_spec is None:
                     tmp_log.warning(f"workflow_id={workflow_id} not found; skipped")
                     return
-                stats, workflow_spec = self.workflow_interface.process_workflow(workflow_spec, by="msg")
+                workflow_stats, workflow_spec = self.workflow_interface.process_workflow(workflow_spec, by="msg")
                 tmp_log.info(f"processed workflow_id={workflow_id}")
             elif msg_type == "wfstep":
                 step_id = msg_dict["step_id"]
@@ -71,7 +72,7 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
                 if step_spec is None:
                     tmp_log.warning(f"step_id={step_id} not found; skipped")
                     return
-                stats, step_spec = self.workflow_interface.process_step(step_spec, by="msg")
+                step_stats, step_spec = self.workflow_interface.process_step(step_spec, by="msg")
                 tmp_log.info(f"processed step_id={step_id}")
             elif msg_type == "wfdata":
                 data_id = msg_dict["data_id"]
@@ -79,7 +80,7 @@ class WorkflowManagerMsgProcPlugin(BaseMsgProcPlugin):
                 if data_spec is None:
                     tmp_log.warning(f"data_id={data_id} not found; skipped")
                     return
-                stats, data_spec = self.workflow_interface.process_data(data_spec, by="msg")
+                data_stats, data_spec = self.workflow_interface.process_data(data_spec, by="msg")
                 tmp_log.info(f"processed data_id={data_id}")
         except Exception as e:
             err_str = f"failed to run, skipped. {e.__class__.__name__} : {e}"
