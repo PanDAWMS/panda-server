@@ -263,7 +263,7 @@ def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120
         tmp_logger.error("Timed out")
         return generate_response(False, TIME_OUT)
 
-    data = {"Returns", timed_method.result[0], "Commands", timed_method.result[1]}
+    data = {"Returns": timed_method.result[0], "Commands": timed_method.result[1]}
 
     _logger.debug(f"Done with: {data}")
     return generate_response(True, data=data)
