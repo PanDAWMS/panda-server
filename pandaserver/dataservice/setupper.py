@@ -5,7 +5,6 @@ The Setupper class also contains methods for running the setup process and updat
 This module uses the PandaLogger for logging and the panda_config for configuration. It also imports several other modules from the pandaserver package.
 """
 
-import sys
 import threading
 import traceback
 from typing import TYPE_CHECKING, Any, List

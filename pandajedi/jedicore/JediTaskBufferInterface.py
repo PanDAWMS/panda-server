@@ -29,7 +29,6 @@ if __name__ == "__main__":
 
     def dummyClient(dif: JediTaskBufferInterface, stime: int) -> None:
         print("client test")
-        import time
 
         for i in range(3):
             # time.sleep(i*stime)

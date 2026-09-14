@@ -10,7 +10,7 @@ from types import FrameType
 import daemon
 import lockfile
 
-from pandaserver.config import daemon_config, panda_config
+from pandaserver.config import daemon_config
 from pandaserver.daemons.utils import END_SIGNALS, DaemonMaster
 
 

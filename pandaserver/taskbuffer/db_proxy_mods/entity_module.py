@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import os
 import random
 import re
@@ -8,7 +9,6 @@ import traceback
 import uuid
 from typing import TYPE_CHECKING, Any, Collection, Literal
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -61,7 +61,7 @@ class EntityModule(BaseModule):
     job_prio_boost_dict_update_time: datetime.datetime | None
 
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
         # global share variables
         self.tree = None  # type: ignore[assignment]  # Pointer to the root of the global shares tree
@@ -846,11 +846,11 @@ class EntityModule(BaseModule):
 
         if random_number <= sloppy_ratio:
             # generate the age sorting
-            tmp_log.debug(f"sorting by age")
+            tmp_log.debug("sorting by age")
             return self.getCriteriaByAge(site_name, max_jobs)
         else:
             # generate the global share sorting
-            tmp_log.debug(f"sorting by gshare")
+            tmp_log.debug("sorting by gshare")
             return self.getCriteriaForGlobalShares(site_name, max_jobs)
 
     # get selection criteria for share of production activities
@@ -863,7 +863,7 @@ class EntityModule(BaseModule):
 
         try:
             # Get the share leaves sorted by order of under-pledging
-            tmp_log.debug(f"Going to call get sorted leaves")
+            tmp_log.debug("Going to call get sorted leaves")
             t_before = time.time()
             sorted_leaves = self.get_sorted_leaves()
             t_after = time.time()
@@ -2031,7 +2031,7 @@ class EntityModule(BaseModule):
                 raise RuntimeError("Commit error")
             tmp_log.debug("done")
             return retList, endpoint_detailed_status_summary
-        except Exception as e:
+        except Exception:
             # roll back
             self._rollback()
             # error
@@ -2044,7 +2044,7 @@ class EntityModule(BaseModule):
         """
         comment = " /* DBProxy.getDdmEndpoints */"
         tmp_log = self.create_tagged_logger(comment)
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
 
         # get all ddm endpoints
         sql_ddm = "SELECT * FROM ATLAS_PANDA.ddm_endpoint "
@@ -2139,7 +2139,7 @@ class EntityModule(BaseModule):
                 panda_endpoint_map[panda_site_name][scope].setdefault("output", DdmSpec())
                 panda_endpoint_map[panda_site_name][scope]["output"].add(tmp_relation, endpoint_dict)
 
-        tmp_log.debug(f"done")
+        tmp_log.debug("done")
         return panda_endpoint_map, detailed_status_summary
 
     def get_cloud_list(self) -> list[str]:
@@ -2221,9 +2221,9 @@ class EntityModule(BaseModule):
             # sql to check data
             sqlC = "SELECT data FROM ATLAS_PANDA.Secrets WHERE owner=:owner "
             # sql to insert dummy
-            sqlI = "INSERT INTO ATLAS_PANDA.Secrets (owner, updated_at) " "VALUES(:owner,CURRENT_TIMESTAMP) "
+            sqlI = "INSERT INTO ATLAS_PANDA.Secrets (owner, updated_at) VALUES(:owner,CURRENT_TIMESTAMP) "
             # sql to update data
-            sqlU = "UPDATE ATLAS_PANDA.Secrets SET updated_at=CURRENT_TIMESTAMP,data=:data " "WHERE owner=:owner "
+            sqlU = "UPDATE ATLAS_PANDA.Secrets SET updated_at=CURRENT_TIMESTAMP,data=:data WHERE owner=:owner "
             # start transaction
             self.conn.begin()
             # check
@@ -2342,7 +2342,7 @@ class EntityModule(BaseModule):
                 self.cur.executemany(sql_update + comment, shard)
 
             tmp_log.debug("Inserting sites")
-            sql_insert = "INSERT INTO ATLAS_PANDA.site (site_name, role, tier_level) " "VALUES(:site_name, :role, :tier_level)"
+            sql_insert = "INSERT INTO ATLAS_PANDA.site (site_name, role, tier_level) VALUES(:site_name, :role, :tier_level)"
             for shard in create_shards(var_map_insert, 100):
                 self.cur.executemany(sql_insert + comment, shard)
 
@@ -2390,7 +2390,7 @@ class EntityModule(BaseModule):
                 self.cur.executemany(sql_update + comment, shard)
 
             tmp_log.debug("Inserting panda sites")
-            sql_insert = "INSERT INTO ATLAS_PANDA.panda_site (panda_site_name, site_name) " "VALUES(:panda_site_name, :site_name)"
+            sql_insert = "INSERT INTO ATLAS_PANDA.panda_site (panda_site_name, site_name) VALUES(:panda_site_name, :site_name)"
             for shard in create_shards(var_map_insert, 100):
                 self.cur.executemany(sql_insert + comment, shard)
 
@@ -2733,7 +2733,7 @@ class EntityModule(BaseModule):
             self.conn.begin()
 
             tmp_log.debug("Deleting old entries")
-            sql_delete = "DELETE FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS " "WHERE timestamp < sysdate - interval '10' day"
+            sql_delete = "DELETE FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS WHERE timestamp < sysdate - interval '10' day"
             self.cur.execute(sql_delete + comment)
 
             tmp_log.debug("Inserting emissions by region")
@@ -2822,7 +2822,7 @@ class EntityModule(BaseModule):
                 ":value": average_emissions,
             }
 
-            sql_insert = "INSERT INTO ATLAS_PANDA.carbon_region_emissions (region, timestamp, value) " "VALUES (:region, :timestamp, :value)"
+            sql_insert = "INSERT INTO ATLAS_PANDA.carbon_region_emissions (region, timestamp, value) VALUES (:region, :timestamp, :value)"
             self.cur.execute(sql_insert + comment, var_map)
 
             # commit
@@ -2841,7 +2841,7 @@ class EntityModule(BaseModule):
     def checkQuota(self, dn: str | None) -> float:
         comment = " /* DBProxy.checkQuota */"
         tmp_log = self.create_tagged_logger(comment, f"dn={dn}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # set autocommit on
             self.conn.begin()
@@ -2861,20 +2861,10 @@ class EntityModule(BaseModule):
                 item = res[0]
                 # cpu and quota
                 cpu1 = item[0]
-                cpu7 = item[1]
-                cpu30 = item[2]
                 if item[3] in [0, None]:
                     quota1 = 0
                 else:
                     quota1 = item[3] * 3600
-                if item[4] in [0, None]:
-                    quota7 = 0
-                else:
-                    quota7 = item[4] * 3600
-                if item[5] in [0, None]:
-                    quota30 = 0
-                else:
-                    quota30 = item[5] * 3600
                 # CPU usage
                 if cpu1 is None:
                     cpu1 = 0.0
@@ -2885,7 +2875,7 @@ class EntityModule(BaseModule):
                 weight = 0.0
                 tmp_log.debug(f"Weight:{weight} Quota:{quota1} CPU:{cpu1}")
             else:
-                tmp_log.debug(f"cannot found")
+                tmp_log.debug("cannot found")
             return weight
         except Exception:
             self.dump_error_message(tmp_log)
@@ -3023,7 +3013,6 @@ class EntityModule(BaseModule):
     def checkBanUser(self, dn: str | None, sourceLabel: str | None, jediCheck: bool = False) -> bool | int:
         comment = " /* DBProxy.checkBanUser */"
         try:
-            methodName = "checkBanUser"
             # set initial values. True when the user is allowed and False when banned, or
             # 1/2 when the users table could not be updated; TaskBuffer tells the first
             # apart from the last two with `is True`
@@ -3183,7 +3172,7 @@ class EntityModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            retVal = {name: False for name, in res}
+            retVal = {name: False for (name,) in res}
             tmp_log.debug(f"got {retVal}")
             return True, retVal
         except Exception:

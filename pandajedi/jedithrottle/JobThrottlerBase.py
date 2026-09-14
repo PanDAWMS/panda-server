@@ -297,8 +297,10 @@ class JobThrottlerBase(object):
         configRunningCapKey = config_map[NRUNNINGCAP]["key"]
 
         tmp_log.debug(
-            msg_header + " got configuration configQueueLimit={} ({}), configQueueCap={} ({}),"
-            " configRunningCap={} ({})".format(configQueueLimit, configQueueLimitKey, configQueueCap, configQueueCapKey, configRunningCap, configRunningCapKey)
+            msg_header
+            + " got configuration configQueueLimit={} ({}), configQueueCap={} ({}), configRunningCap={} ({})".format(
+                configQueueLimit, configQueueLimitKey, configQueueCap, configQueueCapKey, configRunningCap, configRunningCapKey
+            )
         )
 
         # get the jobs statistics for our wq/gs and expand the stats map
@@ -317,7 +319,6 @@ class JobThrottlerBase(object):
         nDefine_queuelimit = jobstats_map["nDefine_queuelimit"]
         nDefine_queuecap = jobstats_map["nDefine_queuecap"]
         nWaiting_rt = jobstats_map["nWaiting_rt"]
-        nWaiting_gs = jobstats_map["nWaiting_gs"]
 
         # check if higher prio tasks are waiting
         if workQueue.queue_name in non_rt_wqs:

@@ -19,7 +19,7 @@ from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
 # instantiate TB
-requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+requester_id = GenericThread().get_full_id(__name__, __file__)
 taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, requester=requester_id)
 # instantiate sitemapper
 siteMapper = SiteMapper(taskBuffer)

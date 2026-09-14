@@ -13,7 +13,6 @@ from pandaserver.workflow.workflow_base import (
     WFStepTargetCancelResult,
     WFStepTargetCheckResult,
     WFStepTargetSubmitResult,
-    WFStepType,
     has_placeholder,
     substitute_placeholder,
 )
@@ -209,7 +208,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             check_result = WFStepTargetCheckResult()
             # Check preconditions
             if step_spec.status not in allowed_step_statuses:
-                check_result.message = f"not in status to check; skipped"
+                check_result.message = "not in status to check; skipped"
                 tmp_log.warning(f"status={step_spec.status} not in status to check; skipped")
                 return check_result
             if step_spec.flavor != self.plugin_flavor:
@@ -221,8 +220,8 @@ class PandaTaskStepHandler(BaseStepHandler):
                 tmp_log.error(f"{check_result.message}")
                 return check_result
             if step_spec.target_id is None:
-                check_result.message = f"target_id is None; skipped"
-                tmp_log.warning(f"target_id is None; skipped")
+                check_result.message = "target_id is None; skipped"
+                tmp_log.warning("target_id is None; skipped")
                 return check_result
             # Get task ID and status
             task_id = int(step_spec.target_id)
@@ -308,7 +307,7 @@ class PandaTaskStepHandler(BaseStepHandler):
                 tmp_log.error(f"flavor={step_spec.flavor} is not {self.plugin_flavor}; wrong step handler for this step")
                 return
             if step_spec.target_id is None:
-                tmp_log.warning(f"target_id is None; skipped")
+                tmp_log.warning("target_id is None; skipped")
                 return
             # Get task ID
             task_id = int(step_spec.target_id)
@@ -337,8 +336,8 @@ class PandaTaskStepHandler(BaseStepHandler):
                 self.tbif.push_task_trigger_message("jedi_contents_feeder", task_id)
                 tmp_log.info(f"task_id={task_id} triggered jedi_contents_feeder")
             # Done
-            tmp_log.debug(f"Done")
-        except Exception as e:
+            tmp_log.debug("Done")
+        except Exception:
             tmp_log.error(f"Failed with: {traceback.format_exc()}")
 
     def cancel_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetCancelResult:
@@ -368,7 +367,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             if step_spec.target_id is None:
                 # If target_id is None, consider it as already cancelled since there is no task to cancel
                 cancel_result.success = True
-                cancel_result.message = f"target_id is None so considered already cancelled; skipped"
+                cancel_result.message = "target_id is None so considered already cancelled; skipped"
                 tmp_log.debug(f"{cancel_result.message}")
                 return cancel_result
             # Get task ID

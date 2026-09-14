@@ -14,7 +14,6 @@ base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
 
 # panda dataset callback message processing plugin
 class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
-
     def __init__(self, **params: Any) -> None:
         super().__init__(**params)
         self.activities_with_file_callback: list[str] = []
@@ -49,8 +48,6 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
             raise
         # run
         try:
-            to_continue = True
-            dsn = "UNKNOWN"
             # check event type
             if not isinstance(message_dict, dict):
                 err_str = f"skip due to invalid message format:{type(message_dict).__name__}. msg:{str(message_dict)}"
@@ -127,7 +124,7 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
         jobs = self.tbIF.peekJobs(panda_ids, fromActive=False, fromArchived=False, fromWaiting=False)
         # activate jobs
         self.tbIF.activateJobs(jobs)
-        tmp_log.debug(f"done")
+        tmp_log.debug("done")
         return
 
     def trigger_component_action(self, event_type: str, message_ids: str, message_dict: dict[str, Any], tmp_log: LogWrapper.LogWrapper) -> None:

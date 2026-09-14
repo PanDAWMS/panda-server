@@ -373,7 +373,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                             if tmpNumJobs is not None:
                                 for tmpJediTaskID, tmpNumJob in tmpNumJobs.items():
                                     msg = (
-                                        'throttled {} jobs in jediTaskID={} for user="{}" group={} ' "since too many running jobs ({} > {}) or cores ({} > {}) "
+                                        'throttled {} jobs in jediTaskID={} for user="{}" group={} since too many running jobs ({} > {}) or cores ({} > {}) '
                                     ).format(tmpNumJob, tmpJediTaskID, prodUserName, workingGroup, tmpNumTotalJobs, maxNumRun, tmpNumTotalCores, maxNumCore)
                                     tmpLog.debug(msg)
                                     tmpLog.sendMsg(msg, "userCap", msgLevel="warning")

@@ -1,12 +1,17 @@
 import atexit
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jediconfig import jedi_config
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import OraDBProxy
+
+if TYPE_CHECKING:
+    # annotations only: msg_processor is what MsgProcAgent is imported late from, so
+    # that a daemon opens its log file before the broker code runs
+    from pandacommon.pandamsgbkr.msg_processor import PassiveProxies
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 OraDBProxy._logger = logger
@@ -21,7 +26,7 @@ for tmpHdr in tmpLoggerFiltered.handlers:
 
 
 # get mb proxies used in DBProxy methods, or None when no message queue is configured
-def get_mb_proxy_dict() -> dict[str, Any] | None:
+def get_mb_proxy_dict() -> "PassiveProxies | None":
     if hasattr(jedi_config, "mq") and hasattr(jedi_config.mq, "configFile") and jedi_config.mq.configFile:
         # delay import to open logger file inside python daemon
         from pandajedi.jediorder.JediMsgProcessor import MsgProcAgent
@@ -29,7 +34,7 @@ def get_mb_proxy_dict() -> dict[str, Any] | None:
         in_q_list: list[Any] = []
         out_q_list = ["jedi_jobtaskstatus", "jedi_contents_feeder", "jedi_job_generator"]
         mq_agent = MsgProcAgent(config_file=jedi_config.mq.configFile)
-        mb_proxy_dict: dict[str, Any] = mq_agent.start_passive_mode(in_q_list=in_q_list, out_q_list=out_q_list)
+        mb_proxy_dict: "PassiveProxies" = mq_agent.start_passive_mode(in_q_list=in_q_list, out_q_list=out_q_list)
         # stop with atexit
         atexit.register(mq_agent.stop_passive_mode)
         # return

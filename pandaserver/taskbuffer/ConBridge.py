@@ -43,7 +43,7 @@ class Terminator(threading.Thread):
     def run(self) -> None:
         # watching control socket
         try:
-            rcvSize = self.consock.recv(1)
+            self.consock.recv(1)
         except Exception:
             pass
         # get PID

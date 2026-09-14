@@ -54,7 +54,7 @@ class TaskBuffer:
         # site mapper
         self.site_mapper: SiteMapper | None = None
         # update time for site mapper
-        self.last_update_site_mapper = None
+        self.last_update_site_mapper: datetime.datetime | None = None
 
     def __repr__(self) -> str:
         return "TaskBuffer"
@@ -150,9 +150,7 @@ class TaskBuffer:
                     "hammercloud",
                     "gangarobot",
                     "hammercloud-fax",
-                ] or jobs[
-                    0
-                ].processingType.startswith("gangarobot-"):
+                ] or jobs[0].processingType.startswith("gangarobot-"):
                     serNum = 0
                     weight = 0.0
                 elif jobs[0].processingType in ["gangarobot", "gangarobot-pft"]:
@@ -232,9 +230,6 @@ class TaskBuffer:
             userStatus = True
             priorityOffset = 0
             userCountry = None
-            useExpress = False
-            nExpressJobs = 0
-            useDebugMode = False
             siteMapper = self.get_site_mapper()
 
             # check ban user
@@ -250,7 +245,7 @@ class TaskBuffer:
                         return [], None, unprocessedMap
                     return []
 
-            tmpLog.debug(f"checked ban user")
+            tmpLog.debug("checked ban user")
             # set parameters for user jobs
             if (
                 len(jobs) > 0
@@ -266,17 +261,6 @@ class TaskBuffer:
                         jobs[0].jobsetID,
                     )
 
-                    # check quota for express jobs
-                    if "express" in jobs[0].specialHandling:
-                        expressQuota = proxy.getExpressJobs(user)
-                        if expressQuota is not None and expressQuota["status"] and expressQuota["quota"] > 0:
-                            nExpressJobs = expressQuota["quota"]
-                            if nExpressJobs > 0:
-                                useExpress = True
-                    # debug mode
-                    if jobs[0].is_debug_mode() or jobs[-1].is_debug_mode():
-                        useDebugMode = True
-
                 # extract country group
                 for tmpFQAN in fqans:
                     match = re.search("^/atlas/([^/]+)/", tmpFQAN)
@@ -290,7 +274,7 @@ class TaskBuffer:
                         if tmpCountry in ["usatlas"]:
                             userCountry = "us"
                             break
-            tmpLog.debug(f"set user job parameters")
+            tmpLog.debug("set user job parameters")
 
             # return if DN is blocked
             if not userStatus:
@@ -339,17 +323,17 @@ class TaskBuffer:
                     prio_reduction,
                 ) = self.getPrioParameters(jobs, user, fqans, userDefinedWG, validWorkingGroup)
                 tmpLog.debug(f"workingGroup={jobs[0].workingGroup} serNum={serNum} weight={weight} pOffset={priorityOffset} reduction={prio_reduction}")
-            tmpLog.debug(f"got prio parameters")
+            tmpLog.debug("got prio parameters")
             # get DB proxy
             with self.proxyPool.get() as proxy:
-                tmpLog.debug(f"got proxy")
+                tmpLog.debug("got proxy")
                 # get total number of files
                 totalNumFiles = 0
                 for job in jobs:
                     totalNumFiles += len(job.Files)
                 # bulk fetch PandaIDs
                 new_panda_ids = proxy.bulk_fetch_panda_ids(len(jobs))
-                tmpLog.debug(f"got PandaIDs")
+                tmpLog.debug("got PandaIDs")
                 # bulk fetch fileIDs
                 fileIDPool = []
                 if totalNumFiles > 0:
@@ -1301,7 +1285,7 @@ class TaskBuffer:
         return ret
 
     # get and lock sandbox files
-    def getLockSandboxFiles(self, time_limit: int, n_files: int) -> list[tuple[Any, ...]] | None:
+    def getLockSandboxFiles(self, time_limit: datetime.datetime, n_files: int) -> list[tuple[Any, ...]] | None:
         with self.proxyPool.get() as proxy:
             # exec
             ret = proxy.getLockSandboxFiles(time_limit, n_files)
@@ -2689,17 +2673,33 @@ class TaskBuffer:
             return proxy.getTaskWithID_JEDI(jediTaskID, fullFlag, lockTask, pid, lockInterval, clearError)
 
     # update a task
-    def updateTask_JEDI(self, taskSpec, criteria, oldStatus=None, updateDEFT=True, insertUnknown=None, setFrozenTime=True, setOldModTime=False):
+    def updateTask_JEDI(
+        self,
+        taskSpec: JediTaskSpec,
+        criteria: dict[str, Any],
+        oldStatus: list[str] | None = None,
+        updateDEFT: bool = True,
+        insertUnknown: list[str] | None = None,
+        setFrozenTime: bool = True,
+        setOldModTime: bool = False,
+    ) -> tuple[bool, int | None]:
         with self.proxyPool.get() as proxy:
             return proxy.updateTask_JEDI(taskSpec, criteria, oldStatus, updateDEFT, insertUnknown, setFrozenTime, setOldModTime)
 
     # release a task from hold, restoring its old status
-    def release_task_on_hold(self, jedi_task_id, target_status=None):
+    def release_task_on_hold(self, jedi_task_id: int, target_status: str | None = None) -> bool:
         with self.proxyPool.get() as proxy:
             return proxy.release_task_on_hold(jedi_task_id, target_status)
 
     # push a task trigger message to the message queue
-    def push_task_trigger_message(self, msg_type, jedi_task_id, data_dict=None, priority=None, task_spec=None):
+    def push_task_trigger_message(
+        self,
+        msg_type: str,
+        jedi_task_id: int | None,
+        data_dict: dict[str, Any] | None = None,
+        priority: int | None = None,
+        task_spec: JediTaskSpec | None = None,
+    ) -> bool | None:
         with self.proxyPool.get() as proxy:
             return proxy.push_task_trigger_message(msg_type, jedi_task_id, data_dict, priority, task_spec)
 

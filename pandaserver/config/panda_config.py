@@ -157,7 +157,7 @@ if "certdir" not in tmpSelf.__dict__:
 # endpoint map file
 if "endpoint_mapfile" not in tmpSelf.__dict__:
     tmpSelf.__dict__["endpoint_mapfile"] = (
-        "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmendpoints.json" ",/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json"
+        "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmendpoints.json,/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json"
     )
 
 # sandbox info

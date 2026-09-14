@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import types
+from typing import Any, cast
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 sys.path.insert(0, REPO_ROOT)
@@ -158,8 +159,10 @@ class FakeWorkflowInterface:
 def install(existing=None, fail=False, workflow_id=4242):
     tbif = FakeTaskBuffer(existing, fail)
     wfif = FakeWorkflowInterface(workflow_id)
-    workflow_api.global_task_buffer = tbif
-    workflow_api.global_wfif = wfif
+    # The module declares these as the real TaskBuffer and WorkflowInterface. The endpoints call
+    # only the two methods the fakes carry, which is what the checks below are about.
+    workflow_api.global_task_buffer = cast(Any, tbif)
+    workflow_api.global_wfif = cast(Any, wfif)
     return tbif, wfif
 
 
@@ -267,7 +270,9 @@ def main():
     print("\n=== the deprecated alias delegates to submit_workflow ===")
     raw_params = {"sourceURL": "https://example.org", "sandbox": "sandbox.tgz", "language": "yaml", "workflowSpecFile": "wf.yaml", "outDS": "user.me.out"}
     tbif, wfif = install()
-    res_alias = workflow_api.submit_workflow_raw_request(None, copy.deepcopy(raw_params))
+    # request_validation is faked to a pass-through above, so no endpoint here ever reads the
+    # request object; the alias is undecorated on purpose and so still declares its real type.
+    res_alias = workflow_api.submit_workflow_raw_request(cast(Any, None), copy.deepcopy(raw_params))
     tbif2, wfif2 = install()
     res_direct = workflow_api.submit_workflow(None, copy.deepcopy(raw_params))
     failures += not check("alias succeeds", res_alias["success"] is True, res_alias["message"])

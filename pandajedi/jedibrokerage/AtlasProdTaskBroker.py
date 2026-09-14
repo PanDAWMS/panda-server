@@ -169,7 +169,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                 diskThreshold = 100
         diskThreshold *= 1024
         # cutoff for free disk in TB
-        free_disk_cutoff = self.taskBufferIF.getConfigValue(self.msgType, f"FREE_DISK_CUTOFF", "jedi", "atlas")
+        free_disk_cutoff = self.taskBufferIF.getConfigValue(self.msgType, "FREE_DISK_CUTOFF", "jedi", "atlas")
         if free_disk_cutoff is None:
             free_disk_cutoff = 1000
         # dataset type to ignore file availability check
@@ -451,7 +451,7 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                         # data locality
                         time_now = naive_utcnow()
                         if taskSpec.frozenTime and time_now - taskSpec.frozenTime > datetime.timedelta(days=data_location_check_period):
-                            tmpLog.info(f"disabled data check since the task was in assigning for " f"{data_location_check_period} days")
+                            tmpLog.info(f"disabled data check since the task was in assigning for {data_location_check_period} days")
                         else:
                             dataset_availability_info = {k: v for k, v in dataset_availability_info.items() if k in nucleusList}
                             if dataset_availability_info != {}:

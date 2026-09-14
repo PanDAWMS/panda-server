@@ -24,7 +24,7 @@ _logger = PandaLogger().getLogger("add_main")
 
 # main
 def main(argv: Sequence[str] = (), tbuf: Any = None, lock_pool: LockPool | None = None, **kwargs: Any) -> bool:
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     prelock_pid = GenericThread().get_pid()
     tmpLog = LogWrapper(_logger, f"<pid={prelock_pid}>")
@@ -95,7 +95,6 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, lock_pool: LockPool | None 
             aSiteMapper = self.aSiteMapper
             # get file list
             timeNow = naive_utcnow()
-            timeInt = naive_utcnow()
             # unique pid
             GenericThread.__init__(self)
             uniq_pid = self.get_pid()

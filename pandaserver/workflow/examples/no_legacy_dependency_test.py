@@ -60,7 +60,7 @@ FORBIDDEN_MODULES = (
 
 # Every attempt to import a forbidden package, recorded here so that one suppressed by a
 # try/except ImportError in the importing module is still reported
-FORBIDDEN_ATTEMPTS = []
+FORBIDDEN_ATTEMPTS: list[str] = []
 
 
 class ForbiddenWatcher(importlib.abc.MetaPathFinder):

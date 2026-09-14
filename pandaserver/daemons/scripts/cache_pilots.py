@@ -38,7 +38,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                 continue
             dest_file_path = shutil.copy(source_file, dest_dir_path)
             _logger.debug(f"copied {source_file} to {dest_file_path}")
-    except Exception as e:
+    except Exception:
         err_str = traceback.format_exc()
         _logger.error(f"failed to copy files: {err_str}")
     # done

@@ -1,10 +1,9 @@
-import datetime
 import json
+import logging
 import re
 import sys
 from typing import TYPE_CHECKING, Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
@@ -19,7 +18,7 @@ if TYPE_CHECKING:
 # Module class to define metrics related methods
 class MetricsModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # set job or task metrics
@@ -286,7 +285,7 @@ class MetricsModule(BaseModule):
         task_queued_time = get_task_queued_time(tmp_str)
         # record queuing duration
         if jedi_task_id and task_queued_time:
-            tmp_log.debug(f"to record queuing period")
+            tmp_log.debug("to record queuing period")
             # get job metrics dict
             tmp_success, job_metrics = self.get_workload_metrics(jedi_task_id, panda_id)
             if not tmp_success:
@@ -331,7 +330,7 @@ class MetricsModule(BaseModule):
             return None
         comment = " /* DBProxy.record_task_active_period */"
         tmp_log = self.create_tagged_logger(comment, f"JediTaskID={jedi_task_id}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         # get activated time
         sql_check = f"SELECT status,activatedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
         var_map = {":jediTaskID": jedi_task_id}
@@ -369,7 +368,7 @@ class MetricsModule(BaseModule):
                 tmp_log.error(err_str)
                 return False
             # unset activated time
-            tmp_log.debug(f"unset activated time")
+            tmp_log.debug("unset activated time")
             sql_update = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET activatedTime=NULL WHERE jediTaskID=:jediTaskID AND activatedTime IS NOT NULL "
             var_map = {":jediTaskID": jedi_task_id}
             self.cur.execute(sql_update + comment, var_map)
@@ -848,7 +847,7 @@ class MetricsModule(BaseModule):
                WHERE vo=:vo AND jobStatus=:job_status GROUP BY computingSite, nucleus
                """
 
-        if job_status in ["transferring", "running", "activated" "holding"]:
+        if job_status in ["transferring", "running", "activatedholding"]:
             table = f"{panda_config.schemaPANDA}.JOBS_SHARE_STATS"
         else:
             table = f"{panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS"

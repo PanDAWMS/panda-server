@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import types
+from typing import Any
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 sys.path.insert(0, REPO_ROOT)
@@ -188,7 +189,7 @@ def main():
     failures += not check("JEDI per-job templates untouched", "${SN}" in substitute_placeholder("log.${TASKID}._${SN}.tgz", TASKID_PLACEHOLDER, 7))
 
     print("\n=== regression: prun steps are unaffected ===")
-    prun_wfd = {
+    prun_wfd: dict[str, Any] = {
         "name": "prun_probe",
         "inputs": {"sig": "some:dataset"},
         "outputs": {"out": {"from": "b/outDS", "output_types": ["aaa.root"]}},

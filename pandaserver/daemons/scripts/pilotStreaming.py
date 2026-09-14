@@ -1,4 +1,3 @@
-import sys
 import time
 import traceback
 from typing import Any
@@ -81,7 +80,7 @@ class PilotStreaming(object):
 
 # main
 def main(tbuf: Any = None, **kwargs: Any) -> None:
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # instantiate TB
     if tbuf is None:

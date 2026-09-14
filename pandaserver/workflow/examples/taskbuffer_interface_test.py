@@ -33,7 +33,7 @@ WORKFLOW_SOURCES = [
 ]
 
 
-def task_buffer_methods() -> set:
+def task_buffer_methods() -> set[str]:
     tree = ast.parse(TASK_BUFFER.read_text())
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "TaskBuffer")
     return {f.name for f in cls.body if isinstance(f, ast.FunctionDef)}
@@ -45,9 +45,9 @@ def has_getattr_delegation() -> bool:
     return any(isinstance(f, ast.FunctionDef) and f.name in ("__getattr__", "__getattribute__") for f in cls.body)
 
 
-def called_methods(path: pathlib.Path) -> dict:
+def called_methods(path: pathlib.Path) -> dict[str, list[int]]:
     """Map method name -> sorted line numbers, for every self.tbif.<name>( call."""
-    calls = {}
+    calls: dict[str, list[int]] = {}
     for lineno, line in enumerate(path.read_text().splitlines(), start=1):
         for name in re.findall(r"self\.tbif\.([A-Za-z_][A-Za-z0-9_]*)\s*\(", line):
             calls.setdefault(name, []).append(lineno)

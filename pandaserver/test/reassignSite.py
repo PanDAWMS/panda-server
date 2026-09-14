@@ -1,6 +1,6 @@
 import datetime
 import optparse
-import re
+from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
@@ -39,7 +39,7 @@ try:
 except Exception:
     pass
 timeLimit = naive_utcnow() - datetime.timedelta(hours=options.olderThan)
-varMap = {}
+varMap: dict[str, Any] = {}
 if options.assigned:
     varMap[":jobStatus"] = "assigned"
 else:
@@ -70,13 +70,13 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print(f"reassign  {str(jobs[iJob:iJob + nJob])}")
+        print(f"reassign  {str(jobs[iJob : iJob + nJob])}")
         Client.reassign_jobs(jobs[iJob : iJob + nJob])
         iJob += nJob
 if len(jediJobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jediJobs):
-        print(f"kill JEDI jobs {str(jediJobs[iJob:iJob + nJob])}")
+        print(f"kill JEDI jobs {str(jediJobs[iJob : iJob + nJob])}")
         Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51)
         iJob += nJob

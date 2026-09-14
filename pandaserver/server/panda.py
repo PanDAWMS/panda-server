@@ -12,7 +12,6 @@ import io
 import json
 import os
 import signal
-import sys
 import tempfile
 import traceback
 from collections import defaultdict
@@ -56,8 +55,11 @@ from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.userinterface import Client
 
 # pylint: disable=W0611
-# Leftovers from old API
-from pandaserver.userinterface.UserIF import (
+# Leftovers from old API. Nothing in this module calls them: they are named in
+# allowed_methods, and the old-API branch of the dispatch below resolves a method with
+# globals()[method_name], so the import is what puts them within reach. Removing one
+# turns its endpoint into a 500.
+from pandaserver.userinterface.UserIF import (  # noqa: F401
     delete_checkpoint,
     execute_idds_workflow_command,
     put_checkpoint,
@@ -92,7 +94,7 @@ workflow_api_v1_methods = extract_allowed_methods(workflow_api_v1)
 initializer.init()
 
 # initialize TaskBuffer
-requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+requester_id = GenericThread().get_full_id(__name__, __file__)
 taskBuffer.init(
     panda_config.dbhost,
     panda_config.dbpasswd,

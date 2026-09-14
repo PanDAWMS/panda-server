@@ -514,7 +514,7 @@ class JobSpec(object):
             if useSeq and attr in cls._seqAttrMap:
                 if panda_config.backend == "mysql":
                     # mysql
-                    ret += f"NULL,"
+                    ret += "NULL,"
                 else:
                     # oracle
                     ret += f"{cls._seqAttrMap[attr]},"
@@ -721,7 +721,6 @@ class JobSpec(object):
         else:
             items = []
         newItems = []
-        setFlag = False
         for item in items:
             if not item.startswith(self._tagForSH["requestType"]):
                 newItems.append(item)

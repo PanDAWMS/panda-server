@@ -1,4 +1,3 @@
-import sys
 import time
 import traceback
 from typing import Any
@@ -77,7 +76,7 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
-        requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+        requester_id = GenericThread().get_full_id(__name__, __file__)
         taskBuffer.init(
             panda_config.dbhost,
             panda_config.dbpasswd,

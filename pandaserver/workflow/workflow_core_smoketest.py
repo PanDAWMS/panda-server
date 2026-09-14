@@ -110,13 +110,11 @@ def show_workflow(task_buffer: TaskBuffer, workflow_id: int) -> None:
 def main() -> None:
     args = parse_args()
     WFID = args.workflow_id
-    action = args.action
-    force = args.force
 
     from pandaserver.workflow.workflow_core import WorkflowInterface
 
     # interface for workflow operations
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
     taskBuffer.init(
         panda_config.dbhost,
         panda_config.dbpasswd,
@@ -183,7 +181,7 @@ def main() -> None:
                 return
             before = workflow_spec.status
             process_result, workflow_spec = wfif.process_workflow(workflow_spec)
-            print(f"  [{attempt + 1}] {before} -> {workflow_spec.status} " f"success={process_result.success} {process_result.message}")
+            print(f"  [{attempt + 1}] {before} -> {workflow_spec.status} success={process_result.success} {process_result.message}")
             if before == workflow_spec.status:
                 # nothing moved, so repeating will not help until something external changes
                 break

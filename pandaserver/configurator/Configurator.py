@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 import threading
@@ -5,11 +6,27 @@ import traceback
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
 from pandaserver.configurator import aux
-from pandaserver.configurator.aux import *
+from pandaserver.configurator.aux import (
+    D1,
+    DONE,
+    EXPRESS,
+    FILES,
+    GB,
+    H1,
+    H6,
+    LATEST,
+    MBPS,
+    PROD_INPUT,
+    PROD_OUTPUT,
+    QUEUED,
+    TIMESTAMP,
+    W1,
+)
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = PandaLogger().getLogger("configurator")
@@ -21,7 +38,7 @@ DEFAULT = "default"
 
 
 class Configurator(threading.Thread):
-    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | None = None) -> None:
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
@@ -627,7 +644,7 @@ class Configurator(threading.Thread):
 
 
 class NetworkConfigurator(threading.Thread):
-    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | None = None) -> None:
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
@@ -861,7 +878,7 @@ class SchedconfigJsonDumper(threading.Thread):
     Downloads the CRIC schedconfig dump and stores it in the DB, one row per queue
     """
 
-    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | None = None) -> None:
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         """
         Initialization and configuration
         """
@@ -902,7 +919,7 @@ class SWTagsDumper(threading.Thread):
     Downloads the CRIC tags dump, flattens it out and stores it in the DB, one row per queue
     """
 
-    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | None = None) -> None:
+    def __init__(self, taskBuffer: TaskBuffer, log_stream: logging.Logger | LogWrapper | None = None) -> None:
         """
         Initialization and configuration
         """

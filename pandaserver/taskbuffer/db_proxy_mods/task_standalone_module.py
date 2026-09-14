@@ -1,4 +1,5 @@
 import datetime
+import logging
 import math
 import random
 import re
@@ -6,7 +7,6 @@ import socket
 import sys
 from typing import Any
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
@@ -29,7 +29,7 @@ from pandaserver.taskbuffer.WorkQueue import WorkQueue
 # Module class to define isolated task related methods
 class TaskStandaloneModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         super().__init__(log_stream)
 
     # get files from the JEDI contents table with jediTaskID and/or datasetID
@@ -1545,7 +1545,6 @@ class TaskStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.getIDsWithFileDataset_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"dataset={datasetName} file={fileName} type={fileType}")
         tmpLog.debug("start")
-        retPandaIDs: list[Any] = []
         try:
             # sql to get jediTaskID and datasetID
             sqlT = f"SELECT jediTaskID,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE "
@@ -1612,7 +1611,6 @@ class TaskStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.getPandaIDWithFileID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID} fileID={fileID}")
         tmpLog.debug("start")
-        retPandaIDs: list[Any] = []
         try:
             # sql to get PandaID
             sqlP = f"SELECT PandaID FROM {panda_config.schemaPANDA}.filesTable4 WHERE "
@@ -1677,7 +1675,6 @@ class TaskStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.getFilesWithPandaID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"pandaID={pandaID}")
         tmpLog.debug("start")
-        retPandaIDs: list[Any] = []
         try:
             # sql to get fileID
             sqlT = f"SELECT jediTaskID,datasetID,fileID FROM {panda_config.schemaPANDA}.filesTable4 WHERE "
@@ -1732,7 +1729,6 @@ class TaskStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.updateTaskParams_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
-        retPandaIDs: list[Any] = []
         try:
             # sql to update task params
             sqlT = f"UPDATE {panda_config.schemaJEDI}.JEDI_TaskParams SET taskParams=:taskParams "
@@ -2970,7 +2966,7 @@ class TaskStandaloneModule(BaseModule):
                 self.record_task_status_change(jediTaskID)
                 self.push_task_status_message(None, jediTaskID, varMap[":newStatus"])
             else:
-                tmpLog.debug(f"skipped")
+                tmpLog.debug("skipped")
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -3440,7 +3436,7 @@ class TaskStandaloneModule(BaseModule):
             if prod_source_label not in [None, "any"]:
                 var_map[":prodSourceLabel"] = prod_source_label
                 sql_get_tasks += "AND tabT.prodSourceLabel=:prodSourceLabel "
-            sql_get_tasks += "AND (actionTime IS NULL OR actionTime<:timeLimit) " f"AND rownum<{n_tasks} "
+            sql_get_tasks += f"AND (actionTime IS NULL OR actionTime<:timeLimit) AND rownum<{n_tasks} "
             # SQL to lock task
             sql_lock_task = (
                 f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET actionTime=CURRENT_DATE "
@@ -4302,9 +4298,7 @@ class TaskStandaloneModule(BaseModule):
         try:
             # sql to lock task
             sql_lock = (
-                f"SELECT lockedBy,lockedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-                "WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL "
-                "FOR UPDATE NOWAIT "
+                f"SELECT lockedBy,lockedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL FOR UPDATE NOWAIT "
             )
             # sql to get datasets
             sql_get_datasets = (
@@ -4331,7 +4325,7 @@ class TaskStandaloneModule(BaseModule):
             n_datasets = 100
             all_processed = False
             for i_loop in range(n_loop):
-                tmp_log.debug(f"loop count {i_loop+1}/{n_loop}")
+                tmp_log.debug(f"loop count {i_loop + 1}/{n_loop}")
                 self.conn.begin()
                 var_map: dict[str, Any] = dict()
                 var_map[":jediTaskID"] = jediTaskID
@@ -4753,7 +4747,6 @@ class TaskStandaloneModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment, f"main_key={main_key} sub_key={sub_key}")
         tmpLog.debug("start")
         try:
-            retVal = False
             # sql to get
             sqlC = f"SELECT {JediCacheSpec.columnNames()} FROM {panda_config.schemaJEDI}.Cache WHERE main_key=:main_key AND sub_key=:sub_key "
             # check
@@ -4783,7 +4776,6 @@ class TaskStandaloneModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_taskid}")
         try:
             self.conn.begin()
-            retVal = False
             # sql to put the task in pending
             sqlPDG = (
                 "UPDATE {0}.JEDI_Tasks "
@@ -5025,9 +5017,9 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to set missing files
-            sqlF = (
-                "UPDATE {0}.JEDI_Dataset_Contents " "SET status=:nStatus " "WHERE jediTaskID=:jediTaskID " "AND lfn LIKE :lfn AND status!=:nStatus "
-            ).format(panda_config.schemaJEDI)
+            sqlF = ("UPDATE {0}.JEDI_Dataset_Contents SET status=:nStatus WHERE jediTaskID=:jediTaskID AND lfn LIKE :lfn AND status!=:nStatus ").format(
+                panda_config.schemaJEDI
+            )
             # begin transaction
             self.conn.begin()
             nFileRow = 0
@@ -5148,7 +5140,6 @@ class TaskStandaloneModule(BaseModule):
         comment = " /* JediDBProxy.kickChildTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
-        retTasks: list[Any] = []
         try:
             # sql to get child tasks
             sqlGT = f"SELECT jediTaskID,status FROM {panda_config.schemaJEDI}.JEDI_Tasks "

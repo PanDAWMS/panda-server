@@ -55,7 +55,7 @@ def stub(name, **attrs):
     return module
 
 
-LOGGED = {"warning": [], "error": []}
+LOGGED: dict[str, list[str]] = {"warning": [], "error": []}
 
 
 class Log:
@@ -90,6 +90,7 @@ from pandaserver.workflow.step_handler_plugins.panda_task_step_handler import ( 
 )
 from pandaserver.workflow.workflow_base import (  # noqa: E402
     TASKID_PLACEHOLDER,
+    WFStepSpec,
     WFStepStatus,
 )
 
@@ -102,25 +103,17 @@ class FakeData:
         self.data_id = abs(hash(name)) % 1000
 
 
-class FakeStep:
+class FakeStep(WFStepSpec):
     def __init__(self, definition, parameters=None):
         self.workflow_id = 1
         self.step_id = 7
         self.flavor = "panda_task"
         self.target_id = None
         self.status = WFStepStatus.ready
-        self._definition = definition
-        self._parameters = parameters or {}
-
-    @property
-    def definition_json_map(self):
-        return self._definition
-
-    def get_parameter(self, key):
-        return self._parameters.get(key)
-
-    def set_parameter(self, key, value):
-        self._parameters[key] = value
+        # definition_json and parameters are the real backing attributes, so the spec's own
+        # definition_json_map and get/set_parameter do the work and are exercised as written
+        self.definition_json = json.dumps(definition)
+        self.parameters = json.dumps(parameters or {})
 
 
 class FakeTaskBuffer:
@@ -214,7 +207,7 @@ def main():
     failures += not check("workflowHoldup not set when inputs are complete", "workflowHoldup" not in submitted)
     failures += not check(
         "output dataset name resolved from the task id",
-        tbif.updated_data == [("simul/HITS", f"mc23_13p6TeV.526140.x.simul.HITS.e8590_e8586_a934_wfid12345_tid49900001_00")],
+        tbif.updated_data == [("simul/HITS", "mc23_13p6TeV.526140.x.simul.HITS.e8590_e8586_a934_wfid12345_tid49900001_00")],
         tbif.updated_data,
     )
     failures += not check("submission attempt recorded", step.get_parameter("submit_attempt_task_name") == simul_params["taskName"])
@@ -378,7 +371,7 @@ def main():
         WFStepStatus.done: ["done", "finished"],
         WFStepStatus.failed: ["failed", "exhausted", "aborted", "toabort", "aborting", "broken", "tobroken"],
     }
-    for expected, statuses in expectations.items():
+    for expected_status, statuses in expectations.items():
         for status in statuses:
             tbif = make_tbif()
             tbif.set_status(status)
@@ -387,8 +380,8 @@ def main():
             step.status = WFStepStatus.running
             step.target_id = "49900001"
             result = handler.check_target(step)
-            if not (result.success and result.step_status == expected):
-                failures += not check(f"{status} -> {expected}", False, f"got success={result.success} status={result.step_status}")
+            if not (result.success and result.step_status == expected_status):
+                failures += not check(f"{status} -> {expected_status}", False, f"got success={result.success} status={result.step_status}")
     failures += not check(f"all {sum(len(v) for v in expectations.values())} task statuses map without error", True)
     # an unknown status must still be reported rather than silently mapped
     tbif = make_tbif()

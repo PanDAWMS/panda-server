@@ -63,7 +63,7 @@ class MailUtils:
 
             # make message
             fromAdd = panda_config.emailSender
-            message = f"Subject: {mailSubject}\n" f"From: {fromAdd}\n" f"To: {toAddr}\n\n" f"{mailBody}"
+            message = f"Subject: {mailSubject}\nFrom: {fromAdd}\nTo: {toAddr}\n\n{mailBody}"
             message = self.addTailer(message)
 
             # send mail

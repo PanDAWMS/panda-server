@@ -8,9 +8,8 @@ if TYPE_CHECKING:
     # Importing these for real makes this module read a configuration file at import time,
     # and it has no other reason to need one. Annotations are evaluated at runtime in this
     # tree, so the uses below are quoted.
-    from pandacommon.pandalogger.LogWrapper import LogWrapper
-
     from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
+    from pandajedi.jedicore.MsgWrapper import MsgWrapper
     from pandajedi.jedicore.ThreadUtils import MapWithLock
 
 
@@ -124,7 +123,7 @@ class JobBrokerBase(object):
         self.summaryList.append(f"the number of initial candidates: {len(initial_list)}")
 
     # dump summary
-    def dump_summary(self, tmp_log: "LogWrapper", final_candidates: Collection[Any] | None = None) -> None:
+    def dump_summary(self, tmp_log: "MsgWrapper", final_candidates: Collection[Any] | None = None) -> None:
         if not self.summaryList:
             return
         tmp_log.info("")

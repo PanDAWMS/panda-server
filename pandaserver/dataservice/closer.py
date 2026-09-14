@@ -3,7 +3,6 @@ update dataset DB, and then close dataset and start Activator if needed
 
 """
 
-import datetime
 import sys
 from typing import TYPE_CHECKING, Dict, List
 

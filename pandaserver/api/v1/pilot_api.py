@@ -783,7 +783,7 @@ def update_worker_status(
         tmp_logger.error(message)
         return generate_response(False, message)
 
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(True)
 
 
@@ -865,7 +865,7 @@ def update_worker_node(
 
     success, message = timed_method.result
 
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(success, message)
 
 
@@ -934,5 +934,5 @@ def update_worker_node_gpu(
 
     success, message = timed_method.result
 
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(success, message)

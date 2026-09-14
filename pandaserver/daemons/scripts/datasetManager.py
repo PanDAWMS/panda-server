@@ -65,7 +65,7 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
 
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
     taskBuffer.init(
         panda_config.dbhost,
         panda_config.dbpasswd,
@@ -264,7 +264,7 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
         closeLock.acquire()
         # get datasets
         closeProxyLock.acquire()
-        varMap = {}
+        varMap: dict[str, Any] = {}
         varMap[":modificationdateU"] = timeLimitU
         varMap[":modificationdateL"] = timeLimitL
         varMap[":type"] = "output"
@@ -1023,9 +1023,10 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
                         continue
                     _logger.debug(f"delete sub {name}")
                     if name.startswith("user.") or name.startswith("group.") or name.startswith("hc_test."):
-                        dsExists = False
+                        # these subs go straight to the status update below. Rucio erases
+                        # them on its own, so there is no point in waiting for their jobs
+                        pass
                     else:
-                        dsExists = True
                         # get PandaIDs
                         self.proxyLock.acquire()
                         retF, resF = taskBuffer.querySQLS(
@@ -1065,7 +1066,6 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
                                 _logger.debug(f"deleting sub {name}")
                                 try:
                                     rucioAPI.erase_dataset(name, grace_period=4)
-                                    status = True
                                 except Exception:
                                     errtype, errvalue = sys.exc_info()[:2]
                                     out = f"{errtype} {errvalue}"

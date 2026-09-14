@@ -1,9 +1,6 @@
 import datetime
-import glob
-import os
 import re
 import sys
-import threading
 import time
 import traceback
 from collections.abc import Sequence
@@ -27,7 +24,7 @@ _logger = PandaLogger().getLogger("add_sub")
 # main
 def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     tmp_log = LogWrapper(_logger, None)
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+    requester_id = GenericThread().get_full_id(__name__, __file__)
 
     tmp_log.debug("===================== start =====================")
 
@@ -204,7 +201,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                 nJob = 100
                 iJob = 0
                 while iJob < len(jediJobs):
-                    tmp_log.debug(f" killing {str(jediJobs[iJob:iJob + nJob])}")
+                    tmp_log.debug(f" killing {str(jediJobs[iJob : iJob + nJob])}")
                     Client.kill_jobs(jediJobs[iJob : iJob + nJob], 51, keep_unmerged=True)
                     iJob += nJob
     except Exception:

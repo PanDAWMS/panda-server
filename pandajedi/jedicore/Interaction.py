@@ -190,7 +190,7 @@ class MethodClass(object):
                 timeoutPeriodACK = 30
                 if not pipe.poll(timeoutPeriodACK):
                     raise JEDITimeoutError(f"did not get ACK for {timeoutPeriodACK}sec")
-                ack = pipe.recv()
+                pipe.recv()
                 # send command
                 stepIdx = 3
                 pipe.send(commandObj)
@@ -305,7 +305,6 @@ class CommandSendInterface(object):
         # start child process
         msg = f"start {self.className} with pid={os.getpid()}"
         dumpStdOut(self.moduleName, msg)
-        timeNow = naive_utcnow()
         try:
             cls(channel).start()
         except Exception as e:

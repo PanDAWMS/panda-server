@@ -57,7 +57,7 @@ def json_serialize_default(obj: Any) -> Any:
 
 
 def parse_raw_request(
-    sandbox_url: str, log_token: str, user_name: str, raw_request_dict: dict[str, Any], workflow_id: int | None = None
+    sandbox_url: str | None, log_token: str, user_name: str, raw_request_dict: dict[str, Any], workflow_id: int | None = None
 ) -> tuple[bool, bool, dict[str, Any]]:
     """
     Parse raw request into workflow definition
@@ -66,7 +66,7 @@ def parse_raw_request(
     request under INLINE_DESCRIPTION_KEY, in which case no sandbox is involved.
 
     Args:
-        sandbox_url (str): URL to download sandbox; unused for an inline description
+        sandbox_url (str | None): URL to download sandbox; unused, and may be None, for an inline description
         log_token (str): Log token
         user_name (str): User name
         raw_request_dict (dict): Raw request dictionary
@@ -112,7 +112,7 @@ def parse_raw_request(
             # all checks passed, safe to extract
             tar.extractall(path=extract_dir, members=members)
 
-    def _download_and_extract_sandbox(tmp_dirname: str) -> tuple[bool, bool]:
+    def _download_and_extract_sandbox(tmp_dirname: str, sandbox_url: str) -> tuple[bool, bool]:
         # download sandbox
         is_ok = True
         is_fatal = False
@@ -169,7 +169,10 @@ def parse_raw_request(
             # parameters verbatim and take their transformation from cvmfs, so there is nothing to
             # download or extract.
             if inline_description is None:
-                is_ok, is_fatal = _download_and_extract_sandbox(tmp_dirname)
+                if sandbox_url is None:
+                    tmp_log.error("no sandbox URL for a description that is not supplied inline")
+                    return False, True, workflow_definition_dict
+                is_ok, is_fatal = _download_and_extract_sandbox(tmp_dirname, sandbox_url)
             else:
                 tmp_log.info("using the inline workflow description; skipped the sandbox")
             # parse workflow files

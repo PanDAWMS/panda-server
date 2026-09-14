@@ -17,7 +17,7 @@ import types
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 sys.path.insert(0, REPO_ROOT)
 
-WARNINGS = []
+WARNINGS: list[str] = []
 
 
 def stub(name, **attrs):
@@ -53,18 +53,24 @@ stub("pandacommon.pandalogger.LogWrapper", LogWrapper=Log)
 stub("pandacommon.pandalogger.PandaLogger", PandaLogger=lambda: types.SimpleNamespace(getLogger=lambda n: None))
 stub("pandaserver.config", panda_config=types.SimpleNamespace(schemaJEDI="ATLAS_PANDA", schemaDEFT="ATLAS_DEFT"))
 
+from pandaserver.workflow.data_handler_plugins.base_data_handler import (  # noqa: E402
+    BaseDataHandler,
+)
 from pandaserver.workflow.data_handler_plugins.panda_task_data_handler import (  # noqa: E402
     PandaTaskDataHandler,
 )
 from pandaserver.workflow.workflow_base import (  # noqa: E402
     TASKID_PLACEHOLDER,
+    WFDataSpec,
     WFDataStatus,
     WFDataTargetCheckStatus,
     WFStepStatus,
 )
 
 
-class FakeData:
+# Subclassing the real spec rather than standing in for it: the handlers declare WFDataSpec, and a
+# fake that has drifted from it should be reported here rather than pass as any object would.
+class FakeData(WFDataSpec):
     def __init__(self, target_id, output_types, source_step_id=None):
         self.target_id = target_id
         self.output_types = output_types
@@ -73,8 +79,8 @@ class FakeData:
         self.workflow_id = 10
         self.data_id = 2
 
-    def get_parameter(self, key):
-        return self.output_types if key == "output_types" else None
+    def get_parameter(self, param):
+        return self.output_types if param == "output_types" else None
 
 
 class FakeStep:
@@ -124,7 +130,7 @@ def main():
 
     print("\n=== a name still holding ${TASKID} ===")
     ddm = FakeDDM(CLOSED)
-    handler = PandaTaskDataHandler(FakeTaskBuffer(), ddm)
+    handler: BaseDataHandler = PandaTaskDataHandler(FakeTaskBuffer(), ddm)
     result = handler.check_target(FakeData(UNRESOLVED, []))
     failures += not check(
         "reported as non-existent", result.success is True and result.check_status == WFDataTargetCheckStatus.nonexist, (result.success, result.check_status)

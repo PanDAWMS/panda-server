@@ -166,23 +166,32 @@ def make_workflow(steps_final_time=None):
     return workflow_spec
 
 
-def make_interface(data_specs, step_specs, all_steps_final=True):
-    """A WorkflowInterface with no message broker or DDM, and the step/data passes stubbed out"""
-    interface = workflow_core.WorkflowInterface.__new__(workflow_core.WorkflowInterface)
-    interface.tbif = FakeTaskBuffer(data_specs, step_specs)
-    interface.full_pid = "test-0-0"
-    interface.plugin_map = {}
-    interface.mb_proxy = None
+class StubbedInterface(workflow_core.WorkflowInterface):
+    """The real workflow transitions, with the step and data passes replaced
+
+    Subclassed rather than monkey-patched so the stubs are checked against the methods they stand
+    in for. __init__ is bypassed because the real one opens a message broker and a DDM client.
+    """
+
+    def __init__(self, data_specs, step_specs, all_steps_final=True):
+        self.tbif = FakeTaskBuffer(data_specs, step_specs)
+        self.full_pid = "test-0-0"
+        self.plugin_map = {}
+        self.mb_proxy = None
+        self._all_steps_final = all_steps_final
+
     # The data pass is what would advance an output on a later cycle; here it changes nothing, so
     # each case controls the output statuses directly.
-    interface.process_datas = lambda specs, **kwargs: {"n_processed": len(specs), "processed": {}, "changed": {}}
-    processed = {WFStepStatus.done: len(step_specs)} if all_steps_final else {WFStepStatus.running: len(step_specs)}
-    interface.process_steps = lambda specs, **kwargs: {
-        "n_processed": len(specs),
-        "processed": processed,
-        "changed": {},
-    }
-    return interface
+    def process_datas(self, data_specs, by="dog"):
+        return {"n_processed": len(data_specs), "processed": {}, "changed": {}}
+
+    def process_steps(self, step_specs, data_spec_map=None, by="dog"):
+        status = WFStepStatus.done if self._all_steps_final else WFStepStatus.running
+        return {"n_processed": len(step_specs), "processed": {status: len(step_specs)}, "changed": {}}
+
+
+def make_interface(data_specs, step_specs, all_steps_final=True):
+    return StubbedInterface(data_specs, step_specs, all_steps_final)
 
 
 def check(label, condition, detail=""):

@@ -411,7 +411,7 @@ def kill_unfinished_jobs(req: PandaRequest, task_id: int, code: int | None = Non
         dict: The system response `{"success": success, "message": message, "data": data}`. The data field contains a list of bools indicating the success of the kill operations.
     """
 
-    tmp_logger = LogWrapper(_logger, f"kill_unfinished_jobs")
+    tmp_logger = LogWrapper(_logger, "kill_unfinished_jobs")
 
     # retrieve the user information
     user = get_dn(req)
@@ -714,7 +714,7 @@ def get_jumbo_job_datasets(req: PandaRequest, from_offset: int, to_offset: int =
         dict: The system response `{"success": success, "message": message, "data": data}`.
               When successful, the data field contains the dictionary of JEDI task IDs to datasets.
     """
-    tmp_logger = LogWrapper(_logger, f"get_jumbo_job_datasets")
+    tmp_logger = LogWrapper(_logger, "get_jumbo_job_datasets")
 
     tmp_logger.debug("Start")
     jumbo_datasets = global_task_buffer.getJumboJobDatasets(from_offset, to_offset)

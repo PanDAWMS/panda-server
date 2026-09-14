@@ -30,7 +30,6 @@ class AtlasTaskGenerator(TaskGeneratorBase):
         tmpLog.info(str(varMap))
         # returns
         retFatal = self.SC_FATAL
-        retTmpError = self.SC_FAILED
         retOK = self.SC_SUCCEEDED
         try:
             # check prodSourceLabel

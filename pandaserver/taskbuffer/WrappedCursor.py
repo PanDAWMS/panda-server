@@ -402,7 +402,7 @@ class WrappedCursor(object):
         # returningInputData=[{'returning': 'PandaID', 'into': ':newPandaID'}, {'returning': 'row_ID', 'into': ':newRowID'}]
         result = int(0)
         if len(returningInputData) == 1:
-            ret = self.cur.execute(""" SELECT LAST_INSERT_ID() """)
+            self.cur.execute(" SELECT LAST_INSERT_ID() ")
             (result,) = self.cur.fetchone()
             if returningInputData is not None:
                 try:

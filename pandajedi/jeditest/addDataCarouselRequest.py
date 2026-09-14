@@ -28,7 +28,7 @@ print(f"get task params of {jediTaskID}")
 taskParam = tbIF.getTaskParamsWithID_JEDI(jediTaskID)
 taskParamMap = RefinerUtils.decodeJSON(taskParam)
 
-print(f"get_input_datasets_to_prestage")
+print("get_input_datasets_to_prestage")
 prestaging_list, ret_map = data_carousel_interface.get_input_datasets_to_prestage(jediTaskID, taskParamMap)
 
 if not prestaging_list:
@@ -44,4 +44,4 @@ else:
     if tmp_ret:
         print(f"submitted data carousel requests for {jediTaskID}: {tmp_ret}")
     else:
-        print(f"failed to submit data carousel requests")
+        print("failed to submit data carousel requests")

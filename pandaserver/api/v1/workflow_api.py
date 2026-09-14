@@ -1,7 +1,4 @@
-import datetime
 import json
-from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
 from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -9,9 +6,6 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.api.v1.common import (
-    MESSAGE_DATABASE,
-    TIME_OUT,
-    TimedMethod,
     generate_response,
     get_dn,
     get_fqan,
@@ -131,7 +125,8 @@ def submit_workflow_raw_request(req: PandaRequest, params: dict[str, Any] | str)
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
     LogWrapper(_logger, "submit_workflow_raw_request").warning("deprecated path; use /v1/workflow/submit_workflow instead")
-    return submit_workflow(req, params)
+    response: dict[str, Any] = submit_workflow(req, params)
+    return response
 
 
 @request_validation(_logger, secure=True, production=False, request_method="POST")
@@ -191,7 +186,7 @@ def _collect_task_names(workflow_description: dict[str, Any]) -> dict[str, list[
     Returns:
         dict: Map of "{vo}/{prodSourceLabel}" to the list of taskNames declared for it
     """
-    grouped = {}
+    grouped: dict[str, list[str]] = {}
     workflow_data = workflow_description.get("workflow", workflow_description)
     for step_spec in (workflow_data.get("steps") or {}).values():
         if not isinstance(step_spec, dict) or step_spec.get("type") not in RAW_TASK_PARAMS_STEP_TYPES:
@@ -274,28 +269,31 @@ def submit_workflow_description(req: PandaRequest, workflow_description: dict[st
     success, message, data = False, "", None
     time_start = naive_utcnow()
 
+    description_map: dict[str, Any]
     if isinstance(workflow_description, str):
         try:
-            workflow_description = json.loads(workflow_description)
+            description_map = json.loads(workflow_description)
         except Exception as exc:
             message = f"Failed to parse workflow_description: {str(exc)}"
             tmp_logger.error(message)
             return generate_response(success, message, data)
+    else:
+        description_map = workflow_description
 
     # validate the description up front so authoring mistakes come back on this request
-    is_valid, errors = validate_workflow_description(workflow_description)
+    is_valid, errors = validate_workflow_description(description_map)
     if not is_valid:
         message = "Invalid workflow description: " + "; ".join(errors)
         tmp_logger.error(message)
         return generate_response(success, message, data)
 
-    workflow_name = workflow_description.get("workflow", workflow_description).get("name")
+    workflow_name = description_map.get("workflow", description_map).get("name")
 
     # advisory only; a collision does not prevent the workflow from being registered
-    warning_message = _warn_about_duplicated_task_names(tmp_logger, workflow_description)
+    warning_message = _warn_about_duplicated_task_names(tmp_logger, description_map)
 
     # the description is carried in the raw request so that parsing happens asynchronously
-    raw_request_params = {INLINE_DESCRIPTION_KEY: workflow_description}
+    raw_request_params = {INLINE_DESCRIPTION_KEY: description_map}
     workflow_id = global_wfif.register_workflow(
         prodsourcelabel, user_dn, workflow_name, raw_request_params=raw_request_params, prod_role=prod_role, fqans=fqans
     )

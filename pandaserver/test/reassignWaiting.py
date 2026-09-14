@@ -33,7 +33,7 @@ while True:
     nJob = 300
     iJob = 0
     while iJob < len(jobs):
-        print(f"reassignJobs({jobs[iJob:iJob + nJob]})")
+        print(f"reassignJobs({jobs[iJob : iJob + nJob]})")
         Client.reassign_jobs(jobs[iJob : iJob + nJob])
         iJob += nJob
         time.sleep(60)

@@ -3,7 +3,6 @@ import functools
 import json
 import os
 import socket
-import sys
 import traceback
 from typing import Any
 from zlib import adler32
@@ -225,7 +224,6 @@ class FetchData(object):
             # tmp_site_dict = dict()
             task_dict = dict()
             # now time
-            now_time = naive_utcnow()
             # MetricsDB
             mdb = MetricsDB(self.tbuf)
             # get user evaluation
@@ -238,7 +236,6 @@ class FetchData(object):
             # get active tasks
             varMap: dict[str, Any] = {}
             active_tasks_list = self.tbuf.querySQL(sql_get_active_tasks, varMap)
-            taskID_list = [task[0] for task in active_tasks_list]
             n_tot_tasks = len(active_tasks_list)
             tmp_log.debug(f"got total {n_tot_tasks} tasks")
             # counter
@@ -351,7 +348,7 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
-        requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+        requester_id = GenericThread().get_full_id(__name__, __file__)
         taskBuffer.init(
             panda_config.dbhost,
             panda_config.dbpasswd,

@@ -247,7 +247,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
         dest_dir_path = Path(args.dirname)
         dest_dir_path.mkdir(mode=0o755, exist_ok=True)
         # instantiate TB
-        requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+        requester_id = GenericThread().get_full_id(__name__, __file__)
         if tbuf is None:
             from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
@@ -278,7 +278,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
         # stop taskBuffer if created inside this script
         if tbuf is None:
             taskBuffer.cleanup(requester=requester_id)
-    except Exception as e:
+    except Exception:
         err_str = traceback.format_exc()
         _logger.error(f"failed to copy files: {err_str}")
     # done

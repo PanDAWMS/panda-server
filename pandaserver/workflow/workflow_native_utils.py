@@ -439,7 +439,7 @@ class Node(object):
         return f"ID:{self.id} Name:{self.name} Type:{self.type}"
 
     # resolve workload-specific parameters
-    def resolve_params(self, task_template: dict[str, Any], id_map: "dict[int, Node]", workflow: "Node | None" = None) -> None:
+    def resolve_params(self, task_template: dict[str, Any] | None, id_map: "dict[int, Node]", workflow: "Node | None" = None) -> None:
         if self.type in ["prun", "junction", "reana"]:
             dict_inputs = self.convert_dict_inputs()
             if "opt_secondaryDSs" in dict_inputs:
@@ -496,7 +496,7 @@ class Node(object):
             [n.resolve_params(task_template, id_map, self) for n in self.sub_nodes]
 
     # create task params
-    def make_task_params(self, task_template: dict[str, Any], id_map: "dict[int, Node]", workflow_node: "Node | None") -> dict[str, Any] | None:
+    def make_task_params(self, task_template: dict[str, Any] | None, id_map: "dict[int, Node]", workflow_node: "Node | None") -> dict[str, Any] | None:
         # A raw-task-params step carries task parameters written by the author, so there is no
         # command line to parse and no task template to merge. The parameters are passed through
         # as they are: dataset references and ${TASKID} stay unresolved here on purpose, since
@@ -504,6 +504,11 @@ class Node(object):
         # resolved by the step handler when the task is actually submitted.
         if self.type in RAW_TASK_PARAMS_STEP_TYPES:
             return copy.deepcopy(self.task_params or {})
+        # Every other step type builds its parameters from the CLI task template, and resolve_params
+        # calls this only when there is one. Stated rather than assumed: the caller's guard is one
+        # call away, and without it the failure would surface as a TypeError from an index below.
+        if task_template is None:
+            raise ValueError(f"no task template to build the parameters of the {self.type} step from")
         # task name
         for k, v in self.outputs.items():
             task_name = v["value"]
@@ -953,7 +958,7 @@ def resolve_nodes(
     data: dict[str, Any],
     serial_id: int,
     parent_ids: set[int],
-    out_ds_name: str,
+    out_ds_name: str | None,
     log_stream: Any,
 ) -> tuple[int, list[Node], list[Node]]:
     # member_id is a per-call sequence (starts at 1) used only for output dataset names. node.id

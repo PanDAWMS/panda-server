@@ -1,13 +1,14 @@
 import atexit
 import datetime
 import json
+import logging
 import socket
 import sys
 import time
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Callable, Iterator, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -22,7 +23,10 @@ from pandaserver.taskbuffer.JobSpec import (
 
 if TYPE_CHECKING:
     # imported for annotations only. WrappedCursor imports panda_config, so
-    # importing it at runtime here would close an import cycle
+    # importing it at runtime here would close an import cycle, and msg_processor
+    # is the module get_mb_proxy imports late so that a daemon opens its log first
+    from pandacommon.pandamsgbkr.msg_processor import PassiveProxies
+
     from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
     from pandaserver.taskbuffer.JobSpec import JobSpec
     from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
@@ -92,12 +96,12 @@ class BaseModule:
 
     # Message broker proxies, built on first use. The JEDI one is built by the setter that
     # set_jedi_attributes() installs, which is why both are unset until then
-    mb_proxy_dict: dict[str, Any] | None
-    jedi_mb_proxy_dict: dict[str, Any] | None
-    jedi_mb_proxy_dict_setter: "Callable[[], dict[str, Any] | None] | None"
+    mb_proxy_dict: "PassiveProxies | None"
+    jedi_mb_proxy_dict: "PassiveProxies | None"
+    jedi_mb_proxy_dict_setter: "Callable[[], PassiveProxies | None] | None"
 
     # constructor
-    def __init__(self, log_stream: LogWrapper):
+    def __init__(self, log_stream: logging.Logger):
         self._log_stream = log_stream
         self.conn = None  # type: ignore[assignment]
         self.cur = None  # type: ignore[assignment]
@@ -207,7 +211,6 @@ class BaseModule:
                 ]
             else:
                 # mysql error codes for connection error
-                import MySQLdb
                 from MySQLdb.constants.CR import (
                     CONN_HOST_ERROR,
                     CONNECTION_ERROR,
@@ -376,7 +379,9 @@ class BaseModule:
                 comment = " /* DBProxy.get_mb_proxy */"
                 tmp_log = self.create_tagged_logger(comment)
                 self.dump_error_message(tmp_log)
-                self.mb_proxy_dict = {}
+                # not None, so the setup above is not retried, and empty, so the
+                # lookup below returns None -- what the empty dict used to do
+                self.mb_proxy_dict = {"in": {}, "out": {}}
         if not self.mb_proxy_dict or channel not in self.mb_proxy_dict["out"]:
             return None
         return self.mb_proxy_dict["out"][channel]
@@ -440,7 +445,7 @@ class BaseModule:
             if not self._commit():
                 raise RuntimeError("Commit error")
             return ret, res
-        except Exception as e:
+        except Exception:
             # roll back
             self._rollback(self.useOtherError)
             self.dump_error_message(tmp_log)
@@ -463,7 +468,7 @@ class BaseModule:
             if not self._commit():
                 raise RuntimeError("Commit error")
             return res
-        except Exception as e:
+        except Exception:
             # roll back
             self._rollback(self.useOtherError)
             tmp_log = self.create_tagged_logger(comment)
@@ -499,7 +504,7 @@ class BaseModule:
                 if not self._commit():
                     raise RuntimeError("Commit error")
             return ret, res
-        except Exception as e:
+        except Exception:
             # roll back
             if use_commit:
                 self._rollback()
@@ -539,9 +544,11 @@ class BaseModule:
             Any: the logger object for logging in DBProxy
         """
         comment = " /* DBProxy.transaction */"
+        # before the try: the handler below logs through tmp_log, and nothing is open
+        # yet for it to roll back if this raises
+        if tmp_log is None:
+            tmp_log = self.create_tagged_logger(comment, tag=name)
         try:
-            if tmp_log is None:
-                tmp_log = self.create_tagged_logger(comment, tag=name)
             tmp_log.debug("transaction start")
             # begin transaction
             self.conn.begin()
@@ -794,7 +801,6 @@ class BaseModule:
     def setSuperStatus_JEDI(self, jediTaskID: int, superStatus: str) -> bool:
         comment = " /* JediDBProxy.setSuperStatus_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        retTasks: list[Any] = []
         try:
             # sql to set super status
             sqlCT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
