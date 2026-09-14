@@ -217,7 +217,7 @@ class FetchData(object):
             "WHERE c.jediTaskID=ds.jediTaskID AND c.datasetID=ds.datasetID "
             "AND ds.jediTaskID=:taskID AND ds.masterID IS NULL "
             "AND ds.type IN ('input', 'pseudo_input') "
-            ") "
+            ") t "
         )
         try:
             # initialize

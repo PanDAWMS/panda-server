@@ -511,7 +511,7 @@ class MetricsModule(BaseModule):
                 "  UNION "
                 "  SELECT jobstatus, SUM({gco2_column}) sum_gco2 FROM {archive_schema}.jobsarchived "
                 "  WHERE jeditaskid =:jeditaskid "
-                "  GROUP BY jobstatus)"
+                "  GROUP BY jobstatus) t "
                 "GROUP BY jobstatus".format(gco2_column=gco2_column, active_schema=panda_config.schemaJEDI, archive_schema=panda_config.schemaPANDAARCH)
             )
             var_map = {":jeditaskid": jedi_task_id}

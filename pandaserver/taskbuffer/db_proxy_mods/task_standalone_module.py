@@ -64,7 +64,7 @@ class TaskStandaloneModule(BaseModule):
                 sql += "status=:status "
                 varMap[":status"] = status
                 useAND = True
-            sql += " ORDER BY fileID) "
+            sql += " ORDER BY fileID) t "
             if nFiles is not None:
                 sql += f"WHERE rownum <= {nFiles}"
             # begin transaction
@@ -4185,7 +4185,7 @@ class TaskStandaloneModule(BaseModule):
             sql += "AND d.jediTaskID=:jediTaskID AND d.masterID IS NULL "
             sql += f"AND d.type IN ({INPUT_TYPES_var_str}) "
             varMap.update(INPUT_TYPES_var_map)
-            sql += ") "
+            sql += ") t "
             # start transaction
             self.conn.begin()
             self.cur.execute(sql + comment, varMap)

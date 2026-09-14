@@ -5410,7 +5410,7 @@ class JobComplexModule(BaseModule):
                 sqlAC += "UNION "
                 sqlAC += "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
                 sqlAC += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
-                sqlAC += ") "
+                sqlAC += ") t "
                 varMap = {}
                 varMap[":jediTaskID"] = jobSpec.jediTaskID
                 varMap[":jobsetID"] = jobSpec.jobsetID

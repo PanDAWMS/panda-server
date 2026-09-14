@@ -4775,7 +4775,7 @@ class TaskEventModule(BaseModule):
             for key, val in neg_criteria.items():
                 sqlDJ += "AND tabT.{0}<>:neg_{0} ".format(key)
                 varMap[f":neg_{key}"] = val
-            sqlDJ += ") "
+            sqlDJ += ") t "
             varMap[":st1"] = "running"
             varMap[":st2"] = "pending"
             varMap[":st3"] = "ready"

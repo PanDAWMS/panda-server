@@ -2255,7 +2255,7 @@ class TaskComplexModule(BaseModule):
             "SELECT PandaID,datasetID FROM {1}.JEDI_Events "
             "WHERE  jediTaskID=:jediTaskID AND "
             "status IN (:esSent,:esRunning)"
-            ") GROUP BY datasetID"
+            ") t GROUP BY datasetID"
         ).format(panda_config.schemaPANDA, panda_config.schemaJEDI)
         # sql to set frozenTime
         sql_update_frozen_time = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET frozenTime=:frozenTime WHERE jediTaskID=:jediTaskID "
