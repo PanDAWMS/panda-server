@@ -3062,7 +3062,7 @@ class TaskEventModule(BaseModule):
                         continue
                     if attemptNr != fileSpec.attemptNr:
                         tmp_log.debug(
-                            "jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is inconsitent with attemptNr={4} in JEDI".format(
+                            "jediTaskID={0} datasetID={1} fileID={2} attemptNr={3} is inconsistent with attemptNr={4} in JEDI".format(
                                 fileSpec.jediTaskID,
                                 fileSpec.datasetID,
                                 fileSpec.fileID,

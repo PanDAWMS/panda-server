@@ -890,11 +890,11 @@ class JobSpec(object):
     def setDecAttOnFailedES(self) -> None:
         self.set_special_handling("decAttOnFailedES")
 
-    # set fake flag to ignore in monigoring
+    # set fake flag to ignore in monitoring
     def setFakeJobToIgnore(self) -> None:
         self.set_special_handling("fakeJobToIgnore")
 
-    # remove fake flag to ignore in monigoring
+    # remove fake flag to ignore in monitoring
     def removeFakeJobToIgnore(self) -> None:
         if self.specialHandling is not None:
             items = self.specialHandling.split(",")

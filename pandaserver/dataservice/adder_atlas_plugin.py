@@ -563,11 +563,11 @@ class AdderAtlasPlugin(AdderPluginBase):
                                                 ddm_id = tmp_dst_ddm
                                                 if tmp_dst_token in destination_se_site_spec.setokens_output[scope_dst_se_site_spec_output]:
                                                     ddm_id = destination_se_site_spec.setokens_output[scope_dst_se_site_spec_output][tmp_dst_token]
-                                                # keep the fist destination for multi-hop
+                                                # keep the first destination for multi-hop
                                                 if idx_token == 0:
                                                     first_destination_ddm = ddm_id
                                                 else:
-                                                    # use the fist destination as source for T1D1
+                                                    # use the first destination as source for T1D1
                                                     opt_source = {}
                                                     opt_source[first_destination_ddm] = {"policy": 0}
                                                 # remove looping subscription
