@@ -1,0 +1,1138 @@
+
+Chain flow:
+48810693 -> 48810699 -> 48810706 -> 48810713 -> 48810727 -> 48810733 -> 48810738 -> 48810746
+                                                            (48810733) -> 49827875
+
+====================
+
+task_id=48810693
+
+Job parameters:
+--AMITag=e8590
+--ecmEnergy=13600
+--jobConfig=526140
+log template: value='log.48810693._${SN}.job.log.tgz' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.log.e8590_tid48810693_00' destination='(type=DATADISK)\(dontkeeplog=True)' offset='0' token='ddd:.*DATADISK' transient='False'
+number template: value='--firstEvent=${FIRSTEVENT}' offset='60000'
+number template: value='--maxEvents=${MAXEVENTS}'
+number template: value='--skipEvents=${SKIPEVENTS}'
+output template: value='--outputEVNTFile=EVNT.48810693._${SN}.pool.root' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.EVNT.e8590_tid48810693_00' offset='0' token='ATLASDATADISK'
+pseudo_input template: value='--randomSeed=${SEQNUMBER}' dataset='seq_number' offset='6'
+
+Prodsys task parameters:
+architecture	x86_64-el9-gcc13-opt#x86_64-*-v2
+baseRamCount	0
+campaign	MC23:MC23e
+cloud	WORLD
+cpuTimeUnit	HS06sPerEvent
+maxAttempt	13
+maxFailure	3
+mergeCoreCount	1
+nEvents	110000
+nEventsPerJob	10000
+nFilesPerJob	1
+noInput	True
+noWaitParent	True
+processingType	evgen
+prodSourceLabel	managed
+ramCount	2000
+ramUnit	MBPerCore
+reqID	68525
+scoutSuccessRate	5
+taskName	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.e8590
+taskPriority	275
+taskType	prod
+ticketID	ATLPSTASKS-1650068
+ticketSystemType	JIRA
+transHome	AthGeneration-23.6.41
+transPath	Gen_tf.py
+transUses	Atlas-23.6.41
+userName	mnegrini
+vo	atlas
+workingGroup	AP_HMBS
+
+PanDA/JEDI task parameters:
+age	177.82
+architecture	{"sw_platform": "x86_64-el9-gcc13-opt", "cpu_specs": [{"arch": "x86_64", "instr": "v2"}]}
+attemptnr	0
+basewalltime	600
+campaign	MC23:MC23e
+campaign_cut	MC23e
+category	production
+cloud	WORLD
+container_name	—
+corecount	1
+countrygroup	—
+cpuefficiency	90
+cputime	15
+cputimeunit	HS06sPerEvent
+creationdate	2026-02-24 12:50:08
+currentpriority	275
+deftreqid	68525
+diskio	696
+diskiounit	kBPerS
+duration_days	0.88
+endtime	2026-02-25 10:00:11
+errordialog	—
+eventservice	ordinary
+framework	—
+frozentime	None
+gshare	MC Other evgen
+iointensity	87
+iointensityunit	kBPerS
+jeditaskid	48810693
+lockedby	—
+lockedtime	Feb. 25, 2026, 10 a.m.
+memoryleakcore	139
+memoryleakx2	52.000
+modificationtime	2026-02-25 10:00:11
+nucleus	RAL-LCG2
+oldstatus	—
+outdiskcount	10240
+outdiskunit	kB
+owner	AP_HMBS
+parent_tid	48810693
+processingtype	evgen
+prodsourcelabel	managed
+ramcount	1496
+ramunit	MBPerCore
+reqid	68525
+requesttype	49ef57b87ee4592db19ec7ff198c18e7
+resourcetype	SCORE
+resquetime	Feb. 25, 2026, 9:37 a.m.
+site	—
+splitrule	US=3,NF=1,NE=10000,SS=5,NW=1,DE=rucio,PC=1,FT=60000,RD=2
+starttime	2026-02-24 12:50:09
+statechangetime	2026-02-25 10:00:11
+status	done
+superstatus	done
+taskname	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.e8590
+taskpriority	275
+tasktype	prod
+termcondition	—
+ticketid	ATLPSTASKS-1650068
+ticketsystemtype	JIRA
+transhome	AthGeneration-23.6.41
+transpath	Gen_tf.py
+transuses	Atlas-23.6.41
+ttcrequested	None
+usejumbo	—
+username	mnegrini
+vo	atlas
+walltime	12431
+walltimeunit	kSI2kseconds
+workdiskcount	349
+workdiskunit	MB
+workinggroup	AP_HMBS
+workqueue_id	1
+
+
+==========
+
+
+
+task_id=48810699
+
+Job parameters:
+--AMITag=e8586
+input template: value='--inputEVNTFile=${IN_EVNT/L}' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.EVNT.e8590_tid48810693_00' offset='0'
+log template: value='log.48810699._${SN}.job.log.tgz' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_tid48810699_00' destination='(type=DATADISK)\(dontkeeplog=True)' offset='0' token='ddd:.*DATADISK' transient='False'
+number template: value='--maxEvents=${MAXEVENTS}'
+number template: value='--skipEvents=${SKIPEVENTS}'
+output template: value='--outputEVNT_MRGFile=EVNT.48810699._${SN}.pool.root' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.EVNT.e8590_e8586_tid48810699_00' offset='0' token='ATLASDATADISK'
+
+Prodsys task parameters:
+architecture	x86_64-el9-gcc13-opt#x86_64-*-v2
+baseRamCount	0
+campaign	MC23:MC23e
+cloud	WORLD
+cpuTimeUnit	HS06sPerEvent
+ioIntensity	4000
+ioIntensityUnit	kBPerS
+maxAttempt	15
+maxFailure	5
+mergeCoreCount	1
+nEventsPerInputFile	10000
+nEventsPerJob	10000
+noWaitParent	True
+processingType	merge
+prodSourceLabel	managed
+ramCount	2000
+ramUnit	MBPerCore
+reqID	68525
+scoutSuccessRate	5
+taskName	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586
+taskPriority	885
+taskType	prod
+ticketID	ATLPSTASKS-1650068
+ticketSystemType	JIRA
+transHome	AthGeneration-23.6.37
+transPath	EVNTMerge_tf.py
+transUses	Atlas-23.6.37
+userName	mnegrini
+vo	atlas
+workingGroup	AP_HMBS
+
+PanDA/JEDI task parameters:
+age	177.81
+architecture	{"sw_platform": "x86_64-el9-gcc13-opt", "cpu_specs": [{"arch": "x86_64", "instr": "v2"}]}
+attemptnr	0
+basewalltime	600
+campaign	MC23:MC23e
+campaign_cut	MC23e
+category	production
+cloud	WORLD
+container_name	—
+corecount	1
+countrygroup	—
+cpuefficiency	90
+cputime	151
+cputimeunit	mHS06sPerEvent
+creationdate	2026-02-24 12:50:16
+currentpriority	885
+deftreqid	68525
+diskio	594
+diskiounit	kBPerS
+duration_days	0.89
+endtime	2026-02-25 10:16:21
+errordialog	—
+eventservice	ordinary
+framework	—
+frozentime	None
+gshare	MC merge
+iointensity	1405
+iointensityunit	kBPerS
+jeditaskid	48810699
+lockedby	—
+lockedtime	2026-02-25T10:16:20
+modificationtime	2026-02-25 10:16:21
+nucleus	RAL-LCG2
+oldstatus	—
+outdiskcount	764
+outdiskunit	kB
+owner	AP_HMBS
+parent_tid	48810693
+processingtype	merge
+prodsourcelabel	managed
+ramcount	1919
+ramunit	MBPerCore
+reqid	68525
+requesttype	cfa320b7450a565facb248c8930e3c01
+resourcetype	SCORE
+resquetime	2026-02-25T10:02:15
+site	—
+splitrule	US=3,NF=1,NE=10000,EI=10000,SS=5,NW=1,DE=rucio,PC=1,RD=2
+starttime	2026-02-24 14:20:48
+statechangetime	2026-02-25 10:16:21
+status	done
+superstatus	done
+taskname	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586
+taskpriority	885
+tasktype	prod
+termcondition	—
+ticketid	ATLPSTASKS-1650068
+ticketsystemtype	JIRA
+transhome	AthGeneration-23.6.37
+transpath	EVNTMerge_tf.py
+transuses	Atlas-23.6.37
+ttcrequested	None
+usejumbo	—
+username	mnegrini
+vo	atlas
+walltime	0
+walltimeunit	kSI2kseconds
+workdiskcount	0
+workdiskunit	MB
+workinggroup	AP_HMBS
+workqueue_id	3
+
+==========
+
+task_id=48810706
+
+Job parameters:
+--AMITag=a934
+--CA "all:True"
+--conditionsTag "default:OFLCOND-MC23-SDR-RUN3-04"
+--geometryVersion="default:ATLAS-R3S-2021-03-02-00"
+--multithreaded=True
+--postInclude "default:PyJobTransforms.UseFrontier"
+--preExec "EVNTtoHITS:flags.Sim.FastCalo.ParamsInputFilename=\"FastCaloSim/MC23/TFCSparam_dev_Hybrid_Ha_v5_all_baryons_0_500.root\""
+--preInclude "EVNTtoHITS:Campaigns.MC23eSimulationMultipleIoV"
+--runNumber=526140
+--simulator=ATLFAST3MT_QS
+input template: value='--inputEVNTFile=${IN_EVNT/L}' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.EVNT.e8590_e8586_tid48810699_00' offset='0'
+log template: value='log.48810706._${SN}.job.log.tgz' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.log.e8590_e8586_a934_tid48810706_00' destination='(type=DATADISK)\(dontkeeplog=True)' offset='0' token='ddd:.*DATADISK' transient='False'
+number template: value='--firstEvent=${FIRSTEVENT}' offset='0'
+number template: value='--maxEvents=${MAXEVENTS}'
+number template: value='--skipEvents=${SKIPEVENTS}'
+output template: value='--outputHITSFile=HITS.48810706._${SN}.pool.root' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.HITS.e8590_e8586_a934_tid48810706_00' offset='0' token='ATLASDATADISK'
+pseudo_input template: value='--jobNumber=${SEQNUMBER}' dataset='seq_number' offset='0'
+pseudo_input template: value='--randomSeed=${SEQNUMBER}' dataset='seq_number' offset='0'
+
+Prodsys task parameters:
+architecture	x86_64-el9-gcc13-opt#x86_64-*-v2
+baseRamCount	2200
+campaign	MC23:MC23e
+cloud	WORLD
+coreCount	8
+cpuTime	1500
+cpuTimeUnit	HS06sPerEvent
+ipConnectivity	http
+maxAttempt	15
+maxCoreCount	8
+maxFailure	5
+mergeCoreCount	1
+nEventsPerInputFile	10000
+nEventsPerJob	5000
+noWaitParent	True
+processingType	simul
+prodSourceLabel	managed
+ramCount	150
+ramUnit	MBPerCore
+reqID	68525
+scoutSuccessRate	5
+skipShortInput	True
+taskName	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.e8590_e8586_a934
+taskPriority	240
+taskType	prod
+ticketID	ATLPSTASKS-1650068
+ticketSystemType	JIRA
+transHome	Athena-24.0.50
+transPath	Sim_tf.py
+transUses	Atlas-24.0.50
+userName	mnegrini
+vo	atlas
+workingGroup	AP_HMBS
+
+PanDA/JEDI task parameters:
+age	177.82
+architecture	{"sw_platform": "x86_64-el9-gcc13-opt", "cpu_specs": [{"arch": "x86_64", "instr": "v2"}]}
+attemptnr	0
+basewalltime	600
+campaign	MC23:MC23e
+campaign_cut	MC23e
+category	production
+cloud	WORLD
+container_name	—
+corecount	8
+countrygroup	—
+cpuefficiency	90
+cputime	529
+cputimeunit	HS06sPerEvent
+creationdate	2026-02-24 12:50:16
+currentpriority	240
+deftreqid	68525
+diskio	1603
+diskiounit	kBPerS
+duration_days	50.73
+endtime	2026-04-16 06:19:28
+errordialog	—
+eventservice	ordinary
+framework	—
+frozentime	None
+gshare	MC 23 simul
+iointensity	24
+iointensityunit	kBPerS
+jeditaskid	48810706
+lockedby	—
+lockedtime	April 16, 2026, 6:19 a.m.
+memoryleakcore	1
+memoryleakx2	0.000
+modificationtime	2026-04-16 06:19:28
+nucleus	NDGF-T1
+oldstatus	—
+outdiskcount	10240
+outdiskunit	kB
+owner	AP_HMBS
+parent_tid	48810699
+processingtype	simul
+prodsourcelabel	managed
+ramcount	747
+ramunit	MBPerCore
+reqid	68525
+requesttype	bfe8b90897c95d3e9ab62464c43cb984
+resourcetype	MCORE_LOMEM
+resquetime	April 16, 2026, 5:22 a.m.
+site	—
+splitrule	US=3,NE=5000,EI=10000,SS=5,NW=1,DE=rucio,IP=2,PC=1,CC=8,FT=0,RD=2
+starttime	2026-02-25 04:07:36
+statechangetime	2026-04-16 06:19:28
+status	done
+superstatus	done
+taskname	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.e8590_e8586_a934
+taskpriority	240
+tasktype	prod
+termcondition	—
+ticketid	ATLPSTASKS-1650068
+ticketsystemtype	JIRA
+transhome	Athena-24.0.50
+transpath	Sim_tf.py
+transuses	Atlas-24.0.50
+ttcrequested	None
+usejumbo	—
+username	mnegrini
+vo	atlas
+walltime	2023
+walltimeunit	kSI2kseconds
+workdiskcount	3
+workdiskunit	MB
+workinggroup	AP_HMBS
+workqueue_id	16
+
+==========
+
+task_id=48810713
+
+Job parameters:
+--AMITag=s4370
+--CA "all:True"
+--postInclude "default:PyJobTransforms.UseFrontier" "all:PyJobTransforms.SortInput"
+--runNumber=526140
+input template: value='--inputHITSFile=${IN_HITS/L}' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.HITS.e8590_e8586_a934_tid48810706_00' offset='0'
+log template: value='log.48810713._${SN}.job.log.tgz' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_a934_s4370_tid48810713_00' destination='(type=DATADISK)\(dontkeeplog=True)' offset='0' token='ddd:.*DATADISK' transient='False'
+number template: value='--maxEvents=${MAXEVENTS}'
+number template: value='--skipEvents=${SKIPEVENTS}'
+output template: value='--outputHITS_MRGFile=HITS.48810713._${SN}.pool.root' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.HITS.e8590_e8586_a934_s4370_tid48810713_00' offset='0' token='ATLASDATADISK'
+
+Prodsys task parameters:
+architecture	x86_64-el9-gcc13-opt#x86_64-*-v2
+baseRamCount	0
+campaign	MC23:MC23e
+cloud	WORLD
+cpuTimeUnit	HS06sPerEvent
+ioIntensity	3000
+ioIntensityUnit	kBPerS
+ipConnectivity	http
+maxAttempt	15
+maxFailure	5
+mergeCoreCount	1
+nEventsPerInputFile	5000
+nEventsPerJob	10000
+noWaitParent	True
+processingType	merge
+prodSourceLabel	managed
+ramCount	2000
+ramUnit	MBPerCore
+reqID	68525
+respectSplitRule	True
+scoutSuccessRate	5
+skipShortOutput	True
+taskName	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586_a934_s4370
+taskPriority	885
+taskType	prod
+ticketID	ATLPSTASKS-1650068
+ticketSystemType	JIRA
+transHome	AthSimulation-24.0.42
+transPath	HITSMerge_tf.py
+transUses	Atlas-24.0.42
+userName	mnegrini
+vo	atlas
+workingGroup	AP_HMBS
+
+PanDA/JEDI task parameters:
+age	177.82
+architecture	{"sw_platform": "x86_64-el9-gcc13-opt", "cpu_specs": [{"arch": "x86_64", "instr": "v2"}]}
+attemptnr	0
+basewalltime	600
+campaign	MC23:MC23e
+campaign_cut	MC23e
+category	production
+cloud	WORLD
+container_name	—
+corecount	1
+countrygroup	—
+cpuefficiency	90
+cputime	5557
+cputimeunit	mHS06sPerEvent
+creationdate	2026-02-24 12:50:21
+currentpriority	885
+deftreqid	68525
+diskio	4216
+diskiounit	kBPerS
+duration_days	51.61
+endtime	2026-04-17 03:35:27
+errordialog	—
+eventservice	ordinary
+framework	—
+frozentime	None
+gshare	MC merge
+iointensity	5520
+iointensityunit	kBPerS
+jeditaskid	48810713
+lockedby	—
+lockedtime	April 17, 2026, 3:35 a.m.
+memoryleakcore	-404
+memoryleakx2	2.000
+modificationtime	2026-04-17 03:35:27
+nucleus	NDGF-T1
+oldstatus	—
+outdiskcount	1028
+outdiskunit	kB
+owner	AP_HMBS
+parent_tid	48810706
+processingtype	merge
+prodsourcelabel	managed
+ramcount	1705
+ramunit	MBPerCore
+reqid	68525
+requesttype	a443eaa97b7d5edbb1cf30de6929e75d
+resourcetype	SCORE
+resquetime	April 17, 2026, 2:38 a.m.
+site	—
+splitrule	US=3,NF=2,NE=10000,EI=5000,SS=5,NW=1,RR=1,DE=rucio,IP=2,PC=1,RD=2
+starttime	2026-04-14 05:23:41
+statechangetime	2026-04-17 03:35:27
+status	done
+superstatus	done
+taskname	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586_a934_s4370
+taskpriority	885
+tasktype	prod
+termcondition	—
+ticketid	ATLPSTASKS-1650068
+ticketsystemtype	JIRA
+transhome	AthSimulation-24.0.42
+transpath	HITSMerge_tf.py
+transuses	Atlas-24.0.42
+ttcrequested	None
+usejumbo	—
+username	mnegrini
+vo	atlas
+walltime	2
+walltimeunit	kSI2kseconds
+workdiskcount	0
+workdiskunit	MB
+workinggroup	AP_HMBS
+workqueue_id	3
+
+==========
+
+task_id=48810727
+
+Job parameters
+--AMITag=r16083
+--autoConfiguration=everything
+--CA "all:True"
+--conditionsTag "default:OFLCOND-MC23-SDR-RUN3-05-03"
+--deleteIntermediateOutputfiles=True
+--geometryVersion="default:ATLAS-R3S-2021-03-02-00"
+--multithreaded=True
+--postInclude "default:PyJobTransforms.UseFrontier"
+--preInclude "all:Campaigns.MC23e"
+--runNumber=526140
+--steering "doOverlay" "doRDO_TRIG" "doTRIGtoALL"
+input template: value='--inputHITSFile=${IN_HITS/L}' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.HITS.e8590_e8586_a934_s4370_tid48810713_00' offset='0'
+input template: value='--inputRDO_BKGFile=${IN_ZERO_BIAS_BS/L}' dataset='mc23_13p6TeV.900149.PG_single_nu_Pt50.merge.RDO.e8514_s4332_d1994_sub0002_rnd526140' eventRatio='1' offset='0' random='True' ratio='1'
+log template: value='log.48810727._${SN}.job.log.tgz' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.log.e8590_e8586_a934_s4370_r16083_tid48810727_00' destination='(type=DATADISK)\(dontkeeplog=True)' offset='0' token='ddd:.*DATADISK' transient='False'
+number template: value='--maxEvents=${MAXEVENTS}'
+number template: value='--skipEvents=${SKIPEVENTS}'
+output template: value='--outputAODFile=AOD.48810727._${SN}.pool.root' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.AOD.e8590_e8586_a934_s4370_r16083_tid48810727_00' offset='0' token='ATLASDATADISK'
+pseudo_input template: value='--digiSeedOffset1=${SEQNUMBER}' dataset='seq_number' offset='0'
+pseudo_input template: value='--digiSeedOffset2=${SEQNUMBER}' dataset='seq_number' offset='0'
+pseudo_input template: value='--jobNumber=${SEQNUMBER}' dataset='seq_number' offset='0'
+
+Prodsys task parameters:
+architecture	(aarch64|x86_64)-el9-gcc13-opt
+baseRamCount	2000
+campaign	MC23:MC23e:25ns
+cloud	WORLD
+coreCount	8
+cpuTimeUnit	HS06sPerEvent
+ipConnectivity	http
+maxAttempt	15
+maxCoreCount	16
+maxFailure	5
+mergeCoreCount	1
+nEventsPerInputFile	10000
+nEventsPerJob	10000
+noWaitParent	True
+processingType	pile
+prodSourceLabel	managed
+ramCount	1750
+ramUnit	MBPerCore
+reqID	68525
+reuseSecOnDemand	True
+scoutSuccessRate	5
+skipShortInput	True
+taskBrokerOnMaster	True
+taskName	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.e8590_e8586_a934_s4370_r16083
+taskPriority	250
+taskType	prod
+ticketID	ATLPSTASKS-1650068
+ticketSystemType	JIRA
+transHome	Athena-24.0.52.4
+transPath	Reco_tf.py
+transUses	Atlas-24.0.52
+userName	mnegrini
+vo	atlas
+workingGroup	AP_HMBS
+
+PanDA/JEDI task parameters:
+age	177.82
+architecture	{"sw_platform": "(aarch64|x86_64)-el9-gcc13-opt", "cpu_specs": [{"arch": "(aarch64|x86_64)"}]}
+attemptnr	0
+basewalltime	600
+campaign	MC23:MC23e:25ns
+campaign_cut	MC23e:25ns
+category	production
+cloud	WORLD
+container_name	—
+corecount	8
+countrygroup	—
+cpuefficiency	90
+cputime	563
+cputimeunit	HS06sPerEvent
+creationdate	2026-02-24 12:50:23
+currentpriority	250
+deftreqid	68525
+diskio	9296
+diskiounit	kBPerS
+duration_days	52.25
+endtime	2026-04-17 18:50:41
+errordialog	—
+eventservice	ordinary
+framework	—
+frozentime	None
+gshare	MC 23
+iointensity	33
+iointensityunit	kBPerS
+jeditaskid	48810727
+lockedby	—
+lockedtime	April 17, 2026, 6:50 p.m.
+memoryleakcore	15
+memoryleakx2	10.000
+modificationtime	2026-04-17 18:50:41
+nucleus	NDGF-T1
+oldstatus	—
+outdiskcount	794
+outdiskunit	kB
+owner	AP_HMBS
+parent_tid	48810713
+processingtype	pile
+prodsourcelabel	managed
+ramcount	715
+ramunit	MBPerCore
+reqid	68525
+requesttype	8f3b21518fb05abeb49b3de5998f2437
+resourcetype	MCORE_LOMEM
+resquetime	April 17, 2026, 5:59 p.m.
+site	—
+splitrule	US=3,NF=1,NE=10000,EI=10000,SS=5,NW=1,RO=1,DE=rucio,IP=2,PC=1,CC=16,RD=2
+starttime	2026-04-16 06:35:44
+statechangetime	2026-04-17 18:50:41
+status	done
+superstatus	done
+taskname	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.e8590_e8586_a934_s4370_r16083
+taskpriority	250
+tasktype	prod
+termcondition	—
+ticketid	ATLPSTASKS-1650068
+ticketsystemtype	JIRA
+transhome	Athena-24.0.52.4
+transpath	Reco_tf.py
+transuses	Atlas-24.0.52
+ttcrequested	None
+usejumbo	—
+username	mnegrini
+vo	atlas
+walltime	68
+walltimeunit	kSI2kseconds
+workdiskcount	62623
+workdiskunit	MB
+workinggroup	AP_HMBS
+workqueue_id	8
+
+==========
+
+task_id=48810733
+
+Job parameters
+--AMITag=r15970
+--autoConfiguration=everything
+--CA "all:True"
+--postInclude "default:PyJobTransforms.UseFrontier"
+--runNumber=526140
+input template: value='--inputAODFile=${IN_AOD/L}' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.AOD.e8590_e8586_a934_s4370_r16083_tid48810727_00' offset='0'
+log template: value='log.48810733._${SN}.job.log.tgz' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_a934_s4370_r16083_r15970_tid48810733_00' destination='(type=DATADISK)\(dontkeeplog=True)' offset='0' token='ddd:.*DATADISK' transient='False'
+output template: value='--outputAOD_MRGFile=AOD.48810733._${SN}.pool.root' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.AOD.e8590_e8586_a934_s4370_r16083_r15970_tid48810733_00' offset='0' token='ATLASDATADISK' transient='False'
+
+Prodsys task parameters:
+architecture	x86_64-el9-gcc13-opt#x86_64-*-v2
+baseRamCount	0
+campaign	MC23:MC23e
+cloud	WORLD
+cpuTimeUnit	HS06sPerEvent
+ioIntensity	2000
+ioIntensityUnit	kBPerS
+ipConnectivity	http
+maxAttempt	15
+maxFailure	5
+maxWalltime	12
+mergeCoreCount	1
+nEventsPerInputFile	10000
+nGBPerJob	19
+nMaxFilesPerJob	1000
+outDiskCount	1000
+outDiskUnit	kB
+processingType	merge
+prodSourceLabel	managed
+ramCount	2000
+ramUnit	MBPerCore
+reqID	68525
+respectSplitRule	True
+scoutSuccessRate	5
+taskName	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586_a934_s4370_r16083_r15970
+taskPriority	885
+taskType	prod
+tgtMaxOutputForNG	10
+ticketID	ATLPSTASKS-1650068
+ticketSystemType	JIRA
+transHome	Athena-24.0.52.2
+transPath	AODMerge_tf.py
+transUses	Atlas-24.0.52
+userName	mnegrini
+vo	atlas
+workingGroup	AP_HMBS
+
+PanDA/JEDI task parameters:
+age	177.82
+architecture	{"sw_platform": "x86_64-el9-gcc13-opt", "cpu_specs": [{"arch": "x86_64", "instr": "v2"}]}
+attemptnr	0
+basewalltime	600
+campaign	MC23:MC23e
+campaign_cut	MC23e
+category	production
+cloud	WORLD
+container_name	—
+corecount	1
+countrygroup	—
+cpuefficiency	90
+cputime	4886
+cputimeunit	mHS06sPerEvent
+creationdate	2026-02-24 12:50:35
+currentpriority	885
+deftreqid	68525
+diskio	4573
+diskiounit	kBPerS
+duration_days	52.54
+endtime	2026-04-18 01:50:15
+errordialog	—
+eventservice	ordinary
+framework	—
+frozentime	None
+gshare	MC merge
+iointensity	3804
+iointensityunit	kBPerS
+jeditaskid	48810733
+lockedby	—
+lockedtime	April 18, 2026, 1:50 a.m.
+memoryleakcore	-181
+memoryleakx2	3.000
+modificationtime	2026-04-18 01:50:16
+nucleus	NDGF-T1
+oldstatus	—
+outdiskcount	1024
+outdiskunit	kB
+owner	AP_HMBS
+parent_tid	48810727
+processingtype	merge
+prodsourcelabel	managed
+ramcount	1676
+ramunit	MBPerCore
+reqid	68525
+requesttype	2e6aa638e012513f8d09258e36f45948
+resourcetype	SCORE
+resquetime	April 18, 2026, 1:11 a.m.
+site	—
+splitrule	US=1,NG=18,MF=1000,EI=10000,SS=5,MW=12,TN=10,RR=1,DE=rucio,IP=2,PC=1,RD=2
+starttime	2026-04-17 19:07:35
+statechangetime	2026-04-18 01:50:16
+status	done
+superstatus	done
+taskname	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586_a934_s4370_r16083_r15970
+taskpriority	885
+tasktype	prod
+termcondition	—
+ticketid	ATLPSTASKS-1650068
+ticketsystemtype	JIRA
+transhome	Athena-24.0.52.2
+transpath	AODMerge_tf.py
+transuses	Atlas-24.0.52
+ttcrequested	None
+usejumbo	—
+username	mnegrini
+vo	atlas
+walltime	1
+walltimeunit	kSI2kseconds
+workdiskcount	0
+workdiskunit	MB
+workinggroup	AP_HMBS
+workqueue_id	3
+
+==========
+
+task_id=48810738
+
+Job parameters
+--AMITag=p5667
+input template: value='--inputAODFile=${IN_AOD/L}' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.AOD.e8590_e8586_a934_s4370_r16083_r15970_tid48810733_00' offset='0'
+log template: value='log.48810738._${SN}.job.log.tgz' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.log.e8590_e8586_a934_s4370_r16083_r15970_p5667_tid48810738_00' destination='(type=DATADISK)\(dontkeeplog=True)' offset='0' token='ddd:.*DATADISK' transient='False'
+output template: value='--outputNTUP_PILEUPFile=NTUP_PILEUP.48810738._${SN}.pool.root' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.NTUP_PILEUP.e8590_e8586_a934_s4370_r16083_r15970_p5667_tid48810738_00' offset='0' token='ATLASDATADISK'
+
+Prodsys task parameters:
+allowInputLAN	use
+architecture	x86_64-centos7-gcc11-opt#x86_64-*-v2
+baseRamCount	0
+campaign	MC23:MC23e
+cloud	WORLD
+cpuTimeUnit	HS06sPerEvent
+goal	100
+ioIntensity	5000
+ioIntensityUnit	kBPerS
+maxAttempt	15
+maxFailure	5
+maxWalltime	12
+mergeCoreCount	1
+nGBPerJob	150
+nMaxFilesPerJob	1000
+noWaitParent	True
+outDiskCount	1
+outDiskUnit	kB
+processingType	deriv
+prodSourceLabel	managed
+ramCount	2000
+ramUnit	MBPerCore
+reqID	68525
+respectSplitRule	True
+scoutSuccessRate	5
+taskName	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.e8590_e8586_a934_s4370_r16083_r15970_p5667
+taskPriority	885
+taskType	prod
+ticketID	ATLPSTASKS-1650068
+ticketSystemType	JIRA
+transHome	Athena-23.0.20
+transPath	PRWConfig_tf.py
+transUses	Atlas-23.0.20
+useExhausted	True
+userName	mnegrini
+vo	atlas
+workingGroup	AP_HMBS
+
+PanDA/JEDI task parameters:
+age	177.82
+architecture	{"sw_platform": "x86_64-centos7-gcc11-opt", "cpu_specs": [{"arch": "x86_64", "instr": "v2"}]}
+attemptnr	0
+basewalltime	600
+campaign	MC23:MC23e
+campaign_cut	MC23e
+category	production
+cloud	WORLD
+container_name	—
+corecount	1
+countrygroup	—
+cpuefficiency	90
+cputimeunit	HS06sPerEvent
+creationdate	2026-02-24 12:50:36
+currentpriority	885
+deftreqid	68525
+diskiounit	—
+duration_days	52.6
+endtime	2026-04-18 03:13:21
+errordialog	—
+eventservice	ordinary
+framework	—
+frozentime	None
+gshare	MC merge
+iointensity	5000
+iointensityunit	kBPerS
+jeditaskid	48810738
+lockedby	—
+lockedtime	April 18, 2026, 3:13 a.m.
+modificationtime	2026-04-18 03:13:21
+nucleus	NDGF-T1
+oldstatus	—
+outdiskcount	1
+outdiskunit	kB
+owner	AP_HMBS
+parent_tid	48810733
+processingtype	deriv
+prodsourcelabel	managed
+ramcount	2000
+ramunit	MBPerCore
+reqid	68525
+requesttype	44a41185b3b9574dbad0f84f3270de12
+resourcetype	SCORE
+resquetime	April 18, 2026, 2:51 a.m.
+site	—
+splitrule	US=1,NG=150,MF=1000,SS=5,MW=12,NW=1,RR=1,DE=rucio,UX=1,IL=1,PC=1,RD=2
+starttime	2026-04-17 19:28:58
+statechangetime	2026-04-18 03:13:21
+status	done
+superstatus	done
+taskname	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.e8590_e8586_a934_s4370_r16083_r15970_p5667
+taskpriority	885
+tasktype	prod
+termcondition	—
+ticketid	ATLPSTASKS-1650068
+ticketsystemtype	JIRA
+transhome	Athena-23.0.20
+transpath	PRWConfig_tf.py
+transuses	Atlas-23.0.20
+ttcrequested	None
+usejumbo	—
+username	mnegrini
+vo	atlas
+walltime	0
+walltimeunit	—
+workdiskcount	0
+workdiskunit	—
+workinggroup	AP_HMBS
+workqueue_id	3
+
+==========
+
+task_id=48810746
+
+Job parameters
+--AMITag=p5669
+input template: value='--inputNTUP_PILEUPFile=${IN_NTUP_PILEUP/L}' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.NTUP_PILEUP.e8590_e8586_a934_s4370_r16083_r15970_p5667_tid48810738_00' offset='0'
+log template: value='log.48810746._${SN}.job.log.tgz' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_a934_r16083_p5667_p5669_tid48810746_00' destination='(type=DATADISK)\(dontkeeplog=True)' offset='0' token='ddd:.*DATADISK' transient='False'
+output template: value='--outputNTUP_PILEUP_MRGFile=NTUP_PILEUP.48810746._${SN}.pool.root' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.NTUP_PILEUP.e8590_a934_r16083_p5667_p5669_tid48810746_00' offset='0' token='ATLASDATADISK'
+
+Prodsys task parameters:
+architecture	x86_64-centos7-gcc11-opt#x86_64-*-v2
+baseRamCount	0
+campaign	MC23:MC23e
+cloud	WORLD
+cpuTimeUnit	HS06sPerEvent
+goal	100
+ioIntensity	2000
+ioIntensityUnit	kBPerS
+maxAttempt	15
+maxFailure	5
+maxWalltime	12
+mergeCoreCount	1
+nFilesPerJob	200
+nMaxFilesPerJob	200
+noWaitParent	True
+processingType	merge
+prodSourceLabel	managed
+ramCount	2000
+ramUnit	MBPerCore
+reqID	68525
+scoutSuccessRate	5
+taskName	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_a934_r16083_p5667_p5669
+taskPriority	885
+taskType	prod
+ticketID	ATLPSTASKS-1650068
+ticketSystemType	JIRA
+transHome	Athena-23.0.20
+transPath	NTUPMerge_tf.py
+transUses	Atlas-23.0.20
+useExhausted	True
+userName	mnegrini
+vo	atlas
+workingGroup	AP_HMBS
+
+PanDA/JEDI task parameters:
+age	177.82
+architecture	{"sw_platform": "x86_64-centos7-gcc11-opt", "cpu_specs": [{"arch": "x86_64", "instr": "v2"}]}
+attemptnr	0
+basewalltime	600
+campaign	MC23:MC23e
+campaign_cut	MC23e
+category	production
+cloud	WORLD
+container_name	—
+corecount	1
+countrygroup	—
+cpuefficiency	90
+cputimeunit	HS06sPerEvent
+creationdate	2026-02-24 12:50:36
+currentpriority	885
+deftreqid	68525
+diskiounit	—
+duration_days	52.68
+endtime	2026-04-18 05:07:43
+errordialog	—
+eventservice	ordinary
+framework	—
+frozentime	None
+gshare	MC merge
+iointensity	2000
+iointensityunit	kBPerS
+jeditaskid	48810746
+lockedby	—
+lockedtime	April 18, 2026, 5:07 a.m.
+modificationtime	2026-04-18 05:07:43
+nucleus	NDGF-T1
+oldstatus	—
+outdiskcount	0
+outdiskunit	—
+owner	AP_HMBS
+parent_tid	48810738
+processingtype	merge
+prodsourcelabel	managed
+ramcount	2000
+ramunit	MBPerCore
+reqid	68525
+requesttype	89fe1aeebcbd50fd8c8cf0b1222b8207
+resourcetype	SCORE
+resquetime	April 18, 2026, 4:37 a.m.
+site	—
+splitrule	US=1,NF=200,MF=200,SS=5,MW=12,NW=1,DE=rucio,UX=1,PC=1,RD=2
+starttime	2026-04-18 02:08:32
+statechangetime	2026-04-18 05:07:43
+status	done
+superstatus	done
+taskname	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_a934_r16083_p5667_p5669
+taskpriority	885
+tasktype	prod
+termcondition	—
+ticketid	ATLPSTASKS-1650068
+ticketsystemtype	JIRA
+transhome	Athena-23.0.20
+transpath	NTUPMerge_tf.py
+transuses	Atlas-23.0.20
+ttcrequested	None
+usejumbo	—
+username	mnegrini
+vo	atlas
+walltime	0
+walltimeunit	—
+workdiskcount	0
+workdiskunit	—
+workinggroup	AP_HMBS
+workqueue_id	3
+
+==========
+
+task_id=49827875
+
+Job parameters
+--AMITag p7017
+--athenaMPMergeTargetSize "DAOD_*:0"
+--CA "all:True"
+--formats PHYS PHYSLITE
+--multiprocess True
+--multithreadedFileValidation True
+--postInclude "default:AthenaServices.TransformUtils.ExecCondAlgsAtPreFork"
+--sharedWriter True
+input template: value='--inputAODFile=${IN_AOD/L}' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.AOD.e8590_e8586_a934_s4370_r16083_r15970_tid48810733_00' offset='0'
+log template: value='log.49827875._${SN}.job.log.tgz' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.log.e8590_e8586_a934_s4370_r16083_r15970_p7017_tid49827875_00' destination='(type=DATADISK)\(dontkeeplog=True)' offset='0' token='ddd:.*DATADISK' transient='False'
+number template: value='--outputDAODFile 49827875._${SN/P}.pool.root.1'
+output template: value='--outputDAOD_PHYSFile=DAOD_PHYS.49827875._${SN}.pool.root.1' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.DAOD_PHYS.e8590_e8586_a934_s4370_r16083_r15970_p7017_tid49827875_00' hidden='True' offset='0' token='ATLASDATADISK'
+output template: value='--outputDAOD_PHYSLITEFile=DAOD_PHYSLITE.49827875._${SN}.pool.root.1' dataset='mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.DAOD_PHYSLITE.e8590_e8586_a934_s4370_r16083_r15970_p7017_tid49827875_00' hidden='True' offset='0' token='ATLASDATADISK'
+
+Prodsys task parameters:
+architecture	x86_64-el9-gcc14-opt#x86_64-*-v2
+baseRamCount	2000
+baseWalltime	60
+campaign	MC23:MC23e
+cloud	WORLD
+coreCount	8
+cpuTime	200
+cpuTimeUnit	HS06sPerEvent
+ioIntensity	500
+ioIntensityUnit	kBPerS
+maxAttempt	15
+maxCoreCount	16
+maxFailure	5
+maxWalltime	12
+mergeCoreCount	1
+nGBPerJob	10
+nMaxFilesPerJob	200
+noWaitParent	True
+processingType	deriv
+prodSourceLabel	managed
+ramCount	1750
+ramUnit	MBPerCore
+reqID	69579
+respectSplitRule	True
+scoutSuccessRate	5
+taskName	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.e8590_e8586_a934_s4370_r16083_r15970_p7017
+taskPriority	560
+taskType	prod
+tgtMaxOutputForNG	8
+ticketID	ATLPSTASKS-1651016
+ticketSystemType	JIRA
+transHome	Athena-25.0.42
+transPath	Derivation_tf.py
+transUses	Atlas-25.0.42
+userName	atlas-phys-dpd-production
+vo	atlas
+workingGroup	GP_PHYS
+
+PanDA/JEDI task parameters:
+age	125.76
+architecture	{"sw_platform": "x86_64-el9-gcc14-opt", "cpu_specs": [{"arch": "x86_64", "instr": "v2"}]}
+attemptnr	0
+basewalltime	60
+campaign	MC23:MC23e
+campaign_cut	MC23e
+category	group production
+cloud	WORLD
+container_name	—
+corecount	8
+countrygroup	—
+cpuefficiency	90
+cputime	72
+cputimeunit	HS06sPerEvent
+creationdate	2026-04-17 14:12:09
+currentpriority	560
+deftreqid	69579
+diskio	206
+diskiounit	kBPerS
+duration_days	13.98
+endtime	2026-05-01 13:36:48
+errordialog	—
+eventservice	ordinary
+framework	—
+frozentime	None
+gshare	MC Derivations
+iointensity	205
+iointensityunit	kBPerS
+jeditaskid	49827875
+lockedby	—
+lockedtime	May 1, 2026, 1:36 p.m.
+memoryleakcore	65
+memoryleakx2	0.000
+modificationtime	2026-05-01 13:36:48
+nucleus	NDGF-T1
+oldstatus	—
+outdiskcount	140
+outdiskunit	kB
+owner	GP_PHYS
+parent_tid	48810733
+processingtype	deriv
+prodsourcelabel	managed
+ramcount	1554
+ramunit	MBPerCore
+reqid	69579
+requesttype	9ac30f59d2615fca930a67d413e86a79
+resourcetype	MCORE
+resquetime	May 1, 2026, 12:46 p.m.
+site	—
+splitrule	US=1,NG=93,MF=200,SS=5,MW=12,TN=8,NW=1,RR=1,DE=rucio,PC=1,CC=16,RD=2
+starttime	2026-04-17 19:22:33
+statechangetime	2026-05-01 13:36:48
+status	done
+superstatus	done
+taskname	mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.e8590_e8586_a934_s4370_r16083_r15970_p7017
+taskpriority	560
+tasktype	prod
+termcondition	—
+ticketid	ATLPSTASKS-1651016
+ticketsystemtype	JIRA
+transhome	Athena-25.0.42
+transpath	Derivation_tf.py
+transuses	Atlas-25.0.42
+ttcrequested	None
+usejumbo	—
+username	atlas-phys-dpd-production
+vo	atlas
+walltime	7
+walltimeunit	kSI2kseconds
+workdiskcount	1049
+workdiskunit	MB
+workinggroup	GP_PHYS
+workqueue_id	7

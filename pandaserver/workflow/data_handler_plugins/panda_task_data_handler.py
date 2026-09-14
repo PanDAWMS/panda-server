@@ -6,10 +6,12 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.workflow.data_handler_plugins.base_data_handler import BaseDataHandler
 from pandaserver.workflow.workflow_base import (
+    TASKID_PLACEHOLDER,
     WFDataSpec,
     WFDataTargetCheckResult,
     WFDataTargetCheckStatus,
     WFStepStatus,
+    has_placeholder,
 )
 
 # Default workflow options for partial data handling
@@ -85,6 +87,23 @@ class PandaTaskDataHandler(BaseDataHandler):
             tmp_log.warning(f"flavor={data_spec.flavor} not {self.plugin_flavor}; skipped")
             check_result.message = f"flavor not {self.plugin_flavor}; skipped"
             return check_result
+        # A name embedding ${TASKID} is not final until the producing task has been queued and its
+        # ID assigned, so the dataset cannot exist yet and is reported as non-existent. That is the
+        # truthful answer, it keeps an unresolved name out of DDM queries, and it lets an output
+        # advance to binding so the step that generates it can run. Reporting no status change
+        # instead would leave the data in checking forever, and with it the step and the workflow.
+        if has_placeholder(data_spec.target_id, TASKID_PLACEHOLDER):
+            check_result.success = True
+            check_result.check_status = WFDataTargetCheckStatus.nonexist
+            check_result.message = f"target_id still holds {TASKID_PLACEHOLDER}; the producing task has not been queued yet"
+            tmp_log.debug(f"{check_result.message}")
+            if data_spec.source_step_id is not None:
+                # the name should have been resolved when the producing step submitted its task, so
+                # a step that has already finished with it unresolved is worth surfacing
+                source_step_spec = self.tbif.get_workflow_step(data_spec.source_step_id)
+                if source_step_spec is not None and source_step_spec.status in WFStepStatus.final_statuses:
+                    tmp_log.warning(f"source step step_id={data_spec.source_step_id} is {source_step_spec.status} but {TASKID_PLACEHOLDER} is still unresolved")
+            return check_result
         # Check source step status
         if data_spec.source_step_id is not None:
             source_step_spec = self.tbif.get_workflow_step(data_spec.source_step_id)
@@ -116,8 +135,15 @@ class PandaTaskDataHandler(BaseDataHandler):
         output_types = data_spec.get_parameter("output_types")
         if output_types is None:
             output_types = []
-        for output_type in output_types:
-            collection = f"{data_spec.target_id}_{output_type}"
+        # An analysis step's output is a family of collections, one per output type. A step whose
+        # dataset name is supplied by the author declares no output types, and its target_id is
+        # already the full collection name; fall back to it so the loop below is never empty, which
+        # would otherwise leave the data reported as non-existent forever.
+        if output_types:
+            collections = [f"{data_spec.target_id}_{output_type}" for output_type in output_types]
+        else:
+            collections = [data_spec.target_id]
+        for collection in collections:
             collection_meta = self.ddm_if.get_dataset_metadata(collection, ignore_missing=True, check_content_state=True)
             if collection_meta is None:
                 check_result.success = False
@@ -130,7 +156,9 @@ class PandaTaskDataHandler(BaseDataHandler):
                 tmp_log.debug(f"Collection {collection} does not exist")
                 continue
             none_exist = False
-            n_files = collection_meta.get("length", 0)
+            # A collection with no files reports length as None rather than 0, and dict.get only
+            # falls back to its default when the key is absent, so the default must not be relied on
+            n_files = collection_meta.get("length") or 0
             total_n_files += n_files
             if collection_state != DDMCollectionState.closed or collection_content_state == DDMCollectionState.open:
                 all_existing_closed = False

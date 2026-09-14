@@ -8,6 +8,184 @@ from typing import Any
 
 from pandaclient import PhpoScript, PrunScript
 
+from pandaserver.workflow.workflow_base import TASKID_PLACEHOLDER
+
+# Step types whose task parameters are supplied verbatim by the author instead of being
+# generated from a command line. See make_task_params / verify_task_params.
+RAW_TASK_PARAMS_STEP_TYPES = ("task",)
+
+# Job-parameter param_type values whose dataset field names a real DDM collection and can
+# therefore take part in the workflow data graph. "pseudo_input" is deliberately excluded:
+# its dataset is a JEDI-internal pseudo collection (e.g. "seq_number") which does not exist
+# in DDM, and treating it as an input would leave the workflow waiting for it forever.
+DATA_INPUT_PARAM_TYPES = ("input",)
+
+# A dataset field written wholly inside braces is a reference rather than a literal dataset
+# name: "{workflow_input}" points at a workflow-level input, "{step_name/output_key}" at
+# another step's output. Anything else is passed through to JEDI untouched.
+RE_DATASET_REFERENCE = re.compile(r"^\{([^{}]+)\}$")
+
+# Task parameter keys which every raw-task-params step must define
+REQUIRED_TASK_PARAM_KEYS = ("taskName", "jobParameters", "log", "transPath", "vo", "prodSourceLabel")
+
+# Step types the native description language understands. Used to reject a typo in "type" up front
+# instead of silently treating the step as a prun step.
+KNOWN_STEP_TYPES = ("prun", "phpo", "junction", "reana", "gitlab", "workflow") + RAW_TASK_PARAMS_STEP_TYPES
+
+
+class _QuietLog:
+    """Logger stand-in for validation, where warnings are collected as errors instead of logged"""
+
+    def info(self, message: str) -> None:
+        pass
+
+    def debug(self, message: str) -> None:
+        pass
+
+    def warning(self, message: str) -> None:
+        pass
+
+    def error(self, message: str) -> None:
+        pass
+
+
+def extract_dataset_reference(dataset: Any) -> str | None:
+    """
+    Extract the reference target from a dataset field, if it is a reference
+
+    Args:
+        dataset (Any): Value of a job parameter's dataset field
+
+    Returns:
+        str | None: The referenced name without braces, or None if this is a literal dataset name
+    """
+    if not isinstance(dataset, str):
+        return None
+    match = RE_DATASET_REFERENCE.match(dataset.strip())
+    return match.group(1) if match else None
+
+
+def extract_job_param_option(job_param: dict[str, Any]) -> str | None:
+    """
+    Extract the leading command line option name from a job parameter's value
+
+    Args:
+        job_param (dict): Job parameter dictionary
+
+    Returns:
+        str | None: Option name without leading dashes, e.g. "outputDAOD_PHYSFile"; None if absent
+    """
+    value = job_param.get("value")
+    if not isinstance(value, str):
+        return None
+    match = re.match(r"^--?([A-Za-z0-9_]+)", value.strip())
+    return match.group(1) if match else None
+
+
+def derive_output_key(job_param: dict[str, Any], output_overrides: dict[str, str] | None = None) -> str | None:
+    """
+    Derive the short output key of an output job parameter
+
+    The key is taken from the leading command line option with the "output" prefix and "File"
+    suffix stripped, so --outputDAOD_PHYSFile becomes DAOD_PHYS. An explicit override wins, which
+    lets merge steps expose e.g. --outputHITS_MRGFile as the plainer "HITS".
+
+    Args:
+        job_param (dict): Job parameter dictionary with param_type "output"
+        output_overrides (dict | None): Map of desired key to the option name it refers to
+
+    Returns:
+        str | None: The output key, or None if no option name could be extracted
+    """
+    option = extract_job_param_option(job_param)
+    if option is None:
+        return None
+    # an explicit override takes precedence over the derived name
+    for key, overridden_option in (output_overrides or {}).items():
+        if isinstance(overridden_option, str) and overridden_option.lstrip("-") == option:
+            return key
+    match = re.match(r"^output(.+?)File$", option)
+    if match:
+        return match.group(1)
+    return option
+
+
+def build_task_step_outputs(step_name: str, task_params: dict[str, Any], output_overrides: dict[str, str] | None, log_stream: Any) -> dict[str, Any]:
+    """
+    Build the outputs of a raw-task-params step from its output job parameters
+
+    One workflow output is registered per output job parameter, so a step producing several
+    datasets (e.g. DAOD_PHYS and DAOD_PHYSLITE) exposes each of them independently and downstream
+    steps can consume whichever they need. The dataset name is taken verbatim from the author's
+    task parameters, since it encodes the physics and any late-bound ID placeholder.
+
+    Args:
+        step_name (str): Name of the step
+        task_params (dict): Raw task parameters of the step
+        output_overrides (dict | None): Optional map of desired output key to the option it refers to
+        log_stream: Logger
+
+    Returns:
+        dict: Map of "{step_name}/{output_key}" to a dict holding the output dataset name
+    """
+    outputs = {}
+    for job_param in task_params.get("jobParameters") or []:
+        if not isinstance(job_param, dict) or job_param.get("param_type") != "output":
+            continue
+        output_key = derive_output_key(job_param, output_overrides)
+        if output_key is None:
+            # verify_task_params reports this as a fatal error; keep parsing to collect them all
+            log_stream.warning(f"cannot derive an output key from {job_param.get('value')} in step {step_name}")
+            continue
+        full_name = f"{step_name}/{output_key}"
+        if full_name in outputs:
+            log_stream.warning(f"duplicated output key {output_key} in step {step_name}; disambiguating")
+            suffix = 2
+            while f"{full_name}_{suffix}" in outputs:
+                suffix += 1
+            full_name = f"{full_name}_{suffix}"
+        outputs[full_name] = {"value": job_param.get("dataset")}
+    return outputs
+
+
+def build_task_step_inputs(step_name: str, task_params: dict[str, Any], log_stream: Any) -> dict[str, Any]:
+    """
+    Build the inputs of a raw-task-params step from its input job parameters
+
+    Only dataset fields written as references take part in the workflow data graph; a literal
+    dataset name is an external input which the engine does not track. The reference form is
+    normalised to what the parent-resolution pass expects: a "step/output" reference is stored
+    bare so it resolves to a parent edge, while a workflow input reference keeps its braces so it
+    is recognised as a root input.
+
+    Args:
+        step_name (str): Name of the step
+        task_params (dict): Raw task parameters of the step
+        log_stream: Logger
+
+    Returns:
+        dict: Map of input name to a dict with source and default keys
+    """
+    inputs = {}
+    for index, job_param in enumerate(task_params.get("jobParameters") or []):
+        if not isinstance(job_param, dict) or job_param.get("param_type") not in DATA_INPUT_PARAM_TYPES:
+            continue
+        reference = extract_dataset_reference(job_param.get("dataset"))
+        if reference is None:
+            # a literal dataset name: an external input, not produced inside this workflow
+            continue
+        # name the input after its command line option so it is recognisable in logs and unique
+        # within the step; fall back to the job parameter position if there is no option
+        option = extract_job_param_option(job_param) or f"input_{index}"
+        input_name = f"{step_name}/{option}"
+        if input_name in inputs:
+            log_stream.warning(f"duplicated input option {option} in step {step_name}; disambiguating")
+            input_name = f"{input_name}_{index}"
+        # "step/output" resolves to a parent edge; a bare name resolves to a workflow input
+        source = reference if "/" in reference else f"{{{reference}}}"
+        inputs[input_name] = {"default": None, "source": source}
+    return inputs
+
 
 # merge job parameters
 def merge_job_params(base_params: list[dict[str, Any]], io_params: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -75,9 +253,8 @@ class Node(object):
         self.in_loop = False
         self.upper_root_inputs: dict[str, Any] | None = None
         self.workflow_ref: str | None = None  # path or named block reference for type="workflow" nodes
-        # True for native (parse_workflow_data) type="workflow" orchestration nodes: they own an
-        # output dataset and submit a child workflow at runtime. CWL/snakemake sub-workflow nodes
-        # are built by other parsers and stay False, keeping the transparent recursion semantics.
+        # True for type="workflow" orchestration nodes: they own an output dataset and submit a
+        # child workflow at runtime, rather than exposing their children's outputs transparently.
         self.is_sub_workflow = False
         self.scatter_inputs: dict[str, list[Any]] | None = None  # resolved at parse time; None if not a scatter step
         self.scatter_mode: str | None = None  # scatter mode string, e.g. "zip"
@@ -192,6 +369,8 @@ class Node(object):
                         "opt_input_location",
                     ]:
                         return False, f"unknown input parameter {k} for {self.type}"
+            elif self.type in RAW_TASK_PARAMS_STEP_TYPES:
+                return self.verify_task_params()
         elif self.type == "workflow":
             reserved_params = ["i"]
             loop_global, workflow_global = self.get_global_parameters()
@@ -202,6 +381,41 @@ class Node(object):
                             False,
                             f"parameter {k} cannot be used since it is reserved by the system",
                         )
+        return True, ""
+
+    # verify raw task parameters supplied by the author
+    def verify_task_params(self) -> tuple[bool, str]:
+        task_params = self.task_params or {}
+        if not isinstance(task_params, dict) or not task_params:
+            return False, f"task_params is missing or empty for {self.type} step"
+        # required keys
+        for key in REQUIRED_TASK_PARAM_KEYS:
+            if not task_params.get(key):
+                return False, f"task_params is missing required key {key}"
+        if not isinstance(task_params["jobParameters"], list):
+            return False, "task_params.jobParameters must be a list"
+        # Chaining is driven by the workflow engine through workflowHoldup, not by JEDI's parent
+        # bookkeeping. parentTaskName is resolved when the task is inserted and fails outright if
+        # the named parent does not exist yet, which it generally will not inside a workflow.
+        if task_params.get("parentTaskName"):
+            return False, "parentTaskName cannot be used in a workflow step; the workflow engine orders the steps"
+        # taskName is stored in its own column before the task ID exists, so a ${TASKID} there
+        # would silently diverge from the substituted copy inside the task parameters.
+        if TASKID_PLACEHOLDER in task_params["taskName"]:
+            return False, f"{TASKID_PLACEHOLDER} cannot be used in taskName"
+        # every output must name the dataset it produces, since the engine registers workflow data
+        # for it and downstream steps refer to it
+        n_outputs = 0
+        for job_param in task_params["jobParameters"]:
+            if not isinstance(job_param, dict) or job_param.get("param_type") != "output":
+                continue
+            n_outputs += 1
+            if not job_param.get("dataset"):
+                return False, f"output job parameter {job_param.get('value')} has no dataset"
+            if derive_output_key(job_param) is None:
+                return False, f"cannot derive an output key from job parameter {job_param.get('value')}"
+        if not n_outputs:
+            return False, "task_params has no output job parameter"
         return True, ""
 
     # string representation
@@ -225,7 +439,7 @@ class Node(object):
         return f"ID:{self.id} Name:{self.name} Type:{self.type}"
 
     # resolve workload-specific parameters
-    def resolve_params(self, task_template: dict[str, Any], id_map: "dict[int, Node]", workflow: "Node | None" = None) -> None:
+    def resolve_params(self, task_template: dict[str, Any] | None, id_map: "dict[int, Node]", workflow: "Node | None" = None) -> None:
         if self.type in ["prun", "junction", "reana"]:
             dict_inputs = self.convert_dict_inputs()
             if "opt_secondaryDSs" in dict_inputs:
@@ -273,15 +487,28 @@ class Node(object):
                     # Set requirement for secondary datasets
                     if k.endswith("opt_secondaryDSs"):
                         v.setdefault("requirements", {})["requires_complete"] = True
-        if self.is_leaf and task_template:
+        # A raw-task-params step brings its own task parameters, so it needs no CLI task template
+        if self.is_leaf and (task_template or self.type in RAW_TASK_PARAMS_STEP_TYPES):
             self.task_params = self.make_task_params(task_template, id_map, workflow)
-        # only recurse into nested Node objects (CWL/snakemake); native sub-workflow steps hold
-        # resolved int IDs and are processed directly as part of the flat node list
+        # only recurse into a child template still held as Node objects; once resolve_nodes has
+        # run, sub_nodes holds resolved int IDs whose nodes are in the flat node list already
         if _sub_nodes_are_objects(self.sub_nodes):
             [n.resolve_params(task_template, id_map, self) for n in self.sub_nodes]
 
     # create task params
-    def make_task_params(self, task_template: dict[str, Any], id_map: "dict[int, Node]", workflow_node: "Node | None") -> dict[str, Any] | None:
+    def make_task_params(self, task_template: dict[str, Any] | None, id_map: "dict[int, Node]", workflow_node: "Node | None") -> dict[str, Any] | None:
+        # A raw-task-params step carries task parameters written by the author, so there is no
+        # command line to parse and no task template to merge. The parameters are passed through
+        # as they are: dataset references and ${TASKID} stay unresolved here on purpose, since
+        # neither the producing step's real dataset names nor the JEDI task ID exist yet. Both are
+        # resolved by the step handler when the task is actually submitted.
+        if self.type in RAW_TASK_PARAMS_STEP_TYPES:
+            return copy.deepcopy(self.task_params or {})
+        # Every other step type builds its parameters from the CLI task template, and resolve_params
+        # calls this only when there is one. Stated rather than assumed: the caller's guard is one
+        # call away, and without it the failure would surface as a TypeError from an index below.
+        if task_template is None:
+            raise ValueError(f"no task template to build the parameters of the {self.type} step from")
         # task name
         for k, v in self.outputs.items():
             task_name = v["value"]
@@ -349,28 +576,27 @@ class Node(object):
             if workflow_node:
                 tmp_global, tmp_workflow_global = workflow_node.get_global_parameters()
                 src_dst_list = []
-                # looping globals
-                if tmp_global:
-                    for k in tmp_global:
-                        tmp_src = f"%{{{k}}}"
-                        tmp_dst = f"___idds___user_{k}___"
-                        src_dst_list.append((tmp_src, tmp_dst))
-                # workflow globls
+                # workflow globals, which have one fixed value for the whole workflow
                 if tmp_workflow_global:
                     for k, v in tmp_workflow_global.items():
                         tmp_src = f"%{{{k}}}"
                         tmp_dst = f"{v}"
                         src_dst_list.append((tmp_src, tmp_dst))
-                # iteration count
-                tmp_src = "%{i}"
-                tmp_dst = "___idds___num_run___"
-                src_dst_list.append((tmp_src, tmp_dst))
                 # replace
                 for tmp_src, tmp_dst in src_dst_list:
                     if "opt_exec" in dict_inputs:
                         dict_inputs["opt_exec"] = re.sub(tmp_src, tmp_dst, dict_inputs["opt_exec"])
                     if "opt_args" in dict_inputs:
                         dict_inputs["opt_args"] = re.sub(tmp_src, tmp_dst, dict_inputs["opt_args"])
+                # A loop-scoped global (declared as param_*) and the iteration count %{i} take a
+                # different value on every iteration, so they can only be resolved by whatever
+                # drives the looping. This engine does not implement looping yet, so a reference
+                # to one is refused here instead of reaching the payload unresolved.
+                for loop_param in list(tmp_global or []) + ["i"]:
+                    tmp_src = f"%{{{loop_param}}}"
+                    for opt_key in ["opt_exec", "opt_args"]:
+                        if dict_inputs.get(opt_key) and tmp_src in dict_inputs[opt_key]:
+                            raise ValueError(f"{tmp_src} in {opt_key} needs looping, which the workflow engine does not support yet")
             com += ["--exec", dict_inputs["opt_exec"]]
             com += ["--outDS", task_name]
             # argv-shaped, and the else branch puts a None where the image name would be.
@@ -562,8 +788,8 @@ class Node(object):
         if all_ids is None:
             all_ids = set()
         all_ids.add(self.id)
-        # only nested Node objects (CWL/snakemake) carry .id; native sub-workflow steps hold
-        # resolved int IDs already accounted for in the flat node list
+        # only children still held as Node objects carry .id; resolved int IDs are already
+        # accounted for in the flat node list
         if _sub_nodes_are_objects(self.sub_nodes):
             for sub_node in self.sub_nodes:
                 all_ids.add(sub_node.id)
@@ -621,10 +847,10 @@ class Node(object):
 
 
 def _sub_nodes_are_objects(sub_nodes: Any) -> bool:
-    # After resolve_nodes, a native sub-workflow node stores its children as resolved int IDs
-    # (the children are spliced into the flat node list and processed there). CWL/snakemake
-    # sub-workflows instead keep their children as nested Node objects. Recurse only into the
-    # latter; iterating int IDs as if they were nodes would crash.
+    # A sub-workflow node holds its children as Node objects only between parsing and
+    # resolve_nodes; resolve_nodes splices them into the flat node list and replaces sub_nodes
+    # with their resolved int IDs. Recurse only while they are still objects; iterating int IDs
+    # as if they were nodes would crash.
     return bool(sub_nodes) and all(isinstance(n, Node) for n in sub_nodes)
 
 
@@ -652,8 +878,8 @@ def get_node_id_map(node_list: Iterable[Node], id_map: dict[int, Node] | None = 
         id_map = {}
     for node in node_list:
         id_map[node.id] = node
-        # native sub-workflow children are flat int IDs (already in node_list); only recurse into
-        # nested Node objects (CWL/snakemake)
+        # resolved sub-workflow children are flat int IDs (already in node_list); only recurse
+        # while they are still Node objects
         if _sub_nodes_are_objects(node.sub_nodes):
             id_map = get_node_id_map(node.sub_nodes, id_map)
     return id_map
@@ -665,8 +891,8 @@ def get_all_parents(node_list: Iterable[Node], all_parents: set[int] | None = No
         all_parents = set()
     for node in node_list:
         all_parents |= node.parents
-        # native sub-workflow nodes store resolved int IDs in sub_nodes (children are flat); only
-        # recurse into nested Node objects (CWL/snakemake)
+        # resolved sub-workflow nodes store flat int IDs in sub_nodes; only recurse while the
+        # children are still Node objects
         if _sub_nodes_are_objects(node.sub_nodes):
             all_parents = get_all_parents(node.sub_nodes, all_parents)
     return all_parents
@@ -679,8 +905,8 @@ def set_workflow_outputs(node_list: Iterable[Node], all_parents: set[int] | None
     for node in node_list:
         if node.is_leaf and node.id not in all_parents:
             node.is_workflow_output = True
-        # native sub-workflow nodes store resolved int IDs in sub_nodes (children are flat); only
-        # recurse into nested Node objects (CWL/snakemake)
+        # resolved sub-workflow nodes store flat int IDs in sub_nodes; only recurse while the
+        # children are still Node objects
         if _sub_nodes_are_objects(node.sub_nodes):
             set_workflow_outputs(node.sub_nodes, all_parents)
 
@@ -732,7 +958,7 @@ def resolve_nodes(
     data: dict[str, Any],
     serial_id: int,
     parent_ids: set[int],
-    out_ds_name: str,
+    out_ds_name: str | None,
     log_stream: Any,
 ) -> tuple[int, list[Node], list[Node]]:
     # member_id is a per-call sequence (starts at 1) used only for output dataset names. node.id
@@ -852,8 +1078,8 @@ def resolve_nodes(
             # child workflow at runtime. Any Node-object child template it carries is resolved in
             # its own recursive scope below (see sub-workflow-child block). Here it is treated like
             # a leaf so it gets a serial id, a member_id in this scope, and its own output dataset
-            # name. CWL/snakemake sub-workflow nodes (is_sub_workflow False) keep the transparent
-            # recursion semantics: they own no dataset and expose their child tail outputs directly.
+            # name. A sub-workflow node with is_sub_workflow False keeps the transparent recursion
+            # semantics instead: it owns no dataset and exposes its child tail outputs directly.
             is_scatter_workflow = sc_node.scatter_inputs is not None
             if sc_node.is_leaf or sc_node.is_sub_workflow:
                 resolved_map[original_node_id].append(sc_node)
@@ -882,10 +1108,18 @@ def resolve_nodes(
             # resolve outputs
             if sc_node.is_leaf or sc_node.is_sub_workflow:
                 for tmp_name, tmp_data in sc_node.outputs.items():
+                    # A raw-task-params step's output dataset names are supplied by the author and
+                    # already set at parse time; they encode the physics (and any late-bound ID
+                    # placeholder) and must not be replaced by a generated name. Every other step
+                    # type creates its outputs as empty dicts, so this only ever skips names that
+                    # were deliberately set.
+                    if "value" in tmp_data:
+                        continue
                     tmp_data["value"] = f"{out_ds_name}_{sc_node.member_id:03d}_{sc_node.name}"
-                    # add loop count for nodes in a loop
-                    if sc_node.in_loop:
-                        tmp_data["value"] += ".___idds___num_run___"
+                    # A node inside a loop needs one output dataset per iteration, so this name
+                    # will have to be made unique per iteration. Nothing does that yet: in_loop is
+                    # never set, since the engine does not implement looping, and the suffix will
+                    # be defined together with it.
             # Resolve a native sub-workflow node's child template in its own recursive scope.
             # sub_nodes holds the child Node objects (a topo-sorted list) parsed from the referenced
             # workflow; the recursion restarts member_id at 1, threads serial_id so child ids stay
@@ -995,29 +1229,38 @@ def parse_workflow_data(data: dict[str, Any], log_stream: Any, _id_counter: list
         _id_counter[0] += 1
         serial_id = _id_counter[0]
         step_type = step_spec.get("type", "prun")
-        is_leaf = step_type in ["prun", "phpo", "junction", "reana", "gitlab"]
+        is_leaf = step_type in ["prun", "phpo", "junction", "reana", "gitlab"] + list(RAW_TASK_PARAMS_STEP_TYPES)
         node = Node(serial_id, step_type, None, is_leaf, step_name)
         node_name_map[step_name] = node
 
-        # parse inputs
-        inputs = {}
-        for key, yaml_key in [
-            ("inDS", "opt_inDS"),
-            ("args", "opt_args"),
-            ("exec", "opt_exec"),
-            ("containerImage", "opt_containerImage"),
-            ("useAthenaPackages", "opt_useAthenaPackages"),
-            ("secondaryDSs", "opt_secondaryDSs"),
-            ("secondaryDsTypes", "opt_secondaryDsTypes"),
-        ]:
-            if key in step_spec:
-                inputs[f"{step_name}/{yaml_key}"] = {
-                    "default": step_spec.get(key) if key not in ["inDS", "secondaryDSs"] else None,
-                    "source": step_spec.get(key) if key in ["inDS", "secondaryDSs"] else None,
-                }
+        if step_type in RAW_TASK_PARAMS_STEP_TYPES:
+            # A raw-task-params step describes itself entirely through its task parameters: the
+            # output job parameters name the datasets it produces, and the input job parameters
+            # name what it consumes. Both the data graph and the dependency edges are derived from
+            # them, so there is no separate inDS/args/exec to parse.
+            node.task_params = copy.deepcopy(step_spec.get("task_params") or {})
+            node.inputs = build_task_step_inputs(step_name, node.task_params, log_stream)
+            node.outputs = build_task_step_outputs(step_name, node.task_params, step_spec.get("outputs"), log_stream)
+        else:
+            # parse inputs
+            inputs = {}
+            for key, yaml_key in [
+                ("inDS", "opt_inDS"),
+                ("args", "opt_args"),
+                ("exec", "opt_exec"),
+                ("containerImage", "opt_containerImage"),
+                ("useAthenaPackages", "opt_useAthenaPackages"),
+                ("secondaryDSs", "opt_secondaryDSs"),
+                ("secondaryDsTypes", "opt_secondaryDsTypes"),
+            ]:
+                if key in step_spec:
+                    inputs[f"{step_name}/{yaml_key}"] = {
+                        "default": step_spec.get(key) if key not in ["inDS", "secondaryDSs"] else None,
+                        "source": step_spec.get(key) if key in ["inDS", "secondaryDSs"] else None,
+                    }
 
-        node.inputs = inputs
-        node.outputs = {f"{step_name}/outDS": {}}
+            node.inputs = inputs
+            node.outputs = {f"{step_name}/outDS": {}}
         node.is_tail = step_name in tail_node_names
 
         # handle sub-workflow nodes
@@ -1110,3 +1353,91 @@ def parse_workflow_data(data: dict[str, Any], log_stream: Any, _id_counter: list
         visit(node)
 
     return sorted_nodes, root_inputs
+
+
+def validate_workflow_description(description: Any) -> tuple[bool, list[str]]:
+    """
+    Validate the structure of a workflow description before the workflow is registered
+
+    This runs synchronously when a description is submitted, so that an authoring mistake comes back
+    on the request instead of surfacing later as a cancelled workflow. It checks the overall shape,
+    each raw-task-params step's task parameters, and that every dataset reference and declared
+    workflow output actually resolves to something in the description.
+
+    Args:
+        description (Any): The workflow description as submitted
+
+    Returns:
+        bool: Whether the description is valid
+        list: List of human readable error messages; empty when valid
+    """
+    errors = []
+    if not isinstance(description, dict):
+        return False, ["the workflow description must be a mapping"]
+    workflow_data = description.get("workflow", description)
+    if not isinstance(workflow_data, dict):
+        return False, ["the workflow description must be a mapping"]
+    steps = workflow_data.get("steps")
+    if not isinstance(steps, dict) or not steps:
+        return False, ["the workflow description has no steps"]
+    quiet_log = _QuietLog()
+    workflow_inputs = set(workflow_data.get("inputs") or {})
+    declared_outputs = set()
+
+    # first pass: validate each step and collect the outputs it declares
+    for step_name, step_spec in steps.items():
+        if not isinstance(step_spec, dict):
+            errors.append(f"step {step_name}: must be a mapping")
+            continue
+        step_type = step_spec.get("type", "prun")
+        if step_type not in KNOWN_STEP_TYPES:
+            errors.append(f"step {step_name}: unknown type {step_type}")
+            continue
+        if step_type not in RAW_TASK_PARAMS_STEP_TYPES:
+            continue
+        task_params = step_spec.get("task_params")
+        if not isinstance(task_params, dict) or not task_params:
+            errors.append(f"step {step_name}: task_params is missing or empty")
+            continue
+        # reuse the same verification the parser applies to a resolved node
+        probe = Node(0, step_type, None, True, step_name)
+        probe.task_params = task_params
+        is_ok, message = probe.verify_task_params()
+        if not is_ok:
+            errors.append(f"step {step_name}: {message}")
+            continue
+        declared_outputs |= set(build_task_step_outputs(step_name, task_params, step_spec.get("outputs"), quiet_log))
+
+    # second pass: every dataset reference must resolve to a declared output or a workflow input
+    for step_name, step_spec in steps.items():
+        if not isinstance(step_spec, dict) or step_spec.get("type") not in RAW_TASK_PARAMS_STEP_TYPES:
+            continue
+        task_params = step_spec.get("task_params")
+        if not isinstance(task_params, dict):
+            continue
+        for job_param in task_params.get("jobParameters") or []:
+            if not isinstance(job_param, dict) or job_param.get("param_type") not in DATA_INPUT_PARAM_TYPES:
+                continue
+            reference = extract_dataset_reference(job_param.get("dataset"))
+            if reference is None:
+                continue
+            if "/" in reference:
+                if reference not in declared_outputs:
+                    errors.append(f"step {step_name}: input reference {{{reference}}} does not match any step output")
+            elif reference not in workflow_inputs:
+                errors.append(f"step {step_name}: input reference {{{reference}}} is not a workflow input")
+
+    # declared workflow outputs must point at a step output
+    for output_name, output_spec in (workflow_data.get("outputs") or {}).items():
+        if not isinstance(output_spec, dict) or not output_spec.get("from"):
+            errors.append(f"workflow output {output_name}: missing the from field")
+            continue
+        source = output_spec["from"]
+        # only raw-task-params outputs are known here; a prun step's outputs are named later
+        if declared_outputs and source.split("/")[0] in steps and steps[source.split("/")[0]].get("type") in RAW_TASK_PARAMS_STEP_TYPES:
+            if source not in declared_outputs:
+                errors.append(f"workflow output {output_name}: {source} does not match any step output")
+        elif source.split("/")[0] not in steps:
+            errors.append(f"workflow output {output_name}: step {source.split('/')[0]} does not exist")
+
+    return not errors, errors

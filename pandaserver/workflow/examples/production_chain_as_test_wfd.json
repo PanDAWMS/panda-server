@@ -1,0 +1,887 @@
+{
+  "name": "mc23_526140_AZH_llbb_full_chain_as_test",
+  "description": "Full-scale counterpart of toy_production_chain_wfd.json: the same chain run as production work under the test label, at the production chain's own event scale. Same 9-step shape, the same transformations and the same n* parameters as production_chain_wfd.json, so the event bookkeeping is identical and self-consistent -- note that this means FULL production volume (nEvents=110000, 66 jobs, an 8-core recon step reading a ~22 GB pileup file per job), not a scaled-down run; see toy_production_chain_wfd.json for that. It exists because scaling the chain down changes what the payload sees: the toy's recon step failed inside Overlay with an AthenaMT AlgStall, and running at the scale the payload was configured for removes that as a variable. The deliberate differences from production_chain_wfd.json are: prodSourceLabel=test rather than managed, owned by userName=panda with no workingGroup, and every dataset it writes -- outputs and logs -- lives in the panda scope under 'panda.workflow_test.wfid${WFID}.' so nothing can collide with or pollute real production data. The scope is derived from the leading field of the name, so an explicit 'panda:' prefix must NOT be added: FileSpec.scope is set by extractScope(), which unlike extract_scope() does not strip a scope prefix and would yield 'panda:panda', making the pilot write a PFN Rucio rejects. The label must be one the target JEDI instance accepts in its agents' procConfig, otherwise the tasks sit in DEFT as 'waiting' and never reach JEDI. Not linked to any request or ticket, so reqID, ticketID and ticketSystemType are omitted. ${WFID} is resolved to the workflow ID at registration and ${TASKID} to the real jediTaskID when each step's task is queued. The only dataset read from outside the panda scope is the rdo_bkg pileup input, which is read-only.",
+  "inputs": {
+    "rdo_bkg": "mc23_13p6TeV.900149.PG_single_nu_Pt50.merge.RDO.e8514_s4332_d1994_sub0002_rnd526140"
+  },
+  "outputs": {
+    "ntup_pileup_merged": {
+      "from": "merge_ntup/NTUP_PILEUP"
+    },
+    "daod_phys": {
+      "from": "deriv_phys/DAOD_PHYS"
+    },
+    "daod_physlite": {
+      "from": "deriv_phys/DAOD_PHYSLITE"
+    }
+  },
+  "steps": {
+    "evgen": {
+      "type": "task",
+      "task_params": {
+        "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.e8590",
+        "taskType": "prod",
+        "prodSourceLabel": "test",
+        "vo": "atlas",
+        "userName": "panda",
+        "taskPriority": 275,
+        "processingType": "evgen",
+        "campaign": "MC23:MC23e",
+        "cloud": "WORLD",
+        "transPath": "Gen_tf.py",
+        "transHome": "AthGeneration-23.6.41",
+        "transUses": "Atlas-23.6.41",
+        "architecture": "x86_64-el9-gcc13-opt#x86_64-*-v2",
+        "noInput": true,
+        "nEvents": 110000,
+        "nEventsPerJob": 10000,
+        "nFilesPerJob": 1,
+        "ramCount": 2000,
+        "ramUnit": "MBPerCore",
+        "baseRamCount": 0,
+        "cpuTimeUnit": "HS06sPerEvent",
+        "mergeCoreCount": 1,
+        "maxAttempt": 13,
+        "maxFailure": 3,
+        "scoutSuccessRate": 5,
+        "noWaitParent": true,
+        "log": {
+          "type": "template",
+          "param_type": "log",
+          "value": "log.${TASKID}._${SN}.job.log.tgz",
+          "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.log.e8590_tid${TASKID}_00",
+          "destination": "(type=DATADISK)\\(dontkeeplog=True)",
+          "token": "ddd:.*DATADISK",
+          "transient": false,
+          "offset": 0
+        },
+        "jobParameters": [
+          {
+            "type": "constant",
+            "value": "--AMITag=e8590"
+          },
+          {
+            "type": "constant",
+            "value": "--ecmEnergy=13600"
+          },
+          {
+            "type": "constant",
+            "value": "--jobConfig=526140"
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--firstEvent=${FIRSTEVENT}",
+            "offset": 60000
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--maxEvents=${MAXEVENTS}"
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--skipEvents=${SKIPEVENTS}"
+          },
+          {
+            "type": "template",
+            "param_type": "output",
+            "value": "--outputEVNTFile=EVNT.${TASKID}._${SN}.pool.root",
+            "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.EVNT.e8590_tid${TASKID}_00",
+            "token": "ATLASDATADISK",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "pseudo_input",
+            "value": "--randomSeed=${SEQNUMBER}",
+            "dataset": "seq_number",
+            "offset": 6
+          }
+        ]
+      }
+    },
+    "merge_evnt": {
+      "type": "task",
+      "outputs": {
+        "EVNT": "--outputEVNT_MRGFile"
+      },
+      "task_params": {
+        "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586",
+        "taskType": "prod",
+        "prodSourceLabel": "test",
+        "vo": "atlas",
+        "userName": "panda",
+        "taskPriority": 885,
+        "processingType": "merge",
+        "campaign": "MC23:MC23e",
+        "cloud": "WORLD",
+        "transPath": "EVNTMerge_tf.py",
+        "transHome": "AthGeneration-23.6.37",
+        "transUses": "Atlas-23.6.37",
+        "architecture": "x86_64-el9-gcc13-opt#x86_64-*-v2",
+        "nEventsPerInputFile": 10000,
+        "nEventsPerJob": 10000,
+        "ramCount": 2000,
+        "ramUnit": "MBPerCore",
+        "baseRamCount": 0,
+        "cpuTimeUnit": "HS06sPerEvent",
+        "ioIntensity": 4000,
+        "ioIntensityUnit": "kBPerS",
+        "mergeCoreCount": 1,
+        "maxAttempt": 15,
+        "maxFailure": 5,
+        "scoutSuccessRate": 5,
+        "noWaitParent": true,
+        "log": {
+          "type": "template",
+          "param_type": "log",
+          "value": "log.${TASKID}._${SN}.job.log.tgz",
+          "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_tid${TASKID}_00",
+          "destination": "(type=DATADISK)\\(dontkeeplog=True)",
+          "token": "ddd:.*DATADISK",
+          "transient": false,
+          "offset": 0
+        },
+        "jobParameters": [
+          {
+            "type": "constant",
+            "value": "--AMITag=e8586"
+          },
+          {
+            "type": "template",
+            "param_type": "input",
+            "value": "--inputEVNTFile=${IN_EVNT/L}",
+            "dataset": "{evgen/EVNT}",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--maxEvents=${MAXEVENTS}"
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--skipEvents=${SKIPEVENTS}"
+          },
+          {
+            "type": "template",
+            "param_type": "output",
+            "value": "--outputEVNT_MRGFile=EVNT.${TASKID}._${SN}.pool.root",
+            "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.EVNT.e8590_e8586_tid${TASKID}_00",
+            "token": "ATLASDATADISK",
+            "offset": 0
+          }
+        ]
+      }
+    },
+    "simul": {
+      "type": "task",
+      "task_params": {
+        "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.e8590_e8586_a934",
+        "taskType": "prod",
+        "prodSourceLabel": "test",
+        "vo": "atlas",
+        "userName": "panda",
+        "taskPriority": 240,
+        "processingType": "simul",
+        "campaign": "MC23:MC23e",
+        "cloud": "WORLD",
+        "transPath": "Sim_tf.py",
+        "transHome": "Athena-24.0.50",
+        "transUses": "Atlas-24.0.50",
+        "architecture": "x86_64-el9-gcc13-opt#x86_64-*-v2",
+        "coreCount": 8,
+        "maxCoreCount": 8,
+        "cpuTime": 1500,
+        "cpuTimeUnit": "HS06sPerEvent",
+        "nEventsPerInputFile": 10000,
+        "nEventsPerJob": 5000,
+        "ramCount": 150,
+        "ramUnit": "MBPerCore",
+        "baseRamCount": 2200,
+        "ipConnectivity": "http",
+        "mergeCoreCount": 1,
+        "maxAttempt": 15,
+        "maxFailure": 5,
+        "scoutSuccessRate": 5,
+        "skipShortInput": true,
+        "noWaitParent": true,
+        "log": {
+          "type": "template",
+          "param_type": "log",
+          "value": "log.${TASKID}._${SN}.job.log.tgz",
+          "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.log.e8590_e8586_a934_tid${TASKID}_00",
+          "destination": "(type=DATADISK)\\(dontkeeplog=True)",
+          "token": "ddd:.*DATADISK",
+          "transient": false,
+          "offset": 0
+        },
+        "jobParameters": [
+          {
+            "type": "constant",
+            "value": "--AMITag=a934"
+          },
+          {
+            "type": "constant",
+            "value": "--CA \"all:True\""
+          },
+          {
+            "type": "constant",
+            "value": "--conditionsTag \"default:OFLCOND-MC23-SDR-RUN3-04\""
+          },
+          {
+            "type": "constant",
+            "value": "--geometryVersion=\"default:ATLAS-R3S-2021-03-02-00\""
+          },
+          {
+            "type": "constant",
+            "value": "--multithreaded=True"
+          },
+          {
+            "type": "constant",
+            "value": "--postInclude \"default:PyJobTransforms.UseFrontier\""
+          },
+          {
+            "type": "constant",
+            "value": "--preExec \"EVNTtoHITS:flags.Sim.FastCalo.ParamsInputFilename=\\\"FastCaloSim/MC23/TFCSparam_dev_Hybrid_Ha_v5_all_baryons_0_500.root\\\"\""
+          },
+          {
+            "type": "constant",
+            "value": "--preInclude \"EVNTtoHITS:Campaigns.MC23eSimulationMultipleIoV\""
+          },
+          {
+            "type": "constant",
+            "value": "--runNumber=526140"
+          },
+          {
+            "type": "constant",
+            "value": "--simulator=ATLFAST3MT_QS"
+          },
+          {
+            "type": "template",
+            "param_type": "input",
+            "value": "--inputEVNTFile=${IN_EVNT/L}",
+            "dataset": "{merge_evnt/EVNT}",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--firstEvent=${FIRSTEVENT}",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--maxEvents=${MAXEVENTS}"
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--skipEvents=${SKIPEVENTS}"
+          },
+          {
+            "type": "template",
+            "param_type": "output",
+            "value": "--outputHITSFile=HITS.${TASKID}._${SN}.pool.root",
+            "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.HITS.e8590_e8586_a934_tid${TASKID}_00",
+            "token": "ATLASDATADISK",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "pseudo_input",
+            "value": "--jobNumber=${SEQNUMBER}",
+            "dataset": "seq_number",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "pseudo_input",
+            "value": "--randomSeed=${SEQNUMBER}",
+            "dataset": "seq_number",
+            "offset": 0
+          }
+        ]
+      }
+    },
+    "merge_hits": {
+      "type": "task",
+      "outputs": {
+        "HITS": "--outputHITS_MRGFile"
+      },
+      "task_params": {
+        "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586_a934_s4370",
+        "taskType": "prod",
+        "prodSourceLabel": "test",
+        "vo": "atlas",
+        "userName": "panda",
+        "taskPriority": 885,
+        "processingType": "merge",
+        "campaign": "MC23:MC23e",
+        "cloud": "WORLD",
+        "transPath": "HITSMerge_tf.py",
+        "transHome": "AthSimulation-24.0.42",
+        "transUses": "Atlas-24.0.42",
+        "architecture": "x86_64-el9-gcc13-opt#x86_64-*-v2",
+        "nEventsPerInputFile": 5000,
+        "nEventsPerJob": 10000,
+        "ramCount": 2000,
+        "ramUnit": "MBPerCore",
+        "baseRamCount": 0,
+        "cpuTimeUnit": "HS06sPerEvent",
+        "ioIntensity": 3000,
+        "ioIntensityUnit": "kBPerS",
+        "ipConnectivity": "http",
+        "mergeCoreCount": 1,
+        "maxAttempt": 15,
+        "maxFailure": 5,
+        "scoutSuccessRate": 5,
+        "respectSplitRule": true,
+        "skipShortOutput": true,
+        "noWaitParent": true,
+        "log": {
+          "type": "template",
+          "param_type": "log",
+          "value": "log.${TASKID}._${SN}.job.log.tgz",
+          "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_a934_s4370_tid${TASKID}_00",
+          "destination": "(type=DATADISK)\\(dontkeeplog=True)",
+          "token": "ddd:.*DATADISK",
+          "transient": false,
+          "offset": 0
+        },
+        "jobParameters": [
+          {
+            "type": "constant",
+            "value": "--AMITag=s4370"
+          },
+          {
+            "type": "constant",
+            "value": "--CA \"all:True\""
+          },
+          {
+            "type": "constant",
+            "value": "--postInclude \"default:PyJobTransforms.UseFrontier\" \"all:PyJobTransforms.SortInput\""
+          },
+          {
+            "type": "constant",
+            "value": "--runNumber=526140"
+          },
+          {
+            "type": "template",
+            "param_type": "input",
+            "value": "--inputHITSFile=${IN_HITS/L}",
+            "dataset": "{simul/HITS}",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--maxEvents=${MAXEVENTS}"
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--skipEvents=${SKIPEVENTS}"
+          },
+          {
+            "type": "template",
+            "param_type": "output",
+            "value": "--outputHITS_MRGFile=HITS.${TASKID}._${SN}.pool.root",
+            "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.HITS.e8590_e8586_a934_s4370_tid${TASKID}_00",
+            "token": "ATLASDATADISK",
+            "offset": 0
+          }
+        ]
+      }
+    },
+    "recon": {
+      "type": "task",
+      "task_params": {
+        "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.e8590_e8586_a934_s4370_r16083",
+        "taskType": "prod",
+        "prodSourceLabel": "test",
+        "vo": "atlas",
+        "userName": "panda",
+        "taskPriority": 250,
+        "processingType": "pile",
+        "campaign": "MC23:MC23e:25ns",
+        "cloud": "WORLD",
+        "transPath": "Reco_tf.py",
+        "transHome": "Athena-24.0.52.4",
+        "transUses": "Atlas-24.0.52",
+        "architecture": "(aarch64|x86_64)-el9-gcc13-opt",
+        "coreCount": 8,
+        "maxCoreCount": 16,
+        "cpuTimeUnit": "HS06sPerEvent",
+        "nEventsPerInputFile": 10000,
+        "nEventsPerJob": 10000,
+        "ramCount": 1750,
+        "ramUnit": "MBPerCore",
+        "baseRamCount": 2000,
+        "ipConnectivity": "http",
+        "mergeCoreCount": 1,
+        "maxAttempt": 15,
+        "maxFailure": 5,
+        "scoutSuccessRate": 5,
+        "skipShortInput": true,
+        "reuseSecOnDemand": true,
+        "taskBrokerOnMaster": true,
+        "noWaitParent": true,
+        "log": {
+          "type": "template",
+          "param_type": "log",
+          "value": "log.${TASKID}._${SN}.job.log.tgz",
+          "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.log.e8590_e8586_a934_s4370_r16083_tid${TASKID}_00",
+          "destination": "(type=DATADISK)\\(dontkeeplog=True)",
+          "token": "ddd:.*DATADISK",
+          "transient": false,
+          "offset": 0
+        },
+        "jobParameters": [
+          {
+            "type": "constant",
+            "value": "--AMITag=r16083"
+          },
+          {
+            "type": "constant",
+            "value": "--autoConfiguration=everything"
+          },
+          {
+            "type": "constant",
+            "value": "--CA \"all:True\""
+          },
+          {
+            "type": "constant",
+            "value": "--conditionsTag \"default:OFLCOND-MC23-SDR-RUN3-05-03\""
+          },
+          {
+            "type": "constant",
+            "value": "--deleteIntermediateOutputfiles=True"
+          },
+          {
+            "type": "constant",
+            "value": "--geometryVersion=\"default:ATLAS-R3S-2021-03-02-00\""
+          },
+          {
+            "type": "constant",
+            "value": "--multithreaded=True"
+          },
+          {
+            "type": "constant",
+            "value": "--postInclude \"default:PyJobTransforms.UseFrontier\""
+          },
+          {
+            "type": "constant",
+            "value": "--preInclude \"all:Campaigns.MC23e\""
+          },
+          {
+            "type": "constant",
+            "value": "--runNumber=526140"
+          },
+          {
+            "type": "constant",
+            "value": "--steering \"doOverlay\" \"doRDO_TRIG\" \"doTRIGtoALL\""
+          },
+          {
+            "type": "template",
+            "param_type": "input",
+            "value": "--inputHITSFile=${IN_HITS/L}",
+            "dataset": "{merge_hits/HITS}",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "input",
+            "value": "--inputRDO_BKGFile=${IN_ZERO_BIAS_BS/L}",
+            "dataset": "{rdo_bkg}",
+            "eventRatio": 1,
+            "ratio": 1,
+            "random": true,
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--maxEvents=${MAXEVENTS}"
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--skipEvents=${SKIPEVENTS}"
+          },
+          {
+            "type": "template",
+            "param_type": "output",
+            "value": "--outputAODFile=AOD.${TASKID}._${SN}.pool.root",
+            "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.AOD.e8590_e8586_a934_s4370_r16083_tid${TASKID}_00",
+            "token": "ATLASDATADISK",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "pseudo_input",
+            "value": "--digiSeedOffset1=${SEQNUMBER}",
+            "dataset": "seq_number",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "pseudo_input",
+            "value": "--digiSeedOffset2=${SEQNUMBER}",
+            "dataset": "seq_number",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "pseudo_input",
+            "value": "--jobNumber=${SEQNUMBER}",
+            "dataset": "seq_number",
+            "offset": 0
+          }
+        ]
+      }
+    },
+    "merge_aod": {
+      "type": "task",
+      "outputs": {
+        "AOD": "--outputAOD_MRGFile"
+      },
+      "task_params": {
+        "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586_a934_s4370_r16083_r15970",
+        "taskType": "prod",
+        "prodSourceLabel": "test",
+        "vo": "atlas",
+        "userName": "panda",
+        "taskPriority": 885,
+        "processingType": "merge",
+        "campaign": "MC23:MC23e",
+        "cloud": "WORLD",
+        "transPath": "AODMerge_tf.py",
+        "transHome": "Athena-24.0.52.2",
+        "transUses": "Atlas-24.0.52",
+        "architecture": "x86_64-el9-gcc13-opt#x86_64-*-v2",
+        "nEventsPerInputFile": 10000,
+        "nGBPerJob": 19,
+        "nMaxFilesPerJob": 1000,
+        "ramCount": 2000,
+        "ramUnit": "MBPerCore",
+        "baseRamCount": 0,
+        "cpuTimeUnit": "HS06sPerEvent",
+        "ioIntensity": 2000,
+        "ioIntensityUnit": "kBPerS",
+        "ipConnectivity": "http",
+        "mergeCoreCount": 1,
+        "maxAttempt": 15,
+        "maxFailure": 5,
+        "maxWalltime": 12,
+        "outDiskCount": 1000,
+        "outDiskUnit": "kB",
+        "tgtMaxOutputForNG": 10,
+        "respectSplitRule": true,
+        "scoutSuccessRate": 5,
+        "log": {
+          "type": "template",
+          "param_type": "log",
+          "value": "log.${TASKID}._${SN}.job.log.tgz",
+          "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_e8586_a934_s4370_r16083_r15970_tid${TASKID}_00",
+          "destination": "(type=DATADISK)\\(dontkeeplog=True)",
+          "token": "ddd:.*DATADISK",
+          "transient": false,
+          "offset": 0
+        },
+        "jobParameters": [
+          {
+            "type": "constant",
+            "value": "--AMITag=r15970"
+          },
+          {
+            "type": "constant",
+            "value": "--autoConfiguration=everything"
+          },
+          {
+            "type": "constant",
+            "value": "--CA \"all:True\""
+          },
+          {
+            "type": "constant",
+            "value": "--postInclude \"default:PyJobTransforms.UseFrontier\""
+          },
+          {
+            "type": "constant",
+            "value": "--runNumber=526140"
+          },
+          {
+            "type": "template",
+            "param_type": "input",
+            "value": "--inputAODFile=${IN_AOD/L}",
+            "dataset": "{recon/AOD}",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "output",
+            "value": "--outputAOD_MRGFile=AOD.${TASKID}._${SN}.pool.root",
+            "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.AOD.e8590_e8586_a934_s4370_r16083_r15970_tid${TASKID}_00",
+            "token": "ATLASDATADISK",
+            "transient": false,
+            "offset": 0
+          }
+        ]
+      }
+    },
+    "deriv_prw": {
+      "type": "task",
+      "task_params": {
+        "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.e8590_e8586_a934_s4370_r16083_r15970_p5667",
+        "taskType": "prod",
+        "prodSourceLabel": "test",
+        "vo": "atlas",
+        "userName": "panda",
+        "taskPriority": 885,
+        "processingType": "deriv",
+        "campaign": "MC23:MC23e",
+        "cloud": "WORLD",
+        "transPath": "PRWConfig_tf.py",
+        "transHome": "Athena-23.0.20",
+        "transUses": "Atlas-23.0.20",
+        "architecture": "x86_64-centos7-gcc11-opt#x86_64-*-v2",
+        "nGBPerJob": 150,
+        "nMaxFilesPerJob": 1000,
+        "ramCount": 2000,
+        "ramUnit": "MBPerCore",
+        "baseRamCount": 0,
+        "cpuTimeUnit": "HS06sPerEvent",
+        "ioIntensity": 5000,
+        "ioIntensityUnit": "kBPerS",
+        "allowInputLAN": "use",
+        "goal": 100,
+        "mergeCoreCount": 1,
+        "maxAttempt": 15,
+        "maxFailure": 5,
+        "maxWalltime": 12,
+        "outDiskCount": 1,
+        "outDiskUnit": "kB",
+        "respectSplitRule": true,
+        "scoutSuccessRate": 5,
+        "useExhausted": true,
+        "noWaitParent": true,
+        "log": {
+          "type": "template",
+          "param_type": "log",
+          "value": "log.${TASKID}._${SN}.job.log.tgz",
+          "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.log.e8590_e8586_a934_s4370_r16083_r15970_p5667_tid${TASKID}_00",
+          "destination": "(type=DATADISK)\\(dontkeeplog=True)",
+          "token": "ddd:.*DATADISK",
+          "transient": false,
+          "offset": 0
+        },
+        "jobParameters": [
+          {
+            "type": "constant",
+            "value": "--AMITag=p5667"
+          },
+          {
+            "type": "template",
+            "param_type": "input",
+            "value": "--inputAODFile=${IN_AOD/L}",
+            "dataset": "{merge_aod/AOD}",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "output",
+            "value": "--outputNTUP_PILEUPFile=NTUP_PILEUP.${TASKID}._${SN}.pool.root",
+            "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.NTUP_PILEUP.e8590_e8586_a934_s4370_r16083_r15970_p5667_tid${TASKID}_00",
+            "token": "ATLASDATADISK",
+            "offset": 0
+          }
+        ]
+      }
+    },
+    "merge_ntup": {
+      "type": "task",
+      "outputs": {
+        "NTUP_PILEUP": "--outputNTUP_PILEUP_MRGFile"
+      },
+      "task_params": {
+        "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_a934_r16083_p5667_p5669",
+        "taskType": "prod",
+        "prodSourceLabel": "test",
+        "vo": "atlas",
+        "userName": "panda",
+        "taskPriority": 885,
+        "processingType": "merge",
+        "campaign": "MC23:MC23e",
+        "cloud": "WORLD",
+        "transPath": "NTUPMerge_tf.py",
+        "transHome": "Athena-23.0.20",
+        "transUses": "Atlas-23.0.20",
+        "architecture": "x86_64-centos7-gcc11-opt#x86_64-*-v2",
+        "nFilesPerJob": 200,
+        "nMaxFilesPerJob": 200,
+        "ramCount": 2000,
+        "ramUnit": "MBPerCore",
+        "baseRamCount": 0,
+        "cpuTimeUnit": "HS06sPerEvent",
+        "ioIntensity": 2000,
+        "ioIntensityUnit": "kBPerS",
+        "goal": 100,
+        "mergeCoreCount": 1,
+        "maxAttempt": 15,
+        "maxFailure": 5,
+        "maxWalltime": 12,
+        "scoutSuccessRate": 5,
+        "useExhausted": true,
+        "noWaitParent": true,
+        "log": {
+          "type": "template",
+          "param_type": "log",
+          "value": "log.${TASKID}._${SN}.job.log.tgz",
+          "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.log.e8590_a934_r16083_p5667_p5669_tid${TASKID}_00",
+          "destination": "(type=DATADISK)\\(dontkeeplog=True)",
+          "token": "ddd:.*DATADISK",
+          "transient": false,
+          "offset": 0
+        },
+        "jobParameters": [
+          {
+            "type": "constant",
+            "value": "--AMITag=p5669"
+          },
+          {
+            "type": "template",
+            "param_type": "input",
+            "value": "--inputNTUP_PILEUPFile=${IN_NTUP_PILEUP/L}",
+            "dataset": "{deriv_prw/NTUP_PILEUP}",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "output",
+            "value": "--outputNTUP_PILEUP_MRGFile=NTUP_PILEUP.${TASKID}._${SN}.pool.root",
+            "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.NTUP_PILEUP.e8590_a934_r16083_p5667_p5669_tid${TASKID}_00",
+            "token": "ATLASDATADISK",
+            "offset": 0
+          }
+        ]
+      }
+    },
+    "deriv_phys": {
+      "type": "task",
+      "task_params": {
+        "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.e8590_e8586_a934_s4370_r16083_r15970_p7017",
+        "taskType": "prod",
+        "prodSourceLabel": "test",
+        "vo": "atlas",
+        "userName": "panda",
+        "taskPriority": 560,
+        "processingType": "deriv",
+        "campaign": "MC23:MC23e",
+        "cloud": "WORLD",
+        "transPath": "Derivation_tf.py",
+        "transHome": "Athena-25.0.42",
+        "transUses": "Atlas-25.0.42",
+        "architecture": "x86_64-el9-gcc14-opt#x86_64-*-v2",
+        "coreCount": 8,
+        "maxCoreCount": 16,
+        "cpuTime": 200,
+        "cpuTimeUnit": "HS06sPerEvent",
+        "nGBPerJob": 10,
+        "nMaxFilesPerJob": 200,
+        "ramCount": 1750,
+        "ramUnit": "MBPerCore",
+        "baseRamCount": 2000,
+        "baseWalltime": 60,
+        "ioIntensity": 500,
+        "ioIntensityUnit": "kBPerS",
+        "mergeCoreCount": 1,
+        "maxAttempt": 15,
+        "maxFailure": 5,
+        "maxWalltime": 12,
+        "tgtMaxOutputForNG": 8,
+        "respectSplitRule": true,
+        "scoutSuccessRate": 5,
+        "noWaitParent": true,
+        "log": {
+          "type": "template",
+          "param_type": "log",
+          "value": "log.${TASKID}._${SN}.job.log.tgz",
+          "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.log.e8590_e8586_a934_s4370_r16083_r15970_p7017_tid${TASKID}_00",
+          "destination": "(type=DATADISK)\\(dontkeeplog=True)",
+          "token": "ddd:.*DATADISK",
+          "transient": false,
+          "offset": 0
+        },
+        "jobParameters": [
+          {
+            "type": "constant",
+            "value": "--AMITag p7017"
+          },
+          {
+            "type": "constant",
+            "value": "--athenaMPMergeTargetSize \"DAOD_*:0\""
+          },
+          {
+            "type": "constant",
+            "value": "--CA \"all:True\""
+          },
+          {
+            "type": "constant",
+            "value": "--formats PHYS PHYSLITE"
+          },
+          {
+            "type": "constant",
+            "value": "--multiprocess True"
+          },
+          {
+            "type": "constant",
+            "value": "--multithreadedFileValidation True"
+          },
+          {
+            "type": "constant",
+            "value": "--postInclude \"default:AthenaServices.TransformUtils.ExecCondAlgsAtPreFork\""
+          },
+          {
+            "type": "constant",
+            "value": "--sharedWriter True"
+          },
+          {
+            "type": "template",
+            "param_type": "input",
+            "value": "--inputAODFile=${IN_AOD/L}",
+            "dataset": "{merge_aod/AOD}",
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "number",
+            "value": "--outputDAODFile ${TASKID}._${SN/P}.pool.root.1"
+          },
+          {
+            "type": "template",
+            "param_type": "output",
+            "value": "--outputDAOD_PHYSFile=DAOD_PHYS.${TASKID}._${SN}.pool.root.1",
+            "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.DAOD_PHYS.e8590_e8586_a934_s4370_r16083_r15970_p7017_tid${TASKID}_00",
+            "token": "ATLASDATADISK",
+            "hidden": true,
+            "offset": 0
+          },
+          {
+            "type": "template",
+            "param_type": "output",
+            "value": "--outputDAOD_PHYSLITEFile=DAOD_PHYSLITE.${TASKID}._${SN}.pool.root.1",
+            "dataset": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.DAOD_PHYSLITE.e8590_e8586_a934_s4370_r16083_r15970_p7017_tid${TASKID}_00",
+            "token": "ATLASDATADISK",
+            "hidden": true,
+            "offset": 0
+          }
+        ]
+      }
+    }
+  },
+  "options": {}
+}

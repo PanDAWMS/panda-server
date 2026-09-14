@@ -1579,6 +1579,34 @@ class TaskBuffer:
             ret = proxy.checkQuota(dn)
         return ret
 
+    # get the DEFT status of a task
+    def get_deft_task_status(self, task_id: int) -> str | None:
+        with self.proxyPool.get() as proxy:
+            return proxy.get_deft_task_status(task_id)
+
+    # queue the task of a workflow step
+    def insert_step_task(self, task_params_map: dict[str, Any], user_dn: str, parent_tid: int | None = None) -> tuple[int | None, str]:
+        # query an SQL return Status
+        with self.proxyPool.get() as proxy:
+            # check user status, as insertTaskParamsPanda does at this layer
+            tmp_status = proxy.checkBanUser(user_dn, None, True)
+            if tmp_status is True:
+                ret = proxy.insert_step_task(task_params_map, user_dn, parent_tid)
+            elif tmp_status == 1:
+                ret = None, "Failed to update DN in PandaDB"
+            elif tmp_status == 2:
+                ret = None, "Failed to insert user info to PandaDB"
+            else:
+                ret = None, f"The following DN is banned: DN={user_dn}"
+        return ret
+
+    # look up existing tasks by name
+    def get_existing_task_names(self, vo: str, prod_source_label: str, task_names: list[str]) -> dict[str, dict[str, Any]] | None:
+        # query an SQL return Status
+        with self.proxyPool.get() as proxy:
+            ret = proxy.get_existing_task_names(vo, prod_source_label, task_names)
+        return ret
+
     # insert TaskParams
     def insertTaskParamsPanda(
         self,
@@ -2643,6 +2671,37 @@ class TaskBuffer:
     ) -> tuple[bool, JediTaskSpec | None]:
         with self.proxyPool.get() as proxy:
             return proxy.getTaskWithID_JEDI(jediTaskID, fullFlag, lockTask, pid, lockInterval, clearError)
+
+    # update a task
+    def updateTask_JEDI(
+        self,
+        taskSpec: JediTaskSpec,
+        criteria: dict[str, Any],
+        oldStatus: list[str] | None = None,
+        updateDEFT: bool = True,
+        insertUnknown: list[str] | None = None,
+        setFrozenTime: bool = True,
+        setOldModTime: bool = False,
+    ) -> tuple[bool, int | None]:
+        with self.proxyPool.get() as proxy:
+            return proxy.updateTask_JEDI(taskSpec, criteria, oldStatus, updateDEFT, insertUnknown, setFrozenTime, setOldModTime)
+
+    # release a task from hold, restoring its old status
+    def release_task_on_hold(self, jedi_task_id: int, target_status: str | None = None) -> bool:
+        with self.proxyPool.get() as proxy:
+            return proxy.release_task_on_hold(jedi_task_id, target_status)
+
+    # push a task trigger message to the message queue
+    def push_task_trigger_message(
+        self,
+        msg_type: str,
+        jedi_task_id: int | None,
+        data_dict: dict[str, Any] | None = None,
+        priority: int | None = None,
+        task_spec: JediTaskSpec | None = None,
+    ) -> bool | None:
+        with self.proxyPool.get() as proxy:
+            return proxy.push_task_trigger_message(msg_type, jedi_task_id, data_dict, priority, task_spec)
 
     # update input files stage-in done (according to message from iDDS, called by other methods, etc.)
     def updateInputFilesStaged_JEDI(
