@@ -421,7 +421,7 @@ class MetricsModule(BaseModule):
                 f"CASE WHEN jobStatus='failed' THEN 1 ELSE 0 END is_failed "
                 f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
                 f"WHERE jediTaskID=:jediTaskID AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-                f")"
+                f") t"
             )
             var_map = {
                 ":jediTaskID": task_id,
