@@ -163,7 +163,9 @@ def submit_grep_request(
             .gz files, where an arbitrary offset is not a valid stream
 
     Returns:
-        dict: {"success": bool, "message": str, "data": {"request_id": str}}
+        dict: {"success": bool, "message": str, "data": {"async_id": str, "request_id": str}}.
+            request_id repeats async_id under the name this field had before the rename, for
+            callers that have not moved yet; it goes away once they have, so read async_id
     """
     tmp_logger = LogWrapper(_logger, "submit_grep_request")
     tmp_logger.debug("Start")
@@ -218,7 +220,7 @@ def submit_grep_request(
             msg = f"machine '{machine_name}' has no recent heartbeat; request submitted anyway"
             tmp_logger.warning(msg)
 
-    request_id = str(uuid.uuid4())
+    async_id = str(uuid.uuid4())
     grep_parameters: dict[str, Any] = {"pattern": pattern, "log_filename": log_filename}
     if max_matches is not None:
         grep_parameters["max_matches"] = int(max_matches)
@@ -229,7 +231,7 @@ def submit_grep_request(
     expected_machines_json = json.dumps(expected)
 
     ok = global_task_buffer.insert_async_request(
-        request_id,
+        async_id,
         "grep",
         parameters_json,
         service_name,
@@ -241,8 +243,10 @@ def submit_grep_request(
         tmp_logger.error(msg)
         return generate_response(False, msg)
 
-    tmp_logger.debug(f"Done request_id={request_id}")
-    return generate_response(True, "", {"request_id": request_id})
+    tmp_logger.debug(f"Done async_id={async_id}")
+    # request_id carries the same value under the pre-rename name, so callers polling with it
+    # keep working; it is dropped once they have moved to async_id
+    return generate_response(True, "", {"async_id": async_id, "request_id": async_id})
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
@@ -269,7 +273,9 @@ def submit_sleep_echo_request(
         seconds(int): seconds to sleep before echoing (0..60)
 
     Returns:
-        dict: {"success": bool, "message": str, "data": {"request_id": str}}
+        dict: {"success": bool, "message": str, "data": {"async_id": str, "request_id": str}}.
+            request_id repeats async_id under the name this field had before the rename, for
+            callers that have not moved yet; it goes away once they have, so read async_id
     """
     tmp_logger = LogWrapper(_logger, "submit_sleep_echo_request")
     tmp_logger.debug("Start")
@@ -296,11 +302,11 @@ def submit_sleep_echo_request(
         tmp_logger.warning(msg)
         return generate_response(False, msg)
 
-    request_id = str(uuid.uuid4())
+    async_id = str(uuid.uuid4())
     parameters = set_owner_info({"seconds": seconds, "message": message}, req, access="production")
 
     ok = global_task_buffer.insert_async_request(
-        request_id,
+        async_id,
         "sleep_echo",
         json.dumps(parameters),
         service_name,
@@ -312,12 +318,14 @@ def submit_sleep_echo_request(
         tmp_logger.error(msg)
         return generate_response(False, msg)
 
-    tmp_logger.debug(f"Done request_id={request_id}")
-    return generate_response(True, "", {"request_id": request_id})
+    tmp_logger.debug(f"Done async_id={async_id}")
+    # request_id carries the same value under the pre-rename name, so callers polling with it
+    # keep working; it is dropped once they have moved to async_id
+    return generate_response(True, "", {"async_id": async_id, "request_id": async_id})
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
+def get_result(req: PandaRequest, async_id: str | None = None, request_id: str | None = None) -> Dict[str, Any]:
     """
     Get async request result
 
@@ -366,17 +374,27 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
 
     Args:
         req(PandaRequest): request object
-        request_id(str): UUID returned by a submit_* endpoint
+        async_id(str): UUID returned by a submit_* endpoint
+        request_id(str): the name async_id had before the rename, still accepted so callers
+            that have not moved keep working; ignored when async_id is given
 
     Returns:
         dict: one of the two shapes above
     """
-    tmp_logger = LogWrapper(_logger, f"get_result < request_id={request_id} >")
+    # request_id is what async_id used to be called; either names the request until the old
+    # name is dropped, and async_id wins when a caller sends both
+    async_id = async_id or request_id
+    tmp_logger = LogWrapper(_logger, f"get_result < async_id={async_id} >")
     tmp_logger.debug("Start")
 
-    req_row = global_task_buffer.get_async_request(request_id)
+    if not async_id:
+        msg = "async_id must be provided"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    req_row = global_task_buffer.get_async_request(async_id)
     if req_row is None:
-        msg = f"request_id '{request_id}' not found"
+        msg = f"async_id '{async_id}' not found"
         tmp_logger.warning(msg)
         return generate_response(False, msg)
 
@@ -387,7 +405,7 @@ def get_result(req: PandaRequest, request_id: str) -> Dict[str, Any]:
         return generate_response(False, msg)
     tmp_logger.debug(msg)
 
-    results = global_task_buffer.get_async_results(request_id)
+    results = global_task_buffer.get_async_results(async_id)
 
     # requests whose handler stores a structured payload get that payload at the top level
     try:

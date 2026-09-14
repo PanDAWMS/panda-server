@@ -232,7 +232,7 @@ def submit_change_staging_destination(req: PandaRequest, request_id: int | None 
 
     Asynchronous flavour of `change_staging_destination`: the request is registered in DB and
     processed by the async request daemon, so the call returns without waiting for DDM or iDDS.
-    Poll `/v1/async_process/get_result` with the returned async_id as its request_id to get the
+    Poll `/v1/async_process/get_result` with the returned async_id to get the
     outcome; it reports the operation's own success, message and data at the top level.
     Requires a secure connection production role.
 
@@ -267,7 +267,7 @@ def submit_change_staging_source(
 
     Asynchronous flavour of `change_staging_source`: the request is registered in DB and
     processed by the async request daemon, so the call returns without waiting for DDM or iDDS.
-    Poll `/v1/async_process/get_result` with the returned async_id as its request_id to get the
+    Poll `/v1/async_process/get_result` with the returned async_id to get the
     outcome; it reports the operation's own success, message and data at the top level.
     Requires a secure connection production role.
 
@@ -308,7 +308,7 @@ def submit_force_to_staging(req: PandaRequest, request_id: int | None = None, da
 
     Asynchronous flavour of `force_to_staging`: the request is registered in DB and processed
     by the async request daemon, so the call returns without waiting for DDM or iDDS.
-    Poll `/v1/async_process/get_result` with the returned async_id as its request_id to get the
+    Poll `/v1/async_process/get_result` with the returned async_id to get the
     outcome; it reports the operation's own success, message and data at the top level.
     Requires a secure connection production role.
 
@@ -336,7 +336,7 @@ def submit_retire_unused(req: PandaRequest, request_id: int | None = None, datas
 
     Asynchronous flavour of `retire_unused`: the request is registered in DB and processed by
     the async request daemon, so the call returns without waiting for DDM or iDDS.
-    Poll `/v1/async_process/get_result` with the returned async_id as its request_id to get the
+    Poll `/v1/async_process/get_result` with the returned async_id to get the
     outcome; it reports the operation's own success, message and data at the top level.
     Requires a secure connection production role.
 

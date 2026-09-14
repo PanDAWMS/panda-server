@@ -125,7 +125,7 @@ class TestDataCarouselAsyncAPI(unittest.TestCase):
         deadline = time.time() + POLL_TIMEOUT_SECONDS
         output: dict[str, Any]
         while time.time() < deadline:
-            status, output = self.http_client.get(url, {"request_id": async_id})
+            status, output = self.http_client.get(url, {"async_id": async_id})
             print(status, output)
             # async_meta is present whenever the poll itself succeeded
             self.assertIn("async_meta", output)

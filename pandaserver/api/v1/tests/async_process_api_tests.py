@@ -6,6 +6,7 @@ import json
 import socket
 import unittest
 import uuid
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest import mock
 
@@ -124,7 +125,7 @@ class TestAsyncProcessAPI(unittest.TestCase):
         status, output = self.http_client.post(full_url, data)
         print(output)
         self.assertTrue(output["success"])
-        self.assertIsInstance(output["data"]["request_id"], str)
+        self.assertIsInstance(output["data"]["async_id"], str)
 
     def test_submit_grep_request_success(self) -> None:
         full_url = f"{api_url_ssl}/async_process/submit_grep_request"
@@ -138,9 +139,11 @@ class TestAsyncProcessAPI(unittest.TestCase):
         print(output)
         self.assertTrue(output["success"])
         self.assertIsInstance(output["data"], dict)
-        request_id = output["data"]["request_id"]
-        self.assertIsInstance(request_id, str)
-        self.assertEqual(len(request_id), 36)
+        async_id = output["data"]["async_id"]
+        self.assertIsInstance(async_id, str)
+        self.assertEqual(len(async_id), 36)
+        # the pre-rename key is still served alongside it
+        self.assertEqual(output["data"]["request_id"], async_id)
 
     def test_get_result_not_found(self) -> None:
         missing_id = str(uuid.uuid4())
@@ -148,12 +151,12 @@ class TestAsyncProcessAPI(unittest.TestCase):
             with self.subTest(base_url=url):
                 full_url = f"{url}/async_process/get_result"
                 print(f"Testing URL: {full_url}")
-                data = {"request_id": missing_id}
+                data = {"async_id": missing_id}
                 status, output = self.http_client.get(full_url, data)
                 print(output)
                 expected_response = {
                     "success": False,
-                    "message": f"request_id '{missing_id}' not found",
+                    "message": f"async_id '{missing_id}' not found",
                     "data": None,
                 }
                 self.assertEqual(output, expected_response)
@@ -170,11 +173,11 @@ class TestAsyncProcessAPI(unittest.TestCase):
         print(submit_output)
         if not submit_output.get("success"):
             raise unittest.SkipTest(f"submit_grep_request did not succeed: {submit_output.get('message')}")
-        request_id = submit_output["data"]["request_id"]
+        async_id = submit_output["data"]["async_id"]
 
         get_url = f"{api_url_ssl}/async_process/get_result"
         print(f"Testing URL: {get_url}")
-        status, output = self.http_client.get(get_url, {"request_id": request_id})
+        status, output = self.http_client.get(get_url, {"async_id": async_id})
         print(output)
         self.assertTrue(output["success"])
         self.assertIsInstance(output["data"], dict)
@@ -207,9 +210,11 @@ class TestAsyncProcessAPI(unittest.TestCase):
         if not output.get("success"):
             raise unittest.SkipTest(f"submit_sleep_echo_request did not succeed: {output.get('message')}")
         self.assertIsInstance(output["data"], dict)
-        request_id = output["data"]["request_id"]
-        self.assertIsInstance(request_id, str)
-        self.assertEqual(len(request_id), 36)
+        async_id = output["data"]["async_id"]
+        self.assertIsInstance(async_id, str)
+        self.assertEqual(len(async_id), 36)
+        # the pre-rename key is still served alongside it
+        self.assertEqual(output["data"]["request_id"], async_id)
 
 
 class TestAsyncAccessControl(unittest.TestCase):
@@ -277,6 +282,11 @@ class TestStructuredResult(unittest.TestCase):
     """Unit tests for the structured-payload shape of get_result (no live server needed)."""
 
     REQUEST_ROW = {"request_type": "dc_force_to_staging", "parameters": json.dumps({"requester": "alice", "access": "production", "structured_result": True})}
+
+    @staticmethod
+    def _request() -> PandaRequest:
+        """A request the endpoint decorator lets through: secure, GET, and not a limited proxy."""
+        return cast(PandaRequest, SimpleNamespace(subprocess_env={"REQUEST_METHOD": "GET", "SSL_CLIENT_S_DN": "/CN=alice"}))
 
     def _result_row(self, **over: Any) -> dict[str, Any]:
         row = {
@@ -350,7 +360,7 @@ class TestStructuredResult(unittest.TestCase):
             mock.patch.object(async_process_api, "global_task_buffer", task_buffer),
             mock.patch.object(async_process_api, "is_authorized_to_read", return_value=(True, "ok")),
         ):
-            out = async_process_api.get_result(object(), request_id="some-uuid")
+            out = async_process_api.get_result(self._request(), async_id="some-uuid")
         self.assertIn("async_meta", out)
 
         # without the flag the request keeps the per-machine shape
@@ -361,10 +371,40 @@ class TestStructuredResult(unittest.TestCase):
             mock.patch.object(async_process_api, "global_task_buffer", task_buffer),
             mock.patch.object(async_process_api, "is_authorized_to_read", return_value=(True, "ok")),
         ):
-            out = async_process_api.get_result(object(), request_id="some-uuid")
+            out = async_process_api.get_result(self._request(), async_id="some-uuid")
         self.assertNotIn("async_meta", out)
         self.assertEqual(out["data"]["overall_status"], "complete")
         self.assertEqual(out["data"]["results"][0]["result"], "matched line")
+
+    def _poll(self, **kwargs: Any) -> tuple[dict[str, Any], mock.MagicMock]:
+        """Call get_result with whatever id keywords are given, against a request that is done."""
+        task_buffer = mock.MagicMock()
+        task_buffer.get_async_request.return_value = self.REQUEST_ROW
+        task_buffer.get_async_results.return_value = [self._result_row()]
+        with (
+            mock.patch.object(async_process_api, "global_task_buffer", task_buffer),
+            mock.patch.object(async_process_api, "is_authorized_to_read", return_value=(True, "ok")),
+        ):
+            return async_process_api.get_result(self._request(), **kwargs), task_buffer
+
+    def test_pre_rename_request_id_still_polls(self) -> None:
+        # a caller that has not moved off request_id must get the same answer as one sending async_id
+        out, task_buffer = self._poll(request_id="some-uuid")
+        self.assertEqual(out["async_meta"]["status"], "done")
+        task_buffer.get_async_request.assert_called_once_with("some-uuid")
+
+    def test_async_id_wins_over_the_pre_rename_name(self) -> None:
+        out, task_buffer = self._poll(async_id="new-uuid", request_id="old-uuid")
+        self.assertEqual(out["async_meta"]["status"], "done")
+        task_buffer.get_async_request.assert_called_once_with("new-uuid")
+
+    def test_neither_id_is_a_poll_failure(self) -> None:
+        out, task_buffer = self._poll()
+        self.assertFalse(out["success"])
+        self.assertEqual(out["message"], "async_id must be provided")
+        # nothing was looked up, so the caller cannot read the miss as "request not found"
+        task_buffer.get_async_request.assert_not_called()
+        self.assertNotIn("async_meta", out)
 
 
 # Run tests
