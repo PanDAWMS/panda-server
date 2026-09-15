@@ -115,7 +115,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                 sqlC += "SELECT j.PandaID FROM ATLAS_PANDA.jobsDefined4 j, w "
                 sqlC += "WHERE j.PandaID=w.PandaID  "
                 sqlC += "AND NOT j.jobStatus IN (:jobStatus1,:jobStatus2) "
-                sqlC += ") "
+                sqlC += ") t "
                 var_map = {}
                 var_map[":jobStatus1"] = "failed"
                 var_map[":jobStatus2"] = "merging"
@@ -568,7 +568,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
             "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
             "WHERE computingSite=:computingSite "
             "AND gshare=:gshare AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) "
-            ") ORDER BY PandaID "
+            ") t ORDER BY PandaID "
             ") WHERE rownum<:nRows "
         )
         nQueueLimitMap = {}
