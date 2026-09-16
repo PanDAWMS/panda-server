@@ -1362,7 +1362,7 @@ class TaskStandaloneModule(BaseModule):
             resList = self.cur.fetchall()
             # update modtime to avoid immediate reattempts
             sqlOrpU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationtime=CURRENT_DATE "
-            sqlOrpU += "WHERE jediTaskID=:jediTaskID AND status IN modificationtime<:timeLimit "
+            sqlOrpU += "WHERE jediTaskID=:jediTaskID AND modificationtime<:timeLimit "
             for jediTaskID, splitRule, taskStatus, parent_tid in resList:
                 varMap = {}
                 varMap[":jediTaskID"] = jediTaskID
