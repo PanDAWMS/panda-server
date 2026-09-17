@@ -769,6 +769,7 @@ class AtlasDDMClient(DDMClientBase):
             return errCode, f"{methodName} : {errMsg}"
 
     # expand Container
+    # on success the payload is a tuple of (expanded dataset names, real container/dataset names)
     def expandContainer(self, containerName: str) -> tuple[StatusCode, Any]:
         methodName = "expandContainer"
         methodName += f" pid={self.pid}"
@@ -816,7 +817,7 @@ class AtlasDDMClient(DDMClientBase):
             ds_list = [k for k in sorted(ds_size_map, key=lambda k: ds_size_map[k], reverse=True)]
             # return
             tmpLog.debug(f"real names: {str(real_name_list)}, expanded list: {str(ds_list)}")
-            return self.SC_SUCCEEDED, ds_list, real_name_list
+            return self.SC_SUCCEEDED, (ds_list, real_name_list)
         except Exception as e:
             errType = e
             errCode, errMsg = self.checkError(errType)
