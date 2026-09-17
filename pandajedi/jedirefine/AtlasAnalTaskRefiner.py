@@ -4,7 +4,7 @@ import re
 import traceback
 from typing import Any
 
-from pandajedi.jedicore import Interaction
+from pandajedi.jedicore import Interaction, JediException
 from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandaserver.config import panda_config
@@ -269,6 +269,9 @@ class AtlasAnalTaskRefiner(TaskRefinerBase):
             if self.taskSpec.inputPreStaging():
                 # set first contents feed flag
                 self.taskSpec.set_first_contents_feed(True)
+        except JediException.UnknownDatasetError as e:
+            tmpLog.debug(f"in doRefine. {str(e)}")
+            raise e
         except Exception as e:
             errStr = f"doRefine failed with {str(e)}"
             tmpLog.error(f"{errStr} {traceback.format_exc()}")
