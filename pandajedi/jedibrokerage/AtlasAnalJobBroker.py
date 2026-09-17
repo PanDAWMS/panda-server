@@ -2335,6 +2335,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 below_min_weight.append(tmpSiteName)
                 continue
             # set available files
+            logger.debug(f"{tmpPseudoSiteName} has use_only_local_data set to {tmpSiteSpec.use_only_local_data()}")
             if inputChunk.getDatasets() == [] or (not checkDataLocality and not tmpSiteSpec.use_only_local_data()):
                 isAvailable = True
             else:
