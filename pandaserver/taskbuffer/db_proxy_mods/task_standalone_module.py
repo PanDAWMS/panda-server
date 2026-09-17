@@ -1339,12 +1339,14 @@ class TaskStandaloneModule(BaseModule):
                     self._rollback()
             # find orphaned tasks to rescue
             self.conn.begin()
+            time_limit = naive_utcnow() - datetime.timedelta(minutes=10)
             varMap = {}
             varMap[":status1"] = "registered"
             varMap[":status2"] = JediTaskSpec.commandStatusMap()["incexec"]["done"]
             varMap[":status3"] = "staged"
-            varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=10)
-            sqlOrpS = "SELECT tabT.jediTaskID,tabT.splitRule,tabT.status,tabT.parent_tid "
+            varMap[":timeLimit"] = time_limit
+            sqlOrpS = "SELECT * FROM ("
+            sqlOrpS += "SELECT tabT.jediTaskID,tabT.splitRule,tabT.status,tabT.parent_tid "
             sqlOrpS += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
             sqlOrpS += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
             sqlOrpS += "AND tabT.status IN (:status1,:status2,:status3) AND tabT.modificationtime<:timeLimit "
@@ -1354,16 +1356,17 @@ class TaskStandaloneModule(BaseModule):
             if prodSourceLabel is not None:
                 sqlOrpS += "AND prodSourceLabel=:prodSourceLabel "
                 varMap[":prodSourceLabel"] = prodSourceLabel
-            sqlOrpS += "FOR UPDATE "
+            sqlOrpS += "ORDER BY tabT.modificationtime) WHERE rownum<1000 "
             tmpLog.debug(sqlOrpS + comment + str(varMap))
             self.cur.execute(sqlOrpS + comment, varMap)
             resList = self.cur.fetchall()
             # update modtime to avoid immediate reattempts
             sqlOrpU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationtime=CURRENT_DATE "
-            sqlOrpU += "WHERE jediTaskID=:jediTaskID "
+            sqlOrpU += "WHERE jediTaskID=:jediTaskID AND modificationtime<:timeLimit "
             for jediTaskID, splitRule, taskStatus, parent_tid in resList:
                 varMap = {}
                 varMap[":jediTaskID"] = jediTaskID
+                varMap[":timeLimit"] = time_limit
                 tmpLog.debug(sqlOrpU + comment + str(varMap))
                 self.cur.execute(sqlOrpU + comment, varMap)
                 nRow = self.cur.rowcount
