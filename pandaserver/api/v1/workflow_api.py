@@ -309,3 +309,98 @@ def submit_workflow_description(req: PandaRequest, workflow_description: dict[st
     tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
 
     return generate_response(success, message, data)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_step_relations(req: PandaRequest, workflow_id: int) -> dict[str, Any]:
+    """
+    Get which step of a workflow feeds which
+
+    The workflow engine is data-driven: a step starts because its inputs are ready, not because a
+    parent step finished, so it holds no step-to-step edge of its own. This derives them from what
+    it does hold, and answers for a running workflow as readily as for a finished one. Requires a
+    secure connection.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/workflow/get_step_relations
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        workflow_id(int): ID of the workflow to report on
+
+    Returns:
+        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`.
+              When successful, data holds {"workflow_id": int, "steps": [...]}, one entry per step
+              in step_id order, each with step_id, name, type, flavor, status, target_id and
+              parent_step_ids. A step taking only data produced outside the workflow has no parent,
+              and a step that has not started yet has no target_id.
+    """
+    tmp_logger = LogWrapper(_logger, f"get_step_relations < workflow_id={workflow_id} >")
+    tmp_logger.debug("Start")
+
+    relations = global_wfif.get_step_relations(workflow_id)
+    if relations is None:
+        tmp_logger.debug("Done, nothing to report")
+        return generate_response(False, message="No step found for the workflow")
+
+    tmp_logger.debug(f"Done, {len(relations['steps'])} steps")
+    return generate_response(True, data=relations)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_task_relations(req: PandaRequest, workflow_id: int | None = None, task_id: int | None = None) -> dict[str, Any]:
+    """
+    Get which JEDI task of a workflow feeds which
+
+    The task-level view of get_step_relations, for consumers that model a chain as related tasks.
+    A step running something other than a JEDI task is collapsed, so the relation passes through it
+    rather than leaving a gap, and a step running a nested workflow is replaced by the tasks inside
+    it. A step not yet submitted is reported with task_id None, so that a task whose producer has
+    not started is not mistaken for one with no producer. Requires a secure connection.
+
+    Give either workflow_id, for a whole chain, or task_id, to enter at a task without knowing
+    which workflow it belongs to.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/workflow/get_task_relations
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        workflow_id(int|None): ID of the workflow to report on
+        task_id(int|None): JEDI task ID to report the workflow of, instead of workflow_id
+
+    Returns:
+        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`.
+              When successful, data holds {"workflow_id": int, "tasks": [...]}, parents first, each
+              entry with key, task_id, workflow_id, step_id, name, flavor, status and parents.
+              Parents are named by key rather than by task ID, since a task not yet submitted has
+              no ID to be named by; every entry carries its own task_id. Entering by task_id adds
+              "asked_for", the key of the task asked about.
+    """
+    tmp_logger = LogWrapper(_logger, f"get_task_relations < workflow_id={workflow_id} task_id={task_id} >")
+    tmp_logger.debug("Start")
+
+    if workflow_id is not None and task_id is not None:
+        message = "Give either workflow_id or task_id, not both"
+        tmp_logger.error(message)
+        return generate_response(False, message=message)
+
+    if task_id is not None:
+        relations = global_wfif.get_task_relations_of_task(task_id)
+        not_found_message = "No workflow step runs this task"
+    elif workflow_id is not None:
+        relations = global_wfif.get_task_relations(workflow_id)
+        not_found_message = "No step found for the workflow"
+    else:
+        message = "Either workflow_id or task_id is required"
+        tmp_logger.error(message)
+        return generate_response(False, message=message)
+
+    if relations is None:
+        tmp_logger.debug("Done, nothing to report")
+        return generate_response(False, message=not_found_message)
+
+    tmp_logger.debug(f"Done, {len(relations['tasks'])} tasks")
+    return generate_response(True, data=relations)

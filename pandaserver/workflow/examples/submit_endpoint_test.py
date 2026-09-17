@@ -139,6 +139,8 @@ class FakeWorkflowInterface:
     def __init__(self, workflow_id=4242):
         self.workflow_id = workflow_id
         self.calls = []
+        self.step_relations = {"workflow_id": 133, "steps": [{"step_id": 516, "name": "evgen", "parent_step_ids": []}]}
+        self.task_relations = {"workflow_id": 133, "tasks": [{"key": "133:516", "task_id": 52382519, "name": "evgen", "parents": []}]}
 
     def register_workflow(
         self, prodsourcelabel, user_dn, workflow_name=None, workflow_definition=None, raw_request_params=None, prod_role=False, fqans=None, *args, **kwargs
@@ -154,6 +156,20 @@ class FakeWorkflowInterface:
             }
         )
         return self.workflow_id
+
+    # The relation queries. Each returns whatever was put on the fake, so the endpoints can be
+    # checked on how they pass arguments through and how they report nothing found.
+    def get_step_relations(self, workflow_id):
+        self.calls.append({"get_step_relations": workflow_id})
+        return self.step_relations
+
+    def get_task_relations(self, workflow_id):
+        self.calls.append({"get_task_relations": workflow_id})
+        return self.task_relations
+
+    def get_task_relations_of_task(self, task_id):
+        self.calls.append({"get_task_relations_of_task": task_id})
+        return self.task_relations
 
 
 def install(existing=None, fail=False, workflow_id=4242):
@@ -281,6 +297,36 @@ def main():
     failures += not check("raw request path does not validate a description", "workflow_description" not in wfif.calls[0]["raw_request_params"])
 
     print("\n=== routing ===")
+    print("\n=== get_step_relations ===")
+    _, wfif = install()
+    res = workflow_api.get_step_relations(cast(Any, None), 133)
+    failures += not check("succeeds", res["success"] is True, res)
+    failures += not check("the workflow id is passed through", wfif.calls[-1] == {"get_step_relations": 133}, wfif.calls[-1])
+    failures += not check("the relations are the data", res["data"]["steps"][0]["name"] == "evgen", res["data"])
+    _, wfif = install()
+    wfif.step_relations = None
+    res = workflow_api.get_step_relations(cast(Any, None), 999)
+    failures += not check("nothing found is a failure with a reason", res["success"] is False and "No step" in res["message"], res)
+
+    print("\n=== get_task_relations ===")
+    _, wfif = install()
+    res = workflow_api.get_task_relations(cast(Any, None), workflow_id=133)
+    failures += not check("by workflow id", res["success"] is True and wfif.calls[-1] == {"get_task_relations": 133}, wfif.calls[-1])
+    _, wfif = install()
+    res = workflow_api.get_task_relations(cast(Any, None), task_id=52401216)
+    failures += not check("by task id, through the other method", wfif.calls[-1] == {"get_task_relations_of_task": 52401216}, wfif.calls[-1])
+    failures += not check("...and succeeds", res["success"] is True, res)
+    _, wfif = install()
+    res = workflow_api.get_task_relations(cast(Any, None))
+    failures += not check("neither given is refused", res["success"] is False and "required" in res["message"], res)
+    failures += not check("...without reaching the interface", not any("get_task" in str(call) for call in wfif.calls), wfif.calls)
+    res = workflow_api.get_task_relations(cast(Any, None), workflow_id=133, task_id=52401216)
+    failures += not check("both given is refused", res["success"] is False and "not both" in res["message"], res)
+    _, wfif = install()
+    wfif.task_relations = None
+    res = workflow_api.get_task_relations(cast(Any, None), task_id=52401216)
+    failures += not check("a task no workflow runs is a failure with a reason", res["success"] is False and "runs this task" in res["message"], res)
+
     # extract_allowed_methods lives in the stubbed common module, so apply its rule directly:
     # module-level functions defined in this module whose name does not start with an underscore
     import inspect
@@ -299,6 +345,11 @@ def main():
         sorted(exported),
     )
     failures_local += not check("the deprecated alias is still routed", "submit_workflow_raw_request" in exported)
+    failures_local += not check(
+        "the relation endpoints are routed",
+        {"get_step_relations", "get_task_relations"} <= set(exported),
+        sorted(exported),
+    )
     failures_local += not check("private helpers not routed", not any(n.startswith("_") for n in exported))
     failures_local += not check(
         "imported helpers not routed",
