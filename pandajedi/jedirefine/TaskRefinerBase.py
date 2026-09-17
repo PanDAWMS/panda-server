@@ -624,7 +624,7 @@ class TaskRefinerBase(object):
                                 raise JediException.ExternalTempError(errStr)
                             tmpDsListInCont = tmpIF.listDatasetsInContainer(containerName)
                             for tmpContName in datasetNameList:
-                                tmpDsNameList = tmpIF.expandContainer(tmpContName)
+                                tmpDsNameList, _ = tmpIF.expandContainer(tmpContName)
                                 for tmpDsName in tmpDsNameList:
                                     if tmpDsName not in tmpDsListInCont:
                                         tmpStat = tmpIF.addDatasetsToContainer(containerName, [tmpDsName])
@@ -653,7 +653,7 @@ class TaskRefinerBase(object):
                                 tmpDatasetNameList = []
                             else:
                                 # get datasets in dataset container
-                                dataset_names_in_container = tmpIF.expandContainer(datasetName)
+                                dataset_names_in_container, real_name_list = tmpIF.expandContainer(datasetName)
                                 self.tmpLog.debug("2")
                                 # sort datasets to process online complete replicas first
                                 tmp_ok_list: list[Any] = []
@@ -687,10 +687,8 @@ class TaskRefinerBase(object):
                                     tmpDatasetNameList = dataset_names_in_container
                                 else:
                                     # normal dataset name
-                                    self.tmpLog.debug("5")
-                                    tmpDatasetNameList = tmpIF.listDatasets(datasetName)
+                                    tmpDatasetNameList = real_name_list
                                     constituent_dataset_names_not_used_as_input = [i for i in dataset_names_in_container if i not in tmpDatasetNameList]
-                                    self.tmpLog.debug("6")
                         self.tmpLog.debug("loop over all element names")                    
                         i_element = 0
                         for elementDatasetName in tmpDatasetNameList:

@@ -778,12 +778,12 @@ class AtlasDDMClient(DDMClientBase):
         try:
             ds_size_map = {}
             # get real names
-            tmpS, tmpRealNameList = self.listDatasets(containerName)
+            tmpS, real_name_list = self.listDatasets(containerName)
             if tmpS != self.SC_SUCCEEDED:
                 tmpLog.error("failed to get real names")
-                return tmpS, tmpRealNameList
+                return tmpS, real_name_list
             # loop over all names
-            for tmpRealName in tmpRealNameList:
+            for tmpRealName in real_name_list:
                 # container
                 if tmpRealName.endswith("/"):
                     # get contents
@@ -815,8 +815,8 @@ class AtlasDDMClient(DDMClientBase):
             # reverse sort by size to have larger datasets first
             ds_list = [k for k in sorted(ds_size_map, key=lambda k: ds_size_map[k], reverse=True)]
             # return
-            tmpLog.debug(f"got {str(ds_list)}")
-            return self.SC_SUCCEEDED, ds_list
+            tmpLog.debug(f"real names: {str(real_name_list)}, expanded list: {str(ds_list)}")
+            return self.SC_SUCCEEDED, ds_list, real_name_list
         except Exception as e:
             errType = e
             errCode, errMsg = self.checkError(errType)
