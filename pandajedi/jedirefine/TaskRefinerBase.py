@@ -506,6 +506,7 @@ class TaskRefinerBase(object):
 
     # basic refinement procedure
     def doBasicRefine(self, taskParamMap: dict[str, Any]) -> None:
+        self.tmpLog.debug("start basic refinement")
         # get input/output/log dataset specs
         nIn = 0
         nOutMap = {}
@@ -613,6 +614,7 @@ class TaskRefinerBase(object):
                                 datasetNameList.append(tmpDatasetName)
                     # consolidation
                     if len(datasetNameList) > 1 and "consolidate" in tmpItem:
+                        self.tmpLog.debug("consolidation")
                         tmpIF = self.ddmIF.getInterface(self.taskSpec.vo, self.taskSpec.cloud)
                         if tmpIF:
                             containerName = tmpItem["consolidate"]
@@ -632,6 +634,7 @@ class TaskRefinerBase(object):
                             datasetNameList = [containerName]
                     # loop over all dataset names
                     inDatasetSpecList = []
+                    self.tmpLog.debug("loop over all datasets")
                     for datasetName in datasetNameList:
                         # skip empty
                         if datasetName == "":
@@ -682,6 +685,7 @@ class TaskRefinerBase(object):
                                     # normal dataset name
                                     tmpDatasetNameList = tmpIF.listDatasets(datasetName)
                                     constituent_dataset_names_not_used_as_input = [i for i in dataset_names_in_container if i not in tmpDatasetNameList]
+                        self.tmpLog.debug("loop over all element names")                    
                         i_element = 0
                         for elementDatasetName in tmpDatasetNameList:
                             if elementDatasetName not in tmpItem["expandedList"]:
@@ -708,6 +712,7 @@ class TaskRefinerBase(object):
                             inDatasetSpecList.append(inDatasetSpec)
                             i_element += 1
                     # empty input
+                    self.tmpLog.debug("check empty input")
                     if inDatasetSpecList == [] and self.oldTaskStatus != "rerefine":
                         errStr = f'doBasicRefine : unknown input dataset "{datasetSpec.datasetName}"'
                         self.taskSpec.setErrDiag(errStr)
