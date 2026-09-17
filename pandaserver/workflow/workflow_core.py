@@ -88,6 +88,16 @@ PLUGIN_RAW_MAP = {
 # handled natively by definition, and flavor is the value get_plugin() looks up.
 NATIVE_SUB_WORKFLOW_STEP_FLAVORS = ("sub_workflow", "scatter_child")
 
+# Step flavors whose target is a JEDI task. Only these become nodes of the task-level relation
+# report; every other flavor is either descended into, when it runs a nested workflow, or collapsed
+# so that the relation passes through it. Add a flavor here when its target is a JEDI task.
+JEDI_TASK_STEP_FLAVORS = ("panda_task",)
+
+# How far get_task_relations descends into nested workflows. A workflow holding a workflow is
+# normal; one nested this deep is a loop or a mistake, and recursing without a floor would hang the
+# caller rather than report it.
+MAX_TASK_RELATION_DEPTH = 10
+
 
 # Global variable to cache the flavor to plugin class map, initialized lazily in _get_flavor_plugin_class_map
 _flavor_plugin_class_map_cache = None
@@ -575,6 +585,261 @@ class WorkflowInterface(object):
         except Exception as e:
             tmp_log.error(f"Got error {str(e)}")
             return False
+
+    # --- Relation queries -------------------------------------
+
+    def get_step_relations(self, workflow_id: int) -> dict[str, Any] | None:
+        """
+        Report which steps of a workflow feed which, derived from the data passed between them
+
+        The engine never needs this: a step starts because its inputs are good, not because a
+        parent step finished. It exists for consumers that model a chain as steps or tasks related
+        to each other, DEFT above all, whose bookkeeping is built on a parent task per task.
+
+        The relation is therefore derived on every call and never stored. A stored copy would be a
+        second version of the truth that nothing in the engine reads, so nothing in the engine
+        would keep it correct. What it is derived from is already recorded: each datum knows the
+        step that produces it, and each step's definition names the data it consumes.
+
+        A step's parents are the steps producing the data it takes in. An input produced outside
+        the workflow contributes no parent, which is why an entry step reports none rather than
+        reporting itself. Answering for a running workflow is the same derivation: a step that has
+        not started yet has no target_id, while its place in the graph is already known.
+
+        The answer covers one workflow. A step that runs a nested workflow is reported as itself,
+        with its child workflow id in target_id and a flavor saying so, so a caller that wants the
+        steps inside can ask for that workflow in turn.
+
+        Args:
+            workflow_id (int): ID of the workflow to report on
+
+        Returns:
+            dict | None: {"workflow_id": int, "steps": [...]}, one entry per step in step_id order,
+                each with step_id, name, type, flavor, status, target_id and parent_step_ids;
+                None if the workflow has no steps or the lookup failed
+        """
+        tmp_log = LogWrapper(logger, f"get_step_relations <workflow_id={workflow_id}>")
+        try:
+            step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_id)
+            if not step_specs:
+                tmp_log.warning("No step found for the workflow")
+                return None
+            data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_id) or []
+            # source_step_id is set when a step binds its output, so this maps each datum produced
+            # inside the workflow to its producer. Data names are unique within a workflow, which
+            # is what lets a step's input_data_dict name them.
+            producer_of_data = {data_spec.name: data_spec.source_step_id for data_spec in data_specs}
+            known_step_ids = {step_spec.step_id for step_spec in step_specs}
+            steps = []
+            for step_spec in step_specs:
+                parent_step_ids = set()
+                for input_data_name in step_spec.definition_json_map.get("input_data_dict", {}):
+                    if input_data_name not in producer_of_data:
+                        # an input the workflow does not carry as data at all
+                        tmp_log.debug(f"step_id={step_spec.step_id} takes unknown data {input_data_name}; no parent from it")
+                        continue
+                    source_step_id = producer_of_data[input_data_name]
+                    if source_step_id is None:
+                        # produced outside this workflow, so no parent inside it
+                        continue
+                    if source_step_id == step_spec.step_id:
+                        # a step consuming what it produces would be a cycle; report the relation
+                        # rather than the loop, since a consumer walking parents would not return
+                        tmp_log.warning(f"step_id={step_spec.step_id} is recorded as producing its own input {input_data_name}; not reported as its own parent")
+                        continue
+                    if source_step_id not in known_step_ids:
+                        tmp_log.warning(f"data {input_data_name} names producing step_id={source_step_id}, which is not in this workflow; skipped")
+                        continue
+                    parent_step_ids.add(source_step_id)
+                steps.append(
+                    {
+                        "step_id": step_spec.step_id,
+                        "name": step_spec.name,
+                        "type": step_spec.type,
+                        "flavor": step_spec.flavor,
+                        "status": step_spec.status,
+                        "target_id": step_spec.target_id,
+                        "parent_step_ids": sorted(parent_step_ids),
+                    }
+                )
+            tmp_log.debug(f"Reported {len(steps)} steps")
+            return {"workflow_id": workflow_id, "steps": steps}
+        except Exception:
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+            return None
+
+    def get_task_relations_of_task(self, task_id: int) -> dict[str, Any] | None:
+        """
+        Report the task relations of the workflow a given JEDI task belongs to
+
+        The entry point for a consumer that knows a task ID and not a workflow ID, which is how
+        DEFT comes in. The answer is the whole workflow rather than that task's parents alone,
+        since a consumer asking about one task almost always wants the chain around it, and the
+        derivation costs the same either way.
+
+        Args:
+            task_id (int): JEDI task ID to find the workflow of
+
+        Returns:
+            dict | None: As get_task_relations, with the task's own key added under "asked_for";
+                None when no workflow step runs that task, or the lookup failed
+        """
+        tmp_log = LogWrapper(logger, f"get_task_relations_of_task <task_id={task_id}>")
+        try:
+            step_specs = self.tbif.get_steps_by_target_id(str(task_id), list(JEDI_TASK_STEP_FLAVORS))
+            if not step_specs:
+                tmp_log.debug("No workflow step runs this task")
+                return None
+            if len(step_specs) > 1:
+                # target_id is not unique: the same task can be named by a step in more than one
+                # workflow, e.g. after a retry. Report the most recent and say which were passed over.
+                tmp_log.warning(f"task is run by steps {[s.step_id for s in step_specs]}; reporting the workflow of the last")
+            step_spec = step_specs[-1]
+            relations = self.get_task_relations(step_spec.workflow_id)
+            if relations is None:
+                return None
+            relations["asked_for"] = f"{step_spec.workflow_id}:{step_spec.step_id}"
+            return relations
+        except Exception:
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+            return None
+
+    def get_task_relations(self, workflow_id: int, _depth: int = 0) -> dict[str, Any] | None:
+        """
+        Report which JEDI task of a workflow feeds which, for consumers that model chains as tasks
+
+        This is get_step_relations projected onto the steps that run a JEDI task. The projection is
+        a closure, not a filter: a step that runs something other than a task is collapsed, so a
+        chain of task -> other -> task is reported as one relation between the two tasks rather
+        than as a gap. A step that runs a nested workflow is replaced by the tasks inside it, which
+        is why this recurses. Both rules exist so that the answer stays complete as the engine
+        gains step targets that are not JEDI tasks.
+
+        A step that has not been submitted yet has no task, and is reported as a placeholder with
+        task_id None. Dropping it instead would make a task whose producer has not started look
+        like a task with no producer at all, which is the one thing a consumer cannot recover.
+
+        Every node carries a key, unique across the workflows walked here, and names its parents by
+        key rather than by task ID, since a placeholder has no ID to be named by. Resolving a key
+        to a task is a lookup in the returned list.
+
+        Args:
+            workflow_id (int): ID of the workflow to report on
+            _depth (int): Recursion depth into nested workflows; callers leave this alone
+
+        Returns:
+            dict | None: {"workflow_id": int, "tasks": [...]}, each entry with key, task_id,
+                workflow_id, step_id, name, flavor, status and parents; None if there is nothing
+                to report or the lookup failed
+        """
+        tmp_log = LogWrapper(logger, f"get_task_relations <workflow_id={workflow_id}>")
+        if _depth > MAX_TASK_RELATION_DEPTH:
+            tmp_log.error(f"Nested workflows deeper than {MAX_TASK_RELATION_DEPTH}; not descending further")
+            return None
+        relations = self.get_step_relations(workflow_id)
+        if relations is None:
+            return None
+        try:
+            step_specs = {step["step_id"]: step for step in relations["steps"]}
+            ordered_step_ids = self._order_steps_by_dependency(step_specs, tmp_log)
+            tasks: list[dict[str, Any]] = []
+            # What a consumer of each step should treat as its parents: the step's own task when it
+            # runs one, the tasks a nested workflow ends on, or -- for a step that is neither --
+            # whatever its own parents contribute, which is what collapses it.
+            exits_of_step: dict[int, list[str]] = {}
+            for step_id in ordered_step_ids:
+                step = step_specs[step_id]
+                parent_keys = sorted({key for parent_id in step["parent_step_ids"] for key in exits_of_step.get(parent_id, [])})
+                if step["flavor"] in JEDI_TASK_STEP_FLAVORS:
+                    key = f"{workflow_id}:{step_id}"
+                    tasks.append(
+                        {
+                            "key": key,
+                            "task_id": int(step["target_id"]) if step["target_id"] else None,
+                            "workflow_id": workflow_id,
+                            "step_id": step_id,
+                            "name": step["name"],
+                            "flavor": step["flavor"],
+                            "status": step["status"],
+                            "parents": parent_keys,
+                        }
+                    )
+                    exits_of_step[step_id] = [key]
+                elif step["flavor"] in NATIVE_SUB_WORKFLOW_STEP_FLAVORS and step["target_id"]:
+                    exits_of_step[step_id] = self._splice_child_workflow(step, parent_keys, tasks, _depth, tmp_log)
+                else:
+                    # Not a task and not a nested workflow we can descend into: the relation passes
+                    # through it, so its consumers inherit its own parents.
+                    exits_of_step[step_id] = parent_keys
+            tmp_log.debug(f"Reported {len(tasks)} tasks")
+            return {"workflow_id": workflow_id, "tasks": tasks}
+        except Exception:
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+            return None
+
+    def _splice_child_workflow(self, step: dict[str, Any], parent_keys: list[str], tasks: list[dict[str, Any]], depth: int, tmp_log: LogWrapper) -> list[str]:
+        """
+        Replace a nested-workflow step with the tasks inside it, and report what it ends on
+
+        The child's own entry tasks take this step's parents, so the chain crosses the boundary,
+        and the child's tail tasks become what this step's consumers see as their parents.
+
+        Args:
+            step (dict): The step entry whose target_id names the child workflow
+            parent_keys (list): Keys this step's own parents contribute
+            tasks (list): The task list being built, appended to in place
+            depth (int): Current recursion depth
+            tmp_log (LogWrapper): Logger
+
+        Returns:
+            list: Keys of the tasks the child workflow ends on; this step's own parents when the
+                child has nothing to report, so the relation still passes through
+        """
+        child_relations = self.get_task_relations(int(step["target_id"]), _depth=depth + 1)
+        if child_relations is None or not child_relations["tasks"]:
+            tmp_log.warning(f"step_id={step['step_id']} runs workflow {step['target_id']}, which reports no task; relation passed through it")
+            return parent_keys
+        child_tasks = child_relations["tasks"]
+        has_parent_inside = {key for child_task in child_tasks for key in child_task["parents"]}
+        for child_task in child_tasks:
+            if not child_task["parents"]:
+                # an entry task of the child: its producers are outside, in this workflow
+                child_task["parents"] = list(parent_keys)
+            tasks.append(child_task)
+        # what the child ends on: the tasks nothing inside it consumes
+        return sorted(child_task["key"] for child_task in child_tasks if child_task["key"] not in has_parent_inside)
+
+    @staticmethod
+    def _order_steps_by_dependency(step_specs: dict[int, dict[str, Any]], tmp_log: LogWrapper) -> list[int]:
+        """
+        Order steps so that every step comes after the steps it takes input from
+
+        The projection resolves each step against what its parents already contributed, so it has
+        to see them first. Step IDs are close to this order but are not guaranteed to be in it,
+        and a description that somehow produced a cycle would otherwise be reported as a graph
+        with silently missing edges.
+
+        Args:
+            step_specs (dict): Map of step_id to the step entry from get_step_relations
+            tmp_log (LogWrapper): Logger
+
+        Returns:
+            list: Step IDs, parents before children; any step left over by a cycle is appended in
+                step_id order so it is still reported
+        """
+        remaining = {step_id: set(step["parent_step_ids"]) for step_id, step in step_specs.items()}
+        ordered = []
+        while remaining:
+            ready = sorted(step_id for step_id, parents in remaining.items() if not parents & remaining.keys())
+            if not ready:
+                # a cycle: report what is left rather than dropping it, and say so
+                tmp_log.error(f"steps {sorted(remaining)} form a dependency cycle; reported in step_id order with edges into the cycle missing")
+                ordered.extend(sorted(remaining))
+                break
+            ordered.extend(ready)
+            for step_id in ready:
+                del remaining[step_id]
+        return ordered
 
     # ---- Sub-workflow ----------------------------------------
 

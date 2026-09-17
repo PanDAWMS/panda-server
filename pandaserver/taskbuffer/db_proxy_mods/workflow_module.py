@@ -106,6 +106,47 @@ class WorkflowModule(BaseModule):
         # no branch above produced a value, which the return type covers as None
         return None
 
+    def get_steps_by_target_id(self, target_id: str, flavor_filter_list: list[str] | None = None) -> list[WFStepSpec]:
+        """
+        Retrieve the workflow steps whose target is the given ID, e.g. the step that runs a task
+
+        This is the reverse of the usual direction: a consumer outside the engine knows a JEDI task
+        ID and needs the workflow it belongs to. A list is returned rather than one step, because
+        target_id is not declared unique: a step retried into a new workflow would name the same
+        task, and reporting only one of them would silently pick an attempt.
+
+        Note that target_id is not indexed, so this is a scan. It is meant for a consumer asking
+        about one task, not for a loop over many.
+
+        Args:
+            target_id (str): Target ID to look for, e.g. a JEDI task ID as a string
+            flavor_filter_list (list | None): Step flavors to restrict the search to (optional),
+                since the same value can name different kinds of target
+
+        Returns:
+            list[WFStepSpec]: Matching steps, oldest first; empty when none match
+        """
+        comment = " /* DBProxy.get_steps_by_target_id */"
+        tmp_log = self.create_tagged_logger(comment, f"target_id={target_id}")
+        sql = f"SELECT {WFStepSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflow_steps WHERE target_id=:target_id "
+        var_map: dict[str, Any] = {":target_id": target_id}
+        if flavor_filter_list:
+            flavor_var_names_str, flavor_var_map = get_sql_IN_bind_variables(flavor_filter_list, prefix=":flavor")
+            sql += f"AND flavor IN ({flavor_var_names_str}) "
+            var_map.update(flavor_var_map)
+        sql += "ORDER BY step_id "
+        self.cur.execute(sql + comment, var_map)
+        res_list = self.cur.fetchall()
+        if not res_list:
+            tmp_log.debug("no step found for the target")
+            return []
+        step_specs = []
+        for res in res_list:
+            step_spec = WFStepSpec()
+            step_spec.pack(res)
+            step_specs.append(step_spec)
+        return step_specs
+
     def get_workflow_data(self, data_id: int) -> WFDataSpec | None:
         """
         Retrieve a workflow data specification by its ID

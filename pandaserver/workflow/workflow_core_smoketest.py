@@ -1,12 +1,17 @@
 import argparse
 import json
 import sys
+from typing import TYPE_CHECKING
 
 from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer, taskBuffer
 from pandaserver.workflow.workflow_base import WFDataSpec, WFDataType, WFStepSpec
+
+if TYPE_CHECKING:
+    # imported inside main() at runtime, since importing it pulls in the DDM client
+    from pandaserver.workflow.workflow_core import WorkflowInterface
 
 
 def parse_args() -> argparse.Namespace:
@@ -20,6 +25,11 @@ def parse_args() -> argparse.Namespace:
             "    %(prog)s show 12345\n"
             "  advance it one step by hand instead of waiting for the WatchDog:\n"
             "    %(prog)s process 12345\n"
+            "  see which step feeds which, as a consumer outside the engine would ask:\n"
+            "    %(prog)s relations 12345\n"
+            "  the same as JEDI tasks only, which is the view DEFT wants:\n"
+            "    %(prog)s task_relations 12345\n"
+            "    %(prog)s task_relations --task-id 52401216\n"
             "  cancel it:\n"
             "    %(prog)s cancel_workflow 12345 --force\n"
         ),
@@ -27,7 +37,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "action",
-        choices=["submit_description", "show", "process", "cancel_workflow"],
+        choices=["submit_description", "show", "process", "relations", "task_relations", "cancel_workflow"],
         help="Action to perform in the smoke test",
     )
     parser.add_argument("workflow_id", nargs="?", help="Workflow ID the action applies to; not used by submit_description")
@@ -45,10 +55,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--prod-role", action="store_true", help="Record the submitter as holding a production role, for submit_description")
     parser.add_argument("--repeat", type=int, default=1, help="How many times process should advance the workflow")
+    parser.add_argument("--task-id", type=int, help="Enter by JEDI task ID instead of workflow ID, for task_relations")
     args = parser.parse_args()
     if args.action == "submit_description":
         if not args.wfd_file:
             parser.error("submit_description needs --wfd-file")
+    elif args.action == "task_relations" and args.task_id:
+        pass
     elif not args.workflow_id:
         parser.error(f"{args.action} needs a workflow_id")
     return args
@@ -105,6 +118,48 @@ def show_workflow(task_buffer: TaskBuffer, workflow_id: int) -> None:
     for data_spec in sorted(data_specs, key=data_sort_key):
         # target_id still holding ${TASKID} means the producing task has not been queued yet
         print(f"    {data_spec.name:<28} {data_spec.status:<20} {data_spec.type:<7} {data_spec.target_id}")
+
+
+def show_step_relations(wfif: "WorkflowInterface", workflow_id: int) -> None:
+    """Print which step feeds which, derived from the data passed between them"""
+    relations = wfif.get_step_relations(workflow_id)
+    if relations is None:
+        print(f"no step relations for workflow_id={workflow_id}")
+        return
+    steps = relations["steps"]
+    name_of_step = {step["step_id"]: step["name"] for step in steps}
+    print(f"workflow_id={relations['workflow_id']} step relations ({len(steps)}):")
+    print(f"    {'step':>4}  {'name':<24} {'status':<12} {'flavor':<13} {'target_id':<12} parents")
+    for step in steps:
+        # A step with no parent takes only data produced outside the workflow. A step that has not
+        # started has no target_id yet, while its place in the graph is already known.
+        parents = ", ".join(f"{name_of_step[parent]}({parent})" for parent in step["parent_step_ids"]) or "-"
+        print(f"    {step['step_id']!s:>4}  {step['name']:<24} {step['status']:<12} {step['flavor']:<13} {step['target_id'] or '-':<12} {parents}")
+
+
+def show_task_relations(wfif: "WorkflowInterface", workflow_id: int | None, task_id: int | None) -> None:
+    """Print the JEDI-task view: non-task steps collapsed, nested workflows descended into"""
+    if task_id is not None:
+        relations = wfif.get_task_relations_of_task(task_id)
+    elif workflow_id is not None:
+        relations = wfif.get_task_relations(workflow_id)
+    else:
+        # parse_args requires one of the two, so this is a programming error rather than misuse
+        raise ValueError("task_relations needs a workflow_id or --task-id")
+    if relations is None:
+        print(f"no task relations for {'task_id=' + str(task_id) if task_id is not None else 'workflow_id=' + str(workflow_id)}")
+        return
+    tasks = relations["tasks"]
+    name_of_key = {task["key"]: task["name"] for task in tasks}
+    asked_for = relations.get("asked_for")
+    print(f"workflow_id={relations['workflow_id']} task relations ({len(tasks)}):")
+    print(f"    {'task_id':<12} {'workflow':>8}  {'name':<24} {'status':<12} parents")
+    for task in tasks:
+        # No task_id means the step has not been submitted yet; the row is a placeholder so that
+        # a task whose producer has not started is not mistaken for one with no producer.
+        parents = ", ".join(name_of_key.get(key, key) for key in task["parents"]) or "-"
+        marker = " <-- asked for" if task["key"] == asked_for else ""
+        print(f"    {str(task['task_id'] or '-'):<12} {task['workflow_id']!s:>8}  {task['name']:<24} {task['status']:<12} {parents}{marker}")
 
 
 def main() -> None:
@@ -172,6 +227,10 @@ def main() -> None:
         print(f"  next: {sys.argv[0]} process {workflow_id}")
     elif args.action == "show":
         show_workflow(taskBuffer, WFID)
+    elif args.action == "relations":
+        show_step_relations(wfif, WFID)
+    elif args.action == "task_relations":
+        show_task_relations(wfif, WFID, args.task_id)
     elif args.action == "process":
         # Advance the workflow by hand instead of waiting for the WatchDog cycle
         for attempt in range(args.repeat):
