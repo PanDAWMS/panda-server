@@ -370,12 +370,13 @@ class AdderAtlasPlugin(AdderPluginBase):
                 if file_destination_dispatch_block not in id_map:
                     id_map[file_destination_dispatch_block] = []
                 file_attrs = {
-                    "guid": file.GUID,
                     "lfn": file.lfn,
                     "size": fsize,
                     "checksum": file.checksum,
                     "ds": file_destination_dispatch_block,
                 }
+                if file.GUID not in [None, "NULL", ""]:
+                    file_attrs["guid"] = file.GUID
                 # add SURLs if LFC registration is required
                 if not self.add_to_top_only:
                     file_attrs["surl"] = self.extra_info["surl"][file.lfn]
@@ -612,12 +613,13 @@ class AdderAtlasPlugin(AdderPluginBase):
                     if "files" not in zip_files[zip_file_name]:
                         zip_files[zip_file_name]["files"] = []
                     file_attrs = {
-                        "guid": file_spec.GUID,
                         "lfn": file_spec.lfn,
                         "size": file_spec.fsize,
                         "checksum": file_spec.checksum,
                         "ds": file_spec.dataset,
                     }
+                    if file_spec.GUID not in [None, "NULL", ""]:
+                        file_attrs["guid"] = file_spec.GUID
                     zip_files[zip_file_name]["files"].append(file_attrs)
 
         # cleanup submap
