@@ -506,7 +506,6 @@ class TaskRefinerBase(object):
 
     # basic refinement procedure
     def doBasicRefine(self, taskParamMap: dict[str, Any]) -> None:
-        self.tmpLog.debug("start basic refinement")
         # get input/output/log dataset specs
         nIn = 0
         nOutMap = {}
@@ -614,7 +613,6 @@ class TaskRefinerBase(object):
                                 datasetNameList.append(tmpDatasetName)
                     # consolidation
                     if len(datasetNameList) > 1 and "consolidate" in tmpItem:
-                        self.tmpLog.debug("consolidation")
                         tmpIF = self.ddmIF.getInterface(self.taskSpec.vo, self.taskSpec.cloud)
                         if tmpIF:
                             containerName = tmpItem["consolidate"]
@@ -634,7 +632,6 @@ class TaskRefinerBase(object):
                             datasetNameList = [containerName]
                     # loop over all dataset names
                     inDatasetSpecList = []
-                    self.tmpLog.debug("loop over all datasets")
                     for datasetName in datasetNameList:
                         # skip empty
                         if datasetName == "":
@@ -647,14 +644,12 @@ class TaskRefinerBase(object):
                             if self.taskSpec.is_work_segmented():
                                 tmpDatasetNameList *= len(taskParamMap["segmentSpecs"])
                         else:
-                            self.tmpLog.debug("1")
                             tmpIF = self.ddmIF.getInterface(self.taskSpec.vo, self.taskSpec.cloud)
                             if not tmpIF:
                                 tmpDatasetNameList = []
                             else:
                                 # get datasets in dataset container
                                 dataset_names_in_container, real_name_list = tmpIF.expandContainer(datasetName)
-                                self.tmpLog.debug("2")
                                 # sort datasets to process online complete replicas first
                                 tmp_ok_list: list[Any] = []
                                 tmp_ng_list = []
@@ -663,11 +658,9 @@ class TaskRefinerBase(object):
                                     if len(tmp_ok_list) > 10:
                                         is_ok = True
                                     else:
-                                        self.tmpLog.debug("3")
                                         # check if complete replica is available at online endpoint
                                         is_ok = False
                                         tmp_dict = tmpIF.listDatasetReplicas(tmp_dataset_name_in_container)
-                                        self.tmpLog.debug("4")
                                         for tmp_endpoint, tmp_data_list in tmp_dict.items():
                                             tmp_data = tmp_data_list[0]
                                             if (
@@ -689,7 +682,6 @@ class TaskRefinerBase(object):
                                     # normal dataset name
                                     tmpDatasetNameList = real_name_list
                                     constituent_dataset_names_not_used_as_input = [i for i in dataset_names_in_container if i not in tmpDatasetNameList]
-                        self.tmpLog.debug("loop over all element names")                    
                         i_element = 0
                         for elementDatasetName in tmpDatasetNameList:
                             if elementDatasetName not in tmpItem["expandedList"]:
@@ -716,7 +708,6 @@ class TaskRefinerBase(object):
                             inDatasetSpecList.append(inDatasetSpec)
                             i_element += 1
                     # empty input
-                    self.tmpLog.debug("check empty input")
                     if inDatasetSpecList == [] and self.oldTaskStatus != "rerefine":
                         errStr = f'doBasicRefine : unknown input dataset "{datasetSpec.datasetName}"'
                         self.taskSpec.setErrDiag(errStr)
