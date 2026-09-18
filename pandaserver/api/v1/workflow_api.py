@@ -49,9 +49,10 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 @request_validation(_logger, secure=True, production=False, request_method="POST")
 def submit_workflow(req: PandaRequest, params: dict[str, Any] | str) -> dict[str, Any]:
     """
-    Submit a PanDA native workflow as a raw request, with the description in a sandbox.
+    Submit a workflow request
 
-    This is the endpoint the pandaclient uses (see Client.submit_workflow). The description itself
+    Submit a PanDA native workflow as a raw request, with the description in a sandbox. This is the
+    endpoint the pandaclient uses (see Client.submit_workflow). The description itself
     lives in an uploaded sandbox and is downloaded and parsed asynchronously, so nothing about it can
     be validated here. To submit a description inline instead, with no sandbox, use
     submit_workflow_description.
@@ -111,7 +112,9 @@ def submit_workflow(req: PandaRequest, params: dict[str, Any] | str) -> dict[str
 # deployed clients have moved to /v1/workflow/submit_workflow.
 def submit_workflow_raw_request(req: PandaRequest, params: dict[str, Any] | str) -> dict[str, Any]:
     """
-    Deprecated alias of submit_workflow.
+    Submit a workflow request (deprecated)
+
+    Deprecated alias of submit_workflow, kept for pandaclient versions that still target this path.
 
     API details:
         HTTP Method: POST
@@ -132,6 +135,8 @@ def submit_workflow_raw_request(req: PandaRequest, params: dict[str, Any] | str)
 @request_validation(_logger, secure=True, production=False, request_method="POST")
 def submit_workflow_definition(req: PandaRequest, workflow_definition: dict[str, Any]) -> dict[str, Any]:
     """
+    Submit a workflow definition
+
     Submit a PanDA native workflow from an already-resolved workflow definition.
 
     NOTE: for testing only. A workflow definition is the engine's internal, fully-resolved form,
@@ -237,9 +242,10 @@ def _warn_about_duplicated_task_names(tmp_logger: LogWrapper, workflow_descripti
 @request_validation(_logger, secure=True, production=False, request_method="POST")
 def submit_workflow_description(req: PandaRequest, workflow_description: dict[str, Any] | str) -> dict[str, Any]:
     """
-    Submit a PanDA native workflow described inline, without a sandbox.
+    Submit a workflow description
 
-    The description uses the native workflow schema (name, inputs, outputs, steps, options) and is
+    Submit a PanDA native workflow described inline, without a sandbox. The description uses the
+    native workflow schema (name, inputs, outputs, steps, options) and is
     passed in the request body rather than in a sandbox, so a step carrying raw task parameters
     needs nothing uploaded. The description is validated synchronously, so that an authoring mistake
     is reported here, while parsing into a workflow definition stays asynchronous as for the other
@@ -314,9 +320,9 @@ def submit_workflow_description(req: PandaRequest, workflow_description: dict[st
 @request_validation(_logger, secure=True, request_method="GET")
 def get_step_relations(req: PandaRequest, workflow_id: int) -> dict[str, Any]:
     """
-    Get which step of a workflow feeds which
+    Get workflow step relations
 
-    The workflow engine is data-driven: a step starts because its inputs are ready, not because a
+    Report which step of a workflow feeds which. The workflow engine is data-driven: a step starts because its inputs are ready, not because a
     parent step finished, so it holds no step-to-step edge of its own. This derives them from what
     it does hold, and answers for a running workflow as readily as for a finished one. Requires a
     secure connection.
@@ -351,9 +357,9 @@ def get_step_relations(req: PandaRequest, workflow_id: int) -> dict[str, Any]:
 @request_validation(_logger, secure=True, request_method="GET")
 def get_task_relations(req: PandaRequest, workflow_id: int | None = None, task_id: int | None = None) -> dict[str, Any]:
     """
-    Get which JEDI task of a workflow feeds which
+    Get workflow task relations
 
-    The task-level view of get_step_relations, for consumers that model a chain as related tasks.
+    Report which JEDI task of a workflow feeds which. The task-level view of get_step_relations, for consumers that model a chain as related tasks.
     A step running something other than a JEDI task is collapsed, so the relation passes through it
     rather than leaving a gap, and a step running a nested workflow is replaced by the tasks inside
     it. A step not yet submitted is reported with task_id None, so that a task whose producer has
