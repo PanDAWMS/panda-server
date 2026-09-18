@@ -1600,6 +1600,11 @@ class TaskBuffer:
                 ret = None, f"The following DN is banned: DN={user_dn}"
         return ret
 
+    # look up the workflow steps whose target is the given ID
+    def get_steps_by_target_id(self, target_id: str, flavor_filter_list: list[str] | None = None) -> list[Any]:
+        with self.proxyPool.get() as proxy:
+            return proxy.get_steps_by_target_id(target_id, flavor_filter_list)
+
     # look up existing tasks by name
     def get_existing_task_names(self, vo: str, prod_source_label: str, task_names: list[str]) -> dict[str, dict[str, Any]] | None:
         # query an SQL return Status

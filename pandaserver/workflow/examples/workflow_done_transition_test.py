@@ -104,6 +104,7 @@ stub("pandaserver.config", panda_config=types.SimpleNamespace(schemaJEDI="ATLAS_
 from pandaserver.workflow import workflow_core  # noqa: E402
 from pandaserver.workflow.workflow_base import (  # noqa: E402
     WFDataStatus,
+    WFDataTargetCheckStatus,
     WFDataType,
     WFStepStatus,
     WorkflowSpec,
@@ -118,10 +119,13 @@ workflow_core.naive_utcnow = lambda: NOW
 
 
 class FakeData:
-    def __init__(self, name, status, data_type=WFDataType.output):
+    def __init__(self, name, status, data_type=WFDataType.output, data_id=1, flavor="ddm_collection"):
         self.name = name
         self.status = status
         self.type = data_type
+        self.data_id = data_id
+        self.workflow_id = 133
+        self.flavor = flavor
         self.end_time = None
         self.check_time = None
 
@@ -166,6 +170,17 @@ def make_workflow(steps_final_time=None):
     return workflow_spec
 
 
+class FakeDataHandler:
+    """Reports whatever DDM state a case wants, so the waiting transitions can be driven"""
+
+    def __init__(self, check_status):
+        self.check_status = check_status
+
+    def check_target(self, data_spec, **kwargs):
+        result = types.SimpleNamespace(success=True, check_status=self.check_status, message="", metadata={})
+        return result
+
+
 class StubbedInterface(workflow_core.WorkflowInterface):
     """The real workflow transitions, with the step and data passes replaced
 
@@ -173,12 +188,16 @@ class StubbedInterface(workflow_core.WorkflowInterface):
     in for. __init__ is bypassed because the real one opens a message broker and a DDM client.
     """
 
-    def __init__(self, data_specs, step_specs, all_steps_final=True):
+    def __init__(self, data_specs, step_specs, all_steps_final=True, check_status=None):
         self.tbif = FakeTaskBuffer(data_specs, step_specs)
         self.full_pid = "test-0-0"
         self.plugin_map = {}
         self.mb_proxy = None
         self._all_steps_final = all_steps_final
+        self._data_handler = FakeDataHandler(check_status if check_status is not None else WFDataTargetCheckStatus.suffice)
+
+    def get_plugin(self, plugin_type, flavor):
+        return self._data_handler
 
     # The data pass is what would advance an output on a later cycle; here it changes nothing, so
     # each case controls the output statuses directly.
@@ -190,8 +209,8 @@ class StubbedInterface(workflow_core.WorkflowInterface):
         return {"n_processed": len(step_specs), "processed": {status: len(step_specs)}, "changed": {}}
 
 
-def make_interface(data_specs, step_specs, all_steps_final=True):
-    return StubbedInterface(data_specs, step_specs, all_steps_final)
+def make_interface(data_specs, step_specs, all_steps_final=True, check_status=None):
+    return StubbedInterface(data_specs, step_specs, all_steps_final, check_status)
 
 
 def check(label, condition, detail=""):
@@ -285,6 +304,68 @@ def main():
     result = interface.process_workflow_running(workflow_spec)
     failures += not check("stays running", workflow_spec.status == WorkflowStatus.running, workflow_spec.status)
     failures += not check("no wait is recorded", workflow_spec.get_parameter(workflow_core.STEPS_FINAL_TIME_PARAM) is None)
+
+    print("\n=== a root input already parked in waiting_suffice ===")
+    # Workflow 133's rdo_bkg: it exists and has files, but DDM never closes it. A datum parked
+    # there before the rule existed is let out here; a new one never gets parked at all.
+    root_input = FakeData("rdo_bkg", WFDataStatus.waiting_suffice, WFDataType.input)
+    interface = make_interface([root_input], [])
+    result = interface.process_data_waiting(root_input)
+    failures += not check("it becomes done_waited", root_input.status == WFDataStatus.done_waited, root_input.status)
+    failures += not check("the transition is reported", result.new_status == WFDataStatus.done_waited, result.new_status)
+    failures += not check("an end time is stamped", root_input.end_time is not None)
+
+    print("\n=== but data produced inside the workflow still waits ===")
+    for data_type in (WFDataType.mid, WFDataType.output):
+        produced = FakeData(f"step/{data_type}", WFDataStatus.waiting_suffice, data_type)
+        make_interface([produced], []).process_data_waiting(produced)
+        failures += not check(f"{data_type} stays waiting_suffice", produced.status == WFDataStatus.waiting_suffice, produced.status)
+
+    print("\n=== a root input that is not sufficient yet still waits ===")
+    not_enough = FakeData("rdo_bkg", WFDataStatus.waiting_insuffi, WFDataType.input)
+    make_interface([not_enough], [], check_status=WFDataTargetCheckStatus.insuffi).process_data_waiting(not_enough)
+    failures += not check("it stays waiting_insuffi", not_enough.status == WFDataStatus.waiting_insuffi, not_enough.status)
+
+    print("\n=== a closed collection is unchanged by this ===")
+    closed = FakeData("rdo_bkg", WFDataStatus.waiting_suffice, WFDataType.input)
+    make_interface([closed], [], check_status=WFDataTargetCheckStatus.complete).process_data_waiting(closed)
+    failures += not check("complete still means done_waited", closed.status == WFDataStatus.done_waited, closed.status)
+
+    print("\n=== and the step can now finish ===")
+    # The point of the change: a done root input makes all_inputs_complete true, which is what
+    # releases workflowHoldup so the task is allowed to finish.
+    stats = make_interface([], [])._check_all_inputs_of_step(Log(), ["rdo_bkg"], {"rdo_bkg": root_input})
+    failures += not check("all_inputs_complete is true once it is done", stats["all_inputs_complete"] is True, stats)
+    still_waiting = FakeData("rdo_bkg", WFDataStatus.waiting_suffice, WFDataType.input)
+    stats = make_interface([], [])._check_all_inputs_of_step(Log(), ["rdo_bkg"], {"rdo_bkg": still_waiting})
+    failures += not check("...and was false while it waited", stats["all_inputs_complete"] is False, stats)
+    failures += not check("...though it was already good enough to start on", stats["all_inputs_sufficient"] is True, stats)
+
+    print("\n=== a root input never enters the waiting path in the first place ===")
+    # The first check is where it is settled: an open but sufficient collection is called complete,
+    # so the datum goes checked_complete -> done_skipped and is terminal straight away.
+    fresh = FakeData("rdo_bkg", WFDataStatus.checking, WFDataType.input)
+    interface = make_interface([fresh], [], check_status=WFDataTargetCheckStatus.suffice)
+    interface.process_data_checking(fresh)
+    failures += not check("checked_complete, not checked_suffice", fresh.status == WFDataStatus.checked_complete, fresh.status)
+    interface.process_data_checked(fresh)
+    failures += not check("and then done_skipped", fresh.status == WFDataStatus.done_skipped, fresh.status)
+
+    print("\n=== data produced inside the workflow is unaffected at that check ===")
+    for data_type in (WFDataType.mid, WFDataType.output):
+        produced = FakeData(f"step/{data_type}", WFDataStatus.checking, data_type)
+        make_interface([produced], [], check_status=WFDataTargetCheckStatus.suffice).process_data_checking(produced)
+        failures += not check(f"{data_type} is still checked_suffice", produced.status == WFDataStatus.checked_suffice, produced.status)
+
+    print("\n=== an insufficient root input is still not complete ===")
+    thin = FakeData("rdo_bkg", WFDataStatus.checking, WFDataType.input)
+    make_interface([thin], [], check_status=WFDataTargetCheckStatus.insuffi).process_data_checking(thin)
+    failures += not check("checked_insuffi is untouched", thin.status == WFDataStatus.checked_insuffi, thin.status)
+
+    print("\n=== a missing root input is still missing ===")
+    gone = FakeData("rdo_bkg", WFDataStatus.checking, WFDataType.input)
+    make_interface([gone], [], check_status=WFDataTargetCheckStatus.nonexist).process_data_checking(gone)
+    failures += not check("checked_nonexist is untouched", gone.status == WFDataStatus.checked_nonexist, gone.status)
 
     print(f"\n{'ALL CHECKS PASSED' if not failures else f'{failures} CHECK(S) FAILED'}")
     return 1 if failures else 0
