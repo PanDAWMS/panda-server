@@ -1320,7 +1320,19 @@ class WorkflowInterface(object):
                 case WFDataTargetCheckStatus.insuffi:
                     data_spec.status = WFDataStatus.checked_insuffi
                 case WFDataTargetCheckStatus.suffice:
-                    data_spec.status = WFDataStatus.checked_suffice
+                    if data_spec.type == WFDataType.input:
+                        # A root input is not produced by this workflow, so the only thing the
+                        # engine can ask about it is its DDM state, and that state cannot be
+                        # trusted to close: a production dataset is routinely left open after the
+                        # task that wrote it has finished. Sufficient is therefore taken as
+                        # complete here, which makes the datum terminal (done_skipped) on this
+                        # first check rather than parking it in waiting_suffice to await a close
+                        # that may never come. See process_data_waiting for what that used to cost,
+                        # and for the same rule applied to data already parked there.
+                        data_spec.status = WFDataStatus.checked_complete
+                        tmp_log.info(f"Root input {data_spec.name} is sufficient but its collection is still open; treated as complete")
+                    else:
+                        data_spec.status = WFDataStatus.checked_suffice
                 case WFDataTargetCheckStatus.complete:
                     data_spec.status = WFDataStatus.checked_complete
                 case _:
@@ -1583,8 +1595,36 @@ class WorkflowInterface(object):
                         process_result.new_status = data_spec.status
                         data_spec.end_time = now_time
                     case WFDataTargetCheckStatus.suffice:
-                        # Data still partially exist, stay in waiting_suffice
-                        pass
+                        if data_spec.type == WFDataType.input:
+                            # The same rule process_data_checking applies on the first check: for a
+                            # root input, sufficient is as done as it will get, because the DDM
+                            # state cannot be trusted to close. A root input reaching here was
+                            # parked in waiting_suffice before that rule existed, so this is what
+                            # lets it out; a new one is made terminal on its first check and never
+                            # arrives here at all.
+                            #
+                            # Waiting for a close that never comes strands the whole workflow. The
+                            # datum never reaches a done status, so every step consuming it keeps
+                            # all_inputs_complete False, so workflowHoldup is never released and
+                            # its task cannot finish even with every job done. Workflow 133 hung
+                            # exactly this way on an open rdo_bkg and needed the datum set by hand.
+                            #
+                            # Data generated inside the workflow needs none of this, because there
+                            # the producing step's status says whether more files are coming. For a
+                            # root input nothing does. The cost is a root input still genuinely
+                            # being written elsewhere: it is declared final early, and a consumer
+                            # may be allowed to finish on partial input. Narrowing that --
+                            # honouring requires_complete, or watching the file count settle before
+                            # calling it -- is the refinement if the trade turns out to bite.
+                            data_spec.status = WFDataStatus.done_waited
+                            process_result.new_status = data_spec.status
+                            data_spec.end_time = now_time
+                            tmp_log.info(
+                                f"Root input {data_spec.name} is sufficient but its collection is still open; treated as done rather than waiting for a close"
+                            )
+                        else:
+                            # Data still partially exist, stay in waiting_suffice
+                            pass
                     case WFDataTargetCheckStatus.insuffi:
                         # Data not sufficient anymore, unexpected, log and skip
                         tmp_log.warning("Data are not sufficient anymore, unexpected; skipped")
