@@ -228,7 +228,7 @@ def retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def submit_change_staging_destination(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
-    Submit a request to change destination of staging, to be processed asynchronously
+    Submit async request to change destination of staging
 
     Asynchronous flavour of `change_staging_destination`: the request is registered in DB and
     processed by the async request daemon, so the call returns without waiting for DDM or iDDS.
@@ -263,7 +263,7 @@ def submit_change_staging_source(
     source_rse: str | None = None,
 ) -> dict[str, Any]:
     """
-    Submit a request to change source of staging, to be processed asynchronously
+    Submit async request to change source of staging
 
     Asynchronous flavour of `change_staging_source`: the request is registered in DB and
     processed by the async request daemon, so the call returns without waiting for DDM or iDDS.
@@ -304,7 +304,7 @@ def submit_change_staging_source(
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def submit_force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
-    Submit a request to force to staging, to be processed asynchronously
+    Submit async request to force to staging
 
     Asynchronous flavour of `force_to_staging`: the request is registered in DB and processed
     by the async request daemon, so the call returns without waiting for DDM or iDDS.
@@ -332,7 +332,7 @@ def submit_force_to_staging(req: PandaRequest, request_id: int | None = None, da
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def submit_retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str | None = None) -> dict[str, Any]:
     """
-    Submit a request to retire an unused staging request, to be processed asynchronously
+    Submit async request to retire unused staging request
 
     Asynchronous flavour of `retire_unused`: the request is registered in DB and processed by
     the async request daemon, so the call returns without waiting for DDM or iDDS.
