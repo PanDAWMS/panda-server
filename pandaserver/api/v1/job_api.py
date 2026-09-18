@@ -42,7 +42,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
     """
     Get status of a job.
 
-    Gets the status for a job and command to the pilot if any. Requires a secure connection.
+    Gets the status of a job and command to the pilot if any. Requires a secure connection.
 
     API details:
         HTTP Method: GET
