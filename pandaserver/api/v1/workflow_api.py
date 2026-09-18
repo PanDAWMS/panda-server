@@ -368,8 +368,8 @@ def get_task_relations(req: PandaRequest, workflow_id: int | None = None, task_i
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        workflow_id(int|None): ID of the workflow to report on
-        task_id(int|None): JEDI task ID to report the workflow of, instead of workflow_id
+        workflow_id(int, optional): ID of the workflow to report on. Give this or task_id
+        task_id(int, optional): JEDI task ID to report the workflow of. Give this or workflow_id
 
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`.
