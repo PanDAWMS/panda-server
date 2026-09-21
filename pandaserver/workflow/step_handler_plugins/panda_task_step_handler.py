@@ -7,6 +7,8 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.workflow.step_handler_plugins.base_step_handler import BaseStepHandler
 from pandaserver.workflow.workflow_base import (
+    PARENT_TASK_ID_PARAM,
+    PARENT_TASKID_PLACEHOLDER,
     TASKID_PLACEHOLDER,
     WFStepSpec,
     WFStepStatus,
@@ -14,6 +16,7 @@ from pandaserver.workflow.workflow_base import (
     WFStepTargetCheckResult,
     WFStepTargetSubmitResult,
     has_placeholder,
+    parse_parent_task_id_placeholder,
     substitute_placeholder,
 )
 from pandaserver.workflow.workflow_native_utils import (
@@ -91,6 +94,166 @@ class PandaTaskStepHandler(BaseStepHandler):
             tmp_log.debug(f"resolved input reference {{{reference}}} to {data_spec.target_id}")
         return True, ""
 
+    def resolve_parent_task_id(self, step_spec: WFStepSpec, named_step: str | None, tmp_log: LogWrapper) -> tuple[bool, int | None, str]:
+        """
+        Work out the task ID to record as this step's parent
+
+        The parent of a step is the step producing the data it consumes, which the engine already
+        records: each datum knows its source step. A step whose inputs all come from outside the
+        workflow has no parent, and is submitted with none, which makes its task the root of the
+        chain in the same way DEFT records one.
+
+        A step fed by more than one step has to say which one is meant, by naming it in the
+        placeholder, since parent_tid holds a single task. The named step must be one of those
+        feeding this one, so that what parent_tid records and what the relation queries report are
+        the same relation.
+
+        The engine does not use any of this. It is resolved only because an author asked for it by
+        putting ${PARENT_TASKID} in the step's task parameters.
+
+        Args:
+            step_spec (WFStepSpec): The step being submitted
+            named_step (str | None): The step named in the placeholder, or None for the bare form
+            tmp_log (LogWrapper): Logger
+
+        Returns:
+            bool: Whether the parent could be determined
+            int | None: The parent task ID, or None when the step has no parent inside the workflow
+            str: An error message when it could not be determined, otherwise empty
+        """
+        parent_step_ids = set()
+        for input_data_name in step_spec.definition_json_map.get("input_data_dict", {}):
+            data_spec = self.tbif.get_workflow_data_by_name(input_data_name, step_spec.workflow_id)
+            if data_spec is None or data_spec.source_step_id is None:
+                # produced outside this workflow, so no parent inside it
+                continue
+            if data_spec.source_step_id != step_spec.step_id:
+                parent_step_ids.add(data_spec.source_step_id)
+        if named_step is not None:
+            return self._resolve_named_parent(step_spec, named_step, parent_step_ids, tmp_log)
+        if not parent_step_ids:
+            tmp_log.info(f"{PARENT_TASKID_PLACEHOLDER} has no parent step to resolve to; the task will be its own parent")
+            return True, None, ""
+        if len(parent_step_ids) > 1:
+            # The engine allows a step to consume the outputs of several steps, but parent_tid holds
+            # one task. Rather than pick one, say so. The way out is to name the step meant, or to
+            # drop the parameter; a task ID cannot be named for a step of this workflow, whose task
+            # did not exist when the description was written.
+            message = (
+                f"{PARENT_TASKID_PLACEHOLDER} is ambiguous: the step takes input from steps {sorted(parent_step_ids)}, "
+                f"so name the one meant as ${{PARENT_TASKID:<step name>}} or remove {PARENT_TASK_ID_PARAM}"
+            )
+            tmp_log.error(message)
+            return False, None, message
+        parent_step_spec = self.tbif.get_workflow_step(parent_step_ids.pop())
+        if parent_step_spec is None:
+            message = f"{PARENT_TASKID_PLACEHOLDER} cannot be resolved: the step feeding this one was not found"
+            tmp_log.error(message)
+            return False, None, message
+        return self._task_id_of_parent_step(parent_step_spec, tmp_log)
+
+    def _task_id_of_parent_step(self, parent_step_spec: WFStepSpec, tmp_log: LogWrapper) -> tuple[bool, int | None, str]:
+        """
+        Read the task ID off the step settled on as the parent
+
+        Args:
+            parent_step_spec (WFStepSpec): The step whose task is to be recorded as the parent
+            tmp_log (LogWrapper): Logger
+
+        Returns:
+            bool: Whether the step has a task ID to record
+            int | None: That task ID
+            str: An error message when it has none, otherwise empty
+        """
+        if not parent_step_spec.target_id:
+            # A step only becomes ready once its inputs are good, which means the step feeding it
+            # has submitted, so this is a real inconsistency rather than a wait.
+            message = f"{PARENT_TASKID_PLACEHOLDER} cannot be resolved: parent step {parent_step_spec.name} has no task yet"
+            tmp_log.error(message)
+            return False, None, message
+        try:
+            parent_task_id = int(parent_step_spec.target_id)
+        except ValueError:
+            message = (
+                f"{PARENT_TASKID_PLACEHOLDER} cannot be resolved: parent step {parent_step_spec.name} has a non-numeric target {parent_step_spec.target_id}"
+            )
+            tmp_log.error(message)
+            return False, None, message
+        tmp_log.debug(f"resolved {PARENT_TASKID_PLACEHOLDER} to task {parent_task_id} from step {parent_step_spec.name}")
+        return True, parent_task_id, ""
+
+    def _resolve_named_parent(self, step_spec: WFStepSpec, named_step: str, parent_step_ids: set[int], tmp_log: LogWrapper) -> tuple[bool, int | None, str]:
+        """
+        Resolve ${PARENT_TASKID:<step name>} against the steps actually feeding this one
+
+        Args:
+            step_spec (WFStepSpec): The step being submitted
+            named_step (str): The step name written in the placeholder
+            parent_step_ids (set): IDs of the steps producing this step's input
+            tmp_log (LogWrapper): Logger
+
+        Returns:
+            bool: Whether the named step could be resolved to a task
+            int | None: The parent task ID
+            str: An error message when it could not be resolved, otherwise empty
+        """
+        feeding_steps = {}
+        for candidate in self.tbif.get_steps_of_workflow(workflow_id=step_spec.workflow_id) or []:
+            if candidate.step_id in parent_step_ids:
+                feeding_steps[candidate.name] = candidate
+        if named_step not in feeding_steps:
+            # Naming a step that does not feed this one would record a relation the workflow does
+            # not have, and the relation queries would disagree with parent_tid.
+            message = f"{PARENT_TASKID_PLACEHOLDER} names step {named_step}, which does not feed this step; it takes input from {sorted(feeding_steps)}"
+            tmp_log.error(message)
+            return False, None, message
+        return self._task_id_of_parent_step(feeding_steps[named_step], tmp_log)
+
+    def take_parent_task_id(self, step_spec: WFStepSpec, task_param_map: dict[str, Any], tmp_log: LogWrapper) -> tuple[bool, int | None, str]:
+        """
+        Lift the parent task ID out of the task parameters, resolving it if it is the placeholder
+
+        JEDI does not read parent_tid from the task parameters; insertTaskParamsPanda takes it as an
+        argument. So the key is removed from the map here and returned for the caller to pass on,
+        and a step that does not carry it submits with no parent, as before.
+
+        Args:
+            step_spec (WFStepSpec): The step being submitted
+            task_param_map (dict): Task parameters, modified in place
+            tmp_log (LogWrapper): Logger
+
+        Returns:
+            bool: Whether the value could be determined
+            int | None: The parent task ID to submit with, or None for no parent
+            str: An error message when it could not be determined, otherwise empty
+        """
+        if PARENT_TASK_ID_PARAM not in task_param_map:
+            return True, None, ""
+        raw_value = task_param_map.pop(PARENT_TASK_ID_PARAM)
+        is_placeholder, named_step = parse_parent_task_id_placeholder(raw_value)
+        if is_placeholder:
+            is_resolved, parent_task_id, message = self.resolve_parent_task_id(step_spec, named_step, tmp_log)
+            if not is_resolved:
+                return False, None, message
+        else:
+            # An author may also name a task outright, which is how a chain is attached to something
+            # this workflow did not produce.
+            try:
+                parent_task_id = int(raw_value)
+            except (TypeError, ValueError):
+                message = f"{PARENT_TASK_ID_PARAM}={raw_value} is neither {PARENT_TASKID_PLACEHOLDER} nor a task ID"
+                tmp_log.error(message)
+                return False, None, message
+        if parent_task_id is not None and not task_param_map.get("noWaitParent"):
+            # With a real parent recorded and noWaitParent unset, JEDI holds the task until the
+            # parent is done. The engine already decides that from the data, so the wait is
+            # redundant; it is not an error, and the author may want JEDI's behaviour, so say it
+            # rather than change it.
+            tmp_log.warning(
+                f"{PARENT_TASK_ID_PARAM} is set to {parent_task_id} without noWaitParent, so JEDI will also hold this task until the parent is done"
+            )
+        return True, parent_task_id, ""
+
     def update_output_data_names(self, step_spec: WFStepSpec, task_id: int, tmp_log: LogWrapper) -> None:
         """
         Record the resolved output dataset names once the step's task ID is known.
@@ -163,6 +326,12 @@ class PandaTaskStepHandler(BaseStepHandler):
             if not step_spec.get_parameter("all_inputs_complete"):
                 # Some inputs are not complete, set workflowHoldup to True to hold up the workflow until released by workflow processor
                 task_param_map["workflowHoldup"] = True
+            # Take out the parent task ID, which the insert takes as an argument rather than reading
+            # from the parameters. A step that does not ask for one submits with no parent.
+            is_resolved, parent_task_id, message = self.take_parent_task_id(step_spec, task_param_map, tmp_log)
+            if not is_resolved:
+                submit_result.message = message
+                return submit_result
             # A task queued by a previous attempt must not be queued twice. Production tasks are not
             # duplicate-checked on insert, so record the attempt before submitting and refuse to
             # retry a step whose outcome is unknown.
@@ -174,7 +343,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             step_spec.set_parameter("submit_attempt_task_name", task_param_map.get("taskName"))
             self.tbif.update_workflow_step(step_spec)
             # Queue the task, which also resolves the late-bound task ID in the task parameters
-            task_id, message = self.tbif.insert_step_task(task_param_map, user_dn)
+            task_id, message = self.tbif.insert_step_task(task_param_map, user_dn, parent_tid=parent_task_id)
             if task_id is None:
                 submit_result.message = message
                 tmp_log.error(f"Failed to submit task: {message}")

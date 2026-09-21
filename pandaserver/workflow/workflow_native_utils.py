@@ -8,7 +8,13 @@ from typing import Any
 
 from pandaclient import PhpoScript, PrunScript
 
-from pandaserver.workflow.workflow_base import TASKID_PLACEHOLDER
+from pandaserver.workflow.workflow_base import (
+    PARENT_TASK_ID_PARAM,
+    PARENT_TASKID_PLACEHOLDER,
+    TASKID_PLACEHOLDER,
+    mentions_parent_task_id,
+    parse_parent_task_id_placeholder,
+)
 
 # Step types whose task parameters are supplied verbatim by the author instead of being
 # generated from a command line. See make_task_params / verify_task_params.
@@ -403,6 +409,18 @@ class Node(object):
         # would silently diverge from the substituted copy inside the task parameters.
         if TASKID_PLACEHOLDER in task_params["taskName"]:
             return False, f"{TASKID_PLACEHOLDER} cannot be used in taskName"
+        # ${PARENT_TASKID} is resolved by lifting parent_tid out of the task parameters, so it is
+        # the only place the step handler looks. Anywhere else it would reach JEDI unsubstituted.
+        elsewhere = {key: value for key, value in task_params.items() if key != PARENT_TASK_ID_PARAM}
+        if mentions_parent_task_id(elsewhere):
+            return False, f"{PARENT_TASKID_PLACEHOLDER} can only be used as the value of {PARENT_TASK_ID_PARAM}"
+        # and there it is either the placeholder, in one of its two forms, or a task ID outright
+        parent_value = task_params.get(PARENT_TASK_ID_PARAM)
+        if parent_value is not None and not parse_parent_task_id_placeholder(parent_value)[0]:
+            try:
+                int(parent_value)
+            except (TypeError, ValueError):
+                return False, f"{PARENT_TASK_ID_PARAM}={parent_value} is neither {PARENT_TASKID_PLACEHOLDER}, ${{PARENT_TASKID:<step name>}}, nor a task ID"
         # every output must name the dataset it produces, since the engine registers workflow data
         # for it and downstream steps refer to it
         n_outputs = 0
@@ -1426,6 +1444,41 @@ def validate_workflow_description(description: Any) -> tuple[bool, list[str]]:
                     errors.append(f"step {step_name}: input reference {{{reference}}} does not match any step output")
             elif reference not in workflow_inputs:
                 errors.append(f"step {step_name}: input reference {{{reference}}} is not a workflow input")
+
+    # A step asking for ${PARENT_TASKID} must have exactly one step feeding it, since parent_tid
+    # holds one task. The description says which steps feed which, so this is answerable here
+    # rather than at submission, when the workflow is already running and the step would simply
+    # fail to start.
+    for step_name, step_spec in steps.items():
+        if not isinstance(step_spec, dict) or step_spec.get("type") not in RAW_TASK_PARAMS_STEP_TYPES:
+            continue
+        task_params = step_spec.get("task_params")
+        if not isinstance(task_params, dict):
+            continue
+        is_placeholder, named_step = parse_parent_task_id_placeholder(task_params.get(PARENT_TASK_ID_PARAM))
+        if not is_placeholder:
+            continue
+        producing_steps = set()
+        for job_param in task_params.get("jobParameters") or []:
+            if not isinstance(job_param, dict) or job_param.get("param_type") not in DATA_INPUT_PARAM_TYPES:
+                continue
+            reference = extract_dataset_reference(job_param.get("dataset"))
+            # a workflow input has no "/" and is produced outside, so it feeds no parent
+            if reference and "/" in reference:
+                producing_steps.add(reference.split("/")[0])
+        if named_step is not None:
+            # Naming a step that does not feed this one would record a relation the workflow does
+            # not have, and the relation queries would then disagree with parent_tid.
+            if named_step not in producing_steps:
+                errors.append(
+                    f"step {step_name}: {PARENT_TASK_ID_PARAM} names step {named_step}, which does not feed it; it takes input from {sorted(producing_steps)}"
+                )
+        elif len(producing_steps) > 1:
+            errors.append(
+                f"step {step_name}: {PARENT_TASKID_PLACEHOLDER} is ambiguous because the step takes input from {sorted(producing_steps)}, "
+                f"and {PARENT_TASK_ID_PARAM} holds one task. Name the one meant as ${{PARENT_TASKID:<step name>}}, or remove "
+                f"{PARENT_TASK_ID_PARAM} and the task becomes its own parent"
+            )
 
     # declared workflow outputs must point at a step output
     for output_name, output_spec in (workflow_data.get("outputs") or {}).items():
