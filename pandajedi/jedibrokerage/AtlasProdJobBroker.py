@@ -1465,19 +1465,27 @@ class AtlasProdJobBroker(JobBrokerBase):
 
         ######################################
         # selection with IO intensity
-        if taskSpec.ioIntensity and not inputChunk.isMerging:
+        if not inputChunk.isMerging:
             newScanSiteList = []
             oldScanSiteList = copy.copy(scanSiteList)
             msg_map = {}
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 max_io_intensity = tmpSiteSpec.get_max_io_intensity()
-                if max_io_intensity is None or taskSpec.ioIntensity <= max_io_intensity:
-                    newScanSiteList.append(tmpSiteName)
+                if taskSpec.ioIntensity is None:
+                    if max_io_intensity is None:
+                        newScanSiteList.append(tmpSiteName)
+                    else:
+                        msg_map[tmpSiteSpec.get_unified_name()] = (
+                            f"  skip site={tmpSiteSpec.get_unified_name()} since task ioIntensity is None and site max_io_intensity={max_io_intensity} criteria=-max_io_intensity"
+                        )
                 else:
-                    msg_map[tmpSiteSpec.get_unified_name()] = (
-                        f"  skip site={tmpSiteSpec.get_unified_name()} since ioIntensity={taskSpec.ioIntensity} "
-                        f"is larger than site max_io_intensity={max_io_intensity} criteria=-max_io_intensity"
+                    if max_io_intensity is None or taskSpec.ioIntensity <= max_io_intensity:
+                        newScanSiteList.append(tmpSiteName)
+                    else:
+                        msg_map[tmpSiteSpec.get_unified_name()] = (
+                            f"  skip site={tmpSiteSpec.get_unified_name()} since ioIntensity={taskSpec.ioIntensity} "
+                            f"is larger than site max_io_intensity={max_io_intensity} criteria=-max_io_intensity"
                     )
             scanSiteList = newScanSiteList
             self.add_summary_message(oldScanSiteList, scanSiteList, "max IO intensity check", tmpLog, msg_map)
