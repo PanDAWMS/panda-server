@@ -188,6 +188,66 @@ def main():
     failures += not check("matches the original production name shape", resolved.endswith("_tid49900001_00"), resolved)
     failures += not check("JEDI per-job templates untouched", "${SN}" in substitute_placeholder("log.${TASKID}._${SN}.tgz", TASKID_PLACEHOLDER, 7))
 
+    print("\n=== ${PARENT_TASKID} is only allowed where it can be resolved ===")
+    base = json.loads(json.dumps(wfd["steps"]["simul"]["task_params"]))
+    ok_params = {**base, "parent_tid": "${PARENT_TASKID}"}
+    node = wnu.Node(1, "task", {}, True, "probe")
+    node.task_params = ok_params
+    good, reason = node.verify_task_params()
+    failures += not check("accepted as the value of parent_tid", good, reason)
+    bad_params = {**base, "taskType": "${PARENT_TASKID}"}
+    node.task_params = bad_params
+    good, reason = node.verify_task_params()
+    failures += not check("rejected anywhere else", not good, reason)
+    failures += not check("...naming the parameter it belongs in", "parent_tid" in reason, reason)
+
+    print("\n=== a joining step asking for ${PARENT_TASKID} is refused on submission ===")
+    # parent_tid holds one task, so a step fed by two steps has to say which. Caught here rather
+    # than when the workflow is running and the step simply fails to start.
+    join_wfd: dict[str, Any] = {
+        "name": "join_probe",
+        "inputs": {},
+        "outputs": {"out": {"from": "join/AOD"}},
+        "steps": {},
+    }
+
+    def task_step(name: str, inputs: list[str], output: str) -> dict[str, Any]:
+        return {
+            "type": "task",
+            "task_params": {
+                "taskName": f"probe.{name}",
+                "vo": "atlas",
+                "prodSourceLabel": "managed",
+                "transPath": "Reco_tf.py",
+                "log": {"type": "template", "param_type": "log", "value": "log.tgz", "dataset": f"probe.{name}.log"},
+                "jobParameters": [{"type": "template", "param_type": "input", "value": "--inputFile=x", "dataset": ds} for ds in inputs]
+                + [{"type": "template", "param_type": "output", "value": f"--output{output}File=x", "dataset": f"probe.{name}.{output}"}],
+            },
+        }
+
+    join_wfd["steps"]["left"] = task_step("left", [], "AOD")
+    join_wfd["steps"]["right"] = task_step("right", [], "AOD")
+    join_wfd["steps"]["join"] = task_step("join", ["{left/AOD}", "{right/AOD}"], "AOD")
+    is_valid, errors = wnu.validate_workflow_description(join_wfd)
+    failures += not check("valid while no step asks for a parent", is_valid, errors)
+    join_wfd["steps"]["join"]["task_params"]["parent_tid"] = "${PARENT_TASKID}"
+    is_valid, errors = wnu.validate_workflow_description(join_wfd)
+    failures += not check("rejected once the joining step asks", not is_valid, errors)
+    failures += not check("naming both feeding steps", errors and "left" in errors[0] and "right" in errors[0], errors)
+    failures += not check("offering the step-name form, which an author can know", errors and "PARENT_TASKID:<step name>" in errors[0], errors)
+    # naming which feeding step is meant resolves it
+    join_wfd["steps"]["join"]["task_params"]["parent_tid"] = "${PARENT_TASKID:left}"
+    is_valid, errors = wnu.validate_workflow_description(join_wfd)
+    failures += not check("naming a feeding step is accepted", is_valid, errors)
+    join_wfd["steps"]["join"]["task_params"]["parent_tid"] = "${PARENT_TASKID:elsewhere}"
+    is_valid, errors = wnu.validate_workflow_description(join_wfd)
+    failures += not check("naming a step that does not feed it is refused", not is_valid, errors)
+    join_wfd["steps"]["join"]["task_params"]["parent_tid"] = "${PARENT_TASKID}"
+    # a step fed by one step plus an external input is fine
+    join_wfd["steps"]["join"]["task_params"]["jobParameters"][1]["dataset"] = "some.external.dataset"
+    is_valid, errors = wnu.validate_workflow_description(join_wfd)
+    failures += not check("one step plus a literal dataset is unambiguous", is_valid, errors)
+
     print("\n=== regression: prun steps are unaffected ===")
     prun_wfd: dict[str, Any] = {
         "name": "prun_probe",

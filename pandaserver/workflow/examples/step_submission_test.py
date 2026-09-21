@@ -89,6 +89,7 @@ from pandaserver.workflow.step_handler_plugins.panda_task_step_handler import ( 
     PandaTaskStepHandler,
 )
 from pandaserver.workflow.workflow_base import (  # noqa: E402
+    PARENT_TASKID_PLACEHOLDER,
     TASKID_PLACEHOLDER,
     WFStepSpec,
     WFStepStatus,
@@ -96,17 +97,20 @@ from pandaserver.workflow.workflow_base import (  # noqa: E402
 
 
 class FakeData:
-    def __init__(self, name, target_id):
+    def __init__(self, name, target_id, source_step_id=None):
         self.name = name
         self.target_id = target_id
         self.workflow_id = 1
         self.data_id = abs(hash(name)) % 1000
+        # which step produced it, which is what ${PARENT_TASKID} resolves through
+        self.source_step_id = source_step_id
 
 
 class FakeStep(WFStepSpec):
     def __init__(self, definition, parameters=None):
         self.workflow_id = 1
         self.step_id = 7
+        self.name = "probe"
         self.flavor = "panda_task"
         self.target_id = None
         self.status = WFStepStatus.ready
@@ -117,13 +121,21 @@ class FakeStep(WFStepSpec):
 
 
 class FakeTaskBuffer:
-    def __init__(self, data_by_name=None, task_id=49900001, error="", deft_status=None):
+    def __init__(self, data_by_name=None, task_id=49900001, error="", deft_status=None, steps_by_id=None):
         self.deft_status = deft_status
         self.data = data_by_name or {}
+        self.steps = steps_by_id or {}
         self.task_id = task_id
         self.error = error
         self.inserted = []
+        self.inserted_parent_tids = []
         self.updated_data = []
+
+    def get_workflow_step(self, step_id):
+        return self.steps.get(step_id)
+
+    def get_steps_of_workflow(self, workflow_id, status_filter_list=None, status_exclusion_list=None):
+        return list(self.steps.values())
 
     def get_workflow_data_by_name(self, name, workflow_id):
         return self.data.get(name)
@@ -136,6 +148,7 @@ class FakeTaskBuffer:
 
     def insert_step_task(self, task_params_map, user_dn, parent_tid=None):
         self.inserted.append(copy.deepcopy(task_params_map))
+        self.inserted_parent_tids.append(parent_tid)
         if self.task_id is None:
             return None, self.error
         return self.task_id, ""
@@ -351,6 +364,135 @@ def main():
         if result is not None:
             failures += not check(f"{name} reports success False", result.success is False, result.success)
         failures += not check(f"{name} did nothing", tbif.inserted == [] and tbif.updated_data == [])
+
+    print("\n=== ${PARENT_TASKID}: resolved from the step that produced the input ===")
+
+    def make_parent_step(parent_tid_value, noWaitParent=True, inputs=("merge_evnt/EVNT",)):
+        params = copy.deepcopy(simul_params)
+        params["parent_tid"] = parent_tid_value
+        if noWaitParent:
+            params["noWaitParent"] = True
+        else:
+            params.pop("noWaitParent", None)
+        step = make_step(params=params)
+        definition = step.definition_json_map
+        definition["input_data_dict"] = {name: {} for name in inputs}
+        step.definition_json = json.dumps(definition)
+        return step
+
+    # merge_evnt/EVNT was produced by step 3, whose task is 48810699
+    def parent_tbif(**kw):
+        data = {
+            "merge_evnt/EVNT": FakeData("merge_evnt/EVNT", produced_evnt, source_step_id=3),
+            "simul/HITS": FakeData("simul/HITS", f"...tid{TASKID_PLACEHOLDER}_00"),
+        }
+        data.update(kw.pop("extra_data", {}))
+        feeding = FakeStep({}, None)
+        feeding.step_id, feeding.name = 3, "merge_evnt"
+        return FakeTaskBuffer(data_by_name=data, steps_by_id={3: feeding}, **kw)
+
+    tbif = parent_tbif()
+    tbif.steps[3].target_id = "48810699"
+    res = PandaTaskStepHandler(tbif).submit_target(make_parent_step(PARENT_TASKID_PLACEHOLDER))
+    failures += not check("the task is submitted", res.success is True, res.message)
+    failures += not check("with the producing step's task as parent", tbif.inserted_parent_tids == [48810699], tbif.inserted_parent_tids)
+    failures += not check("and parent_tid is taken out of the task params", "parent_tid" not in tbif.inserted[0], sorted(tbif.inserted[0])[:5])
+
+    print("\n=== a step with no parent inside the workflow ===")
+    tbif = parent_tbif(extra_data={"rdo_bkg": FakeData("rdo_bkg", "external.dataset", source_step_id=None)})
+    res = PandaTaskStepHandler(tbif).submit_target(make_parent_step(PARENT_TASKID_PLACEHOLDER, inputs=("rdo_bkg",)))
+    failures += not check("is submitted", res.success is True, res.message)
+    failures += not check("with no parent, so JEDI makes the task its own", tbif.inserted_parent_tids == [None], tbif.inserted_parent_tids)
+
+    print("\n=== a step that does not ask for it is unaffected ===")
+    tbif = parent_tbif()
+    res = PandaTaskStepHandler(tbif).submit_target(make_step())
+    failures += not check("submitted with no parent", res.success is True and tbif.inserted_parent_tids == [None], tbif.inserted_parent_tids)
+
+    print("\n=== a literal task ID is passed through ===")
+    tbif = parent_tbif()
+    tbif.steps[3].target_id = "48810699"
+    PandaTaskStepHandler(tbif).submit_target(make_parent_step(52397622))
+    failures += not check("as given, without consulting the graph", tbif.inserted_parent_tids == [52397622], tbif.inserted_parent_tids)
+
+    print("\n=== a joining step is refused rather than guessed at ===")
+    tbif = parent_tbif(
+        extra_data={
+            "left/OUT": FakeData("left/OUT", "a", source_step_id=3),
+            "right/OUT": FakeData("right/OUT", "b", source_step_id=4),
+        }
+    )
+    tbif.steps[3].target_id = "52000003"
+    tbif.steps[4] = FakeStep({}, None)
+    tbif.steps[4].step_id, tbif.steps[4].name = 4, "right"
+    tbif.steps[4].target_id = "52000004"
+    res = PandaTaskStepHandler(tbif).submit_target(make_parent_step(PARENT_TASKID_PLACEHOLDER, inputs=("left/OUT", "right/OUT")))
+    failures += not check("not submitted", res.success is not True, res.success)
+    failures += not check("and says it is ambiguous", "ambiguous" in res.message, res.message)
+    failures += not check("and offers the named form", "PARENT_TASKID:<step name>" in res.message, res.message)
+    failures += not check("nothing was inserted", tbif.inserted == [], tbif.inserted)
+
+    print("\n=== a value that is neither is refused ===")
+    tbif = parent_tbif()
+    res = PandaTaskStepHandler(tbif).submit_target(make_parent_step("not-a-task"))
+    failures += not check("not submitted", res.success is not True, res.success)
+    failures += not check("and says why", "neither" in res.message, res.message)
+
+    print("\n=== a parent whose step has not submitted is an inconsistency ===")
+    tbif = parent_tbif()  # step 3 keeps target_id None
+    res = PandaTaskStepHandler(tbif).submit_target(make_parent_step(PARENT_TASKID_PLACEHOLDER))
+    failures += not check("not submitted", res.success is not True, res.success)
+    failures += not check("and says the parent has no task", "no task yet" in res.message, res.message)
+
+    print("\n=== setting a parent without noWaitParent is warned about ===")
+    del LOGGED["warning"][:]
+    tbif = parent_tbif()
+    tbif.steps[3].target_id = "48810699"
+    res = PandaTaskStepHandler(tbif).submit_target(make_parent_step(PARENT_TASKID_PLACEHOLDER, noWaitParent=False))
+    failures += not check("still submitted", res.success is True, res.message)
+    failures += not check("with a warning naming noWaitParent", any("noWaitParent" in m for m in LOGGED["warning"]), LOGGED["warning"])
+
+    print("\n=== ${PARENT_TASKID:<step name>} on a joining step ===")
+
+    def joining_tbif():
+        data = {
+            "left/OUT": FakeData("left/OUT", "a", source_step_id=3),
+            "right/OUT": FakeData("right/OUT", "b", source_step_id=4),
+            # the step's job parameters still reference this one, which input_data_dict does not
+            # list, so it takes no part in working out the parent
+            "merge_evnt/EVNT": FakeData("merge_evnt/EVNT", produced_evnt, source_step_id=None),
+            "simul/HITS": FakeData("simul/HITS", f"...tid{TASKID_PLACEHOLDER}_00"),
+        }
+        left, right = FakeStep({}, None), FakeStep({}, None)
+        left.name, left.step_id, left.target_id = "left", 3, "52000003"
+        right.name, right.step_id, right.target_id = "right", 4, "52000004"
+        return FakeTaskBuffer(data_by_name=data, steps_by_id={3: left, 4: right})
+
+    # `expected` already names a bool | None earlier in this function
+    for named, expected_task in (("left", 52000003), ("right", 52000004)):
+        tbif = joining_tbif()
+        res = PandaTaskStepHandler(tbif).submit_target(make_parent_step(f"${{PARENT_TASKID:{named}}}", inputs=("left/OUT", "right/OUT")))
+        failures += not check(f"naming {named} submits", res.success is True, res.message)
+        failures += not check(f"...with its task {expected_task}", tbif.inserted_parent_tids == [expected_task], tbif.inserted_parent_tids)
+
+    print("\n=== naming a step that does not feed this one ===")
+    tbif = joining_tbif()
+    res = PandaTaskStepHandler(tbif).submit_target(make_parent_step("${PARENT_TASKID:elsewhere}", inputs=("left/OUT", "right/OUT")))
+    failures += not check("is refused", res.success is not True, res.success)
+    failures += not check("naming what does feed it", "left" in res.message and "right" in res.message, res.message)
+    failures += not check("nothing inserted", tbif.inserted == [], tbif.inserted)
+
+    print("\n=== the bare form on a join now points at the named form ===")
+    tbif = joining_tbif()
+    res = PandaTaskStepHandler(tbif).submit_target(make_parent_step(PARENT_TASKID_PLACEHOLDER, inputs=("left/OUT", "right/OUT")))
+    failures += not check("still refused", res.success is not True, res.success)
+    failures += not check("and says how to disambiguate", "PARENT_TASKID:<step name>" in res.message, res.message)
+
+    print("\n=== naming the only feeding step is the same as the bare form ===")
+    tbif = parent_tbif()
+    tbif.steps[3].target_id = "48810699"
+    res = PandaTaskStepHandler(tbif).submit_target(make_parent_step("${PARENT_TASKID:merge_evnt}"))
+    failures += not check("submits with that task", res.success is True and tbif.inserted_parent_tids == [48810699], tbif.inserted_parent_tids)
 
     print("\n=== check_target status mapping ===")
     expectations = {

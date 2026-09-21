@@ -1,6 +1,6 @@
 {
   "name": "toy_mc23_526140_AZH_llbb_full_chain",
-  "description": "Small-scale toy of production_chain_wfd.json, for testing the production-workflow path in a real PanDA instance. Same 9-step shape and the same transformations as the original chain (48810693 evgen -> 48810699 merge_evnt -> 48810706 simul -> 48810713 merge_hits -> 48810727 recon -> 48810733 merge_aod -> 48810738 deriv_prw -> 48810746 merge_ntup, with 49827875 deriv_phys branching off merge_aod), but scaled down and made safe to run alongside real production. It is scaled by COUNT, not by SIZE: evgen's nEvents is 20000 instead of 110000 and every other event parameter is identical to the production chain, so the toy differs from it in exactly one number. That gives 2 -> 2 -> 4 -> 2 -> 2 files and 16 jobs in total, about 18% of the work, while every individual job is the same shape as a production job. 20000 is the smallest total that still leaves at least two files at every stage, so merge_hits stays a genuine 2:1 merge and merge_aod a genuine multi-file merge. Do NOT scale the per-job event counts down instead. An earlier version divided every event count by 100 and recon died with 'AthenaHiveEventLoopMgr FATAL ... fail mode: AlgStall'. The real cause was upstream and unrelated to job size: EventInfoOverlay validates the beam spot ('Beam spot size does not match between signal and background events (40 vs 43)') and has ErrorMax=1, so the first mismatch is fatal; it then produces no EventInfo, the whole downstream graph blocks and the Hive scheduler reports the stall. The mismatch comes from simul's --preInclude EVNTtoHITS:Campaigns.MC23eSimulationMultipleIoV, which assigns each simulated event a run/lumiblock from the campaign's run-lumi profile as a function of that job's --jobNumber and --maxEvents. Shrinking simul's nEventsPerJob changes that assignment, so some signal events end up carrying a beam spot (sigma_z 40) that the background dataset never has -- it is uniformly sigma_z 43, from IndetBeampos-RunDep-MC23-BestKnowledge-001 over [470000,l:0]-[470000,l:1001]. Keeping simul's nEventsPerJob at the production value is what avoids this. Two further constraints on recon: it must consume the whole HITS file, i.e. nEventsPerInputFile == nEventsPerJob == merge_hits's nEventsPerJob, because skipEvents is not compatible with a secondary input; and with skipShortInput set, nEventsPerJob must not exceed the events actually present in an input file, or JEDI drops every file and the task breaks with 'primary input dataset is empty or all files are excluded'. Other properties: every step runs as userName=panda with prodSourceLabel=test and no workingGroup. The label must be one the target JEDI instance accepts in its agents' procConfig, otherwise the tasks sit in DEFT as 'waiting' and never reach JEDI; and every dataset it writes -- outputs and logs -- lives in the panda scope under 'panda.workflow_test.wfid${WFID}.', so nothing can collide with or pollute real production data. taskNames carry the same prefix, so each run is distinguishable both from real production tasks and from previous toy runs. ${WFID} is resolved to the workflow ID at registration and ${TASKID} to the real jediTaskID when each step's task is queued. It is not linked to any request or ticket, so reqID, ticketID and ticketSystemType are omitted. The only dataset read from outside the panda scope is the rdo_bkg pileup input, which is read-only.",
+  "description": "Small-scale toy of production_chain_wfd.json, for testing the production-workflow path in a real PanDA instance. Same 9-step shape and the same transformations as the original chain (48810693 evgen -> 48810699 merge_evnt -> 48810706 simul -> 48810713 merge_hits -> 48810727 recon -> 48810733 merge_aod -> 48810738 deriv_prw -> 48810746 merge_ntup, with 49827875 deriv_phys branching off merge_aod), but scaled down and made safe to run alongside real production. It is scaled by COUNT, not by SIZE: evgen's nEvents is 20000 instead of 110000 and every other event parameter is identical to the production chain, so the toy differs from it in exactly one number. That gives 2 -> 2 -> 4 -> 2 -> 2 files and 16 jobs in total, about 18% of the work, while every individual job is the same shape as a production job. 20000 is the smallest total that still leaves at least two files at every stage, so merge_hits stays a genuine 2:1 merge and merge_aod a genuine multi-file merge. Do NOT scale the per-job event counts down instead. An earlier version divided every event count by 100 and recon died with 'AthenaHiveEventLoopMgr FATAL ... fail mode: AlgStall'. The real cause was upstream and unrelated to job size: EventInfoOverlay validates the beam spot ('Beam spot size does not match between signal and background events (40 vs 43)') and has ErrorMax=1, so the first mismatch is fatal; it then produces no EventInfo, the whole downstream graph blocks and the Hive scheduler reports the stall. The mismatch comes from simul's --preInclude EVNTtoHITS:Campaigns.MC23eSimulationMultipleIoV, which assigns each simulated event a run/lumiblock from the campaign's run-lumi profile as a function of that job's --jobNumber and --maxEvents. Shrinking simul's nEventsPerJob changes that assignment, so some signal events end up carrying a beam spot (sigma_z 40) that the background dataset never has -- it is uniformly sigma_z 43, from IndetBeampos-RunDep-MC23-BestKnowledge-001 over [470000,l:0]-[470000,l:1001]. Keeping simul's nEventsPerJob at the production value is what avoids this. Two further constraints on recon: it must consume the whole HITS file, i.e. nEventsPerInputFile == nEventsPerJob == merge_hits's nEventsPerJob, because skipEvents is not compatible with a secondary input; and with skipShortInput set, nEventsPerJob must not exceed the events actually present in an input file, or JEDI drops every file and the task breaks with 'primary input dataset is empty or all files are excluded'. Other properties: every step runs as userName=panda with prodSourceLabel=test and no workingGroup. The label must be one the target JEDI instance accepts in its agents' procConfig, otherwise the tasks sit in DEFT as 'waiting' and never reach JEDI; and every dataset it writes -- outputs and logs -- lives in the panda scope under 'panda.workflow_test.wfid${WFID}.', so nothing can collide with or pollute real production data. taskNames carry the same prefix, so each run is distinguishable both from real production tasks and from previous toy runs. ${WFID} is resolved to the workflow ID at registration and ${TASKID} to the real jediTaskID when each step's task is queued. It is not linked to any request or ticket, so reqID, ticketID and ticketSystemType are omitted. The only dataset read from outside the panda scope is the rdo_bkg pileup input, which is read-only. Every step sets parent_tid to ${PARENT_TASKID}, which the step handler resolves to the task of the step producing its input and passes to the insert; a step whose inputs all come from outside the workflow submits with no parent, so its task becomes its own parent as DEFT records a chain root. The engine does not use parent_tid -- it starts a step from its data -- but production machinery does: transient marking of a merged parent's datasets, nucleus co-location for a full chain, and the input consistency check. Every step here also sets noWaitParent, without which JEDI would additionally hold the task until its parent is done.",
   "inputs": {
     "rdo_bkg": "mc23_13p6TeV.900149.PG_single_nu_Pt50.merge.RDO.e8514_s4332_d1994_sub0002_rnd526140"
   },
@@ -20,6 +20,7 @@
       "type": "task",
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.evgen.e8590",
+        "parent_tid": "${PARENT_TASKID}",
         "taskType": "prod",
         "prodSourceLabel": "test",
         "vo": "atlas",
@@ -109,6 +110,7 @@
       },
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586",
+        "parent_tid": "${PARENT_TASKID}",
         "taskType": "prod",
         "prodSourceLabel": "test",
         "vo": "atlas",
@@ -181,6 +183,7 @@
       "type": "task",
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.simul.e8590_e8586_a934",
+        "parent_tid": "${PARENT_TASKID}",
         "taskType": "prod",
         "prodSourceLabel": "test",
         "vo": "atlas",
@@ -315,6 +318,7 @@
       },
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586_a934_s4370",
+        "parent_tid": "${PARENT_TASKID}",
         "taskType": "prod",
         "prodSourceLabel": "test",
         "vo": "atlas",
@@ -402,6 +406,7 @@
       "type": "task",
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.recon.e8590_e8586_a934_s4370_r16083",
+        "parent_tid": "${PARENT_TASKID}",
         "taskType": "prod",
         "prodSourceLabel": "test",
         "vo": "atlas",
@@ -552,6 +557,7 @@
       },
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_e8586_a934_s4370_r16083_r15970",
+        "parent_tid": "${PARENT_TASKID}",
         "taskType": "prod",
         "prodSourceLabel": "test",
         "vo": "atlas",
@@ -637,6 +643,7 @@
       "type": "task",
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.e8590_e8586_a934_s4370_r16083_r15970_p5667",
+        "parent_tid": "${PARENT_TASKID}",
         "taskType": "prod",
         "prodSourceLabel": "test",
         "vo": "atlas",
@@ -709,6 +716,7 @@
       },
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.merge.e8590_a934_r16083_p5667_p5669",
+        "parent_tid": "${PARENT_TASKID}",
         "taskType": "prod",
         "prodSourceLabel": "test",
         "vo": "atlas",
@@ -774,6 +782,7 @@
       "type": "task",
       "task_params": {
         "taskName": "panda.workflow_test.wfid${WFID}.mc23_13p6TeV.526140.MGPy8EG_2HDMaI_AZH_llbb_ggF_mA250_mH50_wAauto.deriv.e8590_e8586_a934_s4370_r16083_r15970_p7017",
+        "parent_tid": "${PARENT_TASKID}",
         "taskType": "prod",
         "prodSourceLabel": "test",
         "vo": "atlas",

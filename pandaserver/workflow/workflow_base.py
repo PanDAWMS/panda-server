@@ -1,4 +1,5 @@
 import json
+import re
 from collections import namedtuple
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -29,6 +30,29 @@ AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 WFID_PLACEHOLDER = "${WFID}"
 TASKID_PLACEHOLDER = "${TASKID}"
 
+# ${PARENT_TASKID} is the third, and the odd one out: it is resolved before the task is inserted
+# rather than after, because it is an input to the insert. A step only becomes ready once its
+# inputs are good, so the step producing them has already submitted and its task ID is known.
+#
+# It exists because a production task may want its parent_tid filled, which the engine itself never
+# needs -- the engine decides when a step starts from its data, not from a parent task -- but which
+# other machinery does: transient marking of a merged parent's datasets, nucleus co-location for a
+# full chain, and the input consistency check. Filling it is the author's choice, step by step.
+PARENT_TASKID_PLACEHOLDER = "${PARENT_TASKID}"
+
+# A step fed by more than one step has more than one parent, and parent_tid holds one task, so the
+# placeholder takes an optional step name saying which is meant: ${PARENT_TASKID:merge_hits}. The
+# step name is the part an author can know when writing the description; the task ID is not.
+RE_PARENT_TASKID_PLACEHOLDER = re.compile(r"^\$\{PARENT_TASKID(?::([^{}:]+))?\}$")
+
+# What every form of the placeholder starts with, for finding one wherever it should not be
+PARENT_TASKID_PREFIX = "${PARENT_TASKID"
+
+# The task parameter that ${PARENT_TASKID} is allowed to appear in. It is not read from the task
+# parameters by JEDI: insertTaskParamsPanda takes parent_tid as an argument, so the step handler
+# lifts this key out of the map and passes it there.
+PARENT_TASK_ID_PARAM = "parent_tid"
+
 
 def substitute_placeholder(value: Any, placeholder: str, resolved: Any) -> Any:
     """
@@ -49,6 +73,48 @@ def substitute_placeholder(value: Any, placeholder: str, resolved: Any) -> Any:
     if isinstance(value, dict):
         return {k: substitute_placeholder(v, placeholder, resolved) for k, v in value.items()}
     return value
+
+
+def parse_parent_task_id_placeholder(value: Any) -> tuple[bool, str | None]:
+    """
+    Read a ${PARENT_TASKID} value, with or without the step name it may name
+
+    Args:
+        value (Any): The value of the parent_tid task parameter
+
+    Returns:
+        bool: Whether the value is the placeholder in either of its forms
+        str | None: The step named as the parent, or None for the bare form, which means the one
+            step feeding this one
+    """
+    if not isinstance(value, str):
+        return False, None
+    match = RE_PARENT_TASKID_PLACEHOLDER.match(value.strip())
+    if not match:
+        return False, None
+    return True, match.group(1)
+
+
+def mentions_parent_task_id(value: Any) -> bool:
+    """
+    Check whether a ${PARENT_TASKID} in any of its forms appears anywhere in a nested structure
+
+    Used to reject one written somewhere it will never be substituted, so it cannot reach JEDI as
+    literal text.
+
+    Args:
+        value (Any): String, list, dict or scalar to inspect; traversed recursively
+
+    Returns:
+        bool: True if the placeholder occurs at least once
+    """
+    if isinstance(value, str):
+        return PARENT_TASKID_PREFIX in value
+    if isinstance(value, list):
+        return any(mentions_parent_task_id(item) for item in value)
+    if isinstance(value, dict):
+        return any(mentions_parent_task_id(item) for item in value.values())
+    return False
 
 
 def has_placeholder(value: Any, placeholder: str) -> bool:
