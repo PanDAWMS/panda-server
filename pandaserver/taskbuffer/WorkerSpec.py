@@ -77,6 +77,8 @@ class WorkerSpec(object):
     _zeroAttrs = ()
     # catchall resource type
     RT_catchall = "ANY"
+    # maximum values, taken from the precision of the corresponding DB columns
+    _limitValue = {"minRamCount": 10**11 - 1}  # NUMBER(11)
 
     # Bookkeeping attribute installed by __init__ via object.__setattr__, so a type
     # checker does not see it without this declaration. It maps a column name to the
@@ -97,6 +99,9 @@ class WorkerSpec(object):
         # convert string to datetime
         if isinstance(value, str) and value.startswith("datetime/"):
             value = datetime.datetime.strptime(value.split("/")[-1], "%Y-%m-%d %H:%M:%S.%f")
+        # cap too large values. Only real numbers are capped
+        if name in self._limitValue and isinstance(value, (int, float)):
+            value = min(value, self._limitValue[name])
         object.__setattr__(self, name, value)
         # collect changed attributes
         if oldVal != value:
