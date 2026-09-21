@@ -876,10 +876,10 @@ class WorkerModule(BaseModule):
                 # insert or update
                 if to_insert:
                     # insert
-                    var_map = worker_spec.valuesMap()
-                    tmp_log.debug(f"workerID={worker_spec.workerID} insert for status={worker_spec.status} var_map={var_map}")
+                    tmp_log.debug(f"workerID={worker_spec.workerID} insert for status={worker_spec.status}")
                     sql_insert_worker = f"INSERT INTO ATLAS_PANDA.Harvester_Workers ({WorkerSpec.columnNames()}) "
                     sql_insert_worker += WorkerSpec.bindValuesExpression()                    
+                    var_map = worker_spec.valuesMap()
                     self.cur.execute(sql_insert_worker + comment, var_map)
                 else:
                     # update
