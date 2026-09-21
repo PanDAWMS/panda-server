@@ -4435,7 +4435,7 @@ class TaskStandaloneModule(BaseModule):
                 varMap: dict[str, Any] = {}
                 varMap[":prodSourceLabel"] = prod_source_label
                 varMap[":pmerge"] = "pmerge"
-                if table == "ATLAS_PANDA.jobsActive4":
+                if table == "jobsActive4":
                     sqlJ = (
                         "SELECT COUNT(*),prodUserName,jobStatus,workingGroup,computingSite,coreCount "
                         "FROM {0}.{1} "
