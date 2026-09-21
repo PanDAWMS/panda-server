@@ -79,6 +79,11 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
     # instantiate sitemapper
     siteMapper = SiteMapper(taskBuffer)
 
+    # get transferring time outs
+    global TRANSFER_TIMEOUT_HI_PRIORITY, TRANSFER_TIMEOUT_LO_PRIORITY
+    TRANSFER_TIMEOUT_HI_PRIORITY = taskBuffer.getConfigValue("Finisher", "TRANSFER_TIMEOUT_HI_PRIORITY", "jedi") or TRANSFER_TIMEOUT_HI_PRIORITY
+    TRANSFER_TIMEOUT_LO_PRIORITY = taskBuffer.getConfigValue("Finisher", "TRANSFER_TIMEOUT_LO_PRIORITY", "jedi") or TRANSFER_TIMEOUT_LO_PRIORITY
+
     # list with lock
     class ListWithLock:
         def __init__(self) -> None:
