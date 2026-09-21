@@ -320,7 +320,15 @@ class SiteSpec(object):
 
     # use local data only
     def use_only_local_data(self) -> bool:
-        return self.hasValueInCatchall("use_only_local_data")
+        # check if set under params
+        has_value, value = self.get_extra_queue_param("use_only_local_data")
+        if has_value and value:
+            return True
+
+        if self.hasValueInCatchall("use_only_local_data"):
+            return True
+
+        return False
 
     # check if use VP
     def use_vp(self, scope: str) -> bool:
