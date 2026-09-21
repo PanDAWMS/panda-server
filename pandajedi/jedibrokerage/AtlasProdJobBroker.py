@@ -1486,7 +1486,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                         msg_map[tmpSiteSpec.get_unified_name()] = (
                             f"  skip site={tmpSiteSpec.get_unified_name()} since ioIntensity={taskSpec.ioIntensity} "
                             f"is larger than site max_io_intensity={max_io_intensity} criteria=-max_io_intensity"
-                    )
+                        )
             scanSiteList = newScanSiteList
             self.add_summary_message(oldScanSiteList, scanSiteList, "max IO intensity check", tmpLog, msg_map)
             if not scanSiteList:
