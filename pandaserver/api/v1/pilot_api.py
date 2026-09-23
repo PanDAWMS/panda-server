@@ -936,3 +936,56 @@ def update_worker_node_gpu(
 
     tmp_logger.debug("Done")
     return generate_response(success, message)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def update_pilot_metadata(req: PandaRequest, job_id: int, pilot_version: str, pilot_metadata: dict[str, Any] | str, timeout: int = 60) -> dict[str, Any]:
+    """
+    Update pilot metadata
+
+    Updates the metadata a pilot reports for a job. If a row already exists for the job, the new metadata is merged into
+    the existing one, with new keys overwriting matching existing keys and everything else the pilot previously reported
+    kept as is. Requires a secure connection and production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/pilot/update_pilot_metadata
+
+    Args:
+        req(PandaRequest): Internally generated request object containing the environment variables.
+        job_id(int): PanDA job ID.
+        pilot_version(str): Version of the pilot reporting the metadata.
+        pilot_metadata(dict or str): The metadata to merge in, either as a dictionary or as a JSON-encoded string.
+        timeout(int, optional): The timeout value. Defaults to 60.
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
+    """
+    tmp_logger = LogWrapper(_logger, f"update_pilot_metadata job_id={job_id} pilot_version={pilot_version}")
+    tmp_logger.debug("Start")
+
+    if isinstance(pilot_metadata, str):
+        try:
+            pilot_metadata = json.loads(pilot_metadata)
+        except Exception as e:
+            message = f"pilot_metadata is not valid JSON: {e}"
+            tmp_logger.error(message)
+            return generate_response(False, message=message)
+
+    if not isinstance(pilot_metadata, dict):
+        message = "pilot_metadata must be a JSON object"
+        tmp_logger.error(message)
+        return generate_response(False, message=message)
+
+    timed_method = TimedMethod(global_task_buffer.update_pilot_metadata, timeout)
+    timed_method.run(job_id, pilot_version, pilot_metadata)
+
+    if timed_method.result == Protocol.TimeOutToken:  # timeout
+        message = "Updating pilot metadata timed out"
+        tmp_logger.error(message)
+        return generate_response(False, message)
+
+    success, message = timed_method.result
+
+    tmp_logger.debug("Done")
+    return generate_response(success, message)

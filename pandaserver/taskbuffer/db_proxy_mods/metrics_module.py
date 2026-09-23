@@ -15,6 +15,21 @@ if TYPE_CHECKING:
     from pandaserver.taskbuffer.WorkQueue import WorkQueue
 
 
+def _deep_merge_dicts(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
+    """
+    Recursively merge updates into base. Where both sides have a dict for the same key, the dicts
+    are merged instead of the new one replacing the old, so nested keys from base survive unless
+    updates overwrites them too. Any other type is simply overwritten by the value in updates.
+    """
+    for key, new_value in updates.items():
+        base_value = base.get(key)
+        if isinstance(base_value, dict) and isinstance(new_value, dict):
+            _deep_merge_dicts(base_value, new_value)
+        else:
+            base[key] = new_value
+    return base
+
+
 # Module class to define metrics related methods
 class MetricsModule(BaseModule):
     # constructor
@@ -96,6 +111,102 @@ class MetricsModule(BaseModule):
             # error
             self.dump_error_message(tmp_log)
             return False
+
+    def update_pilot_metadata(self, panda_id: int, pilot_version: str, pilot_metadata: dict[str, Any] | str) -> tuple[bool, str]:
+        comment = " /* DBProxy.update_pilot_metadata */"
+        tmp_logger = self.create_tagged_logger(comment, f"PandaID={panda_id}")
+        tmp_logger.debug("Start")
+
+        # normalize the incoming metadata to a dict so it can be merged with anything already stored
+        if isinstance(pilot_metadata, str):
+            try:
+                pilot_metadata = json.loads(pilot_metadata)
+            except Exception:
+                tmp_logger.error(f"Invalid JSON in pilot_metadata: {pilot_metadata}")
+                return False, "pilot_metadata is not valid JSON"
+        if not isinstance(pilot_metadata, dict):
+            return False, "pilot_metadata must be a JSON object"
+
+        timestamp_utc = naive_utcnow()
+
+        locked = True  # Track whether the row was locked by another pilot update
+
+        try:
+            self.conn.begin()
+
+            # Select the pilot metadata row to see if it exists in the database
+            var_map: dict[str, Any] = {":panda_id": panda_id}
+
+            sql = "SELECT metadata FROM ATLAS_PANDA.pilot_metadata WHERE PandaID=:panda_id FOR UPDATE NOWAIT"
+
+            self.cur.execute(sql + comment, var_map)
+            res = self.cur.fetchone()
+            locked = False  # If the row was locked, the NOWAIT clause will make the query except and go to the end
+
+            if res:
+                # merge the new metadata on top of whatever was already stored: matching keys are
+                # overwritten with the new value, everything else the pilot reported before is kept
+                existing_metadata: dict[str, Any] = {}
+                if res[0]:
+                    try:
+                        existing_metadata = json.loads(res[0])
+                    except Exception:
+                        tmp_logger.warning(f"Existing metadata for PandaID={panda_id} was not valid JSON. Overwriting.")
+                _deep_merge_dicts(existing_metadata, pilot_metadata)
+
+                var_map = {
+                    ":panda_id": panda_id,
+                    ":pilot_version": pilot_version,
+                    ":metadata": json.dumps(existing_metadata),
+                    ":modification_time": timestamp_utc,
+                }
+
+                sql = (
+                    "UPDATE ATLAS_PANDA.pilot_metadata "
+                    "SET pilot_version=:pilot_version, metadata=:metadata, modification_time=:modification_time "
+                    "WHERE PandaID=:panda_id"
+                )
+
+                self.cur.execute(sql + comment, var_map)
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                tmp_logger.debug("Merged pilot metadata into existing row.")
+
+                return True, "Updated pilot metadata."
+
+            # No existing row, insert a fresh one
+            var_map = {
+                ":panda_id": panda_id,
+                ":pilot_version": pilot_version,
+                ":metadata": json.dumps(pilot_metadata),
+                ":modification_time": timestamp_utc,
+            }
+
+            sql = (
+                "INSERT INTO ATLAS_PANDA.pilot_metadata (PandaID, pilot_version, metadata, modification_time) "
+                "VALUES (:panda_id, :pilot_version, :metadata, :modification_time)"
+            )
+
+            self.cur.execute(sql + comment, var_map)
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_logger.debug("Inserted new pilot metadata row.")
+
+            return True, "Inserted pilot metadata."
+
+        except Exception:
+            # Always roll back the transaction
+            self._rollback(True)
+
+            # Failed because of the NOWAIT clause
+            if locked:
+                return False, "Another pilot was updating the pilot metadata at the same time."
+
+            # General failure
+            err_type, err_value = sys.exc_info()[:2]
+            error_message = f"Pilot metadata update failed with {err_type} {err_value}"
+            tmp_logger.error(error_message)
+            return False, error_message
 
     # get job or task metrics
     def get_workload_metrics(self, jedi_task_id: int, panda_id: int | None = None) -> tuple[bool, dict[str, Any] | None]:
