@@ -4178,7 +4178,7 @@ class TaskEventModule(BaseModule):
             sqlJS = "SELECT PandaID,jobStatus,processingType FROM ATLAS_PANDA.jobsDefined4 "
             sqlJS += "WHERE jediTaskID=:jediTaskID AND prodSourceLabel=:prodSourceLabel "
             sqlJS += "UNION "
-            sqlJS = "SELECT PandaID,jobStatus,processingType FROM ATLAS_PANDA.jobsActive4 "
+            sqlJS += "SELECT PandaID,jobStatus,processingType FROM ATLAS_PANDA.jobsActive4 "
             sqlJS += "WHERE jediTaskID=:jediTaskID AND prodSourceLabel=:prodSourceLabel "
             varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
