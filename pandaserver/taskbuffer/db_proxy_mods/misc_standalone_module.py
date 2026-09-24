@@ -2141,7 +2141,7 @@ class MiscStandaloneModule(BaseModule):
                     sqlAI = f"SELECT fileID,datasetID,lfn,NULL FROM {panda_config.schemaPANDA}.filesTable4 "
                     sqlAI += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
                     sqlAI += "UNION "
-                    sqlAI = f"SELECT fileID,datasetID,lfn,NULL FROM {panda_config.schemaPANDA}.filesTable4 "
+                    sqlAI += f"SELECT fileID,datasetID,lfn,NULL FROM {panda_config.schemaPANDAARCH}.filesTable_ARCH "
                     sqlAI += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) AND modificationTime>CURRENT_TIMESTAMP-365 "
                 # sql to update input file status
                 sqlUFI = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
