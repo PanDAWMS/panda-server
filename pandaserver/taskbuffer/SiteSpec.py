@@ -18,7 +18,6 @@ catchall_keys = {
         "nSimEvents",
         "minEventsForJumbo",
         "maxDiskPerCore",
-        "use_only_local_data",
         "disableReassign",
         "jobChunkSize",
         "bareNucleus",
@@ -323,9 +322,6 @@ class SiteSpec(object):
         # check if set under params
         has_value, value = self.get_extra_queue_param("use_only_local_data")
         if has_value and value:
-            return True
-
-        if self.hasValueInCatchall("use_only_local_data"):
             return True
 
         return False
