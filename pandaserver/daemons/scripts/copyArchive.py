@@ -725,7 +725,6 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     timeLimit = naive_utcnow() - datetime.timedelta(minutes=timeoutValue)
     # get PandaIDs
     status, res = taskBuffer.lockJobsForReassign(
-        "ATLAS_PANDA.jobsDefined4",
         timeLimit,
         ["defined"],
         ["managed", "test"],
@@ -772,7 +771,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
 
     # reassign long-waiting jobs in defined table
     timeLimit = naive_utcnow() - datetime.timedelta(hours=12)
-    status, res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4", timeLimit, [], ["managed"], [], [], [], True)
+    status, res = taskBuffer.lockJobsForReassign(timeLimit, ["defined", "assigned", "waiting", "pending"], ["managed"], [], [], [], True)
     jediJobs = []
     if res is not None:
         for id, lockedby in res:
@@ -793,7 +792,6 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     # reassign too long activated jobs in active table
     timeLimit = naive_utcnow() - datetime.timedelta(days=2)
     status, res = taskBuffer.lockJobsForReassign(
-        "ATLAS_PANDA.jobsActive4",
         timeLimit,
         ["activated"],
         ["managed"],
@@ -834,7 +832,6 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     # reassign too long starting jobs in active table
     timeLimit = naive_utcnow() - datetime.timedelta(hours=48)
     status, res = taskBuffer.lockJobsForReassign(
-        "ATLAS_PANDA.jobsActive4",
         timeLimit,
         ["starting"],
         ["managed"],

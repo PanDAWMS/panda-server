@@ -558,7 +558,6 @@ class TaskBuffer:
     # lock jobs for reassign
     def lockJobsForReassign(
         self,
-        tableName: str,
         timeLimit: datetime.datetime,
         statList: list[str],
         labels: list[str],
@@ -573,7 +572,6 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             # exec
             res = proxy.lockJobsForReassign(
-                tableName,
                 timeLimit,
                 statList,
                 labels,

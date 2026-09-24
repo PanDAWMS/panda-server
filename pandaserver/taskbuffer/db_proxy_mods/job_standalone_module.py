@@ -774,7 +774,6 @@ class JobStandaloneModule(BaseModule):
     # lock jobs for reassign
     def lockJobsForReassign(
         self,
-        tableName: str,
         timeLimit: datetime.datetime,
         statList: list[str],
         labels: list[str],
@@ -788,8 +787,17 @@ class JobStandaloneModule(BaseModule):
     ) -> tuple[bool, list[Any]]:
         comment = " /* DBProxy.lockJobsForReassign */"
         tmp_log = self.create_tagged_logger(comment)
-        tmp_log.debug(f"{tableName} {timeLimit} {statList} {labels} {processTypes} {sites} {clouds} {useJEDI}")
+        tmp_log.debug(f"{timeLimit} {statList} {labels} {processTypes} {sites} {clouds} {useJEDI}")
         try:
+            # resolve table from job statuses
+            defined_statuses = {"defined", "assigned", "waiting", "pending"}
+            active_statuses = {"activated", "throttled", "sent", "starting", "running", "holding", "transferring", "merging"}
+            if statList and set(statList) <= defined_statuses:
+                tableName = "ATLAS_PANDA.jobsDefined4"
+            elif statList and set(statList) <= active_statuses:
+                tableName = "ATLAS_PANDA.jobsActive4"
+            else:
+                raise ValueError(f"cannot resolve table from statList={statList}")
             # make sql
             if not useJEDI:
                 sql = f"SELECT PandaID FROM {tableName} "
@@ -803,10 +811,9 @@ class JobStandaloneModule(BaseModule):
                 sql += "WHERE stateChangeTime<:modificationTime "
             varMap: dict[str, Any] = {}
             varMap[":modificationTime"] = timeLimit
-            if statList != []:
-                stat_var_names_str, stat_var_map = get_sql_IN_bind_variables(statList, prefix=":stat")
-                sql += f"AND jobStatus IN ({stat_var_names_str}) "
-                varMap.update(stat_var_map)
+            stat_var_names_str, stat_var_map = get_sql_IN_bind_variables(statList, prefix=":stat")
+            sql += f"AND jobStatus IN ({stat_var_names_str}) "
+            varMap.update(stat_var_map)
             if labels != []:
                 label_var_names_str, label_var_map = get_sql_IN_bind_variables(labels, prefix=":label")
                 sql += f"AND prodSourceLabel IN ({label_var_names_str}) "
