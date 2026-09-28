@@ -37,6 +37,7 @@ global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
 global_site_mapper_cache: CoreUtils.CachedObject = None  # type: ignore[assignment]
 
 VALID_JOB_STATES = ["running", "failed", "finished", "holding", "starting", "transferring"]
+MAX_PILOT_ATTRIBUTES_SIZE = 64 * 1024  # maximum size in bytes of the serialized pilot attributes
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -939,49 +940,54 @@ def update_worker_node_gpu(
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_pilot_metadata(req: PandaRequest, job_id: int, pilot_version: str, pilot_metadata: dict[str, Any] | str, timeout: int = 60) -> dict[str, Any]:
+def update_pilot_attributes(req: PandaRequest, job_id: int, pilot_version: str, pilot_attributes: dict[str, Any] | str, timeout: int = 60) -> dict[str, Any]:
     """
-    Update pilot metadata
+    Update pilot attributes
 
-    Updates the metadata a pilot reports for a job. If a row already exists for the job, the new metadata is merged into
-    the existing one, with new keys overwriting matching existing keys and everything else the pilot previously reported
-    kept as is. Requires a secure connection and production role.
+    Inserts the attributes a pilot reports for a job. The attributes for a job can only be inserted once, a second call
+    for the same job fails. The serialized attributes can be at most `MAX_PILOT_ATTRIBUTES_SIZE` bytes. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
-        Path: /v1/pilot/update_pilot_metadata
+        Path: /v1/pilot/update_pilot_attributes
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
         job_id(int): PanDA job ID.
-        pilot_version(str): Version of the pilot reporting the metadata.
-        pilot_metadata(dict or str): The metadata to merge in, either as a dictionary or as a JSON-encoded string.
+        pilot_version(str): Version of the pilot reporting the attributes.
+        pilot_attributes(dict or str): The attributes to insert, either as a dictionary or as a JSON-encoded string.
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
     """
-    tmp_logger = LogWrapper(_logger, f"update_pilot_metadata job_id={job_id} pilot_version={pilot_version}")
+    tmp_logger = LogWrapper(_logger, f"update_pilot_attributes job_id={job_id} pilot_version={pilot_version}")
     tmp_logger.debug("Start")
 
-    if isinstance(pilot_metadata, str):
+    if isinstance(pilot_attributes, str):
         try:
-            pilot_metadata = json.loads(pilot_metadata)
+            pilot_attributes = json.loads(pilot_attributes)
         except Exception as e:
-            message = f"pilot_metadata is not valid JSON: {e}"
+            message = f"pilot_attributes is not valid JSON: {e}"
             tmp_logger.error(message)
             return generate_response(False, message=message)
 
-    if not isinstance(pilot_metadata, dict):
-        message = "pilot_metadata must be a JSON object"
+    if not isinstance(pilot_attributes, dict):
+        message = "pilot_attributes must be a JSON object"
         tmp_logger.error(message)
         return generate_response(False, message=message)
 
-    timed_method = TimedMethod(global_task_buffer.update_pilot_metadata, timeout)
-    timed_method.run(job_id, pilot_version, pilot_metadata)
+    attributes_size = len(json.dumps(pilot_attributes).encode("utf-8"))
+    if attributes_size > MAX_PILOT_ATTRIBUTES_SIZE:
+        message = f"pilot_attributes is too large: {attributes_size} bytes exceeds the limit of {MAX_PILOT_ATTRIBUTES_SIZE} bytes"
+        tmp_logger.error(message)
+        return generate_response(False, message=message)
+
+    timed_method = TimedMethod(global_task_buffer.update_pilot_attributes, timeout)
+    timed_method.run(job_id, pilot_version, pilot_attributes)
 
     if timed_method.result == Protocol.TimeOutToken:  # timeout
-        message = "Updating pilot metadata timed out"
+        message = "Inserting pilot attributes timed out"
         tmp_logger.error(message)
         return generate_response(False, message)
 

@@ -4,6 +4,7 @@ import json
 import math
 import os
 import re
+import reprlib
 import subprocess
 from collections.abc import Callable, Sequence
 from threading import Lock
@@ -21,6 +22,28 @@ if TYPE_CHECKING:
 
 # create_shards passes its elements straight through, so the shard type follows the input
 _ShardElement = TypeVar("_ShardElement")
+
+
+# shortened representation of values for logging, so that large payloads do not flood the logs.
+# The limits apply at every nesting level: strings keep their first and last characters, dicts and
+# lists keep their first entries, and anything nested deeper than maxlevel is shown as {...} or [...]
+_log_repr = reprlib.Repr()
+_log_repr.maxstring = 200
+_log_repr.maxother = 200
+_log_repr.maxdict = 10
+_log_repr.maxlist = 10
+_log_repr.maxtuple = 10
+_log_repr.maxset = 10
+_log_repr.maxlevel = 3
+# the limits above multiply with nesting, so cap the total length as well
+_LOG_REPR_MAX_LENGTH = 1000
+
+
+def shorten_for_log(value: Any) -> str:
+    text = _log_repr.repr(value)
+    if len(text) > _LOG_REPR_MAX_LENGTH:
+        text = text[:_LOG_REPR_MAX_LENGTH] + f"... ({len(text)} chars shortened to {_LOG_REPR_MAX_LENGTH})"
+    return text
 
 
 # replacement for commands

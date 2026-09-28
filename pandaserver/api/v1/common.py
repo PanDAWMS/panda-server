@@ -19,7 +19,7 @@ import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore import CoreUtils
-from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.srvcore.CoreUtils import clean_user_id, shorten_for_log
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
     STRUCTURED_RESULT_KEY,
@@ -340,7 +340,13 @@ def request_validation(
         def wrapper(req: PandaRequest, *args: Any, **kwargs: Any) -> Any:
             # Generate a logger with the underlying function name
             tmp_logger = LogWrapper(logger, func.__name__)
-            tmp_logger_context = LogWrapper(logger, f"{func.__name__} args:{args} kwargs:{kwargs}")
+
+            # log an error together with the request arguments. The context is only built when an error is logged,
+            # and every argument is shortened so that large payloads do not flood the logs
+            def log_error_with_context(message: str) -> None:
+                args_str = ", ".join(shorten_for_log(arg) for arg in args)
+                kwargs_str = ", ".join(f"{key}={shorten_for_log(value)}" for key, value in kwargs.items())
+                LogWrapper(logger, f"{func.__name__} args:({args_str}) kwargs:{{{kwargs_str}}}").error(message)
 
             # expected and received request methods
             expected_request_method = request_method
@@ -369,7 +375,7 @@ def request_validation(
                 bound_args = sig.bind(*args_tmp, **kwargs)
             except TypeError as e:
                 message = f"Argument error: {str(e)}"
-                tmp_logger_context.error(message)
+                log_error_with_context(message)
                 return generate_response(False, message=message)
             bound_args.apply_defaults()
 
@@ -447,25 +453,25 @@ def request_validation(
                                 raise TypeError(f"Expected {cast_type}, received {type(param_value)}")
                         bound_args.arguments[param_name] = param_value  # Ensure the cast value is used
                     except (ValueError, TypeError):
-                        message = f"Type error: '{param_name}' with value '{param_value}' could not be casted to type {type_name(cast_type)} from {type(param_value).__name__}."
-                        tmp_logger_context.error(message)
+                        message = f"Type error: '{param_name}' with value {shorten_for_log(param_value)} could not be casted to type {type_name(cast_type)} from {type(param_value).__name__}."
+                        log_error_with_context(message)
                         return generate_response(False, message=message)
 
                 # Check type
                 if origin and (origin is not Union and origin is not UnionType):  # Handle generics (e.g., List[int])
                     if not isinstance(param_value, origin) and not (param_value is None and param_value == default_value):
                         message = f"Type error: '{param_name}' must be of type {type_name(origin)}, got {type(param_value).__name__}."
-                        tmp_logger_context.error(message)
+                        log_error_with_context(message)
                         return generate_response(False, message=message)
 
                     if type_args and param_value is not None:  # Check inner types for lists, dicts, etc.
                         if origin in SEQUENCE_ORIGINS and not all(isinstance(i, isinstance_types(type_args[0])) for i in param_value):
                             message = f"Type error: All elements in '{param_name}' must be {type_name(type_args[0])}."
-                            tmp_logger_context.error(message)
+                            log_error_with_context(message)
                             return generate_response(False, message=message)
                 elif not isinstance(param_value, isinstance_types(expected_type)) and not (param_value is None and param_value == default_value):
                     message = f"Type error: '{param_name}' must be of type {type_name(expected_type)}, got {type(param_value).__name__}."
-                    tmp_logger_context.error(message)
+                    log_error_with_context(message)
                     return generate_response(False, message=message)
 
             # check task ownership if required
