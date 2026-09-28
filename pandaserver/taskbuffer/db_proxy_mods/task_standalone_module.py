@@ -3573,7 +3573,7 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         # sql to check useJumbo
         sqlJ = f"SELECT useJumbo FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
-        # sql to get input datasetID
+        # sql to get master input datasetIDs, also used as a sub-query to cover all master input datasets
         sqlM = f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
         sqlM += "WHERE jediTaskID=:jediTaskID "
         sqlM += f"AND type IN ({INPUT_TYPES_var_str}) "
@@ -3588,18 +3588,18 @@ class TaskStandaloneModule(BaseModule):
         sqlWM += "MINUS "
         sqlWM += "SELECT distinct PandaID "
         sqlWM += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-        sqlWM += "WHERE jediTaskID=:jediTaskID AND datasetID=:inDatasetID AND status=:statI "
+        sqlWM += f"WHERE jediTaskID=:jediTaskID AND datasetID IN ({sqlM}) AND status=:statI "
         # sql to check duplication with jumbo
         sqlJM = "WITH tmpTab AS ("
         sqlJM += f"SELECT f.fileID,f.PandaID FROM {panda_config.schemaPANDA}.filesTable4 f, ("
         sqlJM += f"SELECT PandaID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
         sqlJM += "WHERE jediTaskID=:jediTaskID AND datasetID=:outDatasetID AND status IN (:statT1,:statT2)) t "
-        sqlJM += "WHERE f.PandaID=t.PandaID AND f.datasetID=:inDatasetID "
+        sqlJM += f"WHERE f.PandaID=t.PandaID AND f.datasetID IN ({sqlM}) "
         sqlJM += "UNION "
         sqlJM += f"SELECT f.fileID,f.PandaID FROM {panda_config.schemaPANDAARCH}.filesTable_Arch f, ("
         sqlJM += f"SELECT PandaID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
         sqlJM += "WHERE jediTaskID=:jediTaskID AND datasetID=:outDatasetID AND status IN (:statT1,:statT2)) t "
-        sqlJM += "WHERE f.PandaID=t.PandaID AND f.datasetID=:inDatasetID AND f.modificationTime>CURRENT_DATE-365 "
+        sqlJM += f"WHERE f.PandaID=t.PandaID AND f.datasetID IN ({sqlM}) AND f.modificationTime>CURRENT_DATE-365 "
         sqlJM += ") "
         sqlJM += "SELECT t1.PandaID FROM tmpTab t1, tmpTab t2 WHERE t1.fileID=t2.fileID AND t1.PandaID>t2.PandaID "
         # sql to check duplication with internal merge
@@ -3610,8 +3610,9 @@ class TaskStandaloneModule(BaseModule):
         sqlCM += "MINUS "
         sqlCM += "SELECT distinct PandaID "
         sqlCM += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-        sqlCM += "WHERE jediTaskID=:jediTaskID AND datasetID=:inDatasetID and status=:statI "
+        sqlCM += f"WHERE jediTaskID=:jediTaskID AND datasetID IN ({sqlM}) and status=:statI "
         try:
+            retVal = 0
             # start transaction
             self.conn.begin()
             # check useJumbo
@@ -3620,14 +3621,13 @@ class TaskStandaloneModule(BaseModule):
             self.cur.execute(sqlJ + comment, varMap)
             resJ = self.cur.fetchone()
             (useJumbo,) = resJ
-            # get input datasetID
+            # check if master input datasets exist
             varMap = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap.update(INPUT_TYPES_var_map)
             self.cur.execute(sqlM + comment, varMap)
             resM = self.cur.fetchone()
             if resM is not None:
-                (inDatasetID,) = resM
                 # get output datasetID and templateID
                 varMap = {}
                 varMap[":jediTaskID"] = jediTaskID
@@ -3642,7 +3642,7 @@ class TaskStandaloneModule(BaseModule):
                     # check duplication
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
-                    varMap[":inDatasetID"] = inDatasetID
+                    varMap.update(INPUT_TYPES_var_map)
                     varMap[":outDatasetID"] = outDatasetID
                     varMap[":statI"] = "finished"
                     varMap[":statT1"] = "finished"
