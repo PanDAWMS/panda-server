@@ -11,3 +11,8 @@ class ExternalTempError(Exception):
 # temporarily unavailable storage
 class TempBadStorageError(Exception):
     pass
+
+
+# no plugin configured for a vo/label pair
+class NoPluginError(Exception):
+    pass

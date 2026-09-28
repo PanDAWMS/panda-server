@@ -68,6 +68,10 @@ class WatchDogBase(object):
     def refresh(self) -> None:
         self.siteMapper = self.taskBufferIF.get_site_mapper()
 
+    # main action. Every plugin overrides this; FactoryBase[WatchDogBase] lets the knight call it
+    def doAction(self) -> Interaction.StatusCode:
+        raise NotImplementedError
+
     # pre-action
     # vo and prodSourceLabel come from watchdog.procConfig, where an empty field parses as
     # None and reaches the DB calls below as a NULL that simply matches no row

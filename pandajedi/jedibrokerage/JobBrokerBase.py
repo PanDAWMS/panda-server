@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
     from pandajedi.jedicore.MsgWrapper import MsgWrapper
     from pandajedi.jedicore.ThreadUtils import MapWithLock
+    from pandaserver.taskbuffer.InputChunk import InputChunk
+    from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 
 # base class for job brokerage
@@ -51,7 +53,13 @@ class JobBrokerBase(object):
     def refresh(self) -> None:
         self.siteMapper = self.taskBufferIF.get_site_mapper()
 
-    def setLiveCounter(self, liveCounter: "MapWithLock") -> None:
+    # job brokerage. Every plugin overrides this; FactoryBase[JobBrokerBase] lets the knight call it
+    def doBrokerage(
+        self, taskSpec: "JediTaskSpec", cloudName: str | None, inputChunk: "InputChunk", taskParamMap: dict[str, Any] | None
+    ) -> tuple[Interaction.StatusCode, "InputChunk"]:
+        raise NotImplementedError
+
+    def setLiveCounter(self, liveCounter: "MapWithLock | None") -> None:
         self.liveCounter = liveCounter
 
     def getLiveCount(self, siteName: str) -> Any:
@@ -60,7 +68,7 @@ class JobBrokerBase(object):
         return self.liveCounter.get(siteName)
 
     # only interpolated into the lock ID below, and the callers pass both a str and an int
-    def setLockID(self, pid: str | int, tid: int) -> None:
+    def setLockID(self, pid: str | int | None, tid: int | None) -> None:
         self.baseLockID = f"{pid}-jbr"
         self.lockID = f"{self.baseLockID}-{tid}"
 

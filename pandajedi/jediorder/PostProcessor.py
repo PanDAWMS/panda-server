@@ -21,6 +21,7 @@ from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.FactoryBase import FactoryBase
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
+from pandajedi.jedipprocess.PostProcessorBase import PostProcessorBase
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 from .JediKnight import JediKnight
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
-class PostProcessor(JediKnight, FactoryBase):
+class PostProcessor(JediKnight, FactoryBase[PostProcessorBase]):
     """
     Daemon that drives post-processing for finished JEDI tasks.
 
@@ -120,7 +121,7 @@ class PostProcessorThread(WorkerThread):
         threadPool: ThreadPool | None,
         taskbufferIF: "JediTaskBufferInterface | JediTaskBuffer",
         ddmIF: "DDMInterface",
-        implFactory: FactoryBase,
+        implFactory: FactoryBase[PostProcessorBase],
     ) -> None:
         WorkerThread.__init__(self, None, threadPool, logger)
         self.taskList = taskList
@@ -148,9 +149,8 @@ class PostProcessorThread(WorkerThread):
             if impl is None:
                 tmp_log.error(f"post-processor is undefined for vo={task_spec.vo} sourceLabel={task_spec.prodSourceLabel}")
                 tmp_stat = Interaction.SC_FATAL
-
-            # run post-processing
-            if tmp_stat == Interaction.SC_SUCCEEDED:
+            else:
+                # run post-processing
                 tmp_log.info(f"post-process with {impl.__class__.__name__}")
                 try:
                     tmp_stat = impl.doPostProcess(task_spec, tmp_log)
@@ -177,10 +177,11 @@ class PostProcessorThread(WorkerThread):
                 continue
 
             # run final procedure depending on prodsourcelabel (e.g. email notifications, manage output datasets, etc.)
-            try:
-                impl.doFinalProcedure(task_spec, tmp_log)
-            except Exception as e:
-                tmp_log.error(f"final procedure failed with {str(e)}")
+            if impl is not None:
+                try:
+                    impl.doFinalProcedure(task_spec, tmp_log)
+                except Exception as e:
+                    tmp_log.error(f"final procedure failed with {str(e)}")
 
             tmp_log.info("done")
 

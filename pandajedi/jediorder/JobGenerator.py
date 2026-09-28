@@ -655,7 +655,7 @@ class JobGeneratorThread(WorkerThread):
                                 taskSpec.setErrDiag(tmpErrStr)
                                 goForward = False
                             # set live counter
-                            jobBrokerCore = jobBroker.getImpl(taskSpec.vo, taskSpec.prodSourceLabel)
+                            jobBrokerCore = jobBroker.requireImpl(taskSpec.vo, taskSpec.prodSourceLabel)
                             jobBrokerCore.setLiveCounter(self.liveCounter)
                             # test mode
                             if self.test_mode:

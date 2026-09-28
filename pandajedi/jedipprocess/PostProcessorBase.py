@@ -66,6 +66,10 @@ class PostProcessorBase(object):
     def refresh(self) -> None:
         self.siteMapper = self.taskBufferIF.get_site_mapper()
 
+    # post-process a task. Every plugin overrides this; FactoryBase[PostProcessorBase] lets the knight call it
+    def doPostProcess(self, taskSpec: JediTaskSpec, tmpLog: MsgWrapper) -> Interaction.StatusCode:
+        raise NotImplementedError
+
     # basic post procedure
     def doBasicPostProcess(self, taskSpec: JediTaskSpec, tmpLog: MsgWrapper) -> None:
         # update task status

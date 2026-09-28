@@ -34,5 +34,5 @@ for ts in task_list:
 
 task_broker = TaskBroker(None, tbIF, ddmIF, [vo], [prodSourceLabel])
 FactoryBase.initializeMods(task_broker, task_broker.taskBufferIF, task_broker.ddmIF)
-impl = task_broker.getImpl(vo, prodSourceLabel)
+impl = task_broker.requireImpl(vo, prodSourceLabel)
 impl.doBrokerage(task_list, vo, prodSourceLabel, work_queue, resource_type)

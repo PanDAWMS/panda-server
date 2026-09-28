@@ -1,14 +1,31 @@
 import logging
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Generic, Protocol, TypeVar
 
+from .JediException import NoPluginError
 from .MsgWrapper import MsgWrapper
 
 _factoryModuleName = __name__.split(".")[-1]
 
 
+# what the factory itself needs from a plugin. Every plugin base class in pandajedi has it
+class _Plugin(Protocol):
+    def refresh(self) -> None: ...
+
+
+# the plugin family a factory hands out, e.g. FactoryBase[WatchDogBase]
+T = TypeVar("T", bound=_Plugin)
+
+
+# install vo and prodSourceLabel on a freshly made plugin. Only WatchDogBase declares
+# them, so they are set by name rather than through T
+def _stamp(impl: object, vo: str | None, sourceLabel: str | None) -> None:
+    setattr(impl, "vo", vo)
+    setattr(impl, "prodSourceLabel", sourceLabel)
+
+
 # base class for factory
-class FactoryBase:
+class FactoryBase(Generic[T]):
     # constructor
     def __init__(self, vos: str | None | Sequence[str | None], sourceLabels: str | None | Sequence[str | None], logger: logging.Logger, modConfig: str) -> None:
         # A None vo or source label lands in the list as itself -- the .split() below
@@ -33,9 +50,9 @@ class FactoryBase:
         self.modConfig = modConfig
         self.logger = MsgWrapper(logger, _factoryModuleName)
         # vo -> source label -> sub type -> the plugin named in modConfig. Which class that
-        # is comes from the config at runtime, so nothing narrower than Any can be said here
-        self.implMap: dict[str, dict[str, dict[str, Any]]] = {}
-        self.classMap: dict[str, dict[str, dict[str, type[Any]]]] = {}
+        # is comes from the config at runtime; initializeMods() trusts it to be one of T
+        self.implMap: dict[str, dict[str, dict[str, T]]] = {}
+        self.classMap: dict[str, dict[str, dict[str, type[T]]]] = {}
 
     # initialize all modules. Returns True, or does not return at all: a plugin that fails
     # to import raises rather than being skipped
@@ -88,8 +105,7 @@ class FactoryBase:
                             self.logger.info("instantiating")
                             impl = cls(*args)
                             # set vo
-                            impl.vo = vo
-                            impl.prodSourceLabel = sourceLabel
+                            _stamp(impl, vo, sourceLabel)
                             # append
                             if vo not in self.implMap:
                                 self.implMap[vo] = {}
@@ -109,7 +125,7 @@ class FactoryBase:
         return True
 
     # get implementation for vo and sourceLabel. Only work with initializeMods()
-    def getImpl(self, vo: str | None, sourceLabel: str | None, subType: str | None = "any", doRefresh: bool = True) -> Any:
+    def getImpl(self, vo: str | None, sourceLabel: str | None, subType: str | None = "any", doRefresh: bool = True) -> T | None:
         # check VO
         if vo in self.implMap:
             # match VO
@@ -144,8 +160,15 @@ class FactoryBase:
         else:
             return None
 
+    # getImpl() for a caller that cannot go on without a plugin
+    def requireImpl(self, vo: str | None, sourceLabel: str | None, subType: str | None = "any") -> T:
+        impl = self.getImpl(vo, sourceLabel, subType)
+        if impl is None:
+            raise NoPluginError(f"no plugin for vo={vo} label={sourceLabel} subType={subType} in {self.modConfig}")
+        return impl
+
     # instantiate implementation for vo and sourceLabel. Only work with initializeMods()
-    def instantiateImpl(self, vo: str | None, sourceLabel: str | None, subType: str | None, *args: Any) -> Any:
+    def instantiateImpl(self, vo: str | None, sourceLabel: str | None, subType: str | None, *args: Any) -> T | None:
         # check VO
         if vo in self.classMap:
             # match VO
@@ -168,14 +191,12 @@ class FactoryBase:
         if subType in srcImplMap:
             # match subType
             impl = srcImplMap[subType](*args)
-            impl.vo = vo
-            impl.prodSourceLabel = sourceLabel
+            _stamp(impl, vo, sourceLabel)
             return impl
         elif "any" in srcImplMap:
             # catch all
             impl = srcImplMap["any"](*args)
-            impl.vo = vo
-            impl.prodSourceLabel = sourceLabel
+            _stamp(impl, vo, sourceLabel)
             return impl
         else:
             return None

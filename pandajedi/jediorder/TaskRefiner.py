@@ -12,6 +12,7 @@ from pandajedi.jedicore.FactoryBase import FactoryBase
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
 from pandajedi.jedirefine import RefinerUtils
+from pandajedi.jedirefine.TaskRefinerBase import TaskRefinerBase
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.taskbuffer.DataCarousel import DataCarouselInterface
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
@@ -27,7 +28,7 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 # worker class to refine TASK_PARAM to fill JEDI tables
-class TaskRefiner(JediKnight, FactoryBase):
+class TaskRefiner(JediKnight, FactoryBase[TaskRefinerBase]):
     # constructor
     def __init__(
         self,
@@ -102,7 +103,7 @@ class TaskRefinerThread(WorkerThread):
         threadPool: ThreadPool,
         taskbufferIF: "JediTaskBufferInterface",
         ddmIF: "DDMInterface",
-        implFactory: FactoryBase,
+        implFactory: FactoryBase[TaskRefinerBase],
         workQueueMapper: WorkQueueMapper,
         # the one construction site always passes this, and every use in runImpl()
         # dereferences it without a check, so the old None default was never viable
@@ -138,6 +139,9 @@ class TaskRefinerThread(WorkerThread):
                     tmpStat = Interaction.SC_SUCCEEDED
                     errStr = ""
                     prodSourceLabel = None
+                    # set whenever tmpStat is still SC_SUCCEEDED past "get impl"; the steps below
+                    # test it as well so the type checker can see that
+                    impl: TaskRefinerBase | None = None
                     # read task parameters
                     try:
                         taskParam = None
@@ -197,7 +201,7 @@ class TaskRefinerThread(WorkerThread):
                             tmpLog.error(errStr)
                             tmpStat = Interaction.SC_FAILED
                     # extract common parameters
-                    if tmpStat == Interaction.SC_SUCCEEDED:
+                    if tmpStat == Interaction.SC_SUCCEEDED and impl is not None:
                         tmpLog.info("extracting common")
                         try:
                             # initialize impl
@@ -231,14 +235,14 @@ class TaskRefinerThread(WorkerThread):
                             tmpLog.error(errStr)
                             tmpStat = Interaction.SC_FAILED
                     # check attribute length
-                    if tmpStat == Interaction.SC_SUCCEEDED:
+                    if tmpStat == Interaction.SC_SUCCEEDED and impl is not None:
                         tmpLog.info("checking attribute length")
                         if not impl.taskSpec.checkAttrLength():
                             tmpLog.error(impl.taskSpec.errorDialog)
                             tmpStat = Interaction.SC_FAILED
                     # check parent
                     parentState = None
-                    if tmpStat == Interaction.SC_SUCCEEDED and parent_tid not in [None, jediTaskID]:
+                    if tmpStat == Interaction.SC_SUCCEEDED and impl is not None and parent_tid not in [None, jediTaskID]:
                         tmpLog.info("check parent task")
                         try:
                             tmpStat = self.taskBufferIF.checkParentTask_JEDI(parent_tid, jediTaskID)
@@ -274,7 +278,7 @@ class TaskRefinerThread(WorkerThread):
                             tmpStat = Interaction.SC_FAILED
 
                     # refine
-                    if tmpStat == Interaction.SC_SUCCEEDED:
+                    if tmpStat == Interaction.SC_SUCCEEDED and impl is not None:
                         tmpLog.info(f"refining with {impl.__class__.__name__}")
                         try:
                             tmpStat = impl.doRefine(jediTaskID, taskParamMap)
@@ -344,7 +348,7 @@ class TaskRefinerThread(WorkerThread):
                                 tmpLog.error(errStr)
                                 tmpStat = Interaction.SC_FAILED
                     # data carousel (input pre-staging) ; currently for all analysis tasks, and production tasks with "panda_data_carousel"
-                    if tmpStat == Interaction.SC_SUCCEEDED:
+                    if tmpStat == Interaction.SC_SUCCEEDED and impl is not None:
                         # set of datasets requiring and not requiring staging
                         to_staging_datasets = set()
                         no_staging_datasets = set()
@@ -357,9 +361,11 @@ class TaskRefinerThread(WorkerThread):
                             tmpLog.info("checking about data carousel")
                             try:
                                 # get the list of dataset names (and DIDs) required to check; currently only master input datasets
-                                dsname_list = []
+                                dsname_list: list[str] = []
                                 for dataset_spec in impl.inMasterDatasetSpec:
                                     dataset_name = dataset_spec.datasetName
+                                    if dataset_name is None:
+                                        continue
                                     dataset_did = None
                                     try:
                                         dataset_did = rucioAPI.get_did_str(dataset_name)
@@ -508,7 +514,7 @@ class TaskRefinerThread(WorkerThread):
                                 tmpLog.error(errStr)
                                 tmpStat = Interaction.SC_FAILED
                     # staging
-                    if tmpStat == Interaction.SC_SUCCEEDED:
+                    if tmpStat == Interaction.SC_SUCCEEDED and impl is not None:
                         if "toStaging" in taskParamMap and taskStatus not in ["staged", "rerefine"]:
                             errStr = "wait until staging is done"
                             impl.taskSpec.status = "staging"
@@ -523,7 +529,7 @@ class TaskRefinerThread(WorkerThread):
                             tmpLog.info("update task status to staging")
                             continue
                     # adjust specs after refining
-                    if tmpStat == Interaction.SC_SUCCEEDED:
+                    if tmpStat == Interaction.SC_SUCCEEDED and impl is not None:
                         try:
                             if impl.taskSpec.inputPreStaging():
                                 # for now, no staging for all secondary datasets
@@ -541,10 +547,11 @@ class TaskRefinerThread(WorkerThread):
                                 for dataset_spec in impl.inMasterDatasetSpec:
                                     dataset_name = dataset_spec.datasetName
                                     dataset_did = None
-                                    try:
-                                        dataset_did = rucioAPI.get_did_str(dataset_name)
-                                    except Exception:
-                                        pass
+                                    if dataset_name is not None:
+                                        try:
+                                            dataset_did = rucioAPI.get_did_str(dataset_name)
+                                        except Exception:
+                                            pass
                                     if (
                                         dataset_name in no_staging_datasets
                                         or dataset_did in no_staging_datasets
@@ -570,7 +577,7 @@ class TaskRefinerThread(WorkerThread):
                         if errStr != "":
                             tmpTaskSpec.setErrDiag(errStr, True)
                         self.taskBufferIF.updateTask_JEDI(tmpTaskSpec, {"jediTaskID": tmpTaskSpec.jediTaskID}, oldStatus=[taskStatus])
-                    else:
+                    elif impl is not None:
                         tmpLog.info("registering")
                         # fill JEDI tables
                         try:

@@ -11,6 +11,7 @@ from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.FactoryBase import FactoryBase
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jedidog.WatchDogBase import WatchDogBase
 
 from .JediKnight import JediKnight
 
@@ -22,7 +23,7 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 # worker class for watchdog
-class WatchDog(JediKnight, FactoryBase):
+class WatchDog(JediKnight, FactoryBase[WatchDogBase]):
     # constructor
     def __init__(
         self,

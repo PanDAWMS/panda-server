@@ -56,6 +56,10 @@ class TaskRefinerBase(object):
     def refresh(self) -> None:
         self.siteMapper = self.taskBufferIF.get_site_mapper()
 
+    # refine a task. Every plugin overrides this; FactoryBase[TaskRefinerBase] lets the knight call it
+    def doRefine(self, jediTaskID: int, taskParamMap: dict[str, Any]) -> Interaction.StatusCode:
+        raise NotImplementedError
+
     # initialize
     def initializeRefiner(self, tmpLog: MsgWrapper | None) -> None:
         self.taskSpec = None  # type: ignore[assignment]

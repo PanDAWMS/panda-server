@@ -35,7 +35,7 @@ taskType = taskParamMap["taskType"]
 workQueueMapper = tbIF.getWorkQueueMap()
 workQueue = workQueueMapper.getQueueWithIDGshare(taskSpec.workQueue_ID, taskSpec.gshare)
 
-impl = body.getImpl(vo, prodSourceLabel)
+impl = body.requireImpl(vo, prodSourceLabel)
 
 
 tmpListItem = tbIF.getTasksToBeProcessed_JEDI(None, None, None, None, None, simTasks=[jediTaskID], readMinFiles=True)

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pandajedi.jedicore import Interaction
 
@@ -8,6 +8,8 @@ if TYPE_CHECKING:
     # tree, so the uses below are quoted.
     from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
     from pandajedi.jediddm.DDMInterface import DDMInterface
+    from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+    from pandaserver.taskbuffer.WorkQueue import WorkQueue
 
 
 # base class for task brokerge
@@ -25,6 +27,16 @@ class TaskBrokerBase(object):
 
     def refresh(self) -> None:
         self.siteMapper = self.taskBufferIF.get_site_mapper()
+
+    # check tasks. Every plugin overrides this; FactoryBase[TaskBrokerBase] lets the knight call it
+    def doCheck(self, taskSpecList: "list[JediTaskSpec]") -> tuple[Interaction.StatusCode, dict[str, Any]]:
+        raise NotImplementedError
+
+    # task brokerage. Every plugin overrides this; FactoryBase[TaskBrokerBase] lets the knight call it
+    def doBrokerage(
+        self, inputList: list[Any], vo: str | None, prodSourceLabel: str | None, workQueue: "WorkQueue", resource_name: str
+    ) -> Interaction.StatusCode:
+        raise NotImplementedError
 
 
 Interaction.installSC(TaskBrokerBase)

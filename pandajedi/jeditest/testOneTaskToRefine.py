@@ -41,6 +41,8 @@ queueID = taskSpec.workQueue_ID
 gshare_name = taskSpec.gshare
 
 impl = refiner.instantiateImpl(vo, prodSourceLabel, taskType, tbIF, ddmIF)
+if impl is None:
+    sys.exit(f"no task refiner for vo={vo} label={prodSourceLabel} taskType={taskType}")
 
 workQueueMapper = tbIF.getWorkQueueMap()
 

@@ -77,7 +77,7 @@ for dummyID, tmpList in tmpListList:
         jobBroker = JobBroker(taskSpec.vo, taskSpec.prodSourceLabel)
         # its own name: initializeMods answers a bool, tmpStat below is a StatusCode
         initStat = jobBroker.initializeMods(ddmIF.getInterface(vo), tbIF)
-        jobBrokerCore = jobBroker.getImpl(taskSpec.vo, taskSpec.prodSourceLabel)
+        jobBrokerCore = jobBroker.requireImpl(taskSpec.vo, taskSpec.prodSourceLabel)
         jobBrokerCore.setTestMode()
         jobBrokerCore.set_task_common_dict(task_common)
         splitter = JobSplitter()

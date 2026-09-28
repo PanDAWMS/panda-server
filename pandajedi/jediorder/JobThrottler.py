@@ -3,13 +3,14 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.FactoryBase import FactoryBase
+from pandajedi.jedithrottle.JobThrottlerBase import JobThrottlerBase
 from pandaserver.taskbuffer.WorkQueue import WorkQueue
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 # factory class for throttling
-class JobThrottler(FactoryBase):
+class JobThrottler(FactoryBase[JobThrottlerBase]):
     # constructor
     def __init__(self, vo: str | list[str] | None, sourceLabel: str | list[str] | None) -> None:
         FactoryBase.__init__(self, vo, sourceLabel, logger, jedi_config.jobthrottle.modConfig)
@@ -18,8 +19,8 @@ class JobThrottler(FactoryBase):
     def toBeThrottled(
         self, vo: str, sourceLabel: str, cloudName: str | None, workQueue: WorkQueue, resourceType: str
     ) -> tuple[Interaction.StatusCode, bool | int]:
-        impl = self.getImpl(vo, sourceLabel)
-        retVal: tuple[Interaction.StatusCode, bool | int] = impl.toBeThrottled(vo, sourceLabel, cloudName, workQueue, resourceType)
+        impl = self.requireImpl(vo, sourceLabel)
+        retVal = impl.toBeThrottled(vo, sourceLabel, cloudName, workQueue, resourceType)
         # retrieve min priority and max number of jobs from concrete class
         self.minPriority = impl.minPriority
         self.maxNumJobs = impl.maxNumJobs
@@ -28,6 +29,4 @@ class JobThrottler(FactoryBase):
 
     # check throttle level
     def mergeThrottled(self, vo: str, sourceLabel: str, thrLevel: bool | int) -> bool:
-        impl = self.getImpl(vo, sourceLabel)
-        merge_throttled: bool = impl.mergeThrottled(thrLevel)
-        return merge_throttled
+        return self.requireImpl(vo, sourceLabel).mergeThrottled(thrLevel)

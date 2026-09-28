@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
+from pandajedi.jedibrokerage.TaskBrokerBase import TaskBrokerBase
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.FactoryBase import FactoryBase
@@ -22,7 +23,7 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 # worker class to refine TASK_PARAM to fill JEDI tables
-class TaskBroker(JediKnight, FactoryBase):
+class TaskBroker(JediKnight, FactoryBase[TaskBrokerBase]):
     # constructor
     # commuChannel is None in the jeditest drivers, which build the knight to call one
     # of its methods directly and never reach start()
@@ -134,7 +135,7 @@ class TaskCheckerThread(WorkerThread):
         threadPool: ThreadPool,
         taskbufferIF: "JediTaskBufferInterface",
         ddmIF: "DDMInterface",
-        implFactory: FactoryBase,
+        implFactory: FactoryBase[TaskBrokerBase],
         # a config entry with an empty vo or label field parses to None, which is what
         # FactoryBase tests for and what the knight hands down here
         vo: str | None,
@@ -166,6 +167,7 @@ class TaskCheckerThread(WorkerThread):
                 tmpLog = MsgWrapper(self.logger)
                 tmpLog.info(f"start TaskCheckerThread {idxTasks}/{totalTasks} for jediTaskID={taskList}")
                 tmpStat = Interaction.SC_SUCCEEDED
+                impl: TaskBrokerBase | None = None
                 # get TaskSpecs
                 taskSpecList = []
                 for jediTaskID in taskList:
@@ -187,8 +189,8 @@ class TaskCheckerThread(WorkerThread):
                         except Exception as e:
                             tmpLog.error(f"getImpl failed with {type(e).__name__}:{e}")
                             tmpStat = Interaction.SC_FAILED
-                    # check
-                    if tmpStat == Interaction.SC_SUCCEEDED:
+                    # check. impl is set whenever tmpStat is still SC_SUCCEEDED
+                    if tmpStat == Interaction.SC_SUCCEEDED and impl is not None:
                         tmpLog.info(f"check with {impl.__class__.__name__}")
                         try:
                             tmpStat, taskCloudMap = impl.doCheck(taskSpecList)
@@ -214,7 +216,7 @@ class TaskBrokerThread(WorkerThread):
         threadPool: ThreadPool,
         taskbufferIF: "JediTaskBufferInterface",
         ddmIF: "DDMInterface",
-        implFactory: FactoryBase,
+        implFactory: FactoryBase[TaskBrokerBase],
         # a config entry with an empty vo or label field parses to None, which is what
         # FactoryBase tests for and what the knight hands down here
         vo: str | None,
@@ -250,6 +252,7 @@ class TaskBrokerThread(WorkerThread):
                 tmpLog = MsgWrapper(self.logger)
                 tmpLog.info(f"start TaskBrokerThread {idxTasks}/{totalTasks} for jediTaskID={taskList}")
                 tmpStat = Interaction.SC_SUCCEEDED
+                impl: TaskBrokerBase | None = None
                 # get TaskSpecs
                 tmpListToAssign = []
                 for tmpTaskItem in taskList:
@@ -274,8 +277,8 @@ class TaskBrokerThread(WorkerThread):
                     except Exception as e:
                         tmpLog.error(f"getImpl failed with {type(e).__name__}:{e}")
                         tmpStat = Interaction.SC_FAILED
-                # brokerage
-                if tmpStat == Interaction.SC_SUCCEEDED:
+                # brokerage. impl is set whenever tmpStat is still SC_SUCCEEDED
+                if tmpStat == Interaction.SC_SUCCEEDED and impl is not None:
                     tmpLog.info(f"brokerage with {impl.__class__.__name__} for {len(tmpListToAssign)} tasks ")
                     try:
                         tmpStat = impl.doBrokerage(tmpListToAssign, self.vo, self.prodSourceLabel, self.workQueue, self.resource_name)

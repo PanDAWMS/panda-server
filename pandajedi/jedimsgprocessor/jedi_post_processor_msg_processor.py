@@ -8,6 +8,7 @@ from pandajedi.jedicore.FactoryBase import FactoryBase
 from pandajedi.jediddm.DDMInterface import DDMInterface
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
 from pandajedi.jediorder.PostProcessor import PostProcessorThread
+from pandajedi.jedipprocess.PostProcessorBase import PostProcessorBase
 from pandaserver.srvcore.CoreUtils import convert_config_params, parse_init_params
 
 base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
@@ -30,7 +31,9 @@ class JediPostProcessorMsgProcPlugin(BaseMsgProcPlugin):
             items = convert_config_params(itemStr)
             vos = parse_init_params(items[0])
             prodsourcelabels = parse_init_params(items[1])
-            tmp_factory_base_obj = FactoryBase(vos=vos, sourceLabels=prodsourcelabels, logger=base_logger, modConfig=jedi_config.postprocessor.modConfig)
+            tmp_factory_base_obj: FactoryBase[PostProcessorBase] = FactoryBase(
+                vos=vos, sourceLabels=prodsourcelabels, logger=base_logger, modConfig=jedi_config.postprocessor.modConfig
+            )
             tmp_post_processor_thread_obj = PostProcessorThread(
                 taskList=None, threadPool=None, taskbufferIF=self.tbIF, ddmIF=ddmIF, implFactory=tmp_factory_base_obj
             )

@@ -2,6 +2,7 @@ from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandajedi.jedibrokerage.JobBrokerBase import JobBrokerBase
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.FactoryBase import FactoryBase
@@ -13,7 +14,7 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
 
 # factory class for job brokerage
-class JobBroker(FactoryBase):
+class JobBroker(FactoryBase[JobBrokerBase]):
     # constructor
     def __init__(self, vo: str | list[str] | None, sourceLabel: str | list[str] | None) -> None:
         FactoryBase.__init__(self, vo, sourceLabel, logger, jedi_config.jobbroker.modConfig)
@@ -22,25 +23,20 @@ class JobBroker(FactoryBase):
     def doBrokerage(
         self, taskSpec: JediTaskSpec, cloudName: str | None, inputChunk: InputChunk, taskParamMap: dict[str, Any] | None
     ) -> tuple[Interaction.StatusCode, InputChunk]:
-        # the plugin is whichever class the configuration named, so its answer is untyped
-        ret: tuple[Interaction.StatusCode, InputChunk] = self.getImpl(taskSpec.vo, taskSpec.prodSourceLabel).doBrokerage(
-            taskSpec, cloudName, inputChunk, taskParamMap
-        )
-        return ret
+        return self.requireImpl(taskSpec.vo, taskSpec.prodSourceLabel).doBrokerage(taskSpec, cloudName, inputChunk, taskParamMap)
 
     # set live counter
     def setLiveCounter(self, vo: str, sourceLabel: str, liveCounter: MapWithLock) -> None:
-        self.getImpl(vo, sourceLabel).setLiveCounter(liveCounter)
+        self.requireImpl(vo, sourceLabel).setLiveCounter(liveCounter)
 
     # set lock ID
     def setLockID(self, vo: str, sourceLabel: str, pid: str | int, tid: int) -> None:
-        self.getImpl(vo, sourceLabel).setLockID(pid, tid)
+        self.requireImpl(vo, sourceLabel).setLockID(pid, tid)
 
     # get base lock ID
     def getBaseLockID(self, vo: str, sourceLabel: str) -> str | None:
-        lock_id: str | None = self.getImpl(vo, sourceLabel).getBaseLockID()
-        return lock_id
+        return self.requireImpl(vo, sourceLabel).getBaseLockID()
 
     # set test mode
     def setTestMode(self, vo: str, sourceLabel: str) -> None:
-        self.getImpl(vo, sourceLabel).setTestMode()
+        self.requireImpl(vo, sourceLabel).setTestMode()

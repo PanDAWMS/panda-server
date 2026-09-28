@@ -55,6 +55,12 @@ class JobThrottlerBase(object):
         self.underNqLimit = False
         self.siteMapper = self.taskBufferIF.get_site_mapper()
 
+    # check if jobs are to be throttled. Every plugin overrides this; FactoryBase[JobThrottlerBase] lets the knight call it
+    def toBeThrottled(
+        self, vo: str, prodSourceLabel: str, cloudName: str | None, workQueue: WorkQueue, resource_name: str
+    ) -> tuple[Interaction.StatusCode, bool | int]:
+        raise NotImplementedError
+
     # set maximum number of jobs to be submitted
     def setMaxNumJobs(self, maxNumJobs: float) -> None:
         self.maxNumJobs = maxNumJobs

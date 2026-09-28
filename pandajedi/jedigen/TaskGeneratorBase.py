@@ -1,6 +1,11 @@
+from typing import TYPE_CHECKING, Any
+
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jediddm.DDMInterface import DDMInterface
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 
 # base class for task generator
@@ -18,6 +23,10 @@ class TaskGeneratorBase(object):
 
     def refresh(self) -> None:
         self.siteMapper = self.taskBufferIF.get_site_mapper()
+
+    # generate a task. Every plugin overrides this; FactoryBase[TaskGeneratorBase] lets the knight call it
+    def doGenerate(self, taskSpec: "JediTaskSpec", taskParamMap: dict[str, Any], **varMap: Any) -> Interaction.StatusCode:
+        raise NotImplementedError
 
 
 Interaction.installSC(TaskGeneratorBase)

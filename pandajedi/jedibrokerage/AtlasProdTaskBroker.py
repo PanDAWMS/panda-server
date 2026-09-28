@@ -43,7 +43,9 @@ class AtlasProdTaskBroker(TaskBrokerBase):
         return self.SC_SUCCEEDED, {}
 
     # main to assign
-    def doBrokerage(self, inputList: list[Any], vo: str, prodSourceLabel: str, workQueue: WorkQueue, resource_name: str) -> Interaction.StatusCode:
+    def doBrokerage(
+        self, inputList: list[Any], vo: str | None, prodSourceLabel: str | None, workQueue: WorkQueue, resource_name: str
+    ) -> Interaction.StatusCode:
         # list with a lock
         inputListWorld = ListWithLock([])
 
