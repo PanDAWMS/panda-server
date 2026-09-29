@@ -53,6 +53,7 @@ NWS_URL: str
 RUCIO_RSE_USAGE: str
 backend: str
 cache_dir: str
+cache_retention_days: int
 compress_file_names: str
 dbhost: str
 dbname: str
@@ -163,6 +164,10 @@ if "endpoint_mapfile" not in tmpSelf.__dict__:
 # sandbox info
 if "record_sandbox_info" not in tmpSelf.__dict__:
     tmpSelf.__dict__["record_sandbox_info"] = True
+
+# days to keep files in cache_dir before copyArchive deletes them
+if "cache_retention_days" not in tmpSelf.__dict__:
+    tmpSelf.__dict__["cache_retention_days"] = 7
 
 # secrets
 if "pilot_secrets" not in tmpSelf.__dict__:
