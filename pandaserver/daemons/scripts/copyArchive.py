@@ -1283,7 +1283,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     _memoryCheck("delete XML")
 
     # delete old files in DA cache
-    timeLimit = naive_utcnow() - datetime.timedelta(days=7)
+    timeLimit = naive_utcnow() - datetime.timedelta(days=panda_config.cache_retention_days)
     files = os.listdir(panda_config.cache_dir)
     for file in files:
         # skip special test file
