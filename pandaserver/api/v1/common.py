@@ -495,6 +495,8 @@ def request_validation(
 # a wrapper to install timeout into a method
 class TimedMethod:
     # whatever the wrapped method returns, or the TIME_OUT token while it has not returned
+    # NOTE: The timeout would have to be added to thr.join(), but has been ignored on purpose since 2009.
+    #       It was moved to the ConBridge dbtimeout, which retries rather than fails.
     result: typing.Any
 
     def __init__(self, method: Callable[..., Any], timeout: int | None) -> None:
