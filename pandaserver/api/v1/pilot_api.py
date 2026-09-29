@@ -940,7 +940,7 @@ def update_worker_node_gpu(
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_pilot_attributes(req: PandaRequest, job_id: int, pilot_version: str, pilot_attributes: dict[str, Any] | str, timeout: int = 60) -> dict[str, Any]:
+def update_pilot_attributes(req: PandaRequest, job_id: int, pilot_version: str, pilot_attributes: dict[str, Any], timeout: int = 60) -> dict[str, Any]:
     """
     Update pilot attributes
 
@@ -955,7 +955,7 @@ def update_pilot_attributes(req: PandaRequest, job_id: int, pilot_version: str, 
         req(PandaRequest): Internally generated request object containing the environment variables.
         job_id(int): PanDA job ID.
         pilot_version(str): Version of the pilot reporting the attributes.
-        pilot_attributes(dict or str): The attributes to insert, either as a dictionary or as a JSON-encoded string.
+        pilot_attributes(dict): Dictionary with the attributes to insert.
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -963,14 +963,6 @@ def update_pilot_attributes(req: PandaRequest, job_id: int, pilot_version: str, 
     """
     tmp_logger = LogWrapper(_logger, f"update_pilot_attributes job_id={job_id} pilot_version={pilot_version}")
     tmp_logger.debug("Start")
-
-    if isinstance(pilot_attributes, str):
-        try:
-            pilot_attributes = json.loads(pilot_attributes)
-        except Exception as e:
-            message = f"pilot_attributes is not valid JSON: {e}"
-            tmp_logger.error(message)
-            return generate_response(False, message=message)
 
     if not isinstance(pilot_attributes, dict):
         message = "pilot_attributes must be a JSON object"
