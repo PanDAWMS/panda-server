@@ -774,6 +774,12 @@ class TaskBuffer:
             )
         return ret
 
+    def update_pilot_attributes(self, panda_id: int, pilot_version: str, pilot_attributes: dict[str, Any] | str) -> tuple[bool, str]:
+        with self.proxyPool.get() as proxy:
+            # update DB and buffer
+            ret = proxy.update_pilot_attributes(panda_id, pilot_version, pilot_attributes)
+        return ret
+
     def get_architecture_level_map(self) -> dict[Any, Any]:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_architecture_level_map()

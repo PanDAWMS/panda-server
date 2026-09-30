@@ -1149,7 +1149,7 @@ def get_tasks_detailed_info_since(req: PandaRequest, since: str | None = None, f
     Fetches task IDs for tasks modified since ``since`` (max 90-day window), applies optional
     field filters, and returns full detail (all JediTaskSpec fields + jobParamsTemplate +
     taskParams + input-file progress) for each matching task. The request is always scoped to the
-    authenticated user (DN from the request certificate) unless userName is explicity specified in
+    authenticated user (DN from the request certificate) unless userName is explicitly specified in
     the filters.
 
     When ``since`` is omitted the time-window cap is removed entirely, so matching tasks are

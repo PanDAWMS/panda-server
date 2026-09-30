@@ -37,6 +37,7 @@ global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
 global_site_mapper_cache: CoreUtils.CachedObject = None  # type: ignore[assignment]
 
 VALID_JOB_STATES = ["running", "failed", "finished", "holding", "starting", "transferring"]
+MAX_PILOT_ATTRIBUTES_SIZE = 64 * 1024  # maximum size in bytes of the serialized pilot attributes
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -929,6 +930,56 @@ def update_worker_node_gpu(
 
     if timed_method.result == Protocol.TimeOutToken:  # timeout
         message = "Updating worker node GPU timed out"
+        tmp_logger.error(message)
+        return generate_response(False, message)
+
+    success, message = timed_method.result
+
+    tmp_logger.debug("Done")
+    return generate_response(success, message)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def update_pilot_attributes(req: PandaRequest, job_id: int, pilot_version: str, pilot_attributes: dict[str, Any], timeout: int = 60) -> dict[str, Any]:
+    """
+    Update pilot attributes
+
+    Inserts the attributes a pilot reports for a job. The attributes for a job can only be inserted once, a second call
+    for the same job fails. The serialized attributes can be at most `MAX_PILOT_ATTRIBUTES_SIZE` bytes. Requires a secure connection and production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/pilot/update_pilot_attributes
+
+    Args:
+        req(PandaRequest): Internally generated request object containing the environment variables.
+        job_id(int): PanDA job ID.
+        pilot_version(str): Version of the pilot reporting the attributes.
+        pilot_attributes(dict): Dictionary with the attributes to insert.
+        timeout(int, optional): The timeout value. Defaults to 60.
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
+    """
+    tmp_logger = LogWrapper(_logger, f"update_pilot_attributes job_id={job_id} pilot_version={pilot_version}")
+    tmp_logger.debug("Start")
+
+    if not isinstance(pilot_attributes, dict):
+        message = "pilot_attributes must be a JSON object"
+        tmp_logger.error(message)
+        return generate_response(False, message=message)
+
+    attributes_size = len(json.dumps(pilot_attributes).encode("utf-8"))
+    if attributes_size > MAX_PILOT_ATTRIBUTES_SIZE:
+        message = f"pilot_attributes is too large: {attributes_size} bytes exceeds the limit of {MAX_PILOT_ATTRIBUTES_SIZE} bytes"
+        tmp_logger.error(message)
+        return generate_response(False, message=message)
+
+    timed_method = TimedMethod(global_task_buffer.update_pilot_attributes, timeout)
+    timed_method.run(job_id, pilot_version, pilot_attributes)
+
+    if timed_method.result == Protocol.TimeOutToken:  # timeout
+        message = "Inserting pilot attributes timed out"
         tmp_logger.error(message)
         return generate_response(False, message)
 
