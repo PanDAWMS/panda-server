@@ -155,7 +155,8 @@ class GenJobBroker(JobBrokerBase):
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 # check at the site
-                if tmpSiteSpec.maxtime != 0 and minWalltime > tmpSiteSpec.maxtime:
+                # a site with no maxtime imposes no ceiling, the same as 0
+                if tmpSiteSpec.maxtime and minWalltime > tmpSiteSpec.maxtime:
                     tmpLog.debug(f"  skip {tmpSiteName} due to short site walltime={tmpSiteSpec.maxtime}(site upper limit) < {minWalltime}")
                     continue
                 if tmpSiteSpec.mintime != 0 and minWalltime < tmpSiteSpec.mintime:

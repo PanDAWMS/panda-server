@@ -1133,7 +1133,8 @@ class AtlasProdJobBroker(JobBrokerBase):
         tmpLog.set_message_slot()
         for tmpSiteName in scanSiteList:
             tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
-            siteMaxTime = tmpSiteSpec.maxtime
+            # a site with no maxtime imposes no ceiling, the same as 0 below and as in JobSplitter
+            siteMaxTime = tmpSiteSpec.maxtime if tmpSiteSpec.maxtime is not None else 0
             origSiteMaxTime = siteMaxTime
             # check max walltime at the site
             tmpSiteStr = f"{siteMaxTime}"
