@@ -497,10 +497,15 @@ class AtlasProdJobBroker(JobBrokerBase):
                     if nucleus == tmpAtlasSiteName:
                         # nucleus
                         pass
-                    elif nucleusSpec is not None and nucleus in nucleus_with_storages_unwritable_over_wan:
+                    elif (
+                        nucleusSpec is not None
+                        and nucleus in nucleus_with_storages_unwritable_over_wan
+                        # always true: the map above only holds nuclei whose default endpoint resolved
+                        and (nucleus_endpoint_out := nucleusSpec.get_default_endpoint_out()) is not None
+                    ):
                         # destination blacklisted
                         reason = (
-                            nucleusSpec.get_default_endpoint_out()["ddm_endpoint_name"]
+                            nucleus_endpoint_out["ddm_endpoint_name"]
                             + f" at nucleus={nucleus} unwritable over WAN write_wan={nucleus_with_storages_unwritable_over_wan[nucleus]}"
                         )
                         criteria = "-dest_blacklisted"
@@ -931,7 +936,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 compensated_min_ram_count = JobUtils.compensate_ram_count(minRamCount)
                 minRamCount = compensated_min_ram_count if compensated_min_ram_count is not None else 0
                 # site max memory requirement
-                site_maxmemory = 0
+                site_maxmemory: float = 0
                 if tmpSiteSpec.maxrss not in [0, None]:
                     site_maxmemory = tmpSiteSpec.maxrss
                 # check at the site
@@ -941,7 +946,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     msg_map[tmpSiteSpec.get_unified_name()] = tmp_msg
                     continue
                 # site min memory requirement
-                site_minmemory = 0
+                site_minmemory: float = 0
                 if tmpSiteSpec.minrss not in [0, None]:
                     site_minmemory = tmpSiteSpec.minrss
                 if site_minmemory not in [0, None] and minRamCount and minRamCount < site_minmemory:
@@ -1134,7 +1139,7 @@ class AtlasProdJobBroker(JobBrokerBase):
         for tmpSiteName in scanSiteList:
             tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
             # a site with no maxtime imposes no ceiling, the same as 0 below and as in JobSplitter
-            siteMaxTime = tmpSiteSpec.maxtime if tmpSiteSpec.maxtime is not None else 0
+            siteMaxTime: float = tmpSiteSpec.maxtime if tmpSiteSpec.maxtime is not None else 0
             origSiteMaxTime = siteMaxTime
             # check max walltime at the site
             tmpSiteStr = f"{siteMaxTime}"
@@ -1193,7 +1198,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     msg_map[tmpSiteSpec.get_unified_name()] = tmp_msg
                     continue
             # check min walltime at the site
-            siteMinTime = tmpSiteSpec.mintime
+            siteMinTime: float = tmpSiteSpec.mintime
             origSiteMinTime = siteMinTime
             tmpSiteStr = f"{siteMinTime}"
             if taskSpec.useHS06():

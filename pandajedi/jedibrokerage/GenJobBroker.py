@@ -137,7 +137,7 @@ class GenJobBroker(JobBrokerBase):
             # free space must be >= 200GB
             diskThreshold = 200
             tmpSpaceSize = tmpSiteSpec.space
-            if tmpSiteSpec.space and tmpSpaceSize < diskThreshold:
+            if tmpSpaceSize and tmpSpaceSize < diskThreshold:
                 tmpLog.debug(f"  skip {tmpSiteName} due to disk shortage in SE = {tmpSiteSpec.space} < {diskThreshold}GB")
                 continue
             newScanSiteList.append(tmpSiteName)

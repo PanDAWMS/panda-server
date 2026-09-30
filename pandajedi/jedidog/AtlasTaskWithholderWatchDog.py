@@ -78,8 +78,9 @@ class AtlasTaskWithholderWatchDog(WatchDogBase):
             else:
                 # fill site rse map
                 site_rse_map[tmpSiteName] = list(endpoint_token_map.values())
-                # blacklisted rse
-                if tmp_endpoint is not None and tmp_endpoint["blacklisted"] == "Y":
+                # blacklisted rse. A None name is never a key of the map, so tmp_endpoint is None
+                # for it anyway; the test tells the checker the set only receives real names
+                if endpoint_name is not None and tmp_endpoint is not None and tmp_endpoint["blacklisted"] == "Y":
                     blacklisted_rse_set.add(endpoint_name)
         # return
         return site_rse_map, blacklisted_rse_set

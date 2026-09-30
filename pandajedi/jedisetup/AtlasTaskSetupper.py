@@ -85,10 +85,12 @@ class AtlasTaskSetupper(TaskSetupperBase):
                         secondaryNucleus = nucleusSpec.get_secondary_nucleus()
                         if secondaryNucleus:
                             secNucleusSpecBase = siteMapper.getNucleus(secondaryNucleus)
+                    siteInNucleus = None
                     if nucleusSpec:
-                        siteInNucleus = siteMapper.getSite(nucleusSpec.getOnePandaSite())
-                    else:
-                        siteInNucleus = None
+                        # never None: SiteMapper adds a site to every nucleus it builds
+                        nucleusSiteName = nucleusSpec.getOnePandaSite()
+                        if nucleusSiteName is not None:
+                            siteInNucleus = siteMapper.getSite(nucleusSiteName)
                     # check if dataset and container are available in DDM
                     for targetName in [datasetSpec.datasetName, datasetSpec.containerName]:
                         if targetName is None:
@@ -168,11 +170,16 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                         grouping = "NONE"
                                         tmpToRegister = True
                                     elif secNucleusSpec:
+                                        # never None: SiteMapper adds a site to every nucleus it builds
+                                        secNucleusSiteName = secNucleusSpec.getOnePandaSite()
+                                        if secNucleusSiteName is None:
+                                            tmpLog.error(f"secondary nucleus={secNucleusSpec.name} has no site")
+                                            return retFatal
                                         userName = None
                                         grouping = None
                                         tmpToRegister = True
                                         locForRule = siteMapper.getDdmEndpoint(
-                                            secNucleusSpec.getOnePandaSite(),
+                                            secNucleusSiteName,
                                             datasetSpec.storageToken,
                                             taskSpec.prodSourceLabel,
                                             JobUtils.translate_tasktype_to_jobtype(taskSpec.taskType),
