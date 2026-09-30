@@ -261,6 +261,10 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                             return retFatal
                                 avDatasetList.append(targetName)
                             elif taskSpec.toMoveDatasets() and DataServiceUtils.getDistributedDestination(datasetSpec.storageToken) is None:
+                                # the nucleus picked at brokerage can have dropped out of SiteMapper since
+                                if siteInNucleus is None:
+                                    tmpLog.error(f"cannot move {targetName} since nucleus={taskSpec.nucleus} is unknown")
+                                    return retFatal
                                 # get location
                                 location = siteMapper.getDdmEndpoint(
                                     siteInNucleus.sitename,
