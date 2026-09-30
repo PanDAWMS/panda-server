@@ -1012,7 +1012,8 @@ class AdderAtlasPlugin(AdderPluginBase):
 
         Args:
             id_map (dict): A dictionary mapping dataset names to file attributes.
-            dataset_destination_map (dict): A dictionary mapping dataset names to destination sites.
+            dataset_destination_map (dict): A dictionary mapping dataset names to destination sites, keyed by sub-dataset names,
+                or by top-level names for files with alternative stage-out.
             map_for_alt_stage_out (dict): A dictionary mapping alternative destination sites to file attributes.
             sub_to_dataset_map (dict): A dictionary mapping sub-dataset names to top-level dataset names.
             alt_staged_files (set): A set of files uploaded with alternative stage-out.
@@ -1022,7 +1023,8 @@ class AdderAtlasPlugin(AdderPluginBase):
         """
         # add item for top datasets
         for tmp_dataset in list(dataset_destination_map):
-            tmp_top_dataset = sub_to_dataset_map[tmp_dataset]
+            # files uploaded with alternative stage-out are keyed by their top-level name, which has no entry
+            tmp_top_dataset = sub_to_dataset_map.get(tmp_dataset, tmp_dataset)
             if tmp_top_dataset != tmp_dataset:
                 dataset_destination_map[tmp_top_dataset] = dataset_destination_map[tmp_dataset]
 
