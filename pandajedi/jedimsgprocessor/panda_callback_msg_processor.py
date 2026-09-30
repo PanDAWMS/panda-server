@@ -7,6 +7,7 @@ from pandacommon.pandalogger import LogWrapper, logger_utils
 from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice.ddm_handler import DDMHandler
 
 base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
@@ -18,8 +19,9 @@ class PandaCallbackMsgProcPlugin(BaseMsgProcPlugin):
         super().__init__(**params)
         self.activities_with_file_callback: list[str] = []
         self.component_action_map: list[dict[str, Any]] = []
-        # installed by initialize() before any callback is processed
-        self.site_mapper: Any = None
+        # installed by initialize() before any callback is processed. Declared without a
+        # value, which binds nothing at runtime, since None is never a state it is read in
+        self.site_mapper: SiteMapper
         self.verbose = False
 
     def initialize(self, in_collective: bool = False, **params: Any) -> None:

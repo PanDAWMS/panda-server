@@ -318,13 +318,18 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
             if nucleusSpec is None:
                 tmpLog.error(f"nucleus={taskSpec.nucleus} doesn't exist")
                 continue
+            # never None: SiteMapper adds a site to every nucleus it builds. Resolved here so that
+            # the check comes before the task is updated below
+            t1SiteName = nucleusSpec.getOnePandaSite()
+            if t1SiteName is None:
+                tmpLog.error(f"nucleus={taskSpec.nucleus} has no site")
+                continue
 
             # set nucleus
             retMap = {taskSpec.jediTaskID: AtlasBrokerUtils.getDictToSetNucleus(nucleusSpec, datasetSpecList)}
             self.taskBufferIF.setCloudToTasks_JEDI(retMap)
 
             # get nucleus
-            t1SiteName = nucleusSpec.getOnePandaSite()
             t1Site = siteMapper.getSite(t1SiteName)
 
             # loop over all datasets

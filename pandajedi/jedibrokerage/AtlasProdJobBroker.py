@@ -165,6 +165,8 @@ class AtlasProdJobBroker(JobBrokerBase):
                 f"cpuEfficiency={taskSpec.cpuEfficiency} prodSourceLabel={taskSpec.prodSourceLabel}"
             )
             return retTmpError
+        # a NULL baseWalltime is no offset, as everywhere else it is read
+        baseWalltime = taskSpec.baseWalltime if taskSpec.baseWalltime is not None else 0
 
         # new maxwdir
         newMaxwdir = {}
@@ -495,10 +497,15 @@ class AtlasProdJobBroker(JobBrokerBase):
                     if nucleus == tmpAtlasSiteName:
                         # nucleus
                         pass
-                    elif nucleusSpec is not None and nucleus in nucleus_with_storages_unwritable_over_wan:
+                    elif (
+                        nucleusSpec is not None
+                        and nucleus in nucleus_with_storages_unwritable_over_wan
+                        # always true: the map above only holds nuclei whose default endpoint resolved
+                        and (nucleus_endpoint_out := nucleusSpec.get_default_endpoint_out()) is not None
+                    ):
                         # destination blacklisted
                         reason = (
-                            nucleusSpec.get_default_endpoint_out()["ddm_endpoint_name"]
+                            nucleus_endpoint_out["ddm_endpoint_name"]
                             + f" at nucleus={nucleus} unwritable over WAN write_wan={nucleus_with_storages_unwritable_over_wan[nucleus]}"
                         )
                         criteria = "-dest_blacklisted"
@@ -929,7 +936,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                 compensated_min_ram_count = JobUtils.compensate_ram_count(minRamCount)
                 minRamCount = compensated_min_ram_count if compensated_min_ram_count is not None else 0
                 # site max memory requirement
-                site_maxmemory = 0
+                site_maxmemory: float = 0
                 if tmpSiteSpec.maxrss not in [0, None]:
                     site_maxmemory = tmpSiteSpec.maxrss
                 # check at the site
@@ -939,7 +946,7 @@ class AtlasProdJobBroker(JobBrokerBase):
                     msg_map[tmpSiteSpec.get_unified_name()] = tmp_msg
                     continue
                 # site min memory requirement
-                site_minmemory = 0
+                site_minmemory: float = 0
                 if tmpSiteSpec.minrss not in [0, None]:
                     site_minmemory = tmpSiteSpec.minrss
                 if site_minmemory not in [0, None] and minRamCount and minRamCount < site_minmemory:
@@ -1131,14 +1138,15 @@ class AtlasProdJobBroker(JobBrokerBase):
         tmpLog.set_message_slot()
         for tmpSiteName in scanSiteList:
             tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
-            siteMaxTime = tmpSiteSpec.maxtime
+            # a site with no maxtime imposes no ceiling, the same as 0 below and as in JobSplitter
+            siteMaxTime: float = tmpSiteSpec.maxtime if tmpSiteSpec.maxtime is not None else 0
             origSiteMaxTime = siteMaxTime
             # check max walltime at the site
             tmpSiteStr = f"{siteMaxTime}"
             if taskSpec.useHS06():
                 oldSiteMaxTime = siteMaxTime
-                siteMaxTime -= taskSpec.baseWalltime
-                tmpSiteStr = f"({oldSiteMaxTime}-{taskSpec.baseWalltime})"
+                siteMaxTime -= baseWalltime
+                tmpSiteStr = f"({oldSiteMaxTime}-{baseWalltime})"
             if siteMaxTime not in [None, 0] and tmpSiteSpec.coreCount not in [None, 0]:
                 siteMaxTime *= tmpSiteSpec.coreCount
                 tmpSiteStr += f"*{tmpSiteSpec.coreCount}"
@@ -1190,13 +1198,13 @@ class AtlasProdJobBroker(JobBrokerBase):
                     msg_map[tmpSiteSpec.get_unified_name()] = tmp_msg
                     continue
             # check min walltime at the site
-            siteMinTime = tmpSiteSpec.mintime
+            siteMinTime: float = tmpSiteSpec.mintime
             origSiteMinTime = siteMinTime
             tmpSiteStr = f"{siteMinTime}"
             if taskSpec.useHS06():
                 oldSiteMinTime = siteMinTime
-                siteMinTime -= taskSpec.baseWalltime
-                tmpSiteStr = f"({oldSiteMinTime}-{taskSpec.baseWalltime})"
+                siteMinTime -= baseWalltime
+                tmpSiteStr = f"({oldSiteMinTime}-{baseWalltime})"
             if siteMinTime not in [None, 0] and tmpSiteSpec.coreCount not in [None, 0]:
                 siteMinTime *= tmpSiteSpec.coreCount
                 tmpSiteStr += f"*{tmpSiteSpec.coreCount}"
