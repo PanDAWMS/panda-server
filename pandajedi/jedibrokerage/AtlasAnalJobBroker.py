@@ -87,6 +87,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 f"prodSourceLabel={taskSpec.prodSourceLabel} taskPriority={taskSpec.taskPriority}"
             )
             return retTmpError
+        # a NULL baseWalltime is no offset, as everywhere else it is read
+        baseWalltime = taskSpec.baseWalltime if taskSpec.baseWalltime is not None else 0
         # new maxwdir
         newMaxwdir = {}
         # get primary site candidates
@@ -1308,8 +1310,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     tmpSiteStr = f"{siteMaxTime}"
                     if taskSpec.useHS06():
                         oldSiteMaxTime = siteMaxTime
-                        siteMaxTime -= taskSpec.baseWalltime
-                        tmpSiteStr = f"({oldSiteMaxTime}-{taskSpec.baseWalltime})"
+                        siteMaxTime -= baseWalltime
+                        tmpSiteStr = f"({oldSiteMaxTime}-{baseWalltime})"
                     if siteMaxTime not in [None, 0] and tmpSiteSpec.coreCount not in [None, 0]:
                         siteMaxTime *= tmpSiteSpec.coreCount
                         tmpSiteStr += f"*{tmpSiteSpec.coreCount}"
@@ -1331,8 +1333,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     tmpSiteStr = f"{siteMinTime}"
                     if taskSpec.useHS06():
                         oldSiteMinTime = siteMinTime
-                        siteMinTime -= taskSpec.baseWalltime
-                        tmpSiteStr = f"({oldSiteMinTime}-{taskSpec.baseWalltime})"
+                        siteMinTime -= baseWalltime
+                        tmpSiteStr = f"({oldSiteMinTime}-{baseWalltime})"
                     if siteMinTime not in [None, 0] and tmpSiteSpec.coreCount not in [None, 0]:
                         siteMinTime *= tmpSiteSpec.coreCount
                         tmpSiteStr += f"*{tmpSiteSpec.coreCount}"
@@ -1379,8 +1381,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     tmpSiteStr = f"{siteMaxTime}"
                     if taskSpec.useHS06():
                         oldSiteMaxTime = siteMaxTime
-                        siteMaxTime -= taskSpec.baseWalltime
-                        tmpSiteStr = f"({oldSiteMaxTime}-{taskSpec.baseWalltime})"
+                        siteMaxTime -= baseWalltime
+                        tmpSiteStr = f"({oldSiteMaxTime}-{baseWalltime})"
                     if siteMaxTime not in [None, 0] and tmpSiteSpec.coreCount not in [None, 0]:
                         siteMaxTime *= tmpSiteSpec.coreCount
                         tmpSiteStr += f"*{tmpSiteSpec.coreCount}"
