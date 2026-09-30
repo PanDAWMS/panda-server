@@ -6,10 +6,11 @@ pool for DBProxies
 import os
 import random
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
 from queue import Queue
 from threading import Lock
-from typing import Any, Iterator
+from typing import Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -89,7 +90,7 @@ class DBProxyPool:
 
     # context manager for getting DBProxy
     @contextmanager
-    def get(self) -> Iterator["DBProxy.DBProxy"]:
+    def get(self) -> Generator["DBProxy.DBProxy", None, None]:
         proxy = self.getProxy()
         try:
             yield proxy

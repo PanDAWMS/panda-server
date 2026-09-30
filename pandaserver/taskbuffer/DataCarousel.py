@@ -7,6 +7,7 @@ import socket
 import time
 import traceback
 from collections import namedtuple
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
@@ -15,7 +16,6 @@ from typing import (
     Callable,
     Concatenate,
     Dict,
-    Iterator,
     List,
     Literal,
     ParamSpec,
@@ -522,7 +522,7 @@ class DataCarouselInterface(object):
         return ret
 
     @contextmanager
-    def global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30) -> Iterator[str | None]:
+    def global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30) -> Generator[str | None, None, None]:
         """
         Context manager for global Data Carousel lock in DB
 
@@ -720,7 +720,7 @@ class DataCarouselInterface(object):
     #                 db_log.debug(f"{self.full_pid} released lock for request_id={request_id}")
 
     @contextmanager
-    def request_lock(self, request_id: int, lock_expiration_sec: int = 120) -> Iterator[DataCarouselRequestSpec | None]:
+    def request_lock(self, request_id: int, lock_expiration_sec: int = 120) -> Generator[DataCarouselRequestSpec | None, None, None]:
         """
         Context manager to lock and unlock the Data Carousel request for update into DB
 
