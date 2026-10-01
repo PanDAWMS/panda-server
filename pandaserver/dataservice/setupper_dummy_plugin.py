@@ -41,13 +41,18 @@ class SetupperDummyPlugin(SetupperPluginBase):
     def run(self) -> None:
         """
         The main method that runs the plugin. It iterates over the jobs and their files.
-        If a file is of type "log", it generates a GUID for it.
+        If a file is of type "log", it generates a GUID for it. Input files are
+        marked ready since this plugin runs in DDM-free setups where there is no
+        Rucio->PanDA callback to update their status, and activateJob only promotes
+        a job from 'defined' to 'activated' once every input file is ready/cached.
         """
         for job_spec in self.jobs:
             for file_spec in job_spec.Files:
                 if file_spec.type == "log":
                     # generate GUID
                     file_spec.GUID = str(uuid.uuid4())
+                elif file_spec.type == "input" and file_spec.status == "unknown":
+                    file_spec.status = "ready"
 
     # post run
     def post_run(self) -> None:
