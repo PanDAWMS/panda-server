@@ -1850,6 +1850,11 @@ class DataCarouselInterface(object):
             # split with to_pin and not to_pin
             to_pin_df = tmp_df.filter(pl.col("to_pin"))
             tmp_queued_df = tmp_df.filter(pl.col("to_pin").not_())
+            # skip requests to stage without total_files (null, filled as 0, or 0)
+            no_files_df = tmp_queued_df.filter(pl.col("total_files") <= 0)
+            tmp_queued_df = tmp_queued_df.filter(pl.col("total_files") > 0)
+            if not no_files_df.is_empty():
+                tmp_log.debug(f"source_tape={source_tape} skipped requests without total_files: {no_files_df['request_id'].to_list()}")
             # fill dummy cumulative sum (0) for requests to pin
             to_pin_df = to_pin_df.with_columns(cum_total_files=pl.lit(0, dtype=pl.datatypes.Int64), cum_dataset_size=pl.lit(0, dtype=pl.datatypes.Int64))
             # fair share for gshares
