@@ -134,7 +134,7 @@ class TokenCache:
         :return: the access token
         """
         time_now = naive_utcnow()
-        if client_name in self.cached_access_tokens and self.cached_access_tokens[client_name]["last_update"] + datetime.timedelta(minutes=10) < time_now:
+        if client_name in self.cached_access_tokens and self.cached_access_tokens[client_name]["last_update"] + datetime.timedelta(minutes=10) > time_now:
             # use cached token since it is still fresh
             pass
         else:
