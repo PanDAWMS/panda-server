@@ -140,7 +140,9 @@ class TokenDecoder:
 
 
 # get an access token with client_credentials flow
-def get_access_token(token_endpoint: str, client_id: str, client_secret: str, scope: str | None = None, timeout: int = 180) -> tuple[bool, str]:
+def get_access_token(
+    token_endpoint: str, client_id: str, client_secret: str, scope: str | None = None, audience: str | None = None, timeout: int = 180
+) -> tuple[bool, str]:
     """
     Get an access token with client_credentials flow
 
@@ -148,6 +150,7 @@ def get_access_token(token_endpoint: str, client_id: str, client_secret: str, sc
     :param client_id: client ID
     :param client_secret: client secret
     :param scope: space separated string of scopes
+    :param audience: space separated string of audiences
     :param timeout: timeout in seconds
 
     :return: (True, access_token) or (False, error_str)
@@ -160,6 +163,8 @@ def get_access_token(token_endpoint: str, client_id: str, client_secret: str, sc
         }
         if scope:
             token_request["scope"] = scope
+        if audience:
+            token_request["audience"] = audience
         token_response = requests.post(token_endpoint, data=token_request, timeout=timeout)
         token_response.raise_for_status()
         return True, token_response.json()["access_token"]

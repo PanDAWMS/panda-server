@@ -97,7 +97,11 @@ class TokenCache:
                     # get access token
                     if not is_fresh:
                         status_code, output = get_access_token(
-                            client_config["endpoint"], client_config["client_id"], client_config["secret"], client_config.get("scope")
+                            client_config["endpoint"],
+                            client_config["client_id"],
+                            client_config["secret"],
+                            scope=client_config.get("scope"),
+                            audience=client_config.get("audience"),
                         )
                         if status_code:
                             with open(token_file_path, "w") as f:
@@ -130,7 +134,7 @@ class TokenCache:
         :return: the access token
         """
         time_now = naive_utcnow()
-        if client_name in self.cached_access_tokens and self.cached_access_tokens[client_name]["last_update"] + datetime.timedelta(minutes=10) < time_now:
+        if client_name in self.cached_access_tokens and self.cached_access_tokens[client_name]["last_update"] + datetime.timedelta(minutes=10) > time_now:
             # use cached token since it is still fresh
             pass
         else:
