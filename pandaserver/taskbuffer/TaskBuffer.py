@@ -3,9 +3,10 @@ import json
 import re
 import time
 import traceback
+from collections.abc import Generator
 from contextlib import contextmanager
 from threading import Lock
-from typing import Any, Collection, Iterator, Sequence
+from typing import Any, Collection, Sequence
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -88,7 +89,7 @@ class TaskBuffer:
     # transaction as a context manager
     # CANNOT be used with ConBridge or TaskBufferInterface which uses multiprocess.pipe
     @contextmanager
-    def transaction(self, name: str | None = None, tmp_log: LogWrapper | None = None) -> Iterator[tuple[Any, LogWrapper]]:
+    def transaction(self, name: str | None = None, tmp_log: LogWrapper | None = None) -> Generator[tuple[Any, LogWrapper], None, None]:
         with self.proxyPool.get() as proxy:
             with proxy.transaction(name, tmp_log) as txn:
                 if txn is None:
