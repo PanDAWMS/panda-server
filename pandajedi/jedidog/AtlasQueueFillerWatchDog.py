@@ -279,7 +279,7 @@ class AtlasQueueFillerWatchDog(WatchDogBase):
             if not tmpSiteSpec.runs_production():
                 continue
             # skip site is not online
-            if tmpSiteSpec.status not in ("online"):
+            if tmpSiteSpec.status != "online":
                 excluded_sites_dict["not_online"].add(tmpSiteName)
                 continue
             # skip if site has memory limitations

@@ -137,7 +137,7 @@ class GenJobBroker(JobBrokerBase):
             # free space must be >= 200GB
             diskThreshold = 200
             tmpSpaceSize = tmpSiteSpec.space
-            if tmpSiteSpec.space and tmpSpaceSize < diskThreshold:
+            if tmpSpaceSize and tmpSpaceSize < diskThreshold:
                 tmpLog.debug(f"  skip {tmpSiteName} due to disk shortage in SE = {tmpSiteSpec.space} < {diskThreshold}GB")
                 continue
             newScanSiteList.append(tmpSiteName)
@@ -155,7 +155,8 @@ class GenJobBroker(JobBrokerBase):
             for tmpSiteName in scanSiteList:
                 tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                 # check at the site
-                if tmpSiteSpec.maxtime != 0 and minWalltime > tmpSiteSpec.maxtime:
+                # a site with no maxtime imposes no ceiling, the same as 0
+                if tmpSiteSpec.maxtime and minWalltime > tmpSiteSpec.maxtime:
                     tmpLog.debug(f"  skip {tmpSiteName} due to short site walltime={tmpSiteSpec.maxtime}(site upper limit) < {minWalltime}")
                     continue
                 if tmpSiteSpec.mintime != 0 and minWalltime < tmpSiteSpec.mintime:
