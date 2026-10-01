@@ -6,7 +6,7 @@ import socket
 import sys
 import time
 import traceback
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -531,7 +531,7 @@ class BaseModule:
 
     # transaction as a context manager
     @contextmanager
-    def transaction(self, name: str | None = None, tmp_log: LogWrapper | None = None) -> Iterator[tuple[Any, LogWrapper]]:
+    def transaction(self, name: str | None = None, tmp_log: LogWrapper | None = None) -> Generator[tuple[Any, LogWrapper], None, None]:
         """
         Context manager for transaction
 

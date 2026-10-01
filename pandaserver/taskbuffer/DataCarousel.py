@@ -7,6 +7,7 @@ import socket
 import time
 import traceback
 from collections import namedtuple
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
@@ -15,7 +16,6 @@ from typing import (
     Callable,
     Concatenate,
     Dict,
-    Iterator,
     List,
     Literal,
     ParamSpec,
@@ -522,7 +522,7 @@ class DataCarouselInterface(object):
         return ret
 
     @contextmanager
-    def global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30) -> Iterator[str | None]:
+    def global_dc_lock(self, timeout_sec: int = 10, lock_expiration_sec: int = 30) -> Generator[str | None, None, None]:
         """
         Context manager for global Data Carousel lock in DB
 
@@ -720,7 +720,7 @@ class DataCarouselInterface(object):
     #                 db_log.debug(f"{self.full_pid} released lock for request_id={request_id}")
 
     @contextmanager
-    def request_lock(self, request_id: int, lock_expiration_sec: int = 120) -> Iterator[DataCarouselRequestSpec | None]:
+    def request_lock(self, request_id: int, lock_expiration_sec: int = 120) -> Generator[DataCarouselRequestSpec | None, None, None]:
         """
         Context manager to lock and unlock the Data Carousel request for update into DB
 
@@ -1135,17 +1135,19 @@ class DataCarouselInterface(object):
             raise e
 
     def _choose_tape_source_rse(
-        self, dataset: str, rse_set: set[str], staging_rule: dict[str, Any] | None, no_cern: bool = True
+        self, dataset: str, rse_set: set[str], staging_rule: dict[str, Any] | None, no_cern: bool = True, preferred_rses: set[str] | None = None
     ) -> tuple[str, (str | None), (str | None)]:
         """
         Choose a TAPE source RSE
         If with existing staging rule, then get source RSE from it
+        Otherwise, choose randomly among the preferred source RSEs if given and available, else among all RSEs in rse_set
 
         Args:
             dataset (str): dataset name
             rse_set (set): set of TAPE source RSE set to choose from
             staging_rule: DDM staging rule
             no_cern: skip CERN-PROD RSE whenever possible if True
+            preferred_rses (set|None): preferred TAPE source RSEs, e.g. RSEs of the physical tape from task parameter "initial_tape"; ignored if none in rse_set or with existing staging rule
 
         Returns:
             str: the dataset name
@@ -1184,6 +1186,8 @@ class DataCarouselInterface(object):
                         raise RuntimeError("cannot get source_rse from staging rule's source_replica_expression")
                     else:
                         tmp_log.debug(f"already staging with ddm_rule_id={ddm_rule_id} source_rse={source_rse}")
+                        if preferred_rses and source_rse not in preferred_rses:
+                            tmp_log.debug(f"preferred_rses={preferred_rses} ignored as already staging from source_rse={source_rse}")
                 else:
                     # no source_replica_expression of the rule; choose any source
                     tmp_log.warning(f"already staging with ddm_rule_id={ddm_rule_id} without source_replica_expression; to choose a random source_rse")
@@ -1198,6 +1202,13 @@ class DataCarouselInterface(object):
             if random_choose:
                 # no existing staging rule or cannot get from source_replica_expression; choose source_rse randomly
                 rse_list = list(rse_set)
+                # narrow down to preferred source RSEs if available
+                if preferred_rses:
+                    if preferred_rse_list := [rse for rse in rse_list if rse in preferred_rses]:
+                        rse_list = preferred_rse_list
+                        tmp_log.debug(f"to choose among preferred source RSEs {rse_list}")
+                    else:
+                        tmp_log.warning(f"none of preferred_rses={preferred_rses} in available {rse_set} ; choose as usual")
                 # choose source RSE
                 if len(rse_list) == 1:
                     source_rse = rse_list[0]
@@ -1237,6 +1248,18 @@ class DataCarouselInterface(object):
             # source_rse is physical tape
             source_tape = source_rse
         return source_tape
+
+    def _get_source_rses_of_tape(self, source_tape: str) -> set[str]:
+        """
+        Get the source RSEs mapped to a source physical tape according to DC config
+
+        Args:
+            source_tape (str): name of the source physical tape
+
+        Returns:
+            set[str] : set of source RSEs mapped to the tape, empty if none
+        """
+        return {rse for rse, rse_config in self.dc_config_map.source_rses_config.items() if rse_config.tape == source_tape}
 
     @refresh
     def get_input_datasets_to_prestage(
@@ -1285,6 +1308,20 @@ class DataCarouselInterface(object):
             }
             # get active source rses
             active_source_rses_set = self._get_active_source_rses()
+            # preferred source physical tape from task params, and its source RSEs
+            preferred_rses = None
+            preferred_tape = task_params_map.get("initial_tape")
+            if isinstance(preferred_tape, str):
+                preferred_tape = preferred_tape.strip()
+            if preferred_tape:
+                if preferred_tape not in self.dc_config_map.source_tapes_config:
+                    tmp_log.warning(f"initial_tape={preferred_tape} is unknown source tape ; ignored")
+                else:
+                    preferred_rses = self._get_source_rses_of_tape(preferred_tape)
+                    if preferred_rses:
+                        tmp_log.debug(f"initial_tape={preferred_tape} with preferred source RSEs {sorted(preferred_rses)}")
+                    else:
+                        tmp_log.warning(f"initial_tape={preferred_tape} has no source RSE mapped to it ; ignored")
             # loop over inputs defined in task's job parameters
             input_collection_map = self._get_input_ds_from_task_params(task_params_map)
             for collection, job_param in input_collection_map.items():
@@ -1345,7 +1382,7 @@ class DataCarouselInterface(object):
                     # reuse existing DDM rule
                     if dataset_collection := jobparam_ds_coll_map.get(dataset):
                         coll_on_tape_set.add(dataset_collection)
-                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule, preferred_rses=preferred_rses)
                     tmp_log.debug(f"dataset={dataset} has existing ddm_rule_id={ddm_rule_id} ; to reuse it")
                     prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
                     tmp_log.debug(f"got prestaging for existing rule: {prestaging_tuple}")
@@ -1372,7 +1409,7 @@ class DataCarouselInterface(object):
                     if dataset_collection := jobparam_ds_coll_map.get(dataset):
                         coll_on_tape_set.add(dataset_collection)
                     # choose source RSE
-                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule, preferred_rses=preferred_rses)
                     prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
                     tmp_log.debug(f"got prestaging: {prestaging_tuple}")
                     # add to prestage
