@@ -97,6 +97,58 @@ class MetricsModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
+    def update_pilot_attributes(self, panda_id: int, pilot_version: str, pilot_attributes: dict[str, Any] | str) -> tuple[bool, str]:
+        comment = " /* DBProxy.update_pilot_attributes */"
+        tmp_logger = self.create_tagged_logger(comment, f"PandaID={panda_id}")
+        tmp_logger.debug("Start")
+
+        # normalize the incoming attributes to a dict before serializing them
+        if isinstance(pilot_attributes, str):
+            try:
+                pilot_attributes = json.loads(pilot_attributes)
+            except Exception:
+                tmp_logger.error(f"Invalid JSON in pilot_attributes: {CoreUtils.shorten_for_log(pilot_attributes)}")
+                return False, "pilot_attributes is not valid JSON"
+        if not isinstance(pilot_attributes, dict):
+            return False, "pilot_attributes must be a JSON object"
+
+        # the attributes for a job can only be inserted once
+        var_map = {
+            ":panda_id": panda_id,
+            ":pilot_version": pilot_version,
+            ":attributes": json.dumps(pilot_attributes),
+            ":modification_time": naive_utcnow(),
+        }
+
+        sql = (
+            "INSERT INTO ATLAS_PANDA.pilot_attributes (PandaID, pilot_version, attributes, modification_time) "
+            "VALUES (:panda_id, :pilot_version, :attributes, :modification_time)"
+        )
+
+        try:
+            self.conn.begin()
+            self.cur.execute(sql + comment, var_map)
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_logger.debug("Inserted pilot attributes.")
+            return True, "Inserted pilot attributes."
+
+        except Exception as e:
+            # Always roll back the transaction
+            self._rollback(True)
+
+            # Attributes were already inserted for this job
+            if self.is_unique_violation_exception(e):
+                error_message = f"Pilot attributes for PandaID={panda_id} were already inserted and cannot be updated."
+                tmp_logger.error(error_message)
+                return False, error_message
+
+            # General failure
+            err_type, err_value = sys.exc_info()[:2]
+            error_message = f"Pilot attributes insert failed with {err_type} {err_value}"
+            tmp_logger.error(error_message)
+            return False, error_message
+
     # get job or task metrics
     def get_workload_metrics(self, jedi_task_id: int, panda_id: int | None = None) -> tuple[bool, dict[str, Any] | None]:
         """

@@ -87,6 +87,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 f"prodSourceLabel={taskSpec.prodSourceLabel} taskPriority={taskSpec.taskPriority}"
             )
             return retTmpError
+        # a NULL baseWalltime is no offset, as everywhere else it is read
+        baseWalltime = taskSpec.baseWalltime if taskSpec.baseWalltime is not None else 0
         # new maxwdir
         newMaxwdir = {}
         # get primary site candidates
@@ -767,7 +769,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     diskio_limit_tmp = max_diskio_per_core_default
 
                 # normalize task diskIO by site corecount
-                diskio_task_tmp = taskSpec.diskIO
+                diskio_task_tmp: float | None = taskSpec.diskIO
                 if taskSpec.diskIO is not None and taskSpec.coreCount not in [None, 0, 1] and tmp_site_spec.coreCount not in [None, 0]:
                     diskio_task_tmp = taskSpec.diskIO / tmp_site_spec.coreCount
 
@@ -1114,7 +1116,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     compensated_min_ram_count = JobUtils.compensate_ram_count(minRamCount)
                     minRamCount = compensated_min_ram_count if compensated_min_ram_count is not None else 0
                     # site max memory requirement
-                    site_maxmemory = 0
+                    site_maxmemory: float = 0
                     if tmpSiteSpec.maxrss not in [0, None]:
                         site_maxmemory = tmpSiteSpec.maxrss
                     if site_maxmemory not in [0, None] and minRamCount and minRamCount > site_maxmemory:
@@ -1123,7 +1125,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         )
                         continue
                     # site min memory requirement
-                    site_minmemory = 0
+                    site_minmemory: float = 0
                     if tmpSiteSpec.minrss not in [0, None]:
                         site_minmemory = tmpSiteSpec.minrss
                     if site_minmemory not in [0, None] and minRamCount and minRamCount < site_minmemory:
@@ -1302,14 +1304,15 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 msg_map = {}
                 for tmpSiteName in scanSiteList:
                     tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
-                    siteMaxTime = tmpSiteSpec.maxtime
+                    # a site with no maxtime imposes no ceiling, the same as 0 below and as in JobSplitter
+                    siteMaxTime: float = tmpSiteSpec.maxtime if tmpSiteSpec.maxtime is not None else 0
                     origSiteMaxTime = siteMaxTime
                     # check max walltime at the site
                     tmpSiteStr = f"{siteMaxTime}"
                     if taskSpec.useHS06():
                         oldSiteMaxTime = siteMaxTime
-                        siteMaxTime -= taskSpec.baseWalltime
-                        tmpSiteStr = f"({oldSiteMaxTime}-{taskSpec.baseWalltime})"
+                        siteMaxTime -= baseWalltime
+                        tmpSiteStr = f"({oldSiteMaxTime}-{baseWalltime})"
                     if siteMaxTime not in [None, 0] and tmpSiteSpec.coreCount not in [None, 0]:
                         siteMaxTime *= tmpSiteSpec.coreCount
                         tmpSiteStr += f"*{tmpSiteSpec.coreCount}"
@@ -1326,13 +1329,13 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         msg_map[tmpSiteSpec.get_unified_name()] = tmpMsg
                         continue
                     # check min walltime at the site
-                    siteMinTime = tmpSiteSpec.mintime
+                    siteMinTime: float = tmpSiteSpec.mintime
                     origSiteMinTime = siteMinTime
                     tmpSiteStr = f"{siteMinTime}"
                     if taskSpec.useHS06():
                         oldSiteMinTime = siteMinTime
-                        siteMinTime -= taskSpec.baseWalltime
-                        tmpSiteStr = f"({oldSiteMinTime}-{taskSpec.baseWalltime})"
+                        siteMinTime -= baseWalltime
+                        tmpSiteStr = f"({oldSiteMinTime}-{baseWalltime})"
                     if siteMinTime not in [None, 0] and tmpSiteSpec.coreCount not in [None, 0]:
                         siteMinTime *= tmpSiteSpec.coreCount
                         tmpSiteStr += f"*{tmpSiteSpec.coreCount}"
@@ -1375,12 +1378,13 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 msg_map = {}
                 for tmpSiteName in scanSiteList:
                     tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
-                    siteMaxTime = tmpSiteSpec.maxtime
+                    # a site with no maxtime imposes no ceiling, the same as 0 below and as in JobSplitter
+                    siteMaxTime = tmpSiteSpec.maxtime if tmpSiteSpec.maxtime is not None else 0
                     tmpSiteStr = f"{siteMaxTime}"
                     if taskSpec.useHS06():
                         oldSiteMaxTime = siteMaxTime
-                        siteMaxTime -= taskSpec.baseWalltime
-                        tmpSiteStr = f"({oldSiteMaxTime}-{taskSpec.baseWalltime})"
+                        siteMaxTime -= baseWalltime
+                        tmpSiteStr = f"({oldSiteMaxTime}-{baseWalltime})"
                     if siteMaxTime not in [None, 0] and tmpSiteSpec.coreCount not in [None, 0]:
                         siteMaxTime *= tmpSiteSpec.coreCount
                         tmpSiteStr += f"*{tmpSiteSpec.coreCount}"

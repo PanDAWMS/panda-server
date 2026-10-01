@@ -303,8 +303,8 @@ class SiteMapper:
             resolved = None
         return resolved
 
-    # accessor for cloud
-    def getCloud(self, cloud: str) -> dict[str, Any]:
+    # accessor for cloud. A NULL cloud column is just another unknown cloud and gets WORLD
+    def getCloud(self, cloud: str | None) -> dict[str, Any]:
         if cloud in self.cloudSpec:
             return self.cloudSpec[cloud]
 
@@ -328,8 +328,8 @@ class SiteMapper:
     def getCloudList(self) -> list[str]:
         return list(self.cloudSpec)
 
-    # get DDM endpoint
-    def getDdmEndpoint(self, site_name: str, storage_token: str, prod_source_label: str, job_label: str) -> str | None:
+    # get DDM endpoint. The labels only pick the scope, and select_scope takes None for either
+    def getDdmEndpoint(self, site_name: str, storage_token: str, prod_source_label: str | None, job_label: str | None) -> str | None:
         # Skip if site doesn't exist
         if not self.checkSite(site_name):
             return None
@@ -343,8 +343,8 @@ class SiteMapper:
 
         return site_spec.ddm_output[scope_output]
 
-    # get nucleus
-    def getNucleus(self, site_name: str) -> NucleusSpec | None:
+    # get nucleus. A NULL nucleus column is not a key of either map, so it gets None like an unknown name
+    def getNucleus(self, site_name: str | None) -> NucleusSpec | None:
         if site_name in self.nuclei:
             return self.nuclei[site_name]
         if site_name in self.satellites:

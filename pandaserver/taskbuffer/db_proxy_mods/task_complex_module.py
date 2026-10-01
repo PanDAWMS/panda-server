@@ -4399,7 +4399,7 @@ class TaskComplexModule(BaseModule):
                         # check task status
                         varMap = {}
                         varMap[":jediTaskID"] = jediTaskID
-                        sqlTC = f"SELECT status,oldStatus,wallTimeUnit FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+                        sqlTC = f"SELECT status,oldStatus,wallTimeUnit,splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks "
                         sqlTC += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
                         self.cur.execute(sqlTC + comment, varMap)
                         resTC = self.cur.fetchone()
@@ -4407,7 +4407,7 @@ class TaskComplexModule(BaseModule):
                             tmpLog.warning(f"jediTaskID={jediTaskID} is not found in JEDI_Tasks")
                             isOK = False
                         else:
-                            taskStatus, taskOldStatus, wallTimeUnit = resTC
+                            taskStatus, taskOldStatus, wallTimeUnit, splitRule = resTC
                             tmpLog.debug(f"jediTaskID={jediTaskID} in status:{taskStatus} old:{taskOldStatus} com:{commandStr}")
                             if commandStr == "retry":
                                 if taskStatus not in JediTaskSpec.statusToRetry():
@@ -4531,9 +4531,11 @@ class TaskComplexModule(BaseModule):
                                     deftStatus = newTaskStatus
                                 self.setDeftStatus_JEDI(jediTaskID, deftStatus)
                                 self.setSuperStatus_JEDI(jediTaskID, deftStatus)
-                                # add missing record_task_status_change and push_task_status_message updates
+                            # task status logging; dummy means the task went back to oldStatus
+                            actualNewStatus = taskOldStatus if newTaskStatus == "dummy" else newTaskStatus
+                            if actualNewStatus != taskStatus:
                                 self.record_task_status_change(jediTaskID)
-                                self.push_task_status_message(None, jediTaskID, newTaskStatus)
+                                self.push_task_status_message(None, jediTaskID, actualNewStatus, splitRule)
                     # update command table
                     if not toSkip:
                         varMap = {}
