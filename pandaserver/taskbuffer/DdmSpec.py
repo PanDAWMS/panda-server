@@ -71,14 +71,15 @@ class DdmSpec(object):
         """
         return list(self.all)
 
-    def getEndPoint(self, endpoint_name: str) -> dict[str, Any] | None:
+    def getEndPoint(self, endpoint_name: str | None) -> dict[str, Any] | None:
         """
         Get a specific DDM endpoint.
 
         This method returns the properties of a specific DDM endpoint.
 
         Args:
-            endpoint_name (str): The name of the DDM endpoint.
+            endpoint_name (str | None): The name of the DDM endpoint. None, which is what SiteSpec.ddm_input
+                and ddm_output hold for a scope with no default endpoint, is not found like any unknown name.
         Returns:
             dict or None: A dictionary containing the properties of the DDM endpoint, or None if not found.
         """

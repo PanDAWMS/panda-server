@@ -350,19 +350,29 @@ class AtlasProdTaskBrokerThread(WorkerThread):
                             origNucleusSpec = tmpNucleusSpec
                             for tmpDatasetSpec in tmpDatasetSpecList:
                                 tmpNucleusSpec = origNucleusSpec
-                                # use secondary nucleus for full-chain if defined
-                                if taskSpec.get_full_chain() and tmpNucleusSpec.get_secondary_nucleus():
-                                    tmpNucleusSpec = siteMapper.getNucleus(tmpNucleusSpec.get_secondary_nucleus())
                                 # ignore distributed datasets
                                 if DataServiceUtils.getDistributedDestination(tmpDatasetSpec.storageToken) is not None:
                                     continue
+                                # use secondary nucleus for full-chain if defined. The name is free text
+                                # from CRIC, so one that SiteMapper does not know rules the nucleus out
+                                if taskSpec.get_full_chain():
+                                    secondaryNucleus = tmpNucleusSpec.get_secondary_nucleus()
+                                    if secondaryNucleus:
+                                        secNucleusSpec = siteMapper.getNucleus(secondaryNucleus)
+                                        if secNucleusSpec is None:
+                                            tmpLog.info(
+                                                f"  skip nucleus={tmpNucleus} since secondary nucleus={secondaryNucleus} is unknown criteria=-full_chain"
+                                            )
+                                            to_skip = True
+                                            break
+                                        tmpNucleusSpec = secNucleusSpec
                                 # get endpoint with the pattern
                                 tmpEP = tmpNucleusSpec.getAssociatedEndpoint(tmpDatasetSpec.storageToken)
-                                tmp_ddm_endpoint_name = tmpEP["ddm_endpoint_name"]
                                 if tmpEP is None:
                                     tmpLog.info(f"  skip nucleus={tmpNucleus} since no endpoint with {tmpDatasetSpec.storageToken} criteria=-match")
                                     to_skip = True
                                     break
+                                tmp_ddm_endpoint_name = tmpEP["ddm_endpoint_name"]
                                 # check blacklist
                                 read_wan_status = tmpEP["detailed_status"].get("read_wan")
                                 if read_wan_status in DOWNTIME_STATUSES:
