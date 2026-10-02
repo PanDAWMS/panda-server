@@ -158,11 +158,11 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                 if userSetup or DataServiceUtils.getDistributedDestination(datasetSpec.storageToken) is not None or secNucleusSpec:
                                     # register location
                                     tmpToRegister = False
+                                    if taskSpec.workingGroup:
+                                        userName: str | None = taskSpec.workingGroup
+                                    else:
+                                        userName = taskSpec.userName                                    
                                     if userSetup and targetName == datasetSpec.datasetName and datasetSpec.site not in ["", None]:
-                                        if taskSpec.workingGroup:
-                                            userName: str | None = taskSpec.workingGroup
-                                        else:
-                                            userName = taskSpec.userName
                                         grouping = None
                                         tmpToRegister = True
                                     elif DataServiceUtils.getDistributedDestination(datasetSpec.storageToken) is not None:
