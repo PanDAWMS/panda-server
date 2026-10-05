@@ -161,7 +161,7 @@ class AtlasTaskSetupper(TaskSetupperBase):
                                     if taskSpec.workingGroup:
                                         userName: str | None = taskSpec.workingGroup
                                     else:
-                                        userName = taskSpec.userName                                    
+                                        userName = taskSpec.userName
                                     if userSetup and targetName == datasetSpec.datasetName and datasetSpec.site not in ["", None]:
                                         grouping = None
                                         tmpToRegister = True
