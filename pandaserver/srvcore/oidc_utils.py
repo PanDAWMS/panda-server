@@ -40,10 +40,11 @@ def get_jwk(kid: str, jwks: dict[str, Any]) -> dict[str, Any]:
 # token decoder
 class TokenDecoder:
     # constructor
-    def __init__(self, refresh_interval: int = 10) -> None:
+    def __init__(self, refresh_interval: int = 10, timeout: int = 30) -> None:
         self.lock = Lock()
         self.data: dict[str, dict[str, Any]] = {}
         self.refresh_interval = refresh_interval
+        self.timeout = timeout
 
     # get cached data
     def get_data(self, url: str, log_stream: Any) -> Any:
@@ -51,7 +52,7 @@ class TokenDecoder:
             with self.lock:
                 if url not in self.data or naive_utcnow() - self.data[url]["last_update"] > datetime.timedelta(minutes=self.refresh_interval):
                     log_stream.debug(f"to refresh {url}")
-                    tmp_data = requests.get(url).json()
+                    tmp_data = requests.get(url, timeout=self.timeout).json()
                     log_stream.debug("refreshed")
                     self.data[url] = {
                         "data": tmp_data,
