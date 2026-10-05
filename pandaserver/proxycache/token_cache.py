@@ -70,6 +70,21 @@ class TokenCache:
         """
         return os.path.join(self.target_path, f"{self.file_prefix}{client_name}")
 
+    # get the refresh interval of a client
+    def get_refresh_interval(self, client_config: dict[str, Any]) -> int:
+        """
+        Get the refresh interval of a client. It can be set per client with refresh_interval in token_cache_config,
+        which should be shorter than the lifetime of the tokens issued for the client
+
+        :param client_config: configuration of the client in token_cache_config
+        :return: the refresh interval in minutes
+        """
+        try:
+            return int(client_config.get("refresh_interval", self.refresh_interval))
+        except (TypeError, ValueError):
+            _logger.error(f"invalid refresh_interval={client_config.get('refresh_interval')}, using {self.refresh_interval}")
+            return self.refresh_interval
+
     # main
     def run(self) -> None:
         """ "
@@ -98,7 +113,7 @@ class TokenCache:
                     is_fresh = False
                     if os.path.exists(token_file_path):
                         mod_time = datetime.datetime.fromtimestamp(os.stat(token_file_path).st_mtime, datetime.timezone.utc)
-                        if datetime.datetime.now(datetime.timezone.utc) - mod_time < datetime.timedelta(minutes=self.refresh_interval):
+                        if datetime.datetime.now(datetime.timezone.utc) - mod_time < datetime.timedelta(minutes=self.get_refresh_interval(client_config)):
                             tmp_log.debug(f"skip since {token_file_path} is fresh")
                             is_fresh = True
                     # tokens for entries with audience_from_request are fetched on demand by the API
@@ -177,13 +192,13 @@ class TokenCache:
             name += "__" + hashlib.sha256(scope.encode()).hexdigest()[:16]
         return self.construct_target_path(name)
 
-    # read a token file if it is younger than refresh_interval
-    def _read_if_fresh(self, path: str) -> str | None:
+    # read a token file if it is younger than the refresh interval
+    def _read_if_fresh(self, path: str, refresh_interval: int) -> str | None:
         try:
             mod_time = datetime.datetime.fromtimestamp(os.stat(path).st_mtime, datetime.timezone.utc)
         except FileNotFoundError:
             return None
-        if datetime.datetime.now(datetime.timezone.utc) - mod_time >= datetime.timedelta(minutes=self.refresh_interval):
+        if datetime.datetime.now(datetime.timezone.utc) - mod_time >= datetime.timedelta(minutes=refresh_interval):
             return None
         with open(path) as f:
             token = f.read()
@@ -204,7 +219,8 @@ class TokenCache:
         """
         tmp_log = LogWrapper(_logger, f"get_access_token_for_audience client={client_name} aud={audience} scope={scope}")
         target_path = self.construct_audience_path(client_name, audience, scope)
-        token = self._read_if_fresh(target_path)
+        refresh_interval = self.get_refresh_interval(client_config)
+        token = self._read_if_fresh(target_path, refresh_interval)
         if token:
             return token
         # back off after a recent failure to avoid hammering the token issuer
@@ -216,7 +232,7 @@ class TokenCache:
             fcntl.flock(lock_file, fcntl.LOCK_EX)
             try:
                 # another process may have fetched it while waiting for the lock
-                token = self._read_if_fresh(target_path)
+                token = self._read_if_fresh(target_path, refresh_interval)
                 if token:
                     return token
                 status_code, output = get_access_token(
