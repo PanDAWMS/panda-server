@@ -3,9 +3,12 @@ download access tokens for OIDC token exchange flow
 """
 
 import datetime
+import fcntl
 import json
 import os.path
 import pathlib
+import re
+import tempfile
 from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -49,6 +52,9 @@ class TokenCache:
         else:
             self.file_prefix = "access_token_"
         self.refresh_interval = refresh_interval
+        # minutes to wait before retrying a failed on-demand fetch
+        self.failure_backoff = 5
+        self.failed_fetches: dict[str, datetime.datetime] = {}
         self.task_buffer = task_buffer
         # cache for access tokens
         self.cached_access_tokens: dict[str, Any] = {}
@@ -94,8 +100,12 @@ class TokenCache:
                         if datetime.datetime.now(datetime.timezone.utc) - mod_time < datetime.timedelta(minutes=self.refresh_interval):
                             tmp_log.debug(f"skip since {token_file_path} is fresh")
                             is_fresh = True
+                    # tokens for entries with audience_from_request are fetched on demand by the API
+                    audience_from_request = client_config.get("audience_from_request", False)
+                    if audience_from_request:
+                        tmp_log.debug(f"skip prefetch for {client_name} since audience comes from requests")
                     # get access token
-                    if not is_fresh:
+                    if not is_fresh and not audience_from_request:
                         status_code, output = get_access_token(
                             client_config["endpoint"],
                             client_config["client_id"],
@@ -148,3 +158,76 @@ class TokenCache:
             self.cached_access_tokens[client_name] = {"token": token, "last_update": time_now}
         cached_token: str | None = self.cached_access_tokens[client_name]["token"]
         return cached_token
+
+    # construct the cache file path for a client and an audience
+    def construct_audience_path(self, client_name: str, audience: str) -> str:
+        """
+        Construct the cache file path for a token of a client with a specific audience
+
+        :param client_name: client name
+        :param audience: audience of the token
+        :return: the file path
+        """
+        safe_audience = re.sub(r"[^A-Za-z0-9._-]", "_", audience)
+        return self.construct_target_path(f"{client_name}__{safe_audience}")
+
+    # read a token file if it is younger than refresh_interval
+    def _read_if_fresh(self, path: str) -> str | None:
+        try:
+            mod_time = datetime.datetime.fromtimestamp(os.stat(path).st_mtime, datetime.timezone.utc)
+        except FileNotFoundError:
+            return None
+        if datetime.datetime.now(datetime.timezone.utc) - mod_time >= datetime.timedelta(minutes=self.refresh_interval):
+            return None
+        with open(path) as f:
+            token = f.read()
+        return token or None
+
+    # get an access token for a client with an audience given in the request, fetching it on a cache miss
+    def get_access_token_for_audience(self, client_name: str, client_config: dict[str, Any], audience: str) -> str | None:
+        """
+        Get an access token for a client with the audience given by the caller. The token is cached in a file
+        shared by all processes. On a miss, one process fetches it under a file lock while others wait and reuse it.
+
+        :param client_name: client name
+        :param client_config: configuration of the client in token_cache_config
+        :param audience: audience of the token, already validated by the caller
+        :return: the access token or None if it could not be obtained
+        """
+        tmp_log = LogWrapper(_logger, f"get_access_token_for_audience client={client_name} aud={audience}")
+        target_path = self.construct_audience_path(client_name, audience)
+        token = self._read_if_fresh(target_path)
+        if token:
+            return token
+        # back off after a recent failure to avoid hammering the token issuer
+        last_failure = self.failed_fetches.get(target_path)
+        if last_failure and naive_utcnow() - last_failure < datetime.timedelta(minutes=self.failure_backoff):
+            tmp_log.debug("skip since the last attempt failed recently")
+            return None
+        with open(f"{target_path}.lock", "a") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                # another process may have fetched it while waiting for the lock
+                token = self._read_if_fresh(target_path)
+                if token:
+                    return token
+                status_code, output = get_access_token(
+                    client_config["endpoint"],
+                    client_config["client_id"],
+                    client_config["secret"],
+                    client_config.get("scope"),
+                    audience=audience,
+                )
+                if not status_code:
+                    tmp_log.error(output)
+                    self.failed_fetches[target_path] = naive_utcnow()
+                    return None
+                fd, tmp_path = tempfile.mkstemp(dir=self.target_path, prefix=".tmp_")
+                with os.fdopen(fd, "w") as f:
+                    f.write(output)
+                os.replace(tmp_path, target_path)
+                self.failed_fetches.pop(target_path, None)
+                tmp_log.debug(f"dump access token to {target_path}")
+                return output
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)

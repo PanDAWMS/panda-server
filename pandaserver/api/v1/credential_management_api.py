@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import socket
 from threading import Lock
 from typing import Any, List
@@ -274,7 +275,7 @@ def get_proxy(req: PandaRequest, role: str | None = None, dn: str | None = None)
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_access_token(req: PandaRequest, client_name: str, token_key: str | None = None) -> dict[str, Any]:
+def get_access_token(req: PandaRequest, client_name: str, token_key: str | None = None, audience: str | None = None) -> dict[str, Any]:
     """
     Get access token
 
@@ -288,6 +289,7 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str | None 
         req(PandaRequest): internally generated request object
         client_name(str): client_name for the token as defined in token_cache_config
         token_key(str, optional): key to get the token from the token cache. Defaults to None.
+        audience(str, optional): audience of the token, required for clients with audience_from_request. Defaults to None.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the access token. When unsuccessful, the message field contains the error message.
@@ -323,7 +325,15 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str | None 
     target_dn_bare = get_bare_dn(target_dn, keep_digits=False)
 
     # get token
-    output = global_token_cache.get_access_token(target_dn_bare)
+    client_config = global_token_cache_config.get(target_dn)
+    if client_config and client_config.get("audience_from_request", False):
+        if not audience:
+            tmp_msg = "audience is required for this client"
+            tmp_logger.debug(tmp_msg)
+            return generate_response(False, tmp_msg)
+        output = global_token_cache.get_access_token_for_audience(target_dn_bare, client_config, audience.lower())
+    else:
+        output = global_token_cache.get_access_token(target_dn_bare)
 
     # access token not found
     if output is None:
