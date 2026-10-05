@@ -4,6 +4,7 @@ download access tokens for OIDC token exchange flow
 
 import datetime
 import fcntl
+import hashlib
 import json
 import os.path
 import pathlib
@@ -160,16 +161,21 @@ class TokenCache:
         return cached_token
 
     # construct the cache file path for a client and an audience
-    def construct_audience_path(self, client_name: str, audience: str) -> str:
+    def construct_audience_path(self, client_name: str, audience: str, scope: str | None = None) -> str:
         """
-        Construct the cache file path for a token of a client with a specific audience
+        Construct the cache file path for a token of a client with a specific audience and scope
 
         :param client_name: client name
         :param audience: audience of the token
+        :param scope: scope of the token when it comes from the request, None otherwise
         :return: the file path
         """
         safe_audience = re.sub(r"[^A-Za-z0-9._-]", "_", audience)
-        return self.construct_target_path(f"{client_name}__{safe_audience}")
+        name = f"{client_name}__{safe_audience}"
+        if scope:
+            # scopes are long and contain paths, so use a hash in the file name
+            name += "__" + hashlib.sha256(scope.encode()).hexdigest()[:16]
+        return self.construct_target_path(name)
 
     # read a token file if it is younger than refresh_interval
     def _read_if_fresh(self, path: str) -> str | None:
@@ -184,18 +190,20 @@ class TokenCache:
         return token or None
 
     # get an access token for a client with an audience given in the request, fetching it on a cache miss
-    def get_access_token_for_audience(self, client_name: str, client_config: dict[str, Any], audience: str) -> str | None:
+    def get_access_token_for_audience(self, client_name: str, client_config: dict[str, Any], audience: str, scope: str | None = None) -> str | None:
         """
         Get an access token for a client with the audience given by the caller. The token is cached in a file
         shared by all processes. On a miss, one process fetches it under a file lock while others wait and reuse it.
 
         :param client_name: client name
         :param client_config: configuration of the client in token_cache_config
-        :param audience: audience of the token, already validated by the caller
+        :param audience: audience of the token (allowed audiences are enforced by the token issuer).
+        :param scope: scope from the request for clients with scope_from_request, None to use the configured scope
+
         :return: the access token or None if it could not be obtained
         """
-        tmp_log = LogWrapper(_logger, f"get_access_token_for_audience client={client_name} aud={audience}")
-        target_path = self.construct_audience_path(client_name, audience)
+        tmp_log = LogWrapper(_logger, f"get_access_token_for_audience client={client_name} aud={audience} scope={scope}")
+        target_path = self.construct_audience_path(client_name, audience, scope)
         token = self._read_if_fresh(target_path)
         if token:
             return token
@@ -215,7 +223,7 @@ class TokenCache:
                     client_config["endpoint"],
                     client_config["client_id"],
                     client_config["secret"],
-                    client_config.get("scope"),
+                    scope=scope if scope else client_config.get("scope"),
                     audience=audience,
                 )
                 if not status_code:
