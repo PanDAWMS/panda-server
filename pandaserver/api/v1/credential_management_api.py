@@ -273,8 +273,34 @@ def get_proxy(req: PandaRequest, role: str | None = None, dn: str | None = None)
     return generate_response(True, data=data)
 
 
+def _normalize_requested_scope(scope: str | None, client_config: dict[str, Any]) -> tuple[str | None, str]:
+    """
+    Check a requested scope and put it in a canonical form (unique entries, sorted),
+    so that the same set of scopes maps to the same cached token.
+
+    Each entry must be <verb>:<path> where <verb> is in allowed_scope_verbs of the client
+    (default: storage.read and storage.create) and <path> is an absolute path without "..".
+    Which paths are allowed is decided by the token issuer.
+    """
+    if not scope:
+        return None, "scope is required for this client"
+    allowed_verbs = set(client_config.get("allowed_scope_verbs", ["storage.read", "storage.create"]))
+    entries = sorted(set(scope.split()))
+    if not entries:
+        return None, "scope is required for this client"
+    for entry in entries:
+        verb, sep, path = entry.partition(":")
+        if not sep or verb not in allowed_verbs:
+            return None, f"scope {entry} is not allowed for this client"
+        if not path.startswith("/") or ".." in path.split("/"):
+            return None, f"invalid path in scope {entry}"
+    return " ".join(entries), ""
+
+
 @request_validation(_logger, secure=True, request_method="GET")
-def get_access_token(req: PandaRequest, client_name: str, token_key: str | None = None) -> dict[str, Any]:
+def get_access_token(
+    req: PandaRequest, client_name: str, token_key: str | None = None, audience: str | None = None, scope: str | None = None
+) -> dict[str, Any]:
     """
     Get access token
 
@@ -288,6 +314,8 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str | None 
         req(PandaRequest): internally generated request object
         client_name(str): client_name for the token as defined in token_cache_config
         token_key(str, optional): key to get the token from the token cache. Defaults to None.
+        audience(str, optional): audience of the token, required for clients with audience_from_request. Defaults to None.
+        scope(str, optional): space separated scopes, required for clients with scope_from_request. Defaults to None.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the access token. When unsuccessful, the message field contains the error message.
@@ -323,7 +351,21 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str | None 
     target_dn_bare = get_bare_dn(target_dn, keep_digits=False)
 
     # get token
-    output = global_token_cache.get_access_token(target_dn_bare)
+    client_config = global_token_cache_config.get(target_dn)
+    if client_config and client_config.get("audience_from_request", False):
+        if not audience:
+            tmp_msg = "audience is required for this client"
+            tmp_logger.debug(tmp_msg)
+            return generate_response(False, tmp_msg)
+        requested_scope = None
+        if client_config.get("scope_from_request", False):
+            requested_scope, tmp_msg = _normalize_requested_scope(scope, client_config)
+            if requested_scope is None:
+                tmp_logger.debug(tmp_msg)
+                return generate_response(False, tmp_msg)
+        output = global_token_cache.get_access_token_for_audience(target_dn_bare, client_config, audience.lower(), requested_scope)
+    else:
+        output = global_token_cache.get_access_token(target_dn_bare)
 
     # access token not found
     if output is None:
