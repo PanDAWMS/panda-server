@@ -1772,6 +1772,7 @@ class TaskComplexModule(BaseModule):
         merge_un_throttled: bool | None,
         resource_name: str | None,
         target_tasks: list[int] | None,
+        excluded_sites: list[str] | None = None,
     ) -> list[tuple[Any, ...]]:
         """
         Get tasks and datasets with unprocessed inputs.
@@ -1790,6 +1791,7 @@ class TaskComplexModule(BaseModule):
         :param merge_un_throttled: Whether to read tasks with unprocessed unmerged inputs even if enough tasks have been already read.
         :param resource_name: Resource name.
         :param target_tasks: Target task IDs in actual run.
+        :param excluded_sites: Sites whose pinned tasks are skipped, e.g. sites the job throttler found saturated.
         :return: A list of task and dataset attributes.
         """
         # get tasks/datasets
@@ -1856,6 +1858,10 @@ class TaskComplexModule(BaseModule):
             if min_priority is not None:
                 var_map[":minPriority"] = min_priority
                 sql += "AND currentPriority>=:minPriority "
+            if excluded_sites:
+                exsite_var_names_str, exsite_var_map = get_sql_IN_bind_variables(excluded_sites, prefix=":exsite_")
+                sql += f"AND (tabT.site IS NULL OR tabT.site NOT IN ({exsite_var_names_str})) "
+                var_map.update(exsite_var_map)
             sql += "AND NOT EXISTS "
             sql += f"(SELECT 1 FROM {panda_config.schemaJEDI}.JEDI_Datasets "
             sql += f"WHERE {panda_config.schemaJEDI}.JEDI_Datasets.jediTaskID=tabT.jediTaskID "
@@ -3211,6 +3217,7 @@ class TaskComplexModule(BaseModule):
         ignore_lock: bool = False,
         target_tasks: list[int] | None = None,
         is_dry_run: bool = False,
+        excluded_sites: list[str] | None = None,
     ) -> list[tuple[int, list[tuple[JediTaskSpec, str, InputChunk]]]] | int | None:
         """
         Get tasks to generate jobs.
@@ -3237,6 +3244,7 @@ class TaskComplexModule(BaseModule):
         :param ignore_lock: Whether to ignore lock when reading tasks.
         :param target_tasks: The list of tasks to read for message-driven processing or dry run.
         :param is_dry_run: Whether to read tasks for dry run.
+        :param excluded_sites: Sites whose pinned tasks are skipped, e.g. sites the job throttler found saturated.
 
         :return: List of tasks to generate jobs, the highest priority among waiting tasks if isPeeking is True, or None in case of failure.
         """
@@ -3255,6 +3263,8 @@ class TaskComplexModule(BaseModule):
         tmp_log.debug(f"max_num_jobs={maxNumJobs} typicalNumFilesMap={str(typicalNumFilesMap)}")
         tmp_log.debug(f"is_dry_run={is_dry_run} mergeUnThrottled={str(mergeUnThrottled)} readMinFiles={readMinFiles}")
         tmp_log.debug(f"numNewTaskWithJumbo={numNewTaskWithJumbo}")
+        if excluded_sites:
+            tmp_log.debug(f"excluded_sites={excluded_sites}")
 
         mem_start = CoreUtils.getMemoryUsage()
         tmp_log.debug(f"memUsage start {mem_start} MB pid={os.getpid()}")
@@ -3299,6 +3309,7 @@ class TaskComplexModule(BaseModule):
                 mergeUnThrottled,
                 resource_name,
                 target_tasks,
+                excluded_sites=excluded_sites,
             )
 
             # no tasks
