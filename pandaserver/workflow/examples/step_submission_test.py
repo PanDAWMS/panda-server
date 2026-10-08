@@ -13,6 +13,7 @@ import importlib.abc
 import importlib.machinery
 import json
 import os
+import re
 import sys
 import types
 
@@ -83,6 +84,8 @@ pandalogger = stub("pandacommon.pandalogger")
 pandalogger.__path__ = []
 stub("pandacommon.pandalogger.LogWrapper", LogWrapper=Log)
 stub("pandacommon.pandalogger.PandaLogger", PandaLogger=lambda: types.SimpleNamespace(getLogger=lambda n: None))
+# the handler derives a submitter's compact name through CoreUtils, which needs only this
+stub("pandacommon.pandautils.PandaUtils", naive_utcnow=lambda: None)
 stub("pandaserver.config", panda_config=types.SimpleNamespace(schemaJEDI="ATLAS_PANDA", schemaDEFT="ATLAS_DEFT"))
 
 from pandaserver.workflow.step_handler_plugins.panda_task_step_handler import (  # noqa: E402
@@ -121,7 +124,7 @@ class FakeStep(WFStepSpec):
 
 
 class FakeTaskBuffer:
-    def __init__(self, data_by_name=None, task_id=49900001, error="", deft_status=None, steps_by_id=None):
+    def __init__(self, data_by_name=None, task_id=49900001, error="", deft_status=None, steps_by_id=None, existing_task_names=None, name_lookup_fails=False):
         self.deft_status = deft_status
         self.data = data_by_name or {}
         self.steps = steps_by_id or {}
@@ -130,6 +133,23 @@ class FakeTaskBuffer:
         self.inserted = []
         self.inserted_parent_tids = []
         self.updated_data = []
+        self.existing_task_names = existing_task_names or {}
+        self.name_lookup_fails = name_lookup_fails
+        self.name_lookups = []
+
+    def get_existing_task_names(self, vo, prod_source_label, task_names):
+        self.name_lookups.append((vo, prod_source_label, list(task_names)))
+        # a real lookup returns None when it failed, which is not the same as finding nothing
+        if self.name_lookup_fails:
+            return None
+        return {name: info for name, info in self.existing_task_names.items() if name in task_names}
+
+    def get_working_group(self, fqans):
+        for fqan in fqans:
+            match = re.search("/[^/]+/([^/]+)/Role=production", fqan)
+            if match is not None:
+                return match.group(1)
+        return None
 
     def get_workflow_step(self, step_id):
         return self.steps.get(step_id)
@@ -151,6 +171,8 @@ class FakeTaskBuffer:
         self.inserted_parent_tids.append(parent_tid)
         if self.task_id is None:
             return None, self.error
+        # a queued task is findable by name from then on, as the real lookup would find it
+        self.existing_task_names[task_params_map["taskName"]] = {"jediTaskID": self.task_id, "status": None}
         return self.task_id, ""
 
     def getTaskStatusSuperstatus(self, task_id):
@@ -181,16 +203,17 @@ def main():
     # resolve ${WFID} the way registration would, so this works whether or not the description uses it
     simul_params = json.loads(json.dumps(simul_params).replace("${WFID}", "12345"))
 
-    def make_step(prod_role=True, all_inputs_complete=True, params=None):
-        return FakeStep(
-            {
-                "task_params": copy.deepcopy(params if params is not None else simul_params),
-                "user_dn": "/DC=ch/CN=test",
-                "prod_role": prod_role,
-                "output_data_list": ["simul/HITS"],
-            },
-            {"all_inputs_complete": all_inputs_complete},
-        )
+    def make_step(prod_role=True, all_inputs_complete=True, params=None, definition=None):
+        step_definition = {
+            "task_params": copy.deepcopy(params if params is not None else simul_params),
+            "user_name": "Some User",
+            "user_dn": "/DC=ch/CN=Some User",
+            "prod_role": prod_role,
+            "fqans": [],
+            "output_data_list": ["simul/HITS"],
+        }
+        step_definition.update(definition or {})
+        return FakeStep(step_definition, {"all_inputs_complete": all_inputs_complete})
 
     produced_evnt = "mc23_13p6TeV.526140.x.merge.EVNT.e8590_e8586_wfid12345_tid48810699_00"
 
@@ -257,6 +280,132 @@ def main():
         handler = PandaTaskStepHandler(tbif)
         res = handler.submit_target(make_step(prod_role=False, params=params))
         failures += not check(f"{label} needs no production role", res.success is True, res.message)
+
+    print("\n=== a step built from a command line gets the parameters the client never sends ===")
+    # panda-client sends no userName, taskType or taskPriority, because insertTaskParamsPanda has
+    # always written them from the submitter's credentials. This is the shape of a pchain_native
+    # analysis step, trimmed to what the submission path reads.
+    client_params = {
+        "taskName": "user.someuser.0f9c6b31-4d7e-4a01-9a2f-7c3d5e8b1f40_001_step1",
+        "uniqueTaskName": True,
+        "vo": "atlas",
+        "prodSourceLabel": "user",
+        "architecture": "",
+        "processingType": "panda-client-2.1.3-jedi-run",
+        "log": {
+            "dataset": "user.someuser.0f9c6b31-4d7e-4a01-9a2f-7c3d5e8b1f40_001_step1.log/",
+            "type": "template",
+            "param_type": "log",
+            "value": "user.someuser.0f9c6b31-4d7e-4a01-9a2f-7c3d5e8b1f40_001_step1.log.$JEDITASKID.${SN}.log.tgz",
+        },
+        "jobParameters": [
+            {
+                "type": "template",
+                "param_type": "output",
+                "value": "user.someuser.$JEDITASKID._${SN/P}.merge.root",
+                "dataset": "user.someuser.0f9c6b31-4d7e-4a01-9a2f-7c3d5e8b1f40_001_step1_merge.root/",
+            },
+            {"type": "template", "param_type": "input", "value": '-i "${IN/T}"', "dataset": "user.iliadis.data25_13p6TeV.NTUP_MCP.tid49752806_00/"},
+        ],
+    }
+    no_outputs: dict[str, list[str]] = {"output_data_list": []}
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    res = handler.submit_target(make_step(prod_role=False, params=client_params, definition=no_outputs))
+    failures += not check("submitted", res.success is True, res.message)
+    submitted = tbif.inserted[0]
+    failures += not check("userName written from the submitter", submitted.get("userName") == "Some User", submitted.get("userName"))
+    failures += not check("taskType written as analysis", submitted.get("taskType") == "anal", submitted.get("taskType"))
+    failures += not check("taskPriority written", submitted.get("taskPriority") == 1000, submitted.get("taskPriority"))
+    # a definition written before user_name was carried on the step still has the DN to derive from
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    res = handler.submit_target(make_step(prod_role=False, params=client_params, definition=dict(no_outputs, user_name=None)))
+    failures += not check("userName derived from the DN", tbif.inserted[0].get("userName") == "Some User", tbif.inserted[0].get("userName"))
+
+    print("\n=== an authored identity is kept only for a submitter holding the role ===")
+    # the production chain authors userName, taskType and taskPriority itself
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    handler.submit_target(make_step(prod_role=True))
+    submitted = tbif.inserted[0]
+    failures += not check("authored userName kept with the role", submitted["userName"] == simul_params["userName"], submitted["userName"])
+    failures += not check("authored taskType kept with the role", submitted["taskType"] == simul_params["taskType"], submitted["taskType"])
+    failures += not check("authored taskPriority kept with the role", submitted["taskPriority"] == simul_params["taskPriority"], submitted["taskPriority"])
+    # ... and without the role the submitter's own identity is written over it, as
+    # insertTaskParamsPanda does, so a workflow cannot submit work under another name. The label is
+    # relabelled first because "managed" is refused outright without the role.
+    params = copy.deepcopy(simul_params)
+    params["prodSourceLabel"] = "user"
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    handler.submit_target(make_step(prod_role=False, params=params))
+    submitted = tbif.inserted[0]
+    failures += not check("authored userName overridden without the role", submitted["userName"] == "Some User", submitted["userName"])
+    failures += not check("taskType forced to analysis without the role", submitted["taskType"] == "anal", submitted["taskType"])
+
+    print("\n=== an official dataset takes its working group from the submitter's FQANs ===")
+    params = copy.deepcopy(client_params)
+    params["official"] = True
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    handler.submit_target(make_step(prod_role=False, params=params, definition=dict(no_outputs, fqans=["/atlas/phys-higgs/Role=production"])))
+    failures += not check("workingGroup resolved from the FQANs", tbif.inserted[0].get("workingGroup") == "phys-higgs", tbif.inserted[0].get("workingGroup"))
+    # without an official dataset there is no group to claim
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    handler.submit_target(make_step(prod_role=False, params=client_params, definition=dict(no_outputs, fqans=["/atlas/phys-higgs/Role=production"])))
+    failures += not check("workingGroup left alone", "workingGroup" not in tbif.inserted[0])
+
+    print("\n=== a step naming no submitter is refused ===")
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    res = handler.submit_target(make_step(prod_role=False, params=client_params, definition=dict(no_outputs, user_name=None, user_dn=None)))
+    failures += not check("refused", res.success is not True)
+    failures += not check("reason mentions the submitter", "submitter" in res.message, res.message)
+    failures += not check("nothing submitted", tbif.inserted == [])
+
+    print("\n=== a recorded attempt is checked against the tasks that exist ===")
+    attempted_name = simul_params["taskName"]
+
+    def make_attempted_step():
+        step = make_step()
+        step.set_parameter("submit_attempt_task_name", attempted_name)
+        return step
+
+    # The attempt was recorded before the insert was called, and the insert refused it before
+    # reaching the database, so no task exists and the step must not be stranded.
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    res = handler.submit_target(make_attempted_step())
+    failures += not check("submitted when the previous attempt queued nothing", res.success is True, res.message)
+    failures += not check(
+        "the lookup asked about this task name",
+        tbif.name_lookups == [(simul_params["vo"], simul_params["prodSourceLabel"], [attempted_name])],
+        tbif.name_lookups,
+    )
+    # the task really was queued: refuse, and name the one that exists
+    tbif = make_tbif(existing_task_names={attempted_name: {"jediTaskID": 48810706, "status": "running"}})
+    handler = PandaTaskStepHandler(tbif)
+    res = handler.submit_target(make_attempted_step())
+    failures += not check("refused when the task exists", res.success is not True)
+    failures += not check("reason names the task that exists", "48810706" in res.message, res.message)
+    failures += not check("nothing submitted", tbif.inserted == [])
+    # unknown is not the same as absent, so a failed lookup refuses too
+    tbif = make_tbif(name_lookup_fails=True)
+    handler = PandaTaskStepHandler(tbif)
+    res = handler.submit_target(make_attempted_step())
+    failures += not check("refused when the lookup failed", res.success is not True)
+    failures += not check("reason says it could not be checked", "could not be checked" in res.message, res.message)
+    failures += not check("nothing submitted", tbif.inserted == [])
+    # a step attempting a different name than the one recorded is not the duplicate case at all
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    step = make_step()
+    step.set_parameter("submit_attempt_task_name", "some.other.taskName")
+    res = handler.submit_target(step)
+    failures += not check("submitted when the recorded name differs", res.success is True, res.message)
+    failures += not check("no lookup needed", tbif.name_lookups == [], tbif.name_lookups)
 
     print("\n=== an unresolved upstream output blocks submission ===")
     tbif = make_tbif()
