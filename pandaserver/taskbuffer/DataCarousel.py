@@ -1502,6 +1502,47 @@ class DataCarouselInterface(object):
             tmp_log.error(f"failed to update total files and size; {e}")
             return False
 
+    def _refill_total_files_and_size(self, dc_req_spec: DataCarouselRequestSpec) -> bool:
+        """
+        Retry to fill total files and dataset size of a queued request without total_files (None or 0), and update DB if filled
+        The total files and dataset size got are also set to the given dc_req_spec
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): Data Carousel request spec
+
+        Returns:
+            bool : True if the request now has total_files > 0, False otherwise
+        """
+        tmp_log = LogWrapper(logger, f"_refill_total_files_and_size request_id={dc_req_spec.request_id}")
+        try:
+            with self.request_lock(dc_req_spec.request_id) as locked_spec:
+                if not locked_spec:
+                    # not getting lock; skip
+                    tmp_log.warning("did not get lock; skipped")
+                    return False
+                # skip if not queued
+                if locked_spec.status != DataCarouselRequestStatus.queued:
+                    tmp_log.debug(f"status={locked_spec.status} not queued; skipped")
+                    return False
+                if not locked_spec.total_files:
+                    # retry to get DDM dataset metadata
+                    if not self._fill_total_files_and_size(locked_spec) or not locked_spec.total_files:
+                        tmp_log.debug(f"still got total_files={locked_spec.total_files} ; skipped")
+                        return False
+                    # update DB
+                    if self.taskBufferIF.update_data_carousel_request_JEDI(locked_spec):
+                        tmp_log.debug(f"updated DB with total_files={locked_spec.total_files} dataset_size={locked_spec.dataset_size}")
+                    else:
+                        tmp_log.error("failed to update DB ; skipped")
+                        return False
+                # set back to the given spec
+                dc_req_spec.total_files = locked_spec.total_files
+                dc_req_spec.dataset_size = locked_spec.dataset_size
+                return True
+        except Exception:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return False
+
     def submit_data_carousel_requests(
         self,
         task_id: int,
@@ -1816,6 +1857,17 @@ class DataCarouselInterface(object):
         if queued_requests is None or not queued_requests:
             tmp_log.debug("no requests to stage or to pin ; skipped")
             return ret_list
+        # retry to fill total_files of requests to stage without total_files (None or 0)
+        n_no_files = 0
+        n_refilled = 0
+        for dc_req_spec, _ in queued_requests:
+            if dc_req_spec.total_files or dc_req_spec.get_parameter("to_pin"):
+                continue
+            n_no_files += 1
+            if self._refill_total_files_and_size(dc_req_spec):
+                n_refilled += 1
+        if n_no_files:
+            tmp_log.debug(f"refilled {n_refilled}/{n_no_files} requests without total_files")
         # get stats of tapes
         source_tape_stats = self._get_source_tape_stats_dataframe()
         if source_tape_stats is None:

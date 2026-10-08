@@ -40,10 +40,11 @@ def get_jwk(kid: str, jwks: dict[str, Any]) -> dict[str, Any]:
 # token decoder
 class TokenDecoder:
     # constructor
-    def __init__(self, refresh_interval: int = 10) -> None:
+    def __init__(self, refresh_interval: int = 10, timeout: int = 30) -> None:
         self.lock = Lock()
         self.data: dict[str, dict[str, Any]] = {}
         self.refresh_interval = refresh_interval
+        self.timeout = timeout
 
     # get cached data
     def get_data(self, url: str, log_stream: Any) -> Any:
@@ -51,7 +52,7 @@ class TokenDecoder:
             with self.lock:
                 if url not in self.data or naive_utcnow() - self.data[url]["last_update"] > datetime.timedelta(minutes=self.refresh_interval):
                     log_stream.debug(f"to refresh {url}")
-                    tmp_data = requests.get(url).json()
+                    tmp_data = requests.get(url, timeout=self.timeout).json()
                     log_stream.debug("refreshed")
                     self.data[url] = {
                         "data": tmp_data,
@@ -140,7 +141,9 @@ class TokenDecoder:
 
 
 # get an access token with client_credentials flow
-def get_access_token(token_endpoint: str, client_id: str, client_secret: str, scope: str | None = None, timeout: int = 180) -> tuple[bool, str]:
+def get_access_token(
+    token_endpoint: str, client_id: str, client_secret: str, scope: str | None = None, audience: str | None = None, timeout: int = 180
+) -> tuple[bool, str]:
     """
     Get an access token with client_credentials flow
 
@@ -148,6 +151,7 @@ def get_access_token(token_endpoint: str, client_id: str, client_secret: str, sc
     :param client_id: client ID
     :param client_secret: client secret
     :param scope: space separated string of scopes
+    :param audience: space separated string of audiences
     :param timeout: timeout in seconds
 
     :return: (True, access_token) or (False, error_str)
@@ -160,6 +164,8 @@ def get_access_token(token_endpoint: str, client_id: str, client_secret: str, sc
         }
         if scope:
             token_request["scope"] = scope
+        if audience:
+            token_request["audience"] = audience
         token_response = requests.post(token_endpoint, data=token_request, timeout=timeout)
         token_response.raise_for_status()
         return True, token_response.json()["access_token"]
