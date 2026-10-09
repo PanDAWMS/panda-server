@@ -54,7 +54,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list of tupes with (status, command). When unsuccessful, the message field contains the error message and data an error code.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list of tuples with (status, command). When unsuccessful, the message field contains the error message and data an error code.
     """
     tmp_logger = LogWrapper(_logger, f"get_status job_ids={job_ids} timeout={timeout}")
     tmp_logger.debug("Start")
@@ -210,7 +210,7 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict[str,
         task_id (int): JEDI task ID
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the medata. When unsuccessful, the message field contains the error message and data an error code.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the metadata. When unsuccessful, the message field contains the error message and data an error code.
     """
 
     tmp_logger = LogWrapper(_logger, f"get_metadata_for_analysis_jobs task_id={task_id}")
