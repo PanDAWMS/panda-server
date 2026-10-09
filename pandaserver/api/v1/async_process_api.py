@@ -372,6 +372,10 @@ def get_result(req: PandaRequest, async_id: str | None = None, request_id: str |
         async_meta is present whenever the poll itself succeeded, so a response without it is a
         failure of this call (not found, not authorized) rather than a report about the request.
 
+    API details:
+        HTTP Method: GET
+        Path: /v1/async_process/get_result
+
     Args:
         req(PandaRequest): request object
         async_id(str): UUID returned by a submit_* endpoint
@@ -379,7 +383,14 @@ def get_result(req: PandaRequest, async_id: str | None = None, request_id: str |
             that have not moved keep working; ignored when async_id is given
 
     Returns:
-        dict: one of the two shapes above
+        dict: The system response, in one of two shapes depending on the request's handler.
+            For handlers writing raw output (grep, sleep_echo), the data field contains the
+            overall_status ("complete" or "pending"), the expected_machines and one result per
+            machine. For handlers writing a structured payload (e.g. Data Carousel operations),
+            success, message and data are the operation's own, and an extra async_meta field
+            carries the request's status ("pending", "running", "done" or "failed"). When the
+            poll itself fails (async_id not found, not authorized), success is False and the
+            message field contains the reason.
     """
     # request_id is what async_id used to be called; either names the request until the old
     # name is dropped, and async_id wins when a caller sends both

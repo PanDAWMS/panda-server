@@ -755,7 +755,8 @@ def update_worker_status(
         node_id (str, optional): The node ID. Defaults to None.
 
     Returns:
-        str: The result of the status update or an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`. The success field will contain the result of the status update
+            and message will have an error message when unsuccessful.
     """
     tmp_logger = LogWrapper(
         _logger,
