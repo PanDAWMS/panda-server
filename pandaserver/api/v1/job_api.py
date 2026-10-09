@@ -54,7 +54,13 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list of tuples with (status, command). When unsuccessful, the message field contains the error message and data an error code.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[dict]: One entry per requested job ID, in the same order. command is the command
+            waiting for the pilot, if any.
+            {"status": str, "command": str}
+        On failure: {"code": int}, the error code (time out or failure).
     """
     tmp_logger = LogWrapper(_logger, f"get_status job_ids={job_ids} timeout={timeout}")
     tmp_logger.debug("Start")
@@ -97,7 +103,11 @@ def get_description(req: PandaRequest, job_ids: List[int]) -> Dict[str, Any]:
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list with job descriptions. When unsuccessful, the message field contains the error message and data an error code.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[dict]: One job description per requested job ID, in the same order, or null for an
+            ID that was not found. Only the first 5500 IDs are looked up.
     """
     tmp_logger = LogWrapper(_logger, "get_description")
     tmp_logger.debug("Start")
@@ -137,7 +147,12 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict[
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list with job descriptions. When unsuccessful, the message field contains the error message and data an error code.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[dict]: One job description per requested job ID, in the same order, also looking in
+            the archive tables, or null for an ID that was not found. Only the first 5500 IDs are
+            looked up.
     """
     tmp_logger = LogWrapper(_logger, "get_description_including_archive")
     tmp_logger.debug("Start")
@@ -210,7 +225,11 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict[str,
         task_id (int): JEDI task ID
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the metadata. When unsuccessful, the message field contains the error message and data an error code.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The metadata of the task's finished user jobs, keyed by PanDA job ID. Empty when
+            there is none, with the message "No metadata found".
     """
 
     tmp_logger = LogWrapper(_logger, f"get_metadata_for_analysis_jobs task_id={task_id}")
@@ -261,7 +280,10 @@ def kill(req: PandaRequest, job_ids: List[int], code: int | None = None, use_ema
         kill_options (List, optional): Defaults to []. Possible options are: `keepUnmerged`, `jobSubStatus=xyz`
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. The data field contains a list of bools indicating the success of the kill operations.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[bool]: One entry per requested job ID, in the same order: whether the job was killed.
     """
 
     # retrieve the user information
@@ -303,7 +325,10 @@ def reassign(req: PandaRequest, job_ids: List[int]) -> dict[str, Any]:
         job_ids (list): List of PanDA job IDs
 
     Returns:
-        dict: The system response `{"success": True}`.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. The jobs are reassigned asynchronously, and success is always true.
     """
 
     tmp_logger = LogWrapper(_logger, f"reassign job_ids={job_ids}")
@@ -331,7 +356,10 @@ def set_command(req: PandaRequest, job_id: int, command: str) -> dict[str, Any]:
         command (str): The command for the pilot, e.g. `tobekilled`
 
     Returns:
-        dict: The system response `{"success": success, "message": message}`.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. The message field contains the outcome.
     """
     tmp_logger = LogWrapper(_logger, f"set_command job_id={job_id} command={command}")
     tmp_logger.debug("Start")
@@ -357,7 +385,11 @@ def set_debug_mode(req: PandaRequest, job_id: int, mode: bool) -> dict[str, Any]
         mode (bool): True to set debug mode, False to unset debug mode
 
     Returns:
-        dict: The system response `{"success": success, "message": message}`.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. The message field contains the outcome, "Succeeded" when the debug mode
+            was set.
     """
 
     tmp_logger = LogWrapper(_logger, f"set_debug_mode job_id={job_id}")
@@ -396,7 +428,11 @@ def submit(req: PandaRequest, jobs: str) -> dict[str, Any]:
         jobs (str): JSON string with a list of job specs
 
     Returns:
-        dict: The system response `{"success": success, "message": message}`.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[tuple]: One entry per stored job: (PanDA job ID, job definition ID, job name), or
+            (PanDA job ID, job definition ID, {"jobsetID": jobset ID}) for analysis and ptest jobs.
     """
     tmp_logger = LogWrapper(_logger, "submit")
     user = get_dn(req)

@@ -1704,7 +1704,7 @@ class TaskBuffer:
             minute=int(match.group(5)),
             second=int(match.group(6)),
         )
-        # max range is 3 months
+        # max range is 30 days
         maxRange = naive_utcnow() - datetime.timedelta(days=30)
         if timeRange < maxRange:
             timeRange = maxRange

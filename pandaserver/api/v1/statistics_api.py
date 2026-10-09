@@ -41,7 +41,11 @@ def job_stats_by_cloud(req: PandaRequest, type: str = "production") -> Dict[str,
         type(str, optional): can be "analysis" or "production". Defaults to "production" when not provided.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: Number of jobs by cloud and job status, {<cloud>: {<job status>: int}}.
+        On failure: an empty dict.
     """
     tmp_logger = LogWrapper(_logger, f"job_stats_by_cloud < type={type} >")
 
@@ -74,7 +78,12 @@ def production_job_stats_by_cloud_and_processing_type(req: PandaRequest) -> Dict
         req(PandaRequest): internally generated request object
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: Number of production jobs by cloud, processing type and job status,
+            {<cloud>: {<processing type>: {<job status>: int}}}.
+        On failure: an empty dict.
     """
 
     tmp_logger = LogWrapper(_logger, "production_job_stats_by_cloud_and_processing_type")
@@ -103,7 +112,11 @@ def active_job_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
         req(PandaRequest): internally generated request object
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: Number of active jobs by site and job status, {<site>: {<job status>: int}}.
+        On failure: an empty dict.
     """
     tmp_logger = LogWrapper(_logger, "active_job_stats_by_site")
 
@@ -131,7 +144,12 @@ def active_job_detailed_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
         req(PandaRequest): internally generated request object
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by site, resource_type and prodsourcelabel. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: Number of active jobs by site, resource type, prodsourcelabel and job status,
+            {<site>: {<resource type>: {<prodsourcelabel>: {<job status>: int}}}}.
+        On failure: an empty dict.
     """
     tmp_logger = LogWrapper(_logger, "active_job_detailed_stats_by_site")
 
@@ -160,7 +178,12 @@ def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int | No
         time_window(int, optional): time window in minutes for the statistics (affects only archived jobs)
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: Number of jobs by site, resource type and job status,
+            {<site>: {<resource type>: {<job status>: int}}}.
+        On failure: an empty dict.
     """
     tmp_logger = LogWrapper(_logger, f"job_stats_by_site_and_resource_type < time_window={time_window} >")
 
@@ -193,7 +216,13 @@ def job_stats_by_site_share_and_resource_type(req: PandaRequest, time_window: in
         time_window(int, optional): time window in minutes for the statistics (affects only archived jobs)
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: Number of jobs by site, prodsourcelabel, resource type and job status,
+            {<site>: {<prodsourcelabel>: {<resource type>: {<job status>: int}}}}. The
+            prodsourcelabel is the one of the job's global share, "unknown" for an unknown share.
+        On failure: an empty dict.
     """
     tmp_logger = LogWrapper(_logger, f"job_stats_by_site_share_and_resource_type < time_window={time_window} >")
 
@@ -229,7 +258,12 @@ def get_wn_metrics_by_site(req: PandaRequest, site: str, host: str | None = None
         days(int, optional): Number of days for which the statistics should be returned. Limits are 1 to 7.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the worker node statistics. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The worker node metrics by host and key, {<host>: {<key>: [[<timestamp>,
+            <statistics>], ...]}}, one entry per stored measurement in the requested days.
+        On failure: an empty dict.
     """
     tmp_logger = LogWrapper(_logger, f"get_wn_metrics_by_site < site={site} host={host} key={key} days={days} >")
 
@@ -270,7 +304,12 @@ def get_wn_metrics_by_queue(req: PandaRequest, panda_queue: str, host: str | Non
         days(int, optional): Number of days for which the statistics should be returned. Limits are 1 to 7.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the worker node statistics. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The worker node metrics by host and key, {<host>: {<key>: [[<timestamp>,
+            <statistics>], ...]}}, one entry per stored measurement in the requested days.
+        On failure: an empty dict.
     """
     tmp_logger = LogWrapper(_logger, f"get_wn_metrics_by_queue < panda_queue={panda_queue} host={host} key={key} days={days} >")
 

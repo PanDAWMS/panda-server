@@ -163,9 +163,13 @@ def submit_grep_request(
             .gz files, where an arbitrary offset is not a valid stream
 
     Returns:
-        dict: {"success": bool, "message": str, "data": {"async_id": str, "request_id": str}}.
-            request_id repeats async_id under the name this field had before the rename, for
-            callers that have not moved yet; it goes away once they have, so read async_id
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID to poll /v1/async_process/get_result with. request_id repeats async_id under
+            the name this field had before the rename, for callers that have not moved yet; it goes
+            away once they have, so read async_id.
+            {"async_id": str, "request_id": str}
     """
     tmp_logger = LogWrapper(_logger, "submit_grep_request")
     tmp_logger.debug("Start")
@@ -273,9 +277,13 @@ def submit_sleep_echo_request(
         seconds(int): seconds to sleep before echoing (0..60)
 
     Returns:
-        dict: {"success": bool, "message": str, "data": {"async_id": str, "request_id": str}}.
-            request_id repeats async_id under the name this field had before the rename, for
-            callers that have not moved yet; it goes away once they have, so read async_id
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID to poll /v1/async_process/get_result with. request_id repeats async_id under
+            the name this field had before the rename, for callers that have not moved yet; it goes
+            away once they have, so read async_id.
+            {"async_id": str, "request_id": str}
     """
     tmp_logger = LogWrapper(_logger, "submit_sleep_echo_request")
     tmp_logger.debug("Start")
@@ -383,13 +391,16 @@ def get_result(req: PandaRequest, async_id: str | None = None, request_id: str |
             that have not moved keep working; ignored when async_id is given
 
     Returns:
-        dict: The system response, in one of two shapes depending on the request's handler.
-            For handlers writing raw output (grep, sleep_echo), the data field contains the
-            overall_status ("complete" or "pending"), the expected_machines and one result per
-            machine. For handlers writing a structured payload (e.g. Data Carousel operations),
-            success, message and data are the operation's own, and an extra async_meta field
-            carries the request's status ("pending", "running", "done" or "failed"). When the
-            poll itself fails (async_id not found, not authorized), success is False and the
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: Depends on the request's handler, see the two shapes above. For handlers writing raw
+            output (grep, sleep_echo), the overall_status ("complete" or "pending"), the
+            expected_machines and one result per machine. For handlers writing a structured payload
+            (e.g. Data Carousel operations), the operation's own data, with success and message also
+            the operation's own and an extra top-level async_meta field carrying the request's status
+            ("pending", "running", "done" or "failed").
+        On failure: not set when the poll itself fails (async_id not found, not authorized); the
             message field contains the reason.
     """
     # request_id is what async_id used to be called; either names the request until the old

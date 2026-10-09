@@ -57,8 +57,11 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List[dict[str,
                 ```
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
 
+    Response data:
+        list[bool]: One entry per reported worker, in the same order, true once the worker was
+            updated. A database error fails the whole call.
     """
     tmp_logger = LogWrapper(_logger, f"update_workers harvester_id={harvester_id}")
     tmp_logger.debug("Start")
@@ -116,7 +119,10 @@ def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list[l
             ```
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[bool]: [true] when the metrics were stored.
     """
     tmp_logger = LogWrapper(_logger, f"update_service_metrics harvester_id={harvester_id}")
     tmp_logger.debug("Start")
@@ -165,7 +171,10 @@ def add_dialogs(req: PandaRequest, harvester_id: str, dialogs: list[dict[str, An
             ```
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used.
     """
     tmp_logger = LogWrapper(_logger, f"add_dialogs harvester_id={harvester_id}")
     tmp_logger.debug("Start")
@@ -197,7 +206,10 @@ def heartbeat(req: PandaRequest, harvester_id: str, data: dict[str, Any] | None 
 
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used.
     """
     tmp_logger = LogWrapper(_logger, f"heartbeat harvester_id={harvester_id}")
     tmp_logger.debug("Start")
@@ -235,7 +247,11 @@ def get_current_worker_id(req: PandaRequest, harvester_id: str) -> Dict[str, Any
         harvester_id(str): harvester id, e.g. `harvester_central_A`
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: The highest worker ID registered for the harvester instance. The call fails with a
+            database error message when the instance has no workers yet.
     """
     tmp_logger = LogWrapper(_logger, "get_current_worker_id")
     tmp_logger.debug("Start")
@@ -263,7 +279,11 @@ def get_worker_statistics(req: PandaRequest) -> Dict[str, Any]:
         req(PandaRequest): internally generated request object
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: Worker counts, nested by computing site, harvester ID, job type, resource type and
+            worker status.
     """
     tmp_logger = LogWrapper(_logger, "get_worker_statistics")
     tmp_logger.debug("Start")
@@ -293,7 +313,10 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
             ```
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. The message field contains "OK" on success, otherwise the reason.
     """
     tmp_logger = LogWrapper(_logger, f"report_worker_statistics harvester_id={harvester_id}")
     tmp_logger.debug("Start")
@@ -320,7 +343,13 @@ def acquire_commands(req: PandaRequest, harvester_id: str, n_commands: int, time
         timeout(int, optional): The timeout value. Defaults to `30`.
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[dict]: The oldest commands in status new for the harvester instance, at most n_commands,
+            which are then marked as retrieved. params is null for commands without parameters, and
+            ack_requested is 1 when the command has to be acknowledged.
+            {"command_id": int, "command": str, "params": dict, "ack_requested": int, "creation_date": str}
     """
     tmp_logger = LogWrapper(_logger, "acquire_commands")
     tmp_logger.debug("Start")
@@ -361,7 +390,10 @@ def acknowledge_commands(req: PandaRequest, command_ids: List[int], timeout: int
         timeout(int, optional): The timeout value. Defaults to `30`.
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used.
     """
     tmp_logger = LogWrapper(_logger, "acknowledge_commands")
     tmp_logger.debug("Start")
@@ -404,7 +436,10 @@ def add_sweep_command(req: PandaRequest, panda_queue: str, status_list: List[str
         submission_host_list(list): list of the harvester submission hosts to be considered, e.g. `['submission_host1.cern.ch', 'submission_host2.cern.ch']`
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used.
     """
 
     tmp_logger = LogWrapper(_logger, f"add_sweep_command panda_queue={panda_queue}")
@@ -445,7 +480,11 @@ def add_target_slots(
         expiration_date (str, optional): The expiration date of the slots. Optional - by default it applies indefinitely.
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. On success, the message field confirms the setting, e.g. "set numSlots=<n>
+            for PQ=<queue> gshare=<share> resource=<type>".
     """
     tmp_logger = LogWrapper(_logger, f"add_target_slots panda_queue={panda_queue}")
     tmp_logger.debug(f"Start with slots={slots}, global_share={global_share}, resource_type={resource_type}, expiration_date={expiration_date}")

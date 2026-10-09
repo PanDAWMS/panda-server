@@ -120,8 +120,15 @@ def acquire_jobs(
                                  Optional and defaults to `None`.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. The data is a list of job dictionaries.
-              When failed, the message contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The acquired jobs, in jobs, one job dictionary each. A job dictionary holds the job
+            description for the pilot, StatusCode 0, nSent, and, when they apply, the user's secrets in
+            secrets, the pilot secrets in pilotSecrets, and the proxy key in credname and myproxy. When
+            n_jobs is explicitly null, data is the job dictionary of the single acquired job instead.
+            {"StatusCode": int, "jobs": list}
+        On failure: null, with the reason in the message field (e.g. "No jobs in PanDA").
     """
 
     tmp_logger = LogWrapper(_logger, f"acquire_jobs {naive_utcnow().isoformat('/')}")
@@ -326,10 +333,12 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. The data is a list of job status dictionaries, in the format
-            ```
-            [{"job_id": <job_id_requested>, "status": "not found", "attempt_number": 0}), {"job_id": <job_id>, "status": <status>, "attempt_number": <attempt_nr>}]
-            ```
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[dict]: One entry per requested job ID, in the same order. For a job that was not
+            found, job_id is the requested ID, status is "not found" and attempt_number is 0.
+            {"job_id": int, "status": str, "attempt_number": int}
     """
 
     tmp_logger = LogWrapper(_logger, f"get_job_status {job_ids}")
@@ -481,10 +490,16 @@ def update_job(
         timeout(int, optional): Timeout for the operation in seconds. Optional, defaults to 60
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. Data will contain a dictionary with the pilot secrets and the command to the pilot.
-              ```
-                {"pilotSecrets": <pilot_secrets>, "command": <command>}
-              ```
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: StatusCode 0 when the job was updated, the command for the pilot (null when there is
+            none) and, when there are any, the pilot secrets in pilotSecrets. When the update failed
+            or timed out, success is still true, StatusCode is the failure or time out code, and the
+            message field contains the reason; when storing meta_data failed, ErrorDiag repeats it.
+            {"StatusCode": int, "command": str}
+        On failure: {"StatusCode": int}, the invalid request code (job_id is "NULL" or job_status
+            is not a valid job status).
     """
     tmp_logger = LogWrapper(_logger, f"update_job PandaID={job_id} PID={os.getpid()}")
     tmp_logger.debug("Start")
@@ -692,10 +707,12 @@ def update_jobs_bulk(req: PandaRequest, job_list: List[dict[str, Any]], harveste
         harvester_id (str, optional): Harvester ID. Optional, defaults to `None`.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. Data will contain a dictionary with the pilot secrets and the command to the pilot.
-              ```
-                {"pilotSecrets": <pilot_secrets>, "command": <command>}
-              ```
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[dict]: One entry per job in job_list, in the same order: the full response of
+            update_job for that job, with its own success, message and data.
+        On failure: an empty list.
     """
     tmp_logger = LogWrapper(_logger, f"update_jobs_bulk harvester_id={harvester_id}")
     tmp_logger.debug("Start")
@@ -755,8 +772,11 @@ def update_worker_status(
         node_id (str, optional): The node ID. Defaults to None.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. The success field will contain the result of the status update
-            and message will have an error message when unsuccessful.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. success tells whether the status was updated, and when it was not, the
+            message field contains the reason (invalid state, failure or time out).
     """
     tmp_logger = LogWrapper(
         _logger,
@@ -835,7 +855,10 @@ def update_worker_node(
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
-        dict: The system response  `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. The message field contains the reason when the update failed.
     """
     tmp_logger = LogWrapper(_logger, f"update_worker_node site={site} panda_queue={panda_queue} host_name={host_name} cpu_model={cpu_model}")
     tmp_logger.debug("Start")
@@ -910,7 +933,10 @@ def update_worker_node_gpu(
         timeout(int, optional): The timeout value. Defaults to `60`.
 
     Returns:
-        dict: The system response  `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. The message field contains the reason when the update failed.
     """
     tmp_logger = LogWrapper(_logger, f"update_worker_node_gpu site={site} host_name={host_name} vendor={vendor} model={model}")
     tmp_logger.debug("Start")
@@ -960,7 +986,10 @@ def update_pilot_attributes(req: PandaRequest, job_id: int, pilot_version: str, 
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. The message field contains the reason when the attributes were not stored.
     """
     tmp_logger = LogWrapper(_logger, f"update_pilot_attributes job_id={job_id} pilot_version={pilot_version}")
     tmp_logger.debug("Start")

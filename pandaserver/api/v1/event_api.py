@@ -52,7 +52,9 @@ def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: i
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains the number of available event ranges.
+
+    Response data:
+        int: The number of event ranges available for the job.
     """
 
     tmp_logger = LogWrapper(_logger, f"get_available_event_range_count < job_id={job_id} jobset_id={jobset_id} task_id={task_id} >")
@@ -91,11 +93,15 @@ def get_event_range_statuses(req: PandaRequest, job_task_ids: str) -> dict[str, 
 
     Args:
         req(PandaRequest): internally generated request object
-        job_task_ids(int): json encoded string with JEDI task ID + PanDA job ID pairs, in the format `[{"task_id": <task>, "job_id": <job>}, ...]`
+        job_task_ids(int): json encoded string with JEDI task ID + PanDA job ID pairs, in the format `[{"task_id": <task>, "panda_id": <job>}, ...]`
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains the status of the event ranges in the format `{<job_id>: {<event_range_id>: {"status": <status>, "error": <error_code>, "dialog": <dialog>}, ...}, ...}`
+
+    Response data:
+        dict: The status of each event range, keyed by PanDA job ID and then by event range ID:
+            `{<job_id>: {<event_range_id>: {"status": <status>, "error": <error_code>, "dialog": <dialog>}}}`.
+            Empty when no event range was found.
     """
 
     tmp_logger = LogWrapper(_logger, "get_event_range_statuses")
@@ -143,8 +149,10 @@ def acquire_event_ranges(
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains the event ranges. When unsuccessful, the message field contains the error message.
 
+    Response data:
+        list[dict]: The acquired event ranges, at most n_ranges, empty when none is available.
+            {"eventRangeID": str, "startEvent": int, "lastEvent": int, "LFN": str, "GUID": str, "scope": str}
     """
 
     tmp_logger = LogWrapper(
@@ -203,7 +211,11 @@ def update_single_event_range(
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field can contain a command for the pilot. When unsuccessful, the message field contains the error message.
+
+    Response data:
+        dict: The commands for the pilot, as a JSON-encoded dictionary of command per PanDA job ID,
+            empty when there is none.
+            {"Command": str}
     """
     tmp_logger = LogWrapper(
         _logger,
@@ -252,9 +264,11 @@ def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field will contain a dictionary `{"Returns": [], "Commands":{<PanDA ID>: <Command>, ...}}`. `Returns` is list with a status for each event range
-              and `Commands` is a dictionary with a possible command per PanDA job ID.
-              When unsuccessful, the message field contains the error message.
+
+    Response data:
+        dict: Returns, one status per event range, and Commands, a possible command per PanDA job
+            ID. With version 0 both are JSON-encoded strings (of a list and of a dictionary); with
+            other versions they are the decoded list and dictionary.
     """
 
     tmp_logger = LogWrapper(_logger, f"update_event_ranges({event_ranges})")

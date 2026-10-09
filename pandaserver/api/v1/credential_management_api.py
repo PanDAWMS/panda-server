@@ -105,7 +105,10 @@ def set_user_secrets(req: PandaRequest, key: str | None = None, value: str | Non
         value(str): Value of the secret
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. The message field contains the outcome, "OK" when the secret was stored.
     """
 
     tmp_logger = LogWrapper(_logger, f"set_user_secret-{naive_utcnow().isoformat('/')}")
@@ -134,7 +137,12 @@ def get_user_secrets(req: PandaRequest, keys: List[str] | None = None) -> dict[s
         keys(list of str, optional): List of keys to reference the secrets to retrieve
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the user secrets. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        str: The user's secrets as a JSON-encoded dictionary of key to value, limited to the
+            requested keys when keys is given, and an empty dictionary when there are none.
+        On failure: an empty dictionary.
     """
     tmp_logger = LogWrapper(_logger, f"get_user_secrets-{naive_utcnow().isoformat('/')}")
 
@@ -151,7 +159,7 @@ def get_user_secrets(req: PandaRequest, keys: List[str] | None = None) -> dict[s
 
     success, data_or_message = global_task_buffer.get_user_secrets(owner, keys_str)
     message, data = "", {}
-    if success and not data_or_message:
+    if success and data_or_message in ("", "{}", {}):
         message = "No secrets found for the specified keys and user"
 
     if success:
@@ -180,7 +188,11 @@ def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str)
         private_key_name(str): The name of the private key.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the user secrets. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The contents of the requested public and private key files.
+            {"public_key": str, "private_key": str}
     """
     tmp_logger = LogWrapper(_logger, f"get_key_pair {public_key_name}/{private_key_name}")
     tmp_logger.debug("Start")
@@ -236,7 +248,11 @@ def get_proxy(req: PandaRequest, role: str | None = None, dn: str | None = None)
         dn(str, optional): The distinguished name of the user. Defaults to None.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the x509 proxy. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The x509 proxy of the requested user (the caller by default) with the requested role.
+            {"user_proxy": str}
     """
     tmp_logger = LogWrapper(_logger, f"get_proxy PID={os.getpid()}")
 
@@ -318,7 +334,12 @@ def get_access_token(
         scope(str, optional): space separated scopes, required for clients with scope_from_request. Defaults to None.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the access token. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The access token for the client. The field is named user_proxy for historical
+            reasons, although it holds a token.
+            {"user_proxy": str}
     """
 
     tmp_logger = LogWrapper(_logger, f"get_proxy PID={os.getpid()}")
@@ -394,7 +415,11 @@ def get_token_key(req: PandaRequest, client_name: str) -> dict[str, Any]:
         client_name (str): The name of the client requesting the token key
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the token key. When unsuccessful, the message field contains the error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The latest token key for the client.
+            {"tokenKey": str}
     """
     tmp_logger = LogWrapper(_logger, f"get_token_key client={client_name} PID={os.getpid()}")
     tmp_logger.debug("Start")
