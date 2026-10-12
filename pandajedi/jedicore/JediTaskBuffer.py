@@ -268,6 +268,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         resource_name: str | None = None,
         ignore_lock: bool = False,
         target_tasks: list[int] | None = None,
+        excluded_sites: list[str] | None = None,
     ) -> list[tuple[int, list[tuple[JediTaskSpec, str, InputChunk]]]] | int | None:
         with self.proxyPool.get() as proxy:
             return proxy.getTasksToBeProcessed_JEDI(
@@ -290,6 +291,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
                 resource_name=resource_name,
                 ignore_lock=ignore_lock,
                 target_tasks=target_tasks,
+                excluded_sites=excluded_sites,
             )
 
     # get tasks to be processed

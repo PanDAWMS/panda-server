@@ -25,6 +25,8 @@ class JobThrottler(FactoryBase[JobThrottlerBase]):
         self.minPriority = impl.minPriority
         self.maxNumJobs = impl.maxNumJobs
         self.lackOfJobs = impl.underNqLimit
+        # sites whose pinned tasks the generator skips, from a throttler that names them
+        self.excluded_sites = list(getattr(impl, "excluded_sites", None) or [])
         return retVal
 
     # check throttle level

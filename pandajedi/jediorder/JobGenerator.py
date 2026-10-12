@@ -390,6 +390,7 @@ class JobGenerator(JediKnight):
                                         mergeUnThrottled=mergeUnThrottled,
                                         numNewTaskWithJumbo=numNewTaskWithJumbo,
                                         resource_name=resource_type.resource_name,
+                                        excluded_sites=getattr(throttle, "excluded_sites", None) or None,
                                     )
                                     if tmpList is None:
                                         # failed
