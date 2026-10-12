@@ -281,6 +281,21 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
+    def test_get_status_history(self) -> None:
+        url = f"{api_url_ssl}/task/get_status_history"
+        print(f"Testing URL: {url}")
+        data = {"task_id": JEDI_TASK_ID}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertEqual(set(output["data"]), {"rows", "as_of", "retained_from"})
+        # an unknown task has no rows rather than failing the call
+        if JEDI_TASK_ID == -1:
+            self.assertEqual(output["data"]["rows"], [])
+        for row in output["data"]["rows"]:
+            self.assertEqual(row["jediTaskID"], int(JEDI_TASK_ID))
+
     def test_get_status(self) -> None:
         url = f"{api_url_ssl}/task/get_status"
         print(f"Testing URL: {url}")

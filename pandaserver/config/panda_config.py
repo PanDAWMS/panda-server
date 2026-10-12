@@ -92,6 +92,7 @@ token_audience: str
 token_cache_config: str
 wn_script_base_url: str
 
+db_read_probe_budget: int
 dbport: int
 dbtimeout: int
 nDBConnection: int
@@ -150,6 +151,10 @@ if "dbport" not in tmpSelf.__dict__:
     tmpSelf.__dict__["dbport"] = 0
 if "dbtimeout" not in tmpSelf.__dict__:
     tmpSelf.__dict__["dbtimeout"] = 60
+
+# most index lookups (keys x partitions touched) one request of the read APIs may cost
+if "db_read_probe_budget" not in tmpSelf.__dict__:
+    tmpSelf.__dict__["db_read_probe_budget"] = 1000
 
 # Directory for certs
 if "certdir" not in tmpSelf.__dict__:

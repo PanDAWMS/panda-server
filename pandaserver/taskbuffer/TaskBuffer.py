@@ -2057,6 +2057,11 @@ class TaskBuffer:
             res = proxy.getTaskStatusSuperstatus(jediTaskID)
         return res
 
+    # get the status history of a task
+    def get_task_status_history(self, jedi_task_id: int) -> tuple[bool, str, dict[str, Any]]:
+        with self.proxyPool.get() as proxy:
+            return proxy.get_task_status_history(jedi_task_id)
+
     # reactivate task
     def reactivateTask(self, jediTaskID: int, keep_attempt_nr: bool = False, trigger_job_generation: bool = False) -> tuple[int | None, str]:
         with self.proxyPool.get() as proxy:
@@ -2284,6 +2289,13 @@ class TaskBuffer:
                 ret = proxy.checkJobStatus(pandaID)
                 retList.append(ret)
         return retList
+
+    # get the status history of jobs
+    def get_job_status_history(
+        self, panda_ids: list[int], probe_budget: int, since: datetime.datetime | None = None, until: datetime.datetime | None = None
+    ) -> tuple[bool, str, dict[str, Any]]:
+        with self.proxyPool.get() as proxy:
+            return proxy.get_job_status_history(panda_ids, probe_budget, since, until)
 
     # get stat of workers
     def getWorkerStats(self) -> dict[Any, Any]:

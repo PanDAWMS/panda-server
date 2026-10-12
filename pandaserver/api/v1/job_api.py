@@ -1,3 +1,4 @@
+import datetime
 import sys
 import traceback
 from typing import Any, Dict, List
@@ -16,6 +17,7 @@ from pandaserver.api.v1.common import (
     has_production_role,
     request_validation,
 )
+from pandaserver.config import panda_config
 from pandaserver.jobdispatcher import Protocol
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer import JobUtils
@@ -27,6 +29,33 @@ _logger = PandaLogger().getLogger("api_job")
 # non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
 # only push a None check onto every handler without making any of them safer.
 global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
+
+# most jobs one get_status_history call may name: what Oracle takes in one IN list. The
+# db_read_probe_budget normally bounds it far lower, since each job costs one index lookup per
+# partition of jobs_StatusLog
+MAX_STATUS_HISTORY_JOBS = 1000
+
+# slack put on both ends of a get_status_history window before it is widened to whole days. A
+# creationTime is written with the clock of a server and jobs_StatusLog with the database clock, so
+# a job created at 00:00:02 may have its first row at 23:59:57 of the day before; widening to the
+# day alone would leave that row out
+STATUS_HISTORY_CLOCK_SLACK = datetime.timedelta(minutes=10)
+
+
+def _parse_utc_time(value: str) -> datetime.datetime:
+    """
+    Read a time given in ISO 8601, e.g. `2026-10-12 14:30:45`, as a naive datetime in UTC.
+
+    Args:
+        value(str): the time; without a UTC offset it is taken to be in UTC already
+
+    Returns:
+        datetime: the time in UTC without tzinfo, as the database columns hold it
+    """
+    parsed = datetime.datetime.fromisoformat(value)
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    return parsed
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -159,6 +188,99 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict[
 
     tmp_logger.debug("getFullJobStatus end")
     return generate_response(True, data=ret)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_status_history(req: PandaRequest, job_ids: List[int], since: str | None = None, until: str | None = None) -> Dict[str, Any]:
+    """
+    Get status history of jobs
+
+    Gets the status changes recorded for jobs in jobs_StatusLog, oldest first for each job, optionally within a time window. Requires a secure connection.
+
+    Each job is looked up once in every daily partition of jobs_StatusLog the window touches, and in every partition without a
+    window, so the most jobs one call may name is the db_read_probe_budget of the server divided by the number of partitions
+    touched. A call naming more is refused, not cut short. Both numbers come back with every answer, so a caller can split its
+    jobs into calls that fit. A window around the lifetimes of the jobs, e.g. from their creationTime, lets one call take many
+    more jobs than the ~10 a call without a window takes.
+
+    The window is widened, so that a change is not missed when the clock of the server that wrote a time such as creationTime
+    and the clock of the database differ by a little: both ends are first moved out by 10 minutes, then to whole UTC days,
+    since back to the start of its day and until forward to the start of the next day. Whole days touch no more daily
+    partitions; the 10 minutes add one only when an end lies within 10 minutes of midnight.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/job/get_status_history
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        job_ids(list of int): list of PanDA job IDs
+        since(str, optional): read only the changes at or after this time, in UTC, e.g. `2026-10-12 14:30:45` (ISO 8601 is accepted)
+        until(str, optional): read only the changes before this time, in UTC, in the same format
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+            When successful, the data field is `{"rows": [...], "as_of": datetime, "retained_from": datetime or None,
+            "since": datetime or None, "until": datetime or None, "partitions": int, "budget": int, "record_statuschange": bool}`:
+            - rows: one dict per status change, with PandaID, modificationTime, jobStatus, prodSourceLabel, cloud, computingSite,
+              modificationHost and modiftime_extended. A job without rows has none
+            - as_of: database time in UTC taken before the rows were read. Every change committed by then is in rows
+            - retained_from: time from which the table holds every row, or None when it cannot be told. Old partitions are dropped,
+              so a job without rows before this time may still have changed its status then
+            - since, until: the window actually read, after the widening, or None for an open end. A job without rows outside
+              the window may still have changed its status there
+            - partitions, budget: the number of partitions the window touches, counted as 1 when there are none, and the
+              db_read_probe_budget; a call with the same window may name at most budget // partitions jobs
+            - record_statuschange: whether this server writes jobs_StatusLog. Other PanDA nodes have their own setting
+            When unsuccessful, the message field says why, and the data field says it as values:
+            - `{"rejected": "no_keys"}`: no job_ids
+            - `{"rejected": "too_many_keys", "keys": int, "max_keys": int}`: more job_ids than one IN list takes
+            - `{"rejected": "invalid_window"}`: since or until is not a time, or since is not before until
+            - `{"rejected": "probe_budget", "keys": int, "partitions": int, "budget": int}`: keys x partitions exceed the budget
+            - `{"error": str}`: the database failed, with the error code (ORA-xxxxx, or the SQLSTATE on Postgres)
+    """
+    tmp_logger = LogWrapper(_logger, f"get_status_history n_jobs={len(job_ids)} since={since} until={until}")
+    tmp_logger.debug("Start")
+
+    # a job named twice is looked up once
+    job_ids = list(dict.fromkeys(job_ids))
+    if not job_ids:
+        message = "job_ids must not be empty"
+        tmp_logger.debug(message)
+        return generate_response(False, message=message, data={"rejected": "no_keys"})
+    if len(job_ids) > MAX_STATUS_HISTORY_JOBS:
+        message = f"at most {MAX_STATUS_HISTORY_JOBS} job_ids are accepted, got {len(job_ids)}"
+        tmp_logger.debug(message)
+        return generate_response(False, message=message, data={"rejected": "too_many_keys", "keys": len(job_ids), "max_keys": MAX_STATUS_HISTORY_JOBS})
+
+    # the window, moved out by the clock slack and then to whole UTC days
+    since_time: datetime.datetime | None = None
+    until_time: datetime.datetime | None = None
+    try:
+        if since:
+            since_time = (_parse_utc_time(since) - STATUS_HISTORY_CLOCK_SLACK).replace(hour=0, minute=0, second=0, microsecond=0)
+        if until:
+            until_slack = _parse_utc_time(until) + STATUS_HISTORY_CLOCK_SLACK
+            until_time = until_slack.replace(hour=0, minute=0, second=0, microsecond=0)
+            if until_time != until_slack:
+                until_time += datetime.timedelta(days=1)
+    except ValueError as e:
+        message = f"invalid since or until: {e}"
+        tmp_logger.debug(message)
+        return generate_response(False, message=message, data={"rejected": "invalid_window"})
+    if since and until and _parse_utc_time(since) >= _parse_utc_time(until):
+        message = f"since={since} must be before until={until}"
+        tmp_logger.debug(message)
+        return generate_response(False, message=message, data={"rejected": "invalid_window"})
+
+    success, message, data = global_task_buffer.get_job_status_history(job_ids, panda_config.db_read_probe_budget, since_time, until_time)
+    if not success:
+        tmp_logger.debug(f"Failed with {message}")
+        return generate_response(False, message=message, data=data)
+    data["record_statuschange"] = getattr(panda_config, "record_statuschange", False) is True
+
+    tmp_logger.debug(f"""Done with {len(data["rows"])} rows""")
+    return generate_response(True, data=data)
 
 
 @request_validation(_logger, secure=False, request_method="GET")

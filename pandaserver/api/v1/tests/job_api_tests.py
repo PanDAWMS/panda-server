@@ -1,4 +1,5 @@
 # Description: Unit tests for the Job API methods
+import datetime
 import os
 import unittest
 
@@ -58,6 +59,63 @@ class TestJobAPI(unittest.TestCase):
         # Returns success=True regardless (returns [None] for unknown job IDs)
         expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
+
+    def test_get_status_history(self) -> None:
+        # def get_status_history(req: PandaRequest, job_ids: List[int]) -> Dict:
+        url = f"{api_url_ssl}/job/get_status_history"
+        print(f"Testing URL: {url}")
+        data = {"job_ids": [PANDA_JOB_ID]}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertEqual(set(output["data"]), {"rows", "as_of", "retained_from", "since", "until", "partitions", "budget", "record_statuschange"})
+        # an unknown job has no rows rather than failing the call
+        if PANDA_JOB_ID == -1:
+            self.assertEqual(output["data"]["rows"], [])
+        for row in output["data"]["rows"]:
+            self.assertEqual(row["PandaID"], PANDA_JOB_ID)
+
+    def test_get_status_history_window(self) -> None:
+        # a window of a few days touches a few daily partitions, and comes back widened to whole UTC days
+        url = f"{api_url_ssl}/job/get_status_history"
+        print(f"Testing URL: {url}")
+        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        since = now - datetime.timedelta(days=3)
+        data = {"job_ids": [PANDA_JOB_ID], "since": since.strftime("%Y-%m-%d %H:%M:%S"), "until": now.strftime("%Y-%m-%d %H:%M:%S")}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        # both ends move out by 10 minutes of clock slack, then to whole UTC days
+        slack = datetime.timedelta(minutes=10)
+        self.assertEqual(output["data"]["since"], {"__datetime__": (since - slack).strftime("%Y-%m-%dT00:00:00")})
+        self.assertEqual(output["data"]["until"], {"__datetime__": (now + slack + datetime.timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")})
+        self.assertLessEqual(output["data"]["partitions"], 6)
+
+    def test_get_status_history_invalid_window(self) -> None:
+        url = f"{api_url_ssl}/job/get_status_history"
+        print(f"Testing URL: {url}")
+        data = {"job_ids": [PANDA_JOB_ID], "since": "2026-10-12 00:00:00", "until": "2026-10-11 00:00:00"}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertFalse(output["success"])
+        self.assertEqual(output["data"], {"rejected": "invalid_window"})
+
+    def test_get_status_history_over_budget(self) -> None:
+        # 200 jobs x ~93 daily partitions exceed the default db_read_probe_budget of 1000, so the
+        # call is refused as a whole instead of being answered for the first few jobs
+        url = f"{api_url_ssl}/job/get_status_history"
+        print(f"Testing URL: {url}")
+        data = {"job_ids": list(range(1, 201))}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertFalse(output["success"])
+        self.assertEqual(output["data"]["rejected"], "probe_budget")
+        self.assertEqual(output["data"]["keys"], 200)
+        self.assertGreater(output["data"]["keys"] * output["data"]["partitions"], output["data"]["budget"])
 
     def test_get_metadata_for_analysis_jobs(self) -> None:
         # def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:

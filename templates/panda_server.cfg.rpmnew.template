@@ -184,6 +184,10 @@ nrun_snum = 999
 # enable job status change monitoring
 record_statuschange = True
 
+# most index lookups (keys x partitions touched) one request of the read APIs may cost,
+# e.g. /v1/job/get_status_history. Defaults to 1000
+#db_read_probe_budget = 1000
+
 
 
 ##########################
