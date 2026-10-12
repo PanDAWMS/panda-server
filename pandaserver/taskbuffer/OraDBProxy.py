@@ -203,7 +203,9 @@ class DBProxy(
 
         Args:
             timeout_ms(int): milliseconds, at least 1, since both databases read 0 as no limit.
-                None puts back the limit given to connect()
+                None puts back the limit given to connect(). On Postgres the end of the transaction
+                does that, so None does nothing there: a SET in a transaction an error has aborted
+                would fail
         """
         comment = " /* DBProxy.set_call_timeout */"
         if timeout_ms is not None:
@@ -215,8 +217,7 @@ class DBProxy(
             # on the driver's connection, for the reason given in connect()
             self.conn.orig_conn.call_timeout = timeout_ms if timeout_ms is not None else (self.call_timeout_ms or 0)
         elif self.backend == "postgres":
-            # DEFAULT is the value of the session, which is what connect() set
-            value = "DEFAULT" if timeout_ms is None else str(int(timeout_ms))
-            self.cur.execute(f"SET LOCAL statement_timeout TO {value}" + comment)
+            if timeout_ms is not None:
+                self.cur.execute(f"SET LOCAL statement_timeout TO {int(timeout_ms)}" + comment)
         else:
             raise NotImplementedError(f"call timeout is not available with {self.backend}")

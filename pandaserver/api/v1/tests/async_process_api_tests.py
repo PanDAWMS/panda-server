@@ -407,6 +407,52 @@ class TestStructuredResult(unittest.TestCase):
         self.assertNotIn("async_meta", out)
 
 
+class TestSubmitDbReadRequest(unittest.TestCase):
+    """Unit tests for submit_db_read_request (no live server needed)."""
+
+    QUERY = {"tables": ["jobsActive4"], "where": [["PandaID", "=", 1]]}
+
+    @staticmethod
+    def _request() -> PandaRequest:
+        """A request the endpoint decorator lets through: secure, POST, and not a limited proxy."""
+        return cast(PandaRequest, SimpleNamespace(subprocess_env={"REQUEST_METHOD": "POST", "SSL_CLIENT_S_DN": "/CN=alice"}))
+
+    def _submit(self, queries: Any, authorized: bool = True, alive: list[str] | None = None) -> tuple[dict[str, Any], mock.MagicMock]:
+        task_buffer = mock.MagicMock()
+        task_buffer.get_alive_machines.return_value = ["a.cern.ch"] if alive is None else alive
+        task_buffer.insert_async_request.return_value = True
+        with (
+            mock.patch.object(async_process_api, "global_task_buffer", task_buffer),
+            mock.patch.object(async_process_api, "_is_authorized_with_allowlist", return_value=(authorized, "checked")),
+            mock.patch.object(common, "get_dn", return_value="dn"),
+            mock.patch.object(common, "clean_user_id", return_value="alice"),
+        ):
+            out = async_process_api.submit_db_read_request(self._request(), queries=queries)
+        return out, task_buffer
+
+    def test_success(self) -> None:
+        out, task_buffer = self._submit([self.QUERY])
+        self.assertTrue(out["success"], out["message"])
+        async_id, request_type, parameters_json, service_name, machine_name, expected = task_buffer.insert_async_request.call_args[0]
+        self.assertEqual(out["data"], {"async_id": async_id})
+        self.assertEqual((request_type, service_name, machine_name, expected), ("db_read", "server", ANY_MACHINE, None))
+        # owner-only, with the payload reported at the top level of get_result
+        self.assertEqual(json.loads(parameters_json), {"queries": [self.QUERY], "requester": "alice", "access": "owner", "structured_result": True})
+
+    def test_refused(self) -> None:
+        for queries, kwargs in (
+            ([self.QUERY], {"authorized": False}),
+            ([], {}),
+            ([self.QUERY] * 11, {}),
+            ([{"tables": ["jobsActive4"], "where": [["computingSite", "=", "x" * 200_000]]}], {}),
+            ([self.QUERY], {"alive": []}),
+            (["not a query"], {}),
+        ):
+            out, task_buffer = self._submit(queries, **kwargs)
+            self.assertFalse(out["success"], (queries, kwargs))
+            task_buffer.insert_async_request.assert_not_called()
+
+
 # Run tests
 if __name__ == "__main__":
     unittest.main()

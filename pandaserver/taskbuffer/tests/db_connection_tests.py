@@ -129,10 +129,8 @@ class TestPostgresCallTimeout(ProxyTestBase):
         self.proxy.set_call_timeout(60000)
         self.proxy.set_call_timeout(None)
         executed = [sql.split(" /*")[0] for sql in cast(FakeCursor, self.proxy.cur).executed]
-        self.assertEqual(
-            executed,
-            ["SET LOCAL statement_timeout TO 5000", "SET LOCAL statement_timeout TO 30000", "SET LOCAL statement_timeout TO DEFAULT"],
-        )
+        # the end of the transaction puts the limit back, so None runs nothing
+        self.assertEqual(executed, ["SET LOCAL statement_timeout TO 5000", "SET LOCAL statement_timeout TO 30000"])
 
 
 class TestMySQLCallTimeout(ProxyTestBase):

@@ -320,6 +320,9 @@ proc_lifetime = 14400
 
 # configuration in json about daemons
 # of the form {"daemon_name": {"module": <module_name>, "period": <period>, ...}, ...}
+# a daemon without a timeout gets three periods, at most a period and an hour. The async db_read
+# requests run in async_request_daemon and stop 30 s before its timeout, or before 480 s, the age at
+# which a running request is handed out again, whichever comes first
 config = {
     "dummy_test": {
         "enable": false, "period": 120},
@@ -354,7 +357,7 @@ config = {
     "hs_scrapers": {
         "enable": true, "period": 604800, "sync": true},
     "async_request_daemon": {
-        "module": "async_request_daemon", "enable": true, "period": 10}
+        "module": "async_request_daemon", "enable": true, "period": 10, "timeout": 300}
   }
 
 
