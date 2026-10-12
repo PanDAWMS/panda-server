@@ -67,6 +67,11 @@ OUTPUT_SETTLE_GRACE_SEC = 30 * 60
 # the grace period above is measured from
 STEPS_FINAL_TIME_PARAM = "steps_final_time"
 
+# Workflow parameter listing the steps a failing workflow could not cancel, so that the rows left
+# behind are nameable afterwards. A workflow is failed whether or not the cleanup reached every
+# step, because it has no later cycle in which to try again.
+UNCANCELLED_STEPS_PARAM = "uncancelled_steps"
+
 # ==== Plugin Map ==============================================
 
 PLUGIN_RAW_MAP = {
@@ -551,6 +556,62 @@ class WorkflowInterface(object):
             tmp_log.error(f"Got error {str(e)}")
             return False
 
+    def cancel_unfinished_steps(self, workflow_spec: WorkflowSpec, tmp_log: LogWrapper) -> List[int]:
+        """
+        Cancel every step of a failing workflow that has not finished, and kill its target
+
+        Called when a workflow is about to be marked failed because one of its steps failed or was
+        cancelled. Without this the siblings of the failed step keep running: the workflow leaves
+        active_statuses and is never processed again, so nothing would ever stop their tasks.
+
+        The steps are re-read here instead of being taken from the caller. The caller's list is
+        pre-cycle, since process_steps rebinds its loop variable to the freshly locked copy and
+        never writes back, so a step that failed during this cycle, or that was given its target_id
+        during it, still reads there as it did before. The decision to fail the workflow was made
+        from post-cycle statistics, so the cleanup has to work from post-cycle rows too.
+
+        Args:
+            workflow_spec (WorkflowSpec): The workflow being failed
+            tmp_log (LogWrapper): Logger of the calling workflow transition
+
+        Returns:
+            List[int]: IDs of the steps that could not be reached at all, which means a lock that
+                could not be taken or an exception, not a target that refused to be killed
+        """
+        unreachable_step_ids = []
+        n_cancelled = 0
+        for step_spec in self.tbif.get_steps_of_workflow(workflow_id=workflow_spec.workflow_id) or []:
+            if step_spec.status not in WFStepStatus.final_statuses:
+                # force=True because the alternative leaves the step reading running under a failed
+                # workflow that is never processed again, which is a row that lies about being
+                # managed. cancel_step logs a kill that failed and still returns True, so False
+                # here means the step itself could not be reached.
+                if self.cancel_step(step_spec.step_id, force=True):
+                    n_cancelled += 1
+                else:
+                    unreachable_step_ids.append(step_spec.step_id)
+            # A child workflow can outlive its step whatever status that step reached: one that had
+            # already failed is skipped by cancel_step above, and one that finished may still have
+            # left its child running. For a step cancelled just now the recursion in cancel_step has
+            # already taken the child final, so the status check below is what avoids cancelling it
+            # twice rather than a second kill being sent.
+            if step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS and step_spec.target_id:
+                child_workflow_id = int(step_spec.target_id)
+                if child_workflow_id == workflow_spec.workflow_id:
+                    # cancel_workflow would re-enter the lock this workflow is already being
+                    # processed under and release it on the way out, leaving the caller to carry on
+                    # believing it still holds it
+                    tmp_log.error(f"step_id={step_spec.step_id} targets its own workflow; skipped")
+                    continue
+                child_workflow = self.tbif.get_workflow(child_workflow_id)
+                if child_workflow and child_workflow.status not in WorkflowStatus.final_statuses:
+                    self.cancel_workflow(child_workflow_id, force=True)
+        if n_cancelled:
+            # one kill per unfinished step, sent synchronously while the workflow lock is held, so
+            # the cost of a wide workflow is worth being able to read off the log
+            tmp_log.info(f"Cancelled {n_cancelled} unfinished steps")
+        return unreachable_step_ids
+
     # --- Data operation ---------------------------------------
 
     def cancel_data(self, data_id: int, force: bool = False) -> bool:
@@ -585,6 +646,54 @@ class WorkflowInterface(object):
         except Exception as e:
             tmp_log.error(f"Got error {str(e)}")
             return False
+
+    # --- Status queries ---------------------------------------
+
+    def get_workflow_status(self, workflow_id: int) -> dict[str, Any] | None:
+        """
+        Report the status of a workflow and the spread of its steps across statuses
+
+        A consumer that submitted a description and now wants to know how it is getting on has no
+        other way to ask: the step and task relation queries answer about the parts, not about the
+        workflow itself. The step tally is what makes the answer worth having over the bare status,
+        since it is progress while the workflow runs and, once it has failed, the difference
+        between the step that broke and the steps the engine cancelled behind it.
+
+        Args:
+            workflow_id (int): ID of the workflow to report on
+
+        Returns:
+            dict | None: workflow_id, name, status, parent_id, creation_time, start_time, end_time,
+                n_steps and step_status_counts; None if there is no such workflow or the lookup
+                failed
+        """
+        tmp_log = LogWrapper(logger, f"get_workflow_status <workflow_id={workflow_id}>")
+        try:
+            workflow_spec = self.tbif.get_workflow(workflow_id)
+            if workflow_spec is None:
+                tmp_log.warning("No workflow found")
+                return None
+            step_specs = self.tbif.get_steps_of_workflow(workflow_id=workflow_id) or []
+            step_status_counts: dict[str, int] = {}
+            for step_spec in step_specs:
+                step_status_counts[step_spec.status] = step_status_counts.get(step_spec.status, 0) + 1
+            # The times go out as ISO strings rather than as datetimes, which the server encoder
+            # would wrap as {"__datetime__": ...} for a decoder that lives in pandaclient. A caller
+            # reading this with plain json gets something it can parse either way.
+            return {
+                "workflow_id": workflow_spec.workflow_id,
+                "name": workflow_spec.name,
+                "status": workflow_spec.status,
+                "parent_id": workflow_spec.parent_id,
+                "creation_time": workflow_spec.creation_time.isoformat() if workflow_spec.creation_time else None,
+                "start_time": workflow_spec.start_time.isoformat() if workflow_spec.start_time else None,
+                "end_time": workflow_spec.end_time.isoformat() if workflow_spec.end_time else None,
+                "n_steps": len(step_specs),
+                "step_status_counts": step_status_counts,
+            }
+        except Exception:
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+            return None
 
     # --- Relation queries -------------------------------------
 
@@ -3015,19 +3124,18 @@ class WorkflowInterface(object):
                 and all(status in WFStepStatus.final_statuses for status in processed_steps_stats)
             )
             if processed_steps_stats and (processed_steps_stats.get(WFStepStatus.failed) or processed_steps_stats.get(WFStepStatus.cancelled)):
-                # Cancel child workflows whose sub_workflow steps just failed or were cancelled
-                for step_spec in step_specs:
-                    if (
-                        step_spec.flavor in NATIVE_SUB_WORKFLOW_STEP_FLAVORS
-                        and step_spec.status in (WFStepStatus.failed, WFStepStatus.cancelled)
-                        and step_spec.target_id
-                    ):
-                        child_wf_id = int(step_spec.target_id)
-                        child_wf = self.tbif.get_workflow(child_wf_id)
-                        if child_wf and child_wf.status not in WorkflowStatus.final_statuses:
-                            self.cancel_workflow(child_wf_id, force=True)
-                # TODO: cancel all unfinished ordinary steps
-                # self.cancel_step(...)
+                # Stop whatever is still running before the workflow is marked failed. The order
+                # matters: an exception in the cleanup returns through the handler below with the
+                # workflow still running and its check_time untouched, so the next cycle selects it
+                # again and retries, skipping what was already cancelled. Marking it failed first
+                # would leave it final with some targets killed and the rest orphaned for good.
+                uncancelled_step_ids = self.cancel_unfinished_steps(workflow_spec, tmp_log)
+                if uncancelled_step_ids:
+                    # The workflow is failed regardless. Holding it back would re-enter this branch
+                    # every cycle and re-send kills with nothing to end the repetition, since the
+                    # step that failed stays failed.
+                    tmp_log.error(f"Could not cancel steps {uncancelled_step_ids}; failing the workflow anyway")
+                    workflow_spec.set_parameter(UNCANCELLED_STEPS_PARAM, uncancelled_step_ids)
                 # mark workflow as failed
                 tmp_log.warning("workflow failed due to some steps failed or cancelled")
                 workflow_spec.status = WorkflowStatus.failed

@@ -14,6 +14,7 @@ never closed cannot keep the workflow running forever.
 Run from the repository root:  python3 pandaserver/workflow/examples/workflow_done_transition_test.py
 """
 
+import copy
 import importlib.abc
 import importlib.machinery
 import os
@@ -131,12 +132,45 @@ class FakeData:
 
 
 class FakeStep:
-    def __init__(self, name, status=WFStepStatus.done):
+    _next_step_id = 500
+
+    def __init__(self, name, status=WFStepStatus.done, flavor="panda_task", target_id="1", step_id=None):
         self.name = name
         self.status = status
-        self.flavor = "panda_task"
-        self.target_id = "1"
+        self.flavor = flavor
+        self.target_id = target_id
         self.member_id = 1
+        self.workflow_id = 133
+        self.end_time = None
+        if step_id is None:
+            FakeStep._next_step_id += 1
+            step_id = FakeStep._next_step_id
+        self.step_id = step_id
+
+
+class FakeWorkflowRow:
+    """A child workflow as the task buffer would hand it back"""
+
+    def __init__(self, workflow_id, status=WorkflowStatus.running):
+        self.workflow_id = workflow_id
+        self.status = status
+
+
+class FakeStepHandler:
+    """Records the targets it was asked to kill, so the kills themselves can be asserted on"""
+
+    def __init__(self, succeed=True):
+        self.succeed = succeed
+        self.cancelled_target_ids = []
+
+    def cancel_target(self, step_spec, **kwargs):
+        if step_spec.target_id is None:
+            # as the real handler does: no task was ever submitted, so there is nothing to kill and
+            # the step is treated as already cancelled
+            return types.SimpleNamespace(success=True, message="target_id is None so considered already cancelled; skipped")
+        self.cancelled_target_ids.append(step_spec.target_id)
+        message = "" if self.succeed else "failed to cancel the task: error_code=1"
+        return types.SimpleNamespace(success=self.succeed, message=message)
 
 
 class FakeTaskBuffer:
@@ -145,14 +179,47 @@ class FakeTaskBuffer:
         self.step_specs = step_specs
         self.updated_workflows = []
         self.updated_data = []
+        # one ordered record of everything written, so the order of the cleanup against the status
+        # write can be asserted on rather than assumed
+        self.call_log = []
+        self.child_workflows = {}
+        self.unlockable_step_ids = set()
+        self.n_get_steps_calls = 0
+        self.raise_on_get_steps_call = None
 
     def get_data_of_workflow(self, workflow_id, status_exclusion_list=None, type_filter_list=None):
         return list(self.data_specs)
 
     def get_steps_of_workflow(self, workflow_id, status_filter_list=None):
-        return list(self.step_specs)
+        self.n_get_steps_calls += 1
+        if self.raise_on_get_steps_call == self.n_get_steps_calls:
+            raise RuntimeError("database is unavailable")
+        # Copies, because a real query returns rows read at the time it ran. Handing back the live
+        # objects would hide the staleness this cleanup has to survive: the caller's list is read
+        # before the steps are processed, and process_steps never writes its locked copies back.
+        return [copy.copy(step_spec) for step_spec in self.step_specs]
+
+    def get_workflow_step(self, step_id):
+        for step_spec in self.step_specs:
+            if step_spec.step_id == step_id:
+                return step_spec
+        return None
+
+    def lock_workflow_step(self, step_id, locked_by, lock_expiration_sec=120):
+        return step_id not in self.unlockable_step_ids
+
+    def unlock_workflow_step(self, step_id, locked_by):
+        return True
+
+    def update_workflow_step(self, step_spec):
+        self.call_log.append(("update_workflow_step", step_spec.step_id, step_spec.status))
+        return True
+
+    def get_workflow(self, workflow_id):
+        return self.child_workflows.get(workflow_id)
 
     def update_workflow(self, workflow_spec):
+        self.call_log.append(("update_workflow", workflow_spec.status))
         self.updated_workflows.append((workflow_spec.status, workflow_spec.parameters))
         return True
 
@@ -188,16 +255,32 @@ class StubbedInterface(workflow_core.WorkflowInterface):
     in for. __init__ is bypassed because the real one opens a message broker and a DDM client.
     """
 
-    def __init__(self, data_specs, step_specs, all_steps_final=True, check_status=None):
+    def __init__(self, data_specs, step_specs, all_steps_final=True, check_status=None, processed_stats=None, step_mutations=(), kills_succeed=True):
         self.tbif = FakeTaskBuffer(data_specs, step_specs)
         self.full_pid = "test-0-0"
         self.plugin_map = {}
         self.mb_proxy = None
         self._all_steps_final = all_steps_final
         self._data_handler = FakeDataHandler(check_status if check_status is not None else WFDataTargetCheckStatus.suffice)
+        self._processed_stats = processed_stats
+        self._step_mutations = step_mutations
+        self.step_handler = FakeStepHandler(kills_succeed)
+        self.cancelled_workflow_ids = []
 
     def get_plugin(self, plugin_type, flavor):
+        if plugin_type == "step_handler":
+            return self.step_handler
         return self._data_handler
+
+    # Recorded rather than run: what this harness checks is that the failing workflow asks for the
+    # right children to be cancelled, and cancel_workflow taking the child final is what the
+    # de-duplication between cancel_step's recursion and the orphan sweep relies on.
+    def cancel_workflow(self, workflow_id, force=False):
+        self.cancelled_workflow_ids.append(workflow_id)
+        child_workflow = self.tbif.child_workflows.get(workflow_id)
+        if child_workflow is not None:
+            child_workflow.status = WorkflowStatus.cancelled
+        return True
 
     # The data pass is what would advance an output on a later cycle; here it changes nothing, so
     # each case controls the output statuses directly.
@@ -205,12 +288,32 @@ class StubbedInterface(workflow_core.WorkflowInterface):
         return {"n_processed": len(data_specs), "processed": {}, "changed": {}}
 
     def process_steps(self, step_specs, data_spec_map=None, by="dog"):
+        # The real one advances the stored steps while leaving the caller's list as it was, so the
+        # mutations go to the stored objects and not to the list that was passed in.
+        for step_id, new_status, new_target_id in self._step_mutations:
+            stored_step = self.tbif.get_workflow_step(step_id)
+            stored_step.status = new_status
+            if new_target_id is not None:
+                stored_step.target_id = new_target_id
+        if self._processed_stats is not None:
+            return {"n_processed": len(step_specs), "processed": dict(self._processed_stats), "changed": {}}
         status = WFStepStatus.done if self._all_steps_final else WFStepStatus.running
         return {"n_processed": len(step_specs), "processed": {status: len(step_specs)}, "changed": {}}
 
 
-def make_interface(data_specs, step_specs, all_steps_final=True, check_status=None):
-    return StubbedInterface(data_specs, step_specs, all_steps_final, check_status)
+def make_interface(data_specs, step_specs, all_steps_final=True, check_status=None, **kwargs):
+    return StubbedInterface(data_specs, step_specs, all_steps_final, check_status, **kwargs)
+
+
+def status_of(interface, step_id):
+    return interface.tbif.get_workflow_step(step_id).status
+
+
+def index_of_first(call_log, name):
+    for index, entry in enumerate(call_log):
+        if entry[0] == name:
+            return index
+    return -1
 
 
 def check(label, condition, detail=""):
@@ -304,6 +407,160 @@ def main():
     result = interface.process_workflow_running(workflow_spec)
     failures += not check("stays running", workflow_spec.status == WorkflowStatus.running, workflow_spec.status)
     failures += not check("no wait is recorded", workflow_spec.get_parameter(workflow_core.STEPS_FINAL_TIME_PARAM) is None)
+    failures += not check(
+        "nothing is killed while the workflow is healthy", interface.step_handler.cancelled_target_ids == [], interface.step_handler.cancelled_target_ids
+    )
+
+    print("\n=== a failed workflow cancels its unfinished steps and kills their tasks ===")
+    # The failure a consumer actually meets: one task of a chain fails, and everything else the
+    # chain had running must be stopped rather than left on the grid with nothing to end it.
+    broke = FakeStep("recon", WFStepStatus.running, target_id="48810706")
+    sibling = FakeStep("deriv_phys", WFStepStatus.running, target_id="48810720")
+    never_started = FakeStep("merge_ntup", WFStepStatus.pending, target_id=None)
+    finished = FakeStep("evgen", WFStepStatus.done, target_id="48810693")
+    skipped = FakeStep("optional", WFStepStatus.closed, target_id=None)
+    interface = make_interface(
+        [],
+        [broke, sibling, never_started, finished, skipped],
+        processed_stats={WFStepStatus.failed: 1, WFStepStatus.running: 1, WFStepStatus.pending: 1, WFStepStatus.done: 1, WFStepStatus.closed: 1},
+        step_mutations=[(broke.step_id, WFStepStatus.failed, None)],
+    )
+    workflow_spec = make_workflow()
+    result = interface.process_workflow_running(workflow_spec)
+    failures += not check("the workflow fails", workflow_spec.status == WorkflowStatus.failed, workflow_spec.status)
+    failures += not check(
+        "the running sibling is cancelled", status_of(interface, sibling.step_id) == WFStepStatus.cancelled, status_of(interface, sibling.step_id)
+    )
+    failures += not check("...and its end time is stamped", sibling.end_time is not None)
+    failures += not check(
+        "...and the cancellation is persisted",
+        ("update_workflow_step", sibling.step_id, WFStepStatus.cancelled) in interface.tbif.call_log,
+        interface.tbif.call_log,
+    )
+    # The load-bearing one: without it this passes on a version that only rewrites statuses in the
+    # database and leaves the tasks running, which is the defect being fixed.
+    failures += not check(
+        "the sibling's task is actually killed",
+        interface.step_handler.cancelled_target_ids == ["48810720"],
+        interface.step_handler.cancelled_target_ids,
+    )
+    failures += not check(
+        "the step that failed keeps its status", status_of(interface, broke.step_id) == WFStepStatus.failed, status_of(interface, broke.step_id)
+    )
+    failures += not check("...and is not killed a second time", "48810706" not in interface.step_handler.cancelled_target_ids)
+    failures += not check(
+        "a step that never started is cancelled too",
+        status_of(interface, never_started.step_id) == WFStepStatus.cancelled,
+        status_of(interface, never_started.step_id),
+    )
+    failures += not check(
+        "...without a kill being sent for it", len(interface.step_handler.cancelled_target_ids) == 1, interface.step_handler.cancelled_target_ids
+    )
+    failures += not check("a finished step is left done", status_of(interface, finished.step_id) == WFStepStatus.done, status_of(interface, finished.step_id))
+    failures += not check("a closed step stays closed", status_of(interface, skipped.step_id) == WFStepStatus.closed, status_of(interface, skipped.step_id))
+    failures += not check("neither is killed", "48810693" not in interface.step_handler.cancelled_target_ids)
+    failures += not check("no step is reported unreachable", workflow_spec.get_parameter(workflow_core.UNCANCELLED_STEPS_PARAM) is None)
+
+    print("\n=== the cancelling happens before the workflow is marked failed ===")
+    # An exception part way through must leave the workflow running so the next cycle retries;
+    # marking it failed first would strand whatever had not been reached yet.
+    first_status_write = index_of_first(interface.tbif.call_log, "update_workflow")
+    last_step_write = max(index for index, entry in enumerate(interface.tbif.call_log) if entry[0] == "update_workflow_step")
+    failures += not check("every step write precedes the workflow write", last_step_write < first_status_write, interface.tbif.call_log)
+
+    print("\n=== a sub-workflow step that failed during this very cycle is not missed ===")
+    # The staleness regression. The list read before the steps were processed says running with no
+    # target; only a re-read sees the failure and the child workflow it left behind.
+    sub_step = FakeStep("sig_bg_comb", WFStepStatus.running, flavor="sub_workflow", target_id=None)
+    interface = make_interface(
+        [],
+        [sub_step],
+        processed_stats={WFStepStatus.failed: 1},
+        step_mutations=[(sub_step.step_id, WFStepStatus.failed, "900")],
+    )
+    interface.tbif.child_workflows[900] = FakeWorkflowRow(900, WorkflowStatus.running)
+    workflow_spec = make_workflow()
+    result = interface.process_workflow_running(workflow_spec)
+    failures += not check("the orphaned child workflow is cancelled", interface.cancelled_workflow_ids == [900], interface.cancelled_workflow_ids)
+    failures += not check("the workflow fails", workflow_spec.status == WorkflowStatus.failed, workflow_spec.status)
+
+    print("\n=== an unfinished sub-workflow step cancels its child exactly once ===")
+    live_sub = FakeStep("sig_bg_comb", WFStepStatus.running, flavor="sub_workflow", target_id="901")
+    other = FakeStep("broke", WFStepStatus.failed, target_id="48810706")
+    interface = make_interface([], [live_sub, other], processed_stats={WFStepStatus.failed: 1, WFStepStatus.running: 1})
+    interface.tbif.child_workflows[901] = FakeWorkflowRow(901, WorkflowStatus.running)
+    workflow_spec = make_workflow()
+    result = interface.process_workflow_running(workflow_spec)
+    failures += not check("the child is cancelled once, not twice", interface.cancelled_workflow_ids == [901], interface.cancelled_workflow_ids)
+    failures += not check("the step is cancelled", status_of(interface, live_sub.step_id) == WFStepStatus.cancelled, status_of(interface, live_sub.step_id))
+    failures += not check(
+        "a sub-workflow step issues no task kill", interface.step_handler.cancelled_target_ids == [], interface.step_handler.cancelled_target_ids
+    )
+
+    print("\n=== a child workflow already final is left alone ===")
+    done_sub = FakeStep("sig_bg_comb", WFStepStatus.done, flavor="sub_workflow", target_id="902")
+    interface = make_interface(
+        [], [done_sub, FakeStep("broke", WFStepStatus.failed, target_id="1")], processed_stats={WFStepStatus.failed: 1, WFStepStatus.done: 1}
+    )
+    interface.tbif.child_workflows[902] = FakeWorkflowRow(902, WorkflowStatus.done)
+    interface.process_workflow_running(make_workflow())
+    failures += not check("nothing is cancelled", interface.cancelled_workflow_ids == [], interface.cancelled_workflow_ids)
+
+    print("\n=== a kill that fails still fails the workflow ===")
+    stubborn = FakeStep("deriv_phys", WFStepStatus.running, target_id="48810720")
+    interface = make_interface(
+        [],
+        [stubborn, FakeStep("broke", WFStepStatus.failed, target_id="48810706")],
+        processed_stats={WFStepStatus.failed: 1, WFStepStatus.running: 1},
+        kills_succeed=False,
+    )
+    workflow_spec = make_workflow()
+    result = interface.process_workflow_running(workflow_spec)
+    failures += not check("the kill was attempted", interface.step_handler.cancelled_target_ids == ["48810720"], interface.step_handler.cancelled_target_ids)
+    failures += not check(
+        "the step is force cancelled anyway", status_of(interface, stubborn.step_id) == WFStepStatus.cancelled, status_of(interface, stubborn.step_id)
+    )
+    failures += not check("the workflow still fails", workflow_spec.status == WorkflowStatus.failed, workflow_spec.status)
+    failures += not check("the step is not reported unreachable", workflow_spec.get_parameter(workflow_core.UNCANCELLED_STEPS_PARAM) is None)
+
+    print("\n=== a step that cannot be locked is named on the workflow ===")
+    held = FakeStep("deriv_phys", WFStepStatus.running, target_id="48810720")
+    interface = make_interface(
+        [], [held, FakeStep("broke", WFStepStatus.failed, target_id="1")], processed_stats={WFStepStatus.failed: 1, WFStepStatus.running: 1}
+    )
+    interface.tbif.unlockable_step_ids.add(held.step_id)
+    workflow_spec = make_workflow()
+    result = interface.process_workflow_running(workflow_spec)
+    failures += not check("the workflow fails regardless", workflow_spec.status == WorkflowStatus.failed, workflow_spec.status)
+    failures += not check(
+        "the step that could not be reached is recorded",
+        workflow_spec.get_parameter(workflow_core.UNCANCELLED_STEPS_PARAM) == [held.step_id],
+        workflow_spec.get_parameter(workflow_core.UNCANCELLED_STEPS_PARAM),
+    )
+
+    print("\n=== a later cycle over the same workflow issues no new kills ===")
+    interface = make_interface(
+        [],
+        [FakeStep("broke", WFStepStatus.failed, target_id="48810706"), FakeStep("deriv_phys", WFStepStatus.cancelled, target_id="48810720")],
+        processed_stats={WFStepStatus.failed: 1, WFStepStatus.cancelled: 1},
+    )
+    interface.process_workflow_running(make_workflow())
+    failures += not check("no kill is sent", interface.step_handler.cancelled_target_ids == [], interface.step_handler.cancelled_target_ids)
+    failures += not check(
+        "no step is written",
+        not [entry for entry in interface.tbif.call_log if entry[0] == "update_workflow_step"],
+        interface.tbif.call_log,
+    )
+
+    print("\n=== an error during the cleanup leaves the workflow to the next cycle ===")
+    interface = make_interface([], [FakeStep("broke", WFStepStatus.failed, target_id="1")], processed_stats={WFStepStatus.failed: 1})
+    # the first query is the caller's own; the cleanup's re-read is the second
+    interface.tbif.raise_on_get_steps_call = 2
+    workflow_spec = make_workflow()
+    result = interface.process_workflow_running(workflow_spec)
+    failures += not check("the workflow stays running", workflow_spec.status == WorkflowStatus.running, workflow_spec.status)
+    failures += not check("nothing is written", interface.tbif.updated_workflows == [], interface.tbif.updated_workflows)
+    failures += not check("the error is reported", result.success is not True, result.success)
 
     print("\n=== a root input already parked in waiting_suffice ===")
     # Workflow 133's rdo_bkg: it exists and has files, but DDM never closes it. A datum parked
