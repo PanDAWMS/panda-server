@@ -104,7 +104,9 @@ def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field will contain the URL to the file. Otherwise the message field will indicate the issue.
+
+    Response data:
+        str: The URL of the uploaded log file.
     """
 
     tmp_logger = LogWrapper(_logger, f"upload_jedi_log <{file.filename}>")
@@ -174,7 +176,10 @@ def update_jedi_log(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
         file(FileStorage): werkzeug.FileStorage object to be updated.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used.
     """
 
     tmp_logger = LogWrapper(_logger, f"update_jedi_log < {file.filename} >")
@@ -260,7 +265,10 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict[str, Any]:
         file(FileStorage): werkzeug.FileStorage object to be uploaded.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used.
     """
 
     tmp_logger = LogWrapper(_logger, f"upload_cache_file-{naive_utcnow().isoformat('/')}")
@@ -419,7 +427,10 @@ def touch_cache_file(req: PandaRequest, file_name: str) -> Dict[str, Any]:
         file_name(string): file name to be deleted
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used.
     """
 
     tmp_logger = LogWrapper(_logger, f"touch_cache_file < {file_name} >")
@@ -452,6 +463,9 @@ def delete_cache_file(req: PandaRequest, file_name: str) -> Dict[str, Any]:
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. Nothing is deleted at the moment, so success is always true.
     """
 
     tmp_logger = LogWrapper(_logger, f"delete_cache_file <{file_name}>")
@@ -484,7 +498,10 @@ def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_
         checksum(string): checksum
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used.
     """
 
     tmp_logger = LogWrapper(_logger, f"register_cache_file {user_name} {file_name}")
@@ -523,8 +540,11 @@ def validate_cache_file(req: PandaRequest, file_size: int, checksum: int | str) 
         checksum(int): checksum
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When successful the message will return the host and file name.
-              When unsuccessful, the message field will indicate the issue.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. The message field contains the result: "FOUND:<host>:<file name>" when the
+            file is in the cache; otherwise success is false and the message is "NOTFOUND" or the error.
     """
     user = get_dn(req)
     message = global_task_buffer.checkSandboxFile(user, file_size, checksum)
@@ -567,7 +587,11 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict[str, Any
         file(FileStorage): werkzeug.FileStorage object to be uploaded.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        str: The path where the checkpoint file was placed on the server. The message field repeats it
+            as "Successfully placed at <path>".
     """
 
     tmp_logger = LogWrapper(_logger, f"upload_hpo_checkpoint <jediTaskID_subID={file.filename}>")
@@ -629,7 +653,10 @@ def delete_hpo_checkpoint(req: PandaRequest, task_id: str, sub_id: str) -> Dict[
         sub_id(string): sub ID.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used.
     """
 
     tmp_logger = LogWrapper(_logger, f"delete_hpo_checkpoint <jediTaskID={task_id} ID={sub_id}>")
@@ -682,7 +709,12 @@ def upload_file_recovery_request(
         reproduce_upto_nth_gen(int, optional): Defines how many generations of parent tasks should be reproduced. Default 0, meaning no parent tasks are reproduced. When this is set to N>0, reproduce_parent is set to True automatically.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The URL of the log file where the recovery is reported as the request is processed. The
+            message field says "The request was accepted and will be processed in a few minutes".
+            {"logFileURL": str}
     """
 
     user_name = req.subprocess_env["SSL_CLIENT_S_DN"]
@@ -770,9 +802,14 @@ def upload_workflow_request(req: PandaRequest, data: str, dry_run: bool = False,
         dry_run(bool): requests the workflow to be executed synchronously in dry_run mode
         sync(bool): requests the workflow to be processed synchronously
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
-              When the request asked to process the workflow synchronously or with the check file, the data field will contain the response.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
 
+    Response data:
+        dict: Only when dry_run or sync is set: the outcome of processing the workflow right away, with
+            status true when it succeeded, the iDDS request ID (null when no request was submitted) and
+            the processing log. Otherwise not used, and the message field says the request was accepted
+            and will be processed in a few minutes.
+            {"status": bool, "request_id": int, "log": str}
     """
 
     user_name = req.subprocess_env["SSL_CLIENT_S_DN"]
@@ -869,8 +906,10 @@ def upload_event_picking_request(
         include_guids(bool): flag to indicate if GUIDs are included with the run-event list
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
 
+    Response data:
+        None: Not used.
     """
 
     user_name = req.subprocess_env["SSL_CLIENT_S_DN"]

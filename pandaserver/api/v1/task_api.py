@@ -73,7 +73,13 @@ def retry(
         ignore_hard_exhausted(bool, optional): if True, the task ignores the limits for hard exhausted state and can be retried even if it is very faulty. Defaults to False
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: The return code, 0 when the retry was registered, otherwise the reason it was not, explained in
+            the message field. success is always true, so check this code. For an analysis task that is
+            still running, scouting or pending, the failed jobs are retried instead and the code is 0, or 3
+            when new_parameters were given.
     """
     tmp_logger = LogWrapper(_logger, f"retry < task_id={task_id} >")
     tmp_logger.debug("Start")
@@ -162,7 +168,13 @@ def resume(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: The return code, 0 when the command was registered (it is executed within a few minutes),
+            otherwise 1 (it could not be registered), 2 (task not found) or 4 (the command is not accepted
+            in the task's current status), with success false and the reason in the message field.
+        On failure: null instead of a code when task_id is not an integer.
     """
     tmp_logger = LogWrapper(_logger, f"resume < jediTaskID={task_id} >")
     tmp_logger.debug("Start")
@@ -202,7 +214,13 @@ def release(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: The return code, 0 when the command was registered (it is executed within a few minutes),
+            otherwise 1 (it could not be registered), 2 (task not found) or 4 (the command is not accepted
+            in the task's current status), with success false and the reason in the message field.
+        On failure: null instead of a code when task_id is not an integer.
     """
 
     tmp_logger = LogWrapper(_logger, f"release < task_id={task_id} >")
@@ -250,7 +268,13 @@ def reassign(
         mode(str, optional): `kill` (kills all jobs, default), `soft` (kills queued jobs) or `nokill` (doesn't kill jobs)
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: The return code, 0 when the command was registered (it is executed within a few minutes),
+            otherwise 1 (it could not be registered), 2 (task not found) or 4 (the command is not accepted
+            in the task's current status), with success false and the reason in the message field.
+        On failure: null instead of a code when task_id is not an integer.
     """
 
     tmp_logger = LogWrapper(_logger, f"reassign < task_id={task_id} >")
@@ -301,7 +325,13 @@ def pause(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: The return code, 0 when the command was registered (it is executed within a few minutes),
+            otherwise 1 (it could not be registered), 2 (task not found) or 4 (the command is not accepted
+            in the task's current status), with success false and the reason in the message field.
+        On failure: null instead of a code when task_id is not an integer.
     """
 
     tmp_logger = LogWrapper(_logger, f"pause < task_id={task_id} >")
@@ -342,7 +372,13 @@ def kill(req: PandaRequest, task_id: int, broadcast: bool = False) -> Dict[str, 
         broadcast(bool, optional): broadcast kill command to pilots to kill the jobs
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: The return code, 0 when the command was registered (it is executed within a few minutes),
+            otherwise 1 (it could not be registered), 2 (task not found) or 4 (the command is not accepted
+            in the task's current status), with success false and the reason in the message field.
+        On failure: null instead of a code when task_id is not an integer.
     """
     tmp_logger = LogWrapper(_logger, f"kill < task_id={task_id} >")
     tmp_logger.debug("Start")
@@ -408,7 +444,11 @@ def kill_unfinished_jobs(req: PandaRequest, task_id: int, code: int | None = Non
         use_email_as_id(bool, optional): Use the email as ID. Defaults to False.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. The data field contains a list of bools indicating the success of the kill operations.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[bool]: One entry per job of the task (defined, active and archived), in the same order as
+            their PanDA IDs: whether the job was killed.
     """
 
     tmp_logger = LogWrapper(_logger, "kill_unfinished_jobs")
@@ -455,7 +495,13 @@ def finish(req: PandaRequest, task_id: int, soft: bool = False, broadcast: bool 
         broadcast(bool, optional): broadcast finish command to pilots
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: The return code, 0 when the command was registered (it is executed within a few minutes),
+            otherwise 1 (it could not be registered), 2 (task not found) or 4 (the command is not accepted
+            in the task's current status), with success false and the reason in the message field.
+        On failure: null instead of a code when task_id is not an integer.
     """
     tmp_logger = LogWrapper(_logger, f"finish < task_id={task_id} soft={soft} broadcast={broadcast} >")
     tmp_logger.debug("Start")
@@ -510,7 +556,12 @@ def reactivate(req: PandaRequest, task_id: int, keep_attempt_nr: bool = False, t
         trigger_job_generation(bool, optional): trigger the job generation
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: 0 when the task was reactivated, otherwise an error code, with success false and the reason
+            in the message field.
+        On failure: null when task_id is not an integer or on a database error.
     """
     tmp_logger = LogWrapper(_logger, f"reactivate < task_id={task_id} >")
     tmp_logger.debug("Start")
@@ -546,7 +597,13 @@ def avalanche(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: The return code, 0 when the command was registered (it is executed within a few minutes),
+            otherwise 1 (it could not be registered), 2 (task not found) or 4 (the command is not accepted
+            in the task's current status), with success false and the reason in the message field.
+        On failure: null instead of a code when task_id is not an integer.
     """
     tmp_logger = LogWrapper(_logger, f"avalanche < task_id={task_id} >")
     tmp_logger.debug("Start")
@@ -587,7 +644,13 @@ def reload_input(req: PandaRequest, task_id: int, ignore_hard_exhausted: bool = 
         ignore_hard_exhausted(bool, optional): ignore the limits for hard exhausted
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: The return code, 0 when the command was registered (it is executed within a few minutes),
+            otherwise 1 (it could not be registered), 2 (task not found) or 4 (the command is not accepted
+            in the task's current status), with success false and the reason in the message field.
+        On failure: null instead of a code when task_id is not an integer.
     """
     tmp_logger = LogWrapper(_logger, f"reload_input < task_id={task_id} >")
     tmp_logger.debug("Start")
@@ -637,7 +700,11 @@ def reassign_global_share(req: PandaRequest, task_id_list: List[int], share: str
         reassign_running_jobs(bool): whether you want to reassign existing running jobs
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: 0 when the share was reassigned, -1 on a database error.
+        On failure: null when task_id_list is not a list or share is not a string.
     """
 
     tmp_logger = LogWrapper(_logger, f"reassign_global_share < task_id_list={task_id_list} share={share} reassign_running_jobs={reassign_running_jobs} >")
@@ -673,7 +740,11 @@ def enable_jumbo_jobs(req: PandaRequest, task_id: int, jumbo_jobs_total: int, ju
         jumbo_jobs_per_site(int): Number of jumbo jobs per site. Defaults to `jumbo_jobs_total`.
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: 0 when jumbo jobs were enabled, otherwise an error code (1 for a database error), with
+            success false and the reason in the message field.
     """
 
     tmp_logger = LogWrapper(_logger, f"enable_jumbo_jobs < task_id={task_id} jumbo_jobs_total={jumbo_jobs_total} n_jumbo_jobs_per_site={jumbo_jobs_per_site} >")
@@ -685,7 +756,7 @@ def enable_jumbo_jobs(req: PandaRequest, task_id: int, jumbo_jobs_total: int, ju
     code, message = global_task_buffer.enableJumboJobs(task_id, jumbo_jobs_total, jumbo_jobs_per_site)
     if jumbo_jobs_total > 0 and code == 0:
         tmp_logger.debug("Calling task avalanche")
-        avalanche(task_id)
+        avalanche(req, task_id)
 
     success = code == 0
 
@@ -712,7 +783,11 @@ def get_jumbo_job_datasets(req: PandaRequest, from_offset: int, to_offset: int =
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains the dictionary of JEDI task IDs to datasets.
+
+    Response data:
+        dict: The managed tasks with jumbo jobs that are finished or done and were modified in the
+            requested window, keyed by JEDI task ID. Each value has the task's "status" and its output
+            "datasets" (a list of dataset names).
     """
     tmp_logger = LogWrapper(_logger, "get_jumbo_job_datasets")
 
@@ -749,7 +824,9 @@ def enable_job_cloning(
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When there was an error, the message field contains the description.
+
+    Response data:
+        None: Not used. When it failed, the message field contains the reason.
     """
     tmp_logger = LogWrapper(_logger, f"enable_job_cloning < jedi_task_id={jedi_task_id} >")
     tmp_logger.debug("Start")
@@ -775,7 +852,9 @@ def disable_job_cloning(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When there was an error, the message field contains the description.
+
+    Response data:
+        None: Not used. When it failed, the message field contains the reason.
     """
     tmp_logger = LogWrapper(_logger, f"disable_job_cloning < jedi_task_id={jedi_task_id} >")
     tmp_logger.debug("Start")
@@ -802,7 +881,11 @@ def increase_attempts(req: PandaRequest, task_id: int, increase: int) -> Dict[st
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When there was an error, the message field contains the description and the data field contains the code.
+
+    Response data:
+        int: 0 when the attempts were increased, otherwise an error code, with success false and the
+            reason in the message field.
+        On failure: null when task_id or increase is invalid, or on a database error.
     """
     tmp_logger = LogWrapper(_logger, f"increase_attempt_number task_id={task_id}")
     tmp_logger.debug("Start")
@@ -848,8 +931,9 @@ def get_status(req: PandaRequest, task_id: int) -> dict[str, Any]:
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains the status of the task.
-              When there was an error, the message field contains the description.
+
+    Response data:
+        str: The status of the task.
     """
     tmp_logger = LogWrapper(_logger, f"get_status < task_id={task_id} >")
     tmp_logger.debug("Start")
@@ -889,8 +973,12 @@ def get_details(req: PandaRequest, task_id: int, include_parameters: bool = Fals
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains the task details.
-              When there was an error, the message field contains the description.
+
+    Response data:
+        dict: The task details: comma-separated input and output dataset names (inDS, outDS), job
+            statistics, the PanDA IDs of the task's jobs and merge jobs (PandaID, mergePandaID) and the merge
+            status. With include_status also the task status (status), with include_parameters also the
+            command line parameters (cliParams) when the task has them.
     """
     tmp_logger = LogWrapper(_logger, f"get_details  < task_id={task_id} include_parameters={include_parameters} include_status={include_status} >")
     tmp_logger.debug("Start")
@@ -924,8 +1012,11 @@ def change_attribute(req: PandaRequest, task_id: int, attribute_name: str, value
         value(int): value to set to the attribute
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
-              Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. On success the message field says how many tasks were changed, e.g.
+            "1 tasks changed"; otherwise it says why nothing was changed (e.g. "Task not found").
     """
     tmp_logger = LogWrapper(_logger, f"change_attribute < task_id={task_id} attribute_name={attribute_name} value={value} >")
     tmp_logger.debug("Start")
@@ -973,7 +1064,11 @@ def change_modification_time(req: PandaRequest, task_id: int, hour_offset: int) 
         hour_offset(int): number of hours to add to the current time. Use a negative value (e.g. -12) to trigger task brokerage.
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. On success the message field says how many tasks were changed, e.g.
+            "1 tasks changed"; otherwise it says why nothing was changed (e.g. "Task not found").
     """
     tmp_logger = LogWrapper(_logger, f"change_modification_time < task_id={task_id} hour_offset={hour_offset} >")
     tmp_logger.debug("Start")
@@ -1016,7 +1111,10 @@ def change_priority(req: PandaRequest, task_id: int, priority: int) -> dict[str,
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+
+    Response data:
+        None: Not used. On success the message field says how many tasks were changed, e.g.
+            "1 tasks changed"; otherwise it says why nothing was changed (e.g. "Task not found").
     """
     tmp_logger = LogWrapper(_logger, f"change_priority < task_id={task_id} priority={priority} >")
     tmp_logger.debug("Start")
@@ -1068,8 +1166,12 @@ def change_split_rule(req: PandaRequest, task_id: int, attribute_name: str, valu
         value(str): value to set to the attribute
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
-              Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. On success the message field says how many tasks were changed, e.g.
+            "1 tasks changed"; otherwise it says why nothing was changed (e.g. "Task not found").
+        On failure: 2 when attribute_name is not a changeable split rule, otherwise null.
     """
     tmp_logger = LogWrapper(_logger, f"change_split_rule < task_id={task_id} attribute_name={attribute_name} value={value} >")
     tmp_logger.debug("Start")
@@ -1124,7 +1226,12 @@ def get_tasks_modified_since(
         prod_source_label(str, optional): task type (e.g. `user`, `managed`, `test`, etc.)
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The matching tasks keyed by request ID (reqID), each a dict of the task's fields: the basic
+            fields, or with full=True the full information for at most 500 tasks. since is capped at 30 days
+            ago, and the result is empty when nothing matches or since cannot be parsed.
     """
     tmp_logger = LogWrapper(_logger, "get_tasks_modified_since")
     tmp_logger.debug("Start")
@@ -1178,8 +1285,11 @@ def get_tasks_detailed_info_since(req: PandaRequest, since: str | None = None, f
         n_tasks(int, optional): maximum number of task IDs to retrieve (default 500)
 
     Returns:
-        dict: The system response ``{"success": success, "message": message, "data": data}``.
-              On success ``data`` is a list of task detail dicts.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[dict]: The details of each matching task, at most n_tasks: all JediTaskSpec fields plus
+            jobParamsTemplate, taskParams and the input-file progress.
     """
     tmp_logger = LogWrapper(_logger, "get_tasks_detailed_info_since")
     tmp_logger.debug("Start")
@@ -1283,7 +1393,12 @@ def get_datasets_and_files(
         dataset_only(bool, optional): if True, only return dataset information without files, defaults to False
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[dict]: One entry per dataset of the requested types, with the dataset's name and ID and its
+            files (lfn, scope, id, status), in the format above.
+            {"dataset": {"name": str, "id": int}, "files": list}
     """
     tmp_logger = LogWrapper(_logger, f"get_datasets_and_files < task_id={task_id} dataset_types={dataset_types} dataset_only={dataset_only} >")
     tmp_logger.debug("Start")
@@ -1318,7 +1433,10 @@ def get_job_ids(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         task_id(int): JEDI task ID
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        list[int]: The PanDA job IDs of the task, in any status (defined, active and archived).
     """
     tmp_logger = LogWrapper(_logger, f"get_job_ids < task_id={task_id} >")
     tmp_logger.debug("Start")
@@ -1353,8 +1471,12 @@ def submit(req: PandaRequest, task_parameters: Dict[str, Any], parent_tid: int |
         parent_tid(int, optional): Parent task ID
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
-              Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        int: The JEDI task ID of the new task, or of the existing task when it is re-executed with old
+            and/or new input instead (message "reactivation accepted"). null if the ID could not be read.
+        On failure: the error code.
     """
     tmp_log = LogWrapper(_logger, f"submit {naive_utcnow().isoformat('/')}")
     tmp_log.debug("Start")
@@ -1403,8 +1525,10 @@ def get_task_parameters(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         task_id(int): JEDI task ID
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
 
+    Response data:
+        dict: The task parameters the task was created with.
     """
     tmp_logger = LogWrapper(_logger, f"get_task_parameters < task_id={task_id} >")
     tmp_logger.debug("Start")
@@ -1451,10 +1575,10 @@ def get_detailed_info(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         task_id(int): JEDI task ID
 
     Returns:
-        dict: The system response ``{"success": success, "message": message, "data": data}``.
-              On success the ``data`` field contains a dictionary with all JediTaskSpec
-              attributes plus additional information.
-              On failure ``success`` is False and ``message`` contains the error description.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: All JediTaskSpec fields of the task, plus jobParamsTemplate and taskParams.
     """
     tmp_logger = LogWrapper(_logger, f"get_detailed_info < task_id={task_id} >")
     tmp_logger.debug("Start")
@@ -1491,10 +1615,11 @@ def get_parent_detailed_info(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         task_id(int): child JEDI task ID
 
     Returns:
-        dict: The system response ``{"success": success, "message": message, "data": data}``.
-              On success the ``data`` field contains the parent task details.
-              On failure ``success`` is False with a message distinguishing:
-              child-not-found, no-parent, parent-not-found, or retrieval error.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The details of the parent task, in the same format as get_detailed_info: all JediTaskSpec
+            fields plus jobParamsTemplate and taskParams.
     """
     tmp_logger = LogWrapper(_logger, f"get_parent_detailed_info < child_task_id={task_id} >")
     tmp_logger.debug("Start")
@@ -1552,8 +1677,11 @@ def get_job_descriptions(req: PandaRequest, task_id: int, unsuccessful_only: boo
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains a list of job descriptions.
-              If no jobs are found, returns success=True with empty list.
+
+    Response data:
+        list[dict]: The job descriptions of the task's jobs, also looking in the archive tables, with extra
+            information. Empty when the task has no jobs; only the first 5500 jobs are looked up, and jobs
+            that are not found are left out.
     """
     tmp_logger = LogWrapper(_logger, f"get_job_descriptions task_id={task_id} unsuccessful_only={unsuccessful_only}")
     tmp_logger.debug("Start")

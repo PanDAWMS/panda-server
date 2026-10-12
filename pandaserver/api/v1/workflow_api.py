@@ -66,7 +66,12 @@ def submit_workflow(req: PandaRequest, params: dict[str, Any] | str) -> dict[str
         params (dict|str): dictionary or JSON of parameters of the raw request
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID of the registered workflow. The description in the sandbox is downloaded and
+            parsed later, asynchronously.
+            {"workflow_id": int}
     """
 
     user_dn = get_dn(req)
@@ -125,7 +130,11 @@ def submit_workflow_raw_request(req: PandaRequest, params: dict[str, Any] | str)
         params (dict|str): dictionary or JSON of parameters of the raw request
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID of the registered workflow, as for submit_workflow.
+            {"workflow_id": int}
     """
     LogWrapper(_logger, "submit_workflow_raw_request").warning("deprecated path; use /v1/workflow/submit_workflow instead")
     response: dict[str, Any] = submit_workflow(req, params)
@@ -153,7 +162,11 @@ def submit_workflow_definition(req: PandaRequest, workflow_definition: dict[str,
         workflow_definition (dict): dictionary of workflow definition
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID of the registered workflow.
+            {"workflow_id": int}
     """
 
     user_dn = get_dn(req)
@@ -260,7 +273,12 @@ def submit_workflow_description(req: PandaRequest, workflow_description: dict[st
         workflow_description (dict|str): dictionary or JSON of the workflow description
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID of the registered workflow. On success, the message field may carry a warning
+            about task names that already exist; the workflow is registered anyway.
+            {"workflow_id": int}
     """
 
     user_dn = get_dn(req)
@@ -336,11 +354,13 @@ def get_step_relations(req: PandaRequest, workflow_id: int) -> dict[str, Any]:
         workflow_id(int): ID of the workflow to report on
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`.
-              When successful, data holds {"workflow_id": int, "steps": [...]}, one entry per step
-              in step_id order, each with step_id, name, type, flavor, status, target_id and
-              parent_step_ids. A step taking only data produced outside the workflow has no parent,
-              and a step that has not started yet has no target_id.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The workflow's steps, one entry per step in step_id order, each with step_id, name,
+            type, flavor, status, target_id and parent_step_ids. A step taking only data produced
+            outside the workflow has no parent, and a step that has not started yet has no target_id.
+            {"workflow_id": int, "steps": list}
     """
     tmp_logger = LogWrapper(_logger, f"get_step_relations < workflow_id={workflow_id} >")
     tmp_logger.debug("Start")
@@ -378,12 +398,14 @@ def get_task_relations(req: PandaRequest, workflow_id: int | None = None, task_i
         task_id(int, optional): JEDI task ID to report the workflow of. Give this or workflow_id
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`.
-              When successful, data holds {"workflow_id": int, "tasks": [...]}, parents first, each
-              entry with key, task_id, workflow_id, step_id, name, flavor, status and parents.
-              Parents are named by key rather than by task ID, since a task not yet submitted has
-              no ID to be named by; every entry carries its own task_id. Entering by task_id adds
-              "asked_for", the key of the task asked about.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The workflow's tasks, parents first, each entry with key, task_id, workflow_id,
+            step_id, name, flavor, status and parents. Parents are named by key rather than by task
+            ID, since a task not yet submitted has no ID to be named by; every entry carries its own
+            task_id. Entering by task_id adds "asked_for", the key of the task asked about.
+            {"workflow_id": int, "tasks": list}
     """
     tmp_logger = LogWrapper(_logger, f"get_task_relations < workflow_id={workflow_id} task_id={task_id} >")
     tmp_logger.debug("Start")

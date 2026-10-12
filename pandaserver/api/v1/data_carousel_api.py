@@ -128,7 +128,12 @@ def change_staging_destination(req: PandaRequest, request_id: int | None = None,
         dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The cancelled request and the new one resubmitted with the new destination.
+            {"request_id": int, "new_request_id": int, "dataset": str}
+        On failure: null.
     """
     success, message, data = data_carousel_ops.change_staging_destination(global_dcif, request_id, dataset)
     return generate_response(success, message, data)
@@ -166,7 +171,12 @@ def change_staging_source(
         source_rse (str|None): if set, use this source RSE instead of choosing one randomly, also force change_src_expr to be True; default is None
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The request with its new source.
+            {"request_id": int, "dataset": str, "source_rse": str, "ddm_rule_id": str}
+        On failure: null.
     """
     success, message, data = data_carousel_ops.change_staging_source(global_dcif, request_id, dataset, cancel_fts, change_src_expr, source_rse)
     return generate_response(success, message, data)
@@ -193,7 +203,12 @@ def force_to_staging(req: PandaRequest, request_id: int | None = None, dataset: 
         dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The request and its new status.
+            {"request_id": int, "dataset": str, "status": str, "ddm_rule_id": str}
+        On failure: null.
     """
     success, message, data = data_carousel_ops.force_to_staging(global_dcif, request_id, dataset)
     return generate_response(success, message, data)
@@ -219,7 +234,12 @@ def retire_unused(req: PandaRequest, request_id: int | None = None, dataset: str
         dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The retired request.
+            {"request_id": int, "dataset": str, "status": str, "ddm_rule_id": str}
+        On failure: null.
     """
     success, message, data = data_carousel_ops.retire_unused(global_dcif, request_id, dataset)
     return generate_response(success, message, data)
@@ -246,7 +266,12 @@ def submit_change_staging_destination(req: PandaRequest, request_id: int | None 
         dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': {'async_id': <uuid to poll with /v1/async_process/get_result>}}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID of the registered async request, to poll with /v1/async_process/get_result.
+            {"async_id": str}
+        On failure: null.
     """
     tmp_logger = LogWrapper(_logger, f"submit_change_staging_destination request_id={request_id} dataset={dataset}")
     tmp_logger.debug("Start")
@@ -284,7 +309,12 @@ def submit_change_staging_source(
         source_rse (str|None): if set, use this source RSE instead of choosing one randomly, also force change_src_expr to be True; default is None
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': {'async_id': <uuid to poll with /v1/async_process/get_result>}}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID of the registered async request, to poll with /v1/async_process/get_result.
+            {"async_id": str}
+        On failure: null.
     """
     tmp_logger = LogWrapper(
         _logger,
@@ -322,7 +352,12 @@ def submit_force_to_staging(req: PandaRequest, request_id: int | None = None, da
         dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': {'async_id': <uuid to poll with /v1/async_process/get_result>}}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID of the registered async request, to poll with /v1/async_process/get_result.
+            {"async_id": str}
+        On failure: null.
     """
     tmp_logger = LogWrapper(_logger, f"submit_force_to_staging request_id={request_id} dataset={dataset}")
     tmp_logger.debug("Start")
@@ -350,7 +385,12 @@ def submit_retire_unused(req: PandaRequest, request_id: int | None = None, datas
         dataset (str|None): dataset name of the staging request in the format of Rucio DID, e.g. `"mc20_13TeV:mc20_13TeV.700449.Sh_2211_Wtaunu_mW_120_ECMS_BFilter.merge.AOD.e8351_s3681_r13144_r13146_tid36179107_00"`
 
     Returns:
-        dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': {'async_id': <uuid to poll with /v1/async_process/get_result>}}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID of the registered async request, to poll with /v1/async_process/get_result.
+            {"async_id": str}
+        On failure: null.
     """
     tmp_logger = LogWrapper(_logger, f"submit_retire_unused request_id={request_id} dataset={dataset}")
     tmp_logger.debug("Start")

@@ -46,7 +46,10 @@ def get_banned_users(req: PandaRequest) -> dict[str, Any]:
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains the banned users in the format `{"user1": False, "user2": False}`
+
+    Response data:
+        dict: The disabled users, keyed by user name, each with the value false.
+        On failure: null.
     """
     tmp_logger = LogWrapper(_logger, "get_banned_users")
 
@@ -73,7 +76,10 @@ def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict[str, Any]:
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains a dictionary with the site data of the requested type.
+
+    Response data:
+        dict: The specifications of the sites of the requested type, keyed by site name. Each value
+            holds the site's SiteSpec attributes, without the DDM endpoint and slot details.
     """
 
     tmp_logger = LogWrapper(_logger, "get_site_specs")
@@ -109,7 +115,10 @@ def get_resource_types(req: PandaRequest) -> dict[str, Any]:
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains a list of resource types.
+
+    Response data:
+        list[dict]: The resource types with their core count and memory-per-core limits.
+            {"resource_name": str, "mincore": int, "maxcore": int, "minrampercore": int, "maxrampercore": int}
     """
 
     tmp_logger = LogWrapper(_logger, "get_resource_types")
