@@ -37,7 +37,12 @@ def get_attributes(req: PandaRequest, **kwargs: Any) -> Dict[str, Any]:
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the message field contains a string with all the attributes.
+
+    Response data:
+        dict: The request parameters and the environment variables, each as a dictionary of
+            strings. The message field contains the same as text, one "key = value" per parameter
+            and one "key : value" per environment variable.
+            {"parameters": dict, "environment": dict}
     """
     tmp_logger = LogWrapper(_logger, "get_attributes")
     tmp_logger.debug("Start")
@@ -74,8 +79,11 @@ def get_voms_attributes(req: PandaRequest) -> Dict[str, Any]:
         req(PandaRequest): internally generated request object containing the env variables
 
     Returns:
-        dict: The system response with text representation and dictionary of attributes.
-              Example: `{"success": True, "message": "<formatted string>", "data": {"key": "value"}}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The GRST_CRED_* environment variables, {<variable>: <value>}. The message field
+            contains the same as text, one "key : value" per line in sorted order.
     """
     tmp_logger = LogWrapper(_logger, "get_voms_attributes")
     tmp_logger.debug("Start")
@@ -109,8 +117,12 @@ def get_user_attributes(req: PandaRequest) -> Dict[str, Any]:
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the message field contains a string with the user attributes,
-              and the data field contains the dictionary representation.
+
+    Response data:
+        dict: The user attributes as seen by PanDA. The message field contains them as text, also
+            with the bare user DN and the email address.
+            {"user_dn_raw": str, "user_dn_clean": str, "fqans": list, "is_production_user": bool,
+            "production_working_groups": list, "primary_working_group": str}
     """
     tmp_logger = LogWrapper(_logger, "get_user_attributes")
     tmp_logger.debug("Start")
@@ -176,8 +188,10 @@ def is_alive(req: PandaRequest) -> Dict[str, Any]:
         req(PandaRequest): internally generated request object containing the env variables
 
     Returns:
-        dict: The system response with the name of the endpoint
-              Example: `{"success": True}`
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        None: Not used. success is true when the server is alive.
     """
     tmp_logger = LogWrapper(_logger, "is_alive")
     tmp_logger.debug("Start")
