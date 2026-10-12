@@ -4,6 +4,7 @@
 import datetime
 import json
 import socket
+import time
 import unittest
 import uuid
 from types import SimpleNamespace
@@ -16,6 +17,11 @@ from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE
 
 NO_SSL_RESPONSE = {"success": False, "message": "SSL secure connection is required", "data": None}
+
+# a db_read query costing one index lookup, whatever the job
+DB_READ_QUERY = {"tables": ["jobsActive4"], "where": [["PandaID", "=", 1]], "columns": ["PandaID", "jobStatus"]}
+# seconds to wait for the server to answer a db_read request, a few cycles of async_request_daemon
+DB_READ_WAIT_SECONDS = 120
 
 
 class TestAsyncProcessAPI(unittest.TestCase):
@@ -215,6 +221,54 @@ class TestAsyncProcessAPI(unittest.TestCase):
         self.assertEqual(len(async_id), 36)
         # the pre-rename key is still served alongside it
         self.assertEqual(output["data"]["request_id"], async_id)
+
+    def test_submit_db_read_request_no_ssl(self) -> None:
+        full_url = f"{api_url}/async_process/submit_db_read_request"
+        print(f"Testing URL: {full_url}")
+        data = {"queries": [DB_READ_QUERY]}
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        self.assertEqual(output, NO_SSL_RESPONSE)
+
+    def test_submit_db_read_request_too_many_queries(self) -> None:
+        full_url = f"{api_url_ssl}/async_process/submit_db_read_request"
+        print(f"Testing URL: {full_url}")
+        data = {"queries": [DB_READ_QUERY] * 11}
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        self.assertFalse(output["success"])
+
+    def test_submit_db_read_request_answered(self) -> None:
+        # the queries run on the read-only account of the server, so the server needs dbuser_reader in its
+        # cfg and a timeout of async_request_daemon long enough for them, and the answer takes a cycle or two
+        submit_url = f"{api_url_ssl}/async_process/submit_db_read_request"
+        print(f"Testing URL: {submit_url}")
+        # the tables are checked against the allowlist when the queries run, refusing that query alone
+        data = {"queries": [DB_READ_QUERY, {"tables": ["users"], "where": [["name", "=", "x"]]}]}
+        status, submit_output = self.http_client.post(submit_url, data)
+        print(submit_output)
+        if not submit_output.get("success"):
+            raise unittest.SkipTest(f"submit_db_read_request did not succeed: {submit_output.get('message')}")
+        async_id = submit_output["data"]["async_id"]
+
+        get_url = f"{api_url_ssl}/async_process/get_result"
+        print(f"Testing URL: {get_url}")
+        deadline = time.monotonic() + DB_READ_WAIT_SECONDS
+        while True:
+            status, output = self.http_client.get(get_url, {"async_id": async_id})
+            print(output)
+            # async_meta is missing only when the poll itself failed
+            meta = output.get("async_meta")
+            if meta is None or meta["status"] in ("done", "failed") or time.monotonic() > deadline:
+                break
+            time.sleep(5)
+        self.assertEqual(output.get("async_meta", {}).get("status"), "done", output)
+        self.assertTrue(output["success"], output["message"])
+        answers = output["data"]["answers"]
+        self.assertEqual(len(answers), 2)
+        self.assertEqual(answers[0]["status"], "done", answers[0])
+        self.assertEqual([table["table"] for table in answers[0]["tables"]], ["jobsActive4"])
+        self.assertEqual((answers[1]["status"], answers[1]["rule"]), ("rejected", "unknown_table"), answers[1])
 
 
 class TestAsyncAccessControl(unittest.TestCase):
