@@ -9,8 +9,10 @@ class WrappedOracleConn(object):
         self.orig_conn = conn
 
     def __getattribute__(self, item: str) -> Any:
+        # orig_conn is read past this method: self.orig_conn would call it again for "orig_conn",
+        # and so on down to the recursion limit, which every read would then climb back from
         try:
-            return object.__getattribute__(self.orig_conn, item)
+            return object.__getattribute__(object.__getattribute__(self, "orig_conn"), item)
         except Exception:
             pass
         return object.__getattribute__(self, item)
