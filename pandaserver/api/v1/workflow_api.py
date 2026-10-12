@@ -356,11 +356,13 @@ def get_workflow_status(req: PandaRequest, workflow_id: int) -> dict[str, Any]:
         dict: The system response `{"success": success, "message": message, "data": data}`.
 
     Response data:
-        dict: The workflow's own status and a count of its steps per status. The times are ISO 8601
-            strings, and start_time and end_time are null until the workflow starts and finishes.
-            A workflow that is not a sub-workflow has a null parent_id.
-            {"workflow_id": int, "name": str, "status": str, "parent_id": int, "creation_time": str,
-            "start_time": str, "end_time": str, "n_steps": int, "step_status_counts": dict}
+        dict: The workflow's own status and a count of its steps per status. reason says which step
+            failed the workflow, or why it was cancelled, and is null while it is still running.
+            The times are ISO 8601 strings, and start_time and end_time are null until the workflow
+            starts and finishes. A workflow that is not a sub-workflow has a null parent_id.
+            {"workflow_id": int, "name": str, "status": str, "reason": str, "parent_id": int,
+            "creation_time": str, "start_time": str, "end_time": str, "n_steps": int,
+            "step_status_counts": dict}
     """
     tmp_logger = LogWrapper(_logger, f"get_workflow_status < workflow_id={workflow_id} >")
     tmp_logger.debug("Start")
@@ -397,8 +399,9 @@ def get_step_relations(req: PandaRequest, workflow_id: int) -> dict[str, Any]:
 
     Response data:
         dict: The workflow's steps, one entry per step in step_id order, each with step_id, name,
-            type, flavor, status, target_id and parent_step_ids. A step taking only data produced
-            outside the workflow has no parent, and a step that has not started yet has no target_id.
+            type, flavor, status, reason, target_id and parent_step_ids. reason is set only for a
+            step that failed or was cancelled. A step taking only data produced outside the workflow
+            has no parent, and a step that has not started yet has no target_id.
             {"workflow_id": int, "steps": list}
     """
     tmp_logger = LogWrapper(_logger, f"get_step_relations < workflow_id={workflow_id} >")

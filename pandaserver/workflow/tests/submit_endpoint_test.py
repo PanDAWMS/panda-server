@@ -5,7 +5,7 @@ Stubs the server-side dependencies (task buffer, workflow interface, request val
 pandaserver.api.v1.workflow_api.submit_workflow_description can be exercised without a database or
 a running server.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/submit_endpoint_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/submit_endpoint_test.py
 """
 
 import copy
@@ -145,6 +145,7 @@ class FakeWorkflowInterface:
             "workflow_id": 133,
             "name": "mc23_526140_AZH_llbb_full_chain",
             "status": "failed",
+            "reason": "step recon (step_id=525) failed: task 48810706 reported broken",
             "parent_id": None,
             "creation_time": "2026-10-12T09:14:03",
             "start_time": "2026-10-12T09:15:01",
@@ -204,7 +205,7 @@ def check(label, condition, detail=""):
 
 def main():
     failures = 0
-    wfd = json.load(open(os.path.join(os.path.dirname(__file__), "production_chain_wfd.json")))
+    wfd = json.load(open(os.path.join(os.path.dirname(__file__), "..", "examples", "production_chain_wfd.json")))
     submit = workflow_api.submit_workflow_description
 
     print("\n=== a valid description registers ===")
@@ -330,6 +331,7 @@ def main():
     failures += not check("the workflow id is passed through", wfif.calls[-1] == {"get_workflow_status": 133}, wfif.calls[-1])
     failures += not check("the workflow's own status is the data", res["data"]["status"] == "failed", res["data"])
     failures += not check("the step tally comes back with it", res["data"]["step_status_counts"]["cancelled"] == 4, res["data"])
+    failures += not check("the reason names the step that failed", "recon" in res["data"]["reason"], res["data"]["reason"])
     failures += not check("the times are strings a plain json client can read", isinstance(res["data"]["end_time"], str), res["data"]["end_time"])
     _, wfif = install()
     wfif.workflow_status = None

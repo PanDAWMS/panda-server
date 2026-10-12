@@ -11,12 +11,13 @@ merge_ntup/NTUP_PILEUP frozen in generating_suffice.
 So the workflow waits for its outputs, and the wait is bounded, so that an output whose dataset is
 never closed cannot keep the workflow running forever.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/workflow_done_transition_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/workflow_done_transition_test.py
 """
 
 import copy
 import importlib.abc
 import importlib.machinery
+import json
 import os
 import sys
 import types
@@ -146,6 +147,18 @@ class FakeStep:
             FakeStep._next_step_id += 1
             step_id = FakeStep._next_step_id
         self.step_id = step_id
+        self.parameters = None
+
+    # The engine records why a step reached a terminal status through these, and stores them as
+    # JSON, so the fake serializes too rather than keeping a dict a non-serializable value would
+    # pass through unnoticed.
+    def get_parameter(self, name):
+        return json.loads(self.parameters).get(name) if self.parameters else None
+
+    def set_parameter(self, name, value):
+        parameter_map = json.loads(self.parameters) if self.parameters else {}
+        parameter_map[name] = value
+        self.parameters = json.dumps(parameter_map)
 
 
 class FakeWorkflowRow:
@@ -266,6 +279,7 @@ class StubbedInterface(workflow_core.WorkflowInterface):
         self._step_mutations = step_mutations
         self.step_handler = FakeStepHandler(kills_succeed)
         self.cancelled_workflow_ids = []
+        self.cancel_reasons = []
 
     def get_plugin(self, plugin_type, flavor):
         if plugin_type == "step_handler":
@@ -275,8 +289,9 @@ class StubbedInterface(workflow_core.WorkflowInterface):
     # Recorded rather than run: what this harness checks is that the failing workflow asks for the
     # right children to be cancelled, and cancel_workflow taking the child final is what the
     # de-duplication between cancel_step's recursion and the orphan sweep relies on.
-    def cancel_workflow(self, workflow_id, force=False):
+    def cancel_workflow(self, workflow_id, force=False, reason=None):
         self.cancelled_workflow_ids.append(workflow_id)
+        self.cancel_reasons.append(reason)
         child_workflow = self.tbif.child_workflows.get(workflow_id)
         if child_workflow is not None:
             child_workflow.status = WorkflowStatus.cancelled
@@ -461,12 +476,45 @@ def main():
     failures += not check("neither is killed", "48810693" not in interface.step_handler.cancelled_target_ids)
     failures += not check("no step is reported unreachable", workflow_spec.get_parameter(workflow_core.UNCANCELLED_STEPS_PARAM) is None)
 
+    print("\n=== the failure says which step caused it, and the cancellations say they were collateral ===")
+    # Status alone cannot tell a step cancelled with a failing workflow from one cancelled on
+    # purpose, and the workflow would otherwise say only that it failed.
+    workflow_reason = workflow_spec.get_parameter(workflow_core.WORKFLOW_FAIL_REASON_PARAM)
+    failures += not check("the workflow names the step that failed", workflow_reason and "recon" in workflow_reason, workflow_reason)
+    failures += not check("...and its step_id", workflow_reason and f"step_id={broke.step_id}" in workflow_reason, workflow_reason)
+    sibling_reason = interface.tbif.get_workflow_step(sibling.step_id).get_parameter(workflow_core.STEP_REASON_PARAM)
+    failures += not check(
+        "a cancelled sibling says it went with the workflow", sibling_reason and "cancelled with the workflow" in sibling_reason, sibling_reason
+    )
+    failures += not check("...and repeats which step failed", sibling_reason and "recon" in sibling_reason, sibling_reason)
+
     print("\n=== the cancelling happens before the workflow is marked failed ===")
     # An exception part way through must leave the workflow running so the next cycle retries;
     # marking it failed first would strand whatever had not been reached yet.
     first_status_write = index_of_first(interface.tbif.call_log, "update_workflow")
     last_step_write = max(index for index, entry in enumerate(interface.tbif.call_log) if entry[0] == "update_workflow_step")
     failures += not check("every step write precedes the workflow write", last_step_write < first_status_write, interface.tbif.call_log)
+
+    print("\n=== a failed step records what its target reported ===")
+    # check_target knows the JEDI status and the engine used to throw it away, leaving "failed" as
+    # the only thing anyone could read afterwards.
+    step = FakeStep("recon", WFStepStatus.running, target_id="48810706")
+    interface = make_interface([], [step])
+    check_result = types.SimpleNamespace(native_status="broken", message="", step_status=WFStepStatus.failed)
+    step.status = WFStepStatus.failed
+    interface.record_step_reason(step, check_result)
+    reason = step.get_parameter(workflow_core.STEP_REASON_PARAM)
+    failures += not check("it names the task and what it reported", reason == "task 48810706 reported broken", reason)
+    sub = FakeStep("sig_bg_comb", WFStepStatus.failed, flavor="sub_workflow", target_id="900")
+    interface.record_step_reason(sub, types.SimpleNamespace(native_status="failed", message="", step_status=WFStepStatus.failed))
+    failures += not check(
+        "a sub-workflow step names the child workflow",
+        sub.get_parameter(workflow_core.STEP_REASON_PARAM) == "child workflow 900 reported failed",
+        sub.get_parameter(workflow_core.STEP_REASON_PARAM),
+    )
+    done_step = FakeStep("evgen", WFStepStatus.done, target_id="1")
+    interface.record_step_reason(done_step, types.SimpleNamespace(native_status="done", message="", step_status=WFStepStatus.done))
+    failures += not check("a step that did not fail records nothing", done_step.get_parameter(workflow_core.STEP_REASON_PARAM) is None)
 
     print("\n=== a sub-workflow step that failed during this very cycle is not missed ===")
     # The staleness regression. The list read before the steps were processed says running with no
@@ -522,6 +570,8 @@ def main():
     )
     failures += not check("the workflow still fails", workflow_spec.status == WorkflowStatus.failed, workflow_spec.status)
     failures += not check("the step is not reported unreachable", workflow_spec.get_parameter(workflow_core.UNCANCELLED_STEPS_PARAM) is None)
+    stubborn_reason = interface.tbif.get_workflow_step(stubborn.step_id).get_parameter(workflow_core.STEP_REASON_PARAM)
+    failures += not check("the row admits the target was not cancelled", stubborn_reason and "target was not cancelled" in stubborn_reason, stubborn_reason)
 
     print("\n=== a step that cannot be locked is named on the workflow ===")
     held = FakeStep("deriv_phys", WFStepStatus.running, target_id="48810720")

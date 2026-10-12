@@ -7,7 +7,7 @@ name still holding ${TASKID} must be reported as non-existent rather than as "no
 no change leaves the data in checking forever, which leaves the step in checking and the workflow in
 starting.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/data_handler_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/data_handler_test.py
 """
 
 import os

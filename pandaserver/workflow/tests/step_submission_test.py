@@ -5,7 +5,7 @@ Covers the pieces that turn a parsed step into a queued task: resolving input da
 against the datasets actually produced upstream, refusing a production label without the role,
 resolving the late-bound task ID into the step's output dataset names, and the task status mapping.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/step_submission_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/step_submission_test.py
 """
 
 import copy
@@ -197,7 +197,7 @@ def check(label, condition, detail=""):
 
 def main():
     failures = 0
-    wfd = json.load(open(os.path.join(os.path.dirname(__file__), "production_chain_wfd.json")))
+    wfd = json.load(open(os.path.join(os.path.dirname(__file__), "..", "examples", "production_chain_wfd.json")))
     # the simul step consumes {merge_evnt/EVNT} and produces one HITS dataset
     simul_params = copy.deepcopy(wfd["steps"]["simul"]["task_params"])
     # resolve ${WFID} the way registration would, so this works whether or not the description uses it
