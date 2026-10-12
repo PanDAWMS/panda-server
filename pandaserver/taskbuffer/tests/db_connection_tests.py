@@ -1,14 +1,11 @@
-# Description: Unit tests for the call timeout of DBProxy connections and the connection
-# options of DBProxyPool and TaskBuffer.init. No database is used: the drivers are replaced
+# Description: Unit tests for the call timeout of DBProxy connections. No database is used:
+# the drivers are replaced
 import unittest
 from typing import Any, cast
 from unittest import mock
 
 from pandaserver.config import panda_config
-from pandaserver.srvcore.exceptions import DatabaseConnectionError
-from pandaserver.taskbuffer import DBProxyPool as db_proxy_pool_module
 from pandaserver.taskbuffer import OraDBProxy, WrappedPostgresConn, wrapped_oracle_conn
-from pandaserver.taskbuffer import TaskBuffer as task_buffer_module
 
 
 class FakeDriverConnection:
@@ -139,78 +136,6 @@ class TestMySQLCallTimeout(ProxyTestBase):
     def test_refused(self) -> None:
         self.assertFalse(self.connect(30000))
         self.assertEqual(self.driver_connections, [])
-
-
-class FakePoolProxy:
-    # stands in for DBProxy in DBProxyPool, connecting after the given number of failures
-    failures_left = 0
-    instances: list["FakePoolProxy"] = []
-
-    def __init__(self) -> None:
-        self.connect_calls: list[dict[str, Any]] = []
-        self.cleaned_up = False
-        FakePoolProxy.instances.append(self)
-
-    def connect(self, dbhost: str, dbpasswd: str, **kwargs: Any) -> bool:
-        self.connect_calls.append(kwargs)
-        if FakePoolProxy.failures_left > 0:
-            FakePoolProxy.failures_left -= 1
-            return False
-        return True
-
-    def cleanup(self) -> None:
-        self.cleaned_up = True
-
-
-class TestDBProxyPool(unittest.TestCase):
-    def setUp(self) -> None:
-        FakePoolProxy.failures_left = 0
-        FakePoolProxy.instances = []
-        proxy_patch = mock.patch.object(db_proxy_pool_module.DBProxy, "DBProxy", FakePoolProxy)
-        proxy_patch.start()
-        self.addCleanup(proxy_patch.stop)
-        sleep_patch = mock.patch.object(db_proxy_pool_module.time, "sleep")
-        self.sleep = sleep_patch.start()
-        self.addCleanup(sleep_patch.stop)
-
-    def test_options_passed_only_when_given(self) -> None:
-        db_proxy_pool_module.DBProxyPool("host", "secret", 1)
-        self.assertEqual(FakePoolProxy.instances[0].connect_calls, [{"dbtimeout": 60}])
-        db_proxy_pool_module.DBProxyPool("host", "secret", 1, dbuser="reader", call_timeout_ms=30000)
-        self.assertEqual(FakePoolProxy.instances[1].connect_calls, [{"dbtimeout": 60, "dbuser": "reader", "call_timeout_ms": 30000}])
-
-    def test_gives_up_after_max_attempts(self) -> None:
-        FakePoolProxy.failures_left = 10
-        with self.assertRaises(DatabaseConnectionError):
-            db_proxy_pool_module.DBProxyPool("host", "secret", 1, max_connect_attempts=3)
-        proxy = FakePoolProxy.instances[0]
-        self.assertEqual(len(proxy.connect_calls), 3)
-        # no wait after the last attempt
-        self.assertEqual(self.sleep.call_count, 2)
-        self.assertTrue(proxy.cleaned_up)
-
-    def test_retries_without_max_attempts(self) -> None:
-        FakePoolProxy.failures_left = 4
-        db_proxy_pool_module.DBProxyPool("host", "secret", 1)
-        self.assertEqual(len(FakePoolProxy.instances[0].connect_calls), 5)
-
-    def test_con_bridge_refuses_options(self) -> None:
-        with mock.patch.object(panda_config, "usedbtimeout", True, create=True):
-            with self.assertRaises(ValueError):
-                db_proxy_pool_module.DBProxyPool("host", "secret", 1, useTimeout=True, dbuser="reader")
-
-
-class TestTaskBufferInit(unittest.TestCase):
-    def test_options_forwarded_and_lock_released_on_failure(self) -> None:
-        pool_class = mock.Mock(side_effect=DatabaseConnectionError("down"))
-        with mock.patch.object(task_buffer_module, "DBProxyPool", pool_class):
-            task_buffer = task_buffer_module.TaskBuffer()
-            with self.assertRaises(DatabaseConnectionError):
-                task_buffer.init("host", "secret", 1, dbuser="reader", call_timeout_ms=30000, max_connect_attempts=1)
-        pool_class.assert_called_once_with("host", "secret", 1, False, dbuser="reader", call_timeout_ms=30000, max_connect_attempts=1)
-        self.assertIsNone(task_buffer.proxyPool)
-        self.assertTrue(task_buffer.lock.acquire(blocking=False))
-        task_buffer.lock.release()
 
 
 if __name__ == "__main__":

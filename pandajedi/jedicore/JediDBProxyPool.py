@@ -9,25 +9,6 @@ panda_db_proxy_pool.DBProxy = JediDBProxy  # type: ignore[attr-defined]
 
 
 class DBProxyPool(panda_db_proxy_pool.DBProxyPool):
-    # constructor. TaskBuffer.init builds the pool with the keyword arguments too, since JediTaskBuffer
-    # puts this class where TaskBuffer looks the pool up
-    def __init__(
-        self,
-        dbhost: str,
-        dbpasswd: str,
-        nConnection: int,
-        useTimeout: bool = False,
-        dbuser: str | None = None,
-        call_timeout_ms: int | None = None,
-        max_connect_attempts: int | None = None,
-    ) -> None:
-        panda_db_proxy_pool.DBProxyPool.__init__(
-            self,
-            dbhost,
-            dbpasswd,
-            nConnection,
-            useTimeout,
-            dbuser=dbuser,
-            call_timeout_ms=call_timeout_ms,
-            max_connect_attempts=max_connect_attempts,
-        )
+    # constructor
+    def __init__(self, dbhost: str, dbpasswd: str, nConnection: int, useTimeout: bool = False) -> None:
+        panda_db_proxy_pool.DBProxyPool.__init__(self, dbhost, dbpasswd, nConnection, useTimeout)

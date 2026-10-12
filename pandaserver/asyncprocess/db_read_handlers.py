@@ -4,9 +4,10 @@ Async request handler for the reads of the database, registered into processor.H
 A db_read request holds a batch of queries, whose form is in
 pandaserver.asyncprocess.db_read.request_shape. The queries run on the read-only account
 of panda_config.dbuser_reader and never on the account of the task buffer the handler is
-given, which only stores the result. They run in one read-only transaction, so every
-statement sees the database at the same moment, and the answer gives that moment as as_of,
-on the clock of the session, which is UTC.
+given, which only stores the result. Each request connects to the account and closes the
+connection when it is done, so the account has a session only while a request runs. The
+queries run in one read-only transaction, so every statement sees the database at the same
+moment, and the answer gives that moment as as_of, on the clock of the session, which is UTC.
 
 The stored result is {"success", "message", "data"}, with data {"as_of", "answers"} and one
 answer per query, in order:
@@ -37,10 +38,9 @@ again, which counts from the start of the request.
 import datetime
 import decimal
 import json
-import threading
 import time
 import traceback
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
@@ -55,12 +55,8 @@ from pandaserver.asyncprocess.db_read.request_shape import (
 )
 from pandaserver.asyncprocess.db_read.schema_info import TableNotVisible, get_table_info
 from pandaserver.config import daemon_config, panda_config
-from pandaserver.srvcore.exceptions import DatabaseConnectionError
 from pandaserver.taskbuffer.db_proxy_mods.base_module import get_db_error_code
-
-if TYPE_CHECKING:
-    from pandaserver.taskbuffer.OraDBProxy import DBProxy
-    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 REQUEST_TYPE = "db_read"
 
@@ -77,55 +73,40 @@ ENVELOPE_BYTES = 20_000
 # codes of a round trip that ran out of time
 _TIMEOUT_CODES = ("DPI-1067", "DPY-4024", "57014")
 
-# codes after which the connection is made again. A call timeout can leave an Oracle connection
-# unusable, and the others say it is gone
-_RECONNECT_CODES = ("DPI-1067", "DPY-4024", "DPI-1080", "ORA-03113", "ORA-03114", "ORA-03135", "ORA-03156", "OperationalError", "InterfaceError")
-
-_reader: "TaskBuffer | None" = None
-_reader_lock = threading.Lock()
-
 
 class ReaderUnavailable(Exception):
-    """The read-only account is not configured."""
+    """The read-only account is not configured, or does not connect."""
 
 
 class _DeadlinePassed(Exception):
     """No time is left for the next round trip."""
 
 
-def _get_reader() -> "TaskBuffer":
+def _connect_reader() -> DBProxy:
     """
-    Get the task buffer of the read-only account, connecting it on first use.
+    Connect to the read-only account for one request.
+
+    The daemon master does not start async_request_daemon while a run of it goes on, so a machine
+    has at most one such connection, and only while a request runs. There is one attempt: the
+    handler runs under a deadline, and the caller can submit again.
 
     Returns:
-        TaskBuffer: the task buffer, with one connection
+        DBProxy: the connected proxy, to be closed with cleanup()
 
     Raises:
-        ReaderUnavailable: when panda_config has no dbuser_reader
-        DatabaseConnectionError: when the connection fails
+        ReaderUnavailable: when panda_config has no dbuser_reader, or the connection fails
     """
-    global _reader
     if not panda_config.dbuser_reader:
         raise ReaderUnavailable("dbuser_reader is not set in panda_server.cfg")
-    with _reader_lock:
-        if _reader is None:
-            from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
-
-            reader = TaskBuffer()
-            # one attempt only: the handler runs under a deadline, and the caller can submit again.
-            # ConBridge is not used, since it connects with the default account
-            reader.init(
-                panda_config.dbhost_reader or panda_config.dbhost,
-                panda_config.dbpasswd_reader or "",
-                nDBConnection=1,
-                useTimeout=False,
-                requester=REQUEST_TYPE,
-                dbuser=panda_config.dbuser_reader,
-                call_timeout_ms=panda_config.db_read_call_timeout * 1000,
-                max_connect_attempts=1,
-            )
-            _reader = reader
-        return _reader
+    proxy = DBProxy()
+    if not proxy.connect(
+        dbhost=panda_config.dbhost_reader or panda_config.dbhost,
+        dbpasswd=panda_config.dbpasswd_reader or "",
+        dbuser=panda_config.dbuser_reader,
+        call_timeout_ms=panda_config.db_read_call_timeout * 1000,
+    ):
+        raise ReaderUnavailable(f"{panda_config.dbuser_reader} failed to connect")
+    return proxy
 
 
 def batch_deadline(request_started: float, cycle_started: float | None, daemon_timeout: int, stale_seconds: int) -> float:
@@ -174,7 +155,7 @@ def _rejected(rejection: QueryRejected) -> dict[str, Any]:
 class _Batch:
     """The queries of one request, on one connection of the read-only account."""
 
-    def __init__(self, proxy: "DBProxy", deadline: float, budget: int, tmp_logger: LogWrapper) -> None:
+    def __init__(self, proxy: DBProxy, deadline: float, budget: int, tmp_logger: LogWrapper) -> None:
         self.proxy = proxy
         self.backend = proxy.backend
         self.deadline = deadline
@@ -216,21 +197,12 @@ class _Batch:
         self.limit_round_trip()
         return self.proxy.get_db_utc_now()
 
-    def finish(self) -> None:
-        try:
-            self.proxy.conn.rollback()
-            self.proxy.set_call_timeout(None)
-        except Exception:
-            self.tmp_logger.warning(f"failed to end the read-only transaction: {traceback.format_exc()}")
-
-    def recover(self, code: str) -> None:
+    def rollback(self) -> None:
+        # the connection is closed after the request, so a rollback is all an error or the end needs
         try:
             self.proxy.conn.rollback()
         except Exception:
-            pass
-        if code in _RECONNECT_CODES:
-            self.tmp_logger.debug(f"reconnecting after {code}")
-            self.proxy.connect(reconnect=True)
+            self.tmp_logger.warning(f"failed to roll back: {traceback.format_exc()}")
 
     def values_of(self, reference: FromQuery) -> list[Any]:
         # the values of a column over every table of an answer, each once, nulls left out
@@ -323,9 +295,9 @@ class _Batch:
                     self.tmp_logger.error(f"query {position} failed with {code}: {traceback.format_exc()}")
                     answer = {"status": "error", "code": code, "message": str(error)[:1000]}
                     self.stopped = {"status": "error", "code": "not_run", "message": f"not run after the error of query {position}"}
-                self.recover(code)
+                self.rollback()
             self.answers.append(answer)
-        self.finish()
+        self.rollback()
         return {"as_of": encode_value(as_of), "answers": self.answers}
 
 
@@ -364,19 +336,19 @@ def _run(parameters: dict[str, Any], started: float, tmp_logger: LogWrapper) -> 
             None,
         )
     try:
-        reader = _get_reader()
-    except (ReaderUnavailable, DatabaseConnectionError) as error:
+        proxy = _connect_reader()
+    except ReaderUnavailable as error:
         return False, f"the read-only account is not available: {error}", None
-    with reader.proxyPool.get() as proxy:
-        batch = _Batch(proxy, deadline, panda_config.db_read_probe_budget, tmp_logger)
+    try:
         try:
-            data = batch.run(queries)
+            data = _Batch(proxy, deadline, panda_config.db_read_probe_budget, tmp_logger).run(queries)
         except Exception as error:
             # only the start of the transaction gets here, every query catching its own errors
             code = get_db_error_code(error)
             tmp_logger.error(f"failed to start the read-only transaction with {code}: {traceback.format_exc()}")
-            batch.recover(code)
             return False, f"the read-only transaction could not start: {code}", None
+    finally:
+        proxy.cleanup()
     seconds = round(time.monotonic() - started, 3)
     tmp_logger.info(f"db_read by {parameters.get('requester')} in {seconds} s: {json.dumps(_summary(data['answers']))}")
     return True, "", data

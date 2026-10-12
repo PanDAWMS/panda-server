@@ -5,8 +5,7 @@ import decimal
 import json
 import time
 import unittest
-from collections.abc import Callable, Generator
-from contextlib import contextmanager
+from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
 from unittest import mock
@@ -46,7 +45,7 @@ class FakeProxy:
         self.cur = FakeCursor(answer)
         self.conn = mock.Mock()
         self.timeouts: list[int | None] = []
-        self.reconnects = 0
+        self.closed = False
 
     def set_call_timeout(self, timeout_ms: int | None) -> None:
         self.timeouts.append(timeout_ms)
@@ -54,9 +53,8 @@ class FakeProxy:
     def get_db_utc_now(self) -> datetime.datetime:
         return AS_OF
 
-    def connect(self, reconnect: bool = False) -> bool:
-        self.reconnects += 1
-        return True
+    def cleanup(self) -> None:
+        self.closed = True
 
 
 TABLE_ROWS: dict[str, list[tuple[Any, ...]]] = {
@@ -106,11 +104,11 @@ class TestBatch(BatchTestBase):
         self.assertTrue(proxy.cur.executed[0][0].startswith("SET TRANSACTION READ ONLY"))
         self.assertEqual(proxy.cur.executed[-1][1], {":r0": 10, ":r1": 11})
         # each round trip after the first statement, as_of and the two queries, is limited to the time
-        # left, which DBProxy.set_call_timeout cuts down to the connection's own limit; the end puts that back
-        self.assertEqual(len(proxy.timeouts), 4)
-        self.assertTrue(all(timeout is not None and 0 < timeout <= 300000 for timeout in proxy.timeouts[:-1]))
-        self.assertIsNone(proxy.timeouts[-1])
-        self.assertGreaterEqual(proxy.conn.rollback.call_count, 2)
+        # left, which DBProxy.set_call_timeout cuts down to the connection's own limit
+        self.assertEqual(len(proxy.timeouts), 3)
+        self.assertTrue(all(timeout is not None and 0 < timeout <= 300000 for timeout in proxy.timeouts))
+        # before the read-only transaction, and at its end
+        self.assertEqual(proxy.conn.rollback.call_count, 2)
 
     def test_truncation_reaches_what_takes_values_from_it(self) -> None:
         data, _, _ = self.run_batch([dict(Q_JOBS, limit=2), Q_TASKS])
@@ -142,7 +140,6 @@ class TestBatch(BatchTestBase):
         failed, after = data["answers"]
         self.assertEqual((failed["status"], failed["code"]), ("error", "ORA-00942"))
         self.assertEqual((after["status"], after["code"]), ("error", "not_run"))
-        self.assertEqual(proxy.reconnects, 0)
 
     def test_deadline(self) -> None:
         batch_box: list[_Batch] = []
@@ -168,11 +165,9 @@ class TestBatch(BatchTestBase):
         # the connection's own limit ran out: the query is too heavy
         data, proxy, _ = self.run_batch([Q_JOBS, Q_TASKS], answer=answer)
         self.assertEqual([(a["status"], a.get("code")) for a in data["answers"]], [("error", "DPI-1067"), ("error", "not_run")])
-        self.assertEqual(proxy.reconnects, 1)
         # the time left ran out first: the batch had no time for it
         data, proxy, _ = self.run_batch([Q_JOBS, Q_TASKS], answer=answer, seconds=5)
         self.assertEqual([a["status"] for a in data["answers"]], ["deadline", "deadline"])
-        self.assertEqual(proxy.reconnects, 1)
 
     def test_result_size(self) -> None:
         # room for the statement and one row
@@ -219,13 +214,8 @@ class TestRun(BatchTestBase):
     def setUp(self) -> None:
         super().setUp()
         self.proxy = FakeProxy(table_answer)
-
-        @contextmanager
-        def get() -> Generator[FakeProxy, None, None]:
-            yield self.proxy
-
         patches: list[Any] = [
-            mock.patch.object(db_read_handlers, "_get_reader", return_value=SimpleNamespace(proxyPool=SimpleNamespace(get=get))),
+            mock.patch.object(db_read_handlers, "_connect_reader", side_effect=lambda: self.proxy),
             mock.patch.object(daemon_config, "find_daemon", return_value={"period": 10, "timeout": 300}),
             mock.patch.object(panda_config, "backend", "oracle"),
             mock.patch.object(panda_config, "db_read_probe_budget", 1000, create=True),
@@ -244,6 +234,17 @@ class TestRun(BatchTestBase):
         line = logger.info.call_args[0][0]
         self.assertIn("db_read by alice", line)
         self.assertIn('"probes": 3', line)
+        # the connection lasts as long as the request
+        self.assertTrue(self.proxy.closed)
+
+    def test_closed_when_the_transaction_does_not_start(self) -> None:
+        def answer(sql: str, binds: dict[str, Any]) -> list[tuple[Any, ...]]:
+            raise RuntimeError("ORA-01031: insufficient privileges")
+
+        self.proxy = FakeProxy(answer)
+        success, message, _ = db_read_handlers._run({"queries": [Q_JOBS]}, time.monotonic(), mock.Mock())
+        self.assertEqual((success, message), (False, "the read-only transaction could not start: ORA-01031"))
+        self.assertTrue(self.proxy.closed)
 
     def test_refusals(self) -> None:
         logger = mock.Mock()
@@ -262,31 +263,28 @@ class TestReader(unittest.TestCase):
     def test_not_configured(self) -> None:
         with mock.patch.object(panda_config, "dbuser_reader", None, create=True):
             with self.assertRaises(db_read_handlers.ReaderUnavailable):
-                db_read_handlers._get_reader()
+                db_read_handlers._connect_reader()
 
-    def test_connected_once_with_the_reader_options(self) -> None:
-        task_buffer_class = mock.Mock()
+    def test_connected_for_each_request(self) -> None:
+        proxy_class = mock.Mock()
+        proxy_class.return_value.connect.return_value = True
         with (
-            mock.patch.object(db_read_handlers, "_reader", None),
+            mock.patch.object(db_read_handlers, "DBProxy", proxy_class),
             mock.patch.object(panda_config, "dbuser_reader", "ATLAS_PANDA_READER", create=True),
             mock.patch.object(panda_config, "dbpasswd_reader", "secret", create=True),
             mock.patch.object(panda_config, "dbhost_reader", None, create=True),
             mock.patch.object(panda_config, "dbhost", "ADCR", create=True),
             mock.patch.object(panda_config, "db_read_call_timeout", 30, create=True),
-            mock.patch("pandaserver.taskbuffer.TaskBuffer.TaskBuffer", task_buffer_class),
         ):
-            first = db_read_handlers._get_reader()
-            self.assertIs(db_read_handlers._get_reader(), first)
-        task_buffer_class.return_value.init.assert_called_once_with(
-            "ADCR",
-            "secret",
-            nDBConnection=1,
-            useTimeout=False,
-            requester="db_read",
-            dbuser="ATLAS_PANDA_READER",
-            call_timeout_ms=30000,
-            max_connect_attempts=1,
-        )
+            db_read_handlers._connect_reader()
+            db_read_handlers._connect_reader()
+            self.assertEqual(proxy_class.call_count, 2)
+            proxy_class.return_value.connect.assert_called_with(dbhost="ADCR", dbpasswd="secret", dbuser="ATLAS_PANDA_READER", call_timeout_ms=30000)
+            # one attempt
+            proxy_class.return_value.connect.return_value = False
+            with self.assertRaises(db_read_handlers.ReaderUnavailable):
+                db_read_handlers._connect_reader()
+        self.assertEqual(proxy_class.return_value.connect.call_count, 3)
 
 
 class TestHandler(unittest.TestCase):
