@@ -18,3 +18,8 @@ class SubscriptionRegistrationError(Exception):
 # raised when Rucio rejects a dataset location registration (invalid RSE expression / insufficient quota)
 class DatasetLocationError(Exception):
     pass
+
+
+# raised when a DBProxyPool built with a cap on connection attempts gives up connecting
+class DatabaseConnectionError(Exception):
+    pass

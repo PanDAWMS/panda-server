@@ -61,19 +61,35 @@ class TaskBuffer:
         return "TaskBuffer"
 
     # initialize
-    def init(self, dbname: str, dbpass: str, nDBConnection: int = 10, useTimeout: bool = False, requester: str | None = None) -> None:
-        # acquire lock
-        self.lock.acquire()
-        self.nDBConnection = nDBConnection
+    def init(
+        self,
+        dbname: str,
+        dbpass: str,
+        nDBConnection: int = 10,
+        useTimeout: bool = False,
+        requester: str | None = None,
+        dbuser: str | None = None,
+        call_timeout_ms: int | None = None,
+        max_connect_attempts: int | None = None,
+    ) -> None:
+        # dbuser, call_timeout_ms and max_connect_attempts are passed to DBProxyPool, which says what
+        # they do. The lock is held with `with` since the pool raises once it gives up connecting
+        with self.lock:
+            self.nDBConnection = nDBConnection
 
-        # create Proxy Pool
-        if self.proxyPool is None:
-            _logger.info(f"creating DBProxyPool with n_connections={nDBConnection} on behalf of {requester}")
-            self.start_time = time.time()
-            self.proxyPool = DBProxyPool(dbname, dbpass, nDBConnection, useTimeout)
-
-        # release lock
-        self.lock.release()
+            # create Proxy Pool
+            if self.proxyPool is None:
+                _logger.info(f"creating DBProxyPool with n_connections={nDBConnection} on behalf of {requester}")
+                self.start_time = time.time()
+                self.proxyPool = DBProxyPool(
+                    dbname,
+                    dbpass,
+                    nDBConnection,
+                    useTimeout,
+                    dbuser=dbuser,
+                    call_timeout_ms=call_timeout_ms,
+                    max_connect_attempts=max_connect_attempts,
+                )
 
     # cleanup
     def cleanup(self, requester: str | None = None) -> None:

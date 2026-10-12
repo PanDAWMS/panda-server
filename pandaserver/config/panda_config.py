@@ -92,6 +92,7 @@ token_audience: str
 token_cache_config: str
 wn_script_base_url: str
 
+db_read_call_timeout: int
 db_read_probe_budget: int
 dbport: int
 dbtimeout: int
@@ -124,6 +125,10 @@ auth_vo_dict: dict[str, dict[str, Any]]
 
 # set to None when the cfg leaves it empty, see below
 legacy_token_issuers: list[str] | None
+# the read-only account of the async db_read requests, None when the cfg leaves it out
+dbhost_reader: str | None
+dbpasswd_reader: str | None
+dbuser_reader: str | None
 production_dns: list[str]
 # compared against None in srvcore/panda_request.py
 token_authType: str | None
@@ -155,6 +160,19 @@ if "dbtimeout" not in tmpSelf.__dict__:
 # most index lookups (keys x partitions touched) one request of the read APIs may cost
 if "db_read_probe_budget" not in tmpSelf.__dict__:
     tmpSelf.__dict__["db_read_probe_budget"] = 1000
+
+# read-only account the async db_read requests connect with. Without dbuser_reader those requests
+# are refused rather than run on dbuser. dbhost_reader falls back to dbhost
+if "dbhost_reader" not in tmpSelf.__dict__:
+    tmpSelf.__dict__["dbhost_reader"] = None
+if "dbuser_reader" not in tmpSelf.__dict__:
+    tmpSelf.__dict__["dbuser_reader"] = None
+if "dbpasswd_reader" not in tmpSelf.__dict__:
+    tmpSelf.__dict__["dbpasswd_reader"] = None
+
+# most seconds one round trip of an async db_read request may take on the read-only account
+if "db_read_call_timeout" not in tmpSelf.__dict__:
+    tmpSelf.__dict__["db_read_call_timeout"] = 30
 
 # Directory for certs
 if "certdir" not in tmpSelf.__dict__:

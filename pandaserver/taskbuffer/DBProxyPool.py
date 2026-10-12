@@ -15,6 +15,7 @@ from typing import Any
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
+from pandaserver.srvcore.exceptions import DatabaseConnectionError
 from pandaserver.taskbuffer import OraDBProxy as DBProxy
 from pandaserver.taskbuffer.ConBridge import ConBridge
 
@@ -29,7 +30,37 @@ _logger = PandaLogger().getLogger("DBProxyPool")
 
 
 class DBProxyPool:
-    def __init__(self, dbhost: str, dbpasswd: str, nConnection: int, useTimeout: bool = False, dbProxyClass: type[Any] | None = None) -> None:
+    def __init__(
+        self,
+        dbhost: str,
+        dbpasswd: str,
+        nConnection: int,
+        useTimeout: bool = False,
+        dbProxyClass: type[Any] | None = None,
+        dbuser: str | None = None,
+        call_timeout_ms: int | None = None,
+        max_connect_attempts: int | None = None,
+    ) -> None:
+        """
+        Connect the proxies of the pool.
+
+        Args:
+            dbuser(str): account to connect with, or None for panda_config.dbuser
+            call_timeout_ms(int): most milliseconds one round trip may take, or None for no limit
+            max_connect_attempts(int): how many times to try connecting each proxy before giving up
+                with DatabaseConnectionError, or None to keep trying until it connects
+
+        Raises:
+            ValueError: when dbuser or call_timeout_ms is given to a pool that would use ConBridge,
+                whose child connects with the defaults
+            DatabaseConnectionError: when a proxy cannot connect within max_connect_attempts
+        """
+        # options for DBProxy.connect, passed only when given so that its defaults apply otherwise
+        connect_options: dict[str, Any] = {}
+        if dbuser is not None:
+            connect_options["dbuser"] = dbuser
+        if call_timeout_ms is not None:
+            connect_options["call_timeout_ms"] = call_timeout_ms
         # crate lock for callers
         self.lock = Lock()
         self.callers: list[Any] = []
@@ -47,6 +78,8 @@ class DBProxyPool:
                 ConBridge allows having database interactions in separate processes and killing them independently when interactions are stalled.
                 This avoids clogged httpd processes due to stalled database accesses.
                 """
+                if connect_options:
+                    raise ValueError(f"ConBridge connects with the default account and no call timeout, so it cannot take {sorted(connect_options)}")
                 # ConBridge is not a DBProxy subclass, but it answers to the same method set:
                 # its __getattribute__ forwards a name only when DBProxy has it and it is a
                 # method, so the divergence is `connect` (which it defines itself, minus the
@@ -57,10 +90,14 @@ class DBProxyPool:
                 self.connList.append(proxy)
             iTry = 0
             while True:
-                if proxy.connect(dbhost, dbpasswd, dbtimeout=60):
+                if proxy.connect(dbhost, dbpasswd, dbtimeout=60, **connect_options):
                     break
                 iTry += 1
                 _logger.debug(f"failed -> {i} : try {iTry}")
+                if max_connect_attempts is not None and iTry >= max_connect_attempts:
+                    # close the plain DBProxy connections already made, the ones cleanup() knows of
+                    self.cleanup()
+                    raise DatabaseConnectionError(f"proxy {i} failed to connect in {iTry} attempts")
                 time.sleep(random.randint(60, 90))
             self.proxyList.put(proxy)
             time.sleep(1)

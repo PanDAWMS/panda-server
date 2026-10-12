@@ -91,6 +91,15 @@ dump_sql = False
 # dump in cursor
 cursor_dump = False
 
+# read-only account for the async db_read requests (/v1/async_process/submit_db_read_request).
+# Without dbuser_reader those requests are refused. dbhost_reader defaults to dbhost
+#dbhost_reader = ADCR_PANDA
+#dbuser_reader = ATLAS_PANDA_READER
+#dbpasswd_reader = FIXME
+
+# most seconds one round trip on the read-only account may take. Defaults to 30
+#db_read_call_timeout = 30
+
 
 
 ##########################
