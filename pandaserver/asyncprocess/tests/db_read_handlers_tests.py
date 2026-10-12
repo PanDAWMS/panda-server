@@ -14,6 +14,7 @@ from pandaserver.asyncprocess import db_read_handlers
 from pandaserver.asyncprocess.db_read_handlers import _Batch, batch_deadline, encode_value
 from pandaserver.asyncprocess.tests.db_read_tests import INFOS
 from pandaserver.config import daemon_config, panda_config
+from pandaserver.srvcore.exceptions import DBReaderUnavailableError
 
 AS_OF = datetime.datetime(2026, 10, 12, 12, 0, 0)
 D0 = datetime.datetime(2026, 10, 1)
@@ -262,7 +263,7 @@ class TestRun(BatchTestBase):
 class TestReader(unittest.TestCase):
     def test_not_configured(self) -> None:
         with mock.patch.object(panda_config, "dbuser_reader", None, create=True):
-            with self.assertRaises(db_read_handlers.ReaderUnavailable):
+            with self.assertRaises(DBReaderUnavailableError):
                 db_read_handlers._connect_reader()
 
     def test_connected_for_each_request(self) -> None:
@@ -282,7 +283,7 @@ class TestReader(unittest.TestCase):
             proxy_class.return_value.connect.assert_called_with(dbhost="ADCR", dbpasswd="secret", dbuser="ATLAS_PANDA_READER", call_timeout_ms=30000)
             # one attempt
             proxy_class.return_value.connect.return_value = False
-            with self.assertRaises(db_read_handlers.ReaderUnavailable):
+            with self.assertRaises(DBReaderUnavailableError):
                 db_read_handlers._connect_reader()
         self.assertEqual(proxy_class.return_value.connect.call_count, 3)
 
@@ -296,6 +297,22 @@ class TestHandler(unittest.TestCase):
             db_read_handlers._handle_db_read(self.ROW, task_buffer, mock.Mock(), "any")
         task_buffer.finish_async_result.assert_called_once_with(
             "some-uuid", "any", "done", result=json.dumps({"success": False, "message": "no time left", "data": None})
+        )
+
+    def test_reader_not_configured(self) -> None:
+        # the request is done, saying why its queries did not run, and nothing connects
+        task_buffer = mock.Mock()
+        with (
+            mock.patch.object(daemon_config, "find_daemon", return_value={"period": 10, "timeout": 300}),
+            mock.patch.object(panda_config, "backend", "oracle"),
+            mock.patch.object(panda_config, "dbuser_reader", None, create=True),
+            mock.patch.object(db_read_handlers, "DBProxy") as proxy_class,
+        ):
+            db_read_handlers._handle_db_read(self.ROW, task_buffer, mock.Mock(), "any")
+        proxy_class.assert_not_called()
+        message = "the read-only account is not available: dbuser_reader is not set in panda_server.cfg"
+        task_buffer.finish_async_result.assert_called_once_with(
+            "some-uuid", "any", "done", result=json.dumps({"success": False, "message": message, "data": None})
         )
 
     def test_crash_is_stored_as_failed(self) -> None:

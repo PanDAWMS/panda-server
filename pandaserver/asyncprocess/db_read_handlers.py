@@ -55,6 +55,7 @@ from pandaserver.asyncprocess.db_read.request_shape import (
 )
 from pandaserver.asyncprocess.db_read.schema_info import TableNotVisible, get_table_info
 from pandaserver.config import daemon_config, panda_config
+from pandaserver.srvcore.exceptions import DBReadDeadlineError, DBReaderUnavailableError
 from pandaserver.taskbuffer.db_proxy_mods.base_module import get_db_error_code
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
@@ -74,14 +75,6 @@ ENVELOPE_BYTES = 20_000
 _TIMEOUT_CODES = ("DPI-1067", "DPY-4024", "57014")
 
 
-class ReaderUnavailable(Exception):
-    """The read-only account is not configured, or does not connect."""
-
-
-class _DeadlinePassed(Exception):
-    """No time is left for the next round trip."""
-
-
 def _connect_reader() -> DBProxy:
     """
     Connect to the read-only account for one request.
@@ -94,10 +87,10 @@ def _connect_reader() -> DBProxy:
         DBProxy: the connected proxy, to be closed with cleanup()
 
     Raises:
-        ReaderUnavailable: when panda_config has no dbuser_reader, or the connection fails
+        DBReaderUnavailableError: when panda_config has no dbuser_reader, or the connection fails
     """
     if not panda_config.dbuser_reader:
-        raise ReaderUnavailable("dbuser_reader is not set in panda_server.cfg")
+        raise DBReaderUnavailableError("dbuser_reader is not set in panda_server.cfg")
     proxy = DBProxy()
     if not proxy.connect(
         dbhost=panda_config.dbhost_reader or panda_config.dbhost,
@@ -105,7 +98,7 @@ def _connect_reader() -> DBProxy:
         dbuser=panda_config.dbuser_reader,
         call_timeout_ms=panda_config.db_read_call_timeout * 1000,
     ):
-        raise ReaderUnavailable(f"{panda_config.dbuser_reader} failed to connect")
+        raise DBReaderUnavailableError(f"{panda_config.dbuser_reader} failed to connect")
     return proxy
 
 
@@ -173,7 +166,7 @@ class _Batch:
     def limit_round_trip(self) -> None:
         left_ms = int((self.deadline - time.monotonic()) * 1000)
         if left_ms < 1:
-            raise _DeadlinePassed()
+            raise DBReadDeadlineError()
         cap_ms = self.proxy.call_timeout_ms
         self.limited_by_deadline = cap_ms is None or left_ms < cap_ms
         self.proxy.set_call_timeout(left_ms)
@@ -283,7 +276,7 @@ class _Batch:
                 continue
             try:
                 answer = self.answer(position, raw)
-            except _DeadlinePassed:
+            except DBReadDeadlineError:
                 answer = {"status": "deadline"}
                 self.stopped = answer
             except Exception as error:
@@ -337,7 +330,7 @@ def _run(parameters: dict[str, Any], started: float, tmp_logger: LogWrapper) -> 
         )
     try:
         proxy = _connect_reader()
-    except ReaderUnavailable as error:
+    except DBReaderUnavailableError as error:
         return False, f"the read-only account is not available: {error}", None
     try:
         try:
