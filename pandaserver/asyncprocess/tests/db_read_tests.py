@@ -3,7 +3,9 @@
 import datetime
 import unittest
 from typing import Any
+from unittest import mock
 
+from pandaserver.asyncprocess.db_read import schema_info
 from pandaserver.asyncprocess.db_read.compose import compose_statement, escape_prefix
 from pandaserver.asyncprocess.db_read.request_shape import (
     MAX_KEYS,
@@ -18,11 +20,15 @@ from pandaserver.asyncprocess.db_read.request_shape import (
 from pandaserver.asyncprocess.db_read.schema_info import (
     KIND_LOB,
     KIND_NUMBER,
+    KIND_OTHER,
     KIND_TEXT,
     KIND_TIME,
     IndexInfo,
     PartitionInfo,
     TableInfo,
+    TableNotVisible,
+    get_table_info,
+    read_table_info,
 )
 from pandaserver.taskbuffer.WrappedCursor import convert_query_in_printf_format
 
@@ -362,6 +368,157 @@ class TestCompose(unittest.TestCase):
 
     def test_escape_prefix(self) -> None:
         self.assertEqual(escape_prefix("a_b%c!"), "a!_b!%c!!%")
+
+
+def oracle_date(day: str) -> str:
+    return f"TO_DATE(' {day} 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'NLS_CALENDAR=GREGORIAN')"
+
+
+class FakeDictionary:
+    # answers the statements of schema_info by the view each reads from, the one after FROM
+    def __init__(self, answers: dict[str, list[tuple[Any, ...]]]) -> None:
+        self.answers = answers
+        self.statements: list[tuple[str, dict[str, Any]]] = []
+
+    def __call__(self, sql: str, binds: dict[str, Any]) -> list[tuple[Any, ...]]:
+        self.statements.append((sql, binds))
+        for view, rows in self.answers.items():
+            if f"FROM {view} " in sql:
+                return rows
+        return []
+
+
+class TestSchemaInfo(unittest.TestCase):
+    def setUp(self) -> None:
+        schema_info._cache.clear()
+
+    def test_oracle_time_partitions(self) -> None:
+        run = FakeDictionary(
+            {
+                "ALL_TAB_COLUMNS": [
+                    ("PANDAID", "NUMBER"),
+                    ("MODIFICATIONTIME", "DATE"),
+                    ("JOBSTATUS", "VARCHAR2"),
+                    ("STARTTIME", "TIMESTAMP(6)"),
+                    ("JOBPARAMETERS", "CLOB"),
+                    ("ROWID_X", "RAW"),
+                ],
+                # the hidden column of an index on an expression
+                "ALL_INDEXES": [("PANDAID", "LOCAL"), ("SYS_NC00034$", "LOCAL"), ("JOBSTATUS", None)],
+                "ALL_TABLES": [(12345,)],
+                "ALL_PART_TABLES": [("RANGE",)],
+                "ALL_PART_KEY_COLUMNS": [("MODIFICATIONTIME",)],
+                "ALL_TAB_PARTITIONS": [(oracle_date("2012-08-01"),), (oracle_date("2026-10-02"),), ("TIMESTAMP' 2026-10-03 00:00:00'",)],
+            }
+        )
+        info = read_table_info(run, "oracle", "atlas_panda", "jobsArchived4")
+        self.assertEqual((info.owner, info.table_name), ("ATLAS_PANDA", "JOBSARCHIVED4"))
+        self.assertEqual(
+            info.columns,
+            {
+                "pandaid": KIND_NUMBER,
+                "modificationtime": KIND_TIME,
+                "jobstatus": KIND_TEXT,
+                "starttime": KIND_TIME,
+                "jobparameters": KIND_LOB,
+                "rowid_x": KIND_OTHER,
+            },
+        )
+        self.assertEqual(info.indexes, (IndexInfo("pandaid", True), IndexInfo("jobstatus", False)))
+        self.assertEqual(info.num_rows, 12345)
+        self.assertEqual(
+            info.partitioning,
+            PartitionInfo(
+                "modificationtime",
+                (
+                    (None, datetime.datetime(2012, 8, 1)),
+                    (datetime.datetime(2012, 8, 1), datetime.datetime(2026, 10, 2)),
+                    (datetime.datetime(2026, 10, 2), datetime.datetime(2026, 10, 3)),
+                ),
+            ),
+        )
+        self.assertEqual(run.statements[0][1], {":owner": "ATLAS_PANDA", ":table_name": "JOBSARCHIVED4"})
+
+    def test_oracle_number_partitions(self) -> None:
+        run = FakeDictionary(
+            {
+                "ALL_TAB_COLUMNS": [("JEDITASKID", "NUMBER"), ("STATUS", "VARCHAR2")],
+                "ALL_INDEXES": [("JEDITASKID", "LOCAL")],
+                "ALL_TABLES": [(None,)],
+                "ALL_PART_TABLES": [("RANGE",)],
+                "ALL_PART_KEY_COLUMNS": [("JEDITASKID",)],
+                "ALL_TAB_PARTITIONS": [("500000",), ("1000000",), ("MAXVALUE",)],
+            }
+        )
+        info = read_table_info(run, "oracle", "ATLAS_PANDA", "JEDI_Tasks")
+        self.assertIsNone(info.num_rows)
+        assert info.partitioning is not None
+        self.assertEqual(info.partitioning.bounds, ((None, 500000), (500000, 1000000), (1000000, None)))
+
+    def test_oracle_other_partitioning(self) -> None:
+        # list partitions, whose bounds say nothing of a range
+        run = FakeDictionary(
+            {
+                "ALL_TAB_COLUMNS": [("ID", "NUMBER"), ("VO", "VARCHAR2")],
+                "ALL_PART_TABLES": [("LIST",)],
+                "ALL_PART_KEY_COLUMNS": [("VO",)],
+                "ALL_TAB_PARTITIONS": [("'atlas'",), ("'other'",)],
+            }
+        )
+        info = read_table_info(run, "oracle", "ATLAS_PANDA", "T")
+        self.assertEqual(info.partitioning, PartitionInfo("vo", ((None, None), (None, None))))
+
+    def test_postgres(self) -> None:
+        run = FakeDictionary(
+            {
+                "information_schema.columns": [
+                    ("pandaid", "bigint"),
+                    ("modificationtime", "timestamp without time zone"),
+                    ("jobstatus", "character varying"),
+                    ("metadata", "jsonb"),
+                ],
+                "pg_class": [("p", -1.0, "RANGE (modificationtime)")],
+                "pg_index": [("pandaid",)],
+                "pg_inherits": [("FOR VALUES FROM ('2026-10-01 00:00:00') TO ('2026-10-02 00:00:00')",), ("DEFAULT",)],
+            }
+        )
+        info = read_table_info(run, "postgres", "DOMA_PANDA", "jobsArchived4")
+        self.assertEqual((info.owner, info.table_name), ("doma_panda", "jobsarchived4"))
+        self.assertEqual(info.columns["metadata"], KIND_LOB)
+        self.assertEqual(info.indexes, (IndexInfo("pandaid", True),))
+        self.assertIsNone(info.num_rows)
+        self.assertEqual(
+            info.partitioning,
+            PartitionInfo("modificationtime", ((datetime.datetime(2026, 10, 1), datetime.datetime(2026, 10, 2)), (None, None))),
+        )
+        # what WrappedCursor makes of the statements: the two bind variables and nothing else
+        self.assertEqual(len(run.statements), 4)
+        for sql, binds in run.statements:
+            converted, params = convert_query_in_printf_format(sql, [binds], {})
+            self.assertNotIn(":", converted)
+            self.assertEqual(params, [["doma_panda", "jobsarchived4"]])
+
+    def test_postgres_not_partitioned(self) -> None:
+        run = FakeDictionary({"information_schema.columns": [("key", "character varying")], "pg_class": [("r", 250.0, None)], "pg_index": [("key",)]})
+        info = read_table_info(run, "postgres", "doma_panda", "config")
+        self.assertEqual((info.indexes, info.partitioning, info.num_rows), ((IndexInfo("key", False),), None, 250))
+        # never analyzed
+        run.answers["pg_class"] = [("r", 0.0, None)]
+        self.assertIsNone(read_table_info(run, "postgres", "doma_panda", "config").num_rows)
+
+    def test_not_visible(self) -> None:
+        with self.assertRaises(TableNotVisible):
+            read_table_info(FakeDictionary({}), "oracle", "ATLAS_PANDAARCH", "jobsArchived")
+
+    def test_cache(self) -> None:
+        run = FakeDictionary({"ALL_TAB_COLUMNS": [("ID", "NUMBER")]})
+        with mock.patch.object(schema_info.time, "monotonic", return_value=1000.0):
+            first = get_table_info(run, "oracle", "ATLAS_PANDA", "CONFIG")
+            self.assertIs(get_table_info(run, "oracle", "atlas_panda", "config"), first)
+        n_statements = len(run.statements)
+        with mock.patch.object(schema_info.time, "monotonic", return_value=1000.0 + schema_info.CACHE_SECONDS):
+            self.assertIsNot(get_table_info(run, "oracle", "ATLAS_PANDA", "CONFIG"), first)
+        self.assertGreater(len(run.statements), n_statements)
 
 
 if __name__ == "__main__":
