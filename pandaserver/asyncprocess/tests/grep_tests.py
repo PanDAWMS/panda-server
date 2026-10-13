@@ -30,6 +30,16 @@ RECORDS = [
 ]
 
 
+def offset(first: int, lines: list[str] = RECORDS) -> int:
+    """Where line first of the lines starts in their file."""
+    return len("".join(lines[:first]))
+
+
+def record(first: int, end: int, lines: list[str] = RECORDS, head: bool = True, cut: bool = False) -> dict[str, Any]:
+    """A record of whole_records made of lines first to end - 1 of the lines."""
+    return {"offset": offset(first, lines), "head": head, "lines": [line.removesuffix("\n") for line in lines[first:end]], "cut": cut}
+
+
 @unittest.skipUnless(shutil.which("rg"), "rg is not installed")
 class TestHandleGrep(unittest.TestCase):
     def setUp(self) -> None:
@@ -94,36 +104,77 @@ class TestHandleGrep(unittest.TestCase):
             f.write("".join(RECORDS))
         for name in ("panda-a.log", "panda-a.log-20261008.gz"):
             out = self._grep(pattern="7353014619", log_filename=name, whole_records=True)
-            self.assertEqual(out["result"], "".join(RECORDS[0:6]) + RECORDS[7], name)
+            self.assertEqual(json.loads(out["result"]), {"records": [record(0, 1), record(1, 6), record(7, 8)], "window": None}, name)
             self.assertEqual((out["return_code"], out["truncated"]), (0, False), name)
 
     def test_whole_records_matching_within_a_record(self) -> None:
         # a match in the traceback of a kept record adds no line twice, and a match in the
-        # traceback of a record that does not match brings the lines after it
+        # traceback of a record that does not match brings the lines after it, without a head
         self._write("panda-a.log", "".join(RECORDS))
         out = self._grep(pattern="ddm.py|ERROR failed", log_filename="panda-a.log", whole_records=True)
-        self.assertEqual(out["result"], "".join(RECORDS[1:6]))
+        self.assertEqual(json.loads(out["result"])["records"], [record(1, 6)])
         out = self._grep(pattern="raise X", log_filename="panda-a.log", whole_records=True)
-        self.assertEqual(out["result"], "".join(RECORDS[4:6]))
+        self.assertEqual(json.loads(out["result"])["records"], [record(4, 6, head=False)])
+
+    def test_whole_records_part_after_a_record(self) -> None:
+        # a part of a record that does not match, right after one that does, stays apart from it
+        lines = [
+            "2026-10-08 00:00:01,001 adder: DEBUG start job=1\n",
+            "2026-10-08 00:00:02,001 adder: ERROR failed\n",
+            "Traceback (most recent call last):\n",
+            "  File x, in f(job=1)\n",
+            "ValueError: boom\n",
+            "2026-10-08 00:00:03,001 adder: DEBUG other\n",
+        ]
+        self._write("panda-a.log", "".join(lines))
+        out = self._grep(pattern="job=1", log_filename="panda-a.log", whole_records=True)
+        self.assertEqual(
+            json.loads(out["result"])["records"],
+            [record(0, 1, lines), record(3, 5, lines, head=False)],
+        )
 
     def test_whole_records_cut(self) -> None:
         # a record longer than the most lines taken after its match is cut, and says so
         self._write("panda-a.log", "".join(RECORDS))
         with mock.patch.object(processor, "_MAX_CONTINUATION_LINES", 2):
             out = self._grep(pattern="ERROR failed", log_filename="panda-a.log", whole_records=True)
-            self.assertEqual(out["result"], "".join(RECORDS[1:4]))
+            self.assertEqual(json.loads(out["result"])["records"], [record(1, 4, cut=True)])
             self.assertTrue(out["truncated"])
         # a record of exactly as many lines as are taken is whole
         with mock.patch.object(processor, "_MAX_CONTINUATION_LINES", 4):
             out = self._grep(pattern="ERROR failed", log_filename="panda-a.log", whole_records=True)
-            self.assertEqual(out["result"], "".join(RECORDS[1:6]))
+            self.assertEqual(json.loads(out["result"])["records"], [record(1, 6)])
             self.assertFalse(out["truncated"])
 
     def test_whole_records_in_a_tail_window(self) -> None:
+        # the window cuts the line of ddm.py, so it starts with the next line; offsets are
+        # those in the file, and the window says from which stamp records were searched whole
         self._write("panda-a.log", "".join(RECORDS))
-        tail_bytes = len("".join(RECORDS[4:]))
-        out = self._grep(pattern="raise X|7353014619", log_filename="panda-a.log", whole_records=True, tail_bytes=tail_bytes)
-        self.assertEqual(out["result"], RECORDS[4] + RECORDS[5] + RECORDS[7])
+        tail_bytes = len("".join(RECORDS[3:])) - 5
+        out = self._grep(pattern="raise X|ddm.py|7353014619", log_filename="panda-a.log", whole_records=True, tail_bytes=tail_bytes)
+        self.assertEqual(
+            json.loads(out["result"]),
+            {"records": [record(4, 6, head=False), record(7, 8)], "window": {"offset": offset(4), "first_stamp": "2026-10-08 00:00:03"}},
+        )
+
+    def test_tail_window_starts_with_a_whole_line(self) -> None:
+        self._write("panda-a.log", "".join(RECORDS))
+        out = self._grep(pattern="ddm.py|raise X", log_filename="panda-a.log", tail_bytes=len("".join(RECORDS[3:])) - 5)
+        self.assertEqual(out["result"], RECORDS[4])
+        # a window that starts right after a line break takes the line there
+        out = self._grep(pattern="ddm.py|raise X", log_filename="panda-a.log", tail_bytes=len("".join(RECORDS[3:])))
+        self.assertEqual(out["result"], RECORDS[3] + RECORDS[4])
+
+    def test_whole_records_result_size_cap(self) -> None:
+        # records are kept while they fit, and the result stays valid JSON
+        lines = [f"2026-10-08 00:00:01 line {i:06d}\n" for i in range(1000)]
+        self._write("panda-a.log", "".join(lines))
+        with mock.patch.object(processor, "_MAX_RESULT_BYTES", 3000):
+            out = self._grep(pattern="line", log_filename="panda-a.log", whole_records=True)
+        self.assertTrue(out["truncated"])
+        self.assertLessEqual(len(out["result"]), 3000)
+        records = json.loads(out["result"])["records"]
+        self.assertEqual(records, [record(i, i + 1, lines) for i in range(len(records))])
 
     def test_result_size_cap(self) -> None:
         # the matcher is stopped once no more lines fit; the kept lines are whole, and the
@@ -144,8 +195,11 @@ class TestHandleGrep(unittest.TestCase):
 
     def test_no_match(self) -> None:
         self._write("panda-a.log", "".join(RECORDS))
-        out = self._grep(pattern="nothing", log_filename="panda-a.log", whole_records=True)
+        out = self._grep(pattern="nothing", log_filename="panda-a.log")
         self.assertEqual((out["status"], out["result"], out["return_code"], out["truncated"]), ("done", "", 1, False))
+        out = self._grep(pattern="nothing", log_filename="panda-a.log", whole_records=True)
+        self.assertEqual(json.loads(out["result"]), {"records": [], "window": None})
+        self.assertEqual((out["return_code"], out["truncated"]), (1, False))
 
     def test_timeout(self) -> None:
         self._write("panda-a.log", "".join(RECORDS))

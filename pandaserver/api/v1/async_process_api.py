@@ -202,12 +202,22 @@ def submit_grep_request(
             bound that leaves the stored result unchanged; results that hit the cap come
             back with truncated set, so an incomplete answer is never read as an absent one
         tail_bytes(int): search only the last this many bytes of the file (1..1073741824),
-            which is how to ask about recent activity in a multi-gigabyte log. Ignored for
-            .gz files, where an arbitrary offset is not a valid stream
+            which is how to ask about recent activity in a multi-gigabyte log. The search starts
+            with the first whole line there. Ignored for .gz files, where an arbitrary offset is
+            not a valid stream
         whole_records(bool): give each matching line with the rest of its log record: the lines after it that do not
             start with a time stamp (YYYY-MM-DD HH:MM:SS), such as those of a traceback, up to the next line that
-            does. A record comes with at most 200 lines after its matching line, and one cut there sets truncated.
-            Defaults to False, the matching lines alone
+            does. A record comes with at most 200 lines after its matching line. The result of each machine is then
+            JSON instead of the lines: {"records": [...], "window": {...} or null}
+            - records: in the order of the file, each {"offset": int, "head": bool, "lines": [str, ...], "cut": bool}.
+              offset is the byte offset in the file, decompressed for a .gz, where the first line given starts, the
+              same in any request until the file is rotated. head is false when that line matched within the lines
+              of a record whose first line did not match, and so is not the start of its record. cut is true when
+              the record has more lines than were given, which sets truncated too. lines come without line breaks
+            - window: for tail_bytes, {"offset": int, "first_stamp": str or None}: where the search started, and
+              the time stamp of the first line from there that starts with one. Every record starting at or after
+              that line was searched whole; null without tail_bytes
+            Defaults to False, the matching lines alone as they are in the file
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.

@@ -117,16 +117,25 @@ _MAX_MAX_MATCHES = 200000
 # A log record starts with its time stamp.  The lines of a traceback, or of
 # any other message of several lines, continue it without one.
 _RECORD_START = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}")
+_RECORD_START_BYTES = re.compile(rb"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}")
 
 # Most lines a grep for whole records takes after a matching line.  A record
 # cut there makes the result come back truncated, as reaching any other cap
 # does, so that the cut record is not read as whole.
 _MAX_CONTINUATION_LINES = 200
 
-# A line of the matcher's output with -n: its number, then ":" when the line
-# matches or "-" when it is one of the lines after a match (-A).  Between lines
-# that are not adjacent comes a line of "--".
-_NUMBERED_LINE = re.compile(r"(\d+)([:-])")
+# A line of the matcher's output with -b: the byte offset at which the line
+# starts, then ":" when the line matches or "-" when it is one of the lines
+# after a match (-A).  Between lines that are not adjacent comes a line of "--".
+_OFFSET_LINE = re.compile(r"(\d+)([:-])")
+
+# Room that a record takes in the JSON of a result besides its lines, and room
+# for the rest of that JSON; both more than they ever take.
+_RECORD_JSON_BYTES = 100
+_RESULT_JSON_BYTES = 1000
+
+# Most bytes read from the start of a tail window to find its first time stamp.
+_WINDOW_STAMP_SCAN_BYTES = 1_000_000
 
 # A file opened at an arbitrary offset is not a valid gzip stream, so a tail
 # window is only meaningful on plain text.
@@ -152,14 +161,14 @@ def _bounded_matcher(log_path: str, patterns: list[str], fixed: bool, max_matche
     expression of grep, where "+" and "|" are plain characters.
 
     For whole records, each match comes with one line more than a record may
-    continue over, numbered, so that _GrepOutput can tell where a record ends
-    and whether it was cut.
+    continue over, each line with its byte offset, so that _GrepOutput can tell
+    where a record starts and ends, and whether it was cut.
     """
     cmd = ["rg", "-m", str(max_matches)]
     if fixed:
         cmd.append("-F")
     if whole_records:
-        cmd += ["-n", "-A", str(_MAX_CONTINUATION_LINES + 1)]
+        cmd += ["-b", "-A", str(_MAX_CONTINUATION_LINES + 1)]
     for pattern in patterns:
         cmd += ["-e", pattern]
     if log_path.endswith(_GZIP_SUFFIX):
@@ -168,12 +177,24 @@ def _bounded_matcher(log_path: str, patterns: list[str], fixed: bool, max_matche
 
 
 class _GrepOutput:
-    """The lines a grep keeps of the matcher's output, up to _MAX_RESULT_BYTES."""
+    """What a grep keeps of the matcher's output, up to _MAX_RESULT_BYTES.
 
-    def __init__(self, whole_records: bool) -> None:
+    The matching lines alone are kept as they come.  Whole records are kept as
+    {"offset": int, "head": bool, "lines": [str, ...], "cut": bool}, for the
+    JSON of the result: offset is where the first line given starts in the
+    file, and head tells whether that line starts the record with its time
+    stamp, or matched within the lines of a record that did not match.
+    """
+
+    def __init__(self, whole_records: bool, base_offset: int = 0) -> None:
         self.whole_records = whole_records
+        # where in the file the matcher's input starts, which a tail window moves
+        self.base_offset = base_offset
         self.lines: list[str] = []
-        self.size = 0
+        self.records: list[dict[str, Any]] = []
+        # for a tail window, where it starts and the first time stamp in it
+        self.window: dict[str, Any] | None = None
+        self.size = _RESULT_JSON_BYTES if whole_records else 0
         self.matches = 0
         # whether _MAX_RESULT_BYTES are kept, which stops the matcher
         self.full = False
@@ -188,41 +209,95 @@ class _GrepOutput:
         """Take one line of the matcher's output, and say whether more fit."""
         if not self.whole_records:
             self.matches += 1
-            return self._keep(line)
+            if not self._fits(len(line)):
+                return False
+            self.lines.append(line)
+            return True
 
-        numbered = _NUMBERED_LINE.match(line)
-        if numbered is None:
+        located = _OFFSET_LINE.match(line)
+        if located is None:
             # the "--" between lines that are not adjacent
             self._in_record = False
             return True
-        text = line[numbered.end() :]
+        text = line[located.end() :].removesuffix("\n")
         starts_record = _RECORD_START.match(text) is not None
-        if numbered.group(2) == ":":
+        if located.group(2) == ":":
             self.matches += 1
             # a match without a stamp in a kept record only continues it
-            if starts_record or not self._in_record:
-                self._in_record = True
-                self._continuation = 0
-            else:
+            if self._in_record and not starts_record:
                 self._continuation += 1
-            return self._keep(text)
+                return self._add_to_record(text)
+            if not self._fits(_RECORD_JSON_BYTES + len(json.dumps(text))):
+                return False
+            self.records.append({"offset": self.base_offset + int(located.group(1)), "head": starts_record, "lines": [text], "cut": False})
+            self._in_record = True
+            self._continuation = 0
+            return True
         if not self._in_record or starts_record:
             self._in_record = False
             return True
         if self._continuation >= _MAX_CONTINUATION_LINES:
             self._in_record = False
+            self.records[-1]["cut"] = True
             self.cut = True
             return True
         self._continuation += 1
-        return self._keep(text)
+        return self._add_to_record(text)
 
-    def _keep(self, text: str) -> bool:
-        if self.size + len(text) > _MAX_RESULT_BYTES:
+    def result(self) -> str:
+        """The result to store: the lines as they came, or the records as JSON."""
+        if not self.whole_records:
+            return "".join(self.lines)
+        return json.dumps({"records": self.records, "window": self.window})
+
+    def _add_to_record(self, text: str) -> bool:
+        if not self._fits(len(json.dumps(text)) + 2):
+            return False
+        self.records[-1]["lines"].append(text)
+        return True
+
+    def _fits(self, size: int) -> bool:
+        if self.size + size > _MAX_RESULT_BYTES:
             self.full = True
             return False
-        self.lines.append(text)
-        self.size += len(text)
+        self.size += size
         return True
+
+
+def _tail_window(log_path: str, tail_bytes: int) -> tuple[int, str | None]:
+    """
+    Find where the tail window of a file starts, and the first time stamp in it.
+
+    The window starts with the first line that starts within the last
+    tail_bytes of the file, so that it holds no line in part.
+
+    Args:
+        log_path(str): the file
+        tail_bytes(int): how many bytes from the end the window takes at most
+
+    Returns:
+        the byte offset where the window starts, and the time stamp of its first
+        line that starts with one, or None when none does within
+        _WINDOW_STAMP_SCAN_BYTES
+    """
+    start = max(0, os.path.getsize(log_path) - tail_bytes)
+    with open(log_path, "rb") as f:
+        if start > 0:
+            f.seek(start - 1)
+            # unless a line ends right before the window, skip the rest of the line it cuts
+            if f.read(1) != b"\n":
+                f.readline()
+            start = f.tell()
+        scanned = 0
+        while scanned < _WINDOW_STAMP_SCAN_BYTES:
+            line = f.readline(_WINDOW_STAMP_SCAN_BYTES - scanned)
+            if not line:
+                break
+            scanned += len(line)
+            stamp = _RECORD_START_BYTES.match(line)
+            if stamp is not None:
+                return start, stamp.group().decode()
+    return start, None
 
 
 def _run_grep(log_path: str, patterns: list[str], fixed: bool, max_matches: int, tail_bytes: int | None, whole_records: bool) -> tuple[_GrepOutput, int, str]:
@@ -237,18 +312,22 @@ def _run_grep(log_path: str, patterns: list[str], fixed: bool, max_matches: int,
     stopped had matched, and its return code is given as 0.
 
     Returns:
-        the lines kept, the return code of the matcher, and its standard error
+        the output kept, the return code of the matcher, and its standard error
     """
     windowed = bool(tail_bytes) and not log_path.endswith(_GZIP_SUFFIX)
     cmd = _bounded_matcher(log_path, patterns, fixed, max_matches, whole_records, from_stdin=windowed)
     output = _GrepOutput(whole_records)
+    if windowed and tail_bytes:
+        output.base_offset, first_stamp = _tail_window(log_path, tail_bytes)
+        output.window = {"offset": output.base_offset, "first_stamp": first_stamp}
     # standard error goes to a file, since a pipe nobody reads until the end
     # could fill and stall the matcher
     with tempfile.TemporaryFile() as stderr_file:
         tail = None
         if windowed:
+            # from the start of the window to the end, the end as it is when tail gets there
             tail = subprocess.Popen(
-                ["tail", "-c", str(tail_bytes), log_path],
+                ["tail", "-c", f"+{output.base_offset + 1}", log_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             )
@@ -369,7 +448,7 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
         row["request_id"],
         result_machine,
         "done",
-        result="".join(output.lines),
+        result=output.result(),
         stderr=stderr[:_MAX_RESULT_BYTES],
         return_code=return_code,
         truncated=truncated,
