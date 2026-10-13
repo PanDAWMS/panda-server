@@ -360,7 +360,8 @@ def _handle_db_read(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrap
     request_id = row["request_id"]
     started = time.monotonic()
     try:
-        success, message, data = _run(json.loads(row["parameters"] or "{}"), started, tmp_logger)
+        parameters = json.loads(row["parameters"] or "{}")
+        success, message, data = _run(parameters, started, tmp_logger)
         result = json.dumps({"success": success, "message": message, "data": data})
     except Exception:
         # processor.run does not catch what a handler raises, so this is where a crash has to end:
@@ -370,6 +371,10 @@ def _handle_db_read(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrap
         tmp_logger.error(f"db_read failed with {err_msg}")
         tb.finish_async_result(request_id, result_machine, "failed", error_msg=err_msg, retriable=False)
         return
+    if not success:
+        # what keeps a whole request from running is the server's cfg, its daemon config or its database,
+        # since submission has checked the batch, so the operators get it here as well as the caller
+        tmp_logger.error(f"db_read by {parameters.get('requester')} not run: {message}")
     tb.finish_async_result(request_id, result_machine, "done", result=result)
 
 

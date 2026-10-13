@@ -302,18 +302,21 @@ class TestHandler(unittest.TestCase):
     def test_reader_not_configured(self) -> None:
         # the request is done, saying why its queries did not run, and nothing connects
         task_buffer = mock.Mock()
+        logger = mock.Mock()
         with (
             mock.patch.object(daemon_config, "find_daemon", return_value={"period": 10, "timeout": 300}),
             mock.patch.object(panda_config, "backend", "oracle"),
             mock.patch.object(panda_config, "dbuser_reader", None, create=True),
             mock.patch.object(db_read_handlers, "DBProxy") as proxy_class,
         ):
-            db_read_handlers._handle_db_read(self.ROW, task_buffer, mock.Mock(), "any")
+            db_read_handlers._handle_db_read(self.ROW, task_buffer, logger, "any")
         proxy_class.assert_not_called()
         message = "the read-only account is not available: dbuser_reader is not set in panda_server.cfg"
         task_buffer.finish_async_result.assert_called_once_with(
             "some-uuid", "any", "done", result=json.dumps({"success": False, "message": message, "data": None})
         )
+        # and the server's log says it too
+        logger.error.assert_called_once_with(f"db_read by alice not run: {message}")
 
     def test_crash_is_stored_as_failed(self) -> None:
         task_buffer = mock.Mock()
