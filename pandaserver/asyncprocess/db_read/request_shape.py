@@ -30,8 +30,8 @@ The checks are two:
         index, or a table that is not partitioned, costs keys. The partitions of a time key
         made ahead, which start after the present on the database's clock, are not counted:
         the time keys of these tables say when a row was written, so no row is in them yet. A
-        table with no index to look up is read only when it is small and not partitioned, at
-        a cost of 1
+        query is read only through an index, so one with no = or in on the first column of
+        an index of a table is refused for it, however small the table
 
 A query that fails either is rejected with the name of the rule it broke, and the other
 queries of the request still run.
@@ -63,8 +63,6 @@ MAX_ROWS = 1000
 MAX_KEYS = 1000
 # most conditions in one query
 MAX_CONDITIONS = 20
-# most rows of a table read without an index, by the optimizer statistics
-SMALL_TABLE_ROWS = 10000
 
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "is null", "is not null", "prefix")
 NULL_OPS = ("is null", "is not null")
@@ -527,14 +525,11 @@ def check_query(
                 cost = n_keys
             probes = cost if probes is None else min(probes, cost)
         if probes is None:
-            if partitioning is None and info.num_rows is not None and info.num_rows <= SMALL_TABLE_ROWS:
-                probes = 1
-            else:
-                raise QueryRejected(
-                    "no_index_key",
-                    f"{table.name} is read only with = or in on the first column of an index, which no condition gives",
-                    table=table.name,
-                )
+            raise QueryRejected(
+                "no_index_key",
+                f"{table.name} is read only with = or in on the first column of an index, which no condition gives",
+                table=table.name,
+            )
         plans.append(TablePlan(table, info, tuple(where), probes))
     total = sum(plan.probes for plan in plans)
     if total > budget:

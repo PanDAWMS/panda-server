@@ -51,9 +51,8 @@ JOBS_ACTIVE4 = TableInfo(
     dict(JOB_COLUMNS),
     (IndexInfo("pandaid", False), IndexInfo("jeditaskid", False), IndexInfo("jobstatus", False), IndexInfo("computingsite", False)),
     None,
-    500000,
 )
-JOBS_DEFINED4 = TableInfo("ATLAS_PANDA", "jobsDefined4", dict(JOB_COLUMNS), (IndexInfo("pandaid", False),), None, 100000)
+JOBS_DEFINED4 = TableInfo("ATLAS_PANDA", "jobsDefined4", dict(JOB_COLUMNS), (IndexInfo("pandaid", False),), None)
 # daily partitions on modificationTime: the range partition it is anchored on, then four
 # interval partitions, each starting where the one before ends as Oracle tells it
 JOBS_ARCHIVED4 = TableInfo(
@@ -62,7 +61,6 @@ JOBS_ARCHIVED4 = TableInfo(
     dict(JOB_COLUMNS),
     (IndexInfo("pandaid", True), IndexInfo("jeditaskid", True)),
     PartitionInfo("modificationtime", ((None, D0), (D0, D0 + DAY), (D0 + DAY, D0 + 2 * DAY), (D0 + 2 * DAY, D0 + 3 * DAY), (D0 + 3 * DAY, D0 + 4 * DAY))),
-    10000000,
 )
 # partitions of 500000 tasks on jediTaskID, with its primary key LOCAL
 JEDI_TASKS = TableInfo(
@@ -71,16 +69,14 @@ JEDI_TASKS = TableInfo(
     {"jeditaskid": KIND_NUMBER, "status": KIND_TEXT, "modificationtime": KIND_TIME, "splitrule": KIND_TEXT},
     (IndexInfo("jeditaskid", True), IndexInfo("status", True)),
     PartitionInfo("jeditaskid", ((None, 500000), (500000, 1000000), (1000000, 1500000))),
-    3000000,
 )
-# small, and its primary key starts with app, which a lookup by component and key does not give
+# a few hundred rows, with a primary key that starts with app
 CONFIG = TableInfo(
     "ATLAS_PANDA",
     "CONFIG",
     {"app": KIND_TEXT, "component": KIND_TEXT, "key": KIND_TEXT, "value": KIND_TEXT, "vo": KIND_TEXT},
     (IndexInfo("app", False),),
     None,
-    300,
 )
 JOB_PARAMS = TableInfo(
     "ATLAS_PANDA",
@@ -88,7 +84,6 @@ JOB_PARAMS = TableInfo(
     {"pandaid": KIND_NUMBER, "modificationtime": KIND_TIME, "jobparameters": KIND_LOB},
     (IndexInfo("pandaid", True),),
     PartitionInfo("modificationtime", ((None, D0), (D0, D0 + DAY))),
-    10000000,
 )
 
 INFOS = {info.table_name: info for info in (JOBS_ACTIVE4, JOBS_DEFINED4, JOBS_ARCHIVED4, JEDI_TASKS, CONFIG, JOB_PARAMS)}
@@ -269,10 +264,11 @@ class TestCheckQuery(unittest.TestCase):
         self.assertRejected("no_index_key", {"tables": ["jobsActive4"], "where": [["pandaid", ">", 1]]})
         # a window on the partition key alone is not enough
         self.assertRejected("no_index_key", {"tables": ["jobsArchived4"], "where": [["modificationtime", ">=", "2026-10-03T00:00:00"]]})
-
-    def test_small_table(self) -> None:
-        plans = check({"tables": ["CONFIG"], "where": [["component", "=", "jedi"], ["key", "=", "x"]]})
-        self.assertEqual(plans[0].probes, 1)
+        # however small the table
+        self.assertRejected("no_index_key", {"tables": ["CONFIG"], "where": [["component", "=", "jedi"], ["key", "=", "x"]]})
+        self.assertRejected("no_index_key", {"tables": ["CONFIG"]})
+        plans = check({"tables": ["CONFIG"], "where": [["app", "in", ["jedi", "pandaserver"]], ["component", "=", "jedi"], ["key", "=", "x"]]})
+        self.assertEqual(plans[0].probes, 2)
 
     def test_values(self) -> None:
         # a text for a number column would make the database convert the column
@@ -426,7 +422,6 @@ class TestSchemaInfo(unittest.TestCase):
                 ],
                 # the hidden column of an index on an expression
                 "ALL_INDEXES": [("PANDAID", "LOCAL"), ("SYS_NC00034$", "LOCAL"), ("JOBSTATUS", None)],
-                "ALL_TABLES": [(12345,)],
                 "ALL_PART_TABLES": [("RANGE",)],
                 "ALL_PART_KEY_COLUMNS": [("MODIFICATIONTIME",)],
                 "ALL_TAB_PARTITIONS": [(oracle_date("2012-08-01"),), (oracle_date("2026-10-02"),), ("TIMESTAMP' 2026-10-03 00:00:00'",)],
@@ -446,7 +441,6 @@ class TestSchemaInfo(unittest.TestCase):
             },
         )
         self.assertEqual(info.indexes, (IndexInfo("pandaid", True), IndexInfo("jobstatus", False)))
-        self.assertEqual(info.num_rows, 12345)
         self.assertEqual(
             info.partitioning,
             PartitionInfo(
@@ -465,14 +459,12 @@ class TestSchemaInfo(unittest.TestCase):
             {
                 "ALL_TAB_COLUMNS": [("JEDITASKID", "NUMBER"), ("STATUS", "VARCHAR2")],
                 "ALL_INDEXES": [("JEDITASKID", "LOCAL")],
-                "ALL_TABLES": [(None,)],
                 "ALL_PART_TABLES": [("RANGE",)],
                 "ALL_PART_KEY_COLUMNS": [("JEDITASKID",)],
                 "ALL_TAB_PARTITIONS": [("500000",), ("1000000",), ("MAXVALUE",)],
             }
         )
         info = read_table_info(run, "oracle", "ATLAS_PANDA", "JEDI_Tasks")
-        self.assertIsNone(info.num_rows)
         assert info.partitioning is not None
         self.assertEqual(info.partitioning.bounds, ((None, 500000), (500000, 1000000), (1000000, None)))
 
@@ -498,7 +490,7 @@ class TestSchemaInfo(unittest.TestCase):
                     ("jobstatus", "character varying"),
                     ("metadata", "jsonb"),
                 ],
-                "pg_class": [("p", -1.0, "RANGE (modificationtime)")],
+                "pg_class": [("p", "RANGE (modificationtime)")],
                 "pg_index": [("pandaid",)],
                 "pg_inherits": [("FOR VALUES FROM ('2026-10-01 00:00:00') TO ('2026-10-02 00:00:00')",), ("DEFAULT",)],
             }
@@ -507,7 +499,6 @@ class TestSchemaInfo(unittest.TestCase):
         self.assertEqual((info.owner, info.table_name), ("doma_panda", "jobsarchived4"))
         self.assertEqual(info.columns["metadata"], KIND_LOB)
         self.assertEqual(info.indexes, (IndexInfo("pandaid", True),))
-        self.assertIsNone(info.num_rows)
         self.assertEqual(
             info.partitioning,
             PartitionInfo("modificationtime", ((datetime.datetime(2026, 10, 1), datetime.datetime(2026, 10, 2)), (None, None))),
@@ -520,12 +511,9 @@ class TestSchemaInfo(unittest.TestCase):
             self.assertEqual(params, [["doma_panda", "jobsarchived4"]])
 
     def test_postgres_not_partitioned(self) -> None:
-        run = FakeDictionary({"information_schema.columns": [("key", "character varying")], "pg_class": [("r", 250.0, None)], "pg_index": [("key",)]})
+        run = FakeDictionary({"information_schema.columns": [("key", "character varying")], "pg_class": [("r", None)], "pg_index": [("key",)]})
         info = read_table_info(run, "postgres", "doma_panda", "config")
-        self.assertEqual((info.indexes, info.partitioning, info.num_rows), ((IndexInfo("key", False),), None, 250))
-        # never analyzed
-        run.answers["pg_class"] = [("r", 0.0, None)]
-        self.assertIsNone(read_table_info(run, "postgres", "doma_panda", "config").num_rows)
+        self.assertEqual((info.indexes, info.partitioning), ((IndexInfo("key", False),), None))
 
     def test_not_visible(self) -> None:
         with self.assertRaises(TableNotVisible):

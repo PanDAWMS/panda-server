@@ -54,8 +54,6 @@ class TableInfo:
     indexes: tuple[IndexInfo, ...]
     # None when the table is not partitioned
     partitioning: PartitionInfo | None
-    # rows according to the optimizer statistics, or None when there are none
-    num_rows: int | None
 
 
 class TableNotVisible(Exception):
@@ -194,8 +192,6 @@ def _read_oracle(run: RunStatement, owner: str, table_name: str) -> TableInfo:
         names,
     )
     indexes = tuple(IndexInfo(column.lower(), locality == "LOCAL") for column, locality in rows if column.lower() in columns)
-    rows = run("SELECT num_rows FROM ALL_TABLES WHERE owner=:owner AND table_name=:table_name " + STATEMENT_COMMENT, names)
-    num_rows = int(rows[0][0]) if rows and rows[0][0] is not None else None
     partitioning = None
     rows = run("SELECT partitioning_type FROM ALL_PART_TABLES WHERE owner=:owner AND table_name=:table_name " + STATEMENT_COMMENT, names)
     if rows:
@@ -224,7 +220,7 @@ def _read_oracle(run: RunStatement, owner: str, table_name: str) -> TableInfo:
             bounds.append((lower, upper))
             lower = upper
         partitioning = PartitionInfo(key_column, tuple(bounds))
-    return TableInfo(owner, table_name, columns, indexes, partitioning, num_rows)
+    return TableInfo(owner, table_name, columns, indexes, partitioning)
 
 
 def _read_postgres(run: RunStatement, owner: str, table_name: str) -> TableInfo:
@@ -238,13 +234,11 @@ def _read_postgres(run: RunStatement, owner: str, table_name: str) -> TableInfo:
         raise TableNotVisible(f"{owner}.{table_name}")
     columns = {name.lower(): column_kind("postgres", data_type) for name, data_type in rows}
     rows = run(
-        "SELECT t.relkind, t.reltuples, pg_get_partkeydef(t.oid) FROM pg_class t JOIN pg_namespace n ON n.oid=t.relnamespace "
+        "SELECT t.relkind, pg_get_partkeydef(t.oid) FROM pg_class t JOIN pg_namespace n ON n.oid=t.relnamespace "
         "WHERE n.nspname=:owner AND t.relname=:table_name " + STATEMENT_COMMENT,
         names,
     )
-    relkind, reltuples, partition_key = rows[0] if rows else ("r", None, None)
-    # the statistics say 0, or -1 from Postgres 14 on, for a table never analyzed
-    num_rows = int(reltuples) if reltuples is not None and reltuples > 0 else None
+    relkind, partition_key = rows[0] if rows else ("r", None)
     # an index on a partitioned table is partitioned with it: Postgres has no other kind. An
     # index led by an expression has 0 as its first column, which no column matches
     rows = run(
@@ -275,7 +269,7 @@ def _read_postgres(run: RunStatement, owner: str, table_name: str) -> TableInfo:
             else:
                 bounds.append((parse_bound(sides.group(1), columns[key_column]), parse_bound(sides.group(2), columns[key_column])))
         partitioning = PartitionInfo(key_column, tuple(bounds))
-    return TableInfo(owner, table_name, columns, indexes, partitioning, num_rows)
+    return TableInfo(owner, table_name, columns, indexes, partitioning)
 
 
 def get_table_info(run: RunStatement, backend: str, owner: str, table_name: str) -> TableInfo:
