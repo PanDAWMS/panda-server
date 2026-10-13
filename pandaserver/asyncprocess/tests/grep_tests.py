@@ -6,11 +6,16 @@ import os
 import shutil
 import tempfile
 import unittest
+from types import SimpleNamespace
 from typing import Any
 from unittest import mock
 
 from pandaserver.asyncprocess import processor
-from pandaserver.config import panda_config
+from pandaserver.config import daemon_config, panda_config
+from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
+    SERVICE_JEDI,
+    SERVICE_SERVER,
+)
 
 # the lines of a log, a record of several lines among them
 RECORDS = [
@@ -202,6 +207,61 @@ class TestHandleLogList(unittest.TestCase):
         with mock.patch.object(panda_config, "logdir", os.path.join(self.logdir, "missing")):
             out = self._list()
         self.assertEqual(out["status"], "failed")
+
+
+class TestGrepInCycle(unittest.TestCase):
+    """A grep starts only when the cycle has time left for its longest run."""
+
+    DAEMON = {"module": "async_request_daemon", "period": 10, "timeout": 300}
+
+    def test_cycle_seconds(self) -> None:
+        with mock.patch.object(daemon_config, "find_daemon", return_value=self.DAEMON):
+            # the timeout less the seconds a result is stored in
+            self.assertEqual(processor._cycle_seconds(SERVICE_SERVER), 270)
+            # nothing kills a cycle of JEDI's watchdog
+            self.assertIsNone(processor._cycle_seconds(SERVICE_JEDI))
+        with mock.patch.object(daemon_config, "find_daemon", return_value=None):
+            self.assertIsNone(processor._cycle_seconds(SERVICE_SERVER))
+
+    def test_fits_in_cycle(self) -> None:
+        now = [1000.0]
+        with mock.patch.object(processor, "time", SimpleNamespace(monotonic=lambda: now[0])):
+            # 240 s from 30 s into a cycle of 270 s ends with it, a second later does not
+            now[0] = 1030.0
+            self.assertTrue(processor._fits_in_cycle("grep", 270, 1000.0))
+            now[0] = 1031.0
+            self.assertFalse(processor._fits_in_cycle("grep", 270, 1000.0))
+            # a type that does not run long, a cycle nothing kills, and a cycle too short
+            # for a grep at all start it as before
+            self.assertTrue(processor._fits_in_cycle("log_list", 270, 1000.0))
+            self.assertTrue(processor._fits_in_cycle("grep", None, 1000.0))
+            self.assertTrue(processor._fits_in_cycle("grep", 30, 1000.0))
+
+    def test_run_leaves_a_grep_for_the_next_cycle(self) -> None:
+        # the first grep takes 100 s, so the second would start 100 s into a cycle of 270 s
+        now = [1000.0]
+        ran: list[str] = []
+
+        def grep(row: dict[str, Any], tb: Any, tmp_logger: Any, result_machine: str) -> None:
+            ran.append(row["request_id"])
+            now[0] += 100
+
+        task_buffer = mock.MagicMock()
+        task_buffer.get_pending_requests_for_machine.return_value = [
+            {"request_id": request_id, "request_type": "grep", "machine_name": None, "parameters": "{}"} for request_id in ("r1", "r2")
+        ]
+        task_buffer.claim_async_result.return_value = True
+        with (
+            mock.patch.object(processor, "time", SimpleNamespace(monotonic=lambda: now[0])),
+            mock.patch.dict(processor.HANDLERS, {"grep": grep}),
+            mock.patch.object(daemon_config, "find_daemon", return_value=self.DAEMON),
+            # run sets the start of the cycle, on the fake clock, where db_read reads it
+            mock.patch.object(processor, "_cycle_started_at", None),
+        ):
+            processor.run(SERVICE_SERVER, task_buffer)
+        self.assertEqual(ran, ["r1"])
+        # not claimed, so it stays pending
+        self.assertEqual([c.args[0] for c in task_buffer.claim_async_result.call_args_list], ["r1"])
 
 
 if __name__ == "__main__":

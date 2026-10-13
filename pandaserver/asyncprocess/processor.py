@@ -21,8 +21,8 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.asyncprocess import TaskBufferLike, data_carousel_handlers, db_read_handlers
-from pandaserver.config import panda_config
-from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE
+from pandaserver.config import daemon_config, panda_config
+from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE, SERVICE_SERVER
 
 _logger = PandaLogger().getLogger("async_request_processor")
 
@@ -37,10 +37,61 @@ _STALE_THRESHOLD_SECONDS = _SUBPROCESS_TIMEOUT * 2
 # max result size stored in DB (bytes)
 _MAX_RESULT_BYTES = 1_000_000
 
+# Longest a request of each type may run, for the types whose requests can
+# run long.  One is not started when the cycle has less time left than that,
+# and stays pending for the next cycle: started anyway, it would be killed with
+# the cycle, wait out _STALE_THRESHOLD_SECONDS, and fail after three attempts.
+_LONGEST_RUN_SECONDS = {"grep": _SUBPROCESS_TIMEOUT}
+
 # time.monotonic() when the cycle running in this process started. The daemon's timeout counts
 # from then, over every request the cycle processes, so a handler with a deadline of its own
 # reads it through get_cycle_started_at()
 _cycle_started_at: float | None = None
+
+
+def _cycle_seconds(service_name: str) -> int | None:
+    """
+    Get how long a cycle may take requests for, before the daemon master kills it.
+
+    Only async_request_daemon of the server runs under such a timeout.  JEDI's
+    AsyncRequestWatchDog has none, and a cycle run by hand with no enabled
+    entry in the daemon config has none either.  The seconds that a db_read
+    keeps at the end to store its result are kept here too.
+
+    Args:
+        service_name(str): the service the cycle runs for
+
+    Returns:
+        int or None: the seconds, or None when nothing kills the cycle
+    """
+    if service_name != SERVICE_SERVER:
+        return None
+    daemon = daemon_config.find_daemon(db_read_handlers.DAEMON_MODULE)
+    if daemon is None:
+        return None
+    return daemon_config.get_timeout(daemon) - db_read_handlers.MARGIN_SECONDS
+
+
+def _fits_in_cycle(request_type: str, cycle_seconds: int | None, cycle_started_at: float) -> bool:
+    """
+    Tell whether a request of this type can run to its end before the cycle is killed.
+
+    A cycle too short for the longest run of a type at all still starts its
+    requests, as it always did, since leaving them pending would leave them
+    there for good.
+
+    Args:
+        request_type(str): the type of the request
+        cycle_seconds(int or None): what _cycle_seconds gives
+        cycle_started_at(float): time.monotonic() when the cycle started
+
+    Returns:
+        bool: False when the request should wait for the next cycle
+    """
+    longest = _LONGEST_RUN_SECONDS.get(request_type)
+    if longest is None or cycle_seconds is None or longest > cycle_seconds:
+        return True
+    return time.monotonic() + longest <= cycle_started_at + cycle_seconds
 
 
 def get_cycle_started_at() -> float | None:
@@ -434,7 +485,8 @@ def run(service_name: str, tbuf: TaskBufferLike = None) -> None:
     tbuf: an already-initialised TaskBuffer, or None to use the module-level singleton.
     """
     global _cycle_started_at
-    _cycle_started_at = time.monotonic()
+    cycle_started_at = time.monotonic()
+    _cycle_started_at = cycle_started_at
     _logger.debug(f"start with service={service_name}")
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf
@@ -448,6 +500,7 @@ def run(service_name: str, tbuf: TaskBufferLike = None) -> None:
     tbuf.recover_stale_results(ANY_MACHINE, max_processing_seconds=_STALE_THRESHOLD_SECONDS)
 
     # find requests this machine should process
+    cycle_seconds = _cycle_seconds(service_name)
     pending = tbuf.get_pending_requests_for_machine(MY_HOSTNAME, service_name, list(HANDLERS.keys()))
     for row in pending:
         request_id = row["request_id"]
@@ -460,6 +513,9 @@ def run(service_name: str, tbuf: TaskBufferLike = None) -> None:
         handler = HANDLERS.get(request_type)
         if handler is None:
             tmp_logger.warning(f"unknown request_type={request_type}")
+            continue
+        if not _fits_in_cycle(request_type, cycle_seconds, cycle_started_at):
+            tmp_logger.debug(f"left for the next cycle: a {request_type} may run {_LONGEST_RUN_SECONDS[request_type]} s, more than this cycle has left")
             continue
         # "any" requests share a single result row keyed by the sentinel, so the claim and the
         # result are written under ANY_MACHINE; single/all requests use this machine's hostname
