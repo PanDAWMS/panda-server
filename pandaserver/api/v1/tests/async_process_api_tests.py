@@ -27,7 +27,6 @@ DB_READ_WAIT_SECONDS = 120
 class TestAsyncProcessAPI(unittest.TestCase):
     def setUp(self) -> None:
         self.http_client = HttpClient()
-        self.urls = [api_url, api_url_ssl]
 
     def test_submit_grep_request_no_ssl(self) -> None:
         full_url = f"{api_url}/async_process/submit_grep_request"
@@ -151,21 +150,27 @@ class TestAsyncProcessAPI(unittest.TestCase):
         # the pre-rename key is still served alongside it
         self.assertEqual(output["data"]["request_id"], async_id)
 
+    def test_get_result_no_ssl(self) -> None:
+        # a result is read by its owner only, whose DN comes with a secure connection
+        full_url = f"{api_url}/async_process/get_result"
+        print(f"Testing URL: {full_url}")
+        status, output = self.http_client.get(full_url, {"async_id": str(uuid.uuid4())})
+        print(output)
+        self.assertEqual(output, NO_SSL_RESPONSE)
+
     def test_get_result_not_found(self) -> None:
         missing_id = str(uuid.uuid4())
-        for url in self.urls:
-            with self.subTest(base_url=url):
-                full_url = f"{url}/async_process/get_result"
-                print(f"Testing URL: {full_url}")
-                data = {"async_id": missing_id}
-                status, output = self.http_client.get(full_url, data)
-                print(output)
-                expected_response = {
-                    "success": False,
-                    "message": f"async_id '{missing_id}' not found",
-                    "data": None,
-                }
-                self.assertEqual(output, expected_response)
+        full_url = f"{api_url_ssl}/async_process/get_result"
+        print(f"Testing URL: {full_url}")
+        data = {"async_id": missing_id}
+        status, output = self.http_client.get(full_url, data)
+        print(output)
+        expected_response = {
+            "success": False,
+            "message": f"async_id '{missing_id}' not found",
+            "data": None,
+        }
+        self.assertEqual(output, expected_response)
 
     def test_get_result_pending(self) -> None:
         submit_url = f"{api_url_ssl}/async_process/submit_grep_request"
