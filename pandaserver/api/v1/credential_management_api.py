@@ -342,13 +342,15 @@ def get_access_token(
             {"user_proxy": str}
     """
 
-    tmp_logger = LogWrapper(_logger, f"get_proxy PID={os.getpid()}")
+    tmp_logger = LogWrapper(_logger, f"get_access_token PID={os.getpid()}")
 
     # Set the requested DN or, if not set, the requestor DN
     real_dn = get_dn(req)
     target_dn = client_name if client_name else real_dn
 
-    tmp_logger.debug(f"Start for DN='{real_dn}' target_dn='{target_dn}' token_key={token_key}")
+    # only log the beginning of the token key to avoid leaking it
+    token_key_log = f"{token_key[:4]}..." if token_key else token_key
+    tmp_logger.debug(f"Start for DN='{real_dn}' target_dn='{target_dn}' token_key={token_key_log}")
 
     # check permission
     global_dispatch_parameter_cache.update()
