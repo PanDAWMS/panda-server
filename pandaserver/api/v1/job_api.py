@@ -235,8 +235,11 @@ def get_status_history(req: PandaRequest, job_ids: List[int], since: str | None 
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-            When successful, the data field is `{"rows": [...], "as_of": datetime, "retained_from": datetime or None,
-            "since": datetime or None, "until": datetime or None, "partitions": int, "budget": int, "record_statuschange": bool}`:
+
+    Response data:
+        dict: The status changes of the jobs, and what tells how complete they are.
+            {"rows": [...], "as_of": datetime, "retained_from": datetime or None, "since": datetime or None,
+             "until": datetime or None, "partitions": int, "budget": int, "record_statuschange": bool}
             - rows: one dict per status change, with PandaID, modificationTime, jobStatus, prodSourceLabel, cloud, computingSite,
               modificationHost and modiftime_extended. A job without rows has none
             - as_of: database time in UTC taken before the rows were read. Every change committed by then is in rows
@@ -247,12 +250,12 @@ def get_status_history(req: PandaRequest, job_ids: List[int], since: str | None 
             - partitions, budget: the number of partitions the window touches, counted as 1 when there are none, and the
               db_read_probe_budget; a call with the same window may name at most budget // partitions jobs
             - record_statuschange: whether this server writes jobs_StatusLog. Other PanDA nodes have their own setting
-            When unsuccessful, the message field says why, and the data field says it as values:
-            - `{"rejected": "no_keys"}`: no job_ids
-            - `{"rejected": "too_many_keys", "keys": int, "max_keys": int}`: more job_ids than one IN list takes
-            - `{"rejected": "invalid_window"}`: since or until is not a time, or since is not before until
-            - `{"rejected": "probe_budget", "keys": int, "partitions": int, "budget": int}`: keys x partitions exceed the budget
-            - `{"error": str}`: the database failed, with the error code (ORA-xxxxx, or the SQLSTATE on Postgres)
+        On failure, with the reason in the message, the reason as values:
+            - {"rejected": "no_keys"}: no job_ids
+            - {"rejected": "too_many_keys", "keys": int, "max_keys": int}: more job_ids than one IN list takes
+            - {"rejected": "invalid_window"}: since or until is not a time, or since is not before until
+            - {"rejected": "probe_budget", "keys": int, "partitions": int, "budget": int}: keys x partitions exceed the budget
+            - {"error": str}: the database failed, with the error code (ORA-xxxxx, or the SQLSTATE on Postgres)
     """
     tmp_logger = LogWrapper(_logger, f"get_status_history n_jobs={len(job_ids)} since={since} until={until}")
     tmp_logger.debug("Start")

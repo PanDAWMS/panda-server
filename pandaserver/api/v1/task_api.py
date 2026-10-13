@@ -970,14 +970,18 @@ def get_status_history(req: PandaRequest, task_id: int) -> dict[str, Any]:
         task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field says why.
-            When successful, the data field is `{"rows": [...], "as_of": datetime, "retained_from": datetime or None}`:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The status changes of the task, and what tells how complete they are.
+            {"rows": [...], "as_of": datetime, "retained_from": datetime or None}
             - rows: one dict per status change, with jediTaskID, modificationTime, status, modificationHost, attemptNr and reason.
               A task without rows has none
             - as_of: database time in UTC taken before the rows were read. Every change committed by then is in rows
             - retained_from: time from which the table holds every row, or None when it cannot be told. Old partitions are dropped,
               so a task without rows before this time may still have changed its status then
-            When the database failed, the data field is `{"error": str}` with the error code (ORA-xxxxx, or the SQLSTATE on Postgres).
+        On failure, with the reason in the message: {"error": str} when the database failed, with the error code (ORA-xxxxx, or
+            the SQLSTATE on Postgres), and None otherwise.
     """
     tmp_logger = LogWrapper(_logger, f"get_status_history < task_id={task_id} >")
     tmp_logger.debug("Start")
