@@ -50,7 +50,7 @@ from typing import Any
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 from pandaserver.asyncprocess import TaskBufferLike
-from pandaserver.asyncprocess.db_read.compose import STATEMENT_COMMENT, compose_statement
+from pandaserver.asyncprocess.db_read.compose import compose_statement
 from pandaserver.asyncprocess.db_read.request_shape import (
     MAX_QUERIES,
     FromQuery,
@@ -58,7 +58,11 @@ from pandaserver.asyncprocess.db_read.request_shape import (
     check_query,
     parse_query,
 )
-from pandaserver.asyncprocess.db_read.schema_info import TableNotVisible, get_table_info
+from pandaserver.asyncprocess.db_read.schema_info import (
+    STATEMENT_COMMENT,
+    TableNotVisible,
+    get_table_info,
+)
 from pandaserver.config import daemon_config, panda_config
 from pandaserver.srvcore.exceptions import DBReadDeadlineError, DBReaderUnavailableError
 from pandaserver.taskbuffer.db_proxy_mods.base_module import get_db_error_code

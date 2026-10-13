@@ -193,7 +193,7 @@ class TestBatch(BatchTestBase):
 
     def test_result_size(self) -> None:
         # room for the statement and one row
-        sql_bytes = 200
+        sql_bytes = len(self.run_batch([Q_JOBS])[0]["answers"][0]["tables"][0]["statement"])
         data, _, _ = self.run_batch([Q_JOBS, Q_JOBS], bytes_left=sql_bytes + 100)
         jobs, after = data["answers"]
         self.assertEqual((jobs["status"], jobs["truncated"], len(jobs["tables"][0]["rows"])), ("done", True, 1))

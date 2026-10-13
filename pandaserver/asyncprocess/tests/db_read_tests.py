@@ -23,6 +23,7 @@ from pandaserver.asyncprocess.db_read.schema_info import (
     KIND_OTHER,
     KIND_TEXT,
     KIND_TIME,
+    STATEMENT_COMMENT,
     IndexInfo,
     PartitionInfo,
     TableInfo,
@@ -327,7 +328,7 @@ class TestCompose(unittest.TestCase):
             statement.sql,
             "SELECT pandaid,jobstatus FROM ATLAS_PANDA.jobsArchived4 "
             "WHERE pandaid IN (:r0,:r1) AND modificationtime >= :r2 AND jobstatus <> :r3 AND computingsite IS NULL "
-            "ORDER BY pandaid DESC FETCH FIRST 101 ROWS ONLY /* db_read */",
+            "ORDER BY pandaid DESC FETCH FIRST 101 ROWS ONLY" + STATEMENT_COMMENT,
         )
         self.assertEqual(statement.binds, {":r0": 1, ":r1": 2, ":r2": D0, ":r3": "failed"})
         self.assertEqual((statement.names, statement.limit), (("pandaid", "jobstatus"), 100))
@@ -344,12 +345,12 @@ class TestCompose(unittest.TestCase):
         self.assertEqual(
             oracle.sql,
             "SELECT jobstatus,TRUNC(modificationtime,'HH24'),COUNT(*),MIN(pandaid) FROM ATLAS_PANDA.jobsActive4 WHERE jeditaskid = :r0 "
-            "GROUP BY jobstatus,TRUNC(modificationtime,'HH24') ORDER BY TRUNC(modificationtime,'HH24') FETCH FIRST 1001 ROWS ONLY /* db_read */",
+            "GROUP BY jobstatus,TRUNC(modificationtime,'HH24') ORDER BY TRUNC(modificationtime,'HH24') FETCH FIRST 1001 ROWS ONLY" + STATEMENT_COMMENT,
         )
         self.assertEqual(oracle.names, ("jobstatus", "hour(modificationtime)", "count(*)", "min(pandaid)"))
         (postgres,) = self.compose(raw, "postgres")
         self.assertIn("date_trunc('hour',modificationtime)", postgres.sql)
-        self.assertTrue(postgres.sql.endswith(" LIMIT 1001 /* db_read */"))
+        self.assertTrue(postgres.sql.endswith(" LIMIT 1001" + STATEMENT_COMMENT))
 
     def test_postgres_conversion(self) -> None:
         # what WrappedCursor makes of the statement: one %s per bind variable, in order, and nothing else touched
@@ -363,11 +364,13 @@ class TestCompose(unittest.TestCase):
             "postgres",
         )
         sql, params = convert_query_in_printf_format(statement.sql, [statement.binds], {})
+        # the comment comes through the conversion as it is, which a ":" or a "%" in it would not
+        self.assertEqual(convert_query_in_printf_format("SELECT 1" + STATEMENT_COMMENT, [{}], {})[0], "SELECT 1" + STATEMENT_COMMENT)
         self.assertEqual(
             sql,
             "SELECT date_trunc('day',modificationtime),COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
             "WHERE pandaid IN (%s,%s) AND computingsite LIKE %s ESCAPE '!' AND modificationtime < %s "
-            "GROUP BY date_trunc('day',modificationtime) LIMIT 1001 /* db_read */",
+            "GROUP BY date_trunc('day',modificationtime) LIMIT 1001" + STATEMENT_COMMENT,
         )
         self.assertEqual(params, [[1, 2, "CERN!_1!%%", D0]])
 

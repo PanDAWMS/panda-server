@@ -24,10 +24,7 @@ from pandaserver.asyncprocess.db_read.request_shape import (
     Query,
     TablePlan,
 )
-from pandaserver.asyncprocess.db_read.schema_info import KIND_LOB
-
-# the comment that tells these statements apart in the database's views of what runs
-STATEMENT_COMMENT = " /* db_read */"
+from pandaserver.asyncprocess.db_read.schema_info import KIND_LOB, STATEMENT_COMMENT
 
 # the escape character of a prefix match. Not a backslash, which the two databases and the
 # Python string between them each read their own way

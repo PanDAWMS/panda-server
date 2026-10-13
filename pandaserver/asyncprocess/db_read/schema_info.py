@@ -69,7 +69,10 @@ RunStatement = Callable[[str, dict[str, Any]], list[tuple[Any, ...]]]
 # may go unseen
 CACHE_SECONDS = 600
 
-_COMMENT = " /* db_read schema_info */"
+# the comment of every statement of the async db_read requests, their reads of the dictionary
+# included, which tells them apart in the database's views of what runs. It has neither ":" nor
+# "%", which the Postgres wrapper would take for binds
+STATEMENT_COMMENT = " /* async_process.db_read */"
 
 _ORACLE_KINDS = {
     "NUMBER": KIND_NUMBER,
@@ -177,7 +180,7 @@ def read_table_info(run: RunStatement, backend: str, owner: str, table_name: str
 
 def _read_oracle(run: RunStatement, owner: str, table_name: str) -> TableInfo:
     names = {":owner": owner, ":table_name": table_name}
-    rows = run("SELECT column_name, data_type FROM ALL_TAB_COLUMNS WHERE owner=:owner AND table_name=:table_name ORDER BY column_id" + _COMMENT, names)
+    rows = run("SELECT column_name, data_type FROM ALL_TAB_COLUMNS WHERE owner=:owner AND table_name=:table_name ORDER BY column_id" + STATEMENT_COMMENT, names)
     if not rows:
         raise TableNotVisible(f"{owner}.{table_name}")
     columns = {name.lower(): column_kind("oracle", data_type) for name, data_type in rows}
@@ -187,22 +190,24 @@ def _read_oracle(run: RunStatement, owner: str, table_name: str) -> TableInfo:
         "SELECT c.column_name, p.locality FROM ALL_INDEXES i "
         "JOIN ALL_IND_COLUMNS c ON c.index_owner=i.owner AND c.index_name=i.index_name AND c.column_position=1 "
         "LEFT JOIN ALL_PART_INDEXES p ON p.owner=i.owner AND p.index_name=i.index_name "
-        "WHERE i.table_owner=:owner AND i.table_name=:table_name " + _COMMENT,
+        "WHERE i.table_owner=:owner AND i.table_name=:table_name " + STATEMENT_COMMENT,
         names,
     )
     indexes = tuple(IndexInfo(column.lower(), locality == "LOCAL") for column, locality in rows if column.lower() in columns)
-    rows = run("SELECT num_rows FROM ALL_TABLES WHERE owner=:owner AND table_name=:table_name " + _COMMENT, names)
+    rows = run("SELECT num_rows FROM ALL_TABLES WHERE owner=:owner AND table_name=:table_name " + STATEMENT_COMMENT, names)
     num_rows = int(rows[0][0]) if rows and rows[0][0] is not None else None
     partitioning = None
-    rows = run("SELECT partitioning_type FROM ALL_PART_TABLES WHERE owner=:owner AND table_name=:table_name " + _COMMENT, names)
+    rows = run("SELECT partitioning_type FROM ALL_PART_TABLES WHERE owner=:owner AND table_name=:table_name " + STATEMENT_COMMENT, names)
     if rows:
         partitioning_type = rows[0][0]
         key_rows = run(
-            "SELECT column_name FROM ALL_PART_KEY_COLUMNS WHERE owner=:owner AND name=:table_name AND object_type='TABLE' ORDER BY column_position " + _COMMENT,
+            "SELECT column_name FROM ALL_PART_KEY_COLUMNS WHERE owner=:owner AND name=:table_name AND object_type='TABLE' ORDER BY column_position "
+            + STATEMENT_COMMENT,
             names,
         )
         bound_rows = run(
-            "SELECT high_value FROM ALL_TAB_PARTITIONS WHERE table_owner=:owner AND table_name=:table_name ORDER BY partition_position " + _COMMENT, names
+            "SELECT high_value FROM ALL_TAB_PARTITIONS WHERE table_owner=:owner AND table_name=:table_name ORDER BY partition_position " + STATEMENT_COMMENT,
+            names,
         )
         key_column = key_rows[0][0].lower() if key_rows else ""
         # bounds are read for a range on one column, interval partitioning being a kind of range;
@@ -226,7 +231,7 @@ def _read_postgres(run: RunStatement, owner: str, table_name: str) -> TableInfo:
     names = {":owner": owner, ":table_name": table_name}
     rows = run(
         "SELECT column_name, data_type FROM information_schema.columns WHERE table_schema=:owner AND table_name=:table_name ORDER BY ordinal_position "
-        + _COMMENT,
+        + STATEMENT_COMMENT,
         names,
     )
     if not rows:
@@ -234,7 +239,7 @@ def _read_postgres(run: RunStatement, owner: str, table_name: str) -> TableInfo:
     columns = {name.lower(): column_kind("postgres", data_type) for name, data_type in rows}
     rows = run(
         "SELECT t.relkind, t.reltuples, pg_get_partkeydef(t.oid) FROM pg_class t JOIN pg_namespace n ON n.oid=t.relnamespace "
-        "WHERE n.nspname=:owner AND t.relname=:table_name " + _COMMENT,
+        "WHERE n.nspname=:owner AND t.relname=:table_name " + STATEMENT_COMMENT,
         names,
     )
     relkind, reltuples, partition_key = rows[0] if rows else ("r", None, None)
@@ -245,7 +250,7 @@ def _read_postgres(run: RunStatement, owner: str, table_name: str) -> TableInfo:
     rows = run(
         "SELECT a.attname FROM pg_index x JOIN pg_class t ON t.oid=x.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace "
         "JOIN pg_attribute a ON a.attrelid=t.oid AND a.attnum=x.indkey[0] "
-        "WHERE n.nspname=:owner AND t.relname=:table_name " + _COMMENT,
+        "WHERE n.nspname=:owner AND t.relname=:table_name " + STATEMENT_COMMENT,
         names,
     )
     indexes = tuple(IndexInfo(column.lower(), relkind == "p") for (column,) in rows if column.lower() in columns)
@@ -258,7 +263,7 @@ def _read_postgres(run: RunStatement, owner: str, table_name: str) -> TableInfo:
             "SELECT pg_get_expr(c.relpartbound, c.oid) FROM pg_inherits i "
             "JOIN pg_class c ON c.oid=i.inhrelid JOIN pg_class p ON p.oid=i.inhparent "
             "JOIN pg_namespace n ON n.oid=p.relnamespace "
-            "WHERE n.nspname=:owner AND p.relname=:table_name " + _COMMENT,
+            "WHERE n.nspname=:owner AND p.relname=:table_name " + STATEMENT_COMMENT,
             names,
         )
         bounds: list[tuple[Bound | None, Bound | None]] = []
