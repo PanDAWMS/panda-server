@@ -52,6 +52,18 @@ class TestHandleGrep(unittest.TestCase):
             out = self._grep(pattern="a+b", log_filename=name)
             self.assertEqual(out["result"], "2026-10-08 00:00:01 aaab\n", name)
 
+    def test_fixed_strings(self) -> None:
+        # any of the strings matches, each as it is: "." and "+" are no wildcards here
+        lines = [
+            "2026-10-08 00:00:01 getJobs < SITE 2026-10-08T00:00:01 > start\n",
+            "2026-10-08 00:00:02 a.b+c/d\n",
+            "2026-10-08 00:00:03 axbbc/d\n",
+            "2026-10-08 00:00:04 --pre=true\n",
+        ]
+        self._write("panda-a.log", "".join(lines))
+        out = self._grep(fixed_strings=["getJobs < SITE 2026-10-08T00:00:01 >", "a.b+c/d", "--pre=true"], log_filename="panda-a.log")
+        self.assertEqual(out["result"], lines[0] + lines[1] + lines[3])
+
 
 if __name__ == "__main__":
     unittest.main()

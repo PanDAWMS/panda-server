@@ -512,6 +512,61 @@ class TestSubmitDbReadRequest(unittest.TestCase):
             task_buffer.insert_async_request.assert_not_called()
 
 
+class TestSubmitGrepRequest(unittest.TestCase):
+    """Unit tests for the checks of submit_grep_request (no live server needed)."""
+
+    @staticmethod
+    def _request() -> PandaRequest:
+        """A request the endpoint decorator lets through: secure, POST, and not a limited proxy."""
+        return cast(PandaRequest, SimpleNamespace(subprocess_env={"REQUEST_METHOD": "POST", "SSL_CLIENT_S_DN": "/CN=alice"}))
+
+    def _submit(self, **kwargs: Any) -> tuple[dict[str, Any], mock.MagicMock]:
+        task_buffer = mock.MagicMock()
+        task_buffer.get_alive_machines.return_value = ["a.cern.ch", "b.cern.ch"]
+        task_buffer.insert_async_request.return_value = True
+        with (
+            mock.patch.object(async_process_api, "global_task_buffer", task_buffer),
+            mock.patch.object(async_process_api, "_is_authorized_with_allowlist", return_value=(True, "checked")),
+            mock.patch.object(common, "get_dn", return_value="dn"),
+            mock.patch.object(common, "clean_user_id", return_value="alice"),
+        ):
+            out = async_process_api.submit_grep_request(self._request(), log_filename="panda-adder.log", service_name="server", **kwargs)
+        return out, task_buffer
+
+    @staticmethod
+    def _parameters(task_buffer: mock.MagicMock) -> dict[str, Any]:
+        parameters: dict[str, Any] = json.loads(task_buffer.insert_async_request.call_args[0][2])
+        return parameters
+
+    def test_pattern(self) -> None:
+        out, task_buffer = self._submit(pattern="ERROR")
+        self.assertTrue(out["success"], out["message"])
+        self.assertEqual(self._parameters(task_buffer)["pattern"], "ERROR")
+        self.assertNotIn("fixed_strings", self._parameters(task_buffer))
+
+    def test_fixed_strings(self) -> None:
+        fixed_strings = ["getJobs < SITE 2026-10-08T00:00:01 >", "a.b+c/d"]
+        out, task_buffer = self._submit(fixed_strings=fixed_strings)
+        self.assertTrue(out["success"], out["message"])
+        self.assertEqual(self._parameters(task_buffer)["fixed_strings"], fixed_strings)
+        self.assertNotIn("pattern", self._parameters(task_buffer))
+
+    def test_refused(self) -> None:
+        refused: tuple[dict[str, Any], ...] = (
+            {},
+            {"pattern": "ERROR", "fixed_strings": ["ERROR"]},
+            {"fixed_strings": []},
+            {"fixed_strings": ["ERROR", ""]},
+            {"fixed_strings": ["two\nlines"]},
+            {"fixed_strings": ["x" * 1001]},
+            {"fixed_strings": ["x"] * 1001},
+        )
+        for kwargs in refused:
+            out, task_buffer = self._submit(**kwargs)
+            self.assertFalse(out["success"], kwargs)
+            task_buffer.insert_async_request.assert_not_called()
+
+
 # Run tests
 if __name__ == "__main__":
     unittest.main()

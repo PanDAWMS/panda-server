@@ -79,6 +79,10 @@ TERMINAL_STATUSES = ("done", "failed")
 # received anyway -- the stored result has always been capped at 1 MB.
 MAX_MATCH_LIMIT = 200000  # ceiling on max_matches
 MAX_TAIL_BYTES = 1 << 30  # 1 GiB; a window this wide is already generous
+# most fixed strings one grep may look for, and the longest of them. Each goes on the command line of
+# the matcher, which this keeps under a megabyte
+MAX_FIXED_STRINGS = 1000
+MAX_FIXED_STRING_LENGTH = 1000
 # most bytes of the queries of a db_read request, as JSON: room for every query to have an "in" of
 # a thousand job IDs. The handler checks everything else when the queries run
 MAX_DB_READ_REQUEST_BYTES = 200_000
@@ -139,8 +143,9 @@ def _structured_result_response(req_row: Dict[str, Any], results: list[dict[str,
 @request_validation(_logger, secure=True, request_method="POST")
 def submit_grep_request(
     req: PandaRequest,
-    pattern: str,
     log_filename: str,
+    pattern: str | None = None,
+    fixed_strings: List[str] | None = None,
     service_name: str | None = None,
     machine_name: str | None = None,
     max_matches: int | None = None,
@@ -149,7 +154,8 @@ def submit_grep_request(
     """
     Submit a grep request
 
-    Submit a grep request to be processed asynchronously on the target service or machine.
+    Submit a grep request to be processed asynchronously on the target service or machine. A line matches either a
+    regular expression or any of a list of fixed strings.
 
     API details:
         HTTP Method: POST
@@ -157,8 +163,11 @@ def submit_grep_request(
 
     Args:
         req(PandaRequest): request object
-        pattern(str): regular expression to search for, in the syntax of rg whether the file is compressed or not
         log_filename(str): filename (not full path) of the log file under panda_config.logdir
+        pattern(str): regular expression to search for, in the syntax of rg whether the file is compressed or not;
+            mutually exclusive with fixed_strings
+        fixed_strings(list of str): strings to search for as they are, a line matching when it holds any of them
+            (1..1000 strings, each 1..1000 characters and without a line break); mutually exclusive with pattern
         service_name(str): target service (e.g. "server", "jedi"); mutually exclusive with machine_name
         machine_name(str): target specific machine hostname; mutually exclusive with service_name
         max_matches(int): stop after this many matching lines (1..200000). Defaults to a
@@ -188,6 +197,20 @@ def submit_grep_request(
 
     if bool(service_name) == bool(machine_name):
         msg = "exactly one of service_name or machine_name must be provided"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    if (pattern is None) == (fixed_strings is None):
+        msg = "exactly one of pattern or fixed_strings must be provided"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    # an empty string matches every line, and no line holds a line break
+    if fixed_strings is not None and not (
+        1 <= len(fixed_strings) <= MAX_FIXED_STRINGS
+        and all(1 <= len(fixed_string) <= MAX_FIXED_STRING_LENGTH and "\n" not in fixed_string and "\r" not in fixed_string for fixed_string in fixed_strings)
+    ):
+        msg = f"invalid fixed_strings: must be 1 to {MAX_FIXED_STRINGS} strings of 1 to {MAX_FIXED_STRING_LENGTH} characters without a line break"
         tmp_logger.warning(msg)
         return generate_response(False, msg)
 
@@ -231,7 +254,11 @@ def submit_grep_request(
             tmp_logger.warning(msg)
 
     async_id = str(uuid.uuid4())
-    grep_parameters: dict[str, Any] = {"pattern": pattern, "log_filename": log_filename}
+    grep_parameters: dict[str, Any] = {"log_filename": log_filename}
+    if fixed_strings is not None:
+        grep_parameters["fixed_strings"] = fixed_strings
+    else:
+        grep_parameters["pattern"] = pattern
     if max_matches is not None:
         grep_parameters["max_matches"] = int(max_matches)
     if tail_bytes is not None:

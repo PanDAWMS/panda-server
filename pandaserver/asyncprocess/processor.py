@@ -70,24 +70,30 @@ _GZIP_SUFFIX = ".gz"
 _NO_SUCH_FILE = "No such file or directory"
 
 
-def _bounded_matcher(log_path: str, pattern: str, max_matches: int, from_stdin: bool) -> list[str]:
+def _bounded_matcher(log_path: str, patterns: list[str], fixed: bool, max_matches: int, from_stdin: bool) -> list[str]:
     """The matcher command, capped, reading a path or standard input.
 
-    The pattern goes after -e, never in a place of its own: there a pattern
-    starting with "-" is read as an option, and rg's --pre=COMMAND runs COMMAND
-    on every file under the daemon's working directory.
+    A line matches when any of the patterns does, read as plain text when fixed
+    is set and as regular expressions otherwise. Each pattern goes after -e,
+    never in a place of its own: there a pattern starting with "-" is read as an
+    option, and rg's --pre=COMMAND runs COMMAND on every file under the daemon's
+    working directory.
 
     rg reads a .gz file too, decompressing it with -z, so that a pattern means
     the same in every file. zgrep, used before, read it as a basic regular
     expression of grep, where "+" and "|" are plain characters.
     """
-    cmd = ["rg", "-m", str(max_matches), "-e", pattern]
+    cmd = ["rg", "-m", str(max_matches)]
+    if fixed:
+        cmd.append("-F")
+    for pattern in patterns:
+        cmd += ["-e", pattern]
     if log_path.endswith(_GZIP_SUFFIX):
         cmd.append("-z")
     return cmd if from_stdin else cmd + [log_path]
 
 
-def _run_grep(log_path: str, pattern: str, max_matches: int, tail_bytes: int | None) -> "subprocess.CompletedProcess[str]":
+def _run_grep(log_path: str, patterns: list[str], fixed: bool, max_matches: int, tail_bytes: int | None) -> "subprocess.CompletedProcess[str]":
     """Run the matcher, optionally over just the tail of the file.
 
     The pipe is built process to process rather than through a shell: the
@@ -95,7 +101,7 @@ def _run_grep(log_path: str, pattern: str, max_matches: int, tail_bytes: int | N
     the daemon.
     """
     windowed = bool(tail_bytes) and not log_path.endswith(_GZIP_SUFFIX)
-    cmd = _bounded_matcher(log_path, pattern, max_matches, from_stdin=windowed)
+    cmd = _bounded_matcher(log_path, patterns, fixed, max_matches, from_stdin=windowed)
     if not windowed:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
 
@@ -134,7 +140,10 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
     """Run rg on a log file and store the output under result_machine's result row."""
     params = json.loads(row["parameters"])
     log_filename = params["log_filename"]
-    pattern = params["pattern"]
+    # either one regular expression or any number of plain strings
+    fixed_strings = params.get("fixed_strings")
+    fixed = fixed_strings is not None
+    patterns = fixed_strings if fixed else [params["pattern"]]
     max_matches = min(int(params.get("max_matches") or _DEFAULT_MAX_MATCHES), _MAX_MAX_MATCHES)
     tail_bytes = params.get("tail_bytes")
     log_path = os.path.join(panda_config.logdir, log_filename)
@@ -154,10 +163,11 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
         )
         return
 
-    tmp_logger.debug(f"grep {pattern!r} in {log_path} (max_matches={max_matches}, tail_bytes={tail_bytes})")
+    shown = f"{len(patterns)} fixed strings {patterns[:3]!r}" if fixed else repr(patterns[0])
+    tmp_logger.debug(f"grep {shown} in {log_path} (max_matches={max_matches}, tail_bytes={tail_bytes})")
     try:
         start_time = naive_utcnow()
-        proc = _run_grep(log_path, pattern, max_matches, tail_bytes)
+        proc = _run_grep(log_path, patterns, fixed, max_matches, tail_bytes)
         elapsed = (naive_utcnow() - start_time).total_seconds()
         tmp_logger.debug(f"subprocess completed in {elapsed:.2f} seconds")
     except subprocess.TimeoutExpired:
