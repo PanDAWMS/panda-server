@@ -229,14 +229,25 @@ class TestRun(BatchTestBase):
 
     def test_answers(self) -> None:
         logger = mock.Mock()
-        success, message, data = db_read_handlers._run({"queries": [Q_JOBS], "requester": "alice"}, time.monotonic(), logger)
+        queries = [Q_JOBS, {"tables": ["users"]}]
+        success, message, data = db_read_handlers._run({"queries": queries, "requester": "alice"}, time.monotonic(), logger)
         self.assertTrue(success, message)
         assert data is not None
-        self.assertEqual(data["answers"][0]["status"], "done")
-        # one line saying who read what, at what cost and how fast
+        self.assertEqual([answer["status"] for answer in data["answers"]], ["done", "rejected"])
+        # one line saying who read what, with which statement, at what cost, how fast and where the time went
         line = logger.info.call_args[0][0]
-        self.assertIn("db_read by alice", line)
-        self.assertIn('"probes": 3', line)
+        prefix, summary = line.split(": ", 1)
+        self.assertTrue(prefix.startswith("db_read by alice in "), prefix)
+        for step in ("connect", "start", "dictionary", "close"):
+            self.assertIn(f"{step} ", prefix)
+        logged = json.loads(summary)
+        table = logged[0]["tables"][0]
+        self.assertEqual((table["table"], table["probes"], table["rows"]), ("jobsActive4", 3, 3))
+        self.assertEqual(table["statement"], data["answers"][0]["tables"][0]["statement"])
+        self.assertEqual(sorted(table["binds"].values()), [1, 2, 3])
+        # and why a query was refused
+        self.assertEqual(logged[1]["rule"], "unknown_table")
+        self.assertIn("users", logged[1]["message"])
         # the connection lasts as long as the request
         self.assertTrue(self.proxy.closed)
 
@@ -297,6 +308,17 @@ class TestReader(unittest.TestCase):
             with self.assertRaises(DBReaderUnavailableError):
                 db_read_handlers._connect_reader()
         self.assertEqual(proxy_class.return_value.connect.call_count, 3)
+
+
+class TestLogLine(unittest.TestCase):
+    def test_binds_cut_short(self) -> None:
+        binds = {f":r{i}": i for i in range(25)} | {":t": "x" * 150, ":d": D0}
+        shown = db_read_handlers._binds_for_log(binds)
+        assert shown is not None
+        self.assertEqual(len(shown), db_read_handlers.LOG_BINDS + 1)
+        self.assertEqual(shown["..."], "7 more")
+        self.assertEqual(db_read_handlers._binds_for_log({":t": "x" * 150, ":d": D0}), {":t": "x" * 100 + "...", ":d": {"__datetime__": "2026-10-01T00:00:00"}})
+        self.assertIsNone(db_read_handlers._binds_for_log(None))
 
 
 class TestHandler(unittest.TestCase):

@@ -76,6 +76,10 @@ ENVELOPE_BYTES = 20_000
 # codes of a round trip that ran out of time
 _TIMEOUT_CODES = ("DPI-1067", "DPY-4024", "57014")
 
+# most binds of a statement the log line shows, and most characters of a text bind it shows
+LOG_BINDS = 20
+LOG_TEXT_CHARS = 100
+
 
 def _connect_reader() -> DBProxy:
     """
@@ -168,6 +172,11 @@ class _Batch:
         self.rows: list[list[tuple[tuple[str, ...], list[tuple[Any, ...]]]]] = []
         # the answer the queries after a stop get, once something has stopped the batch
         self.stopped: dict[str, Any] | None = None
+        # for the log line: the binds of each table of each answer, None for a table not read, and the
+        # seconds the start of the transaction and the reads of the dictionary took
+        self.binds: list[list[dict[str, Any] | None]] = []
+        self.start_seconds = 0.0
+        self.dictionary_seconds = 0.0
 
     def limit_round_trip(self) -> None:
         left_ms = int((self.deadline - time.monotonic()) * 1000)
@@ -228,10 +237,13 @@ class _Batch:
                 return _rejected(QueryRejected("from_query", f"query {reference.query} does not return {reference.column}", query=reference.query))
             from_values[reference] = self.values_of(reference)
             from_truncated = from_truncated or source["truncated"]
+        dictionary_started = time.monotonic()
         try:
             infos = {table.name: get_table_info(self.round_trip, self.backend, table.owner, table.name) for table in query.tables}
         except TableNotVisible as error:
             return {"status": "error", "code": "table_not_visible", "message": f"the dictionary shows no columns of {error}"}
+        finally:
+            self.dictionary_seconds += time.monotonic() - dictionary_started
         try:
             plans = check_query(query, infos, {reference: len(values) for reference, values in from_values.items()}, self.budget)
         except QueryRejected as rejection:
@@ -244,6 +256,7 @@ class _Batch:
             if statement is None:
                 # an "in" from a query with no values, which no row satisfies
                 tables.append({"table": plan.table.name, "rows": [], "truncated": False, "probes": 0, "seconds": 0.0, "statement": None})
+                self.binds[position].append(None)
                 continue
             if len(statement.sql) > self.bytes_left:
                 self.stopped = {"status": "rejected", "rule": "result_size", "message": "the result has no room left", "detail": {}}
@@ -267,6 +280,7 @@ class _Batch:
             raw_tables.append((statement.names, rows[: len(encoded)]))
             truncated = truncated or cut
             tables.append({"table": plan.table.name, "rows": encoded, "truncated": cut, "probes": plan.probes, "seconds": seconds, "statement": statement.sql})
+            self.binds[position].append(statement.binds)
             if self.stopped is not None:
                 # the tables after this one are not read, which the truncated answer says
                 break
@@ -274,9 +288,12 @@ class _Batch:
         return {"status": "done", "truncated": truncated, "tables": tables}
 
     def run(self, raw_queries: list[Any]) -> dict[str, Any]:
+        started = time.monotonic()
         as_of = self.start()
+        self.start_seconds = time.monotonic() - started
         for position, raw in enumerate(raw_queries):
             self.rows.append([])
+            self.binds.append([])
             if self.stopped is not None:
                 self.answers.append(dict(self.stopped))
                 continue
@@ -300,14 +317,31 @@ class _Batch:
         return {"as_of": encode_value(as_of), "answers": self.answers}
 
 
-def _summary(answers: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    # what the log line keeps of each answer: its status, and the cost and time of each statement
+def _binds_for_log(binds: dict[str, Any] | None) -> dict[str, Any] | None:
+    # the first binds of a statement, a long text cut short, since an "in" may have a thousand
+    if binds is None:
+        return None
+    shown: dict[str, Any] = {}
+    for name, value in list(binds.items())[:LOG_BINDS]:
+        value = encode_value(value)
+        if isinstance(value, str) and len(value) > LOG_TEXT_CHARS:
+            value = value[:LOG_TEXT_CHARS] + "..."
+        shown[name] = value
+    if len(binds) > LOG_BINDS:
+        shown["..."] = f"{len(binds) - LOG_BINDS} more"
+    return shown
+
+
+def _summary(answers: list[dict[str, Any]], binds: list[list[dict[str, Any] | None]]) -> list[dict[str, Any]]:
+    # what the log line keeps of each answer: its status and why, and the statement, binds, cost and time of each table
     summary: list[dict[str, Any]] = []
-    for answer in answers:
-        item: dict[str, Any] = {key: answer[key] for key in ("status", "rule", "code") if key in answer}
+    for answer, answer_binds in zip(answers, binds):
+        item: dict[str, Any] = {key: answer[key] for key in ("status", "rule", "code", "message", "detail") if key in answer}
         if "tables" in answer:
             item["tables"] = [
-                {key: table[key] for key in ("table", "probes", "seconds", "truncated")} | {"rows": len(table["rows"])} for table in answer["tables"]
+                {key: table[key] for key in ("table", "probes", "seconds", "truncated")}
+                | {"rows": len(table["rows"]), "statement": table["statement"], "binds": _binds_for_log(table_binds)}
+                for table, table_binds in zip(answer["tables"], answer_binds)
             ]
         summary.append(item)
     return summary
@@ -337,22 +371,32 @@ def _run(parameters: dict[str, Any], started: float, tmp_logger: LogWrapper) -> 
             "for the result, and the cycle may have used the rest on other requests",
             None,
         )
+    connect_started = time.monotonic()
     try:
         proxy = _connect_reader()
     except DBReaderUnavailableError as error:
         return False, f"the read-only account is not available: {error}", None
+    connect_seconds = time.monotonic() - connect_started
+    batch = _Batch(proxy, deadline, panda_config.db_read_probe_budget, tmp_logger)
     try:
         try:
-            data = _Batch(proxy, deadline, panda_config.db_read_probe_budget, tmp_logger).run(queries)
+            data = batch.run(queries)
         except Exception as error:
             # only the start of the transaction gets here, every query catching its own errors
             code = get_db_error_code(error)
             tmp_logger.error(f"failed to start the read-only transaction with {code}: {traceback.format_exc()}")
             return False, f"the read-only transaction could not start: {code}", None
     finally:
+        close_started = time.monotonic()
         proxy.cleanup()
+        close_seconds = time.monotonic() - close_started
+    # where the time went besides the statements, whose times are in the summary
+    steps = {"connect": connect_seconds, "start": batch.start_seconds, "dictionary": batch.dictionary_seconds, "close": close_seconds}
     seconds = round(time.monotonic() - started, 3)
-    tmp_logger.info(f"db_read by {parameters.get('requester')} in {seconds} s: {json.dumps(_summary(data['answers']))}")
+    tmp_logger.info(
+        f"db_read by {parameters.get('requester')} in {seconds} s ({', '.join(f'{name} {value:.3f} s' for name, value in steps.items())}): "
+        f"{json.dumps(_summary(data['answers'], batch.binds), default=str)}"
+    )
     return True, "", data
 
 
