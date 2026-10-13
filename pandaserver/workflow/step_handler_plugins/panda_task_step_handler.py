@@ -5,6 +5,7 @@ from typing import Any
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.workflow.step_handler_plugins.base_step_handler import BaseStepHandler
 from pandaserver.workflow.workflow_base import (
     PARENT_TASK_ID_PARAM,
@@ -32,6 +33,14 @@ from pandaserver.workflow.workflow_native_utils import (
 # deployment's configuration into the server.
 PRODUCTION_SOURCE_LABELS = ("managed",)
 
+# Task type and priority given to work submitted as analysis, as insertTaskParamsPanda gives them.
+# A step built from a command line carries none of them: the client never sets userName, taskType
+# or taskPriority, because insertTaskParamsPanda has always filled them in from the submitter's
+# credentials. The engine inserts the step's task itself now, so it has to fill them in the same way;
+# JEDI reads all three by direct indexing and would otherwise break the task while refining it.
+ANALYSIS_TASK_TYPE = "anal"
+ANALYSIS_TASK_PRIORITY = 1000
+
 # main logger
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -50,6 +59,65 @@ class PandaTaskStepHandler(BaseStepHandler):
         super().__init__(*args, **kwargs)
         # plugin flavor
         self.plugin_flavor = "panda_task"
+
+    def apply_submitter_credentials(self, step_definition: dict[str, Any], task_param_map: dict[str, Any], tmp_log: LogWrapper) -> tuple[bool, str]:
+        """
+        Fill in the task parameters which are the submitter's to set rather than the author's.
+
+        A task submitted the ordinary way has its userName, taskType and taskPriority written by
+        insertTaskParamsPanda from the submitter's credentials, never taken from the request: the
+        client does not send them. A workflow step's parameters come from that same client code, so
+        the engine, which inserts the task itself, applies the same rule here. Without it a step
+        built from a command line reaches the insert with no userName at all.
+
+        The rule is insertTaskParamsPanda's: a submitter holding a production role keeps whatever the
+        description authored, because a production chain names the account it runs under; a submitter
+        without the role gets their own identity and the analysis task type written over anything the
+        description asked for, so a workflow cannot submit work under another name or claim a task
+        type its submitter is not entitled to.
+
+        Args:
+            step_definition (dict): The step definition, carrying the submitter's credentials as
+                captured from VOMS when the workflow was registered
+            task_param_map (dict): Task parameters to fill in place
+            tmp_log (LogWrapper): Logger
+
+        Returns:
+            bool: Whether the submitter could be identified
+            str: An error message when they could not, otherwise empty
+        """
+        prod_role = step_definition.get("prod_role", False)
+        # Registration stores the compact form; fall back to deriving it for a definition written
+        # before user_name was carried on the step, and to the raw DN as insertTaskParamsPanda does
+        # when it does not compact to anything.
+        user_name = step_definition.get("user_name")
+        user_dn = step_definition.get("user_dn")
+        if not user_name and user_dn:
+            user_name = clean_user_id(user_dn)
+            if user_name in ["", "NULL", None]:
+                user_name = user_dn
+        if not user_name:
+            message = "step definition names no submitter, so the task has no userName to run under"
+            tmp_log.error(message)
+            return False, message
+        applied: dict[str, Any] = {}
+        if not prod_role or not task_param_map.get("userName"):
+            task_param_map["userName"] = user_name
+            applied["userName"] = user_name
+        if not prod_role or not task_param_map.get("taskType"):
+            task_param_map["taskType"] = ANALYSIS_TASK_TYPE
+            task_param_map["taskPriority"] = ANALYSIS_TASK_PRIORITY
+            applied["taskType"] = ANALYSIS_TASK_TYPE
+            applied["taskPriority"] = ANALYSIS_TASK_PRIORITY
+            # An official dataset belongs to a group, which only the submitter's FQANs can establish
+            if task_param_map.get("official") is True:
+                working_group = self.tbif.get_working_group(step_definition.get("fqans") or [])
+                if working_group:
+                    task_param_map["workingGroup"] = working_group
+                    applied["workingGroup"] = working_group
+        if applied:
+            tmp_log.debug(f"applied submitter parameters {applied} (prod_role={prod_role})")
+        return True, ""
 
     def resolve_input_references(self, step_spec: WFStepSpec, task_param_map: dict[str, Any], tmp_log: LogWrapper) -> tuple[bool, str]:
         """
@@ -278,6 +346,44 @@ class PandaTaskStepHandler(BaseStepHandler):
             self.tbif.update_workflow_data(data_spec)
             tmp_log.info(f"resolved output data {output_data_name} to {data_spec.target_id}")
 
+    def check_previous_attempt(self, step_spec: WFStepSpec, task_param_map: dict[str, Any], tmp_log: LogWrapper) -> tuple[bool, str]:
+        """
+        Decide whether a step whose previous attempt recorded a taskName may be submitted again.
+
+        The attempt is recorded before the insert is called, so the record means the insert was
+        reached, not that it queued anything: it may have been refused by a parameter check before
+        any transaction began. Production tasks are not duplicate-checked on insert, so a step whose
+        task really was queued must not queue it a second time, but refusing on the record alone
+        strands every step whose attempt failed before reaching the database. Ask whether the task
+        exists instead, which answers it either way.
+
+        Args:
+            step_spec (WFStepSpec): The step being submitted
+            task_param_map (dict): Task parameters of this attempt
+            tmp_log (LogWrapper): Logger
+
+        Returns:
+            bool: Whether the step may be submitted
+            str: An error message when it may not, otherwise empty
+        """
+        previous_attempt = step_spec.get_parameter("submit_attempt_task_name")
+        task_name = task_param_map.get("taskName")
+        if not previous_attempt or previous_attempt != task_name:
+            return True, ""
+        existing = self.tbif.get_existing_task_names(task_param_map.get("vo"), task_param_map.get("prodSourceLabel"), [task_name])
+        if existing is None:
+            # Unknown is not the same as absent: without an answer the safe reading of the record is
+            # that the task may be queued, so leave it to be retried on a later cycle.
+            message = f"a previous attempt submitted taskName={task_name} and whether it was queued could not be checked; not submitting again"
+            tmp_log.error(message)
+            return False, message
+        if task_name in existing:
+            message = f"a previous attempt already submitted taskName={task_name} as jediTaskID={existing[task_name]['jediTaskID']}; not submitting again"
+            tmp_log.error(message)
+            return False, message
+        tmp_log.info(f"a previous attempt recorded taskName={task_name} but queued no task; submitting again")
+        return True, ""
+
     def submit_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetSubmitResult:
         """
         Submit a target for processing the PanDA task step.
@@ -318,6 +424,11 @@ class PandaTaskStepHandler(BaseStepHandler):
                 submit_result.message = f"prodSourceLabel={task_param_map.get('prodSourceLabel')} requires a production role, which the submitter does not hold"
                 tmp_log.error(submit_result.message)
                 return submit_result
+            # Write the parameters which belong to the submitter rather than to the description
+            is_applied, message = self.apply_submitter_credentials(step_definition, task_param_map, tmp_log)
+            if not is_applied:
+                submit_result.message = message
+                return submit_result
             # Resolve input dataset references against the datasets actually produced upstream
             is_resolved, message = self.resolve_input_references(step_spec, task_param_map, tmp_log)
             if not is_resolved:
@@ -332,13 +443,11 @@ class PandaTaskStepHandler(BaseStepHandler):
             if not is_resolved:
                 submit_result.message = message
                 return submit_result
-            # A task queued by a previous attempt must not be queued twice. Production tasks are not
-            # duplicate-checked on insert, so record the attempt before submitting and refuse to
-            # retry a step whose outcome is unknown.
-            previous_attempt = step_spec.get_parameter("submit_attempt_task_name")
-            if previous_attempt == task_param_map.get("taskName"):
-                submit_result.message = f"a previous attempt already submitted taskName={previous_attempt}; not submitting again"
-                tmp_log.error(submit_result.message)
+            # A task queued by a previous attempt must not be queued twice, so record the attempt
+            # before submitting and consult the record on the way back in.
+            may_submit, message = self.check_previous_attempt(step_spec, task_param_map, tmp_log)
+            if not may_submit:
+                submit_result.message = message
                 return submit_result
             step_spec.set_parameter("submit_attempt_task_name", task_param_map.get("taskName"))
             self.tbif.update_workflow_step(step_spec)

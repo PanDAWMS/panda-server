@@ -5,7 +5,7 @@ Drives the real WorkflowModule.insert_step_task against a fake cursor, so the SQ
 late-bound ${TASKID} resolution, the active-task throttle and both sequence backends are exercised
 without a database.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/insert_step_task_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/insert_step_task_test.py
 """
 
 import json

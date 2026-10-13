@@ -179,7 +179,7 @@ module = [
 ]
 ignore_missing_imports = false
 
-# The offline harnesses under pandaserver/workflow/examples are standalone scripts, run by hand
+# The offline harnesses under pandaserver/workflow/tests are standalone scripts, run by hand
 # against the workflow engine and never imported by the server. What they are for is substituting a
 # fake for a real type -- a cursor, a step spec, a task buffer -- so the two flags that require
 # every def to be annotated ask for work on objects that exist for one assertion and assert nothing
@@ -188,7 +188,7 @@ ignore_missing_imports = false
 # drifted from the interface it stands in for is still reported.
 [[tool.mypy.overrides]]
 module = [
-    "pandaserver.workflow.examples.*",
+    "pandaserver.workflow.tests.*",
 ]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false

@@ -5,7 +5,7 @@ Stubs the server-side dependencies (task buffer, workflow interface, request val
 pandaserver.api.v1.workflow_api.submit_workflow_description can be exercised without a database or
 a running server.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/submit_endpoint_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/submit_endpoint_test.py
 """
 
 import copy
@@ -141,6 +141,18 @@ class FakeWorkflowInterface:
         self.calls = []
         self.step_relations = {"workflow_id": 133, "steps": [{"step_id": 516, "name": "evgen", "parent_step_ids": []}]}
         self.task_relations = {"workflow_id": 133, "tasks": [{"key": "133:516", "task_id": 52382519, "name": "evgen", "parents": []}]}
+        self.workflow_status = {
+            "workflow_id": 133,
+            "name": "mc23_526140_AZH_llbb_full_chain",
+            "status": "failed",
+            "reason": "step recon (step_id=525) failed: task 48810706 reported broken",
+            "parent_id": None,
+            "creation_time": "2026-10-12T09:14:03",
+            "start_time": "2026-10-12T09:15:01",
+            "end_time": "2026-10-12T11:02:44",
+            "n_steps": 9,
+            "step_status_counts": {"done": 4, "failed": 1, "cancelled": 4},
+        }
 
     def register_workflow(
         self, prodsourcelabel, user_dn, workflow_name=None, workflow_definition=None, raw_request_params=None, prod_role=False, fqans=None, *args, **kwargs
@@ -171,6 +183,10 @@ class FakeWorkflowInterface:
         self.calls.append({"get_task_relations_of_task": task_id})
         return self.task_relations
 
+    def get_workflow_status(self, workflow_id):
+        self.calls.append({"get_workflow_status": workflow_id})
+        return self.workflow_status
+
 
 def install(existing=None, fail=False, workflow_id=4242):
     tbif = FakeTaskBuffer(existing, fail)
@@ -189,7 +205,7 @@ def check(label, condition, detail=""):
 
 def main():
     failures = 0
-    wfd = json.load(open(os.path.join(os.path.dirname(__file__), "production_chain_wfd.json")))
+    wfd = json.load(open(os.path.join(os.path.dirname(__file__), "..", "examples", "production_chain_wfd.json")))
     submit = workflow_api.submit_workflow_description
 
     print("\n=== a valid description registers ===")
@@ -308,6 +324,20 @@ def main():
     res = workflow_api.get_step_relations(cast(Any, None), 999)
     failures += not check("nothing found is a failure with a reason", res["success"] is False and "No step" in res["message"], res)
 
+    print("\n=== get_workflow_status ===")
+    _, wfif = install()
+    res = workflow_api.get_workflow_status(cast(Any, None), 133)
+    failures += not check("succeeds", res["success"] is True, res)
+    failures += not check("the workflow id is passed through", wfif.calls[-1] == {"get_workflow_status": 133}, wfif.calls[-1])
+    failures += not check("the workflow's own status is the data", res["data"]["status"] == "failed", res["data"])
+    failures += not check("the step tally comes back with it", res["data"]["step_status_counts"]["cancelled"] == 4, res["data"])
+    failures += not check("the reason names the step that failed", "recon" in res["data"]["reason"], res["data"]["reason"])
+    failures += not check("the times are strings a plain json client can read", isinstance(res["data"]["end_time"], str), res["data"]["end_time"])
+    _, wfif = install()
+    wfif.workflow_status = None
+    res = workflow_api.get_workflow_status(cast(Any, None), 999)
+    failures += not check("an unknown workflow is a failure with a reason", res["success"] is False and "No workflow" in res["message"], res)
+
     print("\n=== get_task_relations ===")
     _, wfif = install()
     res = workflow_api.get_task_relations(cast(Any, None), workflow_id=133)
@@ -346,8 +376,8 @@ def main():
     )
     failures_local += not check("the deprecated alias is still routed", "submit_workflow_raw_request" in exported)
     failures_local += not check(
-        "the relation endpoints are routed",
-        {"get_step_relations", "get_task_relations"} <= set(exported),
+        "the query endpoints are routed",
+        {"get_step_relations", "get_task_relations", "get_workflow_status"} <= set(exported),
         sorted(exported),
     )
     failures_local += not check("private helpers not routed", not any(n.startswith("_") for n in exported))

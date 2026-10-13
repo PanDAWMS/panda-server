@@ -11,7 +11,7 @@ released and the chain stalled with the error only visible in the handler log.
 TaskBuffer has no __getattr__, so an unwrapped proxy method is an AttributeError at runtime rather
 than a delegated call. This test parses the sources (no DB, no imports) and compares.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/taskbuffer_interface_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/taskbuffer_interface_test.py
 """
 
 import ast

@@ -10,7 +10,7 @@ The shape checked here is the production chain PanDA ran as workflow 133, includ
 where deriv_prw and deriv_phys both consume merge_aod/AOD, and the external background dataset
 that must contribute no parent.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/step_relations_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/step_relations_test.py
 """
 
 import importlib.abc

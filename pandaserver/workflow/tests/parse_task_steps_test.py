@@ -5,7 +5,7 @@ Stubs the runtime dependencies which are not installed in a bare checkout (panda
 pandacommon, ruamel, pandaserver.config) so that parse_workflow_data / resolve_nodes /
 resolve_params / verify can be exercised directly on the example description.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/parse_task_steps_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/parse_task_steps_test.py
 """
 
 import json
@@ -64,7 +64,7 @@ def check(label, cond, detail=""):
 def main():
     log = Log()
     failures = 0
-    wfd = json.load(open(os.path.join(os.path.dirname(__file__), "production_chain_wfd.json")))
+    wfd = json.load(open(os.path.join(os.path.dirname(__file__), "..", "examples", "production_chain_wfd.json")))
 
     print("\n=== parse_workflow_data ===")
     nodes, root_in = wnu.parse_workflow_data(wfd, log)
