@@ -1,6 +1,6 @@
 """
 API endpoints for submitting and polling async processing requests.
-Currently supports grep (rg) on log files; extensible to other request types.
+Currently supports grep (rg) on log files and listing them; extensible to other request types.
 """
 
 import json
@@ -140,6 +140,33 @@ def _structured_result_response(req_row: Dict[str, Any], results: list[dict[str,
     return response
 
 
+def _expected_machines(service_name: str | None, machine_name: str | None, tmp_logger: LogWrapper) -> tuple[Sequence[str | None] | None, str]:
+    """
+    Get the machines a request for a service, or for one machine, is expected to run on.
+
+    Args:
+        service_name(str or None): every alive machine of this service
+        machine_name(str or None): this machine alone, alive or not
+        tmp_logger(LogWrapper): logger
+
+    Returns:
+        the machines, or None with the reason when the request cannot go anywhere
+    """
+    if bool(service_name) == bool(machine_name):
+        return None, "exactly one of service_name or machine_name must be provided"
+    if service_name:
+        expected = global_task_buffer.get_alive_machines(service_name)
+        if not expected:
+            return None, f"no alive machines found for service '{service_name}'"
+        return expected, ""
+    # get_alive_machines matches on service_name; for a specific machine check heartbeat directly
+    alive = global_task_buffer.get_alive_machines(machine_name)
+    # warn but don't block — machine may have started after last heartbeat window
+    if not alive:
+        tmp_logger.warning(f"machine '{machine_name}' has no recent heartbeat; request submitted anyway")
+    return [machine_name], ""
+
+
 @request_validation(_logger, secure=True, request_method="POST")
 def submit_grep_request(
     req: PandaRequest,
@@ -200,11 +227,6 @@ def submit_grep_request(
         return generate_response(False, msg)
     tmp_logger.debug(msg)
 
-    if bool(service_name) == bool(machine_name):
-        msg = "exactly one of service_name or machine_name must be provided"
-        tmp_logger.warning(msg)
-        return generate_response(False, msg)
-
     if (pattern is None) == (fixed_strings is None):
         msg = "exactly one of pattern or fixed_strings must be provided"
         tmp_logger.warning(msg)
@@ -242,21 +264,10 @@ def submit_grep_request(
         return generate_response(False, msg)
 
     # determine expected machines from liveness snapshot
-    expected: Sequence[str | None]
-    if service_name:
-        expected = global_task_buffer.get_alive_machines(service_name)
-        if not expected:
-            msg = f"no alive machines found for service '{service_name}'"
-            tmp_logger.warning(msg)
-            return generate_response(False, msg)
-    else:
-        alive = global_task_buffer.get_alive_machines(machine_name)
-        # get_alive_machines matches on service_name; for a specific machine check heartbeat directly
-        expected = [machine_name]
-        # warn but don't block — machine may have started after last heartbeat window
-        if not alive:
-            msg = f"machine '{machine_name}' has no recent heartbeat; request submitted anyway"
-            tmp_logger.warning(msg)
+    expected, msg = _expected_machines(service_name, machine_name, tmp_logger)
+    if expected is None:
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
 
     async_id = str(uuid.uuid4())
     grep_parameters: dict[str, Any] = {"log_filename": log_filename}
@@ -290,6 +301,69 @@ def submit_grep_request(
     tmp_logger.debug(f"Done async_id={async_id}")
     # request_id carries the same value under the pre-rename name, so callers polling with it
     # keep working; it is dropped once they have moved to async_id
+    return generate_response(True, "", {"async_id": async_id, "request_id": async_id})
+
+
+@request_validation(_logger, secure=True, request_method="POST")
+def submit_log_list_request(req: PandaRequest, service_name: str | None = None, machine_name: str | None = None) -> Dict[str, Any]:
+    """
+    Submit a log list request
+
+    Submit a request to list the log files under panda_config.logdir on the target service or machine: every file whose
+    name starts with "panda-", the rotated ones too, so that a caller can choose the files to grep by their names and
+    times rather than guess how the logs are rotated.
+
+    The result of each machine in /v1/async_process/get_result is a JSON list of its files, in the order of their
+    names, `[{"name": str, "size": int, "mtime": "YYYY-MM-DD HH:MM:SS"}, ...]` with mtime in UTC. It comes back
+    truncated when the list does not fit in 1 MB.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/async_process/submit_log_list_request
+
+    Args:
+        req(PandaRequest): request object
+        service_name(str): target service (e.g. "server", "jedi"); mutually exclusive with machine_name
+        machine_name(str): target specific machine hostname; mutually exclusive with service_name
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID to poll /v1/async_process/get_result with. request_id repeats async_id, as for the other
+            requests; read async_id.
+            {"async_id": str, "request_id": str}
+    """
+    tmp_logger = LogWrapper(_logger, "submit_log_list_request")
+    tmp_logger.debug("Start")
+
+    ok, msg = _is_authorized_with_allowlist(req)
+    if not ok:
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+    tmp_logger.debug(msg)
+
+    expected, msg = _expected_machines(service_name, machine_name, tmp_logger)
+    if expected is None:
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    async_id = str(uuid.uuid4())
+    parameters = set_owner_info({}, req)  # like a grep, owner-only
+    ok = global_task_buffer.insert_async_request(
+        async_id,
+        "log_list",
+        json.dumps(parameters),
+        service_name,
+        machine_name,
+        json.dumps(expected),
+    )
+    if not ok:
+        msg = "failed to insert request into DB"
+        tmp_logger.error(msg)
+        return generate_response(False, msg)
+
+    tmp_logger.debug(f"Done async_id={async_id}")
     return generate_response(True, "", {"async_id": async_id, "request_id": async_id})
 
 
@@ -459,7 +533,7 @@ def get_result(req: PandaRequest, async_id: str | None = None, request_id: str |
 
     The response has two shapes, depending on what the request's handler stores.
 
-    Handlers writing raw output (grep, sleep_echo) report one entry per machine:
+    Handlers writing raw output (grep, log_list, sleep_echo) report one entry per machine:
 
     ```
     {
@@ -513,7 +587,7 @@ def get_result(req: PandaRequest, async_id: str | None = None, request_id: str |
 
     Response data:
         dict: Depends on the request's handler, see the two shapes above. For handlers writing raw
-            output (grep, sleep_echo), the overall_status ("complete" or "pending"), the
+            output (grep, log_list, sleep_echo), the overall_status ("complete" or "pending"), the
             expected_machines and one result per machine. For handlers writing a structured payload
             (e.g. Data Carousel operations), the operation's own data, with success and message also
             the operation's own and an extra top-level async_meta field carrying the request's status

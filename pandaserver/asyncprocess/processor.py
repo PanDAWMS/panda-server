@@ -4,6 +4,7 @@ Each service wraps this with a thin entrypoint that passes its service_name.
 New request types: add a handler function and register it in HANDLERS.
 """
 
+import datetime
 import json
 import os
 import re
@@ -324,6 +325,49 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
     )
 
 
+def _handle_log_list(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper, result_machine: str) -> None:
+    """List the log files under panda_config.logdir as JSON, and store it under result_machine's result row.
+
+    Every regular file whose name starts with "panda-" is listed, as a grep may
+    read no other, with its size and its time of last change in UTC.  Files are
+    listed in the order of their names until the list no longer fits in
+    _MAX_RESULT_BYTES, which sets truncated.
+    """
+    try:
+        with os.scandir(panda_config.logdir) as entries:
+            files: list[dict[str, Any]] = []
+            for entry in entries:
+                if not entry.name.startswith("panda-") or not entry.is_file():
+                    continue
+                stat = entry.stat()
+                mtime = datetime.datetime.fromtimestamp(stat.st_mtime, datetime.timezone.utc)
+                files.append({"name": entry.name, "size": stat.st_size, "mtime": mtime.strftime("%Y-%m-%d %H:%M:%S")})
+    except OSError as e:
+        tmp_logger.error(f"failed to list {panda_config.logdir}: {e}")
+        tb.finish_async_result(row["request_id"], result_machine, "failed", error_msg=str(e), retriable=False)
+        return
+
+    files.sort(key=lambda file: file["name"])
+    # one entry at a time, so that a list cut short is still valid JSON
+    kept: list[str] = []
+    size = 2
+    for file in files:
+        text = json.dumps(file)
+        if size + len(text) + 2 > _MAX_RESULT_BYTES:
+            break
+        kept.append(text)
+        size += len(text) + 2
+    truncated = len(kept) < len(files)
+    tmp_logger.debug(f"listed {len(kept)} of {len(files)} files in {panda_config.logdir}")
+    tb.finish_async_result(
+        row["request_id"],
+        result_machine,
+        "done",
+        result=f"[{', '.join(kept)}]",
+        truncated=truncated,
+    )
+
+
 def _handle_sleep_echo(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper, result_machine: str) -> None:
     """Sleep for the requested seconds, then echo the message; store echo stdout as the result."""
     params = json.loads(row["parameters"])
@@ -374,6 +418,7 @@ def _handle_sleep_echo(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogW
 # arguments but are otherwise unrelated functions, hence the bare Callable
 HANDLERS: dict[str, Callable[..., None]] = {
     "grep": _handle_grep,
+    "log_list": _handle_log_list,
     "sleep_echo": _handle_sleep_echo,
     # Data Carousel operations, submitted by pandaserver.api.v1.data_carousel_api
     **data_carousel_handlers.HANDLERS,

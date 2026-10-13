@@ -150,6 +150,28 @@ class TestAsyncProcessAPI(unittest.TestCase):
         # the pre-rename key is still served alongside it
         self.assertEqual(output["data"]["request_id"], async_id)
 
+    def test_submit_grep_request_fixed_strings_whole_records(self) -> None:
+        full_url = f"{api_url_ssl}/async_process/submit_grep_request"
+        print(f"Testing URL: {full_url}")
+        data = {
+            "fixed_strings": ["ERROR", "Traceback (most recent call last):"],
+            "whole_records": True,
+            "log_filename": "panda-server.log",
+            "machine_name": socket.getfqdn(),
+        }
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        self.assertTrue(output["success"], output["message"])
+        self.assertEqual(len(output["data"]["async_id"]), 36)
+
+    def test_submit_log_list_request_success(self) -> None:
+        full_url = f"{api_url_ssl}/async_process/submit_log_list_request"
+        print(f"Testing URL: {full_url}")
+        status, output = self.http_client.post(full_url, {"machine_name": socket.getfqdn()})
+        print(output)
+        self.assertTrue(output["success"], output["message"])
+        self.assertEqual(len(output["data"]["async_id"]), 36)
+
     def test_get_result_no_ssl(self) -> None:
         # a result is read by its owner only, whose DN comes with a secure connection
         full_url = f"{api_url}/async_process/get_result"
@@ -566,6 +588,48 @@ class TestSubmitGrepRequest(unittest.TestCase):
             {"fixed_strings": ["two\nlines"]},
             {"fixed_strings": ["x" * 1001]},
             {"fixed_strings": ["x"] * 1001},
+        )
+        for kwargs in refused:
+            out, task_buffer = self._submit(**kwargs)
+            self.assertFalse(out["success"], kwargs)
+            task_buffer.insert_async_request.assert_not_called()
+
+
+class TestSubmitLogListRequest(unittest.TestCase):
+    """Unit tests for submit_log_list_request (no live server needed)."""
+
+    @staticmethod
+    def _request() -> PandaRequest:
+        """A request the endpoint decorator lets through: secure, POST, and not a limited proxy."""
+        return cast(PandaRequest, SimpleNamespace(subprocess_env={"REQUEST_METHOD": "POST", "SSL_CLIENT_S_DN": "/CN=alice"}))
+
+    def _submit(self, authorized: bool = True, **kwargs: Any) -> tuple[dict[str, Any], mock.MagicMock]:
+        task_buffer = mock.MagicMock()
+        task_buffer.get_alive_machines.return_value = ["a.cern.ch", "b.cern.ch"]
+        task_buffer.insert_async_request.return_value = True
+        with (
+            mock.patch.object(async_process_api, "global_task_buffer", task_buffer),
+            mock.patch.object(async_process_api, "_is_authorized_with_allowlist", return_value=(authorized, "checked")),
+            mock.patch.object(common, "get_dn", return_value="dn"),
+            mock.patch.object(common, "clean_user_id", return_value="alice"),
+        ):
+            out = async_process_api.submit_log_list_request(self._request(), **kwargs)
+        return out, task_buffer
+
+    def test_success(self) -> None:
+        out, task_buffer = self._submit(service_name="server")
+        self.assertTrue(out["success"], out["message"])
+        async_id, request_type, parameters_json, service_name, machine_name, expected = task_buffer.insert_async_request.call_args[0]
+        self.assertEqual(out["data"], {"async_id": async_id, "request_id": async_id})
+        self.assertEqual((request_type, service_name, machine_name), ("log_list", "server", None))
+        self.assertEqual(json.loads(expected), ["a.cern.ch", "b.cern.ch"])
+        self.assertEqual(json.loads(parameters_json), {"requester": "alice", "access": "owner"})
+
+    def test_refused(self) -> None:
+        refused: tuple[dict[str, Any], ...] = (
+            {},
+            {"service_name": "server", "machine_name": "a.cern.ch"},
+            {"service_name": "server", "authorized": False},
         )
         for kwargs in refused:
             out, task_buffer = self._submit(**kwargs)

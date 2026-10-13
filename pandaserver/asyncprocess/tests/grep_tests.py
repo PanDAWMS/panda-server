@@ -152,5 +152,57 @@ class TestHandleGrep(unittest.TestCase):
         self.assertEqual((out["status"], out["error_msg"]), ("failed", "timeout"))
 
 
+class TestHandleLogList(unittest.TestCase):
+    def setUp(self) -> None:
+        self.logdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.logdir)
+        patcher = mock.patch.object(panda_config, "logdir", self.logdir, create=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _list(self) -> dict[str, Any]:
+        """Run the handler, and give what it stored."""
+        task_buffer = mock.MagicMock()
+        processor._handle_log_list({"request_id": "r1", "parameters": "{}"}, task_buffer, mock.MagicMock(), "host")
+        args, kwargs = task_buffer.finish_async_result.call_args
+        return {"status": args[2], **kwargs}
+
+    def test_list(self) -> None:
+        # the files a grep may read, rotated or not, and nothing else
+        for name, text in (("panda-a.log", "xx"), ("panda-a.log-20261012", "x"), ("panda-a.log-20261008.gz", ""), ("httpd.log", "x")):
+            path = os.path.join(self.logdir, name)
+            with open(path, "w") as f:
+                f.write(text)
+            # 2026-10-12 23:59:59 UTC
+            os.utime(path, (1791849599, 1791849599))
+        os.mkdir(os.path.join(self.logdir, "panda-dir"))
+        out = self._list()
+        self.assertEqual((out["status"], out["truncated"]), ("done", False))
+        self.assertEqual(
+            json.loads(out["result"]),
+            [
+                {"name": "panda-a.log", "size": 2, "mtime": "2026-10-12 23:59:59"},
+                {"name": "panda-a.log-20261008.gz", "size": 0, "mtime": "2026-10-12 23:59:59"},
+                {"name": "panda-a.log-20261012", "size": 1, "mtime": "2026-10-12 23:59:59"},
+            ],
+        )
+
+    def test_list_cut_short(self) -> None:
+        # files are listed while they fit, and the list stays valid JSON
+        for i in range(100):
+            open(os.path.join(self.logdir, f"panda-{i:03d}.log"), "w").close()
+        with mock.patch.object(processor, "_MAX_RESULT_BYTES", 1000):
+            out = self._list()
+        self.assertTrue(out["truncated"])
+        files = json.loads(out["result"])
+        self.assertLessEqual(len(out["result"]), 1000)
+        self.assertEqual([file["name"] for file in files], [f"panda-{i:03d}.log" for i in range(len(files))])
+
+    def test_no_logdir(self) -> None:
+        with mock.patch.object(panda_config, "logdir", os.path.join(self.logdir, "missing")):
+            out = self._list()
+        self.assertEqual(out["status"], "failed")
+
+
 if __name__ == "__main__":
     unittest.main()
