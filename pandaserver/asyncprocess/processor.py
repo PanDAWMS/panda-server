@@ -60,9 +60,6 @@ def get_cycle_started_at() -> float | None:
 _DEFAULT_MAX_MATCHES = 20000
 _MAX_MAX_MATCHES = 200000
 
-# grep and rg spell --max-count the same way, so this works compressed or not.
-_MAX_COUNT_FLAG = "-m"
-
 # A file opened at an arbitrary offset is not a valid gzip stream, so a tail
 # window is only meaningful on plain text.
 _GZIP_SUFFIX = ".gz"
@@ -79,9 +76,14 @@ def _bounded_matcher(log_path: str, pattern: str, max_matches: int, from_stdin: 
     The pattern goes after -e, never in a place of its own: there a pattern
     starting with "-" is read as an option, and rg's --pre=COMMAND runs COMMAND
     on every file under the daemon's working directory.
+
+    rg reads a .gz file too, decompressing it with -z, so that a pattern means
+    the same in every file. zgrep, used before, read it as a basic regular
+    expression of grep, where "+" and "|" are plain characters.
     """
-    tool = "zgrep" if log_path.endswith(_GZIP_SUFFIX) else "rg"
-    cmd = [tool, _MAX_COUNT_FLAG, str(max_matches), "-e", pattern]
+    cmd = ["rg", "-m", str(max_matches), "-e", pattern]
+    if log_path.endswith(_GZIP_SUFFIX):
+        cmd.append("-z")
     return cmd if from_stdin else cmd + [log_path]
 
 
@@ -129,7 +131,7 @@ def _run_grep(log_path: str, pattern: str, max_matches: int, tail_bytes: int | N
 
 
 def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper, result_machine: str) -> None:
-    """Run rg or zgrep on a log file and store the output under result_machine's result row."""
+    """Run rg on a log file and store the output under result_machine's result row."""
     params = json.loads(row["parameters"])
     log_filename = params["log_filename"]
     pattern = params["pattern"]

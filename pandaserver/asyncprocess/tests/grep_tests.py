@@ -1,5 +1,6 @@
 # Description: Unit tests for the handler of the async grep requests. They run rg on log files
 # written to a temporary directory, so they are skipped where rg is not installed
+import gzip
 import json
 import os
 import shutil
@@ -40,6 +41,16 @@ class TestHandleGrep(unittest.TestCase):
         out = self._grep(pattern="--pre=true", log_filename="panda-a.log")
         self.assertEqual(out["status"], "done")
         self.assertEqual(out["result"], "2026-10-08 00:00:01 opts --pre=true\n")
+
+    def test_pattern_means_the_same_in_a_gz_file(self) -> None:
+        # "+" repeats in rg; zgrep read it as a plain character in its basic regular expressions
+        text = "2026-10-08 00:00:01 aaab\n2026-10-08 00:00:02 a+b\n"
+        self._write("panda-a.log", text)
+        with gzip.open(os.path.join(self.logdir, "panda-a.log-20261008.gz"), "wt") as f:
+            f.write(text)
+        for name in ("panda-a.log", "panda-a.log-20261008.gz"):
+            out = self._grep(pattern="a+b", log_filename=name)
+            self.assertEqual(out["result"], "2026-10-08 00:00:01 aaab\n", name)
 
 
 if __name__ == "__main__":

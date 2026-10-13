@@ -1,6 +1,6 @@
 """
 API endpoints for submitting and polling async processing requests.
-Currently supports grep (rg / zgrep) on log files; extensible to other request types.
+Currently supports grep (rg) on log files; extensible to other request types.
 """
 
 import json
@@ -157,7 +157,7 @@ def submit_grep_request(
 
     Args:
         req(PandaRequest): request object
-        pattern(str): grep pattern to search for
+        pattern(str): regular expression to search for, in the syntax of rg whether the file is compressed or not
         log_filename(str): filename (not full path) of the log file under panda_config.logdir
         service_name(str): target service (e.g. "server", "jedi"); mutually exclusive with machine_name
         machine_name(str): target specific machine hostname; mutually exclusive with service_name
