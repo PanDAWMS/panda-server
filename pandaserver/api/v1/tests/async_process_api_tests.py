@@ -579,9 +579,16 @@ class TestSubmitGrepRequest(unittest.TestCase):
         self.assertEqual(self._parameters(task_buffer)["fixed_strings"], fixed_strings)
         self.assertNotIn("pattern", self._parameters(task_buffer))
 
+    def test_widest_tail_bytes(self) -> None:
+        out, task_buffer = self._submit(pattern="ERROR", tail_bytes=3 << 30)
+        self.assertTrue(out["success"], out["message"])
+        self.assertEqual(self._parameters(task_buffer)["tail_bytes"], 3 << 30)
+
     def test_refused(self) -> None:
         refused: tuple[dict[str, Any], ...] = (
             {},
+            {"pattern": "ERROR", "tail_bytes": 0},
+            {"pattern": "ERROR", "tail_bytes": (3 << 30) + 1},
             {"pattern": "ERROR", "fixed_strings": ["ERROR"]},
             {"fixed_strings": []},
             {"fixed_strings": ["ERROR", ""]},

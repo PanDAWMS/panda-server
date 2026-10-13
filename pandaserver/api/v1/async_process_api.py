@@ -72,13 +72,16 @@ MAX_MESSAGE_LENGTH = 100  # cap echoed message size
 
 # terminal statuses of a result row
 TERMINAL_STATUSES = ("done", "failed")
-# bounds for the grep request.  Log files reach several gigabytes, and the
-# processor buffers a matcher's whole output before the stored result is capped,
-# so an unselective pattern against a big file costs the daemon that much
-# memory.  Both limits below only ever remove output the caller could not have
-# received anyway -- the stored result has always been capped at 1 MB.
+# bounds for the grep request.  The processor stops the matcher once it keeps
+# the 1 MB a result can store, so neither bound is about the daemon's memory.
+# MAX_MATCH_LIMIT only ever removes output the caller could not have received
+# anyway.  MAX_TAIL_BYTES is about time: a grep is stopped after 240 s, and the
+# disk of a production server read its live log at 16 MB/s on a slow day
+# (2026-10), which reads 3 GiB in about 200 s and 4 GiB in about 260 s.  3 GiB
+# is about five hours of panda-DBProxy.log.  A grep without tail_bytes reads
+# the whole file, under the same 240 s.
 MAX_MATCH_LIMIT = 200000  # ceiling on max_matches
-MAX_TAIL_BYTES = 1 << 30  # 1 GiB; a window this wide is already generous
+MAX_TAIL_BYTES = 3 << 30  # 3 GiB
 # most fixed strings one grep may look for, and the longest of them. Each goes on the command line of
 # the matcher, which this keeps under a megabyte
 MAX_FIXED_STRINGS = 1000
@@ -201,10 +204,11 @@ def submit_grep_request(
         max_matches(int): stop after this many matching lines (1..200000). Defaults to a
             bound that leaves the stored result unchanged; results that hit the cap come
             back with truncated set, so an incomplete answer is never read as an absent one
-        tail_bytes(int): search only the last this many bytes of the file (1..1073741824),
+        tail_bytes(int): search only the last this many bytes of the file (1..3221225472),
             which is how to ask about recent activity in a multi-gigabyte log. The search starts
             with the first whole line there. Ignored for .gz files, where an arbitrary offset is
-            not a valid stream
+            not a valid stream. On a slow disk the widest window takes about 200 of the 240 s
+            a grep may run
         whole_records(bool): give each matching line with the rest of its log record: the lines after it that do not
             start with a time stamp (YYYY-MM-DD HH:MM:SS), such as those of a traceback, up to the next line that
             does. A record comes with at most 200 lines after its matching line. The result of each machine is then
