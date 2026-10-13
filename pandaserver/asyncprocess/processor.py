@@ -41,6 +41,9 @@ _MAX_RESULT_BYTES = 1_000_000
 # run long.  One is not started when the cycle has less time left than that,
 # and stays pending for the next cycle: started anyway, it would be killed with
 # the cycle, wait out _STALE_THRESHOLD_SECONDS, and fail after three attempts.
+# They also come after the other requests of a cycle, which a long one before
+# them would leave too little time: a db_read is refused when the cycle has
+# none left for its queries.
 _LONGEST_RUN_SECONDS = {"grep": _SUBPROCESS_TIMEOUT}
 
 # time.monotonic() when the cycle running in this process started. The daemon's timeout counts
@@ -581,6 +584,8 @@ def run(service_name: str, tbuf: TaskBufferLike = None) -> None:
     # find requests this machine should process
     cycle_seconds = _cycle_seconds(service_name)
     pending = tbuf.get_pending_requests_for_machine(MY_HOSTNAME, service_name, list(HANDLERS.keys()))
+    # the requests that may run long after the others, each kind oldest first
+    pending = sorted(pending, key=lambda row: row["request_type"] in _LONGEST_RUN_SECONDS)
     for row in pending:
         request_id = row["request_id"]
         request_type = row["request_type"]

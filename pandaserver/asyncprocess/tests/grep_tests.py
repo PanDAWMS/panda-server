@@ -317,6 +317,33 @@ class TestGrepInCycle(unittest.TestCase):
         # not claimed, so it stays pending
         self.assertEqual([c.args[0] for c in task_buffer.claim_async_result.call_args_list], ["r1"])
 
+    def test_run_takes_a_grep_after_the_other_requests(self) -> None:
+        # a db_read submitted after a grep still runs first, with the whole cycle before it,
+        # rather than after the grep with what the grep left
+        now = [1000.0]
+        ran: list[tuple[str, float]] = []
+
+        def handle(row: dict[str, Any], tb: Any, tmp_logger: Any, result_machine: str) -> None:
+            ran.append((row["request_id"], now[0]))
+            now[0] += 100
+
+        task_buffer = mock.MagicMock()
+        task_buffer.get_pending_requests_for_machine.return_value = [
+            {"request_id": "r1", "request_type": "grep", "machine_name": None, "parameters": "{}"},
+            {"request_id": "r2", "request_type": "db_read", "machine_name": "any", "parameters": "{}"},
+            {"request_id": "r3", "request_type": "log_list", "machine_name": None, "parameters": "{}"},
+        ]
+        task_buffer.claim_async_result.return_value = True
+        with (
+            mock.patch.object(processor, "time", SimpleNamespace(monotonic=lambda: now[0])),
+            mock.patch.dict(processor.HANDLERS, {"grep": handle, "db_read": handle, "log_list": handle}),
+            mock.patch.object(daemon_config, "find_daemon", return_value=self.DAEMON),
+            mock.patch.object(processor, "_cycle_started_at", None),
+        ):
+            processor.run(SERVICE_SERVER, task_buffer)
+        # the others in the order they came, and then no grep, since 200 s of the cycle are gone
+        self.assertEqual(ran, [("r2", 1000.0), ("r3", 1100.0)])
+
 
 if __name__ == "__main__":
     unittest.main()
