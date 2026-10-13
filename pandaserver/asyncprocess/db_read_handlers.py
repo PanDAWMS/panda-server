@@ -19,7 +19,8 @@ answer per query, in order:
         "in" took its values from a truncated answer: a cut set of keys must not look whole.
     {"status": "rejected", "rule": str, "message": str, "detail": {...}}
         The query broke a rule of request_shape, or result_size when the result had no room
-        left for it.
+        left for it, or batch_budget when the queries before it left too few of the index
+        lookups the batch may make, BATCH_BUDGET_QUERIES times db_read_probe_budget.
     {"status": "deadline"}
         Not run, the batch having run out of time.
     {"status": "error", "code": str, "message": str}
@@ -70,6 +71,10 @@ DAEMON_MODULE = "async_request_daemon"
 
 # seconds kept back from the deadline for encoding and storing the result
 MARGIN_SECONDS = 30
+
+# the index lookups a whole batch may make, in budgets of one query: one heavy query leaves room
+# for the others, and ten do not make ten times the work of one
+BATCH_BUDGET_QUERIES = 3
 
 # most bytes of the stored result, and the part of them kept for what is not rows or statements
 RESULT_BYTES = 1_000_000
@@ -165,6 +170,7 @@ class _Batch:
         self.backend = proxy.backend
         self.deadline = deadline
         self.budget = budget
+        self.probes_left = BATCH_BUDGET_QUERIES * budget
         self.tmp_logger = tmp_logger
         self.bytes_left = RESULT_BYTES - ENVELOPE_BYTES
         # whether the limit of the last round trip was the time left rather than the connection's own
@@ -254,6 +260,12 @@ class _Batch:
             plans = check_query(query, infos, {reference: len(values) for reference, values in from_values.items()}, self.budget, now=self.as_of)
         except QueryRejected as rejection:
             return _rejected(rejection)
+        # charged before it runs, a query that fails having cost the database all the same
+        cost = sum(plan.probes for plan in plans)
+        if cost > self.probes_left:
+            message = f"the query costs {cost} index lookups, over the {self.probes_left} left of the batch's {BATCH_BUDGET_QUERIES * self.budget}"
+            return _rejected(QueryRejected("batch_budget", message, probes=cost, left=self.probes_left, budget=BATCH_BUDGET_QUERIES * self.budget))
+        self.probes_left -= cost
         tables: list[dict[str, Any]] = []
         raw_tables: list[tuple[tuple[str, ...], list[tuple[Any, ...]]]] = []
         truncated = from_truncated

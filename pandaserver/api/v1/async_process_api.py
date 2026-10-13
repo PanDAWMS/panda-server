@@ -270,7 +270,7 @@ def submit_db_read_request(req: PandaRequest, queries: List[Dict[str, Any]]) -> 
     of the batch. Only the number and the size of the queries are checked here. The queries themselves are checked when
     they run, each on its own, so a query refused or failed comes back with its reason while the others are answered.
     A query must look up an index, and its index lookups, keys x partitions touched, must be within the server's
-    db_read_probe_budget. The form of a query is described in pandaserver/asyncprocess/db_read/request_shape.py and the
+    db_read_probe_budget, and those of the whole batch within three times it. The form of a query is described in pandaserver/asyncprocess/db_read/request_shape.py and the
     form of the answers in pandaserver/asyncprocess/db_read_handlers.py. Requires a secure connection and a DN in the
     allowAsyncRequest list.
 

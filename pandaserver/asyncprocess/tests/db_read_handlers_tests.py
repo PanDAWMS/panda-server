@@ -128,6 +128,18 @@ class TestBatch(BatchTestBase):
         self.assertEqual(tasks["message"], "query 0 has no rows to take values from, being rejected")
         self.assertEqual(tasks["detail"], {"query": 0, "status": "rejected"})
 
+    def test_batch_budget(self) -> None:
+        # three budgets of one query for the batch
+        self.assertEqual(self.run_batch([])[2].probes_left, 3000)
+        # each Q_JOBS costs 3, so the second is over what is left, and a cheaper one after it still runs
+        q_one = dict(Q_JOBS, where=[["pandaid", "=", 1]])
+        data, _, batch = self.run_batch([Q_JOBS, Q_JOBS, q_one], probes_left=4)
+        first, second, third = data["answers"]
+        self.assertEqual((first["status"], second["status"], third["status"]), ("done", "rejected", "done"))
+        self.assertEqual(second["rule"], "batch_budget")
+        self.assertEqual(second["detail"], {"probes": 3, "left": 1, "budget": 3000})
+        self.assertEqual(batch.probes_left, 0)
+
     def test_partitions_charged_up_to_as_of(self) -> None:
         # the moment the transaction sees is the present the partitions made ahead are told by
         with mock.patch.object(db_read_handlers, "check_query", wraps=db_read_handlers.check_query) as check:
