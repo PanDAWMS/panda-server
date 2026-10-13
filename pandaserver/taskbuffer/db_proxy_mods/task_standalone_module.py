@@ -5,13 +5,18 @@ import random
 import re
 import socket
 import sys
+import time
 from typing import Any
 
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
-from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMBER
+from pandaserver.taskbuffer.db_proxy_mods.base_module import (
+    BaseModule,
+    get_db_error_code,
+    varNUMBER,
+)
 from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediCacheSpec import JediCacheSpec
 from pandaserver.taskbuffer.JediDatasetSpec import (
@@ -5236,3 +5241,45 @@ class TaskStandaloneModule(BaseModule):
             # error
             self.dump_error_message(tmp_log)
             return False
+
+    # get the status history of a task from TASKS_STATUSLOG
+    def get_task_status_history(self, jedi_task_id: int) -> tuple[bool, str, dict[str, Any]]:
+        """
+        Get the rows TASKS_STATUSLOG holds for a task.
+
+        Args:
+            jedi_task_id(int): jediTaskID of the task
+
+        Returns:
+            bool: True if the rows were read
+            str: why not, when they were not
+            dict: when read, {"rows": [dict, ...], "as_of": datetime, "retained_from": datetime or None}.
+                as_of is the database time in UTC taken before the rows were read, so the rows
+                hold every change committed by then. retained_from is the time from which the
+                table holds every row; history before it may have been dropped. On a database
+                error, {"error": <code>}
+        """
+        comment = " /* DBProxy.get_task_status_history */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log.debug("start")
+        columns = ["jediTaskID", "modificationTime", "status", "modificationHost", "attemptNr", "reason"]
+        try:
+            self.conn.begin()
+            as_of = self.get_db_utc_now()
+            n_partitions, retained_from = self.get_partition_window(panda_config.schemaJEDI, "TASKS_STATUSLOG")
+            sql = f"SELECT {','.join(columns)} FROM {panda_config.schemaJEDI}.TASKS_STATUSLOG WHERE jediTaskID=:jediTaskID ORDER BY modificationTime "
+            start_time = time.monotonic()
+            self.cur.arraysize = 1000
+            self.cur.execute(sql + comment, {":jediTaskID": jedi_task_id})
+            res = self.cur.fetchall()
+            elapsed = time.monotonic() - start_time
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            rows = [dict(zip(columns, row)) for row in res]
+            tmp_log.debug(f"done with {len(rows)} rows from {n_partitions} partitions in {elapsed:.3f} sec")
+            return True, "", {"rows": rows, "as_of": as_of, "retained_from": retained_from}
+        except Exception as e:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            err_code = get_db_error_code(e)
+            return False, f"database error {err_code}", {"error": err_code}

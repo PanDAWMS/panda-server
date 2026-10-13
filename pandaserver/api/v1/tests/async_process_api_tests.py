@@ -4,6 +4,7 @@
 import datetime
 import json
 import socket
+import time
 import unittest
 import uuid
 from types import SimpleNamespace
@@ -17,11 +18,15 @@ from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHIN
 
 NO_SSL_RESPONSE = {"success": False, "message": "SSL secure connection is required", "data": None}
 
+# a db_read query costing one index lookup, whatever the job
+DB_READ_QUERY = {"tables": ["jobsActive4"], "where": [["PandaID", "=", 1]], "columns": ["PandaID", "jobStatus"]}
+# seconds to wait for the server to answer a db_read request, a few cycles of async_request_daemon
+DB_READ_WAIT_SECONDS = 120
+
 
 class TestAsyncProcessAPI(unittest.TestCase):
     def setUp(self) -> None:
         self.http_client = HttpClient()
-        self.urls = [api_url, api_url_ssl]
 
     def test_submit_grep_request_no_ssl(self) -> None:
         full_url = f"{api_url}/async_process/submit_grep_request"
@@ -145,21 +150,27 @@ class TestAsyncProcessAPI(unittest.TestCase):
         # the pre-rename key is still served alongside it
         self.assertEqual(output["data"]["request_id"], async_id)
 
+    def test_get_result_no_ssl(self) -> None:
+        # a result is read by its owner only, whose DN comes with a secure connection
+        full_url = f"{api_url}/async_process/get_result"
+        print(f"Testing URL: {full_url}")
+        status, output = self.http_client.get(full_url, {"async_id": str(uuid.uuid4())})
+        print(output)
+        self.assertEqual(output, NO_SSL_RESPONSE)
+
     def test_get_result_not_found(self) -> None:
         missing_id = str(uuid.uuid4())
-        for url in self.urls:
-            with self.subTest(base_url=url):
-                full_url = f"{url}/async_process/get_result"
-                print(f"Testing URL: {full_url}")
-                data = {"async_id": missing_id}
-                status, output = self.http_client.get(full_url, data)
-                print(output)
-                expected_response = {
-                    "success": False,
-                    "message": f"async_id '{missing_id}' not found",
-                    "data": None,
-                }
-                self.assertEqual(output, expected_response)
+        full_url = f"{api_url_ssl}/async_process/get_result"
+        print(f"Testing URL: {full_url}")
+        data = {"async_id": missing_id}
+        status, output = self.http_client.get(full_url, data)
+        print(output)
+        expected_response = {
+            "success": False,
+            "message": f"async_id '{missing_id}' not found",
+            "data": None,
+        }
+        self.assertEqual(output, expected_response)
 
     def test_get_result_pending(self) -> None:
         submit_url = f"{api_url_ssl}/async_process/submit_grep_request"
@@ -215,6 +226,54 @@ class TestAsyncProcessAPI(unittest.TestCase):
         self.assertEqual(len(async_id), 36)
         # the pre-rename key is still served alongside it
         self.assertEqual(output["data"]["request_id"], async_id)
+
+    def test_submit_db_read_request_no_ssl(self) -> None:
+        full_url = f"{api_url}/async_process/submit_db_read_request"
+        print(f"Testing URL: {full_url}")
+        data = {"queries": [DB_READ_QUERY]}
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        self.assertEqual(output, NO_SSL_RESPONSE)
+
+    def test_submit_db_read_request_too_many_queries(self) -> None:
+        full_url = f"{api_url_ssl}/async_process/submit_db_read_request"
+        print(f"Testing URL: {full_url}")
+        data = {"queries": [DB_READ_QUERY] * 11}
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        self.assertFalse(output["success"])
+
+    def test_submit_db_read_request_answered(self) -> None:
+        # the queries run on the read-only account of the server, so the server needs dbuser_reader in its
+        # cfg and a timeout of async_request_daemon long enough for them, and the answer takes a cycle or two
+        submit_url = f"{api_url_ssl}/async_process/submit_db_read_request"
+        print(f"Testing URL: {submit_url}")
+        # the tables are checked against the allowlist when the queries run, refusing that query alone
+        data = {"queries": [DB_READ_QUERY, {"tables": ["users"], "where": [["name", "=", "x"]]}]}
+        status, submit_output = self.http_client.post(submit_url, data)
+        print(submit_output)
+        if not submit_output.get("success"):
+            raise unittest.SkipTest(f"submit_db_read_request did not succeed: {submit_output.get('message')}")
+        async_id = submit_output["data"]["async_id"]
+
+        get_url = f"{api_url_ssl}/async_process/get_result"
+        print(f"Testing URL: {get_url}")
+        deadline = time.monotonic() + DB_READ_WAIT_SECONDS
+        while True:
+            status, output = self.http_client.get(get_url, {"async_id": async_id})
+            print(output)
+            # async_meta is missing only when the poll itself failed
+            meta = output.get("async_meta")
+            if meta is None or meta["status"] in ("done", "failed") or time.monotonic() > deadline:
+                break
+            time.sleep(5)
+        self.assertEqual(output.get("async_meta", {}).get("status"), "done", output)
+        self.assertTrue(output["success"], output["message"])
+        answers = output["data"]["answers"]
+        self.assertEqual(len(answers), 2)
+        self.assertEqual(answers[0]["status"], "done", answers[0])
+        self.assertEqual([table["table"] for table in answers[0]["tables"]], ["jobsActive4"])
+        self.assertEqual((answers[1]["status"], answers[1]["rule"]), ("rejected", "unknown_table"), answers[1])
 
 
 class TestAsyncAccessControl(unittest.TestCase):
@@ -405,6 +464,52 @@ class TestStructuredResult(unittest.TestCase):
         # nothing was looked up, so the caller cannot read the miss as "request not found"
         task_buffer.get_async_request.assert_not_called()
         self.assertNotIn("async_meta", out)
+
+
+class TestSubmitDbReadRequest(unittest.TestCase):
+    """Unit tests for submit_db_read_request (no live server needed)."""
+
+    QUERY = {"tables": ["jobsActive4"], "where": [["PandaID", "=", 1]]}
+
+    @staticmethod
+    def _request() -> PandaRequest:
+        """A request the endpoint decorator lets through: secure, POST, and not a limited proxy."""
+        return cast(PandaRequest, SimpleNamespace(subprocess_env={"REQUEST_METHOD": "POST", "SSL_CLIENT_S_DN": "/CN=alice"}))
+
+    def _submit(self, queries: Any, authorized: bool = True, alive: list[str] | None = None) -> tuple[dict[str, Any], mock.MagicMock]:
+        task_buffer = mock.MagicMock()
+        task_buffer.get_alive_machines.return_value = ["a.cern.ch"] if alive is None else alive
+        task_buffer.insert_async_request.return_value = True
+        with (
+            mock.patch.object(async_process_api, "global_task_buffer", task_buffer),
+            mock.patch.object(async_process_api, "_is_authorized_with_allowlist", return_value=(authorized, "checked")),
+            mock.patch.object(common, "get_dn", return_value="dn"),
+            mock.patch.object(common, "clean_user_id", return_value="alice"),
+        ):
+            out = async_process_api.submit_db_read_request(self._request(), queries=queries)
+        return out, task_buffer
+
+    def test_success(self) -> None:
+        out, task_buffer = self._submit([self.QUERY])
+        self.assertTrue(out["success"], out["message"])
+        async_id, request_type, parameters_json, service_name, machine_name, expected = task_buffer.insert_async_request.call_args[0]
+        self.assertEqual(out["data"], {"async_id": async_id})
+        self.assertEqual((request_type, service_name, machine_name, expected), ("db_read", "server", ANY_MACHINE, None))
+        # owner-only, with the payload reported at the top level of get_result
+        self.assertEqual(json.loads(parameters_json), {"queries": [self.QUERY], "requester": "alice", "access": "owner", "structured_result": True})
+
+    def test_refused(self) -> None:
+        for queries, kwargs in (
+            ([self.QUERY], {"authorized": False}),
+            ([], {}),
+            ([self.QUERY] * 11, {}),
+            ([{"tables": ["jobsActive4"], "where": [["computingSite", "=", "x" * 200_000]]}], {}),
+            ([self.QUERY], {"alive": []}),
+            (["not a query"], {}),
+        ):
+            out, task_buffer = self._submit(queries, **kwargs)
+            self.assertFalse(out["success"], (queries, kwargs))
+            task_buffer.insert_async_request.assert_not_called()
 
 
 # Run tests

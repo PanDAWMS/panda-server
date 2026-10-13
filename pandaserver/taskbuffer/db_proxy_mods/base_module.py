@@ -2,6 +2,7 @@ import atexit
 import datetime
 import json
 import logging
+import re
 import socket
 import sys
 import time
@@ -43,6 +44,46 @@ else:
 
 # topics in SQL_QUEUE
 SQL_QUEUE_TOPIC_async_dataset_update = "async_dataset_update"
+
+# the timestamp a partition bound is written with in the data dictionary: Oracle's HIGH_VALUE
+# reads TO_DATE(' 2026-07-11 00:00:00', ...) or TIMESTAMP' 2026-07-11 00:00:00', and Postgres'
+# pg_get_expr(relpartbound) reads FOR VALUES FROM ('2026-07-10 00:00:00') TO ('2026-07-11 00:00:00')
+_PARTITION_BOUND_TIMESTAMP = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
+
+
+def parse_partition_bounds(text: str | None) -> list[datetime.datetime]:
+    """
+    Get the timestamps written in a partition bound.
+
+    Args:
+        text(str): a partition bound as the data dictionary spells it
+
+    Returns:
+        list: the timestamps in the order they are written: the upper bound for an Oracle
+            HIGH_VALUE, the lower and upper bounds for a Postgres FOR VALUES FROM ... TO ...,
+            and none for MAXVALUE, DEFAULT or a bound on a non-time column
+    """
+    return [datetime.datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S") for stamp in _PARTITION_BOUND_TIMESTAMP.findall(text or "")]
+
+
+def get_db_error_code(exc: BaseException) -> str:
+    """
+    Get the code of a database error, read the way _rollback reads it.
+
+    Args:
+        exc(Exception): the error the driver raised
+
+    Returns:
+        str: the SQLSTATE of a psycopg2 error, the leading ORA-/DPY-/DPI- code of an oracledb
+            error, or else the name of the error's type
+    """
+    pg_code = getattr(exc, "pgcode", None)
+    if pg_code:
+        return str(pg_code)
+    words = str(exc).split(maxsplit=1)
+    if words and re.match(r"^(ORA|DPY|DPI)-\d+:$", words[0]):
+        return words[0][:-1]
+    return type(exc).__name__
 
 
 # Internal caching of a result. Use only for information with low update frequency and low memory footprint
@@ -563,6 +604,91 @@ class BaseModule:
             self._rollback()
             self.dump_error_message(tmp_log)
             raise e
+
+    # current time of the database in UTC. Read in the session, which runs in UTC, so that it
+    # is on the same clock as the timestamps PanDA writes with CURRENT_DATE/CURRENT_TIMESTAMP
+    def get_db_utc_now(self) -> datetime.datetime:
+        comment = " /* DBProxy.get_db_utc_now */"
+        if self.backend == "postgres":
+            sql = "SELECT CURRENT_TIMESTAMP AT TIME ZONE 'UTC' "
+        elif self.backend == "mysql":
+            sql = "SELECT UTC_TIMESTAMP() "
+        else:
+            sql = "SELECT SYS_EXTRACT_UTC(CURRENT_TIMESTAMP) FROM dual "
+        self.cur.execute(sql + comment)
+        # the driver hands back a naive datetime for each of the three expressions above
+        now: datetime.datetime = self.cur.fetchone()[0]
+        return now
+
+    # partitions of a time-partitioned table, read from the data dictionary
+    def get_partition_window(
+        self, owner: str, table_name: str, since: datetime.datetime | None = None, until: datetime.datetime | None = None
+    ) -> tuple[int, datetime.datetime | None]:
+        """
+        Get how many partitions a time window touches, and from when the table holds every row.
+
+        The window is [since, until) on the partition key, either end of which may be left open;
+        with both open, every partition is touched. Postgres gives both bounds of a partition, so
+        the count there is exact. Oracle gives only the upper bound, so a partition is taken to
+        start where the one before it ends: after a gap that can count one partition too many,
+        never one too few.
+
+        Retention drops whole partitions, so the oldest partition left is complete. In Postgres the
+        start reported is its lower bound, which is exact. In Oracle it is the upper bound of the
+        oldest interval partition: up to one interval later than the true start, which claims less
+        history rather than more. The range partition an interval-partitioned table is anchored on
+        is left out of the start, since retention never drops it and its bound tells nothing about
+        what is kept.
+
+        Args:
+            owner(str): schema owning the table
+            table_name(str): name of the table
+            since(datetime): start of the window, or None for no start
+            until(datetime): end of the window, exclusive, or None for no end
+
+        Returns:
+            int: number of partitions the window touches, 0 when the table is not partitioned
+            datetime or None: time from which the table holds every row, or None when it cannot be told
+        """
+        comment = " /* DBProxy.get_partition_window */"
+        # lower and upper bound of each partition, None where it is open
+        bounds: list[tuple[datetime.datetime | None, datetime.datetime | None]] = []
+        starts: list[datetime.datetime] = []
+        if self.backend == "postgres":
+            sql = (
+                "SELECT pg_get_expr(c.relpartbound, c.oid) FROM pg_inherits i "
+                "JOIN pg_class c ON c.oid=i.inhrelid JOIN pg_class p ON p.oid=i.inhparent "
+                "JOIN pg_namespace n ON n.oid=p.relnamespace "
+                "WHERE n.nspname=:owner AND p.relname=:table_name "
+            )
+            self.cur.execute(sql + comment, {":owner": owner.lower(), ":table_name": table_name.lower()})
+            for (bound,) in self.cur.fetchall():
+                stamps = parse_partition_bounds(bound)
+                if len(stamps) == 2:
+                    bounds.append((stamps[0], stamps[1]))
+                    starts.append(stamps[0])
+                else:
+                    # the default partition, which takes any value
+                    bounds.append((None, None))
+        elif self.backend == "mysql":
+            return 0, None
+        else:
+            sql = 'SELECT high_value, "INTERVAL" FROM ALL_TAB_PARTITIONS WHERE table_owner=:owner AND table_name=:table_name ORDER BY partition_position '
+            self.cur.execute(sql + comment, {":owner": owner.upper(), ":table_name": table_name.upper()})
+            lower: datetime.datetime | None = None
+            for high_value, is_interval in self.cur.fetchall():
+                stamps = parse_partition_bounds(high_value)
+                upper = stamps[0] if stamps else None
+                bounds.append((lower, upper))
+                if is_interval == "YES" and upper is not None:
+                    starts.append(upper)
+                lower = upper
+        n_touched = sum(
+            1
+            for lower_bound, upper_bound in bounds
+            if (since is None or upper_bound is None or upper_bound > since) and (until is None or lower_bound is None or lower_bound < until)
+        )
+        return n_touched, min(starts) if starts else None
 
     # record status change
     def recordStatusChange(

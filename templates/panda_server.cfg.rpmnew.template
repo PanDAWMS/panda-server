@@ -91,6 +91,15 @@ dump_sql = False
 # dump in cursor
 cursor_dump = False
 
+# read-only account for the async db_read requests (/v1/async_process/submit_db_read_request).
+# Without dbuser_reader those requests are refused. dbhost_reader defaults to dbhost
+#dbhost_reader = ADCR_PANDA
+#dbuser_reader = ATLAS_PANDA_READER
+#dbpasswd_reader = FIXME
+
+# most seconds one round trip on the read-only account may take. Defaults to 30
+#db_read_call_timeout = 30
+
 
 
 ##########################
@@ -183,6 +192,10 @@ nrun_snum = 999
 
 # enable job status change monitoring
 record_statuschange = True
+
+# most index lookups (keys x partitions touched) one request of the read APIs may cost,
+# e.g. /v1/job/get_status_history. Defaults to 1000
+#db_read_probe_budget = 1000
 
 
 
@@ -307,6 +320,9 @@ proc_lifetime = 14400
 
 # configuration in json about daemons
 # of the form {"daemon_name": {"module": <module_name>, "period": <period>, ...}, ...}
+# a daemon without a timeout gets three periods, at most a period and an hour. The async db_read
+# requests run in async_request_daemon and stop 30 s before its timeout, or before 480 s, the age at
+# which a running request is handed out again, whichever comes first
 config = {
     "dummy_test": {
         "enable": false, "period": 120},
@@ -341,7 +357,7 @@ config = {
     "hs_scrapers": {
         "enable": true, "period": 604800, "sync": true},
     "async_request_daemon": {
-        "module": "async_request_daemon", "enable": true, "period": 10}
+        "module": "async_request_daemon", "enable": true, "period": 10, "timeout": 300}
   }
 
 

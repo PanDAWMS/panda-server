@@ -63,7 +63,16 @@ class DBProxy(OraDBProxy.DBProxy):
         reconnect: bool = False,
         # the JEDI config has no port of its own, so this is the value DBProxy defaults to
         dbport: int = panda_config.dbport,
+        call_timeout_ms: int | None = None,
     ) -> bool:
         return OraDBProxy.DBProxy.connect(
-            self, dbhost=dbhost, dbpasswd=dbpasswd, dbuser=dbuser, dbname=dbname, dbtimeout=dbtimeout, reconnect=reconnect, dbport=dbport
+            self,
+            dbhost=dbhost,
+            dbpasswd=dbpasswd,
+            dbuser=dbuser,
+            dbname=dbname,
+            dbtimeout=dbtimeout,
+            reconnect=reconnect,
+            dbport=dbport,
+            call_timeout_ms=call_timeout_ms,
         )

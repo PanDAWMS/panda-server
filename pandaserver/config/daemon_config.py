@@ -1,3 +1,4 @@
+import json
 import sys
 from typing import Any
 
@@ -42,3 +43,39 @@ config: str | dict[str, Any]
 
 # whether the daemon master is allowed to run at all
 enable: bool
+
+
+def get_timeout(attrs: dict[str, Any]) -> int:
+    """
+    Get how long one run of a daemon may take before the daemon master kills its worker.
+
+    Args:
+        attrs(dict): the entry of the daemon in config, which must have a period
+
+    Returns:
+        int: the timeout of the entry, or else three periods but at most a period and an hour
+    """
+    timeout: int = attrs["timeout"] if "timeout" in attrs else min(attrs["period"] * 3, attrs["period"] + 3600)
+    return timeout
+
+
+def find_daemon(module: str) -> dict[str, Any] | None:
+    """
+    Get the entry of config that runs a daemon module.
+
+    Args:
+        module(str): name of the module under the daemon package, such as async_request_daemon
+
+    Returns:
+        dict or None: the first enabled entry running the module, or None when there is none
+    """
+    table = getattr(tmpSelf, "config", None)
+    if table is None:
+        return None
+    if not isinstance(table, dict):
+        table = json.loads(table)
+    for name, attrs in table.items():
+        if attrs.get("module", name) == module and attrs.get("enable", True) is not False:
+            entry: dict[str, Any] = attrs
+            return entry
+    return None

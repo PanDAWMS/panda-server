@@ -566,7 +566,7 @@ class DaemonMaster(object):
                 if "loop" not in attrs:
                     self.dem_config[dem_name]["loop"] = False
                 if "timeout" not in attrs:
-                    self.dem_config[dem_name]["timeout"] = min(attrs["period"] * 3, attrs["period"] + 3600)
+                    self.dem_config[dem_name]["timeout"] = daemon_config.get_timeout(attrs)
                 # check mandatory attributes
                 the_attrs = copy.deepcopy(self.dem_config[dem_name])
                 for attr, attr_type in MANDATORY_ATTRS:

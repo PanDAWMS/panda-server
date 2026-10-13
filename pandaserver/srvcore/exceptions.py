@@ -18,3 +18,13 @@ class SubscriptionRegistrationError(Exception):
 # raised when Rucio rejects a dataset location registration (invalid RSE expression / insufficient quota)
 class DatasetLocationError(Exception):
     pass
+
+
+# raised when the read-only account of the async db_read requests is not configured, or does not connect
+class DBReaderUnavailableError(Exception):
+    pass
+
+
+# raised in an async db_read request when no time is left for the next round trip to the database
+class DBReadDeadlineError(Exception):
+    pass

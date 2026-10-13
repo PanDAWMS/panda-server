@@ -80,6 +80,9 @@ class DBProxy(
         # use special error codes for reconnection in querySQL
         self.useOtherError = useOtherError
 
+        # most milliseconds one round trip may take, given to connect(). None for no limit
+        self.call_timeout_ms: int | None = None
+
         # set composite modules. use self to share a single database connection
         self.add_composite_module("entity", self)
         self.add_composite_module("metrics", self)
@@ -98,7 +101,19 @@ class DBProxy(
         dbtimeout: int | None = panda_config.dbtimeout,
         reconnect: bool = False,
         dbport: int = panda_config.dbport,
+        call_timeout_ms: int | None = None,
     ) -> bool:
+        """
+        Connect to the database, or reconnect with the parameters of the first connection.
+
+        Args:
+            call_timeout_ms(int): most milliseconds one round trip may take, or None for no limit. It is
+                kept like the other parameters, so a reconnect by wakeUp() or _rollback() keeps the limit.
+                Not available with MySQL, where the connection fails rather than go without the limit
+
+        Returns:
+            bool: True when connected
+        """
         _logger.debug(f"connect : re={reconnect}")
         # keep parameters for reconnect
         if not reconnect:
@@ -108,6 +123,10 @@ class DBProxy(
             self.dbname = dbname
             self.dbtimeout = dbtimeout
             self.dbport = dbport
+            self.call_timeout_ms = call_timeout_ms
+        if self.call_timeout_ms is not None and self.backend not in ("oracle", "postgres"):
+            _logger.error(f"connect : call_timeout_ms is not available with {self.backend}")
+            return False
         # close old connection
         if reconnect:
             _logger.debug("closing old connection")
@@ -125,6 +144,10 @@ class DBProxy(
                         return cursor.var(oracledb.LONG_STRING, arraysize=cursor.arraysize)
 
                 conn.outputtypehandler = OutputTypeHandler
+                # set on the driver's connection: WrappedOracleConn forwards reads only, so the same
+                # assignment through it would set an attribute on the wrapper and limit nothing
+                if self.call_timeout_ms is not None:
+                    conn.call_timeout = self.call_timeout_ms
                 self.conn = wrapped_oracle_conn.WrappedOracleConn(conn)
 
             elif self.backend == "postgres":
@@ -135,6 +158,8 @@ class DBProxy(
                     dsn["host"] = self.dbhost
                 if self.dbport:
                     dsn["port"] = self.dbport
+                if self.call_timeout_ms is not None:
+                    dsn["options"] = f"-c statement_timeout={int(self.call_timeout_ms)}"
                 conn = psycopg.connect(**dsn)
                 self.conn = WrappedPostgresConn.WrappedPostgresConn(conn)
             else:
@@ -165,3 +190,34 @@ class DBProxy(
         except Exception as e:
             _logger.error(f"connect : {str(e)}")
             return False
+
+    # limit the following round trips to the database
+    def set_call_timeout(self, timeout_ms: int | None) -> None:
+        """
+        Set how long each following round trip to the database may take.
+
+        The limit can only be lowered: a value above the one given to connect() is cut down to it.
+        On Oracle this is the driver's call_timeout, kept until it is set again or the connection is
+        remade. On Postgres it is statement_timeout set with SET LOCAL, which takes a round trip of
+        its own and lasts until the transaction ends.
+
+        Args:
+            timeout_ms(int): milliseconds, at least 1, since both databases read 0 as no limit.
+                None puts back the limit given to connect(). On Postgres the end of the transaction
+                does that, so None does nothing there: a SET in a transaction an error has aborted
+                would fail
+        """
+        comment = " /* DBProxy.set_call_timeout */"
+        if timeout_ms is not None:
+            if timeout_ms < 1:
+                raise ValueError(f"call timeout must be at least 1 ms, got {timeout_ms}")
+            if self.call_timeout_ms is not None:
+                timeout_ms = min(timeout_ms, self.call_timeout_ms)
+        if self.backend == "oracle":
+            # on the driver's connection, for the reason given in connect()
+            self.conn.orig_conn.call_timeout = timeout_ms if timeout_ms is not None else (self.call_timeout_ms or 0)
+        elif self.backend == "postgres":
+            if timeout_ms is not None:
+                self.cur.execute(f"SET LOCAL statement_timeout TO {int(timeout_ms)}" + comment)
+        else:
+            raise NotImplementedError(f"call timeout is not available with {self.backend}")

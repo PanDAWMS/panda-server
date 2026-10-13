@@ -954,6 +954,53 @@ def get_status(req: PandaRequest, task_id: int) -> dict[str, Any]:
     return generate_response(True, data=status)
 
 
+@request_validation(_logger, secure=True, request_method="GET")
+def get_status_history(req: PandaRequest, task_id: int) -> dict[str, Any]:
+    """
+    Get task status history
+
+    Gets the status changes recorded for a task in TASKS_STATUSLOG, oldest first. Requires a secure connection.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/task/get_status_history
+
+    Args:
+        req(PandaRequest): internally generated request object
+        task_id(int): JEDI Task ID
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The status changes of the task, and what tells how complete they are.
+            {"rows": [...], "as_of": datetime, "retained_from": datetime or None}
+            - rows: one dict per status change, with jediTaskID, modificationTime, status, modificationHost, attemptNr and reason.
+              A task without rows has none
+            - as_of: database time in UTC taken before the rows were read. Every change committed by then is in rows
+            - retained_from: time from which the table holds every row, or None when it cannot be told. Old partitions are dropped,
+              so a task without rows before this time may still have changed its status then
+        On failure, with the reason in the message: {"error": str} when the database failed, with the error code (ORA-xxxxx, or
+            the SQLSTATE on Postgres), and None otherwise.
+    """
+    tmp_logger = LogWrapper(_logger, f"get_status_history < task_id={task_id} >")
+    tmp_logger.debug("Start")
+
+    try:
+        task_id = int(task_id)
+    except ValueError:
+        tmp_logger.error("Failed due to invalid task_id")
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    success, message, data = global_task_buffer.get_task_status_history(task_id)
+    if not success:
+        tmp_logger.debug(f"Failed with {message}")
+        return generate_response(False, message=message, data=data)
+
+    tmp_logger.debug(f"""Done with {len(data["rows"])} rows""")
+    return generate_response(True, data=data)
+
+
 @request_validation(_logger, request_method="GET", secure=True)
 def get_details(req: PandaRequest, task_id: int, include_parameters: bool = False, include_status: bool = False) -> dict[str, Any]:
     """

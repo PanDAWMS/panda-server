@@ -8,6 +8,7 @@ import json
 import os
 import socket
 import subprocess
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -15,7 +16,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
-from pandaserver.asyncprocess import TaskBufferLike, data_carousel_handlers
+from pandaserver.asyncprocess import TaskBufferLike, data_carousel_handlers, db_read_handlers
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import ANY_MACHINE
 
@@ -31,6 +32,22 @@ _STALE_THRESHOLD_SECONDS = _SUBPROCESS_TIMEOUT * 2
 
 # max result size stored in DB (bytes)
 _MAX_RESULT_BYTES = 1_000_000
+
+# time.monotonic() when the cycle running in this process started. The daemon's timeout counts
+# from then, over every request the cycle processes, so a handler with a deadline of its own
+# reads it through get_cycle_started_at()
+_cycle_started_at: float | None = None
+
+
+def get_cycle_started_at() -> float | None:
+    """
+    Get when the processing cycle running in this process started.
+
+    Returns:
+        float or None: time.monotonic() at the start of the cycle, or None outside one
+    """
+    return _cycle_started_at
+
 
 # Cap on how many matching lines a grep may produce.  Log files here reach
 # several gigabytes, and an unselective pattern against one of those makes the
@@ -229,6 +246,8 @@ HANDLERS: dict[str, Callable[..., None]] = {
     "sleep_echo": _handle_sleep_echo,
     # Data Carousel operations, submitted by pandaserver.api.v1.data_carousel_api
     **data_carousel_handlers.HANDLERS,
+    # reads of the database, submitted by pandaserver.api.v1.async_process_api
+    **db_read_handlers.HANDLERS,
 }
 
 
@@ -238,6 +257,8 @@ def run(service_name: str, tbuf: TaskBufferLike = None) -> None:
     Call this from the service-specific entrypoint (daemon script or WatchDog).
     tbuf: an already-initialised TaskBuffer, or None to use the module-level singleton.
     """
+    global _cycle_started_at
+    _cycle_started_at = time.monotonic()
     _logger.debug(f"start with service={service_name}")
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf

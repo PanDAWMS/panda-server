@@ -7,7 +7,7 @@ import json
 import os
 import uuid
 from threading import Lock
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, List, Sequence
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -19,11 +19,14 @@ from pandaserver.api.v1.common import (
     request_validation,
     set_owner_info,
 )
+from pandaserver.asyncprocess.db_read.request_shape import MAX_QUERIES
+from pandaserver.asyncprocess.db_read_handlers import REQUEST_TYPE as DB_READ_REQUEST_TYPE
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
     ANY_MACHINE,
+    SERVICE_SERVER,
     STRUCTURED_RESULT_KEY,
 )
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
@@ -76,6 +79,9 @@ TERMINAL_STATUSES = ("done", "failed")
 # received anyway -- the stored result has always been capped at 1 MB.
 MAX_MATCH_LIMIT = 200000  # ceiling on max_matches
 MAX_TAIL_BYTES = 1 << 30  # 1 GiB; a window this wide is already generous
+# most bytes of the queries of a db_read request, as JSON: room for every query to have an "in" of
+# a thousand job IDs. The handler checks everything else when the queries run
+MAX_DB_READ_REQUEST_BYTES = 200_000
 
 
 def _structured_result_response(req_row: Dict[str, Any], results: list[dict[str, Any]]) -> Dict[str, Any]:
@@ -251,6 +257,84 @@ def submit_grep_request(
     # request_id carries the same value under the pre-rename name, so callers polling with it
     # keep working; it is dropped once they have moved to async_id
     return generate_response(True, "", {"async_id": async_id, "request_id": async_id})
+
+
+@request_validation(_logger, secure=True, request_method="POST")
+def submit_db_read_request(req: PandaRequest, queries: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Submit a read of the database
+
+    Submit a batch of queries reading tables of the database, to be run asynchronously by one machine of the server, on its
+    read-only account and in one read-only transaction. The queries are structured, not SQL: each reads one or more tables
+    of an allowlist with conditions on their columns, and an `in` may take its values from the answer to an earlier query
+    of the batch. Only the number and the size of the queries are checked here. The queries themselves are checked when
+    they run, each on its own, so a query refused or failed comes back with its reason while the others are answered.
+    A query must look up an index, and its index lookups, keys x partitions touched, must be within the server's
+    db_read_probe_budget, and those of the whole batch within three times it. The form of a query is described in pandaserver/asyncprocess/db_read/request_shape.py and the
+    form of the answers in pandaserver/asyncprocess/db_read_handlers.py. Requires a secure connection and a DN in the
+    allowAsyncRequest list.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/async_process/submit_db_read_request
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        queries(list of dict): the queries, at most 10, e.g.
+            `[{"tables": ["jobsActive4", "jobsArchived4"], "where": [["jediTaskID", "=", 123]], "columns": ["PandaID", "jobStatus"]}]`
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID to poll /v1/async_process/get_result with. Once done, get_result returns
+            `{"success", "message", "data": {"as_of", "answers"}}` with one answer per query, whose status is done,
+            rejected, deadline or error. Only the submitter may read it.
+            {"async_id": str}
+    """
+    tmp_logger = LogWrapper(_logger, "submit_db_read_request")
+    tmp_logger.debug("Start")
+
+    ok, msg = _is_authorized_with_allowlist(req)
+    if not ok:
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+    tmp_logger.debug(msg)
+
+    if not 1 <= len(queries) <= MAX_QUERIES:
+        msg = f"invalid queries: must be 1 to {MAX_QUERIES} queries"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    n_bytes = len(json.dumps(queries))
+    if n_bytes > MAX_DB_READ_REQUEST_BYTES:
+        msg = f"invalid queries: {n_bytes} bytes as JSON, over the limit of {MAX_DB_READ_REQUEST_BYTES}"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    if not global_task_buffer.get_alive_machines(SERVICE_SERVER):
+        msg = f"no alive machines found for service '{SERVICE_SERVER}'"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    async_id = str(uuid.uuid4())
+    # results stay owner-only, and get_result reports the handler's success/message/data at the top level
+    parameters = set_owner_info({"queries": queries}, req, structured_result=True)
+    ok = global_task_buffer.insert_async_request(
+        async_id,
+        DB_READ_REQUEST_TYPE,
+        json.dumps(parameters),
+        SERVICE_SERVER,
+        ANY_MACHINE,
+        None,  # expected_machines auto-derived to ["any"] for the sentinel
+    )
+    if not ok:
+        msg = "failed to insert request into DB"
+        tmp_logger.error(msg)
+        return generate_response(False, msg)
+
+    tmp_logger.debug(f"Done async_id={async_id}")
+    return generate_response(True, "", {"async_id": async_id})
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")

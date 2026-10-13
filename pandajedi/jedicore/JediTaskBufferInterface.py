@@ -4,13 +4,23 @@ from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore import Interaction
 
 if TYPE_CHECKING:
-    # for the annotation only, so that importing this module, as the JEDI master does at
-    # startup, does not also load SiteMapper and the pandaserver config it pulls in
+    # for the annotations only, so that importing this module, as the JEDI master does at
+    # startup, does not also load JediTaskBuffer, SiteMapper and the pandaserver config they
+    # pull in. JediTaskBuffer is loaded only in the child processes setupInterface() starts
+    from pandajedi.jedicore.JediTaskBuffer import JediTaskBuffer
     from pandaserver.brokerage.SiteMapper import SiteMapper
+
+    # the methods reached through __getattr__ below are JediTaskBuffer's, and the base says
+    # so to a reader of the source. It is Any so that mypy does not yet check those calls
+    # against JediTaskBuffer's signatures, which not all of them satisfy; the cost is that
+    # mypy takes this class to be assignable to any type. At runtime the base is object
+    _Proxied: Any = JediTaskBuffer
+else:
+    _Proxied = object
 
 
 # interface to JediTaskBuffer
-class JediTaskBufferInterface:
+class JediTaskBufferInterface(_Proxied):
     # constructor
     def __init__(self) -> None:
         self.interface: Interaction.CommandSendInterface | None = None

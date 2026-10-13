@@ -11,7 +11,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
-from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
+from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, get_db_error_code
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
@@ -2527,3 +2527,85 @@ class JobStandaloneModule(BaseModule):
             self._rollback()
             self.dump_error_message(tmp_log)
             return {}
+
+    # get the status history of jobs from jobs_StatusLog
+    def get_job_status_history(
+        self, panda_ids: list[int], probe_budget: int, since: datetime.datetime | None = None, until: datetime.datetime | None = None
+    ) -> tuple[bool, str, dict[str, Any]]:
+        """
+        Get the rows jobs_StatusLog holds for the given jobs, optionally within a time window.
+
+        The PandaID index of jobs_StatusLog is local, so every key is looked up once in each
+        partition the window touches; without a window, in every partition. A request whose keys
+        times partitions exceeds the budget is refused rather than cut short, so that a partial
+        answer is never read as a whole one.
+
+        Args:
+            panda_ids(list): PandaIDs of the jobs
+            probe_budget(int): most index lookups (keys x partitions) the request may cost
+            since(datetime): read only the rows with modificationTime at or after this, or None for no start
+            until(datetime): read only the rows with modificationTime before this, or None for no end
+
+        Returns:
+            bool: True if the rows were read
+            str: why not, when they were not
+            dict: when read, {"rows": [dict, ...], "as_of": datetime, "retained_from": datetime or None,
+                "since": datetime or None, "until": datetime or None, "partitions": int, "budget": int}.
+                as_of is the database time in UTC taken before the rows were read, so the rows hold
+                every change committed by then. retained_from is the time from which the table holds
+                every row; history before it may have been dropped. since and until repeat the window.
+                partitions (at least 1) is the number the window touches, and with budget tells a caller
+                how many jobs fit in one call. When refused, {"rejected": "probe_budget", "keys": int,
+                "partitions": int, "budget": int}, and on a database error {"error": <code>}
+        """
+        comment = " /* DBProxy.get_job_status_history */"
+        tmp_log = self.create_tagged_logger(comment, f"n_jobs={len(panda_ids)} since={since} until={until}")
+        tmp_log.debug("start")
+        columns = ["PandaID", "modificationTime", "jobStatus", "prodSourceLabel", "cloud", "computingSite", "modificationHost", "modiftime_extended"]
+        try:
+            self.conn.begin()
+            as_of = self.get_db_utc_now()
+            n_partitions, retained_from = self.get_partition_window(panda_config.schemaPANDA, "JOBS_STATUSLOG", since, until)
+            # an unpartitioned table, or a window no partition overlaps, is looked up once per key
+            n_partitions = max(n_partitions, 1)
+            n_probes = len(panda_ids) * n_partitions
+            if n_probes > probe_budget:
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                err_msg = f"{len(panda_ids)} jobs x {n_partitions} partitions = {n_probes} index lookups exceed the budget of {probe_budget}"
+                tmp_log.debug(f"refused since {err_msg}")
+                return False, err_msg, {"rejected": "probe_budget", "keys": len(panda_ids), "partitions": n_partitions, "budget": probe_budget}
+            var_names_str, var_map = get_sql_IN_bind_variables(panda_ids, prefix=":PandaID")
+            sql = f"SELECT {','.join(columns)} FROM ATLAS_PANDA.jobs_StatusLog WHERE PandaID IN ({var_names_str}) "
+            # the conditions on the partition key are what lets the database skip partitions
+            if since is not None:
+                sql += "AND modificationTime>=:since "
+                var_map[":since"] = since
+            if until is not None:
+                sql += "AND modificationTime<:until "
+                var_map[":until"] = until
+            sql += "ORDER BY PandaID,modificationTime,modiftime_extended "
+            start_time = time.monotonic()
+            self.cur.arraysize = 1000
+            self.cur.execute(sql + comment, var_map)
+            res = self.cur.fetchall()
+            elapsed = time.monotonic() - start_time
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            rows = [dict(zip(columns, row)) for row in res]
+            tmp_log.debug(f"done with {len(rows)} rows by {n_probes} index lookups in {elapsed:.3f} sec")
+            data = {
+                "rows": rows,
+                "as_of": as_of,
+                "retained_from": retained_from,
+                "since": since,
+                "until": until,
+                "partitions": n_partitions,
+                "budget": probe_budget,
+            }
+            return True, "", data
+        except Exception as e:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            err_code = get_db_error_code(e)
+            return False, f"database error {err_code}", {"error": err_code}
