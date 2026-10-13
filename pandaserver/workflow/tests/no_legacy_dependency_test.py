@@ -13,7 +13,7 @@ deliberately left unavailable, and any attempt to import them is recorded even w
 wraps it in try/except ImportError, so a coupling reintroduced anywhere in the import graph is
 caught here rather than on a deployment that has neither installed.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/no_legacy_dependency_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/no_legacy_dependency_test.py
 """
 
 import importlib

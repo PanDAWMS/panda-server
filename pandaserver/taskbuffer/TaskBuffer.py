@@ -1605,6 +1605,11 @@ class TaskBuffer:
                 ret = None, f"The following DN is banned: DN={user_dn}"
         return ret
 
+    # get the working group of a submitter from their FQANs
+    def get_working_group(self, fqans: list[str]) -> str | None:
+        with self.proxyPool.get() as proxy:
+            return proxy.getWorkingGroup(fqans)
+
     # look up the workflow steps whose target is the given ID
     def get_steps_by_target_id(self, target_id: str, flavor_filter_list: list[str] | None = None) -> list[Any]:
         with self.proxyPool.get() as proxy:

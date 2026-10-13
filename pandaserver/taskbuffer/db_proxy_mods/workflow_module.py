@@ -721,7 +721,9 @@ class WorkflowModule(BaseModule):
 
         Task parameters are taken as authored: neither userName nor taskType nor taskPriority is
         rewritten, since a workflow step is submitted on behalf of whoever the description names. The
-        caller is responsible for having verified that the submitter may do so.
+        caller is responsible for having verified that the submitter may do so, and for having filled
+        those three in from the submitter's credentials where the description leaves them to it; the
+        step handler's apply_submitter_credentials does that, with insertTaskParamsPanda's rule.
 
         The task ID cannot be known before the insert, because it comes from the sequence the insert
         itself consumes, so any TASKID_PLACEHOLDER in the parameters is resolved immediately

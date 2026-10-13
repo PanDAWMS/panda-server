@@ -14,7 +14,7 @@ dicts rather than loaded from the YAML files because no YAML loader is installed
 -- and because the YAML->dict step is not touched by this change, so parsing from an equivalent
 dict exercises exactly the code under test.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/regression_diff_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/regression_diff_test.py
 """
 
 import copy

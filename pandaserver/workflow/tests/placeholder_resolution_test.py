@@ -6,7 +6,7 @@ produced it. ${WFID} is supported but deliberately unused there: ATLAS dataset n
 convention that carries no workflow ID. This test therefore exercises ${WFID} against a synthetic
 description, so the capability keeps working should a future convention want it.
 
-Run from the repository root:  python3 pandaserver/workflow/examples/placeholder_resolution_test.py
+Run from the repository root:  python3 pandaserver/workflow/tests/placeholder_resolution_test.py
 """
 
 import importlib.abc
