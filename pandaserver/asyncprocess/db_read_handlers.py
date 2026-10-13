@@ -172,6 +172,8 @@ class _Batch:
         self.rows: list[list[tuple[tuple[str, ...], list[tuple[Any, ...]]]]] = []
         # the answer the queries after a stop get, once something has stopped the batch
         self.stopped: dict[str, Any] | None = None
+        # the moment the transaction sees, before which the partitions a query is charged for start
+        self.as_of: datetime.datetime | None = None
         # for the log line: the binds of each table of each answer, None for a table not read, and the
         # seconds the start of the transaction and the reads of the dictionary took
         self.binds: list[list[dict[str, Any] | None]] = []
@@ -247,7 +249,7 @@ class _Batch:
         finally:
             self.dictionary_seconds += time.monotonic() - dictionary_started
         try:
-            plans = check_query(query, infos, {reference: len(values) for reference, values in from_values.items()}, self.budget)
+            plans = check_query(query, infos, {reference: len(values) for reference, values in from_values.items()}, self.budget, now=self.as_of)
         except QueryRejected as rejection:
             return _rejected(rejection)
         tables: list[dict[str, Any]] = []
@@ -291,7 +293,7 @@ class _Batch:
 
     def run(self, raw_queries: list[Any]) -> dict[str, Any]:
         started = time.monotonic()
-        as_of = self.start()
+        as_of = self.as_of = self.start()
         self.start_seconds = time.monotonic() - started
         for position, raw in enumerate(raw_queries):
             self.rows.append([])

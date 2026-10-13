@@ -27,8 +27,11 @@ The checks are two:
     check_query: against the data dictionary, that the columns exist and that the cost is
         within the budget. The cost is the index lookups: a lookup of a LOCAL index probes
         each partition its window touches, so it costs keys x partitions touched; a GLOBAL
-        index, or a table that is not partitioned, costs keys. A table with no index to
-        look up is read only when it is small and not partitioned, at a cost of 1
+        index, or a table that is not partitioned, costs keys. The partitions of a time key
+        made ahead, which start after the present on the database's clock, are not counted:
+        the time keys of these tables say when a row was written, so no row is in them yet. A
+        table with no index to look up is read only when it is small and not partitioned, at
+        a cost of 1
 
 A query that fails either is rejected with the name of the rule it broke, and the other
 queries of the request still run.
@@ -370,7 +373,7 @@ def _may_be_above(value: Any, bound: Any, inclusive: bool) -> bool:
     return order is None or order == 1 or (inclusive and order == 0)
 
 
-def count_touched_partitions(partitioning: PartitionInfo, where: Sequence[Condition]) -> int:
+def count_touched_partitions(partitioning: PartitionInfo, where: Sequence[Condition], now: datetime.datetime | None = None) -> int:
     """
     Count the partitions the conditions on the partition key leave to read.
 
@@ -378,6 +381,8 @@ def count_touched_partitions(partitioning: PartitionInfo, where: Sequence[Condit
         partitioning(PartitionInfo): the partitions of the table
         where(list): conditions with values read for the table. A value that cannot be compared
             with the bounds, and an "in" from a query, leave every partition to read
+        now(datetime): the present on the database's clock, in UTC, or None. A partition of a time
+            key starting after it is made ahead and holds no row yet, so it is not counted
 
     Returns:
         int: partitions touched, at least 1
@@ -421,7 +426,11 @@ def count_touched_partitions(partitioning: PartitionInfo, where: Sequence[Condit
             return False
         return True
 
-    n_touched = sum(1 for bound_lower, bound_upper in partitioning.bounds if touched(bound_lower, bound_upper))
+    def made_ahead(bound_lower: Bound | None) -> bool:
+        # a bound that is not a time cannot be compared with now, which keeps the partition
+        return now is not None and bound_lower is not None and _compare(bound_lower, now) == 1
+
+    n_touched = sum(1 for bound_lower, bound_upper in partitioning.bounds if touched(bound_lower, bound_upper) and not made_ahead(bound_lower))
     return max(n_touched, 1)
 
 
@@ -432,7 +441,9 @@ def _kind_of(table: AllowedTable, info: TableInfo, column: str) -> str:
     return kind
 
 
-def check_query(query: Query, infos: dict[str, TableInfo], from_sizes: dict[FromQuery, int], budget: int) -> list[TablePlan]:
+def check_query(
+    query: Query, infos: dict[str, TableInfo], from_sizes: dict[FromQuery, int], budget: int, now: datetime.datetime | None = None
+) -> list[TablePlan]:
     """
     Check a query against the data dictionary and price it.
 
@@ -441,6 +452,8 @@ def check_query(query: Query, infos: dict[str, TableInfo], from_sizes: dict[From
         infos(dict): the dictionary entry of each table of the query, by the table's name
         from_sizes(dict): how many values each "in" from a query has, which the earlier answers tell
         budget(int): most index lookups the query may cost, over all its tables
+        now(datetime): the present on the database's clock, in UTC, before which the partitions
+            counted start, or None to count them all
 
     Returns:
         list: a plan for each table of the query, in its order
@@ -502,7 +515,7 @@ def check_query(query: Query, infos: dict[str, TableInfo], from_sizes: dict[From
         # the cheapest index to look up
         probes: int | None = None
         partitioning = info.partitioning
-        n_touched = count_touched_partitions(partitioning, where) if partitioning is not None else 1
+        n_touched = count_touched_partitions(partitioning, where, now) if partitioning is not None else 1
         for index in info.indexes:
             if index.leading_column not in keys:
                 continue

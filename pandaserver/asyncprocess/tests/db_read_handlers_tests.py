@@ -128,6 +128,12 @@ class TestBatch(BatchTestBase):
         self.assertEqual(tasks["message"], "query 0 has no rows to take values from, being rejected")
         self.assertEqual(tasks["detail"], {"query": 0, "status": "rejected"})
 
+    def test_partitions_charged_up_to_as_of(self) -> None:
+        # the moment the transaction sees is the present the partitions made ahead are told by
+        with mock.patch.object(db_read_handlers, "check_query", wraps=db_read_handlers.check_query) as check:
+            self.run_batch([Q_JOBS])
+        self.assertEqual(check.call_args.kwargs["now"], AS_OF)
+
     def test_from_query_column_must_be_returned(self) -> None:
         q_tasks = dict(Q_TASKS, where=[["jeditaskid", "in", {"from_query": 0, "column": "jobstatus"}]])
         data, _, _ = self.run_batch([Q_JOBS, q_tasks])

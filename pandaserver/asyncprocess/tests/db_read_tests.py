@@ -178,10 +178,10 @@ class TestParseQuery(unittest.TestCase):
 
 
 class TestCountTouchedPartitions(unittest.TestCase):
-    def count(self, where: list[list[Any]]) -> int:
+    def count(self, where: list[list[Any]], now: datetime.datetime | None = None) -> int:
         plans = check({"tables": ["jobsArchived4"], "where": [["pandaid", "=", 1]] + where})
         assert JOBS_ARCHIVED4.partitioning is not None
-        return count_touched_partitions(JOBS_ARCHIVED4.partitioning, plans[0].where)
+        return count_touched_partitions(JOBS_ARCHIVED4.partitioning, plans[0].where, now)
 
     def test_window(self) -> None:
         self.assertEqual(self.count([]), 5)
@@ -204,6 +204,24 @@ class TestCountTouchedPartitions(unittest.TestCase):
         self.assertEqual(self.count([["modificationtime", "in", ["2026-10-02T00:00:00"]]]), 1)
         # a point outside the window leaves nothing to read, and the count does not go below 1
         self.assertEqual(self.count([["modificationtime", "in", ["2026-10-02T12:00:00"]], ["modificationtime", ">=", "2026-10-03T00:00:00"]]), 1)
+
+    def test_made_ahead(self) -> None:
+        # on 2026-10-02, the partitions of 2026-10-03 and 2026-10-04 are made but hold no row
+        now = D0 + DAY + datetime.timedelta(hours=12)
+        self.assertEqual(self.count([], now), 3)
+        self.assertEqual(self.count([["modificationtime", ">=", "2026-10-02T00:00:00"]], now), 1)
+        # the partition holding now counts from its first second
+        self.assertEqual(self.count([], D0 + DAY), 3)
+        # a point ahead is in no partition counted, and the count does not go below 1
+        self.assertEqual(self.count([["modificationtime", "=", "2026-10-04T12:00:00"]], now), 1)
+        # a key that is not a time keeps every partition
+        assert JEDI_TASKS.partitioning is not None
+        plans = check({"tables": ["JEDI_Tasks"], "where": [["jeditaskid", ">=", 600000], ["status", "=", "running"]]})
+        self.assertEqual(count_touched_partitions(JEDI_TASKS.partitioning, plans[0].where, now), 2)
+        # and the cost of a query follows
+        query = parse({"tables": ["jobsArchived4"], "where": [["pandaid", "in", [1, 2]]]}, 0)
+        self.assertEqual(check_query(query, INFOS, {}, 1000)[0].probes, 10)
+        self.assertEqual(check_query(query, INFOS, {}, 1000, now=now)[0].probes, 6)
 
     def test_numbers(self) -> None:
         assert JEDI_TASKS.partitioning is not None
