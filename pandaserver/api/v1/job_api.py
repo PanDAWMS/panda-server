@@ -205,7 +205,7 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict[
     return generate_response(True, data=ret)
 
 
-@request_validation(_logger, secure=True, request_method="GET")
+@request_validation(_logger, secure=True)
 def get_status_history(req: PandaRequest, job_ids: List[int], since: str | None = None, until: str | None = None) -> Dict[str, Any]:
     """
     Get status history of jobs
@@ -222,6 +222,11 @@ def get_status_history(req: PandaRequest, job_ids: List[int], since: str | None 
     and the clock of the database differ by a little: both ends are first moved out by 10 minutes, then to whole UTC days,
     since back to the start of its day and until forward to the start of the next day. Whole days touch no more daily
     partitions; the 10 minutes add one only when an end lies within 10 minutes of midnight.
+
+    POST is accepted too, with the arguments in a JSON body (Content-Type: application/json). A GET puts every job ID in the
+    URL, and a web server refuses a request line over its limit with an HTTP error before the call gets here: Apache's
+    default of 8190 bytes holds about 420 job IDs. A form-encoded POST is refused, since only the values of a GET are
+    converted from strings.
 
     API details:
         HTTP Method: GET

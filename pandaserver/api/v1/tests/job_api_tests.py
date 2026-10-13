@@ -2,8 +2,13 @@
 import datetime
 import os
 import unittest
+from types import SimpleNamespace
+from typing import Any, cast
+from unittest import mock
 
+from pandaserver.api.v1 import job_api
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
+from pandaserver.srvcore.panda_request import PandaRequest
 
 # To run tests with real IDs, set environment variables:
 #   PANDA_JOB_ID_TEST=<job_id>  JEDI_TASK_ID_TEST=<task_id>
@@ -117,6 +122,25 @@ class TestJobAPI(unittest.TestCase):
         self.assertEqual(output["data"]["keys"], 200)
         self.assertGreater(output["data"]["keys"] * output["data"]["partitions"], output["data"]["budget"])
 
+    def test_get_status_history_post_long_list(self) -> None:
+        # 500 ten-digit job IDs make a URL of about 9500 bytes, over Apache's default request line
+        # limit of 8190, so they go in a POST body. A window of an hour touches at most 2 daily
+        # partitions, and 500 x 2 is within the default db_read_probe_budget of 1000
+        url = f"{api_url_ssl}/job/get_status_history"
+        print(f"Testing URL: {url}")
+        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        since = now - datetime.timedelta(hours=1)
+        data = {
+            "job_ids": list(range(7_000_000_000, 7_000_000_500)),
+            "since": since.strftime("%Y-%m-%d %H:%M:%S"),
+            "until": now.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        status, output = self.http_client.post(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"], output["message"])
+        self.assertLessEqual(output["data"]["partitions"], 2)
+
     def test_get_metadata_for_analysis_jobs(self) -> None:
         # def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:
         url = f"{api_url_ssl}/job/get_metadata_for_analysis_jobs"
@@ -164,6 +188,43 @@ class TestJobAPI(unittest.TestCase):
         # reassignJobs always returns success=True
         expected_response = {"status": 0, "success": True, "data": None}
         self.assertEqual(output, expected_response)
+
+
+class TestStatusHistoryRequestMethod(unittest.TestCase):
+    """Unit tests for the HTTP methods get_status_history takes (no live server needed)."""
+
+    ANSWER: dict[str, Any] = {"rows": [], "as_of": None, "retained_from": None, "since": None, "until": None, "partitions": 1, "budget": 1000}
+
+    @staticmethod
+    def _request(method: str) -> PandaRequest:
+        """A request the endpoint decorator lets through with the given method: secure, and not a limited proxy."""
+        return cast(PandaRequest, SimpleNamespace(subprocess_env={"REQUEST_METHOD": method, "SSL_CLIENT_S_DN": "/CN=alice"}))
+
+    def _call(self, method: str, **kwargs: Any) -> tuple[dict[str, Any], mock.MagicMock]:
+        task_buffer = mock.MagicMock()
+        task_buffer.get_job_status_history.return_value = (True, "", dict(self.ANSWER))
+        with mock.patch.object(job_api, "global_task_buffer", task_buffer):
+            out = job_api.get_status_history(self._request(method), **kwargs)
+        return out, task_buffer
+
+    def test_post_takes_more_job_ids_than_a_url_holds(self) -> None:
+        # a JSON body keeps the types, so the IDs reach the lookup as they were sent
+        job_ids = list(range(7_000_000_000, 7_000_000_500))
+        out, task_buffer = self._call("POST", job_ids=job_ids, since="2026-10-12 14:30:45")
+        self.assertTrue(out["success"], out["message"])
+        self.assertEqual(task_buffer.get_job_status_history.call_args[0][0], job_ids)
+
+    def test_get_converts_the_strings_of_the_url(self) -> None:
+        out, task_buffer = self._call("GET", job_ids=["7000000000", "7000000001"], since="2026-10-12 14:30:45")
+        self.assertTrue(out["success"], out["message"])
+        self.assertEqual(task_buffer.get_job_status_history.call_args[0][0], [7_000_000_000, 7_000_000_001])
+
+    def test_post_of_strings_is_refused(self) -> None:
+        # as a form-encoded body gives them: only the values of a GET are converted
+        out, task_buffer = self._call("POST", job_ids=["7000000000", "7000000001"])
+        self.assertFalse(out["success"])
+        self.assertIn("Type error", out["message"])
+        task_buffer.get_job_status_history.assert_not_called()
 
 
 if __name__ == "__main__":
