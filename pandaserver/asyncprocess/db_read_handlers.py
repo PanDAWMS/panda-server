@@ -232,7 +232,9 @@ class _Batch:
         for reference in query.from_queries():
             source = self.answers[reference.query]
             if source["status"] != "done":
-                return _rejected(QueryRejected("from_query", f"query {reference.query} has no rows to take values from", query=reference.query))
+                # say why, since a query rejected or failed is not one that found nothing
+                message = f"query {reference.query} has no rows to take values from, being {source['status']}"
+                return _rejected(QueryRejected("from_query", message, query=reference.query, status=source["status"]))
             if not any(reference.column in names for names, _ in self.rows[reference.query]):
                 return _rejected(QueryRejected("from_query", f"query {reference.query} does not return {reference.column}", query=reference.query))
             from_values[reference] = self.values_of(reference)

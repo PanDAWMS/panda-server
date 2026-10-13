@@ -123,8 +123,10 @@ class TestBatch(BatchTestBase):
         rejected, jobs, tasks = data["answers"]
         self.assertEqual((rejected["status"], rejected["rule"]), ("rejected", "unknown_table"))
         self.assertEqual(jobs["status"], "done")
-        # query 0 has no rows to take values from
+        # query 0 has no rows to take values from, which the answer says is because it was rejected
         self.assertEqual((tasks["status"], tasks["rule"]), ("rejected", "from_query"))
+        self.assertEqual(tasks["message"], "query 0 has no rows to take values from, being rejected")
+        self.assertEqual(tasks["detail"], {"query": 0, "status": "rejected"})
 
     def test_from_query_column_must_be_returned(self) -> None:
         q_tasks = dict(Q_TASKS, where=[["jeditaskid", "in", {"from_query": 0, "column": "jobstatus"}]])
