@@ -32,7 +32,9 @@ The batch has a deadline, before each round trip to the database the limit of th
 trip is lowered to the time left, and nothing runs past it. The deadline keeps MARGIN_SECONDS
 back for storing the result, both from the daemon's timeout, which counts from the start of
 the processing cycle, and from the age at which processor.run hands a running request out
-again, which counts from the start of the request.
+again, which counts from the start of the request. When the daemon config has no enabled
+entry running async_request_daemon, the daemon master does not run it, nor kill it: it was
+started by hand, and only the age counts.
 """
 
 import datetime
@@ -102,21 +104,25 @@ def _connect_reader() -> DBProxy:
     return proxy
 
 
-def batch_deadline(request_started: float, cycle_started: float | None, daemon_timeout: int, stale_seconds: int) -> float:
+def batch_deadline(request_started: float, cycle_started: float | None, daemon_timeout: int | None, stale_seconds: int) -> float:
     """
     Get the time by which a batch must be done.
 
     Args:
         request_started(float): time.monotonic() when the handler started
         cycle_started(float): time.monotonic() when the processing cycle started, or None when unknown
-        daemon_timeout(int): seconds a cycle may run before the daemon master kills the worker
+        daemon_timeout(int): seconds a cycle may run before the daemon master kills the worker, or None
+            when no daemon master runs the cycle
         stale_seconds(int): seconds a request may run before processor.run hands it out again
 
     Returns:
         float: the deadline, on the clock of time.monotonic()
     """
-    cycle = request_started if cycle_started is None else cycle_started
-    return min(cycle + daemon_timeout, request_started + stale_seconds) - MARGIN_SECONDS
+    deadline = request_started + stale_seconds
+    if daemon_timeout is not None:
+        cycle = request_started if cycle_started is None else cycle_started
+        deadline = min(cycle + daemon_timeout, deadline)
+    return deadline - MARGIN_SECONDS
 
 
 def encode_value(value: Any) -> Any:
@@ -313,13 +319,16 @@ def _run(parameters: dict[str, Any], started: float, tmp_logger: LogWrapper) -> 
         return False, f"queries must be a list of 1 to {MAX_QUERIES} queries", None
     if panda_config.backend not in ("oracle", "postgres"):
         return False, f"db_read is not available with {panda_config.backend}", None
-    daemon = daemon_config.find_daemon(DAEMON_MODULE)
-    if daemon is None:
-        return False, f"the daemon config has no {DAEMON_MODULE}, whose timeout the deadline comes from", None
     # imported here since processor imports this module to register the handler
     from pandaserver.asyncprocess import processor
 
-    daemon_timeout = daemon_config.get_timeout(daemon)
+    daemon = daemon_config.find_daemon(DAEMON_MODULE)
+    if daemon is None:
+        # the daemon master runs only the enabled entries, reading them as find_daemon does
+        daemon_timeout = None
+        tmp_logger.info(f"no enabled {DAEMON_MODULE} in the daemon config, so run by hand with no timeout but the age of the request")
+    else:
+        daemon_timeout = daemon_config.get_timeout(daemon)
     deadline = batch_deadline(started, processor.get_cycle_started_at(), daemon_timeout, processor._STALE_THRESHOLD_SECONDS)
     if deadline <= time.monotonic():
         return (

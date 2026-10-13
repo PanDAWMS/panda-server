@@ -194,6 +194,8 @@ class TestDeadline(unittest.TestCase):
         self.assertEqual(batch_deadline(1000.0, None, 300, 480), 1000.0 + 300 - 30)
         # a long timeout leaves the age at which a running request is handed out again
         self.assertEqual(batch_deadline(1000.0, 900.0, 3600, 480), 1000.0 + 480 - 30)
+        # with no daemon master, only the age counts
+        self.assertEqual(batch_deadline(1000.0, 900.0, None, 480), 1000.0 + 480 - 30)
 
     def test_daemon_timeout(self) -> None:
         self.assertEqual(daemon_config.get_timeout({"period": 10}), 30)
@@ -256,8 +258,17 @@ class TestRun(BatchTestBase):
             success, message, _ = db_read_handlers._run({"queries": [Q_JOBS]}, time.monotonic(), logger)
         self.assertFalse(success)
         self.assertIn("no time left", message)
-        with mock.patch.object(daemon_config, "find_daemon", return_value=None):
-            self.assertFalse(db_read_handlers._run({"queries": [Q_JOBS]}, time.monotonic(), logger)[0])
+
+    def test_run_by_hand(self) -> None:
+        # with no enabled entry, no daemon master runs the cycle nor kills it, and only the age of the request counts
+        started = time.monotonic()
+        with (
+            mock.patch.object(daemon_config, "find_daemon", return_value=None),
+            mock.patch.object(db_read_handlers, "_Batch", wraps=_Batch) as batch_class,
+        ):
+            success, message, _ = db_read_handlers._run({"queries": [Q_JOBS]}, started, mock.Mock())
+        self.assertTrue(success, message)
+        self.assertEqual(batch_class.call_args[0][1], started + 480 - 30)
 
 
 class TestReader(unittest.TestCase):
