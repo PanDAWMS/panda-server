@@ -74,9 +74,14 @@ _NO_SUCH_FILE = "No such file or directory"
 
 
 def _bounded_matcher(log_path: str, pattern: str, max_matches: int, from_stdin: bool) -> list[str]:
-    """The matcher command, capped, reading a path or standard input."""
+    """The matcher command, capped, reading a path or standard input.
+
+    The pattern goes after -e, never in a place of its own: there a pattern
+    starting with "-" is read as an option, and rg's --pre=COMMAND runs COMMAND
+    on every file under the daemon's working directory.
+    """
     tool = "zgrep" if log_path.endswith(_GZIP_SUFFIX) else "rg"
-    cmd = [tool, _MAX_COUNT_FLAG, str(max_matches), pattern]
+    cmd = [tool, _MAX_COUNT_FLAG, str(max_matches), "-e", pattern]
     return cmd if from_stdin else cmd + [log_path]
 
 
