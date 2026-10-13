@@ -171,9 +171,10 @@ class TestBatch(BatchTestBase):
                 raise RuntimeError("DPI-1067: call timeout of 30000 ms exceeded with ORA-3156")
             return table_answer(sql, binds)
 
-        # the connection's own limit ran out: the query is too heavy
+        # the connection's own limit ran out: the query is too heavy, which the answer says
         data, proxy, _ = self.run_batch([Q_JOBS, Q_TASKS], answer=answer)
-        self.assertEqual([(a["status"], a.get("code")) for a in data["answers"]], [("error", "DPI-1067"), ("error", "not_run")])
+        self.assertEqual([(a["status"], a.get("code")) for a in data["answers"]], [("error", "statement_timeout"), ("error", "not_run")])
+        self.assertTrue(data["answers"][0]["message"].startswith("a round trip ran over the limit of 30 s (DPI-1067): narrow the query"))
         # the time left ran out first: the batch had no time for it
         data, proxy, _ = self.run_batch([Q_JOBS, Q_TASKS], answer=answer, seconds=5)
         self.assertEqual([a["status"] for a in data["answers"]], ["deadline", "deadline"])

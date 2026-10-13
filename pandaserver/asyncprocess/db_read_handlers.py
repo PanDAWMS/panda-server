@@ -25,7 +25,9 @@ answer per query, in order:
     {"status": "error", "code": str, "message": str}
         The database failed, with its ORA-, DPI-, DPY- or SQLSTATE code, or table_not_visible
         when the dictionary shows no columns of a table, which is what a missing grant looks
-        like. The batch stops at a database error, since a Postgres transaction takes no
+        like, or statement_timeout when a round trip ran over the limit of the connection,
+        db_read_call_timeout, rather than over the time left: the query is too heavy and has to
+        be narrowed. The batch stops at a database error, since a Postgres transaction takes no
         statement after one; the queries after it are errors with code not_run.
 
 The batch has a deadline, before each round trip to the database the limit of that round
@@ -311,6 +313,13 @@ class _Batch:
                 if code in _TIMEOUT_CODES and self.limited_by_deadline:
                     answer = {"status": "deadline"}
                     self.stopped = answer
+                elif code in _TIMEOUT_CODES:
+                    # the connection's own limit, so the query and not the batch is to blame
+                    limit = (self.proxy.call_timeout_ms or 0) / 1000
+                    self.tmp_logger.warning(f"query {position} ran over the limit of {limit:g} s of a round trip with {code}")
+                    message = f"a round trip ran over the limit of {limit:g} s ({code}): narrow the query with a window on the partition key or fewer keys"
+                    answer = {"status": "error", "code": "statement_timeout", "message": message}
+                    self.stopped = {"status": "error", "code": "not_run", "message": f"not run after the timeout of query {position}"}
                 else:
                     self.tmp_logger.error(f"query {position} failed with {code}: {traceback.format_exc()}")
                     answer = {"status": "error", "code": code, "message": str(error)[:1000]}
