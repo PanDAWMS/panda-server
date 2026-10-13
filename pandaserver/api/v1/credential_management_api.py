@@ -348,7 +348,9 @@ def get_access_token(
     real_dn = get_dn(req)
     target_dn = client_name if client_name else real_dn
 
-    tmp_logger.debug(f"Start for DN='{real_dn}' target_dn='{target_dn}' token_key={token_key}")
+    # only log the beginning of the token key to avoid leaking it
+    token_key_log = f"{token_key[:4]}..." if token_key else token_key
+    tmp_logger.debug(f"Start for DN='{real_dn}' target_dn='{target_dn}' token_key={token_key_log}")
 
     # check permission
     global_dispatch_parameter_cache.update()
