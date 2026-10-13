@@ -150,6 +150,7 @@ def submit_grep_request(
     machine_name: str | None = None,
     max_matches: int | None = None,
     tail_bytes: int | None = None,
+    whole_records: bool = False,
 ) -> Dict[str, Any]:
     """
     Submit a grep request
@@ -176,6 +177,10 @@ def submit_grep_request(
         tail_bytes(int): search only the last this many bytes of the file (1..1073741824),
             which is how to ask about recent activity in a multi-gigabyte log. Ignored for
             .gz files, where an arbitrary offset is not a valid stream
+        whole_records(bool): give each matching line with the rest of its log record: the lines after it that do not
+            start with a time stamp (YYYY-MM-DD HH:MM:SS), such as those of a traceback, up to the next line that
+            does. A record comes with at most 200 lines after its matching line, and one cut there sets truncated.
+            Defaults to False, the matching lines alone
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
@@ -263,6 +268,8 @@ def submit_grep_request(
         grep_parameters["max_matches"] = int(max_matches)
     if tail_bytes is not None:
         grep_parameters["tail_bytes"] = int(tail_bytes)
+    if whole_records:
+        grep_parameters["whole_records"] = True
     parameters = set_owner_info(grep_parameters, req)  # grep results stay owner-only
     parameters_json = json.dumps(parameters)
     expected_machines_json = json.dumps(expected)

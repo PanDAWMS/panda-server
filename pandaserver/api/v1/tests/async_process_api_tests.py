@@ -543,6 +543,12 @@ class TestSubmitGrepRequest(unittest.TestCase):
         self.assertTrue(out["success"], out["message"])
         self.assertEqual(self._parameters(task_buffer)["pattern"], "ERROR")
         self.assertNotIn("fixed_strings", self._parameters(task_buffer))
+        self.assertNotIn("whole_records", self._parameters(task_buffer))
+
+    def test_whole_records(self) -> None:
+        out, task_buffer = self._submit(pattern="ERROR", whole_records=True)
+        self.assertTrue(out["success"], out["message"])
+        self.assertIs(self._parameters(task_buffer)["whole_records"], True)
 
     def test_fixed_strings(self) -> None:
         fixed_strings = ["getJobs < SITE 2026-10-08T00:00:01 >", "a.b+c/d"]

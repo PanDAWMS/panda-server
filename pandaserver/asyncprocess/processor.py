@@ -6,8 +6,11 @@ New request types: add a handler function and register it in HANDLERS.
 
 import json
 import os
+import re
 import socket
 import subprocess
+import tempfile
+import threading
 import time
 from collections.abc import Callable
 from typing import Any
@@ -51,14 +54,27 @@ def get_cycle_started_at() -> float | None:
 
 # Cap on how many matching lines a grep may produce.  Log files here reach
 # several gigabytes, and an unselective pattern against one of those makes the
-# matcher stream the whole file back: capture_output buffers all of it in this
-# process before _MAX_RESULT_BYTES is applied, so the byte cap protects the
-# database and not the daemon.  Bounding the match count cannot lose anything a
-# caller could have seen -- everything past the byte cap was already discarded
-# -- so it applies by default, and the default is set high enough that the
-# stored result and its truncated flag are what they were before.
+# matcher stream the whole file back.  The output is read as it comes and the
+# matcher stopped once _MAX_RESULT_BYTES of it are kept, so the daemon holds no
+# more than that; the cap stops the matcher sooner when a caller asks for fewer
+# lines.  The default is set high enough that the stored result and its
+# truncated flag are what they were before.
 _DEFAULT_MAX_MATCHES = 20000
 _MAX_MAX_MATCHES = 200000
+
+# A log record starts with its time stamp.  The lines of a traceback, or of
+# any other message of several lines, continue it without one.
+_RECORD_START = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}")
+
+# Most lines a grep for whole records takes after a matching line.  A record
+# cut there makes the result come back truncated, as reaching any other cap
+# does, so that the cut record is not read as whole.
+_MAX_CONTINUATION_LINES = 200
+
+# A line of the matcher's output with -n: its number, then ":" when the line
+# matches or "-" when it is one of the lines after a match (-A).  Between lines
+# that are not adjacent comes a line of "--".
+_NUMBERED_LINE = re.compile(r"(\d+)([:-])")
 
 # A file opened at an arbitrary offset is not a valid gzip stream, so a tail
 # window is only meaningful on plain text.
@@ -70,7 +86,7 @@ _GZIP_SUFFIX = ".gz"
 _NO_SUCH_FILE = "No such file or directory"
 
 
-def _bounded_matcher(log_path: str, patterns: list[str], fixed: bool, max_matches: int, from_stdin: bool) -> list[str]:
+def _bounded_matcher(log_path: str, patterns: list[str], fixed: bool, max_matches: int, whole_records: bool, from_stdin: bool) -> list[str]:
     """The matcher command, capped, reading a path or standard input.
 
     A line matches when any of the patterns does, read as plain text when fixed
@@ -82,10 +98,16 @@ def _bounded_matcher(log_path: str, patterns: list[str], fixed: bool, max_matche
     rg reads a .gz file too, decompressing it with -z, so that a pattern means
     the same in every file. zgrep, used before, read it as a basic regular
     expression of grep, where "+" and "|" are plain characters.
+
+    For whole records, each match comes with one line more than a record may
+    continue over, numbered, so that _GrepOutput can tell where a record ends
+    and whether it was cut.
     """
     cmd = ["rg", "-m", str(max_matches)]
     if fixed:
         cmd.append("-F")
+    if whole_records:
+        cmd += ["-n", "-A", str(_MAX_CONTINUATION_LINES + 1)]
     for pattern in patterns:
         cmd += ["-e", pattern]
     if log_path.endswith(_GZIP_SUFFIX):
@@ -93,47 +115,136 @@ def _bounded_matcher(log_path: str, patterns: list[str], fixed: bool, max_matche
     return cmd if from_stdin else cmd + [log_path]
 
 
-def _run_grep(log_path: str, patterns: list[str], fixed: bool, max_matches: int, tail_bytes: int | None) -> "subprocess.CompletedProcess[str]":
+class _GrepOutput:
+    """The lines a grep keeps of the matcher's output, up to _MAX_RESULT_BYTES."""
+
+    def __init__(self, whole_records: bool) -> None:
+        self.whole_records = whole_records
+        self.lines: list[str] = []
+        self.size = 0
+        self.matches = 0
+        # whether _MAX_RESULT_BYTES are kept, which stops the matcher
+        self.full = False
+        # whether a record was cut at _MAX_CONTINUATION_LINES
+        self.cut = False
+        # whether the lines after a match still continue the record it is in,
+        # and how many of them have been kept
+        self._in_record = False
+        self._continuation = 0
+
+    def add(self, line: str) -> bool:
+        """Take one line of the matcher's output, and say whether more fit."""
+        if not self.whole_records:
+            self.matches += 1
+            return self._keep(line)
+
+        numbered = _NUMBERED_LINE.match(line)
+        if numbered is None:
+            # the "--" between lines that are not adjacent
+            self._in_record = False
+            return True
+        text = line[numbered.end() :]
+        starts_record = _RECORD_START.match(text) is not None
+        if numbered.group(2) == ":":
+            self.matches += 1
+            # a match without a stamp in a kept record only continues it
+            if starts_record or not self._in_record:
+                self._in_record = True
+                self._continuation = 0
+            else:
+                self._continuation += 1
+            return self._keep(text)
+        if not self._in_record or starts_record:
+            self._in_record = False
+            return True
+        if self._continuation >= _MAX_CONTINUATION_LINES:
+            self._in_record = False
+            self.cut = True
+            return True
+        self._continuation += 1
+        return self._keep(text)
+
+    def _keep(self, text: str) -> bool:
+        if self.size + len(text) > _MAX_RESULT_BYTES:
+            self.full = True
+            return False
+        self.lines.append(text)
+        self.size += len(text)
+        return True
+
+
+def _run_grep(log_path: str, patterns: list[str], fixed: bool, max_matches: int, tail_bytes: int | None, whole_records: bool) -> tuple[_GrepOutput, int, str]:
     """Run the matcher, optionally over just the tail of the file.
 
     The pipe is built process to process rather than through a shell: the
     pattern is caller-supplied, so handing it to a shell would hand the caller
     the daemon.
+
+    The output is read as it comes, and the matcher stopped once it no longer
+    fits, so the daemon never holds more of it than what is kept.  A matcher so
+    stopped had matched, and its return code is given as 0.
+
+    Returns:
+        the lines kept, the return code of the matcher, and its standard error
     """
     windowed = bool(tail_bytes) and not log_path.endswith(_GZIP_SUFFIX)
-    cmd = _bounded_matcher(log_path, patterns, fixed, max_matches, from_stdin=windowed)
-    if not windowed:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
+    cmd = _bounded_matcher(log_path, patterns, fixed, max_matches, whole_records, from_stdin=windowed)
+    output = _GrepOutput(whole_records)
+    # standard error goes to a file, since a pipe nobody reads until the end
+    # could fill and stall the matcher
+    with tempfile.TemporaryFile() as stderr_file:
+        tail = None
+        if windowed:
+            tail = subprocess.Popen(
+                ["tail", "-c", str(tail_bytes), log_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+        matcher = subprocess.Popen(
+            cmd,
+            stdin=tail.stdout if tail is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=stderr_file,
+            text=True,
+            errors="replace",
+        )
+        # Hand the read end over completely.  Keeping a copy here would leave the
+        # matcher's exit at the cap invisible to tail, which would then block on a
+        # full pipe instead of being told to stop.
+        if tail is not None and tail.stdout is not None:
+            tail.stdout.close()
 
-    tail = subprocess.Popen(
-        ["tail", "-c", str(tail_bytes), log_path],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-    )
-    matcher = subprocess.Popen(
-        cmd,
-        stdin=tail.stdout,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    # Hand the read end over completely.  Keeping a copy here would leave the
-    # matcher's exit at the cap invisible to tail, which would then block on a
-    # full pipe instead of being told to stop.
-    if tail.stdout is not None:
-        tail.stdout.close()
-    try:
-        stdout, stderr = matcher.communicate(timeout=_SUBPROCESS_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        matcher.kill()
-        matcher.wait()
-        raise
-    finally:
-        # tail dying of SIGPIPE is the cap working, not a failure, so its status
-        # is deliberately not inspected -- the file was checked before we got here.
-        tail.kill()
-        tail.wait()
-    return subprocess.CompletedProcess(cmd, matcher.returncode, stdout, stderr)
+        timed_out = threading.Event()
+
+        def stop_at_timeout() -> None:
+            timed_out.set()
+            matcher.kill()
+
+        timer = threading.Timer(_SUBPROCESS_TIMEOUT, stop_at_timeout)
+        timer.start()
+        try:
+            if matcher.stdout is not None:
+                for line in matcher.stdout:
+                    if not output.add(line):
+                        break
+        finally:
+            timer.cancel()
+            if matcher.poll() is None:
+                matcher.kill()
+            matcher.wait()
+            if matcher.stdout is not None:
+                matcher.stdout.close()
+            if tail is not None:
+                # tail dying of SIGPIPE is the cap working, not a failure, so its status
+                # is deliberately not inspected -- the file was checked before we got here.
+                tail.kill()
+                tail.wait()
+        if timed_out.is_set():
+            raise subprocess.TimeoutExpired(cmd, _SUBPROCESS_TIMEOUT)
+        stderr_file.seek(0)
+        stderr = stderr_file.read(_MAX_RESULT_BYTES + 1).decode(errors="replace")
+    return_code = 0 if output.full else matcher.returncode
+    return output, return_code, stderr
 
 
 def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper, result_machine: str) -> None:
@@ -146,6 +257,7 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
     patterns = fixed_strings if fixed else [params["pattern"]]
     max_matches = min(int(params.get("max_matches") or _DEFAULT_MAX_MATCHES), _MAX_MAX_MATCHES)
     tail_bytes = params.get("tail_bytes")
+    whole_records = bool(params.get("whole_records"))
     log_path = os.path.join(panda_config.logdir, log_filename)
 
     # Checked here rather than left to the tool, because with a tail window the
@@ -164,10 +276,10 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
         return
 
     shown = f"{len(patterns)} fixed strings {patterns[:3]!r}" if fixed else repr(patterns[0])
-    tmp_logger.debug(f"grep {shown} in {log_path} (max_matches={max_matches}, tail_bytes={tail_bytes})")
+    tmp_logger.debug(f"grep {shown} in {log_path} (max_matches={max_matches}, tail_bytes={tail_bytes}, whole_records={whole_records})")
     try:
         start_time = naive_utcnow()
-        proc = _run_grep(log_path, patterns, fixed, max_matches, tail_bytes)
+        output, return_code, stderr = _run_grep(log_path, patterns, fixed, max_matches, tail_bytes, whole_records)
         elapsed = (naive_utcnow() - start_time).total_seconds()
         tmp_logger.debug(f"subprocess completed in {elapsed:.2f} seconds")
     except subprocess.TimeoutExpired:
@@ -191,21 +303,23 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
         )
         return
 
-    stdout = proc.stdout
-    stderr = proc.stderr
     # Reaching the cap truncates just as surely as exceeding the byte limit
     # does, and a caller that reads an incomplete result as "this never appears
-    # in the log" gets the wrong answer, so both set the same flag.
-    capped = stdout.count("\n") >= max_matches
-    truncated = capped or len(stdout) > _MAX_RESULT_BYTES or len(stderr) > _MAX_RESULT_BYTES
-    tmp_logger.debug(f"outcome: return code {proc.returncode}, stdout size {len(stdout)}, stderr size {len(stderr)}, truncated={truncated}")
+    # in the log" gets the wrong answer, so both set the same flag.  So does a
+    # record cut short.
+    capped = output.matches >= max_matches
+    truncated = capped or output.full or output.cut or len(stderr) > _MAX_RESULT_BYTES
+    tmp_logger.debug(
+        f"outcome: return code {return_code}, {output.matches} matches, result size {output.size}, stderr size {len(stderr)}, "
+        f"truncated={truncated} (capped={capped} full={output.full} cut={output.cut})"
+    )
     tb.finish_async_result(
         row["request_id"],
         result_machine,
         "done",
-        result=stdout[:_MAX_RESULT_BYTES],
+        result="".join(output.lines),
         stderr=stderr[:_MAX_RESULT_BYTES],
-        return_code=proc.returncode,
+        return_code=return_code,
         truncated=truncated,
     )
 
