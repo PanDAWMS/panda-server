@@ -342,7 +342,7 @@ def get_access_token(
             {"user_proxy": str}
     """
 
-    tmp_logger = LogWrapper(_logger, f"get_proxy PID={os.getpid()}")
+    tmp_logger = LogWrapper(_logger, f"get_access_token PID={os.getpid()}")
 
     # Set the requested DN or, if not set, the requestor DN
     real_dn = get_dn(req)
