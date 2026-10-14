@@ -86,6 +86,10 @@ MAX_TAIL_BYTES = 3 << 30  # 3 GiB
 # the matcher, which this keeps under a megabyte
 MAX_FIXED_STRINGS = 1000
 MAX_FIXED_STRING_LENGTH = 1000
+# most log names one listing may be limited to, and the longest of them. A log kept 180 days has about
+# 180 files, 18 KB of the list, so about fifty fill the 1 MB a result can store
+MAX_LOG_NAMES = 100
+MAX_LOG_NAME_LENGTH = 255
 # most bytes of the queries of a db_read request, as JSON: room for every query to have an "in" of
 # a thousand job IDs. The handler checks everything else when the queries run
 MAX_DB_READ_REQUEST_BYTES = 200_000
@@ -319,7 +323,12 @@ def submit_grep_request(
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def submit_log_list_request(req: PandaRequest, service_name: str | None = None, machine_name: str | None = None) -> Dict[str, Any]:
+def submit_log_list_request(
+    req: PandaRequest,
+    service_name: str | None = None,
+    machine_name: str | None = None,
+    log_names: List[str] | None = None,
+) -> Dict[str, Any]:
     """
     Submit a log list request
 
@@ -329,7 +338,8 @@ def submit_log_list_request(req: PandaRequest, service_name: str | None = None, 
 
     The result of each machine in /v1/async_process/get_result is a JSON list of its files, in the order of their
     names, `[{"name": str, "size": int, "mtime": "YYYY-MM-DD HH:MM:SS"}, ...]` with mtime in UTC. It comes back
-    truncated when the list does not fit in 1 MB.
+    truncated when the list does not fit in 1 MB, which a machine keeping its logs for months reaches; log_names
+    limits the list to the logs asked about.
 
     API details:
         HTTP Method: POST
@@ -339,6 +349,10 @@ def submit_log_list_request(req: PandaRequest, service_name: str | None = None, 
         req(PandaRequest): request object
         service_name(str): target service (e.g. "server", "jedi"); mutually exclusive with machine_name
         machine_name(str): target specific machine hostname; mutually exclusive with service_name
+        log_names(list of str): list only these logs and the files rotated from them: a file whose name is one of
+            them, or is one of them followed by "-", so that panda-a.log takes in panda-a.log-20261012.gz but not
+            panda-ab.log (1..100 names, each 1..255 characters starting with "panda-" and without "/"). A name with
+            no file is left out of the list. Defaults to every file
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
@@ -357,13 +371,23 @@ def submit_log_list_request(req: PandaRequest, service_name: str | None = None, 
         return generate_response(False, msg)
     tmp_logger.debug(msg)
 
+    # a name is matched against the files of the log directory, so a path would match nothing
+    if log_names is not None and not (
+        1 <= len(log_names) <= MAX_LOG_NAMES
+        and all(1 <= len(log_name) <= MAX_LOG_NAME_LENGTH and log_name.startswith("panda-") and "/" not in log_name for log_name in log_names)
+    ):
+        msg = f"invalid log_names: must be 1 to {MAX_LOG_NAMES} names of 1 to {MAX_LOG_NAME_LENGTH} characters starting with 'panda-' and without '/'"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
     expected, msg = _expected_machines(service_name, machine_name, tmp_logger)
     if expected is None:
         tmp_logger.warning(msg)
         return generate_response(False, msg)
 
     async_id = str(uuid.uuid4())
-    parameters = set_owner_info({}, req)  # like a grep, owner-only
+    list_parameters: dict[str, Any] = {} if log_names is None else {"log_names": log_names}
+    parameters = set_owner_info(list_parameters, req)  # like a grep, owner-only
     ok = global_task_buffer.insert_async_request(
         async_id,
         "log_list",
