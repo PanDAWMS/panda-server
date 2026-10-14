@@ -79,6 +79,19 @@ class TestHandleGrep(unittest.TestCase):
             out = self._grep(pattern="a+b", log_filename=name)
             self.assertEqual(out["result"], "2026-10-08 00:00:01 aaab\n", name)
 
+    def test_gz_being_compressed(self) -> None:
+        # logrotate removes the file it compresses once the .gz is complete
+        self._write("panda-a.log-20261014", "".join(RECORDS))
+        with gzip.open(os.path.join(self.logdir, "panda-a.log-20261014.gz"), "wt") as f:
+            f.write("".join(RECORDS[:2]))
+        out = self._grep(pattern="done", log_filename="panda-a.log-20261014.gz")
+        self.assertEqual(out["status"], "failed")
+        self.assertTrue(out["error_msg"].endswith(": Being compressed"), out["error_msg"])
+        # the processor does not try again, as a compression takes longer than its attempts
+        self.assertFalse(out["retriable"])
+        os.remove(os.path.join(self.logdir, "panda-a.log-20261014"))
+        self.assertEqual(self._grep(pattern="start", log_filename="panda-a.log-20261014.gz")["status"], "done")
+
     def test_fixed_strings(self) -> None:
         # any of the strings matches, each as it is: "." and "+" are no wildcards here
         lines = [
@@ -265,6 +278,22 @@ class TestHandleLogList(unittest.TestCase):
             [file["name"] for file in json.loads(out["result"])],
             ["panda-a.log", "panda-a.log-20261008.gz", "panda-a.log-20261012", "panda-b.log-20261012.gz"],
         )
+
+    def test_gz_being_compressed(self) -> None:
+        # the .gz is left out until the file it is compressed from is gone, which is listed
+        for name in ("panda-a.log", "panda-a.log-20261013.gz", "panda-a.log-20261014", "panda-a.log-20261014.gz"):
+            open(os.path.join(self.logdir, name), "w").close()
+        listed = [file["name"] for file in json.loads(self._list()["result"])]
+        self.assertEqual(listed, ["panda-a.log", "panda-a.log-20261013.gz", "panda-a.log-20261014"])
+        # also for the log named
+        listed = [file["name"] for file in json.loads(self._list({"log_names": ["panda-a.log"]})["result"])]
+        self.assertEqual(listed, ["panda-a.log", "panda-a.log-20261013.gz", "panda-a.log-20261014"])
+        # and the .gz named alone, for which the file being compressed is listed
+        listed = [file["name"] for file in json.loads(self._list({"log_names": ["panda-a.log-20261014.gz"]})["result"])]
+        self.assertEqual(listed, ["panda-a.log-20261014"])
+        os.remove(os.path.join(self.logdir, "panda-a.log-20261014"))
+        listed = [file["name"] for file in json.loads(self._list({"log_names": ["panda-a.log-20261014.gz"]})["result"])]
+        self.assertEqual(listed, ["panda-a.log-20261014.gz"])
 
     def test_log_names_cut_short(self) -> None:
         # the list of the logs named is cut as the whole list is
