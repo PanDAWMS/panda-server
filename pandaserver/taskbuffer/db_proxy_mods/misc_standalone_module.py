@@ -18,6 +18,7 @@ from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandaserver.taskbuffer.db_proxy_mods.base_module import (
     BaseModule,
     SQL_QUEUE_TOPIC_async_dataset_update,
+    get_db_error_code,
     memoize,
     varNUMBER,
 )
@@ -1180,6 +1181,67 @@ class MiscStandaloneModule(BaseModule):
             self._rollback()
             self.dump_error_message(tmp_log)
             return None
+
+    # get the rows of datasets by name
+    def get_datasets_by_name(self, names: list[str], probe_budget: int) -> tuple[bool, str, dict[str, Any]]:
+        """
+        Get the rows ATLAS_PANDA.Datasets holds for the given dataset names.
+
+        The NAME index is local, and the table is partitioned on MODIFICATIONDATE, which a caller
+        cannot know ahead, so every name is looked up once in every partition. A request whose
+        names times partitions exceeds the budget is refused rather than cut short, so that a
+        partial answer is never read as a whole one.
+
+        Args:
+            names(list): names of the datasets
+            probe_budget(int): most index lookups (names x partitions) the request may cost
+
+        Returns:
+            bool: True if the rows were read
+            str: why not, when they were not
+            dict: when read, {"rows": [dict, ...], "as_of": datetime, "retained_from": datetime or None,
+                "partitions": int, "budget": int}. A row has every column, keyed as DatasetSpec names it,
+                with None for NULL. as_of is the database time in UTC taken before the rows were read.
+                retained_from is the time from which the table holds every row, on MODIFICATIONDATE: a
+                dataset last modified before it may have been dropped. partitions (at least 1) with budget
+                tells a caller how many names fit in one call. When refused, {"rejected": "probe_budget",
+                "keys": int, "partitions": int, "budget": int}, and on a database error {"error": <code>}
+        """
+        comment = " /* DBProxy.get_datasets_by_name */"
+        tmp_log = self.create_tagged_logger(comment, f"n_names={len(names)}")
+        tmp_log.debug("start")
+        columns = DatasetSpec.columnNames().split(",")
+        try:
+            self.conn.begin()
+            as_of = self.get_db_utc_now()
+            n_partitions, retained_from = self.get_partition_window(panda_config.schemaPANDA, "DATASETS")
+            # an unpartitioned table is looked up once per name
+            n_partitions = max(n_partitions, 1)
+            n_probes = len(names) * n_partitions
+            if n_probes > probe_budget:
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                err_msg = f"{len(names)} names x {n_partitions} partitions = {n_probes} index lookups exceed the budget of {probe_budget}"
+                tmp_log.debug(f"refused since {err_msg}")
+                return False, err_msg, {"rejected": "probe_budget", "keys": len(names), "partitions": n_partitions, "budget": probe_budget}
+            var_names_str, var_map = get_sql_IN_bind_variables(names, prefix=":name")
+            sql = f"SELECT {','.join(columns)} FROM ATLAS_PANDA.Datasets WHERE name IN ({var_names_str}) ORDER BY name,creationdate "
+            start_time = time.monotonic()
+            self.cur.arraysize = 1000
+            self.cur.execute(sql + comment, var_map)
+            res = self.cur.fetchall()
+            elapsed = time.monotonic() - start_time
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            rows = [dict(zip(columns, row)) for row in res]
+            tmp_log.debug(f"done with {len(rows)} rows by {n_probes} index lookups in {elapsed:.3f} sec")
+            data = {"rows": rows, "as_of": as_of, "retained_from": retained_from, "partitions": n_partitions, "budget": probe_budget}
+            return True, "", data
+        except Exception as e:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            err_code = get_db_error_code(e)
+            return False, f"database error {err_code}", {"error": err_code}
 
     # update dataset
     def updateDataset(self, datasets: list[DatasetSpec], withLock: bool, withCriteria: str, criteriaMap: dict[str, Any]) -> list[int]:

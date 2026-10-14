@@ -20,6 +20,7 @@ from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
 from pandaserver.taskbuffer.DataCarousel import DataCarouselRequestSpec
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from pandaserver.taskbuffer.db_proxy_mods.base_module import get_db_error_code
 from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
@@ -1055,15 +1056,38 @@ class TaskBuffer:
         forAnal: bool = True,
         days: int | None = 90,
         use_json: bool = False,
+        report_errors: bool = False,
     ) -> list[Any]:
-        retJobMap = {}
+        """
+        Get jobs from the live tables, or else from the archive within the last days.
+
+        Args:
+            jobIDs(list): PandaIDs of the jobs
+            fromDefined, fromActive, fromArchived, fromWaiting(bool): live tables to look in
+            forAnal(bool): give None rather than a job with jobStatus unknown when a live table cannot be read
+            days(int): how many days back the archive is looked in
+            use_json(bool): give each job as a dict rather than a JobSpec
+            report_errors(bool): give {"error": <code>} for a job a database error kept from being read, rather
+                than None as for a job not found. The live tables are then tried once, not three times. A job a
+                live table could not be read for is not looked for in the archive, since it may be in that table
+
+        Returns:
+            list: a job, None or, with report_errors, {"error": <code>} for each PandaID, in order
+        """
+        retJobMap: dict[int | str, JobSpec | dict[str, str] | None] = {}
 
         # peek at job
         for jobID in jobIDs:
             # get DBproxy for each job to avoid occupying connection for long time
             with self.proxyPool.get() as proxy:
                 # peek job
-                res = proxy.peekJob(jobID, fromDefined, fromActive, fromArchived, fromWaiting, forAnal)
+                res: JobSpec | dict[str, str] | None
+                try:
+                    res = proxy.peekJob(jobID, fromDefined, fromActive, fromArchived, fromWaiting, forAnal, raise_error=report_errors)
+                except Exception as e:
+                    if not report_errors:
+                        raise
+                    res = {"error": get_db_error_code(e)}
                 retJobMap[jobID] = res
 
         # get IDs
@@ -1072,18 +1096,20 @@ class TaskBuffer:
                 # get ArchiveDBproxy
                 with self.proxyPool.get() as proxy:
                     # peek job
-                    res = proxy.peekJobLog(jobID, days)
+                    try:
+                        res = proxy.peekJobLog(jobID, days, raise_error=report_errors)
+                    except Exception as e:
+                        if not report_errors:
+                            raise
+                        res = {"error": get_db_error_code(e)}
                     retJobMap[jobID] = res
 
         # sort
         retJobs: list[Any] = []
         for jobID in jobIDs:
             jobSpec = retJobMap[jobID]
-            if use_json:
-                if jobSpec is None:
-                    retJobs.append(None)
-                else:
-                    retJobs.append(jobSpec.to_dict())
+            if use_json and isinstance(jobSpec, JobSpec):
+                retJobs.append(jobSpec.to_dict())
             else:
                 retJobs.append(jobSpec)
 
@@ -1327,6 +1353,11 @@ class TaskBuffer:
             # query Dataset
             ret = proxy.queryDatasetWithMap(map)
         return ret
+
+    # get the rows of datasets by name
+    def get_datasets_by_name(self, names: list[str], probe_budget: int) -> tuple[bool, str, dict[str, Any]]:
+        with self.proxyPool.get() as proxy:
+            return proxy.get_datasets_by_name(names, probe_budget)
 
     # set GUIDs
     def setGUIDs(self, files: list[dict[str, Any]]) -> bool:

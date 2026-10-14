@@ -1625,7 +1625,12 @@ def get_detailed_info(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         dict: The system response `{"success": success, "message": message, "data": data}`.
 
     Response data:
-        dict: All JediTaskSpec fields of the task, plus jobParamsTemplate and taskParams.
+        dict: All JediTaskSpec fields of the task, with splitRule decoded to a readable string, plus
+            - split_rule_raw: the value of the splitRule column, not decoded
+            - job_execution_params: jobParamsTemplate
+            - task_creation_arguments and raw_task_params: the cliParams of taskParams, and taskParams whole
+            - nFiles, nFilesFinished, nFilesFailed, nFilesMissing, pctFinished and pctFailed: the progress
+              of the input files, over the master input datasets
     """
     tmp_logger = LogWrapper(_logger, f"get_detailed_info < task_id={task_id} >")
     tmp_logger.debug("Start")
@@ -1665,8 +1670,7 @@ def get_parent_detailed_info(req: PandaRequest, task_id: int) -> Dict[str, Any]:
         dict: The system response `{"success": success, "message": message, "data": data}`.
 
     Response data:
-        dict: The details of the parent task, in the same format as get_detailed_info: all JediTaskSpec
-            fields plus jobParamsTemplate and taskParams.
+        dict: The details of the parent task, in the same format as get_detailed_info.
     """
     tmp_logger = LogWrapper(_logger, f"get_parent_detailed_info < child_task_id={task_id} >")
     tmp_logger.debug("Start")

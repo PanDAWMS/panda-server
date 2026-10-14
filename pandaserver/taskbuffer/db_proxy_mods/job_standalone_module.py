@@ -468,7 +468,9 @@ class JobStandaloneModule(BaseModule):
             return None
 
     # peek at job
-    def peekJob(self, pandaID: int | str, fromDefined: bool, fromActive: bool, fromArchived: bool, fromWaiting: bool, forAnal: bool = False) -> JobSpec | None:
+    def peekJob(
+        self, pandaID: int | str, fromDefined: bool, fromActive: bool, fromArchived: bool, fromWaiting: bool, forAnal: bool = False, raise_error: bool = False
+    ) -> JobSpec | None:
         comment = " /* DBProxy.peekJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         # return None for NULL PandaID
@@ -482,7 +484,9 @@ class JobStandaloneModule(BaseModule):
             return None
         sql1_0 = "SELECT %s FROM %s "
         sql1_1 = "WHERE PandaID=:PandaID"
-        nTry = 3
+        # a caller taking the error decides itself whether to try again. A dead connection is
+        # reconnected by the pool before the proxy is handed out, in wakeUp
+        nTry = 1 if raise_error else 3
         for iTry in range(nTry):
             try:
                 tables = []
@@ -569,6 +573,9 @@ class JobStandaloneModule(BaseModule):
                     time.sleep(random.randint(10, 20))
                     continue
                 self.dump_error_message(tmp_log)
+                # raise for a caller that tells an error from a job not found
+                if raise_error:
+                    raise
                 # return None for analysis
                 if forAnal:
                     return None
@@ -1558,7 +1565,7 @@ class JobStandaloneModule(BaseModule):
             return {}
 
     # peek at job
-    def peekJobLog(self, pandaID: int | str, days: int | None = None) -> JobSpec | None:
+    def peekJobLog(self, pandaID: int | str, days: int | None = None, raise_error: bool = False) -> JobSpec | None:
         comment = " /* DBProxy.peekJobLog */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"days={days}")
@@ -1668,6 +1675,9 @@ class JobStandaloneModule(BaseModule):
                     time.sleep(random.randint(10, 20))
                     continue
                 self.dump_error_message(tmp_log)
+                # raise for a caller that tells an error from a job not found
+                if raise_error:
+                    raise
                 # return None
                 return None
         return None

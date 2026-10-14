@@ -1937,6 +1937,7 @@ class TaskUtilsModule(BaseModule):
         - Adds two extra keys to the dict:
             job_execution_params    : template string to execute a job (or None)
             task_creation_arguments : command-line arguments to create the job if applicable (or None)
+        - Gives splitRule decoded to a readable string, and the value of the column as split_rule_raw.
 
         Args:
             jedi_task_id: child task ID by default. When ``resolve_parent=True``, this is
@@ -1994,9 +1995,11 @@ class TaskUtilsModule(BaseModule):
             task_dict = {}
             for idx, attr in enumerate(JediTaskSpec.attributes):
                 task_dict[attr] = res[idx]
-                # decode splitRule string to human-readable string
-                if attr == "splitRule" and task_dict[attr] is not None:
-                    task_dict[attr] = decode_split_rule(task_dict[attr])
+                # decode splitRule string to human-readable string, keeping the value of the column too
+                if attr == "splitRule":
+                    task_dict["split_rule_raw"] = res[idx]
+                    if task_dict[attr] is not None:
+                        task_dict[attr] = decode_split_rule(task_dict[attr])
 
             # --- read jobParamsTemplate (CLOB) ---
             sql_read_job_params = f"SELECT jobParamsTemplate FROM {panda_config.schemaJEDI}.JEDI_JobParams_Template WHERE jediTaskID=:jediTaskID "
