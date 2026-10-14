@@ -1,6 +1,6 @@
 """
 API endpoints for submitting and polling async processing requests.
-Currently supports grep (rg / zgrep) on log files; extensible to other request types.
+Currently supports grep (rg) on log files and listing them; extensible to other request types.
 """
 
 import json
@@ -72,13 +72,20 @@ MAX_MESSAGE_LENGTH = 100  # cap echoed message size
 
 # terminal statuses of a result row
 TERMINAL_STATUSES = ("done", "failed")
-# bounds for the grep request.  Log files reach several gigabytes, and the
-# processor buffers a matcher's whole output before the stored result is capped,
-# so an unselective pattern against a big file costs the daemon that much
-# memory.  Both limits below only ever remove output the caller could not have
-# received anyway -- the stored result has always been capped at 1 MB.
+# bounds for the grep request.  The processor stops the matcher once it keeps
+# the 1 MB a result can store, so neither bound is about the daemon's memory.
+# MAX_MATCH_LIMIT only ever removes output the caller could not have received
+# anyway.  MAX_TAIL_BYTES is about time: a grep is stopped after 240 s, and the
+# disk of a production server read its live log at 16 MB/s on a slow day
+# (2026-10), which reads 3 GiB in about 200 s and 4 GiB in about 260 s.  3 GiB
+# is about five hours of panda-DBProxy.log.  A grep without tail_bytes reads
+# the whole file, under the same 240 s.
 MAX_MATCH_LIMIT = 200000  # ceiling on max_matches
-MAX_TAIL_BYTES = 1 << 30  # 1 GiB; a window this wide is already generous
+MAX_TAIL_BYTES = 3 << 30  # 3 GiB
+# most fixed strings one grep may look for, and the longest of them. Each goes on the command line of
+# the matcher, which this keeps under a megabyte
+MAX_FIXED_STRINGS = 1000
+MAX_FIXED_STRING_LENGTH = 1000
 # most bytes of the queries of a db_read request, as JSON: room for every query to have an "in" of
 # a thousand job IDs. The handler checks everything else when the queries run
 MAX_DB_READ_REQUEST_BYTES = 200_000
@@ -136,20 +143,50 @@ def _structured_result_response(req_row: Dict[str, Any], results: list[dict[str,
     return response
 
 
+def _expected_machines(service_name: str | None, machine_name: str | None, tmp_logger: LogWrapper) -> tuple[Sequence[str | None] | None, str]:
+    """
+    Get the machines a request for a service, or for one machine, is expected to run on.
+
+    Args:
+        service_name(str or None): every alive machine of this service
+        machine_name(str or None): this machine alone, alive or not
+        tmp_logger(LogWrapper): logger
+
+    Returns:
+        the machines, or None with the reason when the request cannot go anywhere
+    """
+    if bool(service_name) == bool(machine_name):
+        return None, "exactly one of service_name or machine_name must be provided"
+    if service_name:
+        expected = global_task_buffer.get_alive_machines(service_name)
+        if not expected:
+            return None, f"no alive machines found for service '{service_name}'"
+        return expected, ""
+    # get_alive_machines matches on service_name; for a specific machine check heartbeat directly
+    alive = global_task_buffer.get_alive_machines(machine_name)
+    # warn but don't block — machine may have started after last heartbeat window
+    if not alive:
+        tmp_logger.warning(f"machine '{machine_name}' has no recent heartbeat; request submitted anyway")
+    return [machine_name], ""
+
+
 @request_validation(_logger, secure=True, request_method="POST")
 def submit_grep_request(
     req: PandaRequest,
-    pattern: str,
     log_filename: str,
+    pattern: str | None = None,
+    fixed_strings: List[str] | None = None,
     service_name: str | None = None,
     machine_name: str | None = None,
     max_matches: int | None = None,
     tail_bytes: int | None = None,
+    whole_records: bool = False,
 ) -> Dict[str, Any]:
     """
     Submit a grep request
 
-    Submit a grep request to be processed asynchronously on the target service or machine.
+    Submit a grep request to be processed asynchronously on the target service or machine. A line matches either a
+    regular expression or any of a list of fixed strings.
 
     API details:
         HTTP Method: POST
@@ -157,16 +194,34 @@ def submit_grep_request(
 
     Args:
         req(PandaRequest): request object
-        pattern(str): grep pattern to search for
         log_filename(str): filename (not full path) of the log file under panda_config.logdir
+        pattern(str): regular expression to search for, in the syntax of rg whether the file is compressed or not;
+            mutually exclusive with fixed_strings
+        fixed_strings(list of str): strings to search for as they are, a line matching when it holds any of them
+            (1..1000 strings, each 1..1000 characters and without a line break); mutually exclusive with pattern
         service_name(str): target service (e.g. "server", "jedi"); mutually exclusive with machine_name
         machine_name(str): target specific machine hostname; mutually exclusive with service_name
         max_matches(int): stop after this many matching lines (1..200000). Defaults to a
             bound that leaves the stored result unchanged; results that hit the cap come
             back with truncated set, so an incomplete answer is never read as an absent one
-        tail_bytes(int): search only the last this many bytes of the file (1..1073741824),
-            which is how to ask about recent activity in a multi-gigabyte log. Ignored for
-            .gz files, where an arbitrary offset is not a valid stream
+        tail_bytes(int): search only the last this many bytes of the file (1..3221225472),
+            which is how to ask about recent activity in a multi-gigabyte log. The search starts
+            with the first whole line there. Ignored for .gz files, where an arbitrary offset is
+            not a valid stream. On a slow disk the widest window takes about 200 of the 240 s
+            a grep may run
+        whole_records(bool): give each matching line with the rest of its log record: the lines after it that do not
+            start with a time stamp (YYYY-MM-DD HH:MM:SS), such as those of a traceback, up to the next line that
+            does. A record comes with at most 200 lines after its matching line. The result of each machine is then
+            JSON instead of the lines: {"records": [...], "window": {...} or null}
+            - records: in the order of the file, each {"offset": int, "head": bool, "lines": [str, ...], "cut": bool}.
+              offset is the byte offset in the file, decompressed for a .gz, where the first line given starts, the
+              same in any request until the file is rotated. head is false when that line matched within the lines
+              of a record whose first line did not match, and so is not the start of its record. cut is true when
+              the record has more lines than were given, which sets truncated too. lines come without line breaks
+            - window: for tail_bytes, {"offset": int, "first_stamp": str or None}: where the search started, and
+              the time stamp of the first line from there that starts with one. Every record starting at or after
+              that line was searched whole; null without tail_bytes
+            Defaults to False, the matching lines alone as they are in the file
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
@@ -186,8 +241,17 @@ def submit_grep_request(
         return generate_response(False, msg)
     tmp_logger.debug(msg)
 
-    if bool(service_name) == bool(machine_name):
-        msg = "exactly one of service_name or machine_name must be provided"
+    if (pattern is None) == (fixed_strings is None):
+        msg = "exactly one of pattern or fixed_strings must be provided"
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    # an empty string matches every line, and no line holds a line break
+    if fixed_strings is not None and not (
+        1 <= len(fixed_strings) <= MAX_FIXED_STRINGS
+        and all(1 <= len(fixed_string) <= MAX_FIXED_STRING_LENGTH and "\n" not in fixed_string and "\r" not in fixed_string for fixed_string in fixed_strings)
+    ):
+        msg = f"invalid fixed_strings: must be 1 to {MAX_FIXED_STRINGS} strings of 1 to {MAX_FIXED_STRING_LENGTH} characters without a line break"
         tmp_logger.warning(msg)
         return generate_response(False, msg)
 
@@ -214,28 +278,23 @@ def submit_grep_request(
         return generate_response(False, msg)
 
     # determine expected machines from liveness snapshot
-    expected: Sequence[str | None]
-    if service_name:
-        expected = global_task_buffer.get_alive_machines(service_name)
-        if not expected:
-            msg = f"no alive machines found for service '{service_name}'"
-            tmp_logger.warning(msg)
-            return generate_response(False, msg)
-    else:
-        alive = global_task_buffer.get_alive_machines(machine_name)
-        # get_alive_machines matches on service_name; for a specific machine check heartbeat directly
-        expected = [machine_name]
-        # warn but don't block — machine may have started after last heartbeat window
-        if not alive:
-            msg = f"machine '{machine_name}' has no recent heartbeat; request submitted anyway"
-            tmp_logger.warning(msg)
+    expected, msg = _expected_machines(service_name, machine_name, tmp_logger)
+    if expected is None:
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
 
     async_id = str(uuid.uuid4())
-    grep_parameters: dict[str, Any] = {"pattern": pattern, "log_filename": log_filename}
+    grep_parameters: dict[str, Any] = {"log_filename": log_filename}
+    if fixed_strings is not None:
+        grep_parameters["fixed_strings"] = fixed_strings
+    else:
+        grep_parameters["pattern"] = pattern
     if max_matches is not None:
         grep_parameters["max_matches"] = int(max_matches)
     if tail_bytes is not None:
         grep_parameters["tail_bytes"] = int(tail_bytes)
+    if whole_records:
+        grep_parameters["whole_records"] = True
     parameters = set_owner_info(grep_parameters, req)  # grep results stay owner-only
     parameters_json = json.dumps(parameters)
     expected_machines_json = json.dumps(expected)
@@ -256,6 +315,69 @@ def submit_grep_request(
     tmp_logger.debug(f"Done async_id={async_id}")
     # request_id carries the same value under the pre-rename name, so callers polling with it
     # keep working; it is dropped once they have moved to async_id
+    return generate_response(True, "", {"async_id": async_id, "request_id": async_id})
+
+
+@request_validation(_logger, secure=True, request_method="POST")
+def submit_log_list_request(req: PandaRequest, service_name: str | None = None, machine_name: str | None = None) -> Dict[str, Any]:
+    """
+    Submit a log list request
+
+    Submit a request to list the log files under panda_config.logdir on the target service or machine: every file whose
+    name starts with "panda-", the rotated ones too, so that a caller can choose the files to grep by their names and
+    times rather than guess how the logs are rotated.
+
+    The result of each machine in /v1/async_process/get_result is a JSON list of its files, in the order of their
+    names, `[{"name": str, "size": int, "mtime": "YYYY-MM-DD HH:MM:SS"}, ...]` with mtime in UTC. It comes back
+    truncated when the list does not fit in 1 MB.
+
+    API details:
+        HTTP Method: POST
+        Path: /v1/async_process/submit_log_list_request
+
+    Args:
+        req(PandaRequest): request object
+        service_name(str): target service (e.g. "server", "jedi"); mutually exclusive with machine_name
+        machine_name(str): target specific machine hostname; mutually exclusive with service_name
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The ID to poll /v1/async_process/get_result with. request_id repeats async_id, as for the other
+            requests; read async_id.
+            {"async_id": str, "request_id": str}
+    """
+    tmp_logger = LogWrapper(_logger, "submit_log_list_request")
+    tmp_logger.debug("Start")
+
+    ok, msg = _is_authorized_with_allowlist(req)
+    if not ok:
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+    tmp_logger.debug(msg)
+
+    expected, msg = _expected_machines(service_name, machine_name, tmp_logger)
+    if expected is None:
+        tmp_logger.warning(msg)
+        return generate_response(False, msg)
+
+    async_id = str(uuid.uuid4())
+    parameters = set_owner_info({}, req)  # like a grep, owner-only
+    ok = global_task_buffer.insert_async_request(
+        async_id,
+        "log_list",
+        json.dumps(parameters),
+        service_name,
+        machine_name,
+        json.dumps(expected),
+    )
+    if not ok:
+        msg = "failed to insert request into DB"
+        tmp_logger.error(msg)
+        return generate_response(False, msg)
+
+    tmp_logger.debug(f"Done async_id={async_id}")
     return generate_response(True, "", {"async_id": async_id, "request_id": async_id})
 
 
@@ -425,7 +547,7 @@ def get_result(req: PandaRequest, async_id: str | None = None, request_id: str |
 
     The response has two shapes, depending on what the request's handler stores.
 
-    Handlers writing raw output (grep, sleep_echo) report one entry per machine:
+    Handlers writing raw output (grep, log_list, sleep_echo) report one entry per machine:
 
     ```
     {
@@ -479,7 +601,7 @@ def get_result(req: PandaRequest, async_id: str | None = None, request_id: str |
 
     Response data:
         dict: Depends on the request's handler, see the two shapes above. For handlers writing raw
-            output (grep, sleep_echo), the overall_status ("complete" or "pending"), the
+            output (grep, log_list, sleep_echo), the overall_status ("complete" or "pending"), the
             expected_machines and one result per machine. For handlers writing a structured payload
             (e.g. Data Carousel operations), the operation's own data, with success and message also
             the operation's own and an extra top-level async_meta field carrying the request's status

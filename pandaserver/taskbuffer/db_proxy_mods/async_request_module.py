@@ -194,7 +194,8 @@ class AsyncRequestModule(BaseModule):
 
     def get_pending_requests_for_machine(self, my_hostname: str, my_service: str, known_types: list[str]) -> list[dict[str, Any]]:
         """
-        Return async_requests rows that this machine should process (not yet claimed or pending retry).
+        Return async_requests rows that this machine should process (not yet claimed or pending retry),
+        oldest first, so that a request a cycle leaves pending is among the first of the next one.
 
         :param my_hostname: hostname of the requesting machine
         :param my_service: service name of the requesting machine
@@ -249,6 +250,7 @@ class AsyncRequestModule(BaseModule):
                       )
                     )
                   )
+                ORDER BY r.created_at, r.request_id
             """
             var_map = {":my_hostname": my_hostname, ":my_service": my_service, ":any_machine": ANY_MACHINE}
             var_map.update(type_var_map)
