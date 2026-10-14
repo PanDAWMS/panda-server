@@ -141,6 +141,41 @@ class TestJobAPI(unittest.TestCase):
         self.assertTrue(output["success"], output["message"])
         self.assertLessEqual(output["data"]["partitions"], 2)
 
+    def test_get_description_incl_archive_report_errors(self) -> None:
+        # a job not found is still null; an error would be {"error": code}
+        url = f"{api_url_ssl}/job/get_description_incl_archive"
+        print(f"Testing URL: {url}")
+        data = {"job_ids": [PANDA_JOB_ID, 1], "report_errors": True}
+        status, output = self.http_client.post(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"], output["message"])
+        self.assertEqual(len(output["data"]), 2)
+        self.assertIsNone(output["data"][1])
+
+    def test_get_datasets_by_name(self) -> None:
+        url = f"{api_url_ssl}/job/get_datasets_by_name"
+        print(f"Testing URL: {url}")
+        data = {"names": ["no.such.dataset_sub0000001", "no.such.dataset_sub0000002"]}
+        status, output = self.http_client.post(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"], output["message"])
+        self.assertEqual(output["data"]["rows"], [])
+        self.assertLessEqual(2 * output["data"]["partitions"], output["data"]["budget"])
+
+    def test_get_datasets_by_name_over_budget(self) -> None:
+        # the most names a call may give, plus one
+        url = f"{api_url_ssl}/job/get_datasets_by_name"
+        status, output = self.http_client.post(url, {"names": ["no.such.dataset"]})
+        self.assertTrue(output["success"], output["message"])
+        n_names = output["data"]["budget"] // output["data"]["partitions"] + 1
+        status, output = self.http_client.post(url, {"names": [f"no.such.dataset_sub{i}" for i in range(n_names)]})
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertFalse(output["success"])
+        self.assertIn(output["data"].get("rejected"), ("probe_budget", "too_many_keys"))
+
     def test_get_metadata_for_analysis_jobs(self) -> None:
         # def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:
         url = f"{api_url_ssl}/job/get_metadata_for_analysis_jobs"
@@ -225,6 +260,75 @@ class TestStatusHistoryRequestMethod(unittest.TestCase):
         self.assertFalse(out["success"])
         self.assertIn("Type error", out["message"])
         task_buffer.get_job_status_history.assert_not_called()
+
+
+class TestDescriptionReportErrors(unittest.TestCase):
+    """Unit tests for report_errors of get_description_incl_archive (no live server needed)."""
+
+    @staticmethod
+    def _request() -> PandaRequest:
+        """A request the endpoint decorator lets through: secure, POST, and not a limited proxy."""
+        return cast(PandaRequest, SimpleNamespace(subprocess_env={"REQUEST_METHOD": "POST", "SSL_CLIENT_S_DN": "/CN=alice"}))
+
+    def _call(self, jobs: list[Any], **kwargs: Any) -> tuple[dict[str, Any], mock.MagicMock]:
+        task_buffer = mock.MagicMock()
+        task_buffer.getFullJobStatus.return_value = jobs
+        with mock.patch.object(job_api, "global_task_buffer", task_buffer):
+            out = job_api.get_description_incl_archive(self._request(), job_ids=[1, 2, 3], **kwargs)
+        return out, task_buffer
+
+    def test_errors_reported(self) -> None:
+        job = mock.MagicMock()
+        job.to_dict_advanced.return_value = {"PandaID": 1}
+        out, task_buffer = self._call([job, None, {"error": "ORA-03113"}], report_errors=True)
+        self.assertTrue(out["success"], out["message"])
+        self.assertEqual(out["data"], [{"PandaID": 1}, None, {"error": "ORA-03113"}])
+        self.assertIs(task_buffer.getFullJobStatus.call_args.kwargs["report_errors"], True)
+
+    def test_errors_not_reported_by_default(self) -> None:
+        out, task_buffer = self._call([None, None, None])
+        self.assertTrue(out["success"], out["message"])
+        self.assertIs(task_buffer.getFullJobStatus.call_args.kwargs["report_errors"], False)
+
+
+class TestGetDatasetsByName(unittest.TestCase):
+    """Unit tests for the checks of get_datasets_by_name (no live server needed)."""
+
+    ANSWER: dict[str, Any] = {"rows": [], "as_of": None, "retained_from": None, "partitions": 5, "budget": 1000}
+
+    @staticmethod
+    def _request(method: str) -> PandaRequest:
+        """A request the endpoint decorator lets through with the given method: secure, and not a limited proxy."""
+        return cast(PandaRequest, SimpleNamespace(subprocess_env={"REQUEST_METHOD": method, "SSL_CLIENT_S_DN": "/CN=alice"}))
+
+    def _call(self, names: Any, method: str = "POST", answer: tuple[bool, str, dict[str, Any]] | None = None) -> tuple[dict[str, Any], mock.MagicMock]:
+        task_buffer = mock.MagicMock()
+        task_buffer.get_datasets_by_name.return_value = answer or (True, "", dict(self.ANSWER))
+        with mock.patch.object(job_api, "global_task_buffer", task_buffer), mock.patch.object(job_api.panda_config, "db_read_probe_budget", 1000, create=True):
+            out = job_api.get_datasets_by_name(self._request(method), names=names)
+        return out, task_buffer
+
+    def test_names_looked_up_once(self) -> None:
+        out, task_buffer = self._call(["a_sub1", "b_sub2", "a_sub1"])
+        self.assertTrue(out["success"], out["message"])
+        self.assertEqual(task_buffer.get_datasets_by_name.call_args[0], (["a_sub1", "b_sub2"], 1000))
+
+    def test_get(self) -> None:
+        out, task_buffer = self._call(["a_sub1"], method="GET")
+        self.assertTrue(out["success"], out["message"])
+        self.assertEqual(task_buffer.get_datasets_by_name.call_args[0][0], ["a_sub1"])
+
+    def test_refused(self) -> None:
+        out, task_buffer = self._call([])
+        self.assertEqual((out["success"], out["data"]), (False, {"rejected": "no_keys"}))
+        out, task_buffer = self._call([f"a_sub{i}" for i in range(1001)])
+        self.assertEqual((out["success"], out["data"]), (False, {"rejected": "too_many_keys", "keys": 1001, "max_keys": 1000}))
+        task_buffer.get_datasets_by_name.assert_not_called()
+
+    def test_refusal_of_the_lookup_passed_on(self) -> None:
+        refusal = {"rejected": "probe_budget", "keys": 201, "partitions": 5, "budget": 1000}
+        out, task_buffer = self._call([f"a_sub{i}" for i in range(201)], answer=(False, "over", refusal))
+        self.assertEqual((out["success"], out["message"], out["data"]), (False, "over", refusal))
 
 
 if __name__ == "__main__":

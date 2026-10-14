@@ -458,19 +458,28 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
     )
 
 
+def _is_named(file_name: str, log_names: set[str]) -> bool:
+    """Tell whether a file is one of the logs named or rotated from one: the name followed by "-"."""
+    return file_name in log_names or any(file_name[:i] in log_names for i, c in enumerate(file_name) if c == "-")
+
+
 def _handle_log_list(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper, result_machine: str) -> None:
     """List the log files under panda_config.logdir as JSON, and store it under result_machine's result row.
 
     Every regular file whose name starts with "panda-" is listed, as a grep may
-    read no other, with its size and its time of last change in UTC.  Files are
-    listed in the order of their names until the list no longer fits in
-    _MAX_RESULT_BYTES, which sets truncated.
+    read no other, with its size and its time of last change in UTC.  With
+    log_names, only the files of those logs are.  Files are listed in the order
+    of their names until the list no longer fits in _MAX_RESULT_BYTES, which
+    sets truncated.
     """
+    # the requests submitted before log_names was taken have none
+    log_names = json.loads(row["parameters"]).get("log_names")
+    named = None if log_names is None else set(log_names)
     try:
         with os.scandir(panda_config.logdir) as entries:
             files: list[dict[str, Any]] = []
             for entry in entries:
-                if not entry.name.startswith("panda-") or not entry.is_file():
+                if not entry.name.startswith("panda-") or (named is not None and not _is_named(entry.name, named)) or not entry.is_file():
                     continue
                 stat = entry.stat()
                 mtime = datetime.datetime.fromtimestamp(stat.st_mtime, datetime.timezone.utc)
@@ -491,7 +500,8 @@ def _handle_log_list(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWra
         kept.append(text)
         size += len(text) + 2
     truncated = len(kept) < len(files)
-    tmp_logger.debug(f"listed {len(kept)} of {len(files)} files in {panda_config.logdir}")
+    shown = "" if log_names is None else f" of {len(log_names)} logs {log_names[:3]!r}"
+    tmp_logger.debug(f"listed {len(kept)} of {len(files)} files{shown} in {panda_config.logdir}")
     tb.finish_async_result(
         row["request_id"],
         result_machine,

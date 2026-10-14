@@ -35,6 +35,11 @@ global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
 # partition of jobs_StatusLog
 MAX_STATUS_HISTORY_JOBS = 1000
 
+# most names one get_datasets_by_name call may give: what Oracle takes in one IN list. The
+# db_read_probe_budget normally bounds it lower, since each name costs one index lookup per
+# partition of Datasets
+MAX_DATASET_NAMES = 1000
+
 # slack put on both ends of a get_status_history window before it is widened to whole days. A
 # creationTime is written with the clock of a server and jobs_StatusLog with the database clock, so
 # a job created at 00:00:02 may have its first row at 23:59:57 of the day before; widening to the
@@ -160,11 +165,16 @@ def get_description(req: PandaRequest, job_ids: List[int]) -> Dict[str, Any]:
 
 
 @request_validation(_logger, secure=True)
-def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict[str, Any]:
+def get_description_incl_archive(req: PandaRequest, job_ids: List[int], report_errors: bool = False) -> Dict[str, Any]:
     """
     Get description of a job.
 
     Gets the description of a job, also looking into the secondary/archive schema. The description includes job attributes, job parameters and related file attributes. Requires a secure connection.
+
+    A job is looked for in the live tables first, and in the archive only when it is in none of them, within the last 90 days.
+    By default a job that a database error kept from being read is null, as a job not found is, after the live tables were
+    tried three times with 10 to 20 seconds between. With report_errors it is {"error": code} instead, at the first error,
+    and a job that the live tables could not be read for is not looked for in the archive.
 
     API details:
         HTTP Method: GET
@@ -173,6 +183,7 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict[
     Args:
         req(PandaRequest): internally generated request object containing the env variables.
         job_ids (list of int): List of PanDA job IDs.
+        report_errors (bool, optional): tell a database error from a job not found. Defaults to False.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -181,9 +192,10 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict[
     Response data:
         list[dict]: One job description per requested job ID, in the same order, also looking in
             the archive tables, or null for an ID that was not found. Only the first 5500 IDs are
-            looked up.
+            looked up. With report_errors, {"error": str} for an ID a database error kept from being
+            read, with the error code (ORA-xxxxx, the SQLSTATE on Postgres, or the type of the error).
     """
-    tmp_logger = LogWrapper(_logger, "get_description_including_archive")
+    tmp_logger = LogWrapper(_logger, f"get_description_including_archive report_errors={report_errors}")
     tmp_logger.debug("Start")
 
     try:
@@ -199,7 +211,9 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict[
 
     tmp_logger.debug(f"Retrieving data for {str(job_ids)}")
 
-    ret = [job.to_dict_advanced() if job is not None else None for job in global_task_buffer.getFullJobStatus(job_ids)]
+    jobs = global_task_buffer.getFullJobStatus(job_ids, report_errors=report_errors)
+    # a job not found is None, and a database error {"error": code} when reported
+    ret = [job if job is None or isinstance(job, dict) else job.to_dict_advanced() for job in jobs]
 
     tmp_logger.debug("getFullJobStatus end")
     return generate_response(True, data=ret)
@@ -301,6 +315,74 @@ def get_status_history(req: PandaRequest, job_ids: List[int], since: str | None 
         tmp_logger.debug(f"Failed with {message}")
         return generate_response(False, message=message, data=data)
     data["record_statuschange"] = getattr(panda_config, "record_statuschange", False) is True
+
+    tmp_logger.debug(f"""Done with {len(data["rows"])} rows""")
+    return generate_response(True, data=data)
+
+
+@request_validation(_logger, secure=True)
+def get_datasets_by_name(req: PandaRequest, names: List[str]) -> Dict[str, Any]:
+    """
+    Get datasets by name
+
+    Gets the rows of the PanDA Datasets table (the datasets jobs work with, such as the _sub and _dis ones made for
+    them, not JEDI_Datasets) for the given names. Requires a secure connection.
+
+    Each name is looked up once in every partition of the table, which is partitioned on modificationdate, so the most
+    names one call may give is the db_read_probe_budget of the server divided by the number of partitions. A call giving
+    more is refused, not cut short. Both numbers come back with every answer, so a caller can split its names into
+    calls that fit.
+
+    POST is accepted too, with the arguments in a JSON body (Content-Type: application/json). A GET puts every name in
+    the URL, and a web server refuses a request line over its limit with an HTTP error before the call gets here. A
+    form-encoded POST is refused, since only the values of a GET are converted from strings.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/job/get_datasets_by_name
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        names(list of str): names of the datasets
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The rows of the datasets, and what tells how complete they are.
+            {"rows": [...], "as_of": datetime, "retained_from": datetime or None, "partitions": int, "budget": int}
+            - rows: one dict per row, ordered by name and creationdate, with every column: vuid, name, version, type,
+              status, numberfiles, currentfiles, creationdate, modificationdate, MoverID, transferStatus and subType,
+              with null for NULL. A name without rows has none
+            - as_of: database time in UTC taken before the rows were read
+            - retained_from: time from which the table holds every row, on modificationdate, or None when it cannot be
+              told. Old partitions are dropped, so a dataset last modified before this time may have been in the table
+            - partitions, budget: the number of partitions, counted as 1 when there are none, and the
+              db_read_probe_budget; a call may give at most budget // partitions names
+        On failure, with the reason in the message, the reason as values:
+            - {"rejected": "no_keys"}: no names
+            - {"rejected": "too_many_keys", "keys": int, "max_keys": int}: more names than one IN list takes
+            - {"rejected": "probe_budget", "keys": int, "partitions": int, "budget": int}: keys x partitions exceed the budget
+            - {"error": str}: the database failed, with the error code (ORA-xxxxx, or the SQLSTATE on Postgres)
+    """
+    tmp_logger = LogWrapper(_logger, f"get_datasets_by_name n_names={len(names)}")
+    tmp_logger.debug("Start")
+
+    # a name given twice is looked up once
+    names = list(dict.fromkeys(names))
+    if not names:
+        message = "names must not be empty"
+        tmp_logger.debug(message)
+        return generate_response(False, message=message, data={"rejected": "no_keys"})
+    if len(names) > MAX_DATASET_NAMES:
+        message = f"at most {MAX_DATASET_NAMES} names are accepted, got {len(names)}"
+        tmp_logger.debug(message)
+        return generate_response(False, message=message, data={"rejected": "too_many_keys", "keys": len(names), "max_keys": MAX_DATASET_NAMES})
+
+    success, message, data = global_task_buffer.get_datasets_by_name(names, panda_config.db_read_probe_budget)
+    if not success:
+        tmp_logger.debug(f"Failed with {message}")
+        return generate_response(False, message=message, data=data)
 
     tmp_logger.debug(f"""Done with {len(data["rows"])} rows""")
     return generate_response(True, data=data)

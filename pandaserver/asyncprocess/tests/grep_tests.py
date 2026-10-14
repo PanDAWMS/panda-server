@@ -219,10 +219,10 @@ class TestHandleLogList(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def _list(self) -> dict[str, Any]:
+    def _list(self, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
         """Run the handler, and give what it stored."""
         task_buffer = mock.MagicMock()
-        processor._handle_log_list({"request_id": "r1", "parameters": "{}"}, task_buffer, mock.MagicMock(), "host")
+        processor._handle_log_list({"request_id": "r1", "parameters": json.dumps(parameters or {})}, task_buffer, mock.MagicMock(), "host")
         args, kwargs = task_buffer.finish_async_result.call_args
         return {"status": args[2], **kwargs}
 
@@ -245,6 +245,37 @@ class TestHandleLogList(unittest.TestCase):
                 {"name": "panda-a.log-20261012", "size": 1, "mtime": "2026-10-12 23:59:59"},
             ],
         )
+
+    def test_log_names(self) -> None:
+        # the files of the logs named and those rotated from them, and no log whose name only starts the same
+        names = (
+            "panda-a.log",
+            "panda-a.log-20261012",
+            "panda-a.log-20261008.gz",
+            "panda-ab.log",
+            "panda-ab.log-20261012.gz",
+            "panda-b.log",
+            "panda-b.log-20261012.gz",
+        )
+        for name in names:
+            open(os.path.join(self.logdir, name), "w").close()
+        out = self._list({"requester": "alice", "access": "owner", "log_names": ["panda-a.log", "panda-b.log-20261012.gz", "panda-missing.log"]})
+        self.assertEqual((out["status"], out["truncated"]), ("done", False))
+        self.assertEqual(
+            [file["name"] for file in json.loads(out["result"])],
+            ["panda-a.log", "panda-a.log-20261008.gz", "panda-a.log-20261012", "panda-b.log-20261012.gz"],
+        )
+
+    def test_log_names_cut_short(self) -> None:
+        # the list of the logs named is cut as the whole list is
+        for i in range(100):
+            open(os.path.join(self.logdir, f"panda-a.log-{20260101 + i}.gz"), "w").close()
+        open(os.path.join(self.logdir, "panda-0.log"), "w").close()
+        with mock.patch.object(processor, "_MAX_RESULT_BYTES", 1000):
+            out = self._list({"log_names": ["panda-a.log"]})
+        self.assertTrue(out["truncated"])
+        files = json.loads(out["result"])
+        self.assertEqual([file["name"] for file in files], [f"panda-a.log-{20260101 + i}.gz" for i in range(len(files))])
 
     def test_list_cut_short(self) -> None:
         # files are listed while they fit, and the list stays valid JSON

@@ -172,6 +172,15 @@ class TestAsyncProcessAPI(unittest.TestCase):
         self.assertTrue(output["success"], output["message"])
         self.assertEqual(len(output["data"]["async_id"]), 36)
 
+    def test_submit_log_list_request_log_names(self) -> None:
+        full_url = f"{api_url_ssl}/async_process/submit_log_list_request"
+        print(f"Testing URL: {full_url}")
+        data = {"machine_name": socket.getfqdn(), "log_names": ["panda-server.log", "panda-DBProxy.log"]}
+        status, output = self.http_client.post(full_url, data)
+        print(output)
+        self.assertTrue(output["success"], output["message"])
+        self.assertEqual(len(output["data"]["async_id"]), 36)
+
     def test_get_result_no_ssl(self) -> None:
         # a result is read by its owner only, whose DN comes with a secure connection
         full_url = f"{api_url}/async_process/get_result"
@@ -632,15 +641,39 @@ class TestSubmitLogListRequest(unittest.TestCase):
         self.assertEqual(json.loads(expected), ["a.cern.ch", "b.cern.ch"])
         self.assertEqual(json.loads(parameters_json), {"requester": "alice", "access": "owner"})
 
+    def test_log_names(self) -> None:
+        log_names = ["panda-JediDBProxy.log"] + [f"panda-{i}.log" for i in range(98)] + ["panda-" + "x" * 249]
+        out, task_buffer = self._submit(service_name="jedi", log_names=log_names)
+        self.assertTrue(out["success"], out["message"])
+        parameters_json = task_buffer.insert_async_request.call_args[0][2]
+        self.assertEqual(json.loads(parameters_json), {"log_names": log_names, "requester": "alice", "access": "owner"})
+
     def test_refused(self) -> None:
         refused: tuple[dict[str, Any], ...] = (
             {},
             {"service_name": "server", "machine_name": "a.cern.ch"},
             {"service_name": "server", "authorized": False},
+            {"service_name": "jedi", "log_names": ["panda-a.log", 1]},
+            {"service_name": "jedi", "log_names": "panda-a.log"},
         )
         for kwargs in refused:
             out, task_buffer = self._submit(**kwargs)
             self.assertFalse(out["success"], kwargs)
+            task_buffer.insert_async_request.assert_not_called()
+
+    def test_log_names_refused(self) -> None:
+        refused: tuple[list[str], ...] = (
+            [],
+            [f"panda-{i}.log" for i in range(101)],
+            ["panda-" + "x" * 250],
+            ["JediDBProxy.log"],
+            ["panda-a.log", "/var/log/panda/panda-b.log"],
+            ["panda-a/b.log"],
+        )
+        for log_names in refused:
+            out, task_buffer = self._submit(service_name="jedi", log_names=log_names)
+            self.assertFalse(out["success"], log_names)
+            self.assertTrue(out["message"].startswith("invalid log_names"), out["message"])
             task_buffer.insert_async_request.assert_not_called()
 
 
