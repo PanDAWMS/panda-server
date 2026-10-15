@@ -149,6 +149,17 @@ _GZIP_SUFFIX = ".gz"
 # reason, and that distinction must not depend on which tool reported it.
 _NO_SUCH_FILE = "No such file or directory"
 
+# logrotate writes a .gz under its final name and removes the file it compresses
+# only once it is done, so a .gz whose file is still there is incomplete: a grep
+# would miss what is not written yet, and its time of last change is now.  Kept
+# verbatim as callers ask again later on it.
+_BEING_COMPRESSED = "Being compressed"
+
+
+def _compressed_from(file_name: str) -> str | None:
+    """Give the name of the file a .gz is compressed from, or None for a file of another kind."""
+    return file_name.removesuffix(_GZIP_SUFFIX) if file_name.endswith(_GZIP_SUFFIX) else None
+
 
 def _bounded_matcher(log_path: str, patterns: list[str], fixed: bool, max_matches: int, whole_records: bool, from_stdin: bool) -> list[str]:
     """The matcher command, capped, reading a path or standard input.
@@ -409,6 +420,21 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
         )
         return
 
+    # Checked once, as the file compressed from is removed only after the .gz
+    # is complete.  Not retried by the processor either, since a compression
+    # takes longer than its attempts: the caller asks again later.
+    compressed_from = _compressed_from(log_filename)
+    if compressed_from is not None and os.path.isfile(os.path.join(panda_config.logdir, compressed_from)):
+        tmp_logger.debug(f"{log_path}: {_BEING_COMPRESSED} from {compressed_from}")
+        tb.finish_async_result(
+            row["request_id"],
+            result_machine,
+            "failed",
+            error_msg=f"{log_path}: {_BEING_COMPRESSED}",
+            retriable=False,
+        )
+        return
+
     shown = f"{len(patterns)} fixed strings {patterns[:3]!r}" if fixed else repr(patterns[0])
     tmp_logger.debug(f"grep {shown} in {log_path} (max_matches={max_matches}, tail_bytes={tail_bytes}, whole_records={whole_records})")
     try:
@@ -467,10 +493,10 @@ def _handle_log_list(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWra
     """List the log files under panda_config.logdir as JSON, and store it under result_machine's result row.
 
     Every regular file whose name starts with "panda-" is listed, as a grep may
-    read no other, with its size and its time of last change in UTC.  With
-    log_names, only the files of those logs are.  Files are listed in the order
-    of their names until the list no longer fits in _MAX_RESULT_BYTES, which
-    sets truncated.
+    read no other, with its size and its time of last change in UTC, except a
+    .gz still being compressed.  With log_names, only the files of those logs
+    are.  Files are listed in the order of their names until the list no longer
+    fits in _MAX_RESULT_BYTES, which sets truncated.
     """
     # the requests submitted before log_names was taken have none
     log_names = json.loads(row["parameters"]).get("log_names")
@@ -478,8 +504,14 @@ def _handle_log_list(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWra
     try:
         with os.scandir(panda_config.logdir) as entries:
             files: list[dict[str, Any]] = []
+            # every file, named or not, as a .gz named alone is compressed from a file not named
+            present: set[str] = set()
             for entry in entries:
-                if not entry.name.startswith("panda-") or (named is not None and not _is_named(entry.name, named)) or not entry.is_file():
+                if not entry.name.startswith("panda-") or not entry.is_file():
+                    continue
+                present.add(entry.name)
+                # a file being compressed is listed for its .gz too, which is left out
+                if named is not None and not (_is_named(entry.name, named) or entry.name + _GZIP_SUFFIX in named):
                     continue
                 stat = entry.stat()
                 mtime = datetime.datetime.fromtimestamp(stat.st_mtime, datetime.timezone.utc)
@@ -489,6 +521,8 @@ def _handle_log_list(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWra
         tb.finish_async_result(row["request_id"], result_machine, "failed", error_msg=str(e), retriable=False)
         return
 
+    # the file being compressed is listed, so that a caller knows its .gz is to come
+    files = [file for file in files if _compressed_from(file["name"]) not in present]
     files.sort(key=lambda file: file["name"])
     # one entry at a time, so that a list cut short is still valid JSON
     kept: list[str] = []

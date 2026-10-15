@@ -168,3 +168,17 @@ def get_sandbox_name(task_param_map: dict[str, Any]) -> str | None:
                     sandbox_name = m.group(1)
                     break
     return sandbox_name
+
+
+# parse tarBallViaDDM
+def parse_tarball_via_ddm(tarball_via_ddm: str) -> tuple[str | None, str, str]:
+    """
+    Parse the tarBallViaDDM task parameter given as scope:dataset:lfn or dataset:lfn
+    :param tarball_via_ddm: value of tarBallViaDDM
+    :return: (scope, dataset, lfn). For scope:dataset:lfn the dataset is the DID scope:dataset, otherwise scope is None
+    """
+    items = tarball_via_ddm.split(":")
+    if len(items) == 3 and all(items):
+        scope, dataset, lfn = items
+        return scope, f"{scope}:{dataset}", lfn
+    return None, items[0], items[-1]

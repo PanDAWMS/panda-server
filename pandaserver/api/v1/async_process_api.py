@@ -198,7 +198,10 @@ def submit_grep_request(
 
     Args:
         req(PandaRequest): request object
-        log_filename(str): filename (not full path) of the log file under panda_config.logdir
+        log_filename(str): filename (not full path) of the log file under panda_config.logdir. A .gz is refused
+            while the file it is compressed from is still there, as logrotate removes that file only once the .gz
+            is complete: the machine's result is then failed with an error_msg ending in "Being compressed", and
+            the .gz may be asked about again later, as compressing a large log takes tens of minutes
         pattern(str): regular expression to search for, in the syntax of rg whether the file is compressed or not;
             mutually exclusive with fixed_strings
         fixed_strings(list of str): strings to search for as they are, a line matching when it holds any of them
@@ -339,7 +342,8 @@ def submit_log_list_request(
     The result of each machine in /v1/async_process/get_result is a JSON list of its files, in the order of their
     names, `[{"name": str, "size": int, "mtime": "YYYY-MM-DD HH:MM:SS"}, ...]` with mtime in UTC. It comes back
     truncated when the list does not fit in 1 MB, which a machine keeping its logs for months reaches; log_names
-    limits the list to the logs asked about.
+    limits the list to the logs asked about. A .gz still being compressed, which a grep refuses, is left out, while
+    the file it is compressed from is listed.
 
     API details:
         HTTP Method: POST
