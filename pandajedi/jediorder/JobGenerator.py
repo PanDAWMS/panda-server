@@ -1465,12 +1465,15 @@ class JobGeneratorThread(WorkerThread):
                         # tarball is transferred by DDM
                         tarball_via_pilot = taskParamMap.get("tarBallViaDDM")
                         if tarball_via_pilot:
+                            # scope is None unless given as scope:dataset:lfn
+                            tarball_scope, tarball_dataset, tarball_lfn = RefinerUtils.parse_tarball_via_ddm(tarball_via_pilot)
                             tmp_file_spec = FileSpec()
-                            tmp_file_spec.lfn = tarball_via_pilot.split(":")[-1]
+                            tmp_file_spec.lfn = tarball_lfn
+                            tmp_file_spec.scope = tarball_scope
                             tmp_file_spec.type = "input"
                             tmp_file_spec.attemptNr = 0
                             tmp_file_spec.jediTaskID = taskSpec.jediTaskID
-                            tmp_file_spec.dataset = tarball_via_pilot.split(":")[0]
+                            tmp_file_spec.dataset = tarball_dataset
                             tmp_file_spec.prodDBlockToken = "local"
                             tmp_file_spec.status = None
                             jobSpec.addFile(tmp_file_spec)
@@ -2135,12 +2138,15 @@ class JobGeneratorThread(WorkerThread):
             # tarball is transferred by DDM
             tarball_via_pilot = taskParamMap["buildSpec"].get("tarBallViaDDM")
             if tarball_via_pilot:
+                # scope is None unless given as scope:dataset:lfn
+                tarball_scope, tarball_dataset, tarball_lfn = RefinerUtils.parse_tarball_via_ddm(tarball_via_pilot)
                 tmp_file_spec = FileSpec()
-                tmp_file_spec.lfn = tarball_via_pilot.split(":")[-1]
+                tmp_file_spec.lfn = tarball_lfn
+                tmp_file_spec.scope = tarball_scope
                 tmp_file_spec.type = "input"
                 tmp_file_spec.attemptNr = 0
                 tmp_file_spec.jediTaskID = taskSpec.jediTaskID
-                tmp_file_spec.dataset = tarball_via_pilot.split(":")[0]
+                tmp_file_spec.dataset = tarball_dataset
                 tmp_file_spec.prodDBlockToken = "local"
                 tmp_file_spec.status = None
                 jobSpec.addFile(tmp_file_spec)
