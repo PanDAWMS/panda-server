@@ -915,26 +915,6 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 retVal = retTmpError
                 continue
             ######################################
-            # selection for closed
-            if not sitePreAssigned and not inputChunk.isMerging:
-                oldScanSiteList = copy.copy(scanSiteList)
-                newScanSiteList = []
-                msg_map = {}
-                for tmpSiteName in self.get_unified_sites(scanSiteList):
-                    if tmpSiteName in failureCounts and "closed" in failureCounts[tmpSiteName]:
-                        nClosed = failureCounts[tmpSiteName]["closed"]
-                        if nClosed > 0:
-                            msg_map[tmpSiteName] = f"  skip site={tmpSiteName} due to n_closed={nClosed} criteria=-closed"
-                            continue
-                    newScanSiteList.append(tmpSiteName)
-                scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
-                self.add_summary_message(oldScanSiteList, scanSiteList, "too many closed check", tmpLog, msg_map)
-                if not scanSiteList:
-                    self.dump_summary(tmpLog)
-                    tmpLog.error("no candidates")
-                    retVal = retTmpError
-                    continue
-            ######################################
             # selection for release
             cmt_config = taskSpec.get_sw_platform()
             is_regexp_cmt_config = False
