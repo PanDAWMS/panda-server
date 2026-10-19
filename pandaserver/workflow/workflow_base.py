@@ -1,5 +1,6 @@
 import json
 from collections import namedtuple
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -187,6 +188,17 @@ class WFDataType(object):
     mid = "mid"
 
 
+def _json_object_map(value: str | bytes | bytearray | dict[str, Any] | None) -> dict[str, Any]:
+    """Read JSON text or a driver-decoded object without exposing mutable stored data."""
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        # PostgreSQL JSON/JSONB values are decoded by the driver. Match json.loads'
+        # independent nested objects so callers still persist changes via the setter.
+        return deepcopy(value)
+    return json.loads(value)
+
+
 # ==== Specifications ==========================================
 
 
@@ -205,11 +217,7 @@ class WorkflowBaseSpec(SpecBase):
         Returns:
             dict : dict of parameters if it is JSON or empty dict if null
         """
-        if self.parameters is None:
-            return {}
-        else:
-            parameters: dict[str, Any] = json.loads(self.parameters)
-            return parameters
+        return _json_object_map(self.parameters)
 
     @parameter_map.setter
     def parameter_map(self, value_map: dict[str, Any]) -> None:
@@ -300,11 +308,7 @@ class WorkflowSpec(WorkflowBaseSpec):
         Returns:
             dict : dict of raw_request_json if it is JSON or empty dict if null
         """
-        if self.raw_request_json is None:
-            return {}
-        else:
-            raw_request: dict[str, Any] = json.loads(self.raw_request_json)
-            return raw_request
+        return _json_object_map(self.raw_request_json)
 
     @raw_request_json_map.setter
     def raw_request_json_map(self, value_map: dict[str, Any]) -> None:
@@ -324,11 +328,7 @@ class WorkflowSpec(WorkflowBaseSpec):
         Returns:
             dict : dict of definition_json if it is JSON or empty dict if null
         """
-        if self.definition_json is None:
-            return {}
-        else:
-            definition: dict[str, Any] = json.loads(self.definition_json)
-            return definition
+        return _json_object_map(self.definition_json)
 
     @definition_json_map.setter
     def definition_json_map(self, value_map: dict[str, Any]) -> None:
@@ -383,11 +383,7 @@ class WFStepSpec(WorkflowBaseSpec):
         Returns:
             dict : dict of definition_json if it is JSON or empty dict if null
         """
-        if self.definition_json is None:
-            return {}
-        else:
-            definition: dict[str, Any] = json.loads(self.definition_json)
-            return definition
+        return _json_object_map(self.definition_json)
 
     @definition_json_map.setter
     def definition_json_map(self, value_map: dict[str, Any]) -> None:
@@ -442,11 +438,7 @@ class WFDataSpec(WorkflowBaseSpec):
         Returns:
             dict : dict of metadata if it is JSON or empty dict if null
         """
-        if self.metadata is None:
-            return {}
-        else:
-            metadata: dict[str, Any] = json.loads(self.metadata)
-            return metadata
+        return _json_object_map(self.metadata)
 
     @metadata_map.setter
     def metadata_map(self, value_map: dict[str, Any]) -> None:

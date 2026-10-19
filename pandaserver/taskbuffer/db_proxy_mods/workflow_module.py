@@ -324,17 +324,10 @@ class WorkflowModule(BaseModule):
         children ahead of their parents lets a child's status change be picked up by its parent's
         check within the same cycle, instead of one cycle later per nesting level.
 
-        Ordering is implemented with an Oracle CONNECT BY hierarchy:
-          - START WITH parent_id IS NULL ... CONNECT BY PRIOR workflow_id = parent_id builds the
-            full main->sub-workflow tree.
-          - CONNECT_BY_ROOT check_time / creation_time are the main workflow's timestamps, so each
-            tree sorts contiguously and trees are ranked by their main workflow's (check_time,
-            creation_time) exactly as the flat ordering did for non-nested workflows.
-          - LEVEL DESC orders within a tree deepest-first (the main workflow, LEVEL 1, comes last).
-        The status/check_time filters stay in the WHERE clause and are applied as post-filters
-        after the hierarchy is built, so LEVEL and CONNECT_BY_ROOT are computed against the true
-        full tree (even if an intermediate parent is itself filtered out) while the exact set of
-        returned rows is unchanged from query_workflows_old() -- only their order differs.
+        Build the full hierarchy using a recursive CTE on PostgreSQL or CONNECT BY on
+        Oracle. Rank trees by their root's (check_time, creation_time, workflow_id), then
+        order each tree deepest-first. Apply status/check_time filters after building
+        the hierarchy so filtered intermediate parents do not hide eligible descendants.
 
         Args:
             status_filter_list (list | None): List of statuses to filter the workflows by (optional)
@@ -347,7 +340,22 @@ class WorkflowModule(BaseModule):
         comment = " /* DBProxy.query_workflows */"
         tmp_log = self.create_tagged_logger(comment, "query_workflows")
         tmp_log.debug(f"start, status_filter_list={status_filter_list} status_exclusion_list={status_exclusion_list} check_interval_sec={check_interval_sec}")
-        sql = f"SELECT {WorkflowSpec.columnNames()} FROM {panda_config.schemaJEDI}.workflows WHERE (check_time IS NULL OR check_time<:check_time) "
+        workflow_table = f"{panda_config.schemaJEDI}.workflows"
+        if self.backend == "postgres":
+            # Carry root ordering keys through the full tree before filtering eligible rows.
+            sql = (
+                "WITH RECURSIVE workflow_tree AS ("
+                "SELECT w.*, w.check_time AS root_check_time, w.creation_time AS root_creation_time, "
+                "w.workflow_id AS root_workflow_id, 1 AS workflow_depth "
+                f"FROM {workflow_table} w WHERE w.parent_id IS NULL "
+                "UNION ALL "
+                "SELECT w.*, t.root_check_time, t.root_creation_time, t.root_workflow_id, t.workflow_depth + 1 "
+                f"FROM {workflow_table} w JOIN workflow_tree t ON w.parent_id = t.workflow_id"
+                f") SELECT {WorkflowSpec.columnNames()} FROM workflow_tree "
+                "WHERE (check_time IS NULL OR check_time<:check_time) "
+            )
+        else:
+            sql = f"SELECT {WorkflowSpec.columnNames()} FROM {workflow_table} WHERE (check_time IS NULL OR check_time<:check_time) "
         now_time = naive_utcnow()
         var_map = {":check_time": now_time - timedelta(seconds=check_interval_sec)}
         if status_filter_list:
@@ -360,9 +368,12 @@ class WorkflowModule(BaseModule):
             var_map.update(antistatus_var_map)
         # Build the main->sub-workflow hierarchy and order it: trees ranked by the main workflow's
         # (check_time, creation_time), and within each tree the deepest sub-workflows first.
-        sql += "START WITH parent_id IS NULL "
-        sql += "CONNECT BY PRIOR workflow_id = parent_id "
-        sql += "ORDER BY CONNECT_BY_ROOT check_time, CONNECT_BY_ROOT creation_time, CONNECT_BY_ROOT workflow_id, LEVEL DESC, creation_time "
+        if self.backend == "postgres":
+            sql += "ORDER BY root_check_time, root_creation_time, root_workflow_id, workflow_depth DESC, creation_time "
+        else:
+            sql += "START WITH parent_id IS NULL "
+            sql += "CONNECT BY PRIOR workflow_id = parent_id "
+            sql += "ORDER BY CONNECT_BY_ROOT check_time, CONNECT_BY_ROOT creation_time, CONNECT_BY_ROOT workflow_id, LEVEL DESC, creation_time "
         self.cur.execute(sql + comment, var_map)
         res_list = self.cur.fetchall()
         if res_list is not None:
