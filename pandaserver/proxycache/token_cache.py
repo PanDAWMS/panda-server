@@ -7,7 +7,6 @@ import fcntl
 import hashlib
 import json
 import os.path
-import pathlib
 import re
 import tempfile
 from typing import Any
@@ -70,6 +69,17 @@ class TokenCache:
         """
         return os.path.join(self.target_path, f"{self.file_prefix}{client_name}")
 
+    # construct the path of the marker file recording the last failed fetch
+    def construct_failure_marker_path(self, token_file_path: str) -> str:
+        return f"{token_file_path}.failed"
+
+    # check if a file was modified recently
+    def _is_recent(self, path: str, minutes: int) -> bool:
+        if not os.path.exists(path):
+            return False
+        mod_time = datetime.datetime.fromtimestamp(os.stat(path).st_mtime, datetime.timezone.utc)
+        return datetime.datetime.now(datetime.timezone.utc) - mod_time < datetime.timedelta(minutes=minutes)
+
     # get the refresh interval of a client
     def get_refresh_interval(self, client_config: dict[str, Any]) -> int:
         """
@@ -109,13 +119,15 @@ class TokenCache:
                     token_file_path = client_config.get("token_file_path")
                     if not token_file_path:
                         token_file_path = self.construct_target_path(client_name)
-                    # check if fresh
+                    failure_marker_path = self.construct_failure_marker_path(token_file_path)
+                    # check if fresh, or if a fetch failed recently
                     is_fresh = False
-                    if os.path.exists(token_file_path):
-                        mod_time = datetime.datetime.fromtimestamp(os.stat(token_file_path).st_mtime, datetime.timezone.utc)
-                        if datetime.datetime.now(datetime.timezone.utc) - mod_time < datetime.timedelta(minutes=self.get_refresh_interval(client_config)):
-                            tmp_log.debug(f"skip since {token_file_path} is fresh")
-                            is_fresh = True
+                    if self._is_recent(token_file_path, self.get_refresh_interval(client_config)):
+                        tmp_log.debug(f"skip since {token_file_path} is fresh")
+                        is_fresh = True
+                    elif self._is_recent(failure_marker_path, self.failure_backoff):
+                        tmp_log.debug(f"skip since the last attempt failed less than {self.failure_backoff} minutes ago, see {failure_marker_path}")
+                        is_fresh = True
                     # tokens for entries with audience_from_request are fetched on demand by the API
                     audience_from_request = client_config.get("audience_from_request", False)
                     if audience_from_request:
@@ -133,11 +145,16 @@ class TokenCache:
                             with open(token_file_path, "w") as f:
                                 f.write(output)
                             tmp_log.debug(f"dump access token to {token_file_path}")
+                            # clear the failure marker
+                            if os.path.exists(failure_marker_path):
+                                os.remove(failure_marker_path)
                         else:
                             tmp_log.error(output)
-                            # touch file to avoid immediate reattempt
-                            pathlib.Path(token_file_path).touch()
-                            tmp_log.debug(f"touch {token_file_path} to avoid immediate reattempt")
+                            # record the failure in a separate marker file to avoid immediate reattempt,
+                            # leaving the mtime of the token file untouched
+                            with open(failure_marker_path, "w") as f:
+                                f.write(f"{naive_utcnow().isoformat()} {output}\n")
+                            tmp_log.debug(f"recorded failure in {failure_marker_path} to avoid immediate reattempt")
                     # register token keys
                     if client_config.get("use_token_key") is True and self.task_buffer is not None:
                         token_key_lifetime = client_config.get("token_key_lifetime", 96)
