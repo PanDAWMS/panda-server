@@ -324,10 +324,18 @@ class WorkflowModule(BaseModule):
         children ahead of their parents lets a child's status change be picked up by its parent's
         check within the same cycle, instead of one cycle later per nesting level.
 
-        Build the full hierarchy using a recursive CTE on PostgreSQL or CONNECT BY on
-        Oracle. Rank trees by their root's (check_time, creation_time, workflow_id), then
-        order each tree deepest-first. Apply status/check_time filters after building
-        the hierarchy so filtered intermediate parents do not hide eligible descendants.
+        Ordering is implemented with an Oracle CONNECT BY hierarchy:
+          - START WITH parent_id IS NULL ... CONNECT BY PRIOR workflow_id = parent_id builds the
+            full main->sub-workflow tree.
+          - CONNECT_BY_ROOT check_time / creation_time are the main workflow's timestamps, so each
+            tree sorts contiguously and trees are ranked by their main workflow's (check_time,
+            creation_time) exactly as the flat ordering did for non-nested workflows.
+          - LEVEL DESC orders within a tree deepest-first (the main workflow, LEVEL 1, comes last).
+        The status/check_time filters stay in the WHERE clause and are applied as post-filters
+        after the hierarchy is built, so LEVEL and CONNECT_BY_ROOT are computed against the true
+        full tree (even if an intermediate parent is itself filtered out) while the exact set of
+        returned rows is unchanged from query_workflows_old() -- only their order differs.
+        In PostgreSQL a recursive CTE is instead used.
 
         Args:
             status_filter_list (list | None): List of statuses to filter the workflows by (optional)
