@@ -676,4 +676,34 @@ class WFDataTargetCheckResult:
     message: str = ""
 
 
+# ==== Reporting helpers =======================================
+# Pure functions over the specs above, kept here rather than in workflow_core so that a reader of a
+# workflow can use them without pulling in the engine and, with it, the DDM client.
+
+# Data is reported in the order it flows through the workflow: what comes in, what is passed between
+# steps, and what comes out. Anything unrecognised sorts last rather than being dropped.
+DATA_TYPE_ORDER = (WFDataType.input, WFDataType.mid, WFDataType.output)
+
+
+def data_sort_key(data_spec: WFDataSpec) -> tuple[int, str]:
+    """Order a workflow's data by where it sits in the flow, then by name"""
+    try:
+        type_rank = DATA_TYPE_ORDER.index(data_spec.type)
+    except ValueError:
+        type_rank = len(DATA_TYPE_ORDER)
+    return type_rank, data_spec.name or ""
+
+
+def step_source_label(step_spec: WFStepSpec) -> str | None:
+    """The prodSourceLabel the step's own task parameters carry, which is not the workflow's
+
+    A flavor whose target is not a PanDA task has none, which is reported as None rather than
+    invented, since the absence is the fact worth knowing.
+    """
+    try:
+        return step_spec.definition_json_map.get("task_params", {}).get("prodSourceLabel") or None
+    except Exception:
+        return None
+
+
 # ==============================================================

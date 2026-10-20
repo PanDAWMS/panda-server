@@ -7,7 +7,8 @@ from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer, taskBuffer
-from pandaserver.workflow.workflow_base import WFDataSpec, WFDataType, WFStepSpec
+from pandaserver.workflow.workflow_base import WFStepSpec, data_sort_key
+from pandaserver.workflow.workflow_base import step_source_label as workflow_base_step_source_label
 
 if TYPE_CHECKING:
     # imported inside main() at runtime, since importing it pulls in the DDM client
@@ -25,6 +26,8 @@ def parse_args() -> argparse.Namespace:
             "    %(prog)s show 12345\n"
             "  advance it one step by hand instead of waiting for the WatchDog:\n"
             "    %(prog)s process 12345\n"
+            "  everything a client shows in one answer, steps with progress and data together:\n"
+            "    %(prog)s details 12345\n"
             "  see which step feeds which, as a consumer outside the engine would ask:\n"
             "    %(prog)s relations 12345\n"
             "  the same as JEDI tasks only, which is the view DEFT wants:\n"
@@ -37,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "action",
-        choices=["submit_description", "show", "process", "relations", "task_relations", "cancel_workflow"],
+        choices=["submit_description", "show", "process", "details", "relations", "task_relations", "cancel_workflow"],
         help="Action to perform in the smoke test",
     )
     parser.add_argument("workflow_id", nargs="?", help="Workflow ID the action applies to; not used by submit_description")
@@ -67,25 +70,9 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-# Data is listed in the order it flows through the workflow: what comes in, what is passed between
-# steps, and what comes out. Anything unrecognised sorts last rather than being dropped.
-DATA_TYPE_ORDER = (WFDataType.input, WFDataType.mid, WFDataType.output)
-
-
-def data_sort_key(data_spec: WFDataSpec) -> tuple[int, str]:
-    try:
-        type_rank = DATA_TYPE_ORDER.index(data_spec.type)
-    except ValueError:
-        type_rank = len(DATA_TYPE_ORDER)
-    return type_rank, data_spec.name or ""
-
-
 def step_source_label(step_spec: WFStepSpec) -> str:
-    """The prodSourceLabel the step's own task parameters carry, which is not the workflow's"""
-    try:
-        return step_spec.definition_json_map.get("task_params", {}).get("prodSourceLabel") or "-"
-    except Exception:
-        return "-"
+    """The step's own prodSourceLabel, shown as '-' when it has none"""
+    return workflow_base_step_source_label(step_spec) or "-"
 
 
 def show_workflow(task_buffer: TaskBuffer, workflow_id: int) -> None:
@@ -118,6 +105,45 @@ def show_workflow(task_buffer: TaskBuffer, workflow_id: int) -> None:
     for data_spec in sorted(data_specs, key=data_sort_key):
         # target_id still holding ${TASKID} means the producing task has not been queued yet
         print(f"    {data_spec.name:<28} {data_spec.status:<20} {data_spec.type:<7} {data_spec.target_id}")
+
+
+def show_workflow_details(wfif: "WorkflowInterface", workflow_id: int) -> None:
+    """Print the one answer a client gets, so that what pbook shows can be checked against the DB
+
+    This is the only way to exercise the file-progress query, which reads JEDI_Datasets and so has
+    no offline equivalent.
+    """
+    details = wfif.get_workflow_details(workflow_id)
+    if details is None:
+        print(f"no details for workflow_id={workflow_id}")
+        return
+    print(
+        f"workflow_id={details['workflow_id']} name={details['name']} status={details['status']} submitted_as={details['submitted_as']} user={details['user']}"
+    )
+    if details.get("parent_id"):
+        print(f"  sub-workflow of workflow_id={details['parent_id']}")
+    if details.get("reason"):
+        print(f"  reason: {details['reason']}")
+    print(f"  step status counts: {details['step_status_counts']}")
+
+    name_of_step_id = {step["step_id"]: step["name"] for step in details["steps"]}
+    print(f"  steps ({len(details['steps'])}):")
+    print(f"    {'#':>3}  {'name':<24} {'status':<12} {'flavor':<13} {'pslabel':<9} {'progress':>8}  {'files d|f|t':<14} {'target_id':<12} parents")
+    for step in details["steps"]:
+        progress = step["progress"]
+        # a step whose target is not a task, or which has not been submitted, has nothing to measure
+        pct = f"{progress['pct_finished']}%" if progress else "-"
+        files = f"{progress['n_files_finished']}|{progress['n_files_failed']}|{progress['n_files']}" if progress else "-"
+        parents = ", ".join(name_of_step_id.get(parent_id, str(parent_id)) for parent_id in step["parent_step_ids"]) or "-"
+        print(
+            f"    {step['member_id']!s:>3}  {step['name']:<24} {step['status']:<12} {step['flavor']:<13} "
+            f"{str(step['prod_source_label'] or '-'):<9} {pct:>8}  {files:<14} {str(step['target_id'] or '-'):<12} {parents}"
+        )
+
+    print(f"  data ({len(details['data'])}):")
+    print(f"    {'name':<28} {'status':<20} {'type':<7} target_id")
+    for data in details["data"]:
+        print(f"    {data['name']:<28} {data['status']:<20} {data['type']:<7} {data['target_id']}")
 
 
 def show_step_relations(wfif: "WorkflowInterface", workflow_id: int) -> None:
@@ -227,6 +253,8 @@ def main() -> None:
         print(f"  next: {sys.argv[0]} process {workflow_id}")
     elif args.action == "show":
         show_workflow(taskBuffer, WFID)
+    elif args.action == "details":
+        show_workflow_details(wfif, WFID)
     elif args.action == "relations":
         show_step_relations(wfif, WFID)
     elif args.action == "task_relations":

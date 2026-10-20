@@ -153,6 +153,25 @@ class FakeWorkflowInterface:
             "n_steps": 9,
             "step_status_counts": {"done": 4, "failed": 1, "cancelled": 4},
         }
+        self.workflow_details = dict(
+            self.workflow_status,
+            steps=[
+                {
+                    "step_id": 516,
+                    "member_id": 1,
+                    "name": "evgen",
+                    "type": "ordinary",
+                    "flavor": "panda_task",
+                    "prod_source_label": "managed",
+                    "status": "done",
+                    "reason": None,
+                    "target_id": "52382519",
+                    "parent_step_ids": [],
+                    "progress": {"n_files": 10, "n_files_finished": 10, "n_files_failed": 0, "pct_finished": 100},
+                }
+            ],
+            data=[{"name": "rdo_bkg", "status": "done_skipped", "type": "input", "source_step_id": None, "target_id": "mc23_13p6TeV.900149"}],
+        )
 
     def register_workflow(
         self, prodsourcelabel, user_dn, workflow_name=None, workflow_definition=None, raw_request_params=None, prod_role=False, fqans=None, *args, **kwargs
@@ -186,6 +205,10 @@ class FakeWorkflowInterface:
     def get_workflow_status(self, workflow_id):
         self.calls.append({"get_workflow_status": workflow_id})
         return self.workflow_status
+
+    def get_workflow_details(self, workflow_id):
+        self.calls.append({"get_workflow_details": workflow_id})
+        return self.workflow_details
 
 
 def install(existing=None, fail=False, workflow_id=4242):
@@ -338,6 +361,21 @@ def main():
     res = workflow_api.get_workflow_status(cast(Any, None), 999)
     failures += not check("an unknown workflow is a failure with a reason", res["success"] is False and "No workflow" in res["message"], res)
 
+    print("\n=== get_workflow_details ===")
+    _, wfif = install()
+    res = workflow_api.get_workflow_details(cast(Any, None), 133)
+    failures += not check("succeeds", res["success"] is True, res)
+    failures += not check("the workflow id is passed through", wfif.calls[-1] == {"get_workflow_details": 133}, wfif.calls[-1])
+    failures += not check("the header comes back", res["data"]["status"] == "failed", res["data"].get("status"))
+    failures += not check("so do the steps, with their progress", res["data"]["steps"][0]["progress"]["pct_finished"] == 100, res["data"]["steps"][0])
+    failures += not check("...and the ordinal a display needs", res["data"]["steps"][0]["member_id"] == 1, res["data"]["steps"][0])
+    failures += not check("and the data", res["data"]["data"][0]["name"] == "rdo_bkg", res["data"]["data"])
+    failures += not check("one call answers all of it", len(wfif.calls) == 1, wfif.calls)
+    _, wfif = install()
+    wfif.workflow_details = None
+    res = workflow_api.get_workflow_details(cast(Any, None), 999)
+    failures += not check("an unknown workflow is a failure with a reason", res["success"] is False and "No workflow" in res["message"], res)
+
     print("\n=== get_task_relations ===")
     _, wfif = install()
     res = workflow_api.get_task_relations(cast(Any, None), workflow_id=133)
@@ -377,7 +415,7 @@ def main():
     failures_local += not check("the deprecated alias is still routed", "submit_workflow_raw_request" in exported)
     failures_local += not check(
         "the query endpoints are routed",
-        {"get_step_relations", "get_task_relations", "get_workflow_status"} <= set(exported),
+        {"get_step_relations", "get_task_relations", "get_workflow_status", "get_workflow_details"} <= set(exported),
         sorted(exported),
     )
     failures_local += not check("private helpers not routed", not any(n.startswith("_") for n in exported))
