@@ -196,7 +196,8 @@ def _json_object_map(value: str | bytes | bytearray | dict[str, Any] | None) -> 
         # PostgreSQL JSON/JSONB values are decoded by the driver. Match json.loads'
         # independent nested objects so callers still persist changes via the setter.
         return deepcopy(value)
-    return json.loads(value)
+    result: dict[str, Any] = json.loads(value)
+    return result
 
 
 # ==== Specifications ==========================================
