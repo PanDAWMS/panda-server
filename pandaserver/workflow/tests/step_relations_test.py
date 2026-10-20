@@ -141,7 +141,9 @@ TASK_IDS = {
 }
 
 
-def make_step(step_id, name, inputs, flavor="panda_task", status=WFStepStatus.done, target_id=None, workflow_id=133, member_id=None, source_label="user"):
+def make_step(
+    step_id, name, inputs, flavor="panda_task", status=WFStepStatus.done, target_id=None, workflow_id=133, member_id=None, source_label="user", outputs=None
+):
     step_spec = WFStepSpec()
     step_spec.step_id = step_id
     step_spec.name = name
@@ -152,6 +154,9 @@ def make_step(step_id, name, inputs, flavor="panda_task", status=WFStepStatus.do
     step_spec.status = status
     step_spec.target_id = target_id
     definition: dict[str, Any] = {"input_data_dict": {name: {} for name in inputs}}
+    if outputs is not None:
+        # what the step declares it produces, which the engine records when the steps are created
+        definition["output_data_list"] = list(outputs)
     if source_label is not None:
         # a step whose target is a PanDA task carries its own prodSourceLabel here; one whose
         # target is not has no task_params at all
@@ -186,7 +191,7 @@ def build_chain():
     step_specs = []
     data_specs = [make_data("rdo_bkg", None, WFDataType.input)]
     for index, (name, inputs, outputs) in enumerate(CHAIN, start=1):
-        step_specs.append(make_step(index, name, inputs, target_id=TASK_IDS[name]))
+        step_specs.append(make_step(index, name, inputs, target_id=TASK_IDS[name], outputs=outputs))
         for output_name in outputs:
             data_specs.append(make_data(output_name, index))
     return step_specs, data_specs
@@ -337,7 +342,10 @@ def main():
     # simul is running, so its output is already bound to it: the edge into the next step exists
     # before that output is complete, which is what makes the graph usable mid-flight.
     failures += not check("a running step is already a parent", relations["merge_hits"] == ["simul"], relations["merge_hits"])
-    failures += not check("a step whose producer has not started has no parent yet", relations["recon"] == [], relations["recon"])
+    # The graph does not shrink to what has run: recon's producer has not started, and the edge is
+    # reported all the same, from what merge_hits declares it will produce. rdo_bkg comes from
+    # outside the workflow and still contributes no parent.
+    failures += not check("a step whose producer has not started still has its parent", relations["recon"] == ["merge_hits"], relations["recon"])
     not_started = next(s for s in result["steps"] if s["name"] == "recon")
     failures += not check("a step that has not started reports no target", not_started["target_id"] is None, not_started["target_id"])
     failures += not check("...but is still in the answer with its status", not_started["status"] == WFStepStatus.registered, not_started["status"])
@@ -389,6 +397,38 @@ def main():
         failures += not check("json.dumps accepts it as it stands", True)
     except Exception as exc:
         failures += not check("json.dumps accepts it as it stands", False, exc)
+
+    print("\n=== a step whose input has not been produced yet still has its parents ===")
+    # Workflow 137: step1 failed, so step2 never reached the point of binding its own output, so
+    # step2/outDS kept a null source_step_id and step3 was reported with no parent at all. The same
+    # hole opens in any running chain, for every step past the frontier.
+    step_specs = [
+        make_step(1, "step1", [], status=WFStepStatus.failed, target_id="53178932", outputs=["step1/outDS"]),
+        make_step(2, "step2", ["step1/outDS"], status=WFStepStatus.cancelled, target_id=None, outputs=["step2/outDS"]),
+        make_step(3, "step3", ["step2/outDS"], status=WFStepStatus.cancelled, target_id=None, outputs=["step3/outDS"]),
+    ]
+    data_specs = [
+        make_data("input_ds", None, WFDataType.input, status=WFDataStatus.done_skipped),
+        # bound, so it knows its producer
+        make_data("step1/outDS", 1, status=WFDataStatus.generating_bound),
+        # never bound: the producing step never ran
+        make_data("step2/outDS", None, status=WFDataStatus.binding),
+        make_data("step3/outDS", None, WFDataType.output, status=WFDataStatus.binding),
+    ]
+    relations = parents_by_name(make_interface(step_specs, data_specs).get_step_relations(133))
+    failures += not check("a bound input still reports its producer", relations["step2"] == ["step1"], relations["step2"])
+    failures += not check("an unbound input reports its producer too", relations["step3"] == ["step2"], relations["step3"])
+    failures += not check("an input from outside the workflow still contributes no parent", relations["step1"] == [], relations["step1"])
+
+    print("\n=== a bound datum keeps the producer it was bound to ===")
+    # the declaration fills gaps; it does not overrule what actually happened
+    step_specs = [
+        make_step(1, "declared", [], outputs=["shared/OUT"]),
+        make_step(2, "bound", [], outputs=["shared/OUT"]),
+        make_step(3, "consumer", ["shared/OUT"]),
+    ]
+    relations = parents_by_name(make_interface(step_specs, [make_data("shared/OUT", 2)]).get_step_relations(133))
+    failures += not check("the recorded producer wins over the declaration", relations["consumer"] == ["bound"], relations["consumer"])
 
     print("\n=== the whole workflow in one answer ===")
     # What a client showing a workflow needs: the header, the steps with their relations and how

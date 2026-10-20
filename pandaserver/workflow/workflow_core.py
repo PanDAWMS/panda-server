@@ -873,6 +873,17 @@ class WorkflowInterface(object):
             # inside the workflow to its producer. Data names are unique within a workflow, which
             # is what lets a step's input_data_dict name them.
             producer_of_data = {data_spec.name: data_spec.source_step_id for data_spec in data_specs}
+            # Binding happens only once the producing step's own inputs are good, so a datum beyond
+            # the point a workflow has reached has no source_step_id yet, and the step consuming it
+            # would report no parent at all. That is not only the case for a workflow stopped early:
+            # in any running chain every step past the frontier would lose its edges. The step
+            # definitions name what each step produces from the moment the steps are created, which
+            # is the same relation known sooner, so they fill in what binding has not yet recorded.
+            # A bound datum keeps the producer it was actually bound to.
+            for step_spec in step_specs:
+                for output_data_name in step_spec.definition_json_map.get("output_data_list", []):
+                    if producer_of_data.get(output_data_name) is None:
+                        producer_of_data[output_data_name] = step_spec.step_id
             known_step_ids = {step_spec.step_id for step_spec in step_specs}
             steps = []
             for step_spec in step_specs:
