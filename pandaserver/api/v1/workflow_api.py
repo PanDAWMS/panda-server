@@ -360,9 +360,11 @@ def get_workflow_status(req: PandaRequest, workflow_id: int) -> dict[str, Any]:
             failed the workflow, or why it was cancelled, and is null while it is still running.
             The times are ISO 8601 strings, and start_time and end_time are null until the workflow
             starts and finishes. A workflow that is not a sub-workflow has a null parent_id.
-            {"workflow_id": int, "name": str, "status": str, "reason": str, "parent_id": int,
-            "creation_time": str, "start_time": str, "end_time": str, "n_steps": int,
-            "step_status_counts": dict}
+            submitted_as records only whether the submitter held a production role; a step carries
+            its own prodSourceLabel.
+            {"workflow_id": int, "name": str, "status": str, "reason": str, "submitted_as": str,
+            "user": str, "parent_id": int, "creation_time": str, "start_time": str,
+            "end_time": str, "n_steps": int, "step_status_counts": dict}
     """
     tmp_logger = LogWrapper(_logger, f"get_workflow_status < workflow_id={workflow_id} >")
     tmp_logger.debug("Start")
@@ -374,6 +376,47 @@ def get_workflow_status(req: PandaRequest, workflow_id: int) -> dict[str, Any]:
 
     tmp_logger.debug(f"Done, status={workflow_status['status']}")
     return generate_response(True, data=workflow_status)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_workflow_details(req: PandaRequest, workflow_id: int) -> dict[str, Any]:
+    """
+    Get workflow details
+
+    Report a workflow whole: its own status, its steps with how they relate and how far each has
+    got, and the data passing through it. The separate status and relation queries each answer part
+    of this; a client showing a workflow wants all of it, and one answer spares it a round trip per
+    task. Requires a secure connection.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/workflow/get_workflow_details
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        workflow_id(int): ID of the workflow to report on
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: Everything get_workflow_status reports, plus steps and data. Each step carries what
+            get_step_relations reports for it, plus progress: n_files, n_files_finished,
+            n_files_failed and pct_finished over the task's master input datasets, which is null for
+            a step whose target is not a JEDI task or which has not been submitted. Steps come in
+            member_id order and data in the order it flows through the workflow.
+            {"workflow_id": int, ..., "steps": list, "data": list}
+    """
+    tmp_logger = LogWrapper(_logger, f"get_workflow_details < workflow_id={workflow_id} >")
+    tmp_logger.debug("Start")
+
+    workflow_details = global_wfif.get_workflow_details(workflow_id)
+    if workflow_details is None:
+        tmp_logger.debug("Done, nothing to report")
+        return generate_response(False, message="No workflow found with the ID")
+
+    tmp_logger.debug(f"Done, {len(workflow_details['steps'])} steps")
+    return generate_response(True, data=workflow_details)
 
 
 @request_validation(_logger, secure=True, request_method="GET")
@@ -398,10 +441,12 @@ def get_step_relations(req: PandaRequest, workflow_id: int) -> dict[str, Any]:
         dict: The system response `{"success": success, "message": message, "data": data}`.
 
     Response data:
-        dict: The workflow's steps, one entry per step in step_id order, each with step_id, name,
-            type, flavor, status, reason, target_id and parent_step_ids. reason is set only for a
-            step that failed or was cancelled. A step taking only data produced outside the workflow
-            has no parent, and a step that has not started yet has no target_id.
+        dict: The workflow's steps, one entry per step in member_id order, each with step_id,
+            member_id, name, type, flavor, prod_source_label, status, reason, target_id and
+            parent_step_ids. reason is set only for a step that failed or was cancelled, and
+            prod_source_label only for a step whose target is a PanDA task. A step taking only data
+            produced outside the workflow has no parent, and a step that has not started yet has no
+            target_id.
             {"workflow_id": int, "steps": list}
     """
     tmp_logger = LogWrapper(_logger, f"get_step_relations < workflow_id={workflow_id} >")

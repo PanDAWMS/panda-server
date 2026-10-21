@@ -20,6 +20,7 @@ import os
 import sys
 import types
 import warnings
+from typing import Any
 
 # Unrelated modules in the import graph still carry unescaped regex literals; their SyntaxWarnings
 # say nothing about this check.
@@ -104,10 +105,13 @@ stub("pandaserver.config", panda_config=types.SimpleNamespace(schemaJEDI="ATLAS_
 from pandaserver.workflow import workflow_core  # noqa: E402
 from pandaserver.workflow.workflow_base import (  # noqa: E402
     WFDataSpec,
+    WFDataStatus,
     WFDataType,
     WFStepSpec,
     WFStepStatus,
     WFStepType,
+    WorkflowSpec,
+    WorkflowStatus,
 )
 
 # The production chain of workflow 133: step name -> (inputs it consumes, outputs it produces).
@@ -137,26 +141,49 @@ TASK_IDS = {
 }
 
 
-def make_step(step_id, name, inputs, flavor="panda_task", status=WFStepStatus.done, target_id=None, workflow_id=133):
+def make_step(
+    step_id, name, inputs, flavor="panda_task", status=WFStepStatus.done, target_id=None, workflow_id=133, member_id=None, source_label="user", outputs=None
+):
     step_spec = WFStepSpec()
     step_spec.step_id = step_id
     step_spec.name = name
     step_spec.workflow_id = workflow_id
+    step_spec.member_id = step_id if member_id is None else member_id
     step_spec.type = WFStepType.sub_workflow if flavor != "panda_task" else WFStepType.ordinary
     step_spec.flavor = flavor
     step_spec.status = status
     step_spec.target_id = target_id
-    step_spec.definition_json = json.dumps({"input_data_dict": {name: {} for name in inputs}})
+    definition: dict[str, Any] = {"input_data_dict": {name: {} for name in inputs}}
+    if outputs is not None:
+        # what the step declares it produces, which the engine records when the steps are created
+        definition["output_data_list"] = list(outputs)
+    if source_label is not None:
+        # a step whose target is a PanDA task carries its own prodSourceLabel here; one whose
+        # target is not has no task_params at all
+        definition["task_params"] = {"prodSourceLabel": source_label}
+    step_spec.definition_json = json.dumps(definition)
     return step_spec
 
 
-def make_data(name, source_step_id, data_type=WFDataType.mid, workflow_id=133):
+def make_data(name, source_step_id, data_type=WFDataType.mid, workflow_id=133, status=WFDataStatus.done_generated, target_id=None):
     data_spec = WFDataSpec()
     data_spec.name = name
     data_spec.workflow_id = workflow_id
     data_spec.source_step_id = source_step_id
     data_spec.type = data_type
+    data_spec.status = status
+    data_spec.target_id = target_id
     return data_spec
+
+
+def make_workflow(workflow_id=133, status=WorkflowStatus.done, name="chain", username="Some User", prodsourcelabel="user"):
+    workflow_spec = WorkflowSpec()
+    workflow_spec.workflow_id = workflow_id
+    workflow_spec.name = name
+    workflow_spec.status = status
+    workflow_spec.username = username
+    workflow_spec.prodsourcelabel = prodsourcelabel
+    return workflow_spec
 
 
 def build_chain():
@@ -164,7 +191,7 @@ def build_chain():
     step_specs = []
     data_specs = [make_data("rdo_bkg", None, WFDataType.input)]
     for index, (name, inputs, outputs) in enumerate(CHAIN, start=1):
-        step_specs.append(make_step(index, name, inputs, target_id=TASK_IDS[name]))
+        step_specs.append(make_step(index, name, inputs, target_id=TASK_IDS[name], outputs=outputs))
         for output_name in outputs:
             data_specs.append(make_data(output_name, index))
     return step_specs, data_specs
@@ -176,6 +203,17 @@ class FakeTaskBuffer:
     def __init__(self, step_specs, data_specs, by_workflow=None):
         self.by_workflow = dict(by_workflow or {})
         self.by_workflow.setdefault(133, (step_specs, data_specs))
+        self.workflows = {}
+        self.file_progress = {}
+        # every call, so that the composite can be shown to ask once rather than once per step
+        self.progress_calls = []
+
+    def get_workflow(self, workflow_id):
+        return self.workflows.get(workflow_id)
+
+    def get_tasks_file_progress(self, task_ids):
+        self.progress_calls.append(list(task_ids))
+        return {task_id: self.file_progress[task_id] for task_id in task_ids if task_id in self.file_progress}
 
     def get_steps_of_workflow(self, workflow_id, status_filter_list=None, status_exclusion_list=None):
         return list(self.by_workflow.get(workflow_id, ([], []))[0])
@@ -263,6 +301,15 @@ def main():
     failures += not check("so is its flavor", evgen["flavor"] == "panda_task", evgen["flavor"])
     failures += not check("and its status", evgen["status"] == WFStepStatus.done, evgen["status"])
 
+    print("\n=== each step carries what a display needs ===")
+    # step_id comes from a global sequence, so a client cannot derive the ordinal from it.
+    failures += not check("the within-workflow ordinal is reported", evgen["member_id"] == 1, evgen["member_id"])
+    failures += not check("steps come back in that order", [s["member_id"] for s in result["steps"]] == sorted(s["member_id"] for s in result["steps"]))
+    failures += not check("the step's own prodSourceLabel is reported", evgen["prod_source_label"] == "user", evgen["prod_source_label"])
+    no_task = make_step(1, "sub", [], flavor="sub_workflow", source_label=None)
+    labelless = make_interface([no_task], []).get_step_relations(133)["steps"][0]
+    failures += not check("a step with no task parameters has none", labelless["prod_source_label"] is None, labelless["prod_source_label"])
+
     print("\n=== a step with several parents ===")
     # A join: one step consuming the outputs of two independent steps.
     step_specs = [
@@ -295,7 +342,10 @@ def main():
     # simul is running, so its output is already bound to it: the edge into the next step exists
     # before that output is complete, which is what makes the graph usable mid-flight.
     failures += not check("a running step is already a parent", relations["merge_hits"] == ["simul"], relations["merge_hits"])
-    failures += not check("a step whose producer has not started has no parent yet", relations["recon"] == [], relations["recon"])
+    # The graph does not shrink to what has run: recon's producer has not started, and the edge is
+    # reported all the same, from what merge_hits declares it will produce. rdo_bkg comes from
+    # outside the workflow and still contributes no parent.
+    failures += not check("a step whose producer has not started still has its parent", relations["recon"] == ["merge_hits"], relations["recon"])
     not_started = next(s for s in result["steps"] if s["name"] == "recon")
     failures += not check("a step that has not started reports no target", not_started["target_id"] is None, not_started["target_id"])
     failures += not check("...but is still in the answer with its status", not_started["status"] == WFStepStatus.registered, not_started["status"])
@@ -344,6 +394,109 @@ def main():
     result = make_interface(step_specs, data_specs).get_step_relations(133)
     try:
         json.dumps(result)
+        failures += not check("json.dumps accepts it as it stands", True)
+    except Exception as exc:
+        failures += not check("json.dumps accepts it as it stands", False, exc)
+
+    print("\n=== a step whose input has not been produced yet still has its parents ===")
+    # Workflow 137: step1 failed, so step2 never reached the point of binding its own output, so
+    # step2/outDS kept a null source_step_id and step3 was reported with no parent at all. The same
+    # hole opens in any running chain, for every step past the frontier.
+    step_specs = [
+        make_step(1, "step1", [], status=WFStepStatus.failed, target_id="53178932", outputs=["step1/outDS"]),
+        make_step(2, "step2", ["step1/outDS"], status=WFStepStatus.cancelled, target_id=None, outputs=["step2/outDS"]),
+        make_step(3, "step3", ["step2/outDS"], status=WFStepStatus.cancelled, target_id=None, outputs=["step3/outDS"]),
+    ]
+    data_specs = [
+        make_data("input_ds", None, WFDataType.input, status=WFDataStatus.done_skipped),
+        # bound, so it knows its producer
+        make_data("step1/outDS", 1, status=WFDataStatus.generating_bound),
+        # never bound: the producing step never ran
+        make_data("step2/outDS", None, status=WFDataStatus.binding),
+        make_data("step3/outDS", None, WFDataType.output, status=WFDataStatus.binding),
+    ]
+    relations = parents_by_name(make_interface(step_specs, data_specs).get_step_relations(133))
+    failures += not check("a bound input still reports its producer", relations["step2"] == ["step1"], relations["step2"])
+    failures += not check("an unbound input reports its producer too", relations["step3"] == ["step2"], relations["step3"])
+    failures += not check("an input from outside the workflow still contributes no parent", relations["step1"] == [], relations["step1"])
+
+    print("\n=== a bound datum keeps the producer it was bound to ===")
+    # the declaration fills gaps; it does not overrule what actually happened
+    step_specs = [
+        make_step(1, "declared", [], outputs=["shared/OUT"]),
+        make_step(2, "bound", [], outputs=["shared/OUT"]),
+        make_step(3, "consumer", ["shared/OUT"]),
+    ]
+    relations = parents_by_name(make_interface(step_specs, [make_data("shared/OUT", 2)]).get_step_relations(133))
+    failures += not check("the recorded producer wins over the declaration", relations["consumer"] == ["bound"], relations["consumer"])
+
+    print("\n=== the whole workflow in one answer ===")
+    # What a client showing a workflow needs: the header, the steps with their relations and how
+    # far each has got, and the data. Assembling it from the separate queries would be four round
+    # trips, one of them per task.
+    step_specs, data_specs = build_chain()
+    interface = make_interface(step_specs, data_specs)
+    interface.tbif.workflows[133] = make_workflow()
+    interface.tbif.file_progress = {
+        52382519: {"n_files": 10, "n_files_finished": 10, "n_files_failed": 0, "pct_finished": 100},
+        52382898: {"n_files": 8, "n_files_finished": 2, "n_files_failed": 1, "pct_finished": 25},
+    }
+    details = interface.get_workflow_details(133)
+    failures += not check("a result is returned", details is not None)
+    failures += not check("the workflow header is there", details["status"] == WorkflowStatus.done and details["name"] == "chain", details.get("status"))
+    failures += not check(
+        "so is who submitted it, and how",
+        (details["user"], details["submitted_as"]) == ("Some User", "user"),
+        (details.get("user"), details.get("submitted_as")),
+    )
+    failures += not check("every step is reported", len(details["steps"]) == 9, len(details["steps"]))
+    failures += not check("the steps carry their relations", next(s for s in details["steps"] if s["name"] == "merge_evnt")["parent_step_ids"] == [1])
+    failures += not check("the data is reported", len(details["data"]) == len(data_specs), len(details["data"]))
+    failures += not check(
+        "data comes in the order it flows",
+        [d["type"] for d in details["data"]]
+        == sorted([d["type"] for d in details["data"]], key=lambda t: (WFDataType.input, WFDataType.mid, WFDataType.output).index(t)),
+        [d["type"] for d in details["data"]],
+    )
+
+    print("\n=== progress is asked for once, for the whole chain ===")
+    failures += not check("one call, not one per step", len(interface.tbif.progress_calls) == 1, interface.tbif.progress_calls)
+    failures += not check("every task of the workflow is in it", len(interface.tbif.progress_calls[0]) == 9, interface.tbif.progress_calls[0])
+    evgen = next(s for s in details["steps"] if s["name"] == "evgen")
+    failures += not check("a step reports its own progress", evgen["progress"]["pct_finished"] == 100, evgen["progress"])
+    merge_evnt = next(s for s in details["steps"] if s["name"] == "merge_evnt")
+    failures += not check(
+        "...including the file counts behind it",
+        merge_evnt["progress"]["n_files_finished"] == 2 and merge_evnt["progress"]["n_files"] == 8,
+        merge_evnt["progress"],
+    )
+    failures += not check("failed files are reported apart from done ones", merge_evnt["progress"]["n_files_failed"] == 1, merge_evnt["progress"])
+    simul = next(s for s in details["steps"] if s["name"] == "simul")
+    # absent from the progress map, i.e. the task has no master input dataset to measure
+    failures += not check("a task with nothing to measure reports none, not zero", simul["progress"] is None, simul["progress"])
+
+    print("\n=== steps with no task to measure ===")
+    step_specs = [
+        make_step(1, "sub", [], flavor="sub_workflow", target_id="900", source_label=None),
+        make_step(2, "not_yet", [], target_id=None),
+    ]
+    interface = make_interface(step_specs, [])
+    interface.tbif.workflows[133] = make_workflow(status=WorkflowStatus.running)
+    details = interface.get_workflow_details(133)
+    by_step_name = {s["name"]: s for s in details["steps"]}
+    failures += not check("a sub-workflow step has no progress", by_step_name["sub"]["progress"] is None, by_step_name["sub"]["progress"])
+    failures += not check("a step not yet submitted has no progress", by_step_name["not_yet"]["progress"] is None, by_step_name["not_yet"]["progress"])
+    failures += not check("neither is asked about", interface.tbif.progress_calls == [], interface.tbif.progress_calls)
+
+    print("\n=== an unknown workflow ===")
+    failures += not check("reports nothing rather than an empty shell", make_interface([], []).get_workflow_details(999) is None)
+
+    print("\n=== the details answer is JSON-serializable ===")
+    step_specs, data_specs = build_chain()
+    interface = make_interface(step_specs, data_specs)
+    interface.tbif.workflows[133] = make_workflow()
+    try:
+        json.dumps(interface.get_workflow_details(133))
         failures += not check("json.dumps accepts it as it stands", True)
     except Exception as exc:
         failures += not check("json.dumps accepts it as it stands", False, exc)

@@ -1770,6 +1770,11 @@ class TaskBuffer:
                 include_resolve_status=include_resolve_status,
             )
 
+    # get the input file progress of many tasks in one query
+    def get_tasks_file_progress(self, task_ids: list[int]) -> dict[int, dict[str, int]]:
+        with self.proxyPool.get() as proxy:
+            return proxy.get_tasks_file_progress(task_ids)
+
     # get a list of even ranges for a PandaID
     def getEventRanges(
         self, pandaID: int, jobsetID: int, jediTaskID: int | None, nRanges: int, acceptJson: bool, scattered: bool, segment_id: int | None

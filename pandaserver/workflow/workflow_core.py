@@ -32,6 +32,8 @@ from pandaserver.workflow.workflow_base import (
     WorkflowProcessResult,
     WorkflowSpec,
     WorkflowStatus,
+    data_sort_key,
+    step_source_label,
 )
 from pandaserver.workflow.workflow_native_utils import extract_child_workflow_definition
 from pandaserver.workflow.workflow_parser import (
@@ -737,9 +739,9 @@ class WorkflowInterface(object):
             workflow_id (int): ID of the workflow to report on
 
         Returns:
-            dict | None: workflow_id, name, status, reason, parent_id, creation_time, start_time,
-                end_time, n_steps and step_status_counts; None if there is no such workflow or the
-                lookup failed
+            dict | None: workflow_id, name, status, reason, submitted_as, user, parent_id,
+                creation_time, start_time, end_time, n_steps and step_status_counts; None if there
+                is no such workflow or the lookup failed
         """
         tmp_log = LogWrapper(logger, f"get_workflow_status <workflow_id={workflow_id}>")
         try:
@@ -761,6 +763,10 @@ class WorkflowInterface(object):
                 # one field whichever way the workflow ended, since a workflow is failed or
                 # cancelled but never both
                 "reason": workflow_spec.get_parameter(WORKFLOW_FAIL_REASON_PARAM) or workflow_spec.get_parameter("cancel_reason"),
+                # The workflow-level label records only whether the submitter held a production
+                # role. A step carries its own prodSourceLabel, which is the one JEDI filters on.
+                "submitted_as": workflow_spec.prodsourcelabel,
+                "user": workflow_spec.username,
                 "parent_id": workflow_spec.parent_id,
                 "creation_time": workflow_spec.creation_time.isoformat() if workflow_spec.creation_time else None,
                 "start_time": workflow_spec.start_time.isoformat() if workflow_spec.start_time else None,
@@ -768,6 +774,57 @@ class WorkflowInterface(object):
                 "n_steps": len(step_specs),
                 "step_status_counts": step_status_counts,
             }
+        except Exception:
+            tmp_log.error(f"Got error ; {traceback.format_exc()}")
+            return None
+
+    def get_workflow_details(self, workflow_id: int) -> dict[str, Any] | None:
+        """
+        Report everything a client needs to show a workflow, in one answer
+
+        The pieces exist separately — the workflow's own status, how its steps relate, what data
+        passes between them, how far each task has got — and a client assembling them itself would
+        make four round trips, one of them per task. This composes the existing queries rather than
+        repeating them, and asks for the file progress of every task of the workflow at once.
+
+        Args:
+            workflow_id (int): ID of the workflow to report on
+
+        Returns:
+            dict | None: everything get_workflow_status reports, plus steps as get_step_relations
+                reports them each carrying its progress, plus the workflow's data; None if there is
+                no such workflow or the lookup failed
+        """
+        tmp_log = LogWrapper(logger, f"get_workflow_details <workflow_id={workflow_id}>")
+        try:
+            details = self.get_workflow_status(workflow_id)
+            if details is None:
+                tmp_log.warning("No workflow found")
+                return None
+            relations = self.get_step_relations(workflow_id)
+            steps = relations["steps"] if relations else []
+            # One query for the whole chain. A step whose target is not a JEDI task, or which has
+            # not been submitted yet, contributes no ID and is reported with no progress.
+            task_ids = [int(step["target_id"]) for step in steps if step["flavor"] in JEDI_TASK_STEP_FLAVORS and str(step["target_id"] or "").isdigit()]
+            progress_map = self.tbif.get_tasks_file_progress(task_ids) if task_ids else {}
+            for step in steps:
+                step["progress"] = progress_map.get(int(step["target_id"])) if step["target_id"] and str(step["target_id"]).isdigit() else None
+            data_specs = self.tbif.get_data_of_workflow(workflow_id=workflow_id) or []
+            details["steps"] = steps
+            details["data"] = [
+                {
+                    "name": data_spec.name,
+                    "status": data_spec.status,
+                    "type": data_spec.type,
+                    "source_step_id": data_spec.source_step_id,
+                    # a target_id still holding the literal ${TASKID} means the producing task was
+                    # never queued, which is left as it is for the caller to show as such
+                    "target_id": data_spec.target_id,
+                }
+                for data_spec in sorted(data_specs, key=data_sort_key)
+            ]
+            tmp_log.debug(f"Reported {len(steps)} steps and {len(details['data'])} data")
+            return details
         except Exception:
             tmp_log.error(f"Got error ; {traceback.format_exc()}")
             return None
@@ -800,9 +857,10 @@ class WorkflowInterface(object):
             workflow_id (int): ID of the workflow to report on
 
         Returns:
-            dict | None: {"workflow_id": int, "steps": [...]}, one entry per step in step_id order,
-                each with step_id, name, type, flavor, status, reason, target_id and
-                parent_step_ids; None if the workflow has no steps or the lookup failed
+            dict | None: {"workflow_id": int, "steps": [...]}, one entry per step in member_id
+                order, each with step_id, member_id, name, type, flavor, prod_source_label, status,
+                reason, target_id and parent_step_ids; None if the workflow has no steps or the
+                lookup failed
         """
         tmp_log = LogWrapper(logger, f"get_step_relations <workflow_id={workflow_id}>")
         try:
@@ -815,6 +873,17 @@ class WorkflowInterface(object):
             # inside the workflow to its producer. Data names are unique within a workflow, which
             # is what lets a step's input_data_dict name them.
             producer_of_data = {data_spec.name: data_spec.source_step_id for data_spec in data_specs}
+            # Binding happens only once the producing step's own inputs are good, so a datum beyond
+            # the point a workflow has reached has no source_step_id yet, and the step consuming it
+            # would report no parent at all. That is not only the case for a workflow stopped early:
+            # in any running chain every step past the frontier would lose its edges. The step
+            # definitions name what each step produces from the moment the steps are created, which
+            # is the same relation known sooner, so they fill in what binding has not yet recorded.
+            # A bound datum keeps the producer it was actually bound to.
+            for step_spec in step_specs:
+                for output_data_name in step_spec.definition_json_map.get("output_data_list", []):
+                    if producer_of_data.get(output_data_name) is None:
+                        producer_of_data[output_data_name] = step_spec.step_id
             known_step_ids = {step_spec.step_id for step_spec in step_specs}
             steps = []
             for step_spec in step_specs:
@@ -840,9 +909,13 @@ class WorkflowInterface(object):
                 steps.append(
                     {
                         "step_id": step_spec.step_id,
+                        # the ordinal within this workflow, which step_id is not: step_id comes from
+                        # a global sequence, so neither can be derived from the other
+                        "member_id": step_spec.member_id,
                         "name": step_spec.name,
                         "type": step_spec.type,
                         "flavor": step_spec.flavor,
+                        "prod_source_label": step_source_label(step_spec),
                         "status": step_spec.status,
                         # set only for a step that failed or was cancelled; null otherwise
                         "reason": step_spec.get_parameter(STEP_REASON_PARAM),
@@ -850,6 +923,7 @@ class WorkflowInterface(object):
                         "parent_step_ids": sorted(parent_step_ids),
                     }
                 )
+            steps.sort(key=lambda step: step["member_id"] or 0)
             tmp_log.debug(f"Reported {len(steps)} steps")
             return {"workflow_id": workflow_id, "steps": steps}
         except Exception:

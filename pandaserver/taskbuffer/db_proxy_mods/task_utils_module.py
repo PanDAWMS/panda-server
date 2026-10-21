@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy
 from pandacommon.pandautils.PandaUtils import (
+    get_sql_IN_bind_variables,
     naive_utcnow,
 )
 
@@ -2060,6 +2061,64 @@ class TaskUtilsModule(BaseModule):
             if include_resolve_status:
                 return "error", None, None
             return None
+
+    # get input file progress of many tasks at once
+    def get_tasks_file_progress(self, task_ids: list[int]) -> dict[int, dict[str, int]]:
+        """
+        Report the input-file progress of several tasks in one query
+
+        The same aggregation get_task_details_json does per task, over the master input datasets,
+        but for a list of tasks. It exists because a caller holding a whole chain would otherwise
+        make one round trip per task and carry back every task parameter with each of them, when
+        all it wants is four numbers each.
+
+        Args:
+            task_ids (list[int]): JEDI task IDs to report on
+
+        Returns:
+            dict[int, dict[str, int]]: task ID to n_files, n_files_finished, n_files_failed and
+                pct_finished. A task with no master input dataset is absent from the map rather
+                than present with zeros, so that a caller can tell "nothing to measure" from
+                "measured, none done"
+        """
+        comment = " /* DBProxy.get_tasks_file_progress */"
+        tmp_log = self.create_tagged_logger(comment, f"n_tasks={len(task_ids)}")
+        progress_map: dict[int, dict[str, int]] = {}
+        if not task_ids:
+            return progress_map
+        try:
+            task_ids_var_str, task_ids_var_map = get_sql_IN_bind_variables(task_ids, prefix=":jediTaskID")
+            sql_file_progress = (
+                f"SELECT jediTaskID,SUM(nFiles),SUM(nFilesFinished),SUM(nFilesFailed) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                f"WHERE jediTaskID IN ({task_ids_var_str}) "
+                f"AND type IN ({INPUT_TYPES_var_str}) "
+                "AND masterID IS NULL "
+                "GROUP BY jediTaskID "
+            )
+            var_map = dict(task_ids_var_map)
+            var_map.update(INPUT_TYPES_var_map)
+            self.conn.begin()
+            self.cur.execute(sql_file_progress + comment, var_map)
+            res_list = self.cur.fetchall()
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            for task_id, n_files, n_files_finished, n_files_failed in res_list:
+                n_files = n_files or 0
+                n_files_finished = n_files_finished or 0
+                progress_map[task_id] = {
+                    "n_files": n_files,
+                    "n_files_finished": n_files_finished,
+                    "n_files_failed": n_files_failed or 0,
+                    # the same percentage get_task_details_json reports as pctFinished, so that a
+                    # step of a workflow reads the same way the task does on its own
+                    "pct_finished": round(100 * n_files_finished / n_files) if n_files else 0,
+                }
+            tmp_log.debug(f"got progress for {len(progress_map)} tasks")
+            return progress_map
+        except Exception:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            return progress_map
 
     # check parent task status
     def checkParentTask_JEDI(self, parent_task_id: int, jedi_task_id: int | None = None, use_commit: bool = True) -> str | None:
