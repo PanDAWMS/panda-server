@@ -191,6 +191,19 @@ def parseNumStandby(catchall: str | None) -> dict[int | str, dict[str, int]]:
     return retMap
 
 
+# get payload execution time in seconds from pilotTiming, e.g. 1|2171|783|24|9|15
+def get_payload_walltime(pilot_timing: str | None) -> float | None:
+    if pilot_timing is None:
+        return None
+    try:
+        payload_walltime = float(pilot_timing.split("|")[2])
+    except Exception:
+        return None
+    if payload_walltime > 0:
+        return payload_walltime
+    return None
+
+
 # compensate memory count to prevent jobs with ramCount close to the HIMEM border from going to HIMEM PQs
 def compensate_ram_count(ram_count: float | Null | None) -> int | None:
     if ram_count is None or isinstance(ram_count, str):
