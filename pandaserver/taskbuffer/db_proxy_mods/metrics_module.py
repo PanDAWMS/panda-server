@@ -140,7 +140,7 @@ class MetricsModule(BaseModule):
             # Attributes were already inserted for this job
             if self.is_unique_violation_exception(e):
                 error_message = f"Pilot attributes for PandaID={panda_id} were already inserted and cannot be updated."
-                tmp_logger.error(error_message)
+                tmp_logger.debug(error_message)  # don't log this as an error to avoid polluting the logs
                 return False, error_message
 
             # General failure
