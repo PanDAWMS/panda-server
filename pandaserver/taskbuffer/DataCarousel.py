@@ -165,6 +165,7 @@ class DataCarouselRequestSpec(SpecBase):
             "excluded_dst_list" (list[str]): list of excluded destination RSEs
             "rule_unfound" (bool): DDM rule not found
             "to_pin" (bool): whether to pin the dataset
+            "to_backfill" (bool): whether the request is to backfill (all its active tasks have data_carousel_backfill), queued with lowest priority
             "suggested_dst_list" (list[str]): list of suggested destination RSEs
             "remove_when_done" (bool): remove request and DDM rule asap when request done to save disk space
             "task_id": (int): task_id of the task which initiates the request
@@ -436,6 +437,8 @@ class DataCarouselInterface(object):
         # reads back as "nothing configured" rather than raising on every access
         self.dc_config_map = DataCarouselMainConfig()
         self._last_update_ts_dict: dict[str, datetime | None] = {}
+        # cache of task params map per task ID; task params do not change after task submission
+        self._task_params_cache: dict[int, dict[str, Any]] = {}
         # full pid
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
         # refresh
@@ -1543,6 +1546,84 @@ class DataCarouselInterface(object):
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return False
 
+    def _get_task_params_map(self, task_id: int) -> dict[str, Any] | None:
+        """
+        Get task params map of a task, cached since task params do not change after task submission
+
+        Args:
+            task_id (int): JEDI task ID
+
+        Returns:
+            dict | None : task params map, or None if failed
+        """
+        if (cached_task_params_map := self._task_params_cache.get(task_id)) is not None:
+            return cached_task_params_map
+        tmp_log = LogWrapper(logger, f"_get_task_params_map task_id={task_id}")
+        try:
+            task_params_str = self.taskBufferIF.getTaskParamsWithID_JEDI(task_id)
+            task_params_map: dict[str, Any] = json.loads(task_params_str)
+        except Exception:
+            tmp_log.warning(f"failed to get task params ; {traceback.format_exc()}")
+            return None
+        self._task_params_cache[task_id] = task_params_map
+        return task_params_map
+
+    def _update_to_backfill(self, queued_requests: list[tuple[DataCarouselRequestSpec, list[JediTaskSpec]]]) -> None:
+        """
+        Evaluate and update to_backfill of queued requests (except to_pin requests) according to their active tasks
+        A request is to backfill if it has active tasks and all of them have task parameter data_carousel_backfill
+
+        Args:
+            queued_requests (list): list of tuples in form of (queued_request, [taskspec1, taskspec2, ...])
+        """
+        tmp_log = LogWrapper(logger, "_update_to_backfill")
+        n_to_backfill = 0
+        n_updated = 0
+        seen_task_ids: set[int] = set()
+        for dc_req_spec, task_specs in queued_requests:
+            seen_task_ids.update(task_spec.jediTaskID for task_spec in task_specs if task_spec.jediTaskID is not None)
+            if dc_req_spec.get_parameter("to_pin"):
+                continue
+            # evaluate to_backfill with active tasks
+            to_backfill = False
+            active_task_specs = [task_spec for task_spec in task_specs if task_spec.status not in FINAL_TASK_STATUSES]
+            if active_task_specs:
+                to_backfill = True
+                for task_spec in active_task_specs:
+                    task_params_map = self._get_task_params_map(task_spec.jediTaskID) if task_spec.jediTaskID is not None else None
+                    if task_params_map is None or not task_params_map.get("data_carousel_backfill"):
+                        to_backfill = False
+                        break
+            if to_backfill:
+                n_to_backfill += 1
+            if dc_req_spec.get_parameter("to_backfill") == to_backfill:
+                # unchanged
+                continue
+            # update DB
+            try:
+                with self.request_lock(dc_req_spec.request_id) as locked_spec:
+                    if not locked_spec:
+                        # not getting lock; skip
+                        tmp_log.warning(f"request_id={dc_req_spec.request_id} did not get lock; skipped")
+                        continue
+                    if locked_spec.status != DataCarouselRequestStatus.queued:
+                        tmp_log.debug(f"request_id={dc_req_spec.request_id} status={locked_spec.status} not queued; skipped")
+                        continue
+                    locked_spec.set_parameter("to_backfill", to_backfill)
+                    if self.taskBufferIF.update_data_carousel_request_JEDI(locked_spec):
+                        dc_req_spec.set_parameter("to_backfill", to_backfill)
+                        n_updated += 1
+                        tmp_log.debug(f"request_id={dc_req_spec.request_id} updated DB with to_backfill={to_backfill}")
+                    else:
+                        tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB ; skipped")
+            except Exception:
+                tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
+        # clean up cache of tasks not mapped to queued requests anymore
+        for task_id in list(self._task_params_cache):
+            if task_id not in seen_task_ids:
+                del self._task_params_cache[task_id]
+        tmp_log.debug(f"got {n_to_backfill} requests to backfill ; updated {n_updated} requests in DB")
+
     def submit_data_carousel_requests(
         self,
         task_id: int,
@@ -1798,6 +1879,7 @@ class DataCarouselInterface(object):
                     "source_rse": dc_req_spec.source_rse,
                     "source_tape": dc_req_spec.source_tape,
                     "to_pin": dc_req_spec.get_parameter("to_pin"),
+                    "to_backfill": dc_req_spec.get_parameter("to_backfill"),
                     "total_files": dc_req_spec.total_files,
                     "dataset_size": dc_req_spec.dataset_size,
                     "jediTaskID": task_spec.jediTaskID,
@@ -1817,6 +1899,7 @@ class DataCarouselInterface(object):
                 "source_rse": pl.datatypes.String,
                 "source_tape": pl.datatypes.String,
                 "to_pin": pl.datatypes.Boolean,
+                "to_backfill": pl.datatypes.Boolean,
                 "total_files": pl.datatypes.Int64,
                 "dataset_size": pl.datatypes.Int64,
                 "jediTaskID": pl.datatypes.Int64,
@@ -1831,6 +1914,7 @@ class DataCarouselInterface(object):
         # fill null
         df = df.with_columns(
             pl.col("to_pin").fill_null(value=False),
+            pl.col("to_backfill").fill_null(value=False),
             pl.col("total_files").fill_null(strategy="zero"),
             pl.col("dataset_size").fill_null(strategy="zero"),
         )
@@ -1868,6 +1952,8 @@ class DataCarouselInterface(object):
                 n_refilled += 1
         if n_no_files:
             tmp_log.debug(f"refilled {n_refilled}/{n_no_files} requests without total_files")
+        # evaluate and update to_backfill of queued requests
+        self._update_to_backfill(queued_requests)
         # get stats of tapes
         source_tape_stats = self._get_source_tape_stats_dataframe()
         if source_tape_stats is None:
@@ -1881,8 +1967,10 @@ class DataCarouselInterface(object):
         request_id_spec_map = {dc_req_spec.request_id: dc_req_spec for dc_req_spec, _ in queued_requests}
         # get dataframe of queued requests and tasks
         queued_requests_tasks_df = self._queued_requests_tasks_to_dataframe(queued_requests)
-        # sort queued requests : by to_pin, gshare_rank, task_priority, jediTaskID, request_id
-        df = queued_requests_tasks_df.sort(["to_pin", "gshare_rank", "task_priority", "request_id"], descending=[True, False, True, False], nulls_last=True)
+        # sort queued requests : by to_pin, to_backfill, gshare_rank, task_priority, request_id
+        df = queued_requests_tasks_df.sort(
+            ["to_pin", "to_backfill", "gshare_rank", "task_priority", "request_id"], descending=[True, False, False, True, False], nulls_last=True
+        )
         # get unique requests with the sorted order
         df = df.unique(subset=["request_id"], keep="first", maintain_order=True)
         # get active source tapes
@@ -1907,6 +1995,9 @@ class DataCarouselInterface(object):
             tmp_queued_df = tmp_queued_df.filter(pl.col("total_files") > 0)
             if not no_files_df.is_empty():
                 tmp_log.debug(f"source_tape={source_tape} skipped requests without total_files: {no_files_df['request_id'].to_list()}")
+            # split requests to backfill, which are left out of fair share and only use the quota left over by other requests
+            backfill_df = tmp_queued_df.filter(pl.col("to_backfill"))
+            tmp_queued_df = tmp_queued_df.filter(pl.col("to_backfill").not_())
             # fill dummy cumulative sum (0) for requests to pin
             to_pin_df = to_pin_df.with_columns(cum_total_files=pl.lit(0, dtype=pl.datatypes.Int64), cum_dataset_size=pl.lit(0, dtype=pl.datatypes.Int64))
             # fair share for gshares
@@ -1972,6 +2063,8 @@ class DataCarouselInterface(object):
                 tmp_queued_df = pl.concat(
                     [fair_share_queued_df.select(tmp_queued_df.columns), more_fair_shared_queued_df.select(tmp_queued_df.columns), tmp_queued_df]
                 ).unique(subset=["request_id"], keep="first", maintain_order=True)
+            # append requests to backfill at the bottom
+            tmp_queued_df = pl.concat([tmp_queued_df, backfill_df])
             # get cumulative sum of queued files per physical tape
             tmp_queued_df = tmp_queued_df.with_columns(cum_total_files=pl.col("total_files").cum_sum(), cum_dataset_size=pl.col("dataset_size").cum_sum())
             # number of queued requests at the physical tape
@@ -1983,7 +2076,18 @@ class DataCarouselInterface(object):
             if n_total:
                 tmp_to_print_df = pl.concat([to_pin_df, tmp_queued_df])
                 tmp_to_print_df = tmp_to_print_df.select(
-                    ["request_id", "source_rse", "jediTaskID", "gshare", "gshare_rank", "task_priority", "total_files", "cum_total_files", "to_pin"]
+                    [
+                        "request_id",
+                        "source_rse",
+                        "jediTaskID",
+                        "gshare",
+                        "gshare_rank",
+                        "task_priority",
+                        "total_files",
+                        "cum_total_files",
+                        "to_pin",
+                        "to_backfill",
+                    ]
                 )
                 tmp_to_print_df = tmp_to_print_df.with_columns(gshare_and_rank=pl.concat_str([pl.col("gshare"), pl.col("gshare_rank")], separator=" : "))
             # filter requests to respect the tape quota size; at most one request can reach or exceed quota size if quota size > 0
@@ -2034,7 +2138,7 @@ class DataCarouselInterface(object):
                     .otherwise(pl.lit(" "))
                 )
                 tmp_to_print_df = tmp_to_print_df.select(
-                    ["request_id", "source_rse", "jediTaskID", "gshare_and_rank", "task_priority", "total_files", "cum_total_files", "result"]
+                    ["request_id", "source_rse", "jediTaskID", "gshare_and_rank", "task_priority", "total_files", "cum_total_files", "to_backfill", "result"]
                 )
                 tmp_log.debug(f"  source_tape={source_tape} , quota_size={quota_size} : \n{tmp_to_print_df}")
             if n_total:
