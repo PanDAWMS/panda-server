@@ -1143,28 +1143,30 @@ class MiscStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"{map}")
         if "name" in map:
-            sql1 = """SELECT /*+ BEGIN_OUTLINE_DATA """
-            sql1 += """INDEX_RS_ASC(@"SEL$1" "TAB"@"SEL$1" ("DATASETS"."NAME")) """
-            sql1 += """OUTLINE_LEAF(@"SEL$1") ALL_ROWS """
-            sql1 += """IGNORE_OPTIM_EMBEDDED_HINTS """
-            sql1 += """END_OUTLINE_DATA */ """
-            sql1 += f"{DatasetSpec.columnNames()} FROM ATLAS_PANDA.Datasets tab"
+            sql_select_dataset = (
+                "SELECT /*+ BEGIN_OUTLINE_DATA "
+                'INDEX_RS_ASC(@"SEL$1" "TAB"@"SEL$1" ("DATASETS"."NAME")) '
+                'OUTLINE_LEAF(@"SEL$1") ALL_ROWS '
+                "IGNORE_OPTIM_EMBEDDED_HINTS "
+                "END_OUTLINE_DATA */ "
+                f"{DatasetSpec.columnNames()} FROM ATLAS_PANDA.Datasets tab"
+            )
         else:
-            sql1 = f"SELECT {DatasetSpec.columnNames()} FROM ATLAS_PANDA.Datasets"
+            sql_select_dataset = f"SELECT {DatasetSpec.columnNames()} FROM ATLAS_PANDA.Datasets"
         varMap: dict[Any, Any] = {}
         for key in map:
             if len(varMap) == 0:
-                sql1 += f" WHERE {key}=:{key}"
+                sql_select_dataset += f" WHERE {key}=:{key}"
             else:
-                sql1 += f" AND {key}=:{key}"
+                sql_select_dataset += f" AND {key}=:{key}"
             varMap[f":{key}"] = map[key]
         try:
             # start transaction
             self.conn.begin()
             # select
             self.cur.arraysize = 100
-            tmp_log.debug(sql1 + comment + str(varMap))
-            self.cur.execute(sql1 + comment, varMap)
+            tmp_log.debug(sql_select_dataset + comment + str(varMap))
+            self.cur.execute(sql_select_dataset + comment, varMap)
             res = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -1174,7 +1176,7 @@ class MiscStandaloneModule(BaseModule):
                 dataset = DatasetSpec()
                 dataset.pack(res[0])
                 return dataset
-            tmp_log.error("dataset not found")
+            tmp_log.debug("dataset not found")
             return None
         except Exception:
             # roll back
