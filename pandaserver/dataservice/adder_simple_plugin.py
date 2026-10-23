@@ -47,6 +47,9 @@ class AdderSimplePlugin(AdderPluginBase):
                 # ignore inputs
                 if file_spec.type not in ["output", "log"]:
                     continue
+                # AdderGen marks absent optional files as nooutput.
+                if file_spec.status == "nooutput":
+                    continue
                 # ignore local
                 if file_spec.destinationSE == "local":
                     continue
