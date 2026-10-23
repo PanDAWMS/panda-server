@@ -928,7 +928,7 @@ class TaskBuffer:
         via_topic: bool,
         remaining_time: int | None,
         target_architecture: str | None,
-        container_image: str | None = None,
+        container_name: str | None = None,
     ) -> list[Any]:
         # get DBproxy
         with self.proxyPool.get() as proxy:
@@ -955,7 +955,7 @@ class TaskBuffer:
                 via_topic,
                 remaining_time,
                 target_architecture,
-                container_image,
+                container_name,
             )
             t_after = time.time()
             t_total = t_after - t_before

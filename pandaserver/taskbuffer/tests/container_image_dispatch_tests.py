@@ -30,19 +30,19 @@ def where_clause(**kwargs: Any) -> tuple[str, dict[str, Any]]:
 
 class TestContainerImageWhereClause(unittest.TestCase):
     def test_bound_worker_gets_only_its_image(self) -> None:
-        sql, var_map = where_clause(container_image=IMAGE)
+        sql, var_map = where_clause(container_name=IMAGE)
         self.assertIn("AND container_name=:containerName ", sql)
         self.assertEqual(var_map[":containerName"], IMAGE)
 
     def test_unbound_worker_is_unchanged(self) -> None:
         for value in (None, ""):
-            sql, var_map = where_clause(container_image=value)
+            sql, var_map = where_clause(container_name=value)
             self.assertNotIn("container_name", sql)
             self.assertNotIn(":containerName", var_map)
-        self.assertEqual(where_clause(container_image=None), where_clause())
+        self.assertEqual(where_clause(container_name=None), where_clause())
 
     def test_combines_with_the_other_filters(self) -> None:
-        sql, var_map = where_clause(container_image=IMAGE, task_id=123, excluded_task_ids=[7])
+        sql, var_map = where_clause(container_name=IMAGE, task_id=123, excluded_task_ids=[7])
         self.assertIn("AND jediTaskID=:taskID ", sql)
         self.assertIn("AND container_name=:containerName ", sql)
         self.assertIn("jediTaskID NOT IN (", sql)
