@@ -1192,7 +1192,7 @@ class EntityModule(BaseModule):
         """
         tmp_v, pq_data = self.getClobObj(sql_get_queue_config + comment, var_map)
         if pq_data is None:
-            tmp_log.error("Could not find queue configuration")
+            tmp_log.debug("Could not find queue configuration")  # Don't log as ERROR. This is typically a queue that was disabled in CRIC.
             return None
 
         try:
@@ -1203,7 +1203,7 @@ class EntityModule(BaseModule):
             # carries a type, so name the shape the callers are promised
             queue_config: dict[str, Any] = pq_data_des
         except Exception:
-            tmp_log.error("Could not find queue configuration")
+            tmp_log.debug("Could not find queue configuration")
             return None
 
         tmp_log.debug("done")
