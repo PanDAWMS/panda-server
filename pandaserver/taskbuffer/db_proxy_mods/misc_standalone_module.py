@@ -2488,7 +2488,12 @@ class MiscStandaloneModule(BaseModule):
         # Logging
         comment = " /* DBProxy.setMaxAttempt */"
         tmp_log = self.create_tagged_logger(comment, f"jobID={jobID} taskID={taskID}")
-        tmp_log.debug("start")
+        tmp_log.debug("Start")
+
+        # Prevent ORA-01722 when updating ATLAS_PANDA.dataset_contents without a valid taskID
+        if not taskID or taskID == "NULL":
+            tmp_log.error("Done. Can't update maxAttempt when taskID not set")
+            return False
 
         # Update the file entries to avoid JEDI generating new jobs
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
@@ -2557,7 +2562,7 @@ class MiscStandaloneModule(BaseModule):
                 self.dump_error_message(tmp_log)
                 return False
 
-        tmp_log.debug("done")
+        tmp_log.debug("Done")
         return True
 
     def increase_max_failure(self, job_id: int, task_id: int, files: list[FileSpec]) -> bool:
