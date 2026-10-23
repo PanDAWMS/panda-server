@@ -77,7 +77,8 @@ class JobComplexModule(BaseModule):
                 try:
                     tmpM = re.search("leak=(-?\d+\.*\d+)", param[key])
                     if tmpM is not None:
-                        memoryLeak = int(float(tmpM.group(1)))
+                        # keep measurement under 11 digits because of DB declaration
+                        memoryLeak = min(int(float(tmpM.group(1))), 10**11 - 1)
                         tmpKey = "memory_leak"
                         sql1 += ",{0}=:{0}".format(tmpKey)
                         varMap[f":{tmpKey}"] = memoryLeak

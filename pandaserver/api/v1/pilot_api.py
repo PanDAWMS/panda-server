@@ -578,6 +578,13 @@ def update_job(
             except Exception:
                 tmp_logger.error(f"Invalid {key}={value} for updateJob")
 
+    # Memory metrics are NUMBER(10,0) in the DB; an 11-digit value makes Oracle
+    # reject the whole status update (ORA-01438), so clamp instead
+    for key in ["maxRSS", "maxVMEM", "maxSWAP", "maxPSS", "avgRSS", "avgVMEM", "avgSWAP", "avgPSS"]:
+        if key in param and param[key] > 10**10 - 1:
+            tmp_logger.warning(f"Clamping {key}={param[key]} to 10 digits for updateJob")
+            param[key] = 10**10 - 1
+
     # Special handling for file size metrics
     file_metrics = [
         ("totRCHAR", tot_rchar),

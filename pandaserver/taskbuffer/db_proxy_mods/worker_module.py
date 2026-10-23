@@ -799,16 +799,7 @@ class WorkerModule(BaseModule):
                     "VALUES(:harvesterID, :owner, :hostName, CURRENT_DATE, :descr) "
                 )
                 self.cur.execute(sql_insert_instance + comment, var_map)
-            # insert command locks
-            if "commands" in data:
-                for item in data["commands"]:
-                    self.addCommandLockHarvester(
-                        harvesterID,
-                        item["command"],
-                        item["computingSite"],
-                        item["resourceType"],
-                        False,
-                    )
+
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
