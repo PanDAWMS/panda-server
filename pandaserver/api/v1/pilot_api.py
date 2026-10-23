@@ -78,6 +78,7 @@ def acquire_jobs(
     via_topic: bool | None = None,
     remaining_time: int | None = None,
     target_architecture: dict[str, Any] | str | None = None,
+    container_image: str | None = None,
 ) -> dict[str, Any]:
     """
     Acquire jobs
@@ -117,6 +118,10 @@ def acquire_jobs(
                                  "architecture": "Ampere", "framework_version": "12.4", "driver_version": "575.57.08"}]}``.
                                  An empty `gpus` list means that the worker node has no GPU, while an absent `gpus` key means that
                                  the worker node doesn't report GPU information, in which case GPU requirements are not checked.
+                                 Optional and defaults to `None`.
+        container_image(str, optional): The container image the worker is bound to, for a worker already running inside its
+                                 image and unable to start another one. Only jobs whose `container_name` equals it are returned,
+                                 so such a worker never acquires a job it cannot run. A worker that can run any image omits it.
                                  Optional and defaults to `None`.
 
     Returns:
@@ -188,6 +193,9 @@ def acquire_jobs(
     else:
         target_architecture = None
 
+    # an empty container image means no binding
+    container_image = (container_image or "").strip() or None
+
     # harvester ID was not set, but we haver the scheduler ID, which should be the same
     if not harvester_id and scheduler_id:
         harvester_id = scheduler_id
@@ -198,7 +206,7 @@ def acquire_jobs(
         f"task_id={task_id}, DN={real_dn}, role={is_production_manager}, "
         f"bg={background}, rt={resource_type}, harvester_id={harvester_id}, worker_id={worker_id}, "
         f"scheduler_id={scheduler_id}, job_type={job_type}, via_topic={via_topic} remaining_time={remaining_time}, "
-        f"target_architecture={target_architecture}"
+        f"target_architecture={target_architecture}, container_image={container_image}"
     )
 
     # log the acquire_jobs as it's used for site activity metrics
@@ -241,6 +249,7 @@ def acquire_jobs(
         via_topic,
         remaining_time,
         target_architecture,
+        container_image,
     )
 
     # Time-out

@@ -2098,6 +2098,7 @@ class JobComplexModule(BaseModule):
         average_memory_limit: float | None,
         remaining_time: int | None,
         excluded_task_ids: list[int] | None = None,
+        container_image: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         get_val_map: dict[str, Any] = {":oldJobStatus": "activated", ":computingSite": site_name}
 
@@ -2171,6 +2172,11 @@ class JobComplexModule(BaseModule):
         if average_memory_limit:
             sql_where_clause += "AND minramcount / NVL(corecount, 1)<=:average_memory_limit "
             get_val_map[":average_memory_limit"] = average_memory_limit
+
+        # a worker bound to one container image only takes jobs that run in that image
+        if container_image:
+            sql_where_clause += "AND container_name=:containerName "
+            get_val_map[":containerName"] = container_image
 
         # skip tasks whose hardware requirements are not satisfied by the worker node
         if excluded_task_ids:
@@ -2268,6 +2274,7 @@ class JobComplexModule(BaseModule):
         via_topic: bool,
         remaining_time: int | None,
         target_architecture: str | None,
+        container_image: str | None = None,
     ) -> tuple[list[Any], int]:
         """
         1. Construct where clause (sql_where_clause) based on applicable filters for request
@@ -2346,6 +2353,7 @@ class JobComplexModule(BaseModule):
                 average_memory_limit=average_memory_limit,
                 remaining_time=remaining_time,
                 excluded_task_ids=sorted(excluded_task_ids),
+                container_image=container_image,
             )
             if sorting_varmap:  # copy the var map, but not the sql, since it has to be at the very end
                 for tmp_key in sorting_varmap:
