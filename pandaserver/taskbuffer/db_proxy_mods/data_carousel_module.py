@@ -217,7 +217,7 @@ class DataCarouselModule(BaseModule):
                     dc_req_spec.pack(res)
                     # query info of related tasks
                     sql_query_tasks = (
-                        f"SELECT t.jediTaskID, t.gshare, COALESCE(t.currentPriority, t.taskPriority), t.taskType, t.userName, t.workingGroup "
+                        f"SELECT t.jediTaskID, t.gshare, COALESCE(t.currentPriority, t.taskPriority), t.taskType, t.userName, t.workingGroup, t.status "
                         f"FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.JEDI_Tasks t "
                         f"WHERE rel.request_id=:request_id AND rel.task_id=t.jediTaskID "
                     )
@@ -225,7 +225,7 @@ class DataCarouselModule(BaseModule):
                     self.cur.execute(sql_query_tasks + comment, var_map)
                     res_tasks = self.cur.fetchall()
                     task_specs = []
-                    for task_id, gshare, priority, task_type, user_name, working_group in res_tasks:
+                    for task_id, gshare, priority, task_type, user_name, working_group, task_status in res_tasks:
                         task_spec = JediTaskSpec()
                         task_spec.jediTaskID = task_id
                         task_spec.gshare = gshare
@@ -233,6 +233,7 @@ class DataCarouselModule(BaseModule):
                         task_spec.taskType = task_type
                         task_spec.userName = user_name
                         task_spec.workingGroup = working_group
+                        task_spec.status = task_status
                         task_specs.append(task_spec)
                     # add
                     ret_list.append((dc_req_spec, task_specs))
