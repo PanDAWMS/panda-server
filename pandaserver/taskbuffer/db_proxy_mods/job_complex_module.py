@@ -1158,8 +1158,12 @@ class JobComplexModule(BaseModule):
                     "jobsetID": userJobsetID,
                 }
             return flagCommand or flagKilled
-        except Exception:
-            self.dump_error_message(tmp_log)
+        except Exception as e:
+            if self.is_no_wait_exception(e):
+                # resource busy and acquire with NOWAIT specified. Expected when another process holds the lock
+                tmp_log.debug("skipped with NOWAIT since resource is locked")
+            else:
+                self.dump_error_message(tmp_log)
             # roll back
             self._rollback()
             timeDelta = naive_utcnow() - timeStart
