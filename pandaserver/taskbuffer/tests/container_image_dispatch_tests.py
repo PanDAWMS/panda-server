@@ -24,8 +24,9 @@ def where_clause(**kwargs: Any) -> tuple[str, dict[str, Any]]:
         remaining_time=None,
     )
     params.update(kwargs)
-    # the method reads nothing from the instance
-    return JobComplexModule.construct_where_clause(None, **params)
+    # the method reads nothing from the instance, so one made without
+    # __init__ (which opens no database connection) is enough
+    return JobComplexModule.__new__(JobComplexModule).construct_where_clause(**params)
 
 
 class TestContainerImageWhereClause(unittest.TestCase):
