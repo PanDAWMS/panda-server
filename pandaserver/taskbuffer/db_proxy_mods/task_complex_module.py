@@ -381,9 +381,9 @@ class TaskComplexModule(BaseModule):
                 # not be the name the sorted list is bound to
                 unaligned_lfns = sorted(unaligned, key=lambda i: unaligned[i], reverse=True)
                 lfnList = aligned + unaligned_lfns
-
-            # sort by LFN
-            lfnList = sorted(filelValMap.keys())
+            else:
+                # sort by LFN
+                lfnList = sorted(filelValMap.keys())
 
             # truncate if necessary
             if datasetSpec.isSeqNumber():
@@ -490,7 +490,7 @@ class TaskComplexModule(BaseModule):
                 else:
                     # event-level splitting
                     splitStartEvent = 0
-                    # the elif above ruled out an unset nEvents, and the copies made below
+                    # the if above ruled out an unset nEvents, and the copies made below
                     # inherit it, so read it once here where that is still visible
                     numEventsInFile = fileSpec.nEvents
                     # change nEventsPerJob if target number is specified
@@ -6025,7 +6025,7 @@ class TaskComplexModule(BaseModule):
         else:
             tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug(f"start with simul={simul} instantiateTmpl={instantiateTmpl} instantiatedSites={instantiatedSites}")
-        tmpLog.debug(f"isUnMerging={isUnMerging} isPrePro={isPrePro} provenanceID={provenanceID} ")
+        tmpLog.debug(f"isUnMerging={isUnMerging} isPrePro={isPrePro} provenanceID={provenanceID}")
         tmpLog.debug(f"middleName={middleName} registerDatasets={registerDatasets} idPool={len(fileIDPool)}")
         tmpLog.debug(f"n_files_per_chunk={n_files_per_chunk} bulk_fetch={bulk_fetch_for_multiple_jobs}")
         try:
