@@ -576,14 +576,8 @@ class JobStandaloneModule(BaseModule):
                 # raise for a caller that tells an error from a job not found
                 if raise_error:
                     raise
-                # return None for analysis
-                if forAnal:
-                    return None
-                # return 'unknown'
-                job = JobSpec()
-                job.PandaID = pandaID  # type: ignore[assignment]
-                job.jobStatus = "unknown"
-                return job
+                # return None
+                return None
         return None
 
     # get active debug jobs
