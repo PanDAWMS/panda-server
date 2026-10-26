@@ -6,7 +6,7 @@ from typing import Any, Sequence
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandajedi.jediconfig import jedi_config
-from pandaserver.taskbuffer import ParseJobXML, TaskBuffer
+from pandaserver.taskbuffer import TaskBuffer
 from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediCacheSpec import JediCacheSpec
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
@@ -72,7 +72,6 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         nChunksForScout: Any,
         includePatt: list[str],
         excludePatt: list[str],
-        xmlConfig: Any,
         noWaitParent: bool,
         parent_tid: int | None,
         pid: str | None,
@@ -111,7 +110,6 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
                 nChunksForScout,
                 includePatt,
                 excludePatt,
-                xmlConfig,
                 noWaitParent,
                 parent_tid,
                 pid,
@@ -353,7 +351,6 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         instantiatedSite: str | None = None,
         isUnMerging: bool = False,
         isPrePro: bool = False,
-        xmlConfigJob: ParseJobXML.dom_job | None = None,
         siteDsMap: dict[Any, Any] | None = None,
         middleName: str = "",
         registerDatasets: bool = False,
@@ -372,7 +369,6 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
                 instantiatedSite,
                 isUnMerging,
                 isPrePro,
-                xmlConfigJob,
                 siteDsMap,
                 middleName,
                 registerDatasets,

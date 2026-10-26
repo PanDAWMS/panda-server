@@ -905,10 +905,6 @@ class JediTaskSpec(object):
         else:
             self.errorDialog = diag
 
-    # use loadXML
-    def useLoadXML(self) -> bool:
-        return self.check_split_rule("loadXML")
-
     # make VOMS FQANs
     def makeFQANs(self) -> list[str]:
         # no working group

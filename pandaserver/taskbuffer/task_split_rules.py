@@ -40,7 +40,6 @@ split_rule_dict = {
     "noLoopingCheck": "LC",
     "useLocalIO": "LI",
     "limitedSites": "LS",
-    "loadXML": "LX",
     "minCpuEfficiency": "MC",
     "messageDriven": "MD",
     "mergeEsOnOS": "ME",

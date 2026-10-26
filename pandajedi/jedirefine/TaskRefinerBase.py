@@ -341,9 +341,6 @@ class TaskRefinerBase(object):
                 self.setSplitRule(taskParamMap, "maxJumboPerSite", JediTaskSpec.splitRuleToken["maxJumboPerSite"])
         if "minCpuEfficiency" in taskParamMap:
             self.setSplitRule(taskParamMap, "minCpuEfficiency", JediTaskSpec.splitRuleToken["minCpuEfficiency"])
-        if "loadXML" in taskParamMap:
-            self.setSplitRule(None, 3, JediTaskSpec.splitRuleToken["loadXML"])
-            self.setSplitRule(None, 4, JediTaskSpec.splitRuleToken["groupBoundaryID"])
         if "pfnList" in taskParamMap:
             self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["pfnList"])
         if "noWaitParent" in taskParamMap and taskParamMap["noWaitParent"] is True:

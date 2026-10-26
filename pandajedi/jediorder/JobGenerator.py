@@ -28,7 +28,7 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.srvcore import CoreUtils
-from pandaserver.taskbuffer import EventServiceUtils, JobUtils, ParseJobXML
+from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
@@ -1019,11 +1019,6 @@ class JobGeneratorThread(WorkerThread):
         # register datasets
         registerDatasets = taskSpec.toRegisterDatasets()
         try:
-            # load XML
-            xmlConfig = None
-            if taskSpec.useLoadXML():
-                loadXML = taskParamMap["loadXML"]
-                xmlConfig = ParseJobXML.dom_parser(xmlStr=loadXML)
             # using grouping with boundaryID
             useBoundary = taskSpec.useGroupWithBoundaryID()
             # loop over all sub chunks
@@ -1096,12 +1091,7 @@ class JobGeneratorThread(WorkerThread):
             fetched_out_sub_chunks = {}
             fetched_serial_numbers = {}
             fetched_parallel_out_map = {}
-            if (
-                xmlConfig is None
-                and (useBoundary is None or not useBoundary["outMap"])
-                and not taskSpec.on_site_merging()
-                and taskSpec.getFieldNumToLFN() is None
-            ):
+            if (useBoundary is None or not useBoundary["outMap"]) and not taskSpec.on_site_merging() and taskSpec.getFieldNumToLFN() is None:
                 for site_name in n_jobs_per_site:
                     # set site name if the chunks instantiate template datasets
                     if to_produce_outputs_merged_later or (taskSpec.instantiateTmpl() and taskSpec.instantiateTmplSite()):
@@ -1123,7 +1113,6 @@ class JobGeneratorThread(WorkerThread):
                         site_to_instantiate,
                         to_produce_outputs_merged_later,
                         False,
-                        None,
                         siteDsMap,
                         "",
                         registerDatasets,
@@ -1699,17 +1688,7 @@ class JobGeneratorThread(WorkerThread):
                     except Exception:
                         jobSpec.resource_type = "Undefined"
                         tmpLog.error(f"set resource_type excepted with {traceback.format_exc()}")
-                    # XML config
-                    xmlConfigJob = None
-                    if xmlConfig is not None:
-                        if boundaryID is None:
-                            tmpLog.error(f"failed to get XML config for N={boundaryID}")
-                            return failedRet
-                        try:
-                            xmlConfigJob = xmlConfig.jobs[boundaryID]
-                        except Exception:
-                            tmpLog.error(f"failed to get XML config for N={boundaryID}")
-                            return failedRet
+
                     # num of output files per job
                     if taskSpec.on_site_merging():
                         readStat, taskParamMap = self.readTaskParams(taskSpec, taskParamMap, tmpLog)
@@ -1740,7 +1719,6 @@ class JobGeneratorThread(WorkerThread):
                             instantiatedSite,
                             isUnMerging,
                             False,
-                            xmlConfigJob,
                             siteDsMap,
                             middleName,
                             registerDatasets,
@@ -1822,10 +1800,7 @@ class JobGeneratorThread(WorkerThread):
                         tmpBuildFileSpec = copy.copy(buildFileSpec)
                         jobSpec.addFile(tmpBuildFileSpec)
                         paramList.append(("LIB", buildFileSpec.lfn))
-                    # placeholders for XML config
-                    if xmlConfigJob is not None:
-                        paramList.append(("XML_OUTMAP", xmlConfigJob.get_outmap_str(outSubChunk)))
-                        paramList.append(("XML_EXESTR", xmlConfigJob.exec_string_enc()))
+
                     # middle name
                     paramList.append(("MIDDLENAME", middleName))
                     # segment ID
