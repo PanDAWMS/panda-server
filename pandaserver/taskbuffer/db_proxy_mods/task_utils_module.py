@@ -335,13 +335,13 @@ class TaskUtilsModule(BaseModule):
         sqlSCDN = (
             "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
             "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
-            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost "
+            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost, pilotTiming "
             f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
             "WHERE PandaID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
             "UNION "
             "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
             "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
-            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost "
+            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost, pilotTiming "
             f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
             "WHERE PandaID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
             "AND modificationTime>(CURRENT_DATE-30) "
@@ -351,13 +351,13 @@ class TaskUtilsModule(BaseModule):
         sqlSCDE = (
             "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
             "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
-            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost "
+            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost, pilotTiming "
             f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
             "WHERE jobsetID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
             "UNION "
             "SELECT eventService, jobsetID, PandaID, jobStatus, outputFileBytes, jobMetrics, cpuConsumptionTime, "
             "actualCoreCount, coreCount, startTime, endTime, computingSite, maxPSS, specialHandling, nEvents, "
-            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost "
+            "totRBYTES, totWBYTES, inputFileBytes, memory_leak, memory_leak_x2, modificationhost, pilotTiming "
             f"FROM {panda_config.schemaPANDAARCH}.jobsArchived "
             "WHERE jobsetID=:pandaID AND jobStatus=:jobStatus AND jediTaskID=:jediTaskID "
             "AND modificationTime>(CURRENT_DATE-14) "
@@ -694,6 +694,7 @@ class TaskUtilsModule(BaseModule):
                         memory_leak,
                         memory_leak_x2,
                         modificationhost,
+                        pilot_timing,
                     ) = oneResData
 
                     # event service job
@@ -899,11 +900,12 @@ class TaskUtilsModule(BaseModule):
                     # CPU efficiency
                     if eventServiceJob != EventServiceUtils.esMergeJobFlagNumber:
                         try:
-                            tmpTimeDelta = endTime - startTime
-                            float(tmpTimeDelta.seconds + tmpTimeDelta.days * 24 * 3600)
-                            tmpCpuEff = int(
-                                math.ceil(float(cpuConsumptionTime) / (coreCount * float(tmpTimeDelta.seconds + tmpTimeDelta.days * 24 * 3600)) * 100)
-                            )
+                            # use the payload execution time since endTime - startTime includes stage-in, stage-out and setup
+                            tmpExecSeconds = JobUtils.get_payload_walltime(pilot_timing)
+                            if tmpExecSeconds is None:
+                                tmpTimeDelta = endTime - startTime
+                                tmpExecSeconds = float(tmpTimeDelta.seconds + tmpTimeDelta.days * 24 * 3600)
+                            tmpCpuEff = int(math.ceil(float(cpuConsumptionTime) / (coreCount * tmpExecSeconds) * 100))
                             cpuEffList.append(tmpCpuEff)
                             cpuEffDict[tmpCpuEff] = pandaID
                             cpuEffMap[pandaID] = tmpCpuEff
