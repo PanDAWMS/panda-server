@@ -188,11 +188,7 @@ class ContentsFeederThread(WorkerThread):
             nFilesPerJob = taskSpec.getNumFilesPerJob()
             # the number of chunks used by scout
             nChunksForScout = 10
-            # load XML
-            if taskSpec.useLoadXML():
-                xmlConfig = taskParamMap["loadXML"]
-            else:
-                xmlConfig = None
+
             # skip files used by another task
             if "skipFilesUsedBy" in taskParamMap:
                 skipFilesUsedBy = taskParamMap["skipFilesUsedBy"]
@@ -616,7 +612,6 @@ class ContentsFeederThread(WorkerThread):
                                 nChunksForScout,
                                 includePatt,
                                 excludePatt,
-                                xmlConfig,
                                 noWaitParent,
                                 taskSpec.parent_tid,
                                 self.pid,

@@ -18,7 +18,7 @@ from pandacommon.pandautils.PandaUtils import (
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
-from pandaserver.taskbuffer import EventServiceUtils, JobUtils, ParseJobXML
+from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMBER
 from pandaserver.taskbuffer.db_proxy_mods.job_complex_module import (
     get_job_complex_module,
@@ -205,7 +205,6 @@ class TaskComplexModule(BaseModule):
         nChunksForScout: Any,
         includePatt: list[str],
         excludePatt: list[str],
-        xmlConfig: Any,
         noWaitParent: bool,
         parent_tid: int | None,
         pid: str | None,
@@ -231,7 +230,7 @@ class TaskComplexModule(BaseModule):
         tmpLog.debug(f"useFilesWithNewAttemptNr={useFilesWithNewAttemptNr} nFilesPerJob={nFilesPerJob} nEventsPerRange={nEventsPerRange}")
         tmpLog.debug(f"useScout={useScout} nChunksForScout={nChunksForScout} userRealEventNumber={useRealNumEvents}")
         tmpLog.debug(f"includePatt={str(includePatt)} excludePatt={str(excludePatt)}")
-        tmpLog.debug(f"xmlConfig={type(xmlConfig)} noWaitParent={noWaitParent} parent_tid={parent_tid}")
+        tmpLog.debug(f"noWaitParent={noWaitParent} parent_tid={parent_tid}")
         tmpLog.debug(f"len(fileMap)={len(fileMap)} pid={pid}")
         tmpLog.debug(f"datasetState={datasetState} dataset.state={datasetSpec.state}")
         tmpLog.debug(f"respectLB={respectLB} tgtNumEventsPerJob={tgtNumEventsPerJob} skipFilesUsedBy={skipFilesUsedBy} ramCount={ramCount}")
@@ -363,24 +362,12 @@ class TaskComplexModule(BaseModule):
                     if fileVal["lfn"] in givenFileMap:
                         newFileMap[guid] = fileVal
                 fileMap = newFileMap
-            # XML config
-            if xmlConfig is not None:
-                try:
-                    xmlConfig = ParseJobXML.dom_parser(xmlStr=xmlConfig)
-                except Exception as e:
-                    tmpErrStr = f"failed to load XML config with {type(e).__name__}:{e}"
-                    raise RuntimeError(tmpErrStr)
-                newFileMap = {}
-                for guid, fileVal in fileMap.items():
-                    if fileVal["lfn"] in xmlConfig.files_in_DS(datasetSpec.datasetName):
-                        newFileMap[guid] = fileVal
-                fileMap = newFileMap
+
             # make map with LFN as key
             filelValMap = {}
             for guid, fileVal in fileMap.items():
                 filelValMap[fileVal["lfn"]] = (guid, fileVal)
             # make LFN list
-            listBoundaryID = []
             if order_by == "eventsAlignment" and nEventsPerJob:
                 aligned = []
                 unaligned = dict()
@@ -394,24 +381,10 @@ class TaskComplexModule(BaseModule):
                 # not be the name the sorted list is bound to
                 unaligned_lfns = sorted(unaligned, key=lambda i: unaligned[i], reverse=True)
                 lfnList = aligned + unaligned_lfns
-            elif xmlConfig is None:
+            else:
                 # sort by LFN
                 lfnList = sorted(filelValMap.keys())
-            else:
-                # sort as described in XML
-                tmpBoundaryID = 0
-                lfnList = []
-                for tmpJobXML in xmlConfig.jobs:
-                    for tmpLFN in tmpJobXML.files_in_DS(datasetSpec.datasetName):
-                        # check if the file is available
-                        if tmpLFN not in filelValMap:
-                            diagMap["errMsg"] = f"{tmpLFN} is not found in {datasetSpec.datasetName}"
-                            tmpLog.error(diagMap["errMsg"])
-                            return failedRet
-                        lfnList.append(tmpLFN)
-                        listBoundaryID.append(tmpBoundaryID)
-                    # increment boundaryID
-                    tmpBoundaryID += 1
+
             # truncate if necessary
             if datasetSpec.isSeqNumber():
                 offsetVal = 0
@@ -502,11 +475,8 @@ class TaskComplexModule(BaseModule):
                 if datasetSpec.toKeepTrack():
                     fileSpec.keepTrack = 1
                 tmpFileSpecList = []
-                if xmlConfig is not None:
-                    # splitting with XML
-                    fileSpec.boundaryID = listBoundaryID[tmpIdx]
-                    tmpFileSpecList.append(fileSpec)
-                elif (
+
+                if (
                     ((nEventsPerJob is None or nEventsPerJob <= 0) and (tgtNumEventsPerJob is None or tgtNumEventsPerJob <= 0))
                     or fileSpec.nEvents is None
                     or fileSpec.nEvents <= 0
@@ -520,7 +490,7 @@ class TaskComplexModule(BaseModule):
                 else:
                     # event-level splitting
                     splitStartEvent = 0
-                    # the elif above ruled out an unset nEvents, and the copies made below
+                    # the if above ruled out an unset nEvents, and the copies made below
                     # inherit it, so read it once here where that is still visible
                     numEventsInFile = fileSpec.nEvents
                     # change nEventsPerJob if target number is specified
@@ -1199,9 +1169,6 @@ class TaskComplexModule(BaseModule):
                                     varMap[":nFilesTobeUsed"] = total_pending_files_to_activate + nUsed
                         elif datasetSpec.isMaster() and useScout and (set([taskStatus, taskSpec.oldStatus]) & set(["scouting", "ready", "assigning"])):
                             varMap[":nFilesTobeUsed"] = nFilesToUseDS
-                        elif xmlConfig is not None:
-                            # disable scout for --loadXML
-                            varMap[":nFilesTobeUsed"] = nReady + nUsed
                         elif (
                             (set([taskStatus, taskSpec.oldStatus]) & set(["defined", "ready", "scouting", "assigning"]))
                             and useScout
@@ -2899,7 +2866,7 @@ class TaskComplexModule(BaseModule):
                     max_files_to_read_for_this_dataset = n_master_files_to_read
                 else:
                     # for secondaries
-                    if task_spec.useLoadXML() or tmp_dataset_spec.isNoSplit() or tmp_dataset_spec.getEventRatio() is not None:
+                    if tmp_dataset_spec.isNoSplit() or tmp_dataset_spec.getEventRatio() is not None:
                         max_files_to_read_for_this_dataset = max_secondary_files_to_read_with_event_ratio
                     elif tmp_dataset_spec.getNumFilesPerJob() is not None:
                         max_files_to_read_for_this_dataset = n_master_files_to_read * tmp_dataset_spec.getNumFilesPerJob()
@@ -2922,10 +2889,9 @@ class TaskComplexModule(BaseModule):
                     order_by_policy = "fileID"
                 elif task_spec.respectLumiblock() or task_spec.orderByLB():
                     order_by_policy = "lumiBlockNr,lfn"
-                elif not task_spec.useLoadXML():
-                    order_by_policy = "fileID"
                 else:
-                    order_by_policy = "boundaryID"
+                    order_by_policy = "fileID"
+
                 # repeat file reading to duplicate secondly file records if necessary
                 tmp_num_already_read_files = 0
                 tmp_num_waiting_files = 0
@@ -3084,13 +3050,7 @@ class TaskComplexModule(BaseModule):
                             tmp_num_waiting_files += 1
 
                     # escape the duplication loop since it is not requested
-                    if (
-                        tmp_dataset_spec.isMaster()
-                        or task_spec.useLoadXML()
-                        or tmp_dataset_spec.isNoSplit()
-                        or tmp_dataset_spec.toMerge()
-                        or input_chunk.ramCount not in (None, 0)
-                    ):
+                    if tmp_dataset_spec.isMaster() or tmp_dataset_spec.isNoSplit() or tmp_dataset_spec.toMerge() or input_chunk.ramCount not in (None, 0):
                         break
                     # escape since enough files were read
                     if tmp_num_already_read_files >= num_files_to_read_for_the_chunk and tmp_dataset_spec.getEventRatio() is None:
@@ -6044,7 +6004,6 @@ class TaskComplexModule(BaseModule):
         instantiatedSites: str | None,
         isUnMerging: bool,
         isPrePro: bool,
-        xmlConfigJob: ParseJobXML.dom_job | None,
         siteDsMap: dict[Any, Any] | None,
         middleName: str,
         registerDatasets: bool,
@@ -6066,7 +6025,7 @@ class TaskComplexModule(BaseModule):
         else:
             tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug(f"start with simul={simul} instantiateTmpl={instantiateTmpl} instantiatedSites={instantiatedSites}")
-        tmpLog.debug(f"isUnMerging={isUnMerging} isPrePro={isPrePro} provenanceID={provenanceID} xmlConfigJob={type(xmlConfigJob)}")
+        tmpLog.debug(f"isUnMerging={isUnMerging} isPrePro={isPrePro} provenanceID={provenanceID}")
         tmpLog.debug(f"middleName={middleName} registerDatasets={registerDatasets} idPool={len(fileIDPool)}")
         tmpLog.debug(f"n_files_per_chunk={n_files_per_chunk} bulk_fetch={bulk_fetch_for_multiple_jobs}")
         try:
@@ -6258,18 +6217,8 @@ class TaskComplexModule(BaseModule):
                 for resR in resTmpList:
                     # make FileSpec
                     outTempID, datasetID, fileNameTemplate, serialNr, outType, streamName = resR
-                    if xmlConfigJob is None or outType.endswith("log"):
-                        fileNameTemplateList = [(fileNameTemplate, streamName)]
-                    else:
-                        fileNameTemplateList = []
-                        # get output filenames from XML config
-                        for tmpFileName in xmlConfigJob.outputs().split(","):
-                            # ignore empty
-                            if tmpFileName == "":
-                                continue
-                            newStreamName = tmpFileName
-                            newFileNameTemplate = fileNameTemplate + "." + xmlConfigJob.prepend_string() + "." + newStreamName
-                            fileNameTemplateList.append((newFileNameTemplate, newStreamName))
+                    fileNameTemplateList = [(fileNameTemplate, streamName)]
+
                     if bulk_fetch_for_multiple_jobs:
                         nFileLoop = n_files_per_chunk
                     else:
