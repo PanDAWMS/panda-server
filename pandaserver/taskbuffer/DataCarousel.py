@@ -2089,7 +2089,10 @@ class DataCarouselInterface(object):
                         "to_backfill",
                     ]
                 )
-                tmp_to_print_df = tmp_to_print_df.with_columns(gshare_and_rank=pl.concat_str([pl.col("gshare"), pl.col("gshare_rank")], separator=" : "))
+                tmp_to_print_df = tmp_to_print_df.with_columns(
+                    gshare_and_rank=pl.concat_str([pl.col("gshare"), pl.col("gshare_rank")], separator=" : "),
+                    tag=pl.when(pl.col("to_pin")).then(pl.lit("to_pin")).when(pl.col("to_backfill")).then(pl.lit("to_backfill")).otherwise(pl.lit("")),
+                )
             # filter requests to respect the tape quota size; at most one request can reach or exceed quota size if quota size > 0
             to_stage_df = pl.concat(
                 [
@@ -2138,7 +2141,7 @@ class DataCarouselInterface(object):
                     .otherwise(pl.lit(" "))
                 )
                 tmp_to_print_df = tmp_to_print_df.select(
-                    ["request_id", "source_rse", "jediTaskID", "gshare_and_rank", "task_priority", "total_files", "cum_total_files", "to_backfill", "result"]
+                    ["request_id", "source_rse", "jediTaskID", "gshare_and_rank", "task_priority", "total_files", "cum_total_files", "tag", "result"]
                 )
                 tmp_log.debug(f"  source_tape={source_tape} , quota_size={quota_size} : \n{tmp_to_print_df}")
             if n_total:
