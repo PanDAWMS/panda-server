@@ -24,8 +24,9 @@ from pandaserver.taskbuffer.JobSpec import (
 
 if TYPE_CHECKING:
     # imported for annotations only. WrappedCursor imports panda_config, so
-    # importing it at runtime here would close an import cycle, and msg_processor
-    # is the module get_mb_proxy imports late so that a daemon opens its log first
+    # importing it at runtime here would close an import cycle, and pandamsgbkr
+    # is the package get_mb_proxy imports late so that a daemon opens its log first
+    from pandacommon.pandamsgbkr.msg_bkr_utils import MBSenderProxy
     from pandacommon.pandamsgbkr.msg_processor import PassiveProxies
 
     from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
@@ -397,7 +398,7 @@ class BaseModule:
             return value
 
     # get mb proxy
-    def get_mb_proxy(self, channel: str) -> Any:
+    def get_mb_proxy(self, channel: str) -> "MBSenderProxy | None":
         if self.mb_proxy_dict is None:
             try:
                 if hasattr(panda_config, "mq_configFile") and panda_config.mq_configFile:

@@ -35,7 +35,7 @@ class cacheSchedConfig:
     def __init__(self, tbuf: Any) -> None:
         self.tbuf = tbuf
         # the queue rows, read by getQueueData() before anything dumps them
-        self.queueData: Any = None
+        self.queueData: list[dict[str, Any]] = []
         self.cloudStatus = None
         # Define this here, but could be more flexible...
         self.queueDataFields = {
@@ -114,9 +114,9 @@ class cacheSchedConfig:
             "all": None,
         }
 
-    def query_column_sql(self, sql: str, varMap: dict[str, Any] | None = None, arraySize: int = 100) -> list[Any]:
+    def query_column_sql(self, sql: str, varMap: dict[str, Any] | None = None, arraySize: int = 100) -> list[dict[str, Any]]:
         res = self.tbuf.querySQL(sql, varMap, arraySize=arraySize)
-        retList = []
+        retList: list[dict[str, Any]] = []
         for (
             panda_queue,
             data,

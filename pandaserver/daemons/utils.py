@@ -15,13 +15,17 @@ import traceback
 from collections.abc import Callable
 from multiprocessing.connection import Connection
 from types import FrameType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import psutil
 from pandacommon.pandalogger import logger_utils
 from pandacommon.pandautils.thread_utils import GenericThread, LockPool
 
 from pandaserver.config import daemon_config, panda_config
+
+if TYPE_CHECKING:
+    # imported for annotations only; _make_tbif() imports it at runtime, where the order matters
+    from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
 
 # list of signals accepted to end the main process
 END_SIGNALS = [
@@ -462,9 +466,8 @@ class DaemonMaster(object):
         self._make_dem_run_map()
         # map to store global states
         self.global_state_map: dict[str, Any] = {}
-        # shared taskBufferIF, built by _make_tbif() only when use_tbif is on. The class it
-        # holds is imported inside that method on purpose, so it cannot be named here
-        self.tbif: Any = None
+        # shared taskBufferIF, built by _make_tbif() only when use_tbif is on
+        self.tbif: "TaskBufferInterface | None" = None
         self._make_tbif()
         # shared lock pool
         self.lock_pool = LockPool()
