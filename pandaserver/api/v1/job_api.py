@@ -18,6 +18,7 @@ from pandaserver.api.v1.common import (
     request_validation,
 )
 from pandaserver.config import panda_config
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.jobdispatcher import Protocol
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer import JobUtils
@@ -35,10 +36,14 @@ global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
 # partition of jobs_StatusLog
 MAX_STATUS_HISTORY_JOBS = 1000
 
-# most names one get_datasets_by_name call may give: what Oracle takes in one IN list. The
-# db_read_probe_budget normally bounds it lower, since each name costs one index lookup per
+# most keys one get_datasets_by_name call may look up: what Oracle takes in one IN list. Each name
+# is looked up in both of its forms, so a name costs KEYS_PER_DATASET_NAME keys. The
+# db_read_probe_budget normally bounds it lower, since each key costs one index lookup per
 # partition of Datasets
-MAX_DATASET_NAMES = 1000
+MAX_DATASET_KEYS = 1000
+
+# keys one name given to get_datasets_by_name is looked up with: the name as given and its other form
+KEYS_PER_DATASET_NAME = 2
 
 # slack put on both ends of a get_status_history window before it is widened to whole days. A
 # creationTime is written with the clock of a server and jobs_StatusLog with the database clock, so
@@ -61,6 +66,28 @@ def _parse_utc_time(value: str) -> datetime.datetime:
     if parsed.tzinfo is not None:
         parsed = parsed.astimezone(datetime.timezone.utc).replace(tzinfo=None)
     return parsed
+
+
+def _dataset_name_forms(name: str) -> list[str]:
+    """
+    The forms a dataset name is looked up in: the name as given, then its other form, which is the
+    name without its scope when it has one, and with a scope put on when it has none.
+
+    The Datasets table keeps one row per vuid, under the name its first writer used, and the vuid is
+    made from scope:name whichever form the name came in, so the row of a dataset may be under either
+    form. The scope put on is the one extract_scope gives, since the vuid is made with that scope.
+
+    Args:
+        name(str): the dataset name as given
+
+    Returns:
+        list: the name, followed by its other form unless that is empty or the name itself
+    """
+    scope, bare_name = rucioAPI.extract_scope(name)
+    other_form = bare_name if ":" in name else f"{scope}:{bare_name}"
+    if other_form and other_form != name:
+        return [name, other_form]
+    return [name]
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -328,10 +355,15 @@ def get_datasets_by_name(req: PandaRequest, names: List[str]) -> Dict[str, Any]:
     Gets the rows of the PanDA Datasets table (the datasets jobs work with, such as the _sub and _dis ones made for
     them, not JEDI_Datasets) for the given names. Requires a secure connection.
 
-    Each name is looked up once in every partition of the table, which is partitioned on modificationdate, so the most
-    names one call may give is the db_read_probe_budget of the server divided by the number of partitions. A call giving
-    more is refused, not cut short. Both numbers come back with every answer, so a caller can split its names into
-    calls that fit.
+    The table keeps one row per dataset, under the form of the name its first writer used, scope:name or name. So each
+    name is looked up in both forms: a name with a scope also without it, and a name without one also with the scope
+    its first part gives (up to the first dot, or up to the second for user and group datasets), which is the scope
+    the vuid of the dataset is made with. Every row says which of the given names it answers.
+
+    Each form is a key, looked up once in every partition of the table, which is partitioned on modificationdate, so
+    the most names one call may give is the db_read_probe_budget of the server divided by keys_per_name times the
+    number of partitions. A call giving more is refused, not cut short. The three numbers come back with every answer,
+    so a caller can split its names into calls that fit.
 
     POST is accepted too, with the arguments in a JSON body (Content-Type: application/json). A GET puts every name in
     the URL, and a web server refuses a request line over its limit with an HTTP error before the call gets here. A
@@ -350,20 +382,26 @@ def get_datasets_by_name(req: PandaRequest, names: List[str]) -> Dict[str, Any]:
 
     Response data:
         dict: The rows of the datasets, and what tells how complete they are.
-            {"rows": [...], "as_of": datetime, "retained_from": datetime or None, "partitions": int, "budget": int}
+            {"rows": [...], "as_of": datetime, "retained_from": datetime or None, "partitions": int, "budget": int,
+             "keys_per_name": int}
             - rows: one dict per row, ordered by name and creationdate, with every column: vuid, name, version, type,
               status, numberfiles, currentfiles, creationdate, modificationdate, MoverID, transferStatus and subType,
-              with null for NULL. A name without rows has none
+              with null for NULL, and asked_as: the given names, in the order given, that the row answers in either
+              form. A name without rows has none
             - as_of: database time in UTC taken before the rows were read
             - retained_from: time from which the table holds every row, on modificationdate, or None when it cannot be
               told. Old partitions are dropped, so a dataset last modified before this time may have been in the table
-            - partitions, budget: the number of partitions, counted as 1 when there are none, and the
-              db_read_probe_budget; a call may give at most budget // partitions names
+            - partitions, budget, keys_per_name: the number of partitions, counted as 1 when there are none, the
+              db_read_probe_budget, and the keys a name is looked up with; a call may give at most
+              budget // (keys_per_name * partitions) names
         On failure, with the reason in the message, the reason as values:
             - {"rejected": "no_keys"}: no names
-            - {"rejected": "too_many_keys", "keys": int, "max_keys": int}: more names than one IN list takes
-            - {"rejected": "probe_budget", "keys": int, "partitions": int, "budget": int}: keys x partitions exceed the budget
+            - {"rejected": "too_many_keys", "keys": int, "max_keys": int, "keys_per_name": int}: more keys than one IN
+              list takes
+            - {"rejected": "probe_budget", "keys": int, "partitions": int, "budget": int, "keys_per_name": int}: keys x
+              partitions exceed the budget
             - {"error": str}: the database failed, with the error code (ORA-xxxxx, or the SQLSTATE on Postgres)
+        keys counts the forms looked up, and a form shared by two names, such as s:n given with n, counts once.
     """
     tmp_logger = LogWrapper(_logger, f"get_datasets_by_name n_names={len(names)}")
     tmp_logger.debug("Start")
@@ -374,16 +412,31 @@ def get_datasets_by_name(req: PandaRequest, names: List[str]) -> Dict[str, Any]:
         message = "names must not be empty"
         tmp_logger.debug(message)
         return generate_response(False, message=message, data={"rejected": "no_keys"})
-    if len(names) > MAX_DATASET_NAMES:
-        message = f"at most {MAX_DATASET_NAMES} names are accepted, got {len(names)}"
-        tmp_logger.debug(message)
-        return generate_response(False, message=message, data={"rejected": "too_many_keys", "keys": len(names), "max_keys": MAX_DATASET_NAMES})
 
-    success, message, data = global_task_buffer.get_datasets_by_name(names, panda_config.db_read_probe_budget)
+    # each name is looked up in both of its forms, and a form shared by two names, such as s:n given
+    # with n, is looked up once for both. The given names of each key, in the order given
+    asked_as: dict[str, list[str]] = {}
+    for name in names:
+        for key in _dataset_name_forms(name):
+            asked_as.setdefault(key, []).append(name)
+    keys = list(asked_as)
+    if len(keys) > MAX_DATASET_KEYS:
+        message = f"at most {MAX_DATASET_KEYS} keys are looked up, got {len(keys)} for {len(names)} names"
+        tmp_logger.debug(message)
+        return generate_response(
+            False, message=message, data={"rejected": "too_many_keys", "keys": len(keys), "max_keys": MAX_DATASET_KEYS, "keys_per_name": KEYS_PER_DATASET_NAME}
+        )
+
+    success, message, data = global_task_buffer.get_datasets_by_name(keys, panda_config.db_read_probe_budget)
     if not success:
+        if data.get("rejected") == "probe_budget":
+            data["keys_per_name"] = KEYS_PER_DATASET_NAME
         tmp_logger.debug(f"Failed with {message}")
         return generate_response(False, message=message, data=data)
 
+    for row in data["rows"]:
+        row["asked_as"] = asked_as.get(row["name"], [])
+    data["keys_per_name"] = KEYS_PER_DATASET_NAME
     tmp_logger.debug(f"""Done with {len(data["rows"])} rows""")
     return generate_response(True, data=data)
 

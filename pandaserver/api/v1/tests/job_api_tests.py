@@ -162,14 +162,14 @@ class TestJobAPI(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertTrue(output["success"], output["message"])
         self.assertEqual(output["data"]["rows"], [])
-        self.assertLessEqual(2 * output["data"]["partitions"], output["data"]["budget"])
+        self.assertLessEqual(2 * output["data"]["keys_per_name"] * output["data"]["partitions"], output["data"]["budget"])
 
     def test_get_datasets_by_name_over_budget(self) -> None:
         # the most names a call may give, plus one
         url = f"{api_url_ssl}/job/get_datasets_by_name"
         status, output = self.http_client.post(url, {"names": ["no.such.dataset"]})
         self.assertTrue(output["success"], output["message"])
-        n_names = output["data"]["budget"] // output["data"]["partitions"] + 1
+        n_names = output["data"]["budget"] // (output["data"]["keys_per_name"] * output["data"]["partitions"]) + 1
         status, output = self.http_client.post(url, {"names": [f"no.such.dataset_sub{i}" for i in range(n_names)]})
         print(output)
         self.assertEqual(status, 0)
@@ -308,27 +308,72 @@ class TestGetDatasetsByName(unittest.TestCase):
             out = job_api.get_datasets_by_name(self._request(method), names=names)
         return out, task_buffer
 
+    # the same dataset in both forms of its name
+    SCOPED = "mc23_13p6TeV:mc23_13p6TeV.601229.PhPy8EG.evgen.EVNT.e8514_tid41234567_00"
+    BARE = "mc23_13p6TeV.601229.PhPy8EG.evgen.EVNT.e8514_tid41234567_00"
+
+    def _answer(self, *row_names: str) -> tuple[bool, str, dict[str, Any]]:
+        """A successful lookup with one row for each of the given names."""
+        return True, "", dict(self.ANSWER, rows=[{"vuid": f"vuid-{i}", "name": name} for i, name in enumerate(row_names)])
+
     def test_names_looked_up_once(self) -> None:
-        out, task_buffer = self._call(["a_sub1", "b_sub2", "a_sub1"])
+        out, task_buffer = self._call(["a.x_sub1", "b.y_sub2", "a.x_sub1"])
         self.assertTrue(out["success"], out["message"])
-        self.assertEqual(task_buffer.get_datasets_by_name.call_args[0], (["a_sub1", "b_sub2"], 1000))
+        self.assertEqual(task_buffer.get_datasets_by_name.call_args[0], (["a.x_sub1", "a:a.x_sub1", "b.y_sub2", "b:b.y_sub2"], 1000))
+
+    def test_scoped_name_looked_up_without_scope(self) -> None:
+        out, task_buffer = self._call([self.SCOPED])
+        self.assertEqual(task_buffer.get_datasets_by_name.call_args[0][0], [self.SCOPED, self.BARE])
+
+    def test_unscoped_name_looked_up_with_scope(self) -> None:
+        out, task_buffer = self._call([self.BARE])
+        self.assertEqual(task_buffer.get_datasets_by_name.call_args[0][0], [self.BARE, self.SCOPED])
+        # the scope of a user dataset is its first two parts
+        out, task_buffer = self._call(["user.alice.test.v1_sub123"])
+        self.assertEqual(task_buffer.get_datasets_by_name.call_args[0][0], ["user.alice.test.v1_sub123", "user.alice:user.alice.test.v1_sub123"])
+
+    def test_no_empty_form(self) -> None:
+        out, task_buffer = self._call(["s:"])
+        self.assertEqual(task_buffer.get_datasets_by_name.call_args[0][0], ["s:"])
+
+    def test_both_forms_given(self) -> None:
+        out, task_buffer = self._call([self.SCOPED, self.BARE], answer=self._answer(self.BARE, self.SCOPED))
+        self.assertTrue(out["success"], out["message"])
+        self.assertEqual(task_buffer.get_datasets_by_name.call_args[0][0], [self.SCOPED, self.BARE])
+        self.assertEqual([row["asked_as"] for row in out["data"]["rows"]], [[self.SCOPED, self.BARE], [self.SCOPED, self.BARE]])
+
+    def test_rows_say_which_names_they_answer(self) -> None:
+        out, task_buffer = self._call([self.SCOPED, "other.x_sub9"], answer=self._answer(self.BARE, "other:other.x_sub9"))
+        self.assertTrue(out["success"], out["message"])
+        self.assertEqual(
+            [(row["name"], row["asked_as"]) for row in out["data"]["rows"]], [(self.BARE, [self.SCOPED]), ("other:other.x_sub9", ["other.x_sub9"])]
+        )
+        self.assertEqual(out["data"]["keys_per_name"], 2)
+        self.assertEqual(out["data"]["partitions"], 5)
 
     def test_get(self) -> None:
-        out, task_buffer = self._call(["a_sub1"], method="GET")
+        out, task_buffer = self._call(["a.x_sub1"], method="GET")
         self.assertTrue(out["success"], out["message"])
-        self.assertEqual(task_buffer.get_datasets_by_name.call_args[0][0], ["a_sub1"])
+        self.assertEqual(task_buffer.get_datasets_by_name.call_args[0][0], ["a.x_sub1", "a:a.x_sub1"])
 
     def test_refused(self) -> None:
         out, task_buffer = self._call([])
         self.assertEqual((out["success"], out["data"]), (False, {"rejected": "no_keys"}))
-        out, task_buffer = self._call([f"a_sub{i}" for i in range(1001)])
-        self.assertEqual((out["success"], out["data"]), (False, {"rejected": "too_many_keys", "keys": 1001, "max_keys": 1000}))
+        # the cap counts keys, two a name
+        out, task_buffer = self._call([f"a.x_sub{i}" for i in range(501)])
+        self.assertEqual((out["success"], out["data"]), (False, {"rejected": "too_many_keys", "keys": 1002, "max_keys": 1000, "keys_per_name": 2}))
         task_buffer.get_datasets_by_name.assert_not_called()
+        out, task_buffer = self._call([f"a.x_sub{i}" for i in range(500)])
+        self.assertEqual(len(task_buffer.get_datasets_by_name.call_args[0][0]), 1000)
 
     def test_refusal_of_the_lookup_passed_on(self) -> None:
-        refusal = {"rejected": "probe_budget", "keys": 201, "partitions": 5, "budget": 1000}
-        out, task_buffer = self._call([f"a_sub{i}" for i in range(201)], answer=(False, "over", refusal))
-        self.assertEqual((out["success"], out["message"], out["data"]), (False, "over", refusal))
+        refusal = {"rejected": "probe_budget", "keys": 402, "partitions": 5, "budget": 1000}
+        out, task_buffer = self._call([f"a.x_sub{i}" for i in range(201)], answer=(False, "over", dict(refusal)))
+        self.assertEqual((out["success"], out["message"], out["data"]), (False, "over", dict(refusal, keys_per_name=2)))
+
+    def test_error_passed_on(self) -> None:
+        out, task_buffer = self._call(["a.x_sub1"], answer=(False, "database error ORA-00942", {"error": "ORA-00942"}))
+        self.assertEqual((out["success"], out["message"], out["data"]), (False, "database error ORA-00942", {"error": "ORA-00942"}))
 
 
 if __name__ == "__main__":

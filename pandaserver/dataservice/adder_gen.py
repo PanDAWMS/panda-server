@@ -19,6 +19,7 @@ import pandaserver.taskbuffer.ErrorCode
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, closer
+from pandaserver.dataservice.adder_result import AdderResult
 from pandaserver.srvcore.CoreUtils import normalize_cpu_model
 
 if TYPE_CHECKING:
@@ -89,7 +90,7 @@ class AdderGen:
         self.lock_pool = lock_pool
         self.report_dict: dict[str, Any] = {}
         self.adder_plugin: Any = None
-        self.add_result: Any = None
+        self.add_result: AdderResult | None = None
         self.adder_plugin_class: Any = None
         # logger
         self.logger = LogWrapper(_logger, str(self.job_id))

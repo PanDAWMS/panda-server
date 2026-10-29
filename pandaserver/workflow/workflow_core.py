@@ -9,7 +9,7 @@ from collections import namedtuple
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -40,6 +40,10 @@ from pandaserver.workflow.workflow_parser import (
     json_serialize_default,
     parse_raw_request,
 )
+
+if TYPE_CHECKING:
+    # imported for annotations only: set_mb_proxy() starts the message broker late
+    from pandacommon.pandamsgbkr.msg_bkr_utils import MBSenderProxy
 
 # import polars as pl  # isort:skip
 
@@ -185,7 +189,7 @@ class WorkflowInterface(object):
         self.ddm_if = rucioAPI
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
         self.plugin_map: dict[str, dict[str, Any]] = {}
-        self.mb_proxy: Any = None
+        self.mb_proxy: "MBSenderProxy | None" = None
         self.set_mb_proxy()
 
     def get_plugin(self, plugin_type: str, flavor: str) -> Any:

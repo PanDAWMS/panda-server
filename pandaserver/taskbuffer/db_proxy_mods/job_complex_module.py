@@ -2912,9 +2912,12 @@ class JobComplexModule(BaseModule):
                     tmp_log.error("recordStatusChange in getJobs")
                 self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 if via_topic and job.is_push_job():
-                    tmp_log.debug("delete job message")
                     mb_proxy_queue = self.get_mb_proxy("panda_pilot_queue")
-                    srv_msg_utils.delete_job_message(mb_proxy_queue, job.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    if mb_proxy_queue:
+                        tmp_log.debug("delete job message")
+                        srv_msg_utils.delete_job_message(mb_proxy_queue, job.PandaID)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    else:
+                        tmp_log.debug("message queue not configured")
             return retJobs, nSent
         except Exception:
             self.dump_error_message(tmp_log)
