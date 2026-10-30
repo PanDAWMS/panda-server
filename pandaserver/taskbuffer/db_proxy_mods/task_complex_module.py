@@ -2295,7 +2295,7 @@ class TaskComplexModule(BaseModule):
                     sql_n_hpo_jobs = f"SELECT total_req_jobs FROM {panda_config.schemaDEFT}.T_TASK "
                     sql_n_hpo_jobs += "WHERE taskid=:taskid "
                     var_map = {}
-                    var_map[":taskID"] = jedi_task_id
+                    var_map[":taskid"] = jedi_task_id
                     self.cur.execute(sql_n_hpo_jobs + comment, var_map)
                     (tmp_num_hpo_jobs,) = self.cur.fetchone()
                     if tmp_num_hpo_jobs >= num_max_hpo_jobs:
