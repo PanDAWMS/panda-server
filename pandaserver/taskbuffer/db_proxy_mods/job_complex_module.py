@@ -2362,7 +2362,7 @@ class JobComplexModule(BaseModule):
 
         sql_where_clause, getValMapOrig = build_where_clause()
 
-        retJobs = []
+        retJobs: list[JobSpec] = []
         nSent = 0
 
         try:
@@ -2483,6 +2483,22 @@ class JobComplexModule(BaseModule):
 
                                 # start transaction
                                 self.conn.begin()
+                                # Lock the parent before changing any candidate job.
+                                if harvester_id is not None and worker_id is not None:
+                                    self.cur.execute(
+                                        "SELECT status FROM ATLAS_PANDA.Harvester_Workers "
+                                        "WHERE harvesterID=:harvesterID AND workerID=:workerID FOR UPDATE" + comment,
+                                        {":harvesterID": harvester_id, ":workerID": worker_id},
+                                    )
+                                    dispatch_parent = self.cur.fetchone()
+                                    if dispatch_parent is not None and dispatch_parent[0] in ("finished", "failed", "cancelled", "missed"):
+                                        tmp_log.warning(
+                                            f"Refusing new dispatch to terminal worker "
+                                            f"harvesterID={harvester_id} workerID={worker_id} "
+                                            f"status={dispatch_parent[0]}"
+                                        )
+                                        self._rollback()
+                                        return retJobs, nSent
                                 # pre-lock
                                 prelocked = False
                                 try:
