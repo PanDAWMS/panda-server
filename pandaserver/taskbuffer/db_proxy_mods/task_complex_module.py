@@ -4488,22 +4488,24 @@ class TaskComplexModule(BaseModule):
                             tmpLog.debug(f"skip updated jediTaskID={jediTaskID}")
                             toSkip = True
                         else:
-                            # update T_TASK
+                            # dummy means the task went back to oldStatus (resume)
+                            actualNewStatus = taskOldStatus if newTaskStatus == "dummy" else newTaskStatus
+                            # update T_TASK, judged on the status the task lands in, so a resume
+                            # (dummy) clears the paused superStatus and DEFT status
                             if (
-                                newTaskStatus in ["paused"]
-                                or (newTaskStatus in ["running", "ready", "scouting"] and taskStatus in ["paused", "exhausted"])
-                                or newTaskStatus in ["staged"]
+                                actualNewStatus in ["paused"]
+                                or (actualNewStatus in ["running", "ready", "scouting"] and taskStatus in ["paused", "exhausted"])
+                                or actualNewStatus in ["staged"]
                             ):
-                                if newTaskStatus == "scouting":
+                                if actualNewStatus == "scouting":
                                     deftStatus = "submitting"
-                                elif newTaskStatus == "staged":
+                                elif actualNewStatus == "staged":
                                     deftStatus = "registered"
                                 else:
-                                    deftStatus = newTaskStatus
+                                    deftStatus = actualNewStatus
                                 self.setDeftStatus_JEDI(jediTaskID, deftStatus)
                                 self.setSuperStatus_JEDI(jediTaskID, deftStatus)
-                            # task status logging; dummy means the task went back to oldStatus
-                            actualNewStatus = taskOldStatus if newTaskStatus == "dummy" else newTaskStatus
+                            # task status logging
                             if actualNewStatus != taskStatus:
                                 self.record_task_status_change(jediTaskID)
                                 self.push_task_status_message(None, jediTaskID, actualNewStatus, splitRule)
