@@ -192,7 +192,7 @@ class MiscStandaloneModule(BaseModule):
 
     # update modificationtime for a jediTaskID to trigger subsequent process
     def updateTaskModTimeJEDI(self, jediTaskID: int, newStatus: str | None) -> bool:
-        comment = " /* DBProxy.updateTaskErrorDialogJEDI */"
+        comment = " /* DBProxy.updateTaskModTimeJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"<jediTaskID={jediTaskID}>")
         tmp_log.debug("start")
         try:
@@ -3346,7 +3346,7 @@ class MiscStandaloneModule(BaseModule):
 
     # get LFNs in datasets
     def get_files_in_datasets(self, task_id: int, dataset_types: str | Sequence[str], dataset_only: bool = False) -> list[dict[str, Any]] | None:
-        comment = " /* DBProxy.get_lfns_in_datasets */"
+        comment = " /* DBProxy.get_files_in_datasets */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
         tmp_log.debug("start")
         try:

@@ -968,7 +968,7 @@ class JobStandaloneModule(BaseModule):
 
     # add metadata
     def addMetadata(self, pandaID: int, metadata: str, newStatus: str) -> bool:
-        comment = " /* DBProxy.addMetaData */"
+        comment = " /* DBProxy.addMetadata */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug("start")
         # discard metadata for failed jobs

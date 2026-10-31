@@ -380,7 +380,7 @@ class MetricsModule(BaseModule):
         frozen_status_list = ("done", "finished", "failed", "broken", "paused", "exhausted")
         if task_status is not None and task_status not in frozen_status_list:
             return None
-        comment = " /* DBProxy.record_task_active_period */"
+        comment = " /* DBProxy.unset_task_activated_time */"
         tmp_log = self.create_tagged_logger(comment, f"JediTaskID={jedi_task_id}")
         tmp_log.debug("start")
         # get activated time

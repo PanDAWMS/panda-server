@@ -3421,7 +3421,7 @@ class TaskEventModule(BaseModule):
 
     # get parent task id
     def get_parent_task_id_with_name(self, user_name: str, parent_name: str) -> int | None:
-        comment = " /* DBProxy.get_task_id_with_dataset */"
+        comment = " /* DBProxy.get_parent_task_id_with_name */"
         tmp_log = self.create_tagged_logger(comment, f"userName={user_name}")
         try:
             tmp_log.debug(f"try to find parent={parent_name}")
@@ -3893,7 +3893,7 @@ class TaskEventModule(BaseModule):
 
     def validate_ownership_or_production_role(self, task_id: int, dn: str, production_role: bool) -> bool:
         """Return True if the user owns the task or has production role, False otherwise."""
-        comment = " /* JediDBProxy.validate_task_permissions */"
+        comment = " /* JediDBProxy.validate_ownership_or_production_role */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
 
         compact_dn = CoreUtils.clean_user_id(dn)

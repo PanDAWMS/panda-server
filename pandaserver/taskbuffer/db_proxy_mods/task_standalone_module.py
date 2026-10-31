@@ -39,7 +39,7 @@ class TaskStandaloneModule(BaseModule):
 
     # get files from the JEDI contents table with jediTaskID and/or datasetID
     def getFilesInDatasetWithID_JEDI(self, jediTaskID: int | None, datasetID: int | None, nFiles: int | None, status: str | None) -> tuple[bool, Any]:
-        comment = " /* JediDBProxy.getFilesInDataset_JEDI */"
+        comment = " /* JediDBProxy.getFilesInDatasetWithID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID}")
         tmpLog.debug(f"start nFiles={nFiles} status={status}")
         # return value for failure
