@@ -8,6 +8,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.srvcore import CoreUtils
 
 if TYPE_CHECKING:
+    from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
     from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
@@ -90,12 +91,13 @@ class InputChunk:
         # list of bootstrapped sites
         self.bootstrapped: set[str] = set()
 
-    # add master dataset
-    def addMasterDS(self, masterDataset: Any) -> None:
+    # add master dataset. The parameter carries the type and the attribute does not, for the
+    # reason the note in __init__ gives, so the dataset's columns are read from the parameter
+    def addMasterDS(self, masterDataset: "JediDatasetSpec | None") -> None:
         if masterDataset is not None:
             self.masterDataset = masterDataset
-            self.masterIndexName = self.masterDataset.datasetID
-            self.datasetMap[self.masterDataset.datasetID] = {"used": 0, "datasetSpec": masterDataset}
+            self.masterIndexName = masterDataset.datasetID
+            self.datasetMap[masterDataset.datasetID] = {"used": 0, "datasetSpec": masterDataset}
 
     # add secondary dataset
     def addSecondaryDS(self, secondaryDataset: Any) -> None:
