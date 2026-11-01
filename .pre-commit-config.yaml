@@ -22,7 +22,7 @@ repos:
     -   id: ruff-format
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.3.1
+    rev: v2.4.1
     hooks:
     # The tree is clean under the flags in [tool.mypy], so the gate is mypy itself: any
     # finding fails the hook. Do not swap it for a count -- annotating a function turns on
