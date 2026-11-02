@@ -43,7 +43,7 @@ repos:
     -   id: mypy
         args: []
         additional_dependencies:
-        -   types-requests==2.33.0.20260906
+        -   types-requests==2.33.0.20261006
         -   types-PyYAML==6.0.12.20260906
         pass_filenames: false
 
