@@ -1,5 +1,6 @@
 import ast
 import collections.abc
+import datetime
 import inspect
 import json
 import logging
@@ -68,6 +69,22 @@ def extract_allowed_methods(module: ModuleType) -> list[str]:
 def generate_response(success: bool, message: str | None = "", data: Any = None) -> dict[str, Any]:
     response = {"success": success, "message": message, "data": data}
     return response
+
+
+def parse_utc_time(value: str) -> datetime.datetime:
+    """
+    Read a time given in ISO 8601, e.g. `2026-10-12 14:30:45`, as a naive datetime in UTC.
+
+    Args:
+        value(str): the time; without a UTC offset it is taken to be in UTC already
+
+    Returns:
+        datetime: the time in UTC without tzinfo, as the database columns hold it
+    """
+    parsed = datetime.datetime.fromisoformat(value)
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    return parsed
 
 
 # get FQANs

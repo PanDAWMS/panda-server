@@ -1,10 +1,12 @@
 # Description: Unit tests for the handler of the async grep requests. They run rg on log files
 # written to a temporary directory, so they are skipped where rg is not installed
+import datetime
 import gzip
 import json
 import os
 import shutil
 import tempfile
+import threading
 import unittest
 from types import SimpleNamespace
 from typing import Any
@@ -40,8 +42,9 @@ def record(first: int, end: int, lines: list[str] = RECORDS, head: bool = True, 
     return {"offset": offset(first, lines), "head": head, "lines": [line.removesuffix("\n") for line in lines[first:end]], "cut": cut}
 
 
-@unittest.skipUnless(shutil.which("rg"), "rg is not installed")
-class TestHandleGrep(unittest.TestCase):
+class _GrepCase(unittest.TestCase):
+    """Runs the grep handler on logs written to a temporary log directory."""
+
     def setUp(self) -> None:
         self.logdir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.logdir)
@@ -61,6 +64,9 @@ class TestHandleGrep(unittest.TestCase):
         args, kwargs = task_buffer.finish_async_result.call_args
         return {"status": args[2], **kwargs}
 
+
+@unittest.skipUnless(shutil.which("rg"), "rg is not installed")
+class TestHandleGrep(_GrepCase):
     def test_pattern_starting_with_a_dash_is_searched_for(self) -> None:
         # in the place of an argument of its own, rg would read it as --pre and run the command
         # on every file under the working directory
@@ -167,7 +173,10 @@ class TestHandleGrep(unittest.TestCase):
         out = self._grep(pattern="raise X|ddm.py|7353014619", log_filename="panda-a.log", whole_records=True, tail_bytes=tail_bytes)
         self.assertEqual(
             json.loads(out["result"]),
-            {"records": [record(4, 6, head=False), record(7, 8)], "window": {"offset": offset(4), "first_stamp": "2026-10-08 00:00:03"}},
+            {
+                "records": [record(4, 6, head=False), record(7, 8)],
+                "window": {"offset": offset(4), "first_stamp": "2026-10-08 00:00:03", "end": None, "end_stamp": None, "cut": False},
+            },
         )
 
     def test_tail_window_starts_with_a_whole_line(self) -> None:
@@ -222,6 +231,196 @@ class TestHandleGrep(unittest.TestCase):
         ):
             out = self._grep(pattern="x", log_filename="panda-a.log")
         self.assertEqual((out["status"], out["error_msg"]), ("failed", "timeout"))
+
+
+# when the records of a timed log start, one a second
+LOG_START = datetime.datetime(2026, 11, 2, 10, 0, 0)
+
+# the lines of a traceback, long enough that no time stamp is found from a point within it
+LONG_TRACEBACK = ["Traceback (most recent call last):\n"] + [f'  File "/opt/frame{i:02d}.py", line {i}, in f\n' for i in range(12)] + ["ValueError: boom\n"]
+
+
+def at(second: float) -> str:
+    """The time that many seconds after LOG_START, as submit_grep_request stores it."""
+    return (LOG_START + datetime.timedelta(seconds=second)).isoformat(sep=" ")
+
+
+def timed_log(order: list[int] | None = None, tracebacks: dict[int, list[str]] | None = None) -> list[str]:
+    """
+    The lines of a log of a record a second, "record N" stamped N seconds after LOG_START.
+
+    Args:
+        order: the seconds of the records in the order of the file, 0 to 599 by default
+        tracebacks: the lines that follow the first line of the record of a second
+    """
+    lines: list[str] = []
+    for second in range(600) if order is None else order:
+        lines.append(f"{LOG_START + datetime.timedelta(seconds=second):%Y-%m-%d %H:%M:%S},000 adder: DEBUG record {second:03d}\n")
+        lines += (tracebacks or {}).get(second, [])
+    return lines
+
+
+@unittest.skipUnless(shutil.which("rg"), "rg is not installed")
+class TestTimeWindow(_GrepCase):
+    """A grep of a plain file over the bytes of a time window, found by bisecting the file on its time stamps."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        # a file of a few tens of kilobytes then takes several steps to bisect, and a few
+        # seconds of slack keep the window narrow there
+        for name, value in (("_WINDOW_STAMP_SCAN_BYTES", 200), ("_WINDOW_SLACK", datetime.timedelta(seconds=2))):
+            patcher = mock.patch.object(processor, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _assert_window(self, out: dict[str, Any], lines: list[str], since: int | None, until: int | None) -> list[int]:
+        """
+        Check what a grep for "record" over a time window of a timed log gave.
+
+        Every record from where the window starts to where it ends comes whole, the
+        window starts and ends at records stamped beyond the slack, and every record
+        stamped within it is among them.
+
+        Returns:
+            the seconds of the records given, in the order of the file
+        """
+        self.assertEqual(out["status"], "done")
+        self.assertFalse(out["truncated"])
+        result = json.loads(out["result"])
+        window = result["window"]
+        starts = [i for i, line in enumerate(lines) if processor._RECORD_START.match(line)]
+        by_offset = {offset(i, lines): n for n, i in enumerate(starts)}
+        given = [by_offset[r["offset"]] for r in result["records"]]
+        self.assertEqual(given, list(range(given[0], given[-1] + 1)), "the records from the start of the window to its end")
+        ends = starts[1:] + [len(lines)]
+        self.assertEqual(result["records"], [record(starts[n], ends[n], lines) for n in given])
+        first = starts[given[0]]
+        self.assertEqual((window["offset"], window["first_stamp"]), (offset(first, lines), lines[first][:19]))
+        if given[-1] + 1 < len(starts):
+            after = starts[given[-1] + 1]
+            self.assertEqual((window["end"], window["end_stamp"]), (offset(after, lines), lines[after][:19]))
+        else:
+            self.assertEqual((window["end"], window["end_stamp"]), (None, None))
+        self.assertFalse(window["cut"])
+        seconds = [int(lines[starts[n]].split()[-1]) for n in given]
+        if since is not None and window["offset"] > 0:
+            self.assertLess(lines[first][:19], at(since - 2)[:19])
+        if until is not None and window["end"] is not None:
+            self.assertGreaterEqual(window["end_stamp"], at(until + 2)[:19])
+        self.assertLessEqual(set(range(since or 0, 600 if until is None else until)), set(seconds))
+        return seconds
+
+    def test_window(self) -> None:
+        lines = timed_log()
+        self._write("panda-a.log", "".join(lines))
+        out = self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, since=at(300), until=at(310))
+        seconds = self._assert_window(out, lines, 300, 310)
+        # and not much more than the window and its slack
+        self.assertLess(len(seconds), 40)
+
+    def test_window_with_tracebacks(self) -> None:
+        # the window ends at a record, so that one with a traceback right before its end comes whole
+        tracebacks = {second: RECORDS[2:6] for second in range(290, 330)}
+        lines = timed_log(tracebacks=tracebacks)
+        self._write("panda-a.log", "".join(lines))
+        out = self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, since=at(300), until=at(310))
+        self._assert_window(out, lines, 300, 310)
+
+    def test_records_out_of_order(self) -> None:
+        # a record written after one stamped up to the slack before it is still searched,
+        # at either end of the window
+        order = list(range(600))
+        order[299], order[300] = 300, 299
+        order[309], order[310] = 310, 309
+        lines = timed_log(order)
+        self._write("panda-a.log", "".join(lines))
+        out = self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, since=at(300), until=at(310))
+        self._assert_window(out, lines, 300, 310)
+
+    def test_lines_without_stamps(self) -> None:
+        # where no stamp is found from a point, the window widens rather than narrows
+        tracebacks = {second: LONG_TRACEBACK for second in (296, 297, 303, 311, 312, 313)}
+        lines = timed_log(tracebacks=tracebacks)
+        self._write("panda-a.log", "".join(lines))
+        out = self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, since=at(300), until=at(310))
+        self._assert_window(out, lines, 300, 310)
+
+    def test_window_beyond_the_file(self) -> None:
+        lines = timed_log()
+        self._write("panda-a.log", "".join(lines))
+        out = self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, since=at(-3600), until=at(3600))
+        self.assertEqual(self._assert_window(out, lines, None, None), list(range(600)))
+        self.assertEqual(json.loads(out["result"])["window"]["offset"], 0)
+
+    def test_open_ends(self) -> None:
+        lines = timed_log()
+        self._write("panda-a.log", "".join(lines))
+        # without until the window runs to the end of the file, and without since it starts at its start
+        seconds = self._assert_window(self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, since=at(300)), lines, 300, None)
+        self.assertEqual(seconds[-1], 599)
+        seconds = self._assert_window(self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, until=at(310)), lines, None, 310)
+        self.assertEqual(seconds[0], 0)
+
+    def test_window_cut(self) -> None:
+        # a window of more bytes than are searched is cut at a record, which says so, and the
+        # result is not truncated for it
+        lines = timed_log()
+        self._write("panda-a.log", "".join(lines))
+        with mock.patch.object(processor, "_MAX_WINDOW_BYTES", 1000):
+            out = self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, since=at(300), until=at(400))
+        self.assertFalse(out["truncated"])
+        result = json.loads(out["result"])
+        window = result["window"]
+        self.assertTrue(window["cut"])
+        starts = {offset(i, lines): i for i in range(len(lines))}
+        end = starts[window["end"]]
+        self.assertEqual(window["end_stamp"], lines[end][:19])
+        self.assertTrue(1000 <= window["end"] - window["offset"] < 1000 + len(lines[0]))
+        first = starts[window["offset"]]
+        self.assertEqual(result["records"], [record(i, i + 1, lines) for i in range(first, end)])
+
+    def test_no_stamps(self) -> None:
+        # a file without time stamps is searched from its start
+        self._write("panda-a.log", "".join(f"line {i}\n" for i in range(600)))
+        out = self._grep(pattern="line", log_filename="panda-a.log", whole_records=True, since=at(300), until=at(310))
+        result = json.loads(out["result"])
+        self.assertEqual(result["window"], {"offset": 0, "first_stamp": None, "end": None, "end_stamp": None, "cut": False})
+        self.assertEqual(sum(len(r["lines"]) for r in result["records"]), 600)
+
+    def _assert_no_reader(self) -> None:
+        self.assertNotIn(processor._READER_THREAD_NAME, [thread.name for thread in threading.enumerate()])
+
+    def test_reader_stops_with_the_matcher(self) -> None:
+        # a window larger than a pipe holds, and a matcher that stops early, at max_matches, at
+        # the result cap, or at the timeout: the thread passing the window ends with it
+        self._write("panda-a.log", "".join(timed_log()) * 200)
+        out = self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, since=at(0), max_matches=1)
+        self.assertEqual((out["status"], out["truncated"]), ("done", True))
+        self._assert_no_reader()
+        with mock.patch.object(processor, "_MAX_RESULT_BYTES", 3000):
+            out = self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, since=at(0))
+        self.assertEqual((out["status"], out["truncated"]), ("done", True))
+        self._assert_no_reader()
+        with (
+            mock.patch.object(processor, "_bounded_matcher", return_value=["sleep", "10"]),
+            mock.patch.object(processor, "_SUBPROCESS_TIMEOUT", 0.2),
+        ):
+            out = self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, since=at(0))
+        self.assertEqual((out["status"], out["error_msg"]), ("failed", "timeout"))
+        self._assert_no_reader()
+
+    def test_read_error(self) -> None:
+        # a window read only in part is not taken for one searched whole
+        def fail(f: Any, start: int, end: int | None, sink: int, errors: list[Exception]) -> None:
+            os.close(sink)
+            errors.append(OSError(5, "Input/output error"))
+
+        self._write("panda-a.log", "".join(timed_log()))
+        with mock.patch.object(processor, "_feed", fail):
+            out = self._grep(pattern="record", log_filename="panda-a.log", whole_records=True, since=at(300), until=at(310))
+        self.assertEqual(out["status"], "failed")
+        self.assertIn("Input/output error", out["error_msg"])
+        self._assert_no_reader()
 
 
 class TestHandleLogList(unittest.TestCase):

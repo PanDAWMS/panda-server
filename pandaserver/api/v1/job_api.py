@@ -15,6 +15,7 @@ from pandaserver.api.v1.common import (
     get_email_address,
     get_fqan,
     has_production_role,
+    parse_utc_time,
     request_validation,
 )
 from pandaserver.config import panda_config
@@ -50,22 +51,6 @@ KEYS_PER_DATASET_NAME = 2
 # a job created at 00:00:02 may have its first row at 23:59:57 of the day before; widening to the
 # day alone would leave that row out
 STATUS_HISTORY_CLOCK_SLACK = datetime.timedelta(minutes=10)
-
-
-def _parse_utc_time(value: str) -> datetime.datetime:
-    """
-    Read a time given in ISO 8601, e.g. `2026-10-12 14:30:45`, as a naive datetime in UTC.
-
-    Args:
-        value(str): the time; without a UTC offset it is taken to be in UTC already
-
-    Returns:
-        datetime: the time in UTC without tzinfo, as the database columns hold it
-    """
-    parsed = datetime.datetime.fromisoformat(value)
-    if parsed.tzinfo is not None:
-        parsed = parsed.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-    return parsed
 
 
 def _dataset_name_forms(name: str) -> list[str]:
@@ -322,9 +307,9 @@ def get_status_history(req: PandaRequest, job_ids: List[int], since: str | None 
     until_time: datetime.datetime | None = None
     try:
         if since:
-            since_time = (_parse_utc_time(since) - STATUS_HISTORY_CLOCK_SLACK).replace(hour=0, minute=0, second=0, microsecond=0)
+            since_time = (parse_utc_time(since) - STATUS_HISTORY_CLOCK_SLACK).replace(hour=0, minute=0, second=0, microsecond=0)
         if until:
-            until_slack = _parse_utc_time(until) + STATUS_HISTORY_CLOCK_SLACK
+            until_slack = parse_utc_time(until) + STATUS_HISTORY_CLOCK_SLACK
             until_time = until_slack.replace(hour=0, minute=0, second=0, microsecond=0)
             if until_time != until_slack:
                 until_time += datetime.timedelta(days=1)
@@ -332,7 +317,7 @@ def get_status_history(req: PandaRequest, job_ids: List[int], since: str | None 
         message = f"invalid since or until: {e}"
         tmp_logger.debug(message)
         return generate_response(False, message=message, data={"rejected": "invalid_window"})
-    if since and until and _parse_utc_time(since) >= _parse_utc_time(until):
+    if since and until and parse_utc_time(since) >= parse_utc_time(until):
         message = f"since={since} must be before until={until}"
         tmp_logger.debug(message)
         return generate_response(False, message=message, data={"rejected": "invalid_window"})
