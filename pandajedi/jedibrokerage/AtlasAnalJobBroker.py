@@ -316,7 +316,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
             min_weight = 0
 
         # throttle User Analysis tasks when close to gshare target
-        if taskSpec.gshare in ["User Analysis"] and gshare_usage_dict and task_eval_dict:
+        if taskSpec.gshare in ["User Analysis"] and gshare_usage_dict and task_eval_dict and not inputChunk.isMerging:
             try:
                 usage_percent = gshare_usage_dict["usage_perc"] * 100
                 if l1_share_usage_dict and l1_share_usage_dict.get("eqiv_usage_perc") is not None:
