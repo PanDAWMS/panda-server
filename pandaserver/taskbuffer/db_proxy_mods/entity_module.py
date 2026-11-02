@@ -623,7 +623,7 @@ class EntityModule(BaseModule):
         """
         Retrieve the relevant task parameters and reset the resource type
         """
-        comment = " /* JediDBProxy.reset_resource_type */"
+        comment = " /* JediDBProxy.reset_resource_type_task */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
 
@@ -855,7 +855,7 @@ class EntityModule(BaseModule):
 
     # get selection criteria for share of production activities
     def getCriteriaForGlobalShares(self, site_name: str, max_jobs: int) -> tuple[str, dict[str, Any]]:
-        comment = " /* DBProxy.getCriteriaForGlobalShare */"
+        comment = " /* DBProxy.getCriteriaForGlobalShares */"
         tmp_log = self.create_tagged_logger(comment)
         # return for no criteria
         var_map: dict[str, Any] = {}
@@ -2529,7 +2529,7 @@ class EntityModule(BaseModule):
             return set()
 
     def configurator_read_panda_sites(self) -> set[str]:
-        comment = " /* DBProxy.configurator_read_sites */"
+        comment = " /* DBProxy.configurator_read_panda_sites */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
 
@@ -2724,7 +2724,7 @@ class EntityModule(BaseModule):
             return -1, None
 
     def carbon_write_region_emissions(self, emissions: list[dict[str, Any]]) -> tuple[int, str | None]:
-        comment = " /* DBProxy.carbon_write_regional_emissions */"
+        comment = " /* DBProxy.carbon_write_region_emissions */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
 
@@ -3156,7 +3156,7 @@ class EntityModule(BaseModule):
 
     # get ban users
     def get_ban_users(self) -> tuple[bool, dict[str, Any] | None]:
-        comment = " /* DBProxy.get_ban_user */"
+        comment = " /* DBProxy.get_ban_users */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
         # sql

@@ -5,10 +5,14 @@ This list is the allowlist itself: a table that is not here cannot be read, what
 request says, so it is meant to be reviewed by hand whenever it changes. The first list
 takes the tables the code reads most often, counted over the places in the code that read
 the database, leaving out users (it holds DNs and mail addresses); filesTable_ARCH and
-CONFIG were added for the coverage they bring. Secrets and proxykey are never to be listed.
+CONFIG were added for the coverage they bring, and jobs_StatusLog and TASKS_STATUSLOG
+after them. Secrets and proxykey are never to be listed.
 
-The job and task status logs are not here: GET /v1/job/get_status_history and
-GET /v1/task/get_status_history read them.
+GET /v1/job/get_status_history and GET /v1/task/get_status_history read the status logs
+too. The first widens its window by STATUS_HISTORY_CLOCK_SLACK (api/v1/job_api.py) and to
+whole days, while a db_read takes a window as given: jobs_StatusLog is written with the
+database clock and creationTime with the clock of a server, so a window that starts at a
+creationTime may miss the first rows of a job by the skew between the two.
 """
 
 from dataclasses import dataclass
@@ -51,6 +55,8 @@ _TABLES = (
     AllowedTable("data_carousel_relations", "schemaJEDI"),
     AllowedTable("filesTable_ARCH", "schemaPANDAARCH"),
     AllowedTable("CONFIG", "schemaPANDA"),
+    AllowedTable("jobs_StatusLog", "schemaPANDA"),
+    AllowedTable("TASKS_STATUSLOG", "schemaJEDI"),
 )
 
 ALLOWED_TABLES: dict[str, AllowedTable] = {table.name.lower(): table for table in _TABLES}

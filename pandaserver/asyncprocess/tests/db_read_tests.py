@@ -131,7 +131,9 @@ class TestParseQuery(unittest.TestCase):
 
     def test_tables(self) -> None:
         self.assertRejected("unknown_table", {"tables": ["users"]})
-        self.assertRejected("unknown_table", {"tables": ["jobs_StatusLog"]})
+        self.assertRejected("unknown_table", {"tables": ["proxykey"]})
+        self.assertEqual([table.name for table in parse({"tables": ["jobs_statuslog"]}).tables], ["jobs_StatusLog"])
+        self.assertEqual([table.name for table in parse({"tables": ["tasks_statuslog"]}).tables], ["TASKS_STATUSLOG"])
         self.assertRejected("bad_shape", {"tables": []})
         self.assertRejected("bad_shape", {"tables": ["jobsActive4", "JOBSACTIVE4"]})
         self.assertRejected("bad_shape", {"tables": ["jobsActive4"], "colums": ["pandaid"]})
