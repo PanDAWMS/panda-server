@@ -3,6 +3,7 @@ API endpoints for submitting and polling async processing requests.
 Currently supports grep (rg) on log files and listing them; extensible to other request types.
 """
 
+import datetime
 import json
 import os
 import uuid
@@ -16,6 +17,7 @@ from pandaserver.api.v1.common import (
     generate_response,
     get_dn,
     is_authorized_to_read,
+    parse_utc_time,
     request_validation,
     set_owner_info,
 )
@@ -76,10 +78,11 @@ TERMINAL_STATUSES = ("done", "failed")
 # the 1 MB a result can store, so neither bound is about the daemon's memory.
 # MAX_MATCH_LIMIT only ever removes output the caller could not have received
 # anyway.  MAX_TAIL_BYTES is about time: a grep is stopped after 240 s, and the
-# disk of a production server read its live log at 16 MB/s on a slow day
-# (2026-10), which reads 3 GiB in about 200 s and 4 GiB in about 260 s.  3 GiB
-# is about five hours of panda-DBProxy.log.  A grep without tail_bytes reads
-# the whole file, under the same 240 s.
+# disks of the production servers read their live logs cold at 7 to 33 MB/s
+# (2026-10 and 11), which reads 3 GiB in 100 to 460 s, so on a slow day the
+# widest tail does not finish.  3 GiB is about five hours of panda-DBProxy.log.
+# A grep without tail_bytes reads the whole file, under the same 240 s.  For a
+# plain file, since and until read only the bytes of a time window instead.
 MAX_MATCH_LIMIT = 200000  # ceiling on max_matches
 MAX_TAIL_BYTES = 3 << 30  # 3 GiB
 # most fixed strings one grep may look for, and the longest of them. Each goes on the command line of
@@ -185,6 +188,8 @@ def submit_grep_request(
     max_matches: int | None = None,
     tail_bytes: int | None = None,
     whole_records: bool = False,
+    since: str | None = None,
+    until: str | None = None,
 ) -> Dict[str, Any]:
     """
     Submit a grep request
@@ -214,8 +219,8 @@ def submit_grep_request(
         tail_bytes(int): search only the last this many bytes of the file (1..3221225472),
             which is how to ask about recent activity in a multi-gigabyte log. The search starts
             with the first whole line there. Ignored for .gz files, where an arbitrary offset is
-            not a valid stream. On a slow disk the widest window takes about 200 of the 240 s
-            a grep may run
+            not a valid stream. Cold disks read 7 to 33 MB/s, so on a slow day the widest window
+            does not finish in the 240 s a grep may run; since and until read fewer bytes
         whole_records(bool): give each matching line with the rest of its log record: the lines after it that do not
             start with a time stamp (YYYY-MM-DD HH:MM:SS), such as those of a traceback, up to the next line that
             does. A record comes with at most 200 lines after its matching line. The result of each machine is then
@@ -225,10 +230,28 @@ def submit_grep_request(
               same in any request until the file is rotated. head is false when that line matched within the lines
               of a record whose first line did not match, and so is not the start of its record. cut is true when
               the record has more lines than were given, which sets truncated too. lines come without line breaks
-            - window: for tail_bytes, {"offset": int, "first_stamp": str or None}: where the search started, and
-              the time stamp of the first line from there that starts with one. Every record starting at or after
-              that line was searched whole; null without tail_bytes
+            - window: for tail_bytes, since or until, the bytes searched:
+              {"offset": int, "first_stamp": str or None, "end": int or None, "end_stamp": str or None, "cut": bool}.
+              offset is where the search started, and first_stamp the time stamp of the first line from there that
+              starts with one. end is where it stopped, the start of a record that was not searched, and end_stamp
+              the time stamp of that record; both are null when the search ran to the end of the file as it was when
+              read, as it always does for tail_bytes. Every record starting at or after offset and before end was
+              searched whole. cut is true when a time window was cut at 1 GiB, so that it covers less than was asked:
+              ask again with since set to end_stamp. A cut window does not set truncated, which keeps meaning that
+              the result over the bytes searched is not whole, as it calls for asking differently rather than further.
+              null without tail_bytes, since or until, or from a machine whose processor predates them
             Defaults to False, the matching lines alone as they are in the file
+        since(str): search only the bytes of the file that hold the records at or after this time, in UTC, e.g.
+            `2026-11-02 13:02:12` (ISO 8601 is accepted, and a time with a UTC offset is converted). The time stamps
+            of the logs are in UTC. The file is bisected on its time stamps, so a narrow window of a log of many
+            gigabytes reads a few megabytes. The bytes searched start at a record stamped at least 60 s before
+            since, for records written out of order. That covers the order within the file only: a difference
+            between the clock the time comes from and the machine's clock is for the caller to widen the window
+            by. Only for a plain file, together with whole_records, and not with tail_bytes. Without until, the
+            search runs to the end of the file. A window of more than 1 GiB is cut, as window tells
+        until(str): search only the bytes that hold the records before this time, in the same format; they end at a
+            record stamped at least 60 s after until. Without since, the search starts at the beginning of the file.
+            When both are given, since must be before until
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
@@ -284,6 +307,27 @@ def submit_grep_request(
         tmp_logger.warning(msg)
         return generate_response(False, msg)
 
+    # a time window, which only whole_records can say how much of was searched, as it may be cut
+    window_times: dict[str, datetime.datetime] = {}
+    if since is not None or until is not None:
+        msg = ""
+        if tail_bytes is not None:
+            msg = "since and until cannot be given together with tail_bytes"
+        elif log_filename.endswith(".gz"):
+            msg = "since and until are only for a plain file, not a .gz"
+        elif not whole_records:
+            msg = "since and until need whole_records, whose window says which bytes were searched"
+        else:
+            try:
+                window_times = {name: parse_utc_time(value) for name, value in (("since", since), ("until", until)) if value is not None}
+            except ValueError as e:
+                msg = f"invalid since or until: {e}"
+            if not msg and len(window_times) == 2 and window_times["since"] >= window_times["until"]:
+                msg = f"since={since} must be before until={until}"
+        if msg:
+            tmp_logger.warning(msg)
+            return generate_response(False, msg)
+
     # determine expected machines from liveness snapshot
     expected, msg = _expected_machines(service_name, machine_name, tmp_logger)
     if expected is None:
@@ -302,6 +346,9 @@ def submit_grep_request(
         grep_parameters["tail_bytes"] = int(tail_bytes)
     if whole_records:
         grep_parameters["whole_records"] = True
+    # in UTC without an offset, as the processor compares them with the time stamps of the log
+    for name, value in window_times.items():
+        grep_parameters[name] = value.isoformat(sep=" ")
     parameters = set_owner_info(grep_parameters, req)  # grep results stay owner-only
     parameters_json = json.dumps(parameters)
     expected_machines_json = json.dumps(expected)

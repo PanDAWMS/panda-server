@@ -593,6 +593,8 @@ class TaskRefinerThread(WorkerThread):
                                 # unset pre-process flag
                                 if impl.taskSpec.checkPreProcessed():
                                     impl.taskSpec.setPostPreProcess()
+                                # if taskStatus == "staged":
+                                #    impl.taskSpec.reserve_old_attributes()
                                 # full registration
                                 tmpStat, newTaskStatus = self.taskBufferIF.registerTaskInOneShot_JEDI(
                                     jediTaskID,
@@ -632,8 +634,11 @@ class TaskRefinerThread(WorkerThread):
                                 if not impl.taskSpec.useScout(splitRule):
                                     impl.taskSpec.setUseScout(False)
                                 # disallow to reset some attributes
-                                impl.taskSpec.reserve_old_attributes()
+                                if taskStatus != "staging":
+                                    impl.taskSpec.reserve_old_attributes()
                                 # update task with new params
+                                tmp_msg = f"updating task params with task_status={taskStatus} sourceLabel={prodSourceLabel}"
+                                tmpLog.info(tmp_msg)
                                 self.taskBufferIF.updateTask_JEDI(impl.taskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus])
                                 # appending for incremental execution
                                 tmpStat = self.taskBufferIF.appendDatasets_JEDI(

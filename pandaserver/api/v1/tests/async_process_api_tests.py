@@ -551,7 +551,7 @@ class TestSubmitGrepRequest(unittest.TestCase):
         """A request the endpoint decorator lets through: secure, POST, and not a limited proxy."""
         return cast(PandaRequest, SimpleNamespace(subprocess_env={"REQUEST_METHOD": "POST", "SSL_CLIENT_S_DN": "/CN=alice"}))
 
-    def _submit(self, **kwargs: Any) -> tuple[dict[str, Any], mock.MagicMock]:
+    def _submit(self, log_filename: str = "panda-adder.log", **kwargs: Any) -> tuple[dict[str, Any], mock.MagicMock]:
         task_buffer = mock.MagicMock()
         task_buffer.get_alive_machines.return_value = ["a.cern.ch", "b.cern.ch"]
         task_buffer.insert_async_request.return_value = True
@@ -561,7 +561,7 @@ class TestSubmitGrepRequest(unittest.TestCase):
             mock.patch.object(common, "get_dn", return_value="dn"),
             mock.patch.object(common, "clean_user_id", return_value="alice"),
         ):
-            out = async_process_api.submit_grep_request(self._request(), log_filename="panda-adder.log", service_name="server", **kwargs)
+            out = async_process_api.submit_grep_request(self._request(), log_filename=log_filename, service_name="server", **kwargs)
         return out, task_buffer
 
     @staticmethod
@@ -592,6 +592,37 @@ class TestSubmitGrepRequest(unittest.TestCase):
         out, task_buffer = self._submit(pattern="ERROR", tail_bytes=3 << 30)
         self.assertTrue(out["success"], out["message"])
         self.assertEqual(self._parameters(task_buffer)["tail_bytes"], 3 << 30)
+
+    def test_time_window(self) -> None:
+        # stored in UTC without an offset, as the time stamps of the logs are
+        out, task_buffer = self._submit(pattern="ERROR", whole_records=True, since="2026-11-02 13:02:12", until="2026-11-02T15:02:12.500+01:00")
+        self.assertTrue(out["success"], out["message"])
+        parameters = self._parameters(task_buffer)
+        self.assertEqual((parameters["since"], parameters["until"]), ("2026-11-02 13:02:12", "2026-11-02 14:02:12.500000"))
+        self.assertNotIn("tail_bytes", parameters)
+        # either end alone, the other being that of the file
+        out, task_buffer = self._submit(pattern="ERROR", whole_records=True, since="2026-11-02 13:02:12")
+        self.assertTrue(out["success"], out["message"])
+        self.assertNotIn("until", self._parameters(task_buffer))
+        out, task_buffer = self._submit(pattern="ERROR", whole_records=True, until="2026-11-02 13:02:12")
+        self.assertTrue(out["success"], out["message"])
+        self.assertNotIn("since", self._parameters(task_buffer))
+
+    def test_time_window_refused(self) -> None:
+        refused: tuple[dict[str, Any], ...] = (
+            # only whole_records says which bytes were searched
+            {"pattern": "ERROR", "since": "2026-11-02 13:02:12"},
+            {"pattern": "ERROR", "whole_records": True, "since": "2026-11-02 13:02:12", "tail_bytes": 1000},
+            {"pattern": "ERROR", "whole_records": True, "since": "2026-11-02 13:02:12", "log_filename": "panda-adder.log-20261102.gz"},
+            {"pattern": "ERROR", "whole_records": True, "since": "2026-11-02 13:02:12", "until": "2026-11-02 13:02:12"},
+            {"pattern": "ERROR", "whole_records": True, "since": "2026-11-02 13:02:12", "until": "2026-11-02T13:02:12+01:00"},
+            {"pattern": "ERROR", "whole_records": True, "since": "yesterday"},
+            {"pattern": "ERROR", "whole_records": True, "until": "2026-11-02 25:00:00"},
+        )
+        for kwargs in refused:
+            out, task_buffer = self._submit(**kwargs)
+            self.assertFalse(out["success"], kwargs)
+            task_buffer.insert_async_request.assert_not_called()
 
     def test_refused(self) -> None:
         refused: tuple[dict[str, Any], ...] = (

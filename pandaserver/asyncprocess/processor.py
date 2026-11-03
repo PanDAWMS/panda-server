@@ -4,6 +4,7 @@ Each service wraps this with a thin entrypoint that passes its service_name.
 New request types: add a handler function and register it in HANDLERS.
 """
 
+import contextlib
 import datetime
 import json
 import os
@@ -14,7 +15,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, BinaryIO
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -137,10 +138,36 @@ _OFFSET_LINE = re.compile(r"(\d+)([:-])")
 _RECORD_JSON_BYTES = 100
 _RESULT_JSON_BYTES = 1000
 
-# Most bytes read from the start of a tail window to find its first time stamp.
+# Most bytes read from a point of a file to find the first time stamp after it,
+# for where a window starts and ends.  Bisecting a file on its time stamps stops
+# at a range of this size too.
 _WINDOW_STAMP_SCAN_BYTES = 1_000_000
 
-# A file opened at an arbitrary offset is not a valid gzip stream, so a tail
+# A time stamp as a log writes it, to the second, which compares as a string.
+_STAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# How far a time window reaches beyond the times asked, for records written out
+# of the order of their stamps.  A record is stamped when it is made, and
+# written after by one of the processes writing the file, so its line can come
+# after one stamped later: by at most 75 ms in what was measured (2026-11), and
+# by seconds when writes stall.  This is only about the order within the file.
+# The clock the times asked come from may differ from this machine's, which is
+# for the caller to widen its window by.
+_WINDOW_SLACK = datetime.timedelta(seconds=60)
+
+# Most bytes of a time window that are searched.  Cold disks read 7 to 33 MB/s
+# (2026-10 and 11), so these take about 150 s at the slowest, within the 240 s a
+# grep may run.  A wider window is cut and says so, and the caller asks again
+# from where it stopped, so a bound on the low side costs another request at most.
+_MAX_WINDOW_BYTES = 1 << 30
+
+# Bytes of a window read and passed to the matcher at a time.
+_READ_CHUNK_BYTES = 8 << 20
+
+# The name of the thread that passes a window to the matcher.
+_READER_THREAD_NAME = "grep-window-reader"
+
+# A file opened at an arbitrary offset is not a valid gzip stream, so a
 # window is only meaningful on plain text.
 _GZIP_SUFFIX = ".gz"
 
@@ -202,11 +229,11 @@ class _GrepOutput:
 
     def __init__(self, whole_records: bool, base_offset: int = 0) -> None:
         self.whole_records = whole_records
-        # where in the file the matcher's input starts, which a tail window moves
+        # where in the file the matcher's input starts, which a window moves
         self.base_offset = base_offset
         self.lines: list[str] = []
         self.records: list[dict[str, Any]] = []
-        # for a tail window, where it starts and the first time stamp in it
+        # for a window, the bytes searched, as _time_window gives them
         self.window: dict[str, Any] | None = None
         self.size = _RESULT_JSON_BYTES if whole_records else 0
         self.matches = 0
@@ -278,48 +305,201 @@ class _GrepOutput:
         return True
 
 
-def _tail_window(log_path: str, tail_bytes: int) -> tuple[int, str | None]:
+def _record_start_at(f: BinaryIO, offset: int) -> tuple[int, str] | None:
+    """
+    Find the first record of a file that starts at or after an offset.
+
+    A line that the offset cuts is not taken, nor is a line read only in part,
+    so that a time stamp is only ever read at the start of a line.
+
+    Args:
+        f(BinaryIO): the file
+        offset(int): where to start looking
+
+    Returns:
+        where the record starts and its time stamp, or None when no line that
+        starts within _WINDOW_STAMP_SCAN_BYTES of the offset starts with one
+    """
+    at_line_start = True
+    if offset > 0:
+        f.seek(offset - 1)
+        at_line_start = f.read(1) == b"\n"
+    else:
+        f.seek(0)
+    scanned = 0
+    while scanned < _WINDOW_STAMP_SCAN_BYTES:
+        line = f.readline(_WINDOW_STAMP_SCAN_BYTES - scanned)
+        if not line:
+            break
+        stamp = _RECORD_START_BYTES.match(line) if at_line_start else None
+        if stamp is not None:
+            return offset + scanned, stamp.group().decode()
+        scanned += len(line)
+        at_line_start = line.endswith(b"\n")
+    return None
+
+
+def _tail_window(f: BinaryIO, size: int, tail_bytes: int) -> dict[str, Any]:
     """
     Find where the tail window of a file starts, and the first time stamp in it.
 
     The window starts with the first line that starts within the last
-    tail_bytes of the file, so that it holds no line in part.
+    tail_bytes of the file, so that it holds no line in part, and runs to the
+    end of the file.
 
     Args:
-        log_path(str): the file
+        f(BinaryIO): the file
+        size(int): its size
         tail_bytes(int): how many bytes from the end the window takes at most
 
     Returns:
-        the byte offset where the window starts, and the time stamp of its first
-        line that starts with one, or None when none does within
-        _WINDOW_STAMP_SCAN_BYTES
+        the window, as _time_window gives it, with no end
     """
-    start = max(0, os.path.getsize(log_path) - tail_bytes)
-    with open(log_path, "rb") as f:
-        if start > 0:
-            f.seek(start - 1)
-            # unless a line ends right before the window, skip the rest of the line it cuts
-            if f.read(1) != b"\n":
-                f.readline()
-            start = f.tell()
-        scanned = 0
-        while scanned < _WINDOW_STAMP_SCAN_BYTES:
-            line = f.readline(_WINDOW_STAMP_SCAN_BYTES - scanned)
-            if not line:
-                break
-            scanned += len(line)
-            stamp = _RECORD_START_BYTES.match(line)
-            if stamp is not None:
-                return start, stamp.group().decode()
-    return start, None
+    start = max(0, size - tail_bytes)
+    if start > 0:
+        f.seek(start - 1)
+        # unless a line ends right before the window, skip the rest of the line it cuts
+        if f.read(1) != b"\n":
+            f.readline()
+        start = f.tell()
+    first = _record_start_at(f, start)
+    return {"offset": start, "first_stamp": None if first is None else first[1], "end": None, "end_stamp": None, "cut": False}
 
 
-def _run_grep(log_path: str, patterns: list[str], fixed: bool, max_matches: int, tail_bytes: int | None, whole_records: bool) -> tuple[_GrepOutput, int, str]:
-    """Run the matcher, optionally over just the tail of the file.
+def _bisect_stamps(f: BinaryIO, size: int, target: str, unstamped_before: bool) -> tuple[tuple[int, str] | None, tuple[int, str] | None]:
+    """
+    Bisect a file on the time stamps of its records, around a time.
+
+    The bytes between the two records found hold every record stamped across
+    the time, but for records out of order, and are not much more than
+    _WINDOW_STAMP_SCAN_BYTES.  A point from which no record is found counts
+    as before the time or after it as asked, so that the caller can have the
+    bytes widen rather than narrow where there are no stamps to go by.
+
+    Args:
+        f(BinaryIO): the file
+        size(int): its size
+        target(str): the time, as _STAMP_FORMAT writes it
+        unstamped_before(bool): whether a point without a record counts as before the time
+
+    Returns:
+        the last record found that is stamped before the time, or None for the
+        start of the file, and the first found that is stamped at or after it,
+        or None for the end of the file
+    """
+    low, high = 0, size
+    before: tuple[int, str] | None = None
+    after: tuple[int, str] | None = None
+    while high - low > _WINDOW_STAMP_SCAN_BYTES:
+        middle = (low + high) // 2
+        record = _record_start_at(f, middle)
+        if unstamped_before if record is None else record[1] < target:
+            low, before = middle, record
+        else:
+            high, after = middle, record
+    return before, after
+
+
+def _time_window(f: BinaryIO, size: int, since: datetime.datetime | None, until: datetime.datetime | None) -> dict[str, Any]:
+    """
+    Find the bytes of a plain file that hold its records of a time window.
+
+    The window starts at a record stamped before since less _WINDOW_SLACK, or
+    at the start of the file, and ends at a record stamped at or after until
+    plus _WINDOW_SLACK, or at the end of the file.  So it holds every record
+    stamped at or after since and before until, as long as none is further
+    out of order than that.  Where there are no stamps to go by, it widens
+    rather than narrows.  A window of more bytes than _MAX_WINDOW_BYTES is cut
+    at the first record after that many.
+
+    Args:
+        f(BinaryIO): the file
+        size(int): its size
+        since(datetime or None): the start of the time window, in UTC without tzinfo, or None for the start of the file
+        until(datetime or None): its end, likewise, or None for the end of the file
+
+    Returns:
+        {"offset": int, "first_stamp": str or None, "end": int or None, "end_stamp": str or None, "cut": bool}:
+        where the window starts, and the time stamp of the first line from there
+        that starts with one; where it ends, a record not in it, and that
+        record's time stamp, both None when it runs to the end of the file as it
+        is when read; and whether it was cut
+    """
+    first: tuple[int, str] | None = None
+    if since is not None:
+        first, _ = _bisect_stamps(f, size, (since - _WINDOW_SLACK).strftime(_STAMP_FORMAT), unstamped_before=False)
+    start = 0 if first is None else first[0]
+    if first is None:
+        first = _record_start_at(f, 0)
+    end: tuple[int, str] | None = None
+    if until is not None:
+        _, end = _bisect_stamps(f, size, (until + _WINDOW_SLACK).strftime(_STAMP_FORMAT), unstamped_before=True)
+    window: dict[str, Any] = {"offset": start, "first_stamp": None if first is None else first[1], "end": None, "end_stamp": None, "cut": False}
+    if end is not None:
+        # only records far out of order put the end before the start, and then nothing is in between
+        window["end"], window["end_stamp"] = (end[0], end[1]) if end[0] >= start else (start, window["first_stamp"])
+    limit = size if window["end"] is None else window["end"]
+    if limit - start > _MAX_WINDOW_BYTES:
+        after_cut = _record_start_at(f, start + _MAX_WINDOW_BYTES)
+        if after_cut is None:
+            window.update(end=start + _MAX_WINDOW_BYTES, end_stamp=None, cut=True)
+        elif after_cut[0] < limit:
+            window.update(end=after_cut[0], end_stamp=after_cut[1], cut=True)
+    return window
+
+
+def _feed(f: BinaryIO, start: int, end: int | None, sink: int, errors: list[Exception]) -> None:
+    """
+    Write a window of a file to the matcher's standard input, and close it.
+
+    Run in a thread of its own.  A matcher stopped before it has read the whole
+    window, at a cap or at the timeout, ends this at its next write.  Any other
+    failure is kept in errors, so that a window read only in part is not taken
+    for one searched whole.
+
+    Args:
+        f(BinaryIO): the file
+        start(int): where the window starts
+        end(int or None): where it ends, or None for the end of the file as it is when reached
+        sink(int): the write end of the pipe to the matcher, which this closes
+        errors(list): where a failure is kept
+    """
+    try:
+        with open(sink, "wb") as out:
+            f.seek(start)
+            position = start
+            while end is None or position < end:
+                chunk = f.read(_READ_CHUNK_BYTES if end is None else min(_READ_CHUNK_BYTES, end - position))
+                if not chunk:
+                    break
+                out.write(chunk)
+                position += len(chunk)
+    except BrokenPipeError:
+        pass
+    except Exception as e:
+        errors.append(e)
+
+
+def _run_grep(
+    log_path: str,
+    patterns: list[str],
+    fixed: bool,
+    max_matches: int,
+    tail_bytes: int | None,
+    whole_records: bool,
+    since: datetime.datetime | None = None,
+    until: datetime.datetime | None = None,
+) -> tuple[_GrepOutput, int, str]:
+    """Run the matcher, optionally over just a window of the file.
 
     The pipe is built process to process rather than through a shell: the
     pattern is caller-supplied, so handing it to a shell would hand the caller
     the daemon.
+
+    A window of a plain file, its tail or the bytes of a time window, is read
+    by a thread that writes it to the matcher's standard input.  The thread
+    reads the file as it was opened to find the window, so a rotation in
+    between cannot make it read another file.
 
     The output is read as it comes, and the matcher stopped once it no longer
     fits, so the daemon never holds more of it than what is kept.  A matcher so
@@ -328,36 +508,43 @@ def _run_grep(log_path: str, patterns: list[str], fixed: bool, max_matches: int,
     Returns:
         the output kept, the return code of the matcher, and its standard error
     """
-    windowed = bool(tail_bytes) and not log_path.endswith(_GZIP_SUFFIX)
+    windowed = bool(tail_bytes or since or until) and not log_path.endswith(_GZIP_SUFFIX)
     cmd = _bounded_matcher(log_path, patterns, fixed, max_matches, whole_records, from_stdin=windowed)
     output = _GrepOutput(whole_records)
-    if windowed and tail_bytes:
-        output.base_offset, first_stamp = _tail_window(log_path, tail_bytes)
-        output.window = {"offset": output.base_offset, "first_stamp": first_stamp}
-    # standard error goes to a file, since a pipe nobody reads until the end
-    # could fill and stall the matcher
-    with tempfile.TemporaryFile() as stderr_file:
-        tail = None
+    read_errors: list[Exception] = []
+    with contextlib.ExitStack() as stack:
+        # standard error goes to a file, since a pipe nobody reads until the end
+        # could fill and stall the matcher
+        stderr_file = stack.enter_context(tempfile.TemporaryFile())
+        matcher_input = subprocess.DEVNULL
         if windowed:
-            # from the start of the window to the end, the end as it is when tail gets there
-            tail = subprocess.Popen(
-                ["tail", "-c", f"+{output.base_offset + 1}", log_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+            log_file = stack.enter_context(open(log_path, "rb"))
+            size = os.fstat(log_file.fileno()).st_size
+            output.window = _tail_window(log_file, size, tail_bytes) if tail_bytes else _time_window(log_file, size, since, until)
+            output.base_offset = output.window["offset"]
+            matcher_input, sink = os.pipe()
+            reader = threading.Thread(
+                target=_feed, args=(log_file, output.base_offset, output.window["end"], sink, read_errors), name=_READER_THREAD_NAME, daemon=True
             )
-        matcher = subprocess.Popen(
-            cmd,
-            stdin=tail.stdout if tail is not None else subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=stderr_file,
-            text=True,
-            errors="replace",
-        )
-        # Hand the read end over completely.  Keeping a copy here would leave the
-        # matcher's exit at the cap invisible to tail, which would then block on a
-        # full pipe instead of being told to stop.
-        if tail is not None and tail.stdout is not None:
-            tail.stdout.close()
+            reader.start()
+            # joined before the file is closed, which is once the matcher is gone
+            # and the thread has been told so at its next write
+            stack.callback(reader.join)
+        try:
+            matcher = subprocess.Popen(
+                cmd,
+                stdin=matcher_input,
+                stdout=subprocess.PIPE,
+                stderr=stderr_file,
+                text=True,
+                errors="replace",
+            )
+        finally:
+            # Hand the read end over completely.  Keeping a copy here would leave the
+            # matcher's exit at the cap invisible to the thread, which would then block
+            # on a full pipe instead of being told to stop.
+            if windowed:
+                os.close(matcher_input)
 
         timed_out = threading.Event()
 
@@ -379,15 +566,12 @@ def _run_grep(log_path: str, patterns: list[str], fixed: bool, max_matches: int,
             matcher.wait()
             if matcher.stdout is not None:
                 matcher.stdout.close()
-            if tail is not None:
-                # tail dying of SIGPIPE is the cap working, not a failure, so its status
-                # is deliberately not inspected -- the file was checked before we got here.
-                tail.kill()
-                tail.wait()
         if timed_out.is_set():
             raise subprocess.TimeoutExpired(cmd, _SUBPROCESS_TIMEOUT)
         stderr_file.seek(0)
         stderr = stderr_file.read(_MAX_RESULT_BYTES + 1).decode(errors="replace")
+    if read_errors:
+        raise read_errors[0]
     return_code = 0 if output.full else matcher.returncode
     return output, return_code, stderr
 
@@ -403,9 +587,12 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
     max_matches = min(int(params.get("max_matches") or _DEFAULT_MAX_MATCHES), _MAX_MAX_MATCHES)
     tail_bytes = params.get("tail_bytes")
     whole_records = bool(params.get("whole_records"))
+    # in UTC without an offset, as the time stamps of the logs are
+    since = datetime.datetime.fromisoformat(params["since"]) if params.get("since") else None
+    until = datetime.datetime.fromisoformat(params["until"]) if params.get("until") else None
     log_path = os.path.join(panda_config.logdir, log_filename)
 
-    # Checked here rather than left to the tool, because with a tail window the
+    # Checked here rather than left to the tool, because with a window the
     # matcher reads standard input and never sees the path -- it would report
     # "no match" for a file that does not exist.  One answer, whichever way the
     # query was built.
@@ -436,10 +623,12 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
         return
 
     shown = f"{len(patterns)} fixed strings {patterns[:3]!r}" if fixed else repr(patterns[0])
-    tmp_logger.debug(f"grep {shown} in {log_path} (max_matches={max_matches}, tail_bytes={tail_bytes}, whole_records={whole_records})")
+    tmp_logger.debug(
+        f"grep {shown} in {log_path} (max_matches={max_matches}, tail_bytes={tail_bytes}, since={since}, until={until}, whole_records={whole_records})"
+    )
     try:
         start_time = naive_utcnow()
-        output, return_code, stderr = _run_grep(log_path, patterns, fixed, max_matches, tail_bytes, whole_records)
+        output, return_code, stderr = _run_grep(log_path, patterns, fixed, max_matches, tail_bytes, whole_records, since, until)
         elapsed = (naive_utcnow() - start_time).total_seconds()
         tmp_logger.debug(f"subprocess completed in {elapsed:.2f} seconds")
     except subprocess.TimeoutExpired:
@@ -466,12 +655,16 @@ def _handle_grep(row: dict[str, Any], tb: TaskBufferLike, tmp_logger: LogWrapper
     # Reaching the cap truncates just as surely as exceeding the byte limit
     # does, and a caller that reads an incomplete result as "this never appears
     # in the log" gets the wrong answer, so both set the same flag.  So does a
-    # record cut short.
+    # record cut short.  A time window cut short does not: it says so itself,
+    # since it calls for asking further rather than differently, and a caller
+    # must be able to tell which happened, or whether both did.
     capped = output.matches >= max_matches
     truncated = capped or output.full or output.cut or len(stderr) > _MAX_RESULT_BYTES
+    window = output.window
+    shown_window = "" if window is None else f", window {window['offset']} to {window['end']} cut={window['cut']}"
     tmp_logger.debug(
         f"outcome: return code {return_code}, {output.matches} matches, result size {output.size}, stderr size {len(stderr)}, "
-        f"truncated={truncated} (capped={capped} full={output.full} cut={output.cut})"
+        f"truncated={truncated} (capped={capped} full={output.full} cut={output.cut}){shown_window}"
     )
     tb.finish_async_result(
         row["request_id"],
