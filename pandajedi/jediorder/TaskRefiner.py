@@ -520,7 +520,8 @@ class TaskRefinerThread(WorkerThread):
                             impl.taskSpec.status = "staging"
                             impl.taskSpec.oldStatus = taskStatus
                             impl.taskSpec.setErrDiag(errStr)
-                            # not to update some task attributes
+                            # discard unsafe refined values that confuse the second refining process once staging is done.
+                            # metrics values are not discarded since they are discarded in the second refining process.
                             impl.taskSpec.discard_unsafe_refined_changes(discard_metrics=False)
                             tmpLog.info(errStr)
                             self.taskBufferIF.updateTask_JEDI(
@@ -593,8 +594,10 @@ class TaskRefinerThread(WorkerThread):
                                 # unset pre-process flag
                                 if impl.taskSpec.checkPreProcessed():
                                     impl.taskSpec.setPostPreProcess()
-                                # if taskStatus == "staged":
-                                #    impl.taskSpec.discard_metrics_changes()
+                                # discard metrics changes not to overwrite current values in the database.
+                                # this is required they may have been modified while waiting for staging.
+                                if taskStatus == "staged":
+                                    impl.taskSpec.discard_metrics_changes()
                                 # full registration
                                 tmpStat, newTaskStatus = self.taskBufferIF.registerTaskInOneShot_JEDI(
                                     jediTaskID,
@@ -633,7 +636,7 @@ class TaskRefinerThread(WorkerThread):
                                 # disable scouts if previous attempt didn't use it
                                 if not impl.taskSpec.useScout(splitRule):
                                     impl.taskSpec.setUseScout(False)
-                                # disallow to reset some attributes
+                                # discard metrics changes not to overwrite current values in the database
                                 impl.taskSpec.discard_metrics_changes()
                                 # update task with new params
                                 tmp_msg = f"updating task params with old_task_status={taskStatus} sourceLabel={prodSourceLabel}"
