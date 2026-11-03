@@ -327,8 +327,12 @@ class JediTaskSpec(object):
         except Exception:
             pass
 
-    # reserve old attributes
-    def reserve_old_attributes(self) -> None:
+    # discard changes of metrics-related attributes
+    def discard_metrics_changes(self) -> None:
+        """
+        Discard the changes of metrics-related attributes, so that the current values in the database are kept for them.
+        The values in memory are not touched. startTime and currentPriority are not metrics as such, but are handled together.
+        """
         for attName in [
             "ramCount",
             "walltime",
@@ -1303,11 +1307,22 @@ class JediTaskSpec(object):
     def disableAutoFinish(self) -> bool:
         return self.check_split_rule("disableAutoFinish")
 
-    # reset refined attributes which may confuse the system
-    def resetRefinedAttrs(self) -> None:
+    # discard refined changes which may confuse the system
+    def discard_unsafe_refined_changes(self, discard_metrics: bool = True) -> None:
+        """
+        Discard the changes of refined attributes which may confuse the system when tasks are being refined again,
+        so that the current values in the database are kept for them. The values in memory are not touched.
+        The attributes are splitRule, eventService, and metrics-related attributes (see discard_metrics_changes)
+        if discard_metrics is True.
+
+        Args:
+            discard_metrics (bool): If True, the changes of metrics-related attributes are discarded as well, so that
+                the current values in the database are kept. If False, their refined values are written to the database
+        """
         self.resetChangedAttr("splitRule")
         self.resetChangedAttr("eventService")
-        self.reserve_old_attributes()
+        if discard_metrics:
+            self.discard_metrics_changes()
 
     # resurrect consumers
     def resurrectConsumers(self) -> bool:
