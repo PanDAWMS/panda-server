@@ -221,7 +221,7 @@ class TaskRefinerThread(WorkerThread):
                                 impl.taskSpec.setOnHold()
                                 impl.taskSpec.setErrDiag(tmpErrStr)
                                 # not to update some task attributes
-                                impl.taskSpec.resetRefinedAttrs()
+                                impl.taskSpec.discard_unsafe_refined_changes()
                                 tmpLog.info(tmpErrStr)
                                 self.taskBufferIF.updateTask_JEDI(
                                     impl.taskSpec,
@@ -258,7 +258,7 @@ class TaskRefinerThread(WorkerThread):
                                     impl.taskSpec.setOnHold()
                                     impl.taskSpec.setErrDiag(errStr)
                                     # not to update some task attributes
-                                    impl.taskSpec.resetRefinedAttrs()
+                                    impl.taskSpec.discard_unsafe_refined_changes()
                                     tmpLog.info(errStr)
                                     self.taskBufferIF.updateTask_JEDI(
                                         impl.taskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus], setFrozenTime=False
@@ -318,7 +318,7 @@ class TaskRefinerThread(WorkerThread):
                                     impl.taskSpec.setOnHold()
                                 impl.taskSpec.setErrDiag(tmpErrStr)
                                 # not to update some task attributes
-                                impl.taskSpec.resetRefinedAttrs()
+                                impl.taskSpec.discard_unsafe_refined_changes()
                                 tmpLog.info(tmpErrStr)
                                 self.taskBufferIF.updateTask_JEDI(
                                     impl.taskSpec,
@@ -337,7 +337,7 @@ class TaskRefinerThread(WorkerThread):
                                 tmpErrStr = f"finishing due to missing input after parent is {parentState}"
                                 impl.taskSpec.setErrDiag(tmpErrStr)
                                 # not to update some task attributes
-                                impl.taskSpec.resetRefinedAttrs()
+                                impl.taskSpec.discard_unsafe_refined_changes()
                                 tmpLog.info(tmpErrStr)
                                 self.taskBufferIF.updateTask_JEDI(
                                     impl.taskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus], insertUnknown=impl.unknownDatasetList
@@ -521,7 +521,7 @@ class TaskRefinerThread(WorkerThread):
                             impl.taskSpec.oldStatus = taskStatus
                             impl.taskSpec.setErrDiag(errStr)
                             # not to update some task attributes
-                            impl.taskSpec.resetRefinedAttrs()
+                            impl.taskSpec.discard_unsafe_refined_changes(discard_metrics=False)
                             tmpLog.info(errStr)
                             self.taskBufferIF.updateTask_JEDI(
                                 impl.taskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus], updateDEFT=False, setFrozenTime=False
@@ -594,7 +594,7 @@ class TaskRefinerThread(WorkerThread):
                                 if impl.taskSpec.checkPreProcessed():
                                     impl.taskSpec.setPostPreProcess()
                                 # if taskStatus == "staged":
-                                #    impl.taskSpec.reserve_old_attributes()
+                                #    impl.taskSpec.discard_metrics_changes()
                                 # full registration
                                 tmpStat, newTaskStatus = self.taskBufferIF.registerTaskInOneShot_JEDI(
                                     jediTaskID,
@@ -634,10 +634,9 @@ class TaskRefinerThread(WorkerThread):
                                 if not impl.taskSpec.useScout(splitRule):
                                     impl.taskSpec.setUseScout(False)
                                 # disallow to reset some attributes
-                                if taskStatus != "staging":
-                                    impl.taskSpec.reserve_old_attributes()
+                                impl.taskSpec.discard_metrics_changes()
                                 # update task with new params
-                                tmp_msg = f"updating task params with task_status={taskStatus} sourceLabel={prodSourceLabel}"
+                                tmp_msg = f"updating task params with old_task_status={taskStatus} sourceLabel={prodSourceLabel}"
                                 tmpLog.info(tmp_msg)
                                 self.taskBufferIF.updateTask_JEDI(impl.taskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus])
                                 # appending for incremental execution
