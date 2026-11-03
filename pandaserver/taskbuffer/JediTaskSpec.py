@@ -329,7 +329,18 @@ class JediTaskSpec(object):
 
     # reserve old attributes
     def reserve_old_attributes(self) -> None:
-        for attName in ["ramCount", "walltime", "cpuTime", "startTime", "cpuTimeUnit", "outDiskCount", "workDiskCount", "ioIntensity", "diskIO"]:
+        for attName in [
+            "ramCount",
+            "walltime",
+            "cpuTime",
+            "startTime",
+            "cpuTimeUnit",
+            "outDiskCount",
+            "workDiskCount",
+            "ioIntensity",
+            "diskIO",
+            "currentPriority",
+        ]:
             self.resetChangedAttr(attName)
 
     # force update
@@ -1292,7 +1303,7 @@ class JediTaskSpec(object):
     def disableAutoFinish(self) -> bool:
         return self.check_split_rule("disableAutoFinish")
 
-    # reset refined attributes which may confuse they system
+    # reset refined attributes which may confuse the system
     def resetRefinedAttrs(self) -> None:
         self.resetChangedAttr("splitRule")
         self.resetChangedAttr("eventService")
