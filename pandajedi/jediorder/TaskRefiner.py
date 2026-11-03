@@ -593,7 +593,7 @@ class TaskRefinerThread(WorkerThread):
                                 # unset pre-process flag
                                 if impl.taskSpec.checkPreProcessed():
                                     impl.taskSpec.setPostPreProcess()
-                                #if taskStatus == "staged":
+                                # if taskStatus == "staged":
                                 #    impl.taskSpec.reserve_old_attributes()
                                 # full registration
                                 tmpStat, newTaskStatus = self.taskBufferIF.registerTaskInOneShot_JEDI(
