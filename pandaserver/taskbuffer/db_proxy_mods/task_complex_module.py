@@ -4529,18 +4529,37 @@ class TaskComplexModule(BaseModule):
                                     retTaskIDs[jediTaskID]["oldStatus"] = taskOldStatus
                             # update job table
                             if commandStr in ["pause", "resume"]:
+                                if commandStr == "resume":
+                                    newJobStatus = "activated"
+                                    oldJobStatus = "throttled"
+                                else:
+                                    newJobStatus = "throttled"
+                                    oldJobStatus = "activated"
+                                # get jobs, then update them one by one to record each status change
+                                sqlJS = f"SELECT PandaID,cloud,computingSite,prodSourceLabel FROM {panda_config.schemaPANDA}.jobsActive4 "
+                                sqlJS += "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
                                 sqlJT = f"UPDATE {panda_config.schemaPANDA}.jobsActive4 "
                                 sqlJT += "SET jobStatus=:newJobStatus "
-                                sqlJT += "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
+                                sqlJT += "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
                                 varMap = {}
                                 varMap[":jediTaskID"] = jediTaskID
-                                if commandStr == "resume":
-                                    varMap[":newJobStatus"] = "activated"
-                                    varMap[":oldJobStatus"] = "throttled"
-                                else:
-                                    varMap[":newJobStatus"] = "throttled"
-                                    varMap[":oldJobStatus"] = "activated"
-                                self.cur.execute(sqlJT + comment, varMap)
+                                varMap[":oldJobStatus"] = oldJobStatus
+                                self.cur.arraysize = 100000
+                                self.cur.execute(sqlJS + comment, varMap)
+                                resJS = self.cur.fetchall()
+                                for jobPandaID, jobCloud, jobComputingSite, jobProdSourceLabel in resJS:
+                                    varMap = {}
+                                    varMap[":PandaID"] = jobPandaID
+                                    varMap[":newJobStatus"] = newJobStatus
+                                    varMap[":oldJobStatus"] = oldJobStatus
+                                    self.cur.execute(sqlJT + comment, varMap)
+                                    if self.cur.rowcount > 0:
+                                        self.recordStatusChange(
+                                            jobPandaID,
+                                            newJobStatus,
+                                            infoMap={"computingSite": jobComputingSite, "cloud": jobCloud, "prodSourceLabel": jobProdSourceLabel},
+                                            useCommit=False,
+                                        )
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")

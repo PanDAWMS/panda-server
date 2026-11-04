@@ -823,6 +823,8 @@ class TaskEventModule(BaseModule):
                 dJob.stateChangeTime = dJob.endTime
                 # insert
                 self.cur.execute(sqlDJI + comment, dJob.valuesMap())
+                # record status change
+                self.recordStatusChange(dJob.PandaID, dJob.jobStatus, jobInfo=dJob, useCommit=False)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # set file status
                 varMap = {}
                 varMap[":PandaID"] = pandaID
@@ -1733,6 +1735,10 @@ class TaskEventModule(BaseModule):
                 updateSubStatus = False
             sqlUE += "WHERE PandaID=:PandaID AND jobStatus in (:oldStatus1,:oldStatus2,:oldStatus3) AND modificationTime>(CURRENT_DATE-90) "
             sqlUE += "AND NOT eventService IN (:esJumbo) "
+            # sql to get ES job to update
+            sqlSE = "SELECT jobStatus,cloud,computingSite,prodSourceLabel FROM {0} "
+            sqlSE += "WHERE PandaID=:PandaID AND jobStatus in (:oldStatus1,:oldStatus2,:oldStatus3) AND modificationTime>(CURRENT_DATE-90) "
+            sqlSE += "AND NOT eventService IN (:esJumbo) FOR UPDATE "
             for tmpPandaID in esPandaIDs:
                 varMap = {}
                 varMap[":PandaID"] = tmpPandaID
@@ -1757,11 +1763,23 @@ class TaskEventModule(BaseModule):
                     "ATLAS_PANDA.jobsArchived4",
                     "ATLAS_PANDAARCH.jobsArchived",
                 ]:
+                    # get the current status to record the status change
+                    varMapS = {key: varMap[key] for key in [":PandaID", ":oldStatus1", ":oldStatus2", ":oldStatus3", ":esJumbo"]}
+                    self.cur.execute(sqlSE.format(tableName) + comment, varMapS)
+                    resSE = self.cur.fetchone()
                     self.cur.execute(sqlUE.format(tableName) + comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow > 0:
                         tmp_log.debug(f"change PandaID={tmpPandaID} to {jobStatus}")
                         isUpdated = True
+                        if resSE is not None and resSE[0] != jobStatus:
+                            _, tmpCloud, tmpComputingSite, tmpProdSourceLabel = resSE
+                            self.recordStatusChange(
+                                tmpPandaID,
+                                jobStatus,
+                                infoMap={"computingSite": tmpComputingSite, "cloud": tmpCloud, "prodSourceLabel": tmpProdSourceLabel},
+                                useCommit=False,
+                            )
                 # kill processed events if necessary
                 if killEvents and isUpdated:
                     self.killUsedEventRanges(job.jediTaskID, tmpPandaID, job.notDiscardEvents())  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
