@@ -661,7 +661,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
     stDS, resDS = taskBuffer.querySQLS(sql, var_map)
     sqlSS = "SELECT laststart FROM ATLAS_PANDAMETA.siteData "
     sqlSS += "WHERE site=:site AND flag=:flag AND hours=:hours "
-    sqlPI = "SELECT PandaID,eventService,attemptNr FROM ATLAS_PANDA.jobsActive4 "
+    sqlPI = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
     sqlPI += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) "
     sqlPI += "AND (modificationTime<:timeLimit OR stateChangeTime<:timeLimit) "
     sqlPI += "AND lockedby=:lockedby AND currentPriority>=:prioLimit "
@@ -698,16 +698,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
             # reassign
             _logger.debug(f"reassignJobs for JEDI at inactive site {tmpSite} laststart={last_start} status={site_status}")
             if resPI is not None:
-                for pandaID, eventService, attemptNr in resPI:
-                    if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
-                        _logger.debug(f"retrying es merge {pandaID} at inactive site {tmpSite}")
-                        taskBuffer.retryJob(
-                            pandaID,
-                            {},
-                            getNewPandaID=True,
-                            attemptNr=attemptNr,
-                            recoverableEsMerge=True,
-                        )
+                for (pandaID,) in resPI:
                     jediJobs.append(pandaID)
             if len(jediJobs) != 0:
                 nJob = 100
@@ -809,15 +800,6 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
                 _logger.debug(f"skip reassignJobs for long activated PandaID={pandaID} since disabled at {computingSite}")
                 continue
             if lockedby == "jedi":
-                if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
-                    _logger.debug(f"retrying {pandaID} in long activated")
-                    taskBuffer.retryJob(
-                        pandaID,
-                        {},
-                        getNewPandaID=True,
-                        attemptNr=attemptNr,
-                        recoverableEsMerge=True,
-                    )
                 jediJobs.append(pandaID)
 
     _logger.debug(f"reassignJobs for long activated JEDI in active table -> #{len(jediJobs)}")

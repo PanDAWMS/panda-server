@@ -806,32 +806,6 @@ class TaskBuffer:
             ret = proxy.finalizePendingJobs(prodUserName, jobDefinitionID, waitLock)
         return ret
 
-    # retry job
-    def retryJob(
-        self,
-        jobID: int,
-        param: dict[str, Any],
-        failedInActive: bool = False,
-        changeJobInMem: bool = False,
-        inMemJob: JobSpec | None = None,
-        getNewPandaID: bool = False,
-        attemptNr: int | None = None,
-        recoverableEsMerge: bool = False,
-    ) -> Any:
-        with self.proxyPool.get() as proxy:
-            # update DB
-            ret = proxy.retryJob(
-                jobID,
-                param,
-                failedInActive,
-                changeJobInMem,
-                inMemJob,
-                getNewPandaID,
-                attemptNr,
-                recoverableEsMerge,
-            )
-        return ret
-
     # activate jobs
     def activateJobs(self, jobs: list[JobSpec]) -> list[bool]:
         # get DB proxy
@@ -1152,21 +1126,12 @@ class TaskBuffer:
             # kill jobs
             pandaIDforCloserMap = {}
             for id in ids:
-                # retry event service merge
+                # archive, rather than kill, event service jobs that have started events
                 toKill = True
                 if "keepUnmerged" in killOptions:
                     tmpJobSpec = proxy.peekJob(id, True, True, False, False, False)
                     if tmpJobSpec is not None:
-                        if EventServiceUtils.isEventServiceMerge(tmpJobSpec):
-                            # retry ES merge jobs not to discard events
-                            proxy.retryJob(
-                                id,
-                                {},
-                                getNewPandaID=True,
-                                attemptNr=tmpJobSpec.attemptNr,  # type: ignore[arg-type]  # the id is a column, which is declared optional
-                                recoverableEsMerge=True,
-                            )
-                        elif EventServiceUtils.isEventServiceJob(tmpJobSpec) and not EventServiceUtils.isJobCloningJob(tmpJobSpec):
+                        if EventServiceUtils.isEventServiceJob(tmpJobSpec) and not EventServiceUtils.isJobCloningJob(tmpJobSpec):
                             # get number of started events
                             nEvt = proxy.getNumStartedEvents(tmpJobSpec)
                             # not to kill jobset if there are started events
