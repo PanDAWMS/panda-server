@@ -1702,14 +1702,14 @@ class JobStandaloneModule(BaseModule):
                 "PandaID, jediTaskID, cloud, computingSite, prodSourceLabel "
                 "FROM ATLAS_PANDA.jobsActive4 "
                 "WHERE jediTaskID=:jediTaskID "
-                "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
+                "AND jobStatus=:oldJobStatus "
                 "AND maxCpuCount>:maxTime "
             )
 
-            # sql to update jobs
+            # sql to update a job
             sql_update_jobs = (
                 f"UPDATE {panda_config.schemaPANDA}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
-                f"WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus AND maxCpuCount>:maxTime"
+                "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
             )
 
             # start transaction
@@ -1735,7 +1735,7 @@ class JobStandaloneModule(BaseModule):
                 # start transaction
                 self.conn.begin()
                 # get jobs
-                var_map = {":jediTaskID": task_id, ":oldRelFlag": 1, ":oldJobStatus": "activated", ":maxTime": 6 * 60 * 60}
+                var_map = {":jediTaskID": task_id, ":oldJobStatus": "activated", ":maxTime": 6 * 60 * 60}
                 self.cur.execute(sql_get_jobs + comment, var_map)
                 job_rows = self.cur.fetchall()
                 job_info_map = {
@@ -1746,21 +1746,23 @@ class JobStandaloneModule(BaseModule):
                     }
                     for panda_id, _task_id, cloud, computing_site, prod_source_label in job_rows
                 }
-                # update jobs
-                var_map = {":jediTaskID": task_id, ":newRelFlag": 3, ":newJobStatus": "throttled", ":oldJobStatus": "activated", ":maxTime": 6 * 60 * 60}
-                self.cur.execute(sql_update_jobs + comment, var_map)
-                n_updated = self.cur.rowcount
+                # update jobs one by one to record each status change
+                n_updated = 0
+                for panda_id, job_info in job_info_map.items():
+                    var_map = {":PandaID": panda_id, ":newRelFlag": 3, ":newJobStatus": "throttled", ":oldJobStatus": "activated"}
+                    self.cur.execute(sql_update_jobs + comment, var_map)
+                    if self.cur.rowcount > 0:
+                        n_updated += 1
+                        self.recordStatusChange(
+                            panda_id,
+                            var_map[":newJobStatus"],  # type: ignore[arg-type]  # a bind map holds what each column holds
+                            infoMap=job_info,
+                            useCommit=False,
+                        )
                 tmp_log.debug(f"reset {n_updated} jobs")
                 if n_updated > 0:
                     total_updated += n_updated
                     updated_per_task[task_id] = n_updated
-                for panda_id, job_info in job_info_map.items():
-                    self.recordStatusChange(
-                        panda_id,
-                        var_map[":newJobStatus"],  # type: ignore[arg-type]  # a bind map holds what each column holds
-                        infoMap=job_info,
-                        useCommit=False,
-                    )
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
@@ -1801,13 +1803,13 @@ class JobStandaloneModule(BaseModule):
                 "PandaID, jediTaskID, cloud, computingSite, prodSourceLabel "
                 "FROM ATLAS_PANDA.jobsActive4 "
                 "WHERE jediTaskID=:jediTaskID "
-                "AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag "
+                "AND jobStatus=:oldJobStatus "
             )
 
-            # sql to update jobs
+            # sql to update a job
             sql_update_jobs = (
                 f"UPDATE {panda_config.schemaPANDA}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
-                "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
+                "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
             )
 
             # start transaction
@@ -1833,7 +1835,7 @@ class JobStandaloneModule(BaseModule):
                 # start transaction
                 self.conn.begin()
                 # get jobs
-                var_map = {":jediTaskID": task_id, ":oldRelFlag": 3, ":oldJobStatus": "throttled"}
+                var_map = {":jediTaskID": task_id, ":oldJobStatus": "throttled"}
                 self.cur.execute(sql_get_jobs + comment, var_map)
                 job_rows = self.cur.fetchall()
                 job_info_map = {
@@ -1844,21 +1846,23 @@ class JobStandaloneModule(BaseModule):
                     }
                     for panda_id, _task_id, cloud, computing_site, prod_source_label in job_rows
                 }
-                # update jobs
-                var_map = {":jediTaskID": task_id, ":newRelFlag": 1, ":newJobStatus": "activated", ":oldJobStatus": "throttled"}
-                self.cur.execute(sql_update_jobs + comment, var_map)
-                n_updated = self.cur.rowcount
+                # update jobs one by one to record each status change
+                n_updated = 0
+                for panda_id, job_info in job_info_map.items():
+                    var_map = {":PandaID": panda_id, ":newRelFlag": 1, ":newJobStatus": "activated", ":oldJobStatus": "throttled"}
+                    self.cur.execute(sql_update_jobs + comment, var_map)
+                    if self.cur.rowcount > 0:
+                        n_updated += 1
+                        self.recordStatusChange(
+                            panda_id,
+                            var_map[":newJobStatus"],  # type: ignore[arg-type]  # a bind map holds what each column holds
+                            infoMap=job_info,
+                            useCommit=False,
+                        )
                 tmp_log.debug(f"reset {n_updated} jobs")
                 if n_updated > 0:
                     total_updated += n_updated
                     updated_per_task[task_id] = n_updated
-                for panda_id, job_info in job_info_map.items():
-                    self.recordStatusChange(
-                        panda_id,
-                        var_map[":newJobStatus"],  # type: ignore[arg-type]  # a bind map holds what each column holds
-                        infoMap=job_info,
-                        useCommit=False,
-                    )
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
