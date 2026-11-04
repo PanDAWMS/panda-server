@@ -2279,6 +2279,7 @@ class TaskComplexModule(BaseModule):
                         var_map[":status"] = "tobroken"
                         var_map[":err"] = err_msg
                         self.cur.execute(sql_update_task_status + comment, var_map)
+                        self.record_task_status_change(jedi_task_id)
                     else:
                         # reset the change to preserve userName
                         original_task_spec.resetChangedAttr("userName")
@@ -4528,18 +4529,37 @@ class TaskComplexModule(BaseModule):
                                     retTaskIDs[jediTaskID]["oldStatus"] = taskOldStatus
                             # update job table
                             if commandStr in ["pause", "resume"]:
+                                if commandStr == "resume":
+                                    newJobStatus = "activated"
+                                    oldJobStatus = "throttled"
+                                else:
+                                    newJobStatus = "throttled"
+                                    oldJobStatus = "activated"
+                                # get jobs, then update them one by one to record each status change
+                                sqlJS = f"SELECT PandaID,cloud,computingSite,prodSourceLabel FROM {panda_config.schemaPANDA}.jobsActive4 "
+                                sqlJS += "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
                                 sqlJT = f"UPDATE {panda_config.schemaPANDA}.jobsActive4 "
                                 sqlJT += "SET jobStatus=:newJobStatus "
-                                sqlJT += "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
+                                sqlJT += "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
                                 varMap = {}
                                 varMap[":jediTaskID"] = jediTaskID
-                                if commandStr == "resume":
-                                    varMap[":newJobStatus"] = "activated"
-                                    varMap[":oldJobStatus"] = "throttled"
-                                else:
-                                    varMap[":newJobStatus"] = "throttled"
-                                    varMap[":oldJobStatus"] = "activated"
-                                self.cur.execute(sqlJT + comment, varMap)
+                                varMap[":oldJobStatus"] = oldJobStatus
+                                self.cur.arraysize = 100000
+                                self.cur.execute(sqlJS + comment, varMap)
+                                resJS = self.cur.fetchall()
+                                for jobPandaID, jobCloud, jobComputingSite, jobProdSourceLabel in resJS:
+                                    varMap = {}
+                                    varMap[":PandaID"] = jobPandaID
+                                    varMap[":newJobStatus"] = newJobStatus
+                                    varMap[":oldJobStatus"] = oldJobStatus
+                                    self.cur.execute(sqlJT + comment, varMap)
+                                    if self.cur.rowcount > 0:
+                                        self.recordStatusChange(
+                                            jobPandaID,
+                                            newJobStatus,
+                                            infoMap={"computingSite": jobComputingSite, "cloud": jobCloud, "prodSourceLabel": jobProdSourceLabel},
+                                            useCommit=False,
+                                        )
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
@@ -5364,6 +5384,8 @@ class TaskComplexModule(BaseModule):
                     if newTaskStatus == "exhausted":
                         self.setDeftStatus_JEDI(jediTaskID, newTaskStatus)
                         self.setSuperStatus_JEDI(jediTaskID, newTaskStatus)
+                    # task status log, also when the task goes back to the status before the command
+                    if newTaskStatus == "exhausted" or newTaskStatus != taskStatus:
                         self.record_task_status_change(jediTaskID)
                 # update output/lib/log
                 if newTaskStatus != taskOldStatus and taskStatus != "exhausted" and newTaskStatus != "exhausted":

@@ -1384,6 +1384,8 @@ class JobComplexModule(BaseModule):
                             dJob.stateChangeTime = dJob.endTime
                             # insert
                             self.cur.execute(sqlDJI + comment, dJob.valuesMap())
+                            # record status change in the same transaction as the move
+                            self.recordStatusChange(downID, dJob.jobStatus, jobInfo=dJob, useCommit=False)
                             # update file status
                             varMap = {}
                             varMap[":PandaID"] = downID
@@ -1398,7 +1400,7 @@ class JobComplexModule(BaseModule):
                             self.cur.execute(sqlFMod + comment, varMap)
                             self.cur.execute(sqlMMod + comment, varMap)
                             self.cur.execute(sqlPMod + comment, varMap)
-                            # collect to record state change
+                            # collect to push state change
                             updatedJobList.append(dJob)
                             # update JEDI tables
                             if useJEDI:
@@ -1860,12 +1862,17 @@ class JobComplexModule(BaseModule):
                 # record status change
                 try:
                     for tmpJob in updatedJobList:
-                        self.recordStatusChange(
-                            tmpJob.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
-                            tmpJobStatus,
-                            jobInfo=tmpJob,
-                            useCommit=useCommit,
-                        )
+                        if tmpJob is job:
+                            tmp_job_status = tmpJobStatus
+                            self.recordStatusChange(
+                                tmpJob.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                                tmp_job_status,
+                                jobInfo=tmpJob,
+                                useCommit=useCommit,
+                            )
+                        else:
+                            # downstream job, already recorded when it was moved
+                            tmp_job_status = tmpJob.jobStatus
                         extra_info_dict = {
                             "job_nevents": tmpJob.nEvents,
                             "job_ninputfiles": tmpJob.nInputFiles,
@@ -1878,7 +1885,7 @@ class JobComplexModule(BaseModule):
                         self.push_job_status_message(
                             tmpJob,
                             tmpJob.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
-                            tmpJobStatus,
+                            tmp_job_status,
                             extra_data=extra_info_dict,
                         )
                 except Exception:
@@ -3926,11 +3933,11 @@ class JobComplexModule(BaseModule):
         sql1 += "WHERE PandaID=:PandaID "
         if failedInActive:
             sql1 += "AND jobStatus=:jobStatus "
-        updatedFlag = False
         nTry = 3
         for iTry in range(nTry):
             try:
                 retValue = False
+                updatedFlag = False
                 if not changeJobInMem:
                     # begin transaction
                     self.conn.begin()
@@ -4240,6 +4247,8 @@ class JobComplexModule(BaseModule):
                                 # propagate change to JEDI
                                 if useJEDI:
                                     self.updateForPilotRetryJEDI(job, self.cur)
+                                # record the status of the new job
+                                updatedFlag = True
                         # set return
                         if not getNewPandaID:
                             retValue = True
@@ -4950,6 +4959,8 @@ class JobComplexModule(BaseModule):
                     tmp_log.debug(f"finalizing {pandaID}")
                     # insert
                     self.cur.execute(sql3 + comment, job.valuesMap())
+                    # record status change
+                    self.recordStatusChange(pandaID, job.jobStatus, jobInfo=job, useCommit=False)
                     # update files,metadata,parameters
                     varMap = {}
                     varMap[":PandaID"] = pandaID
@@ -4975,7 +4986,8 @@ class JobComplexModule(BaseModule):
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                self.push_job_status_message(job, pandaID, varMap[":newJobStatus"])
+                if n > 0:
+                    self.push_job_status_message(job, pandaID, job.jobStatus)
             tmp_log.debug(f"done {len(pPandaIDs)} jobs")
             return True
         except Exception:

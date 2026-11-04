@@ -114,6 +114,7 @@ class TaskStandaloneModule(BaseModule):
             self.conn.begin()
             # insert dataset
             self.cur.execute(sql + comment, varMap)
+            self.record_task_status_change(taskSpec.jediTaskID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -1332,6 +1333,8 @@ class TaskStandaloneModule(BaseModule):
                         tmpLog.debug(sqlUC + comment + str(varMap))
                         self.cur.execute(sqlUC + comment, varMap)
                         self.setSuperStatus_JEDI(jediTaskID, deftStatus)
+                        # task status log for the first status of the task
+                        self.record_task_status_change(jediTaskID)
                     # append
                     if isOK:
                         retTaskIDs.append((jediTaskID, None, "registered", parent_tid))
@@ -1862,6 +1865,7 @@ class TaskStandaloneModule(BaseModule):
                     self.cur.execute(sqlTD + comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow > 0:
+                        self.record_task_status_change(jediTaskID)
                         tmpLog.debug(f"jediTaskID={jediTaskID} back to defined")
                         nTasks += 1
                 if nRow > 0 and is_msg_driven(splitRule):
@@ -2929,6 +2933,8 @@ class TaskStandaloneModule(BaseModule):
                         self.record_task_status_change(jediTaskID)
                         self.push_task_status_message(None, jediTaskID, varMap[":newStatus"])
                 except Exception:
+                    # roll back so that the status change is not committed without the status log
+                    self._rollback()
                     tmpLog.debug(f"skip locked jediTaskID={jediTaskID}")
                 # commit
                 if not self._commit():
@@ -4126,10 +4132,13 @@ class TaskStandaloneModule(BaseModule):
             sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
             sqlTU += "SET modificationtime=CURRENT_DATE "
             sqlTU += "WHERE jediTaskID=:jediTaskID AND status=:status AND lockedBy IS NULL "
-            # sql to throttle jobs
+            # sql to get jobs to throttle
+            sqlJS = f"SELECT PandaID,cloud,computingSite,prodSourceLabel FROM {panda_config.schemaPANDA}.jobsActive4 "
+            sqlJS += "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
+            # sql to throttle a job
             sqlJT = f"UPDATE {panda_config.schemaPANDA}.jobsActive4 "
             sqlJT += "SET jobStatus=:newJobStatus "
-            sqlJT += "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
+            sqlJT += "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
             # sql to get jobs in jobsDefined
             sqlJD = f"SELECT PandaID FROM {panda_config.schemaPANDA}.jobsDefined4 "
             sqlJD += "WHERE jediTaskID=:jediTaskID "
@@ -4149,13 +4158,28 @@ class TaskStandaloneModule(BaseModule):
                 self.cur.execute(sqlTU + comment, varMap)
                 iRow = self.cur.rowcount
                 if iRow > 0:
-                    # throttle jobs
+                    # throttle jobs one by one to record each status change
                     varMap = {}
                     varMap[":jediTaskID"] = jediTaskID
-                    varMap[":newJobStatus"] = "throttled"
                     varMap[":oldJobStatus"] = "activated"
-                    self.cur.execute(sqlJT + comment, varMap)
-                    iRow = self.cur.rowcount
+                    self.cur.arraysize = 100000
+                    self.cur.execute(sqlJS + comment, varMap)
+                    resJS = self.cur.fetchall()
+                    iRow = 0
+                    for jobPandaID, jobCloud, jobComputingSite, jobProdSourceLabel in resJS:
+                        varMap = {}
+                        varMap[":PandaID"] = jobPandaID
+                        varMap[":newJobStatus"] = "throttled"
+                        varMap[":oldJobStatus"] = "activated"
+                        self.cur.execute(sqlJT + comment, varMap)
+                        if self.cur.rowcount > 0:
+                            iRow += 1
+                            self.recordStatusChange(
+                                jobPandaID,
+                                varMap[":newJobStatus"],
+                                infoMap={"computingSite": jobComputingSite, "cloud": jobCloud, "prodSourceLabel": jobProdSourceLabel},
+                                useCommit=False,
+                            )
                     tmpLog.debug(f"throttled {iRow} jobs for jediTaskID={jediTaskID}")
                 # get jobs
                 varMap = {}
