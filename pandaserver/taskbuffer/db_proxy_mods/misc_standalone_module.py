@@ -210,6 +210,8 @@ class MiscStandaloneModule(BaseModule):
             sqlUE = sqlUE[:-1]
             sqlUE += " WHERE jediTaskID=:jediTaskID "
             self.cur.execute(sqlUE + comment, varMap)
+            if newStatus is not None and self.cur.rowcount > 0:
+                self.record_task_status_change(jediTaskID)
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -646,6 +648,8 @@ class MiscStandaloneModule(BaseModule):
             varMap[":jediTaskID"] = jediTaskID
             varMap[":status"] = "ready"
             self.cur.execute(sql + comment, varMap)
+            if self.cur.rowcount > 0:
+                self.record_task_status_change(jediTaskID)
             # get datasetIDs for master
             varMap = {}
             varMap[":jediTaskID"] = jediTaskID
@@ -2313,6 +2317,7 @@ class MiscStandaloneModule(BaseModule):
                     varMap[":newStatus"] = "finished"
                     if not simul:
                         self.cur.execute(sqlUT + comment, varMap)
+                        self.record_task_status_change(jediTaskID)  # type: ignore[arg-type]  # toSkip is set when the id is None
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")

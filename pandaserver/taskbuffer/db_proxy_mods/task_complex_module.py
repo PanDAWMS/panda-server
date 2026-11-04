@@ -2279,6 +2279,7 @@ class TaskComplexModule(BaseModule):
                         var_map[":status"] = "tobroken"
                         var_map[":err"] = err_msg
                         self.cur.execute(sql_update_task_status + comment, var_map)
+                        self.record_task_status_change(jedi_task_id)
                     else:
                         # reset the change to preserve userName
                         original_task_spec.resetChangedAttr("userName")
@@ -5364,6 +5365,8 @@ class TaskComplexModule(BaseModule):
                     if newTaskStatus == "exhausted":
                         self.setDeftStatus_JEDI(jediTaskID, newTaskStatus)
                         self.setSuperStatus_JEDI(jediTaskID, newTaskStatus)
+                    # task status log, also when the task goes back to the status before the command
+                    if newTaskStatus == "exhausted" or newTaskStatus != taskStatus:
                         self.record_task_status_change(jediTaskID)
                 # update output/lib/log
                 if newTaskStatus != taskOldStatus and taskStatus != "exhausted" and newTaskStatus != "exhausted":

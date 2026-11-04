@@ -114,6 +114,7 @@ class TaskStandaloneModule(BaseModule):
             self.conn.begin()
             # insert dataset
             self.cur.execute(sql + comment, varMap)
+            self.record_task_status_change(taskSpec.jediTaskID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -1332,6 +1333,8 @@ class TaskStandaloneModule(BaseModule):
                         tmpLog.debug(sqlUC + comment + str(varMap))
                         self.cur.execute(sqlUC + comment, varMap)
                         self.setSuperStatus_JEDI(jediTaskID, deftStatus)
+                        # task status log for the first status of the task
+                        self.record_task_status_change(jediTaskID)
                     # append
                     if isOK:
                         retTaskIDs.append((jediTaskID, None, "registered", parent_tid))
@@ -1862,6 +1865,7 @@ class TaskStandaloneModule(BaseModule):
                     self.cur.execute(sqlTD + comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow > 0:
+                        self.record_task_status_change(jediTaskID)
                         tmpLog.debug(f"jediTaskID={jediTaskID} back to defined")
                         nTasks += 1
                 if nRow > 0 and is_msg_driven(splitRule):
@@ -2929,6 +2933,8 @@ class TaskStandaloneModule(BaseModule):
                         self.record_task_status_change(jediTaskID)
                         self.push_task_status_message(None, jediTaskID, varMap[":newStatus"])
                 except Exception:
+                    # roll back so that the status change is not committed without the status log
+                    self._rollback()
                     tmpLog.debug(f"skip locked jediTaskID={jediTaskID}")
                 # commit
                 if not self._commit():
