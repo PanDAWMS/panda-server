@@ -4959,6 +4959,8 @@ class JobComplexModule(BaseModule):
                     tmp_log.debug(f"finalizing {pandaID}")
                     # insert
                     self.cur.execute(sql3 + comment, job.valuesMap())
+                    # record status change
+                    self.recordStatusChange(pandaID, job.jobStatus, jobInfo=job, useCommit=False)
                     # update files,metadata,parameters
                     varMap = {}
                     varMap[":PandaID"] = pandaID
@@ -4984,7 +4986,8 @@ class JobComplexModule(BaseModule):
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                self.push_job_status_message(job, pandaID, varMap[":newJobStatus"])
+                if n > 0:
+                    self.push_job_status_message(job, pandaID, job.jobStatus)
             tmp_log.debug(f"done {len(pPandaIDs)} jobs")
             return True
         except Exception:
