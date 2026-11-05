@@ -3664,11 +3664,15 @@ class JobComplexModule(BaseModule):
                 return True, unprocessedMap
             return True
         except Exception:
-            # roll back
-            if no_late_bulk_exec:
-                self._rollback()
             # error
             self.dump_error_message(tmp_log)
+            if not no_late_bulk_exec:
+                # some changes for the job, such as the input files set to running with its PandaID, were
+                # executed in the bulk transaction already. raise so that the whole bulk is rolled back
+                # rather than committed without the job
+                raise
+            # roll back
+            self._rollback()
             if unprocessedMap is not None:
                 return False, unprocessedMap
             return False
