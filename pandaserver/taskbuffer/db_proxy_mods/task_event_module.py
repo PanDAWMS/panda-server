@@ -1735,9 +1735,9 @@ class TaskEventModule(BaseModule):
                 updateSubStatus = False
             sqlUE += "WHERE PandaID=:PandaID AND jobStatus in (:oldStatus1,:oldStatus2,:oldStatus3) AND modificationTime>(CURRENT_DATE-90) "
             sqlUE += "AND NOT eventService IN (:esJumbo) "
-            # sql to get ES job to update
+            # sql to get the current status of the ES job whatever it is, to tell which table holds the job
             sqlSE = "SELECT jobStatus,cloud,computingSite,prodSourceLabel FROM {0} "
-            sqlSE += "WHERE PandaID=:PandaID AND jobStatus in (:oldStatus1,:oldStatus2,:oldStatus3) AND modificationTime>(CURRENT_DATE-90) "
+            sqlSE += "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-90) "
             sqlSE += "AND NOT eventService IN (:esJumbo) FOR UPDATE "
             for tmpPandaID in esPandaIDs:
                 varMap = {}
@@ -1759,26 +1759,35 @@ class TaskEventModule(BaseModule):
                 else:
                     varMap[":errDiag"] = f"{jobStatus} since an associated ES or merge job PandaID={job.PandaID} {jobStatus}"
                 isUpdated = False
+                # a job stays in jobsArchived4 for a few days and is copied to the archive before it leaves,
+                # so it can be in both tables. the first table holding the job gives its status, so that one
+                # status change makes one status log row and an update of a stale archive copy makes none
+                resStatus = None
+                statusUpdated = False
                 for tableName in [
                     "ATLAS_PANDA.jobsArchived4",
                     "ATLAS_PANDAARCH.jobsArchived",
                 ]:
-                    # get the current status to record the status change
-                    varMapS = {key: varMap[key] for key in [":PandaID", ":oldStatus1", ":oldStatus2", ":oldStatus3", ":esJumbo"]}
+                    # get the current status
+                    varMapS = {key: varMap[key] for key in [":PandaID", ":esJumbo"]}
                     self.cur.execute(sqlSE.format(tableName) + comment, varMapS)
                     resSE = self.cur.fetchone()
                     self.cur.execute(sqlUE.format(tableName) + comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow > 0:
-                        tmp_log.debug(f"change PandaID={tmpPandaID} to {jobStatus}")
+                        tmp_log.debug(f"change PandaID={tmpPandaID} in {tableName} to {jobStatus}")
                         isUpdated = True
-                        if resSE is not None and resSE[0] != jobStatus:
-                            _, tmpCloud, tmpComputingSite, tmpProdSourceLabel = resSE
-                            self.record_job_status_change(
-                                tmpPandaID,
-                                jobStatus,
-                                infoMap={"computingSite": tmpComputingSite, "cloud": tmpCloud, "prodSourceLabel": tmpProdSourceLabel},
-                            )
+                    if resSE is not None and resStatus is None:
+                        resStatus = resSE
+                        statusUpdated = nRow > 0
+                # record status change
+                if statusUpdated and resStatus is not None and resStatus[0] != jobStatus:
+                    _, tmpCloud, tmpComputingSite, tmpProdSourceLabel = resStatus
+                    self.record_job_status_change(
+                        tmpPandaID,
+                        jobStatus,
+                        infoMap={"computingSite": tmpComputingSite, "cloud": tmpCloud, "prodSourceLabel": tmpProdSourceLabel},
+                    )
                 # kill processed events if necessary
                 if killEvents and isUpdated:
                     self.killUsedEventRanges(job.jediTaskID, tmpPandaID, job.notDiscardEvents())  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
