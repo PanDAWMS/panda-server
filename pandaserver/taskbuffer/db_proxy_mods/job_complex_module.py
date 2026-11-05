@@ -857,7 +857,7 @@ class JobComplexModule(BaseModule):
         if isinstance(code, int):
             code = str(code)
 
-        sql0 = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus,taskBufferErrorCode,eventService FROM %s "
+        sql0 = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus,taskBufferErrorCode,eventService,stateChangeTime FROM %s "
         sql0 += "WHERE PandaID=:PandaID "
         sql0 += "FOR UPDATE NOWAIT "
         sql1 = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID "
@@ -915,6 +915,7 @@ class JobComplexModule(BaseModule):
                     jobStatusInDB,
                     taskBufferErrorCode,
                     eventService,
+                    stateChangeTime,
                 ) = res
                 # check group prod role
                 validGroupProdRole = False
@@ -1033,7 +1034,7 @@ class JobComplexModule(BaseModule):
                         job.jobStatus = "closed"
                         job.jobSubStatus = "toreassign"
                         job.taskBufferErrorCode = ErrorCode.EC_Expire
-                        job.taskBufferErrorDiag = f"expired in {oldJobStatus}. status unchanged since {str(job.stateChangeTime)}"
+                        job.taskBufferErrorDiag = f"expired in {oldJobStatus}. status unchanged since {str(stateChangeTime)}"
                     elif code == "3":
                         # aborted
                         job.taskBufferErrorCode = ErrorCode.EC_Aborted
