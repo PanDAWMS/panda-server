@@ -824,7 +824,7 @@ class TaskEventModule(BaseModule):
                 # insert
                 self.cur.execute(sqlDJI + comment, dJob.valuesMap())
                 # record status change
-                self.recordStatusChange(dJob.PandaID, dJob.jobStatus, jobInfo=dJob, useCommit=False)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                self.record_job_status_change(dJob.PandaID, dJob.jobStatus, jobInfo=dJob)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # set file status
                 varMap = {}
                 varMap[":PandaID"] = pandaID
@@ -1015,7 +1015,7 @@ class TaskEventModule(BaseModule):
                 self.cur.execute(sqlPMod + comment, varMap)
                 nKilled += 1
                 # record status change
-                self.recordStatusChange(dJob.PandaID, dJob.jobStatus, jobInfo=dJob, useCommit=False)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                self.record_job_status_change(dJob.PandaID, dJob.jobStatus, jobInfo=dJob)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             # commit
             if useCommit:
                 if not self._commit():
@@ -1690,7 +1690,17 @@ class TaskEventModule(BaseModule):
             return None
 
     # update related ES jobs when ES-merge job is done
-    def updateRelatedEventServiceJobs(self, job: JobSpec, killEvents: bool = False, forceFailed: bool = False) -> bool:
+    def updateRelatedEventServiceJobs(self, job: JobSpec, killEvents: bool = False, forceFailed: bool = False) -> None:
+        """
+        Set the related ES jobs in jobsArchived4 and the archive to the status of the given job.
+
+        Runs in the caller's transaction and raises on error, so that the caller rolls back
+        rather than committing the related jobs half updated.
+
+        :param job: the ES or ES merge job whose status is propagated
+        :param killEvents: True to kill the used event ranges of the updated jobs
+        :param forceFailed: True to set the related jobs to failed whatever the job's status is
+        """
         comment = " /* DBProxy.updateRelatedEventServiceJobs */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         if forceFailed:
@@ -1699,7 +1709,7 @@ class TaskEventModule(BaseModule):
             jobStatus = job.jobStatus
         if not forceFailed and jobStatus not in ["finished"] and not (killEvents and not job.notDiscardEvents()):
             tmp_log.debug(f"skip jobStatus={jobStatus} killEvents={killEvents} discard={job.notDiscardEvents()}")
-            return True
+            return
         tmp_log.debug(f"start jobStatus={jobStatus} killEvents={killEvents} discard={job.notDiscardEvents()}")
         try:
             # sql to read range
@@ -1735,9 +1745,9 @@ class TaskEventModule(BaseModule):
                 updateSubStatus = False
             sqlUE += "WHERE PandaID=:PandaID AND jobStatus in (:oldStatus1,:oldStatus2,:oldStatus3) AND modificationTime>(CURRENT_DATE-90) "
             sqlUE += "AND NOT eventService IN (:esJumbo) "
-            # sql to get ES job to update
+            # sql to get the current status of the ES job whatever it is, to tell which table holds the job
             sqlSE = "SELECT jobStatus,cloud,computingSite,prodSourceLabel FROM {0} "
-            sqlSE += "WHERE PandaID=:PandaID AND jobStatus in (:oldStatus1,:oldStatus2,:oldStatus3) AND modificationTime>(CURRENT_DATE-90) "
+            sqlSE += "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-90) "
             sqlSE += "AND NOT eventService IN (:esJumbo) FOR UPDATE "
             for tmpPandaID in esPandaIDs:
                 varMap = {}
@@ -1759,36 +1769,43 @@ class TaskEventModule(BaseModule):
                 else:
                     varMap[":errDiag"] = f"{jobStatus} since an associated ES or merge job PandaID={job.PandaID} {jobStatus}"
                 isUpdated = False
+                # a job stays in jobsArchived4 for a few days and is copied to the archive before it leaves,
+                # so it can be in both tables. the first table holding the job gives its status, so that one
+                # status change makes one status log row and an update of a stale archive copy makes none
+                resStatus = None
+                statusUpdated = False
                 for tableName in [
                     "ATLAS_PANDA.jobsArchived4",
                     "ATLAS_PANDAARCH.jobsArchived",
                 ]:
-                    # get the current status to record the status change
-                    varMapS = {key: varMap[key] for key in [":PandaID", ":oldStatus1", ":oldStatus2", ":oldStatus3", ":esJumbo"]}
+                    # get the current status
+                    varMapS = {key: varMap[key] for key in [":PandaID", ":esJumbo"]}
                     self.cur.execute(sqlSE.format(tableName) + comment, varMapS)
                     resSE = self.cur.fetchone()
                     self.cur.execute(sqlUE.format(tableName) + comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow > 0:
-                        tmp_log.debug(f"change PandaID={tmpPandaID} to {jobStatus}")
+                        tmp_log.debug(f"change PandaID={tmpPandaID} in {tableName} to {jobStatus}")
                         isUpdated = True
-                        if resSE is not None and resSE[0] != jobStatus:
-                            _, tmpCloud, tmpComputingSite, tmpProdSourceLabel = resSE
-                            self.recordStatusChange(
-                                tmpPandaID,
-                                jobStatus,
-                                infoMap={"computingSite": tmpComputingSite, "cloud": tmpCloud, "prodSourceLabel": tmpProdSourceLabel},
-                                useCommit=False,
-                            )
+                    if resSE is not None and resStatus is None:
+                        resStatus = resSE
+                        statusUpdated = nRow > 0
+                # record status change
+                if statusUpdated and resStatus is not None and resStatus[0] != jobStatus:
+                    _, tmpCloud, tmpComputingSite, tmpProdSourceLabel = resStatus
+                    self.record_job_status_change(
+                        tmpPandaID,
+                        jobStatus,
+                        infoMap={"computingSite": tmpComputingSite, "cloud": tmpCloud, "prodSourceLabel": tmpProdSourceLabel},
+                    )
                 # kill processed events if necessary
                 if killEvents and isUpdated:
                     self.killUsedEventRanges(job.jediTaskID, tmpPandaID, job.notDiscardEvents())  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             tmp_log.debug("done")
-            return True
         except Exception:
-            # error
+            # error. raise so that the caller rolls back the related jobs updated so far
             self.dump_error_message(tmp_log)
-            return False
+            raise
 
     # disable further reattempt for pmerge
     def disableFurtherReattempt(self, jobSpec: JobSpec) -> None:
@@ -4499,6 +4516,14 @@ class TaskEventModule(BaseModule):
 
     # make fake co-jumbo
     def makeFakeCoJumbo(self, oldJobSpec: JobSpec) -> int:
+        """
+        Insert a copy of the job as a waiting co-jumbo job at the site for waiting co-jumbo jobs.
+
+        Runs in the caller's transaction and raises on error.
+
+        :param oldJobSpec: the job to copy
+        :return: 1, the number of consumers made
+        """
         comment = " /* DBProxy.self.makeFakeCoJumbo */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={oldJobSpec.PandaID}")
         tmp_log.debug("start")
@@ -4607,15 +4632,16 @@ class TaskEventModule(BaseModule):
             varMap[":PandaID"] = jobSpec.PandaID
             varMap[":param"] = jobSpec.jobParameters
             self.cur.execute(sqlJob + comment, varMap)
-            self.recordStatusChange(jobSpec.PandaID, jobSpec.jobStatus, jobInfo=jobSpec, useCommit=False)
+            self.record_job_status_change(jobSpec.PandaID, jobSpec.jobStatus, jobInfo=jobSpec)
             self.push_job_status_message(jobSpec, jobSpec.PandaID, jobSpec.jobStatus)
             # return
             tmp_log.debug("done")
             return 1
         except Exception:
-            # error
+            # error. raise so that the caller rolls back the job inserted so far, rather than
+            # failing the original job while the new one is left in the transaction
             self.dump_error_message(tmp_log)
-            return 0
+            raise
 
     # get active jumbo jobs for a task
     def getActiveJumboJobs_JEDI(self, jediTaskID: int) -> dict[Any, Any]:

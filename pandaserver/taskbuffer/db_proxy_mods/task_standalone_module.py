@@ -4174,11 +4174,10 @@ class TaskStandaloneModule(BaseModule):
                         self.cur.execute(sqlJT + comment, varMap)
                         if self.cur.rowcount > 0:
                             iRow += 1
-                            self.recordStatusChange(
+                            self.record_job_status_change(
                                 jobPandaID,
                                 varMap[":newJobStatus"],
                                 infoMap={"computingSite": jobComputingSite, "cloud": jobCloud, "prodSourceLabel": jobProdSourceLabel},
-                                useCommit=False,
                             )
                     tmpLog.debug(f"throttled {iRow} jobs for jediTaskID={jediTaskID}")
                 # get jobs
