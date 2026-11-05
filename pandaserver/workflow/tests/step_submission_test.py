@@ -254,6 +254,19 @@ def main():
     handler.submit_target(make_step(all_inputs_complete=False))
     failures += not check("workflowHoldup set", tbif.inserted[0].get("workflowHoldup") is True)
 
+    print("\n=== the task names the workflow it is a step of ===")
+    # Nothing else in a task identifies its workflow, and the reverse lookup is a scan of
+    # workflow_steps, so a consumer that runs often -- brokerage -- can only ask about siblings
+    # if the task carries the ID. The refiner turns this into the workflowID split rule.
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    step = make_step()
+    handler.submit_target(step)
+    failures += not check(
+        "workflowID is in the submitted task parameters", tbif.inserted[0].get("workflowID") == step.workflow_id, tbif.inserted[0].get("workflowID")
+    )
+    failures += not check("...and it is the step's own workflow", step.workflow_id is not None, step.workflow_id)
+
     print("\n=== a production label without the role is refused ===")
     # only the task-level production label is guarded; see PRODUCTION_SOURCE_LABELS
     for label in ["managed"]:

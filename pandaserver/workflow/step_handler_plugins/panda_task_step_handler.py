@@ -437,6 +437,10 @@ class PandaTaskStepHandler(BaseStepHandler):
             if not step_spec.get_parameter("all_inputs_complete"):
                 # Some inputs are not complete, set workflowHoldup to True to hold up the workflow until released by workflow processor
                 task_param_map["workflowHoldup"] = True
+            # Name the workflow on the task. Nothing else in the task identifies it, and the
+            # reverse lookup is a scan of workflow_steps, so a consumer such as brokerage can only
+            # afford to ask about its workflow if the task carries the ID itself.
+            task_param_map["workflowID"] = step_spec.workflow_id
             # Take out the parent task ID, which the insert takes as an argument rather than reading
             # from the parameters. A step that does not ask for one submits with no parent.
             is_resolved, parent_task_id, message = self.take_parent_task_id(step_spec, task_param_map, tmp_log)

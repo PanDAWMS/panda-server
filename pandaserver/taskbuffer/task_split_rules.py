@@ -103,6 +103,7 @@ split_rule_dict = {
     "writeInputToFile": "WF",
     "workflowHoldup": "WH",
     "waitInput": "WI",
+    "workflowID": "WK",
     "maxAttemptES": "XA",
     "decAttOnFailedES": "XF",
     "maxAttemptEsJob": "XJ",

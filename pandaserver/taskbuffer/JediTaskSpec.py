@@ -1822,6 +1822,19 @@ class JediTaskSpec(object):
         else:
             self.removeSplitRule(self.splitRuleToken["workflowHoldup"])
 
+    # get the ID of the native workflow this task is a step of
+    def get_workflow_id(self) -> int | None:
+        """The native workflow whose step submitted this task, or None for an ordinary task
+
+        A task inside a nested workflow carries the ID of the workflow it directly belongs to,
+        which for a scatter child or a sub-workflow is the child rather than the top one.
+        """
+        if self.splitRule is not None:
+            tmpMatch = re.search(self.splitRuleToken["workflowID"] + r"=(\d+)", self.splitRule)
+            if tmpMatch is not None:
+                return int(tmpMatch.group(1))
+        return None
+
     # get queued time
     def get_queued_time(self) -> float | None:
         """

@@ -11,6 +11,7 @@ from typing import Any
 
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
+from pandajedi.jedibrokerage import workflow_affinity
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.JediTaskBufferInterface import JediTaskBufferInterface
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
@@ -693,6 +694,48 @@ def getSiteToRunRateStats(
                     sys.stderr.write(err_str)
 
     return ret_val, ret_map
+
+
+# anchor of a native workflow, as the workflow manager recorded it on the workflow
+CACHE_WorkflowAnchor: dict[int, dict[str, Any]] = {}
+CACHE_WorkflowAnchor_MAX = 1000
+
+
+def get_workflow_anchor(tbIF: JediTaskBufferInterface, workflow_id: int, cache_lifetime: int = 120) -> dict[str, Any] | None:
+    """
+    Read a native workflow's brokerage anchor, cached in this process for a short while
+
+    The anchor is already persisted on the workflow, so this needs no shared cache of its own --
+    only enough memory to keep brokerage from re-reading the same row for every input chunk of
+    every task of the workflow, several times a minute.
+
+    Args:
+        tbIF: task buffer interface
+        workflow_id: the native workflow to read
+        cache_lifetime: seconds before the local copy is read again
+
+    Returns:
+        dict | None: the anchor as the workflow manager stored it, or None if there is none yet
+    """
+    current_time = naive_utcnow()
+    cached = CACHE_WorkflowAnchor.get(workflow_id)
+    if cached is not None and current_time <= cached["exp"]:
+        cached_anchor: dict[str, Any] | None = cached["data"]
+        return cached_anchor
+    anchor: dict[str, Any] | None = None
+    try:
+        workflow_spec = tbIF.get_workflow(workflow_id)
+        if workflow_spec is not None:
+            anchor = workflow_spec.get_parameter(workflow_affinity.WORKFLOW_ANCHOR_PARAM)
+    except Exception:
+        # A preference that cannot be read is not a reason to fail brokerage; the task is simply
+        # brokered as any other would be.
+        anchor = None
+    if len(CACHE_WorkflowAnchor) >= CACHE_WorkflowAnchor_MAX:
+        for expired_key in [key for key, value in CACHE_WorkflowAnchor.items() if current_time > value["exp"]]:
+            del CACHE_WorkflowAnchor[expired_key]
+    CACHE_WorkflowAnchor[workflow_id] = {"exp": current_time + datetime.timedelta(seconds=cache_lifetime), "data": anchor}
+    return anchor
 
 
 # get users jobs stats from various resources
