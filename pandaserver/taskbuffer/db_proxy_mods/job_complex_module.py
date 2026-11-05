@@ -729,14 +729,18 @@ class JobComplexModule(BaseModule):
                 except Exception:
                     tmp_log.error("push_job_status_message in updateJob")
                 return True
-            except Exception:
+            except Exception as e:
                 # roll back
                 self._rollback(True)
                 if iTry + 1 < nTry:
                     tmp_log.debug(f"retry : {iTry}")
                     time.sleep(random.randint(3, 10))
                     continue
-                self.dump_error_message(tmp_log)
+                if self.is_no_wait_exception(e):
+                    # resource busy and acquire with NOWAIT specified. Expected when another process holds the lock
+                    tmp_log.debug("skipped with NOWAIT since resource is locked")
+                else:
+                    self.dump_error_message(tmp_log)
                 return False
         # the retry above only continues while another attempt is left, so the last one
         # returns and this is not reached
