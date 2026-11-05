@@ -2506,23 +2506,31 @@ class JobComplexModule(BaseModule):
                                         )
                                         self._rollback()
                                         return retJobs, nSent
-                                # pre-lock
-                                prelocked = False
+                                # pre-lock. the job is locked only when its row was found
                                 resPL: tuple[Any, ...] | None = None
                                 try:
                                     varMapPL = {":PandaID": tmpPandaID}
                                     tmp_log.debug(sqlPL + comment + str(varMapPL))
                                     self.cur.execute(sqlPL + comment, varMapPL)
                                     resPL = self.cur.fetchone()
-                                    prelocked = True
+                                    if resPL is None:
+                                        tmp_log.debug(f"PandaID={tmpPandaID} not found to pre-lock")
                                 except Exception:
                                     tmp_log.debug("cannot pre-lock")
-                                # update
-                                if prelocked:
+                                # update only the job locked above
+                                if resPL is not None:
                                     tmp_log.debug(sqlJ + comment + str(varMap))
                                     self.cur.execute(sqlJ + comment, varMap)
                                     retU = self.cur.rowcount
                                     tmp_log.debug(f"retU={retU}")
+                                    if retU != 0:
+                                        # record status change in the same transaction as the update
+                                        _, tmpComputingSite, tmpCloud, tmpProdSourceLabel = resPL
+                                        self.record_job_status_change(
+                                            tmpPandaID,
+                                            new_job_status,
+                                            infoMap={"computingSite": tmpComputingSite, "cloud": tmpCloud, "prodSourceLabel": tmpProdSourceLabel},
+                                        )
                                 else:
                                     retU = 0
                                 if retU != 0:
@@ -2585,16 +2593,6 @@ class JobComplexModule(BaseModule):
                                             else:
                                                 # update
                                                 self.cur.execute(sqlJWU + comment, varMap)
-                                    # record status change in the same transaction as the update.
-                                    # the update hit the row, so the pre-lock above read it
-                                    if resPL is None:
-                                        raise RuntimeError(f"PandaID={tmpPandaID} updated without being read by the pre-lock")
-                                    _, tmpComputingSite, tmpCloud, tmpProdSourceLabel = resPL
-                                    self.record_job_status_change(
-                                        tmpPandaID,
-                                        new_job_status,
-                                        infoMap={"computingSite": tmpComputingSite, "cloud": tmpCloud, "prodSourceLabel": tmpProdSourceLabel},
-                                    )
                                 # commit
                                 if not self._commit():
                                     raise RuntimeError("Commit error")
