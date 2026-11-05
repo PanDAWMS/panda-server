@@ -1690,7 +1690,17 @@ class TaskEventModule(BaseModule):
             return None
 
     # update related ES jobs when ES-merge job is done
-    def updateRelatedEventServiceJobs(self, job: JobSpec, killEvents: bool = False, forceFailed: bool = False) -> bool:
+    def updateRelatedEventServiceJobs(self, job: JobSpec, killEvents: bool = False, forceFailed: bool = False) -> None:
+        """
+        Set the related ES jobs in jobsArchived4 and the archive to the status of the given job.
+
+        Runs in the caller's transaction and raises on error, so that the caller rolls back
+        rather than committing the related jobs half updated.
+
+        :param job: the ES or ES merge job whose status is propagated
+        :param killEvents: True to kill the used event ranges of the updated jobs
+        :param forceFailed: True to set the related jobs to failed whatever the job's status is
+        """
         comment = " /* DBProxy.updateRelatedEventServiceJobs */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         if forceFailed:
@@ -1699,7 +1709,7 @@ class TaskEventModule(BaseModule):
             jobStatus = job.jobStatus
         if not forceFailed and jobStatus not in ["finished"] and not (killEvents and not job.notDiscardEvents()):
             tmp_log.debug(f"skip jobStatus={jobStatus} killEvents={killEvents} discard={job.notDiscardEvents()}")
-            return True
+            return
         tmp_log.debug(f"start jobStatus={jobStatus} killEvents={killEvents} discard={job.notDiscardEvents()}")
         try:
             # sql to read range
@@ -1792,11 +1802,10 @@ class TaskEventModule(BaseModule):
                 if killEvents and isUpdated:
                     self.killUsedEventRanges(job.jediTaskID, tmpPandaID, job.notDiscardEvents())  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             tmp_log.debug("done")
-            return True
         except Exception:
-            # error
+            # error. raise so that the caller rolls back the related jobs updated so far
             self.dump_error_message(tmp_log)
-            return False
+            raise
 
     # disable further reattempt for pmerge
     def disableFurtherReattempt(self, jobSpec: JobSpec) -> None:
@@ -4507,6 +4516,14 @@ class TaskEventModule(BaseModule):
 
     # make fake co-jumbo
     def makeFakeCoJumbo(self, oldJobSpec: JobSpec) -> int:
+        """
+        Insert a copy of the job as a waiting co-jumbo job at the site for waiting co-jumbo jobs.
+
+        Runs in the caller's transaction and raises on error.
+
+        :param oldJobSpec: the job to copy
+        :return: 1, the number of consumers made
+        """
         comment = " /* DBProxy.self.makeFakeCoJumbo */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={oldJobSpec.PandaID}")
         tmp_log.debug("start")
@@ -4621,9 +4638,10 @@ class TaskEventModule(BaseModule):
             tmp_log.debug("done")
             return 1
         except Exception:
-            # error
+            # error. raise so that the caller rolls back the job inserted so far, rather than
+            # failing the original job while the new one is left in the transaction
             self.dump_error_message(tmp_log)
-            return 0
+            raise
 
     # get active jumbo jobs for a task
     def getActiveJumboJobs_JEDI(self, jediTaskID: int) -> dict[Any, Any]:
