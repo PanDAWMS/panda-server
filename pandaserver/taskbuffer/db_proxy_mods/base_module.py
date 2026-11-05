@@ -692,17 +692,32 @@ class BaseModule:
         return n_touched, min(starts) if starts else None
 
     # record status change
-    def recordStatusChange(
+    def record_job_status_change(
         self,
         pandaID: int,
         jobStatus: str,
         jobInfo: "JobSpec | None" = None,
         infoMap: dict[str, Any] = {},
-        useCommit: bool = True,
         no_late_bulk_exec: bool = True,
         extracted_sqls: dict[str, Any] | None = None,
     ) -> None:
-        comment = " /* DBProxy.recordStatusChange */"
+        """
+        Insert a jobs_StatusLog row for a job status change.
+
+        The row is written in the caller's transaction, so the caller calls this before it
+        commits the status change, and the status change and the row are committed or rolled
+        back together. With no_late_bulk_exec=False the row is queued in extracted_sqls for
+        the bulk insert instead.
+
+        :param pandaID: PandaID of the job
+        :param jobStatus: the new status to record
+        :param jobInfo: job spec to take computingSite, cloud and prodSourceLabel from
+        :param infoMap: dict with those three keys, used when jobInfo is None
+        :param no_late_bulk_exec: False to queue the row in extracted_sqls instead of executing it
+        :param extracted_sqls: dict that collects the SQLs for the bulk insert
+        :raises RuntimeError: if the insert fails
+        """
+        comment = " /* DBProxy.record_job_status_change */"
         tmp_log = self.create_tagged_logger(comment)
         # check config
         if not hasattr(panda_config, "record_statuschange") or panda_config.record_statuschange is not True:
@@ -732,25 +747,14 @@ class BaseModule:
         sql += "(PandaID,modificationTime,jobStatus,prodSourceLabel,cloud,computingSite,modificationHost,modiftime_extended) "
         sql += "VALUES (:PandaID,CURRENT_DATE,:jobStatus,:prodSourceLabel,:cloud,:computingSite,:modificationHost,CURRENT_TIMESTAMP) "
         try:
-            # start transaction
             if no_late_bulk_exec:
-                if useCommit:
-                    self.conn.begin()
                 self.cur.execute(sql + comment, varMap)
-                # commit
-                if useCommit:
-                    if not self._commit():
-                        raise RuntimeError("Commit error")
             elif extracted_sqls is not None:
                 extracted_sqls.setdefault("state_change", {"sql": sql + comment, "vars": []})
                 extracted_sqls["state_change"]["vars"].append(varMap)
         except Exception:
-            # roll back
-            if useCommit and no_late_bulk_exec:
-                self._rollback()
             self.dump_error_message(tmp_log)
-            if not useCommit:
-                raise RuntimeError("recordStatusChange failed")
+            raise RuntimeError("record_job_status_change failed")
         return
 
     def push_job_status_message(

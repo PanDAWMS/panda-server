@@ -4554,11 +4554,10 @@ class TaskComplexModule(BaseModule):
                                     varMap[":oldJobStatus"] = oldJobStatus
                                     self.cur.execute(sqlJT + comment, varMap)
                                     if self.cur.rowcount > 0:
-                                        self.recordStatusChange(
+                                        self.record_job_status_change(
                                             jobPandaID,
                                             newJobStatus,
                                             infoMap={"computingSite": jobComputingSite, "cloud": jobCloud, "prodSourceLabel": jobProdSourceLabel},
-                                            useCommit=False,
                                         )
                 # commit
                 if not self._commit():
