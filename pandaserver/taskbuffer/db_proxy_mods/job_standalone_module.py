@@ -30,7 +30,6 @@ class JobStandaloneModule(BaseModule):
         else:
             tmp_id = job.PandaID
         tmp_log = self.create_tagged_logger(comment, f"PandaID={tmp_id}")
-        updatedFlag = False
         if job is None:
             tmp_log.debug("skip job=None")
             return True
@@ -48,6 +47,8 @@ class JobStandaloneModule(BaseModule):
         nTry = 3
         to_push = False
         for iTry in range(nTry):
+            # reset for each attempt since a failed attempt is rolled back
+            updatedFlag = False
             try:
                 # check if all files are ready
                 allOK = True
@@ -130,15 +131,12 @@ class JobStandaloneModule(BaseModule):
                         varMap[":param"] = job.jobParameters
                         self.cur.execute(sqlJob + comment, varMap)
                         updatedFlag = True
+                # record status change in the same transaction as the move or update
+                if updatedFlag:
+                    self.record_job_status_change(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                # record status change
-                try:
-                    if updatedFlag:
-                        self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
-                except Exception:
-                    tmp_log.error("recordStatusChange failed")
                 self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # push job
                 if to_push:
@@ -176,9 +174,10 @@ class JobStandaloneModule(BaseModule):
         # time information
         job.modificationTime = naive_utcnow()
         job.stateChangeTime = job.modificationTime
-        updatedFlag = False
         nTry = 3
         for iTry in range(nTry):
+            # reset for each attempt since a failed attempt is rolled back
+            updatedFlag = False
             try:
                 # begin transaction
                 self.conn.begin()
@@ -207,16 +206,18 @@ class JobStandaloneModule(BaseModule):
                     varMap[":param"] = job.jobParameters
                     self.cur.execute(sqlJob + comment, varMap)
                     updatedFlag = True
+                # record status change in the same transaction as the update
+                if updatedFlag:
+                    self.record_job_status_change(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                # record status change
+                # push status change after the commit
                 try:
                     if updatedFlag:
-                        self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                         self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 except Exception:
-                    tmp_log.error("recordStatusChange in keepJob")
+                    tmp_log.error("push_job_status_message in keepJob")
                 return True
             except Exception:
                 # roll back
@@ -366,14 +367,11 @@ class JobStandaloneModule(BaseModule):
                     varMap[":row_ID"] = file.row_ID
                     tmp_log.debug(sqlF + comment + str(varMap))
                     self.cur.execute(sqlF + comment, varMap)
+            # record status change in the same transaction as the move
+            self.record_job_status_change(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            # record status change
-            try:
-                self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
-            except Exception:
-                tmp_log.error("recordStatusChange in resetJobs")
             self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             tmp_log.debug(f"done with {job is not None}")
             if getOldSubs:
@@ -448,17 +446,19 @@ class JobStandaloneModule(BaseModule):
                     file.pack(resF)
                     # add file
                     job.addFile(file)
+            # record status change in the same transaction as the update.
+            # the job is set only when the update above changed a row
+            if job is not None:
+                self.record_job_status_change(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            # record status change
+            # push status change after the commit
             try:
-                # the job is set only when the update above changed a row
                 if job is not None:
-                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             except Exception:
-                tmp_log.error("recordStatusChange in resetDefinedJobs")
+                tmp_log.error("push_job_status_message in resetDefinedJobs")
             tmp_log.debug(f"done with {job is not None}")
             return job
         except Exception:
@@ -1753,11 +1753,10 @@ class JobStandaloneModule(BaseModule):
                     self.cur.execute(sql_update_jobs + comment, var_map)
                     if self.cur.rowcount > 0:
                         n_updated += 1
-                        self.recordStatusChange(
+                        self.record_job_status_change(
                             panda_id,
                             var_map[":newJobStatus"],  # type: ignore[arg-type]  # a bind map holds what each column holds
                             infoMap=job_info,
-                            useCommit=False,
                         )
                 tmp_log.debug(f"reset {n_updated} jobs")
                 if n_updated > 0:
@@ -1853,11 +1852,10 @@ class JobStandaloneModule(BaseModule):
                     self.cur.execute(sql_update_jobs + comment, var_map)
                     if self.cur.rowcount > 0:
                         n_updated += 1
-                        self.recordStatusChange(
+                        self.record_job_status_change(
                             panda_id,
                             var_map[":newJobStatus"],  # type: ignore[arg-type]  # a bind map holds what each column holds
                             infoMap=job_info,
-                            useCommit=False,
                         )
                 tmp_log.debug(f"reset {n_updated} jobs")
                 if n_updated > 0:

@@ -475,23 +475,20 @@ class JobComplexModule(BaseModule):
                     tmp_log.debug("not found")
                     # already deleted or bad attempt number
                     ret = "tobekilled"
+                # record status change in the same transaction as the update
+                if updatedFlag and oldJobStatus is not None and oldJobStatus != jobStatus:
+                    self.record_job_status_change(
+                        pandaID,
+                        jobStatus,
+                        infoMap={
+                            "computingSite": computingSite,
+                            "cloud": cloud,
+                            "prodSourceLabel": prodSourceLabel,
+                        },
+                    )
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                # record status change
-                try:
-                    if updatedFlag and oldJobStatus is not None and oldJobStatus != jobStatus:
-                        self.recordStatusChange(
-                            pandaID,
-                            jobStatus,
-                            infoMap={
-                                "computingSite": computingSite,
-                                "cloud": cloud,
-                                "prodSourceLabel": prodSourceLabel,
-                            },
-                        )
-                except Exception:
-                    tmp_log.error("recordStatusChange in updateJobStatus")
                 tmp_log.debug("done")
                 return ret, action_in_downstream
             except Exception:
@@ -512,9 +509,10 @@ class JobComplexModule(BaseModule):
     def updateJob(self, job: JobSpec, inJobsDefined: bool, oldJobStatus: str | None = None, extraInfo: dict[str, Any] | None = None) -> bool:
         comment = " /* DBProxy.updateJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
-        updatedFlag = False
         nTry = 3
         for iTry in range(nTry):
+            # reset for each attempt since a failed attempt is rolled back
+            updatedFlag = False
             try:
                 job.modificationTime = naive_utcnow()
                 # set stateChangeTime for defined->assigned
@@ -717,16 +715,19 @@ class JobComplexModule(BaseModule):
                     # update input
                     if useJEDI and job.jobStatus in ["transferring"]:
                         get_task_event_module(self).updateInputStatusJedi(job.jediTaskID, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                # record status change in the same transaction as the update
+                status_changed = updatedFlag and job.jobStatus != last_jobstatus
+                if status_changed:
+                    self.record_job_status_change(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                # record status change
+                # push status change after the commit
                 try:
-                    if updatedFlag and job.jobStatus != last_jobstatus:
-                        self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                    if status_changed:
                         self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 except Exception:
-                    tmp_log.error("recordStatusChange in updateJob")
+                    tmp_log.error("push_job_status_message in updateJob")
                 return True
             except Exception:
                 # roll back
@@ -1138,18 +1139,20 @@ class JobComplexModule(BaseModule):
                     # update JEDI
                     self.propagateResultToJEDI(job, self.cur, oldJobStatus)
                 break
+            # record status change in the same transaction as the move
+            if updatedFlag:
+                self.record_job_status_change(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             timeDelta = naive_utcnow() - timeStart
             tmp_log.debug(f"com={flagCommand} kill={flagKilled} time={timeDelta.seconds}")
-            # record status change
+            # push status change after the commit
             try:
                 if updatedFlag:
-                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                     self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             except Exception:
-                tmp_log.error("recordStatusChange in killJob")
+                tmp_log.error("push_job_status_message in killJob")
             if getUserInfo:
                 return (flagCommand or flagKilled), {
                     "prodUserID": userProdUserID,
@@ -1385,7 +1388,7 @@ class JobComplexModule(BaseModule):
                             # insert
                             self.cur.execute(sqlDJI + comment, dJob.valuesMap())
                             # record status change in the same transaction as the move
-                            self.recordStatusChange(downID, dJob.jobStatus, jobInfo=dJob, useCommit=False)
+                            self.record_job_status_change(downID, dJob.jobStatus, jobInfo=dJob)
                             # update file status
                             varMap = {}
                             varMap[":PandaID"] = downID
@@ -1855,23 +1858,19 @@ class JobComplexModule(BaseModule):
                         self.cur.execute(sqlOJS + comment, varMap)
                         tmpJobStatus = varMap[":jobStatus"]
                         tmp_log.debug(f"change failed to closed for {oldJobSubStatus}")
+                # record status change of the main job in the same transaction as the move.
+                # downstream jobs were recorded when they were moved
+                self.record_job_status_change(job.PandaID, tmpJobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # commit
                 if useCommit:
                     if not self._commit():
                         raise RuntimeError("Commit error")
-                # record status change
+                # push status changes
                 try:
                     for tmpJob in updatedJobList:
                         if tmpJob is job:
                             tmp_job_status = tmpJobStatus
-                            self.recordStatusChange(
-                                tmpJob.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
-                                tmp_job_status,
-                                jobInfo=tmpJob,
-                                useCommit=useCommit,
-                            )
                         else:
-                            # downstream job, already recorded when it was moved
                             tmp_job_status = tmpJob.jobStatus
                         extra_info_dict = {
                             "job_nevents": tmpJob.nEvents,
@@ -1889,7 +1888,7 @@ class JobComplexModule(BaseModule):
                             extra_data=extra_info_dict,
                         )
                 except Exception:
-                    tmp_log.error("recordStatusChange in archiveJob")
+                    tmp_log.error("push_job_status_message in archiveJob")
                 exec_time = naive_utcnow() - start_time
                 tmp_log.debug("done OK. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
                 return True, ddmIDs, ddmAttempt, newJob
@@ -2453,13 +2452,14 @@ class JobComplexModule(BaseModule):
                                 if indexID > maxAttemptIDx:
                                     break
                                 # lock first
-                                sqlPL = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID FOR UPDATE NOWAIT "
+                                sqlPL = "SELECT jobStatus,computingSite,cloud,prodSourceLabel FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID FOR UPDATE NOWAIT "
                                 # update
                                 sqlJ = "UPDATE ATLAS_PANDA.jobsActive4 "
                                 sqlJ += "SET jobStatus=:newJobStatus,modificationTime=CURRENT_DATE,modificationHost=:modificationHost,startTime=CURRENT_DATE"
                                 varMap: dict[str, Any] = {}
                                 varMap[":PandaID"] = tmpPandaID
-                                varMap[":newJobStatus"] = "sent"
+                                new_job_status = "sent"
+                                varMap[":newJobStatus"] = new_job_status
                                 varMap[":oldJobStatus"] = "activated"
                                 varMap[":modificationHost"] = node
                                 # set CE
@@ -2508,10 +2508,12 @@ class JobComplexModule(BaseModule):
                                         return retJobs, nSent
                                 # pre-lock
                                 prelocked = False
+                                resPL: tuple[Any, ...] | None = None
                                 try:
                                     varMapPL = {":PandaID": tmpPandaID}
                                     tmp_log.debug(sqlPL + comment + str(varMapPL))
                                     self.cur.execute(sqlPL + comment, varMapPL)
+                                    resPL = self.cur.fetchone()
                                     prelocked = True
                                 except Exception:
                                     tmp_log.debug("cannot pre-lock")
@@ -2583,6 +2585,16 @@ class JobComplexModule(BaseModule):
                                             else:
                                                 # update
                                                 self.cur.execute(sqlJWU + comment, varMap)
+                                    # record status change in the same transaction as the update.
+                                    # the update hit the row, so the pre-lock above read it
+                                    if resPL is None:
+                                        raise RuntimeError(f"PandaID={tmpPandaID} updated without being read by the pre-lock")
+                                    _, tmpComputingSite, tmpCloud, tmpProdSourceLabel = resPL
+                                    self.record_job_status_change(
+                                        tmpPandaID,
+                                        new_job_status,
+                                        infoMap={"computingSite": tmpComputingSite, "cloud": tmpCloud, "prodSourceLabel": tmpProdSourceLabel},
+                                    )
                                 # commit
                                 if not self._commit():
                                     raise RuntimeError("Commit error")
@@ -2928,11 +2940,7 @@ class JobComplexModule(BaseModule):
                 # append the job to the returned list
                 retJobs.append(job)
 
-                # record status change
-                try:
-                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
-                except Exception:
-                    tmp_log.error("recordStatusChange in getJobs")
+                # push status change. the status change was recorded with the update
                 self.push_job_status_message(job, job.PandaID, job.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 if via_topic and job.is_push_job():
                     mb_proxy_queue = self.get_mb_proxy("panda_pilot_queue")
@@ -3644,19 +3652,14 @@ class JobComplexModule(BaseModule):
                     no_late_bulk_exec,
                     extracted_sqls,
                 )
+            # record status change in the same transaction as the insert, or queue it for the bulk insert
+            self.record_job_status_change(job.PandaID, job.jobStatus, jobInfo=job, no_late_bulk_exec=no_late_bulk_exec, extracted_sqls=extracted_sqls)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             if no_late_bulk_exec:
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
                 tmp_log.debug(f"{job.PandaID} all OK jediTaskID:{job.jediTaskID}")
-                # record status change
-                try:
-                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
-                except Exception:
-                    tmp_log.error("recordStatusChange in insertNewJob")
                 self.push_job_status_message(job, job.PandaID, job.jobStatus, job.jediTaskID, origSpecialHandling)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
-            else:
-                self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job, no_late_bulk_exec=False, extracted_sqls=extracted_sqls)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             if unprocessedMap is not None:
                 return True, unprocessedMap
             return True
@@ -4553,7 +4556,7 @@ class JobComplexModule(BaseModule):
                     # insert
                     self.cur.execute(sql3 + comment, job.valuesMap())
                     # record status change
-                    self.recordStatusChange(pandaID, job.jobStatus, jobInfo=job, useCommit=False)
+                    self.record_job_status_change(pandaID, job.jobStatus, jobInfo=job)
                     # update files,metadata,parameters
                     varMap = {}
                     varMap[":PandaID"] = pandaID
@@ -5412,6 +5415,8 @@ class JobComplexModule(BaseModule):
                 else:
                     relationType = None
                 self.updateForPilotRetryJEDI(jobSpec, self.cur, onlyHistory=True, relationType=relationType)
+                # record status change in the same transaction as the insert
+                self.record_job_status_change(jobSpec.PandaID, jobSpec.jobStatus, jobInfo=jobSpec)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             # commit
             if useCommit:
                 if not self._commit():
@@ -5432,18 +5437,12 @@ class JobComplexModule(BaseModule):
                     retValue = 10, jobSpec.PandaID
                 else:
                     retValue = 2, jobSpec.PandaID
-            # record status change
+            # push status change
             try:
                 if not noNewJob:
-                    self.recordStatusChange(
-                        jobSpec.PandaID,  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
-                        jobSpec.jobStatus,
-                        jobInfo=jobSpec,
-                        useCommit=useCommit,
-                    )
                     self.push_job_status_message(jobSpec, jobSpec.PandaID, jobSpec.jobStatus)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             except Exception:
-                tmp_log.error("recordStatusChange in ppEventServiceJob")
+                tmp_log.error("push_job_status_message in ppEventServiceJob")
             tmp_log.debug(f"done for doMergeing={doMerging}")
             if retValue[-1] == "NULL":
                 retValue = retValue[0], None

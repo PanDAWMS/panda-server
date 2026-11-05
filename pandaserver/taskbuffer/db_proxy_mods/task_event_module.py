@@ -824,7 +824,7 @@ class TaskEventModule(BaseModule):
                 # insert
                 self.cur.execute(sqlDJI + comment, dJob.valuesMap())
                 # record status change
-                self.recordStatusChange(dJob.PandaID, dJob.jobStatus, jobInfo=dJob, useCommit=False)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                self.record_job_status_change(dJob.PandaID, dJob.jobStatus, jobInfo=dJob)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
                 # set file status
                 varMap = {}
                 varMap[":PandaID"] = pandaID
@@ -1015,7 +1015,7 @@ class TaskEventModule(BaseModule):
                 self.cur.execute(sqlPMod + comment, varMap)
                 nKilled += 1
                 # record status change
-                self.recordStatusChange(dJob.PandaID, dJob.jobStatus, jobInfo=dJob, useCommit=False)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
+                self.record_job_status_change(dJob.PandaID, dJob.jobStatus, jobInfo=dJob)  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             # commit
             if useCommit:
                 if not self._commit():
@@ -1774,11 +1774,10 @@ class TaskEventModule(BaseModule):
                         isUpdated = True
                         if resSE is not None and resSE[0] != jobStatus:
                             _, tmpCloud, tmpComputingSite, tmpProdSourceLabel = resSE
-                            self.recordStatusChange(
+                            self.record_job_status_change(
                                 tmpPandaID,
                                 jobStatus,
                                 infoMap={"computingSite": tmpComputingSite, "cloud": tmpCloud, "prodSourceLabel": tmpProdSourceLabel},
-                                useCommit=False,
                             )
                 # kill processed events if necessary
                 if killEvents and isUpdated:
@@ -4607,7 +4606,7 @@ class TaskEventModule(BaseModule):
             varMap[":PandaID"] = jobSpec.PandaID
             varMap[":param"] = jobSpec.jobParameters
             self.cur.execute(sqlJob + comment, varMap)
-            self.recordStatusChange(jobSpec.PandaID, jobSpec.jobStatus, jobInfo=jobSpec, useCommit=False)
+            self.record_job_status_change(jobSpec.PandaID, jobSpec.jobStatus, jobInfo=jobSpec)
             self.push_job_status_message(jobSpec, jobSpec.PandaID, jobSpec.jobStatus)
             # return
             tmp_log.debug("done")
