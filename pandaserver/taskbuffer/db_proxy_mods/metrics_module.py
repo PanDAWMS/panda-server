@@ -194,6 +194,7 @@ class MetricsModule(BaseModule):
             ":attributes": json.dumps(attributes),
             ":modification_time": naive_utcnow(),
         }
+        # this runs within the archiveJob or propagateResultToJEDI transaction
         self.cur.execute(sql + comment, var_map)
         inserted: bool = self.cur.rowcount > 0
         tmp_logger.debug(f"backfilled pilot attributes: {attributes}" if inserted else "skip since the pilot already reported them")
