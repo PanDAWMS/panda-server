@@ -1526,6 +1526,12 @@ class JobComplexModule(BaseModule):
                     except Exception:
                         tmp_log.error(f"failed calculating gCO2 with {traceback.format_exc()}")
 
+                    # fill pilot attributes from pilotID and pilotTiming if the pilot didn't report them
+                    try:
+                        get_metrics_module(self).backfill_pilot_attributes(job)
+                    except Exception:
+                        tmp_log.error(f"failed backfilling pilot attributes with {traceback.format_exc()}")
+
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) and not EventServiceUtils.isJobCloningJob(job):
                     # update some job attributes
@@ -1543,6 +1549,12 @@ class JobComplexModule(BaseModule):
                             job.gco2_global = gco2_global
                     except Exception:
                         tmp_log.error(f"failed calculating gCO2 with {traceback.format_exc()}")
+
+                    # fill pilot attributes from pilotID and pilotTiming if the pilot didn't report them
+                    try:
+                        get_metrics_module(self).backfill_pilot_attributes(job)
+                    except Exception:
+                        tmp_log.error(f"failed backfilling pilot attributes with {traceback.format_exc()}")
 
                     # post-processing
                     oldJobSubStatus = job.jobSubStatus
@@ -4456,6 +4468,12 @@ class JobComplexModule(BaseModule):
             tmp_log.debug(f"calculated gCO2 regional {gco2_regional} and global {gco2_global}")
         except Exception:
             tmp_log.error(f"failed calculating gCO2 with {traceback.format_exc()}")
+
+        # fill pilot attributes from pilotID and pilotTiming if the pilot didn't report them
+        try:
+            get_metrics_module(self).backfill_pilot_attributes(jobSpec)
+        except Exception:
+            tmp_log.error(f"failed backfilling pilot attributes with {traceback.format_exc()}")
 
         # task and job metrics
         if get_task_queued_time(jobSpec.specialHandling):

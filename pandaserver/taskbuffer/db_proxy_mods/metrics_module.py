@@ -8,6 +8,7 @@ from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
+from pandaserver.taskbuffer import JobUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
 from pandaserver.taskbuffer.JobSpec import JobSpec, get_task_queued_time
 
@@ -148,6 +149,55 @@ class MetricsModule(BaseModule):
             error_message = f"Pilot attributes insert failed with {err_type} {err_value}"
             tmp_logger.error(error_message)
             return False, error_message
+
+    def backfill_pilot_attributes(self, job_spec: JobSpec) -> bool:
+        """
+        Insert partial pilot attributes, built from pilotID and pilotTiming, for a job that reached its
+        final state without the pilot reporting them. Nothing is inserted when the pilot already did, or
+        when the job has no pilotID (it never ran). Runs inside the caller's transaction and doesn't commit.
+
+        :param job_spec: job in its final state
+        :return: True if a row was inserted
+        """
+        comment = " /* DBProxy.backfill_pilot_attributes */"
+        tmp_logger = self.create_tagged_logger(comment, f"PandaID={job_spec.PandaID}")
+
+        # parse the pilot ID field
+        pilot_id_fields = JobUtils.parse_pilot_id(job_spec.pilotID)
+        if not pilot_id_fields:
+            tmp_logger.debug("skip since the job has no pilotID")
+            return False
+        pilot_version = pilot_id_fields.pop("pilot_version", None)
+        # schema_version 0 marks a partial row written by the server: only "durations", with the same keys as
+        # in the attributes reported by the pilot, plus "source"
+        attributes: dict[str, Any] = {"schema_version": 0, "source": "panda_server_backfill"}
+        # Uncomment if you want to include pilot_id_fields in attributes
+        # attributes.update(pilot_id_fields)
+
+        # parse the pilot timing field
+        pilot_timing = JobUtils.parse_pilot_timing(job_spec.pilotTiming)
+        if pilot_timing:
+            attributes["durations"] = pilot_timing
+
+        # insert only if the pilot didn't. The check is in the same statement to keep the race window small
+        # and, on Postgres where PandaID alone isn't unique, to avoid duplicates. On Postgres a text bind
+        # isn't implicitly cast to JSONB in INSERT ... SELECT
+        attributes_bind = "CAST(:attributes AS JSONB)" if self.backend == "postgres" else ":attributes"
+        sql = (
+            f"INSERT INTO {panda_config.schemaPANDA}.pilot_attributes (PandaID, pilot_version, attributes, modification_time) "
+            f"SELECT :panda_id, :pilot_version, {attributes_bind}, :modification_time FROM dual "
+            f"WHERE NOT EXISTS (SELECT 1 FROM {panda_config.schemaPANDA}.pilot_attributes WHERE PandaID=:panda_id) "
+        )
+        var_map = {
+            ":panda_id": job_spec.PandaID,
+            ":pilot_version": pilot_version,
+            ":attributes": json.dumps(attributes),
+            ":modification_time": naive_utcnow(),
+        }
+        self.cur.execute(sql + comment, var_map)
+        inserted: bool = self.cur.rowcount > 0
+        tmp_logger.debug(f"backfilled pilot attributes: {attributes}" if inserted else "skip since the pilot already reported them")
+        return inserted
 
     # get job or task metrics
     def get_workload_metrics(self, jedi_task_id: int, panda_id: int | None = None) -> tuple[bool, dict[str, Any] | None]:
