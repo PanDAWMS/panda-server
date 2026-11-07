@@ -1270,7 +1270,7 @@ class JobComplexModule(BaseModule):
         extraInfo: dict[str, Any] | None = None,
         fromJobsWaiting: bool = False,
         async_params: dict[str, Any] | None = None,
-    ) -> tuple[bool, list[Any], int, JobSpec | None]:
+    ) -> bool:
         comment = " /* DBProxy.archiveJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID} jediTaskID={job.jediTaskID}")
         tmp_log.debug(f"start status={job.jobStatus} label={job.prodSourceLabel} type={job.processingType} async_params={async_params}")
@@ -1303,9 +1303,6 @@ class JobComplexModule(BaseModule):
                     if not self._commit():
                         raise RuntimeError("Commit error")
                 # delete downstream jobs first
-                ddmIDs: list[Any] = []
-                newJob = None
-                ddmAttempt = 0
                 if job.prodSourceLabel == "panda" and job.jobStatus == "failed":
                     # look for outputs
                     upOutputs = []
@@ -1896,7 +1893,7 @@ class JobComplexModule(BaseModule):
                     tmp_log.error("push_job_status_message in archiveJob")
                 exec_time = naive_utcnow() - start_time
                 tmp_log.debug("done OK. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
-                return True, ddmIDs, ddmAttempt, newJob
+                return True
             except Exception:
                 # roll back
                 if useCommit:
@@ -1907,10 +1904,10 @@ class JobComplexModule(BaseModule):
                 tmp_log.debug("done NG. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
                 if not useCommit:
                     raise RuntimeError("archiveJob failed")
-                return False, [], 0, None
+                return False
         # nTry is 1 and every path through the loop body returns or raises, so the loop cannot
-        # fall out of the bottom. Saying so here rather than returning None keeps the four-tuple
-        # promise: every caller unpacks it, so a None would fail at the caller instead of here.
+        # fall out of the bottom. Saying so here rather than returning None keeps the bool
+        # promise: a None would read as a failed archive at the caller instead of failing here.
         raise RuntimeError("archiveJob reached the end of its retry loop without a result")
 
     # check fine-grained job

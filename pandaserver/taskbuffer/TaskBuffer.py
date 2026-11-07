@@ -624,12 +624,8 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             # loop over all jobs
             returns = []
-            ddmIDs = []
-            ddmAttempt = 0
-            newMover = None
             for idxJob, job in enumerate(jobs):
                 # update DB
-                tmpddmIDs: list[Any] = []
                 if oldJobStatusList is not None and idxJob < len(oldJobStatusList):
                     oldJobStatus = oldJobStatusList[idxJob]
                 else:
@@ -664,22 +660,12 @@ class TaskBuffer:
                         }
                     else:
                         async_params = None
-                    ret, tmpddmIDs, ddmAttempt, newMover = proxy.archiveJob(job, inJobsDefined, extraInfo=extraInfo, async_params=async_params)
+                    ret = proxy.archiveJob(job, inJobsDefined, extraInfo=extraInfo, async_params=async_params)
                     if async_params is not None and ret:
                         proxy.async_update_datasets(job.PandaID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                 else:
                     ret = proxy.updateJob(job, inJobsDefined, oldJobStatus=oldJobStatus, extraInfo=extraInfo)
                 returns.append(ret)
-                # collect IDs for reassign
-                if ret:
-                    ddmIDs += tmpddmIDs
-        # retry mover
-        if newMover is not None:
-            self.storeJobs([newMover], None, joinThr=True)
-        # reassign jobs when ddm failed
-        if ddmIDs != []:
-            self.reassignJobs(ddmIDs, ddmAttempt, joinThr=True)
-
         return returns
 
     # update job jobStatus only
@@ -839,7 +825,7 @@ class TaskBuffer:
             for job in jobs:
                 # update DB
                 ret = proxy.archiveJob(job, inJobsDefined, fromJobsWaiting=fromJobsWaiting)
-                returns.append(ret[0])
+                returns.append(ret)
         return returns
 
     # set debug mode
@@ -1142,13 +1128,10 @@ class TaskBuffer:
                                         tmpJobSpec.jobSubStatus = killOpt.split("=")[-1]
                                         break
                                 # trigger ppE for ES jobs to properly trigger subsequent procedures
-                                # archiveJob reports its outcome first and then the DDM
-                                # information this path has no use for. rets is a list of
-                                # outcomes, so only the first element belongs in it
                                 ret = proxy.archiveJob(
                                     tmpJobSpec,
                                     tmpJobSpec.jobStatus in ["defined", "assigned"],
-                                )[0]
+                                )
                                 toKill = False
                                 userInfo = {"prodSourceLabel": None}
                 if toKill:
