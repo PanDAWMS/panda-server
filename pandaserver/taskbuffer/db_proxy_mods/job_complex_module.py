@@ -50,7 +50,7 @@ class JobComplexModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"attemptNr={attemptNr} status={jobStatus}")
         sql0 = (
-            "SELECT commandToPilot, endTime, specialHandling, jobStatus, computingSite, cloud, prodSourceLabel, lockedby, jediTaskID,"
+            "SELECT commandToPilot, endTime, specialHandling, jobStatus, computingSite, cloud, prodSourceLabel, lockedby, jediTaskID, "
             "jobsetID, jobDispatcherErrorDiag, supErrorCode, eventService, batchID "
             "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         )
@@ -4341,7 +4341,7 @@ class JobComplexModule(BaseModule):
             varMap[':jediTaskID'] = jobSpec.jediTaskID
             varMap[':eventStatus']  = EventServiceUtils.ST_ready
             varMap[':minAttemptNr'] = 0
-            sqlJumboC ="SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlJumboC = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlJumboC += "WHERE jediTaskID=:jediTaskID AND status=:eventStatus AND attemptNr>:minAttemptNr ".format(panda_config.schemaJEDI)
             cur.execute(sqlJumboC+comment,varMap)
             tmpResC = self.cur.fetchone()
