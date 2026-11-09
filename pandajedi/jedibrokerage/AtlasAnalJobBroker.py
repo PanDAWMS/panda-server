@@ -1,7 +1,6 @@
 import copy
 import datetime
 import math
-import random
 import re
 import traceback
 from typing import Any
@@ -19,7 +18,7 @@ from pandaserver.taskbuffer import JobUtils
 from pandaserver.taskbuffer.InputChunk import InputChunk
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
-from . import AtlasBrokerUtils
+from . import AtlasBrokerUtils, workflow_affinity
 from .JobBrokerBase import JobBrokerBase
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
@@ -57,6 +56,45 @@ class AtlasAnalJobBroker(JobBrokerBase):
         except BaseException:
             logger.error("Failed to load the WN GPU map!!!")
             self.wn_gpu_map = {}
+
+    # workflow anchor
+    def get_workflow_anchor_weights(self, taskSpec: JediTaskSpec, sitePreAssigned: bool, tmpLog: MsgWrapper) -> dict[str, float] | None:
+        """
+        Where the rest of this task's native workflow is going, as unified site name to weight
+
+        Costs nothing for an ordinary task: one split-rule read decides whether the task belongs to
+        a workflow at all, and only a workflow task looks anything up. The reverse lookup, from a
+        task to its workflow, would be a scan of workflow_steps, which is why the ID is carried on
+        the task instead.
+
+        Args:
+            taskSpec: the task being brokered
+            sitePreAssigned: whether the submitter already pinned this task to a site
+            tmpLog: logger of this brokerage call
+
+        Returns:
+            dict[str, float] | None: anchor weights, or None when there is nothing to apply
+        """
+        # A pinned task is going where it was told; preferring anything would be noise.
+        if sitePreAssigned:
+            return None
+        workflow_id = taskSpec.get_workflow_id()
+        if not workflow_id:
+            return None
+        if not self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "WORKFLOW_AFFINITY", APP, taskSpec.vo):
+            return None
+        # the chunks of one task share the answer
+        cache_key = f"workflow_anchor_{workflow_id}"
+        anchor = self.get_task_common(cache_key)
+        if anchor is None:
+            anchor = AtlasBrokerUtils.get_workflow_anchor(self.taskBufferIF, workflow_id)
+            self.set_task_common(cache_key, anchor)
+        weights = (anchor or {}).get("weights") or None
+        if weights:
+            tmpLog.info(f"workflow_id={workflow_id} anchor: {workflow_affinity.summarize_anchor(anchor)}")
+        else:
+            tmpLog.info(f"workflow_id={workflow_id} has no anchor yet")
+        return weights
 
     # main
     def doBrokerage(
@@ -165,6 +203,13 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 if preassignedSite not in scanSiteList:
                     scanSiteList.append(preassignedSite)
         tmpLog.info(f"initial {len(self.get_unified_sites(scanSiteList))} candidates")
+        # workflow affinity: where the rest of this task's native workflow is going, so that the
+        # steps of one workflow are drawn to one site instead of scattering their intermediate
+        # data. A preference only -- nothing below filters on it.
+        anchor_weights = self.get_workflow_anchor_weights(taskSpec, sitePreAssigned, tmpLog)
+        affinity_factor = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "WORKFLOW_AFFINITY_FACTOR", APP, taskSpec.vo)
+        if affinity_factor is None:
+            affinity_factor = workflow_affinity.DEFAULT_WORKFLOW_AFFINITY_FACTOR
         # allowed remote access protocol
         allowedRemoteProtocol = "fax"
         # MP
@@ -1869,7 +1914,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
         ######################################
         # final procedure
         tmpLog.info(f"{len(scanSiteList)} candidates for final check")
-        weightMap: dict[str, Any] = {}
+        weightMap: dict[float, list[SiteCandidate]] = {}
         weightStr = {}
         candidateSpecList = []
         preSiteCandidateSpec = None
@@ -2241,6 +2286,12 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         tmpDataWeight += totalTapeSizeMap[tmpSiteName] / tapeNorm
                         localSize = totalTapeSizeMap[tmpSiteName]
                 weight *= tmpDataWeight
+            # favour a site already holding part of this task's workflow. Multiplicative like the
+            # data weight above, and never below 1, so a site that is not an anchor is not
+            # penalised, only not helped.
+            tmpAffinityWeight = workflow_affinity.workflow_affinity_weight(tmpSiteName, anchor_weights, affinity_factor)
+            if tmpAffinityWeight > 1:
+                weight *= tmpAffinityWeight
             # make candidate
             siteCandidateSpec = SiteCandidate(tmpPseudoSiteName, tmpSiteName)
             # preassigned
@@ -2272,18 +2323,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     weightMap[weight] = []
                 weightMap[weight].append(siteCandidateSpec)
         # sort candidates by weights and data availability
-        candidateSpecListWithData = []
-        weightList = sorted(weightMap.keys())
-        weightList.reverse()
-        for weightVal in weightList:
-            sitesWithWeight = weightMap[weightVal]
-            for tmp_site in list(sitesWithWeight):
-                if tmp_site in site_list_with_data:
-                    candidateSpecListWithData.append(tmp_site)
-                    sitesWithWeight.remove(tmp_site)
-            random.shuffle(sitesWithWeight)
-            candidateSpecList += sitesWithWeight
-        candidateSpecList = candidateSpecListWithData + candidateSpecList
+        candidateSpecList = workflow_affinity.order_site_candidates(weightMap, site_list_with_data, candidateSpecList, anchor_weights)
         # limit the number of sites
         if not hasDDS:
             if taskSpec.getNumSitesPerJob() > 1:
