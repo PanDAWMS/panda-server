@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
+from pandajedi.jedicore.ScoutUtils import get_num_scout_chunks_for_dataset
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
 from pandajedi.jedirefine import RefinerUtils
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
@@ -186,8 +187,9 @@ class ContentsFeederThread(WorkerThread):
                 taskParamMap["nEventsPerFile"] = taskParamMap["nEventsPerInputFile"]
             # the number of files per job
             nFilesPerJob = taskSpec.getNumFilesPerJob()
-            # the number of chunks used by scout
-            nChunksForScout = 10
+            # the number of chunks used by scout, shared by all master input datasets
+            nChunksForScoutTotal = 10
+            nChunksForScout = nChunksForScoutTotal
 
             # skip files used by another task
             if "skipFilesUsedBy" in taskParamMap:
@@ -238,6 +240,14 @@ class ContentsFeederThread(WorkerThread):
                 # only reader below splits it, so those entries have nothing to offer
                 id_to_container = {ds.datasetID: ds.containerName for ds in dsList if ds.containerName is not None}
                 skip_secondaries = False
+                # the number of master input datasets to which scout chunks are distributed
+                num_remaining_scout_datasets = len(
+                    [
+                        tmpDatasetSpec
+                        for tmpDatasetSpec in dsList
+                        if tmpDatasetSpec.isMaster() and taskSpec.useScout() and (tmpDatasetSpec.status != "toupdate" or not taskSpec.isPostScout())
+                    ]
+                )
                 for datasetSpec in dsList:
                     tmpLog.debug(f"start loop for {datasetSpec.datasetName}(id={datasetSpec.datasetID})")
                     if datasetSpec.datasetName is None or datasetSpec.datasetID is None:
@@ -547,6 +557,13 @@ class ContentsFeederThread(WorkerThread):
                             useScout = False
                             if datasetSpec.isMaster() and taskSpec.useScout() and (datasetSpec.status != "toupdate" or not taskSpec.isPostScout()):
                                 useScout = True
+                            # the number of scout chunks for this dataset
+                            if useScout:
+                                nChunksForScoutDS = get_num_scout_chunks_for_dataset(nChunksForScout, num_remaining_scout_datasets)
+                                num_remaining_scout_datasets -= 1
+                                tmpLog.debug(f"{nChunksForScoutDS} scout chunks out of {nChunksForScout} for this dataset")
+                            else:
+                                nChunksForScoutDS = nChunksForScout
                             # use files with new attempt numbers
                             useFilesWithNewAttemptNr = False
                             if not datasetSpec.isPseudo() and fileList != [] and "useInFilesWithNewAttemptNr" in taskParamMap:
@@ -609,7 +626,7 @@ class ContentsFeederThread(WorkerThread):
                                 useFilesWithNewAttemptNr,
                                 nFilesPerJob,
                                 nEventsPerRange,
-                                nChunksForScout,
+                                nChunksForScoutDS,
                                 includePatt,
                                 excludePatt,
                                 noWaitParent,
@@ -659,7 +676,7 @@ class ContentsFeederThread(WorkerThread):
                                         taskParamMap["nFiles"] -= nFilesUnique
                                 # reduce the number of files for scout
                                 if useScout:
-                                    nChunksForScout = diagMap["nChunksForScout"]
+                                    nChunksForScout = max(nChunksForScout - (nChunksForScoutDS - diagMap["nChunksForScout"]), 0)
                                 # number of master input files
                                 if datasetSpec.isMaster():
                                     checkedMaster = True
@@ -673,7 +690,7 @@ class ContentsFeederThread(WorkerThread):
                             if (
                                 (noWaitParent or inputPreStaging)
                                 and diagMap["nActivatedPending"] == 0
-                                and not (useScout and nChunksForScout <= 0)
+                                and not (useScout and nChunksForScout < nChunksForScoutTotal)
                                 and tmpMetadata["state"] != "closed"
                                 and datasetSpec.isMaster()
                             ):
