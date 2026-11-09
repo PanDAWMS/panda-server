@@ -238,7 +238,9 @@ class AdderAtlasPlugin(AdderPluginBase):
             tmp_ret = self.taskBuffer.getTaskAttributesPanda(self.job.jediTaskID, ["campaign"])  # type: ignore[arg-type]  # "NULL" sentinel, see spec_column.py
             campaign = tmp_ret.get("campaign")
             for file_spec in self.job.Files:
-                if file_spec.type == "input":
+                # files without JEDI IDs, such as the tarBallViaDDM input, have no JEDI_Dataset_Contents row,
+                # and their unset IDs cannot be bound
+                if file_spec.type == "input" and file_spec.fileID not in [None, "NULL"]:
                     # the ids below are columns carrying the "NULL" sentinel, see spec_column.py
                     tmp_dict = self.taskBuffer.getJediFileAttributes(
                         file_spec.PandaID,  # type: ignore[arg-type]

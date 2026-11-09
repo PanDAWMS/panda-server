@@ -2649,7 +2649,9 @@ class TaskEventModule(BaseModule):
 
             # update RAM limit
             var_map = {":jediTaskID": job.jediTaskID, ":ramCount": next_limit}  # type: ignore[dict-item]  # "NULL" sentinel, see spec_column.py
-            input_files = filter(lambda panda_file: panda_file.type in input_types, job.Files)
+            # files without JEDI IDs, such as the tarBallViaDDM input, have no JEDI_Dataset_Contents row,
+            # and their unset IDs cannot be bound
+            input_files = filter(lambda panda_file: panda_file.type in input_types and panda_file.fileID not in [None, "NULL"], job.Files)
             input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
 
             for entry in input_tuples:
@@ -2807,7 +2809,9 @@ class TaskEventModule(BaseModule):
                     varMap = {}
                     varMap[":jediTaskID"] = job.jediTaskID
                     varMap[":ramCount"] = nextLimit
-                    input_files = filter(lambda pandafile: pandafile.type in input_types, job.Files)
+                    # files without JEDI IDs, such as the tarBallViaDDM input, have no JEDI_Dataset_Contents row,
+                    # and their unset IDs cannot be bound
+                    input_files = filter(lambda pandafile: pandafile.type in input_types and pandafile.fileID not in [None, "NULL"], job.Files)
                     input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
 
                     for entry in input_tuples:
