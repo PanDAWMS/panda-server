@@ -81,7 +81,7 @@ def _get_content_length(req: PandaRequest, tmp_logger: LogWrapper) -> int:
         if "content-length" in req.headers_in:
             tmp_logger.error(f"Cannot get content_length: {req.headers_in['content-length']}")
         else:
-            tmp_logger.error("No content_length for {method_name}")
+            tmp_logger.error("No content_length header")
 
     tmp_logger.debug(f"Size: {content_length}")
     return content_length

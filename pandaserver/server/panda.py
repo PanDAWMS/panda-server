@@ -374,7 +374,7 @@ def application(environ: dict[str, Any], start_response: Callable[[str, list[tup
         error_message = f"method {method_name} is undefined in {api_module} {version}"
         tmp_log.error(error_message)
         start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
-        return ["ERROR : {error_message}".encode()]
+        return [f"ERROR : {error_message}".encode()]
 
     try:
         # generate a request object with the environment and the logger

@@ -614,7 +614,7 @@ def set_command(req: PandaRequest, job_id: int, command: str) -> dict[str, Any]:
     tmp_logger = LogWrapper(_logger, f"set_command job_id={job_id} command={command}")
     tmp_logger.debug("Start")
     success, message = global_task_buffer.send_command_to_job(job_id, command)
-    tmp_logger.debug("Done with success={success} message={message}")
+    tmp_logger.debug(f"Done with success={success} message={message}")
     return generate_response(success, message=message)
 
 
