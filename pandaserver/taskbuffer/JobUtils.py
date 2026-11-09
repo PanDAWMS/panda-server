@@ -204,6 +204,63 @@ def get_payload_walltime(pilot_timing: str | None) -> float | None:
     return None
 
 
+# a pilot version looks like 3.11.2.15
+PILOT_VERSION_PATTERN = re.compile(r"^\d+(\.\d+)+$")
+
+
+def parse_pilot_id(pilot_id: str | Null | None) -> dict[str, str]:
+    """
+    Split pilotID, built by the pilot as <gtag>|<batch_type>|<version_tag>|<pilot_version>
+    or <gtag>|<version_tag>|<pilot_version>. pilotID is truncated to 200 characters on update,
+    so the version is only returned when it looks like a complete version.
+
+    :param pilot_id: pilotID of the job
+    :return: dictionary with the fields that could be extracted
+    """
+    if not isinstance(pilot_id, str) or pilot_id in ("", "NULL"):
+        return {}
+    fields = pilot_id.split("|")
+    keys: tuple[str, ...]
+    if len(fields) == 4:
+        keys = ("gtag", "batch_type", "version_tag", "pilot_version")
+    elif len(fields) == 3:
+        keys = ("gtag", "version_tag", "pilot_version")
+    else:
+        return {"gtag": fields[0]}
+    parsed = {key: value for key, value in zip(keys, fields) if value}
+    if not PILOT_VERSION_PATTERN.match(parsed.get("pilot_version", "")):
+        parsed.pop("pilot_version", None)
+    return parsed
+
+
+# field names of pilotTiming, as built by the pilot: getjob|stagein|payload|stageout|initial_setup|setup.
+# They match the keys of "durations" in the attributes the pilot reports
+PILOT_TIMING_FIELDS = ("getjob", "stagein", "payload", "stageout", "initial_setup", "setup")
+
+
+def parse_pilot_timing(pilot_timing: str | Null | None) -> dict[str, int]:
+    """
+    Convert pilotTiming (e.g. 1|2171|783|24|9|15) into a dictionary of durations in seconds.
+    An empty dictionary is returned unless there are exactly as many fields as PILOT_TIMING_FIELDS,
+    since the fields are matched by position. Fields that are not integers are skipped.
+
+    :param pilot_timing: pilotTiming of the job
+    :return: dictionary of field name to seconds
+    """
+    if not isinstance(pilot_timing, str) or pilot_timing in ("", "NULL"):
+        return {}
+    values = pilot_timing.split("|")
+    if len(values) != len(PILOT_TIMING_FIELDS):
+        return {}
+    parsed = {}
+    for key, value in zip(PILOT_TIMING_FIELDS, values):
+        try:
+            parsed[key] = int(value)
+        except ValueError:
+            continue
+    return parsed
+
+
 # compensate memory count to prevent jobs with ramCount close to the HIMEM border from going to HIMEM PQs
 def compensate_ram_count(ram_count: float | Null | None) -> int | None:
     if ram_count is None or isinstance(ram_count, str):
