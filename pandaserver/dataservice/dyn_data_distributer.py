@@ -83,7 +83,7 @@ class DynDataDistributer:
 
         if not status:
             # failed
-            tmp_log.error("failed to get replica locations for {input_ds}")
+            tmp_log.error(f"failed to get replica locations for {input_ds}")
             tmp_log.debug("end")
             return res_for_failure
 
