@@ -316,11 +316,12 @@ class MiscStandaloneModule(BaseModule):
             elif old_cputime_unit == "mHS06sPerEvent":
                 old_cputime_normalized = old_cputime / 1000  # convert to HS06sPerEvent
 
-        # Get the file information
+        # Get the file information. Files without JEDI IDs, such as the tarBallViaDDM input, have no
+        # JEDI_Dataset_Contents row, and their unset IDs cannot be bound
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
         input_files = list(
             filter(
-                lambda pandafile: pandafile.type in input_types and re.search("DBRelease", pandafile.lfn) is None,
+                lambda pandafile: pandafile.type in input_types and pandafile.fileID not in [None, "NULL"] and re.search("DBRelease", pandafile.lfn) is None,
                 files,
             )
         )
@@ -2502,11 +2503,12 @@ class MiscStandaloneModule(BaseModule):
             tmp_log.error("Done. Can't update maxAttempt when taskID not set")
             return False
 
-        # Update the file entries to avoid JEDI generating new jobs
+        # Update the file entries to avoid JEDI generating new jobs. Files without JEDI IDs, such as the
+        # tarBallViaDDM input, have no JEDI_Dataset_Contents row, and their unset IDs cannot be bound
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
         input_files = list(
             filter(
-                lambda pandafile: pandafile.type in input_types and re.search("DBRelease", pandafile.lfn) is None,
+                lambda pandafile: pandafile.type in input_types and pandafile.fileID not in [None, "NULL"] and re.search("DBRelease", pandafile.lfn) is None,
                 files,
             )
         )
@@ -2578,9 +2580,14 @@ class MiscStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job_id} jediTaskID={task_id}")
         tmp_log.debug("start")
 
-        # Update the file entries to increase the max attempt number by one
+        # Update the file entries to increase the max attempt number by one. Files without JEDI IDs, such as
+        # the tarBallViaDDM input, have no JEDI_Dataset_Contents row, and their unset IDs cannot be bound
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
-        input_files = [pandafile for pandafile in files if pandafile.type in input_types and re.search("DBRelease", pandafile.lfn) is None]
+        input_files = [
+            pandafile
+            for pandafile in files
+            if pandafile.type in input_types and pandafile.fileID not in [None, "NULL"] and re.search("DBRelease", pandafile.lfn) is None
+        ]
         input_file_ids = [input_file.fileID for input_file in input_files]
         input_dataset_ids = [input_file.datasetID for input_file in input_files]
 
@@ -2633,11 +2640,12 @@ class MiscStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"PandaID={jobID} jediTaskID={taskID}")
         tmp_log.debug("start")
 
-        # Update the file entries to avoid JEDI generating new jobs
+        # Update the file entries to avoid JEDI generating new jobs. Files without JEDI IDs, such as the
+        # tarBallViaDDM input, have no JEDI_Dataset_Contents row, and their unset IDs cannot be bound
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
         input_files = list(
             filter(
-                lambda pandafile: pandafile.type in input_types and re.search("DBRelease", pandafile.lfn) is None,
+                lambda pandafile: pandafile.type in input_types and pandafile.fileID not in [None, "NULL"] and re.search("DBRelease", pandafile.lfn) is None,
                 files,
             )
         )

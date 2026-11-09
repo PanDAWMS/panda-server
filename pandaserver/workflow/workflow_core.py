@@ -45,6 +45,10 @@ if TYPE_CHECKING:
     # imported for annotations only: set_mb_proxy() starts the message broker late
     from pandacommon.pandamsgbkr.msg_bkr_utils import MBSenderProxy
 
+    # for the annotation only: the caller hands the task buffer in, and importing TaskBuffer
+    # would load the DB proxy pool with this module
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 # import polars as pl  # isort:skip
 
 
@@ -172,19 +176,19 @@ class WorkflowInterface(object):
     Interface for workflow management methods
     """
 
-    def __init__(self, task_buffer: Any, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, task_buffer: "TaskBuffer", *args: Any, **kwargs: Any) -> None:
         """
         Constructor
 
         Args:
-            task_buffer (TaskBufferInterface): Interface to the task buffer
+            task_buffer (TaskBuffer): Interface to the task buffer
             *args: Additional arguments
             **kwargs: Additional keyword arguments
         """
-        # A TaskBuffer when the API server builds this, or JEDI's JediTaskBufferInterface,
-        # which forwards every method to JediTaskBuffer through CommandSendInterface.
-        # panda-server cannot name the JEDI class and __getattr__ is invisible to a type
-        # checker, so Any is as close as this gets.
+        # A TaskBuffer when the API server builds this. In JEDI it is the JediTaskBufferInterface,
+        # which forwards every method to JediTaskBuffer, a TaskBuffer subclass, and which a type
+        # checker accepts as a TaskBuffer through its TYPE_CHECKING base. Only TaskBuffer's own
+        # methods may be called on it here.
         self.tbif = task_buffer
         self.ddm_if = rucioAPI
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"

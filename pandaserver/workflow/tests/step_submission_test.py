@@ -377,6 +377,13 @@ def main():
     failures += not check("refused", res.success is not True)
     failures += not check("reason mentions the submitter", "submitter" in res.message, res.message)
     failures += not check("nothing submitted", tbif.inserted == [])
+    # a name alone is not enough: the insert checks the ban list by DN
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    res = handler.submit_target(make_step(prod_role=False, params=client_params, definition=dict(no_outputs, user_dn=None)))
+    failures += not check("refused without a DN", res.success is not True)
+    failures += not check("reason mentions the DN", "DN" in res.message, res.message)
+    failures += not check("nothing submitted", tbif.inserted == [])
 
     print("\n=== a recorded attempt is checked against the tasks that exist ===")
     attempted_name = simul_params["taskName"]
@@ -410,6 +417,18 @@ def main():
     res = handler.submit_target(make_attempted_step())
     failures += not check("refused when the lookup failed", res.success is not True)
     failures += not check("reason says it could not be checked", "could not be checked" in res.message, res.message)
+    failures += not check("nothing submitted", tbif.inserted == [])
+    # the lookup is by vo, and one with no vo would match nothing and read as "not queued"
+    no_vo_params = copy.deepcopy(simul_params)
+    del no_vo_params["vo"]
+    tbif = make_tbif()
+    handler = PandaTaskStepHandler(tbif)
+    step = make_step(params=no_vo_params)
+    step.set_parameter("submit_attempt_task_name", attempted_name)
+    res = handler.submit_target(step)
+    failures += not check("refused when there is no vo to look up by", res.success is not True)
+    failures += not check("reason names the missing vo", "no vo" in res.message, res.message)
+    failures += not check("no lookup made", tbif.name_lookups == [], tbif.name_lookups)
     failures += not check("nothing submitted", tbif.inserted == [])
     # a step attempting a different name than the one recorded is not the duplicate case at all
     tbif = make_tbif()

@@ -23,6 +23,7 @@ import sys
 import types
 import warnings
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, cast
 
 # Unrelated modules in the import graph still carry unescaped regex literals; their SyntaxWarnings
 # say nothing about this check.
@@ -112,6 +113,9 @@ from pandaserver.workflow.workflow_base import (  # noqa: E402
     WorkflowSpec,
     WorkflowStatus,
 )
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 NOW = datetime(2026, 9, 10, 12, 0, 0)
 
@@ -269,7 +273,10 @@ class StubbedInterface(workflow_core.WorkflowInterface):
     """
 
     def __init__(self, data_specs, step_specs, all_steps_final=True, check_status=None, processed_stats=None, step_mutations=(), kills_succeed=True):
-        self.tbif = FakeTaskBuffer(data_specs, step_specs)
+        # the fake stands in for the TaskBuffer the interface is declared to hold, and is kept
+        # under its own name too for what only the fake has
+        self.fake_tbif = FakeTaskBuffer(data_specs, step_specs)
+        self.tbif = cast("TaskBuffer", self.fake_tbif)
         self.full_pid = "test-0-0"
         self.plugin_map = {}
         self.mb_proxy = None
@@ -292,7 +299,7 @@ class StubbedInterface(workflow_core.WorkflowInterface):
     def cancel_workflow(self, workflow_id, force=False, reason=None):
         self.cancelled_workflow_ids.append(workflow_id)
         self.cancel_reasons.append(reason)
-        child_workflow = self.tbif.child_workflows.get(workflow_id)
+        child_workflow = self.fake_tbif.child_workflows.get(workflow_id)
         if child_workflow is not None:
             child_workflow.status = WorkflowStatus.cancelled
         return True
@@ -306,7 +313,7 @@ class StubbedInterface(workflow_core.WorkflowInterface):
         # The real one advances the stored steps while leaving the caller's list as it was, so the
         # mutations go to the stored objects and not to the list that was passed in.
         for step_id, new_status, new_target_id in self._step_mutations:
-            stored_step = self.tbif.get_workflow_step(step_id)
+            stored_step = self.fake_tbif.get_workflow_step(step_id)
             stored_step.status = new_status
             if new_target_id is not None:
                 stored_step.target_id = new_target_id

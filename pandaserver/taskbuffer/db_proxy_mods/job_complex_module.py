@@ -569,11 +569,13 @@ class JobComplexModule(BaseModule):
                             varMap[":row_ID"] = file.row_ID
                             tmp_log.debug(sqlF + comment + str(varMap))
                             self.cur.execute(sqlF + comment, varMap)
-                        # actions for JEDI
+                        # actions for JEDI. Files without JEDI IDs, such as the tarBallViaDDM input, have no
+                        # JEDI_Dataset_Contents row, and their unset IDs cannot be bound
                         if (
                             useJEDI
                             and (job.jobStatus == "transferring" or oldJobStatus == "transferring")
                             and file.type in ["input", "pseudo_input"]
+                            and file.fileID not in [None, "NULL"]
                             and job.processingType != "pmerge"
                         ):
                             # check file in JEDI

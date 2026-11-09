@@ -612,7 +612,7 @@ class AdderGen:
                         fromWaiting=False,
                         forAnal=True,
                     )[0]
-                    if self.job is None:
+                    if associate_job is None:
                         self.logger.debug(f"associated job PandaID={associate_job_id} not found in DB")
                     else:
                         closer_thread = closer.Closer(self.taskBuffer, associate_dispatch_blocks, associate_job)
