@@ -20,7 +20,7 @@ import os
 import sys
 import types
 import warnings
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 # Unrelated modules in the import graph still carry unescaped regex literals; their SyntaxWarnings
 # say nothing about this check.
@@ -113,6 +113,9 @@ from pandaserver.workflow.workflow_base import (  # noqa: E402
     WorkflowSpec,
     WorkflowStatus,
 )
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # The production chain of workflow 133: step name -> (inputs it consumes, outputs it produces).
 # recon also reads rdo_bkg, which the workflow does not produce.
@@ -233,7 +236,8 @@ class FakeTaskBuffer:
 def make_interface(step_specs, data_specs, by_workflow=None):
     """A WorkflowInterface with no message broker or DDM behind it"""
     interface = workflow_core.WorkflowInterface.__new__(workflow_core.WorkflowInterface)
-    interface.tbif = FakeTaskBuffer(step_specs, data_specs, by_workflow)
+    # the fake stands in for the TaskBuffer the interface is declared to hold
+    interface.tbif = cast("TaskBuffer", FakeTaskBuffer(step_specs, data_specs, by_workflow))
     interface.full_pid = "test-0-0"
     interface.plugin_map = {}
     interface.mb_proxy = None

@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import timedelta
-from typing import Any
+from typing import Any, Collection
 
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
@@ -353,7 +353,7 @@ class WorkflowModule(BaseModule):
             return []
 
     def query_workflows(
-        self, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None, check_interval_sec: int = 300
+        self, status_filter_list: Collection[str] | None = None, status_exclusion_list: Collection[str] | None = None, check_interval_sec: int = 300
     ) -> list[WorkflowSpec]:
         """
         Retrieve list of workflows with optional status filtering, ordered for efficient
@@ -379,8 +379,8 @@ class WorkflowModule(BaseModule):
         In PostgreSQL a recursive CTE is instead used.
 
         Args:
-            status_filter_list (list | None): List of statuses to filter the workflows by (optional)
-            status_exclusion_list (list | None): List of statuses to exclude the workflows by (optional)
+            status_filter_list (Collection | None): Statuses to filter the workflows by (optional)
+            status_exclusion_list (Collection | None): Statuses to exclude the workflows by (optional)
             check_interval_sec (int): Time in seconds to wait between checks (default: 300)
 
         Returns:
