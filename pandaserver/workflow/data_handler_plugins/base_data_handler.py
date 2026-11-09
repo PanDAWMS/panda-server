@@ -11,6 +11,10 @@ if TYPE_CHECKING:
     # the use below is quoted.
     from pandaserver.dataservice.ddm import RucioAPI
 
+    # for the annotation only: TaskBuffer brings the DB proxy pool and the dataservice
+    # with it, which no handler needs to be constructed
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 
 class BaseDataHandler:
     """
@@ -18,7 +22,7 @@ class BaseDataHandler:
     This class provides a common interface and some utility methods for data handlers.
     """
 
-    def __init__(self, task_buffer: Any, ddm_if: "RucioAPI", *args: Any, **kwargs: Any) -> None:
+    def __init__(self, task_buffer: "TaskBuffer", ddm_if: "RucioAPI", *args: Any, **kwargs: Any) -> None:
         """
         Initialize the step handler with necessary parameters.
 
@@ -28,10 +32,10 @@ class BaseDataHandler:
             *args: Additional positional arguments.
             **kwargs: Additional keyword arguments.
         """
-        # A TaskBuffer when the API server builds the workflow interface, or JEDI's
-        # JediTaskBufferInterface, which forwards every method to JediTaskBuffer through
-        # CommandSendInterface. panda-server cannot name the JEDI class and __getattr__ is
-        # invisible to a type checker, so Any is as close as this gets.
+        # A TaskBuffer when the API server builds the workflow interface. In JEDI it is the
+        # JediTaskBufferInterface, which forwards every method to JediTaskBuffer, a TaskBuffer
+        # subclass, and which a type checker accepts as a TaskBuffer through its TYPE_CHECKING
+        # base. Only TaskBuffer's own methods may be called on it here.
         self.tbif = task_buffer
         self.ddm_if = ddm_if
 

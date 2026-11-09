@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandaserver.workflow.workflow_base import (
     WFStepSpec,
@@ -7,6 +7,11 @@ from pandaserver.workflow.workflow_base import (
     WFStepTargetSubmitResult,
 )
 
+if TYPE_CHECKING:
+    # for the annotation only: TaskBuffer brings the DB proxy pool and the dataservice
+    # with it, which no handler needs to be constructed
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 
 class BaseStepHandler:
     """
@@ -14,7 +19,7 @@ class BaseStepHandler:
     This class provides a common interface and some utility methods for step handlers.
     """
 
-    def __init__(self, task_buffer: Any, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, task_buffer: "TaskBuffer", *args: Any, **kwargs: Any) -> None:
         """
         Initialize the step handler with necessary parameters.
 
@@ -23,10 +28,10 @@ class BaseStepHandler:
             *args: Additional positional arguments.
             **kwargs: Additional keyword arguments.
         """
-        # A TaskBuffer when the API server builds the workflow interface, or JEDI's
-        # JediTaskBufferInterface, which forwards every method to JediTaskBuffer through
-        # CommandSendInterface. panda-server cannot name the JEDI class and __getattr__ is
-        # invisible to a type checker, so Any is as close as this gets.
+        # A TaskBuffer when the API server builds the workflow interface. In JEDI it is the
+        # JediTaskBufferInterface, which forwards every method to JediTaskBuffer, a TaskBuffer
+        # subclass, and which a type checker accepts as a TaskBuffer through its TYPE_CHECKING
+        # base. Only TaskBuffer's own methods may be called on it here.
         self.tbif = task_buffer
 
     def submit_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetSubmitResult:

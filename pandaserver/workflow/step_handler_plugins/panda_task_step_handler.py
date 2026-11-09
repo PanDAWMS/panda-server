@@ -370,7 +370,17 @@ class PandaTaskStepHandler(BaseStepHandler):
         task_name = task_param_map.get("taskName")
         if not previous_attempt or previous_attempt != task_name:
             return True, ""
-        existing = self.tbif.get_existing_task_names(task_param_map.get("vo"), task_param_map.get("prodSourceLabel"), [task_name])
+        vo = task_param_map.get("vo")
+        prod_source_label = task_param_map.get("prodSourceLabel")
+        if not vo or not prod_source_label:
+            # The lookup is by vo and prodSourceLabel. Without one it matches no task, which would read
+            # as "not queued" and submit the task a second time, so this is unknown as well.
+            message = (
+                f"a previous attempt submitted taskName={task_name} and the task parameters name no vo or prodSourceLabel to check it by; not submitting again"
+            )
+            tmp_log.error(message)
+            return False, message
+        existing = self.tbif.get_existing_task_names(vo, prod_source_label, [task_name])
         if existing is None:
             # Unknown is not the same as absent: without an answer the safe reading of the record is
             # that the task may be queued, so leave it to be retried on a later cycle.
@@ -411,6 +421,12 @@ class PandaTaskStepHandler(BaseStepHandler):
             # Get step definition
             step_definition = step_spec.definition_json_map
             user_dn = step_definition.get("user_dn")
+            if not user_dn:
+                # The insert checks the submitter against the ban list by DN. With no DN that check
+                # finds no user and lets the task through, so refuse here instead.
+                submit_result.message = "step definition names no submitter DN"
+                tmp_log.error(submit_result.message)
+                return submit_result
             prod_role = step_definition.get("prod_role", False)
             task_param_map = copy.deepcopy(step_definition.get("task_params", {}))
             if not task_param_map:
