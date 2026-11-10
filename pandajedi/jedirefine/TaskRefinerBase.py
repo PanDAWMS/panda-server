@@ -465,6 +465,10 @@ class TaskRefinerBase(object):
             self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["noAutoPause"])
         if "workflowHoldup" in taskParamMap and taskParamMap["workflowHoldup"]:
             self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["workflowHoldup"])
+        if taskParamMap.get("workflowID"):
+            # the native workflow this task is a step of, so that consumers can find its siblings
+            # without the unindexed scan of workflow_steps by target_id
+            self.setSplitRule(taskParamMap, "workflowID", JediTaskSpec.splitRuleToken["workflowID"])
         # work queue
         workQueue = None
         if "workQueueName" in taskParamMap:
