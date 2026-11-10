@@ -15,8 +15,9 @@ class PickleFileSpec(FileSpec):
         spec._reserveChangedState = True
         self.__setstate__(spec.__getstate__())
 
-    # the state is the column values followed by _changedAttrs and _owner, so its entries are
-    # not uniformly typed. FileSpec.__getstate__ builds it and is the only thing that reads it
+    # the state is the column values followed by _changedAttrs and a None placeholder, so its
+    # entries are not uniformly typed. FileSpec.__getstate__ builds it and is the only thing
+    # that reads it
     def __setstate__(self, state: list[Any]) -> None:
         object.__setattr__(self, "_reserveChangedState", True)
         FileSpec.__setstate__(self, state)
