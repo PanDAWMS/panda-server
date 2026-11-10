@@ -400,6 +400,13 @@ class JobSpec(object):
         if name == "jobStatus":
             if oldVal != newVal:
                 self.stateChangeTime = naive_utcnow()
+        # files keep their own PandaID, so a new one is pushed to them and recorded there as a
+        # change. A file is expected to belong to one job only: after copy.copy(job), which
+        # shares the Files list, replace Files before changing PandaID, or the original job's
+        # files change too
+        elif name == "PandaID":
+            for file_spec in self.Files:
+                file_spec.PandaID = value
         # collect changed attributes
         if oldVal != newVal and name not in self._suppAttrs:
             self._changedAttrs[name] = value
@@ -410,8 +417,8 @@ class JobSpec(object):
 
     # add File to files list
     def addFile(self, file: FileSpec) -> None:
-        # set owner
-        file.setOwner(self)
+        # give the file this job's PandaID. The raw value is used so that an unset one stays None
+        file.set_panda_id_unchanged(object.__getattribute__(self, "PandaID"))
         # append
         self.Files.append(file)
 
