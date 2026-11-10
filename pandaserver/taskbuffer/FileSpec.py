@@ -3,13 +3,9 @@ file specification
 
 """
 
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import Any, Sequence
 
 from pandaserver.taskbuffer.spec_column import SpecColumn
-
-if TYPE_CHECKING:
-    # JobSpec imports this module, so naming it for real here would close the cycle
-    from pandaserver.taskbuffer.JobSpec import JobSpec
 
 reserveChangedState = False
 
@@ -75,9 +71,7 @@ class FileSpec(object):
     attemptNr: SpecColumn[int]
     # slots
     __slots__ = _attributes + (
-        "_owner",
         "_changedAttrs",
-        "_oldPandaID",
         "_reserveChangedState",
     )
     # attributes which have 0 by default
@@ -90,26 +84,13 @@ class FileSpec(object):
         # install attributes
         for attr in self._attributes:
             object.__setattr__(self, attr, None)
-        # set owner to synchronize PandaID
-        object.__setattr__(self, "_owner", None)
         # map of changed attributes
         object.__setattr__(self, "_changedAttrs", {})
-        # old PandaID
-        object.__setattr__(self, "_oldPandaID", "NULL")
         # reserve changed state at instance level
         object.__setattr__(self, "_reserveChangedState", False)
 
-    # override __getattribute__ for SQL and PandaID
+    # override __getattribute__ for SQL
     def __getattribute__(self, name: str) -> Any:
-        # PandaID
-        if name == "PandaID":
-            # read _owner without going through this method again, which would replace an
-            # absent owner with the "NULL" sentinel and make the check below never true
-            owner = object.__getattribute__(self, "_owner")
-            if owner is None:
-                return "NULL"
-            return owner.PandaID
-        # others
         ret = object.__getattribute__(self, name)
         if ret is None:
             return "NULL"
@@ -124,14 +105,15 @@ class FileSpec(object):
         if oldVal != newVal:
             self._changedAttrs[name] = value
 
-    # set owner
-    def setOwner(self, owner: "JobSpec") -> None:
-        self._owner = owner
-        self._oldPandaID = self.PandaID
+    # take the PandaID of the job this file is added to, without recording it as a change.
+    # JobSpec.addFile calls this; later changes of the job's PandaID reach the file through
+    # JobSpec.__setattr__ and are recorded like any other column
+    def set_panda_id_unchanged(self, panda_id: int | None) -> None:
+        object.__setattr__(self, "PandaID", panda_id)
+        self._changedAttrs.pop("PandaID", None)
 
     # reset changed attribute list
     def resetChangedList(self) -> None:
-        self._oldPandaID = self.PandaID
         object.__setattr__(self, "_changedAttrs", {})
 
     # return a tuple of values
@@ -148,12 +130,8 @@ class FileSpec(object):
         for attr in self._attributes:
             if useSeq and attr in self._seqAttrMap:
                 continue
-            if onlyChanged:
-                if attr == "PandaID":
-                    if self.PandaID == self._oldPandaID:
-                        continue
-                elif attr not in self._changedAttrs:
-                    continue
+            if onlyChanged and attr not in self._changedAttrs:
+                continue
             val = getattr(self, attr)
             if val == "NULL":
                 if attr in self._zeroAttrs:
@@ -178,22 +156,20 @@ class FileSpec(object):
             state.append(val)
         if reserveChangedState or self._reserveChangedState:
             state.append(self._changedAttrs)
-        # append owner info
-        state.append(self._owner)
+        # the last entry once carried the owner JobSpec. It stays as a None placeholder so that
+        # the layout matches what panda-client sends and what older versions read
+        state.append(None)
         return state
 
     # restore state from the unpickled state values
     def __setstate__(self, state: list[Any]) -> None:
-        pandaID = "NULL"
         for i in range(len(self._attributes)):
             if i + 1 < len(state):
                 object.__setattr__(self, self._attributes[i], state[i])
             else:
                 object.__setattr__(self, self._attributes[i], "NULL")
-            if self._attributes[i] == "PandaID":
-                pandaID = state[i]
-        object.__setattr__(self, "_owner", state[-1])
-        object.__setattr__(self, "_oldPandaID", pandaID)
+        # state[-1] is the placeholder where the owner JobSpec used to be. It is ignored, even
+        # when a state from an older version still carries a JobSpec there
         if not hasattr(self, "_reserveChangedState"):
             object.__setattr__(self, "_reserveChangedState", False)
         if reserveChangedState or self._reserveChangedState:
@@ -272,7 +248,7 @@ class FileSpec(object):
     def bindUpdateChangesExpression(self) -> str:
         ret = ""
         for attr in self._attributes:
-            if attr in self._changedAttrs or (attr == "PandaID" and self.PandaID != self._oldPandaID):
+            if attr in self._changedAttrs:
                 ret += f"{attr}=:{attr},"
         ret = ret[:-1]
         ret += " "
@@ -311,10 +287,7 @@ class FileSpec(object):
 
     # dump to be json-serializable
     def dump_to_json_serializable(self) -> list[Any]:
-        stat = self.__getstate__()[:-1]
-        # set None as _owner
-        stat.append(None)
-        return stat
+        return self.__getstate__()
 
     # to a dictionary
     def to_dict(self) -> dict[str, Any]:
