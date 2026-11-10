@@ -2580,6 +2580,12 @@ class MiscStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job_id} jediTaskID={task_id}")
         tmp_log.debug("start")
 
+        # Jobs without a JEDI task have no JEDI_Dataset_Contents rows to update, and binding the "NULL"
+        # sentinel to the numeric JEDITaskID column raises ORA-01722
+        if task_id in [None, "NULL"]:
+            tmp_log.debug("skip since no jediTaskID")
+            return True
+
         # Update the file entries to increase the max attempt number by one. Files without JEDI IDs, such as
         # the tarBallViaDDM input, have no JEDI_Dataset_Contents row, and their unset IDs cannot be bound
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
