@@ -1879,12 +1879,16 @@ class JobComplexModule(BaseModule):
                 exec_time = naive_utcnow() - start_time
                 tmp_log.debug("done OK. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
                 return True
-            except Exception:
+            except Exception as e:
                 # roll back
                 if useCommit:
                     self._rollback(True)
                 # error
-                self.dump_error_message(tmp_log)
+                if self.is_no_wait_exception(e):
+                    # resource busy and acquire with NOWAIT specified. Expected when another process holds the lock
+                    tmp_log.debug("skipped with NOWAIT since resource is locked")
+                else:
+                    self.dump_error_message(tmp_log)
                 exec_time = naive_utcnow() - start_time
                 tmp_log.debug("done NG. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
                 if not useCommit:
