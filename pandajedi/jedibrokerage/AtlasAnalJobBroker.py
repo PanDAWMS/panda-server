@@ -1627,8 +1627,13 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 ratioOffset = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "OVERLOAD_RATIO_OFFSET", "jedi", taskSpec.vo)
                 if ratioOffset is None:
                     ratioOffset = 1.2
+                # upper limit of grandRatio; no limit when not set
+                maxGrandRatio = self.taskBufferIF.getConfigValue(ANALYSIS_COMPONENT, "OVERLOAD_MAX_GRAND_RATIO", "jedi", taskSpec.vo)
                 grandRatio = AtlasBrokerUtils.get_total_nq_nr_ratio(jobStatPrioMap, taskSpec.gshare)
                 tmpLog.info(f"grand nQueue/nRunning ratio : {grandRatio}")
+                if grandRatio is not None and maxGrandRatio is not None and grandRatio > maxGrandRatio:
+                    tmpLog.info(f"cap grand nQueue/nRunning ratio to OVERLOAD_MAX_GRAND_RATIO={maxGrandRatio}")
+                    grandRatio = float(maxGrandRatio)
                 tmpLog.info(f"sites with non-VP data : {','.join(scanSiteWoVP)}")
                 for tmpPseudoSiteName in scanSiteList:
                     tmpSiteSpec = self.siteMapper.getSite(tmpPseudoSiteName)
