@@ -1600,10 +1600,11 @@ class AtlasAnalJobBroker(JobBrokerBase):
                         tmpRTqueue += tmpSiteStatMap.get("starting", 0)
                         if tmpRTqueue > max(20, tmpRTrunning * RT_Cap):
                             tmpMsg = f"  skip site={tmpSiteName} "
-                            tmpMsg += "since nQueue/max(20,nRun) with gshare+resource_type is "
-                            tmpMsg += f"{tmpRTqueue}/max(20,{tmpRTrunning}) > {RT_Cap} "
+                            tmpMsg += "since nQueue > max(20, nRun*cap) with gshare+resource_type: "
+                            tmpMsg += f"{tmpRTqueue} > max(20, {tmpRTrunning}*{RT_Cap}) "
                             tmpMsg += "criteria=-cap_rt"
                             msg_map[tmpSiteName] = tmpMsg
+                            continue
                     newScanSiteList.append(tmpSiteName)
                 scanSiteList = self.get_pseudo_sites(newScanSiteList, scanSiteList)
                 self.add_summary_message(oldScanSiteList, scanSiteList, "cap with gshare+resource_type check", tmpLog, msg_map)
