@@ -7,7 +7,7 @@ SiteCandidate objects against a collection of site-name strings, so the data-hol
 never moved to the front. Fixing that changes placement for every analysis task, workflow or not,
 which is why the non-workflow behaviour is pinned here too.
 
-Run from the repository root:  python3 pandajedi/jedibrokerage/tests/site_ordering_test.py
+Run from the repository root:  python3 pandajedi/jedibrokerage/tests/workflow_affinity_test.py
 """
 
 import os
