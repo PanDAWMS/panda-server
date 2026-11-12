@@ -220,7 +220,7 @@ class PostProcessorBase(object):
         # count nFiles and nEvents
         nFiles, nFilesFinished, totalInputEvents, totalOkEvents, taskCompleteness = self.getTaskCompleteness(taskSpec)
         # set new task status
-        if taskSpec.status == "tobroken":
+        if taskSpec.status == "breaking":
             status = "broken"
         elif taskSpec.status == "toabort":
             status = "aborted"

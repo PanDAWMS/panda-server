@@ -692,7 +692,7 @@ def main():
             "rerefine",
         ],
         WFStepStatus.done: ["done", "finished"],
-        WFStepStatus.failed: ["failed", "exhausted", "aborted", "toabort", "aborting", "broken", "tobroken"],
+        WFStepStatus.failed: ["failed", "exhausted", "aborted", "toabort", "aborting", "broken", "tobroken", "breaking"],
     }
     for expected_status, statuses in expectations.items():
         for status in statuses:
