@@ -1569,8 +1569,8 @@ class TaskUtilsModule(BaseModule):
                 # no more changes
                 if cTaskStatus in JediTaskSpec.statusToRejectExtChange():
                     continue
-                # change status
-                cTaskStatus = "toabort"
+                # change status to the doing status of kill, so that TaskCommando kills the jobs before the task is aborted
+                cTaskStatus = JediTaskSpec.commandStatusMap()["kill"]["doing"]
                 varMap = {}
                 varMap[":jediTaskID"] = cJediTaskID
                 varMap[":status"] = cTaskStatus
