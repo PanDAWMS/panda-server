@@ -17,6 +17,7 @@ import os
 import sys
 import types
 import warnings
+from typing import Any
 
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
@@ -171,6 +172,40 @@ def main():
     failures += not check("an aged one is recomputed", not watchdog.anchor_is_fresh(aged))
     broken = FakeWorkflowSpec(3, {WORKFLOW_ANCHOR_PARAM: {"weights": {"A": 1}, "computed_at": "not-a-time"}})
     failures += not check("an unparsable timestamp is recomputed rather than trusted", not watchdog.anchor_is_fresh(broken))
+
+    print("\n=== replica lookups go through the per-VO DDM client ===")
+    # The watchdog is handed the multi-VO DDMInterface wrapper, which has no replica methods of
+    # its own. Passing it straight through failed every lookup, so a workflow had no input sites
+    # and therefore no anchor before its steps were submitted.
+    vo_client = object()
+
+    class FakeDDMInterface:
+        def getInterface(self, vo, group=None):
+            return vo_client if vo == "atlas" else None
+
+    received: dict[str, Any] = {}
+
+    def fake_get_sites_with_data(site_list, site_mapper, ddm_if, dataset_name, *args):
+        received["ddm_if"] = ddm_if
+        return wd.Interaction.SC_SUCCEEDED, {"SITE_A": {}}
+
+    def fake_sites_with_disk(data_site_map, includeTape=False):
+        return list(data_site_map)
+
+    # untyped handles, since these stand-ins deliberately do not match the real signatures
+    stand_in: Any = watchdog
+    broker_utils: Any = wd.AtlasBrokerUtils
+    stand_in.ddmIF = FakeDDMInterface()
+    stand_in.vo = "atlas"
+    original = (broker_utils.get_sites_with_data, broker_utils.getAnalSitesWithDataDisk)
+    broker_utils.get_sites_with_data = fake_get_sites_with_data
+    broker_utils.getAnalSitesWithDataDisk = fake_sites_with_disk
+    try:
+        sites = stand_in.sites_holding_dataset(["SITE_A"], None, "some:dataset", Log())
+    finally:
+        broker_utils.get_sites_with_data, broker_utils.getAnalSitesWithDataDisk = original
+    failures += not check("the per-VO client is what reaches the lookup", received.get("ddm_if") is vo_client, received)
+    failures += not check("...and its answer comes back", sites == ["SITE_A"], sites)
 
     print("\n=== the pass runs before the workflows are processed ===")
     # An analysis task is job-generated almost as soon as it is submitted, so an anchor computed

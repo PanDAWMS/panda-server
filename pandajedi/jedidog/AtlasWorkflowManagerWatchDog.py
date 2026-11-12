@@ -1,7 +1,7 @@
 import datetime
 import sys
 import traceback
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 # logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -126,9 +126,13 @@ class AtlasWorkflowManagerWatchDog(WatchDogBase):
         brokerage would also call local rather than one it would reject.
         """
         try:
-            # the helper is typed for the brokerage-side interface; a watchdog holds the DDM one,
-            # which carries the same methods it uses
-            tmp_stat, data_site_map = AtlasBrokerUtils.get_sites_with_data(analysis_sites, site_mapper, cast(Any, self.ddmIF), dataset_name, None, 10, 100)[:2]
+            # self.ddmIF is the multi-VO wrapper; the replica methods live on the per-VO client,
+            # which is what brokerage is handed too
+            ddm_if = self.ddmIF.getInterface(self.vo)
+            if ddm_if is None:
+                tmpLog.debug(f"no DDM interface for vo={self.vo}")
+                return []
+            tmp_stat, data_site_map = AtlasBrokerUtils.get_sites_with_data(analysis_sites, site_mapper, ddm_if, dataset_name, None, 10, 100)[:2]
             # on any failure the second element is a message rather than the map
             if tmp_stat != Interaction.SC_SUCCEEDED or not isinstance(data_site_map, dict):
                 tmpLog.debug(f"no replica information for {dataset_name}: {data_site_map}")
