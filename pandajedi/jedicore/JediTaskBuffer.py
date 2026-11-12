@@ -491,16 +491,19 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
 
     # set tasks to be assigned
     def setScoutJobDataToTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None) -> bool | None:
+        # get the site mapper before taking a proxy: rebuilding it takes one from the same pool,
+        # which holds a single proxy in a task-buffer child process
+        tmp_site_mapper = self.get_site_mapper()
         with self.proxyPool.get() as proxy:
-            tmp_site_mapper = self.get_site_mapper()
             return proxy.setScoutJobDataToTasks_JEDI(vo, prodSourceLabel, tmp_site_mapper)
 
     # prepare tasks to be finished
     def prepareTasksToBeFinished_JEDI(
         self, vo: str | None, prodSourceLabel: str | None, nTasks: int = 50, simTasks: list[int] | None = None, pid: str = "lock", noBroken: bool = False
     ) -> list[int] | None:
+        # get the site mapper before taking a proxy, as in setScoutJobDataToTasks_JEDI
+        tmp_site_mapper = self.get_site_mapper()
         with self.proxyPool.get() as proxy:
-            tmp_site_mapper = self.get_site_mapper()
             return proxy.prepareTasksToBeFinished_JEDI(vo, prodSourceLabel, nTasks, simTasks, pid, noBroken, tmp_site_mapper)
 
     # get tasks to be assigned
