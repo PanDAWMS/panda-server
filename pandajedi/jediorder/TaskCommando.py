@@ -128,7 +128,7 @@ class TaskCommandoThread(WorkerThread):
                     oldStatus = commandMap["oldStatus"]
                     tmpLog.info(f"start for {commandStr}")
                     tmpStat = Interaction.SC_SUCCEEDED
-                    if commandStr in ["kill", "finish", "reassign"]:
+                    if commandStr in ["kill", "finish", "reassign", "break"]:
                         tmpMsg = f"executing {commandStr}"
                         tmpLog.info(tmpMsg)
                         tmpLog.sendMsg(tmpMsg, self.msgType)
@@ -198,7 +198,11 @@ class TaskCommandoThread(WorkerThread):
                                     tmpMsg = f"set task_status={tmpTaskSpec.status}"
                                     tmpLog.sendMsg(tmpMsg, self.msgType)
                                     tmpLog.info(tmpMsg)
-                                    tmpRet = self.taskBufferIF.updateTask_JEDI(tmpTaskSpec, {"jediTaskID": jediTaskID}, setOldModTime=True)
+                                    # break only moves on a task that is still in tobroken
+                                    old_status_to_update = [JediTaskSpec.commandStatusMap()["break"]["doing"]] if commandStr == "break" else None
+                                    tmpRet = self.taskBufferIF.updateTask_JEDI(
+                                        tmpTaskSpec, {"jediTaskID": jediTaskID}, oldStatus=old_status_to_update, setOldModTime=True
+                                    )
                                     tmpLog.info(f"done with {str(tmpRet)}")
                                     break
                                 else:
@@ -206,7 +210,7 @@ class TaskCommandoThread(WorkerThread):
                                     if iLoop > 0:
                                         break
                                     # wait or kill jobs
-                                    if commentStr and "soft finish" in commentStr:
+                                    if commandStr != "break" and commentStr and "soft finish" in commentStr:
                                         queuedPandaIDs = self.taskBufferIF.getQueuedPandaIDsWithTask_JEDI(jediTaskID)
                                         tmpMsg = f"trying to kill {len(queuedPandaIDs)} queued jobs for soft finish"
                                         tmpLog.info(tmpMsg)
@@ -223,6 +227,9 @@ class TaskCommandoThread(WorkerThread):
                                         if commandStr in ["finish"]:
                                             # force kill
                                             tmpRet = self.taskBufferIF.killJobs(pandaIDs, commentStr, "52", True)
+                                        elif commandStr in ["break"]:
+                                            # force kill. The comment is the errorDialog of the task, which can be empty
+                                            tmpRet = self.taskBufferIF.killJobs(pandaIDs, commentStr or "task is broken", "52", True)
                                         elif commandStr in ["reassign"]:
                                             # force kill
                                             tmpRet = self.taskBufferIF.killJobs(pandaIDs, commentStr, "51", True)

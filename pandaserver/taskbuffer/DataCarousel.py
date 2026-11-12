@@ -51,7 +51,7 @@ GLOBAL_DC_LOCK_NAME = "DataCarousel"
 DC_CONFIG_SCHEMA_VERSION = 1
 
 # final task statuses
-FINAL_TASK_STATUSES = ["done", "finished", "failed", "exhausted", "aborted", "toabort", "aborting", "broken", "tobroken"]
+FINAL_TASK_STATUSES = ["done", "finished", "failed", "exhausted", "aborted", "toabort", "aborting", "broken", "tobroken", "breaking"]
 
 # named tuple for attribute with type
 AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])

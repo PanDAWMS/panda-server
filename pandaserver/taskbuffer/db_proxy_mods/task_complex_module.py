@@ -1601,7 +1601,8 @@ class TaskComplexModule(BaseModule):
             varMap: dict[str, Any] = {}
             varMap[":status1"] = "prepared"
             varMap[":status2"] = "scouted"
-            varMap[":status3"] = "tobroken"
+            # tobroken tasks come here as breaking once TaskCommando has killed their jobs
+            varMap[":status3"] = "breaking"
             varMap[":status4"] = "toabort"
             varMap[":status5"] = "passed"
             sqlRT = "SELECT tabT.jediTaskID,tabT.status,tabT.eventService,tabT.site,tabT.useJumbo,tabT.splitRule "
@@ -4324,8 +4325,10 @@ class TaskComplexModule(BaseModule):
         retTaskIDs = {}
         commandStatusMap = JediTaskSpec.commandStatusMap()
         try:
-            # sql to get jediTaskIDs to exec a command from the command table
-            comm_var_names_str, comm_var_map = get_sql_IN_bind_variables(commandStatusMap.keys(), prefix=":comm_cmd_", value_as_suffix=True)
+            # sql to get jediTaskIDs to exec a command from the command table. Internal commands are
+            # never taken from there; their tasks are picked up below as orphans in the doing status
+            external_commands = [c for c in commandStatusMap if c not in JediTaskSpec.internal_commands()]
+            comm_var_names_str, comm_var_map = get_sql_IN_bind_variables(external_commands, prefix=":comm_cmd_", value_as_suffix=True)
             sqlC = (
                 f"SELECT comm_task,comm_cmd,comm_comment FROM {panda_config.schemaDEFT}.PRODSYS_COMM "
                 f"WHERE comm_owner=:comm_owner AND comm_cmd IN ({comm_var_names_str}) "
@@ -5469,7 +5472,7 @@ class TaskComplexModule(BaseModule):
             resList = self.cur.fetchall()
             for cJediTaskID, cTaskStatus in resList:
                 # not to retry if child task is aborted/broken
-                if cTaskStatus in ["aborted", "toabort", "aborting", "broken", "tobroken", "failed"]:
+                if cTaskStatus in ["aborted", "toabort", "aborting", "broken", "tobroken", "breaking", "failed"]:
                     tmpLog.debug(f"not to retry child jediTaskID={cJediTaskID} in {cTaskStatus}")
                     continue
                 # get input datasets of child task

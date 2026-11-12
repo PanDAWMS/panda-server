@@ -824,7 +824,7 @@ class JediTaskSpec(object):
     # return list of status to reject external changes
     @classmethod
     def statusToRejectExtChange(cls) -> list[str]:
-        return ["finished", "done", "prepared", "broken", "tobroken", "aborted", "toabort", "aborting", "failed", "passed"]
+        return ["finished", "done", "prepared", "broken", "tobroken", "breaking", "aborted", "toabort", "aborting", "failed", "passed"]
 
     # return list of status for retry
     @classmethod
@@ -864,7 +864,14 @@ class JediTaskSpec(object):
             "resume": {"doing": "dummy", "done": "dummy"},
             "avalanche": {"doing": "dummy", "done": "dummy"},
             "release": {"doing": "dummy", "done": "dummy"},
+            # internal: tasks set to tobroken get their jobs killed before post-processing
+            "break": {"doing": "tobroken", "done": "breaking"},
         }
+
+    # return list of commands that are only used internally and never taken from the command table
+    @classmethod
+    def internal_commands(cls) -> list[str]:
+        return ["break"]
 
     # qualifiers for retry command
     @classmethod

@@ -159,7 +159,7 @@ class PostProcessorThread(WorkerThread):
                     tmp_stat = Interaction.SC_FATAL
 
             # handle permanent failure
-            if tmp_stat == Interaction.SC_FATAL or (tmp_stat == Interaction.SC_FAILED and task_spec.status in ("toabort", "tobroken")):
+            if tmp_stat == Interaction.SC_FATAL or (tmp_stat == Interaction.SC_FAILED and task_spec.status in ("toabort", "breaking")):
                 err_str = "post-process permanently failed"
                 tmp_log.error(err_str)
                 task_spec.status = "broken"
