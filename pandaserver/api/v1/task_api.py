@@ -1450,12 +1450,12 @@ def get_datasets_and_files(
     tmp_logger = LogWrapper(_logger, f"get_datasets_and_files < task_id={task_id} dataset_types={dataset_types} dataset_only={dataset_only} >")
     tmp_logger.debug("Start")
 
-    data = global_task_buffer.get_files_in_datasets(task_id, dataset_types)
+    data = global_task_buffer.get_files_in_datasets(task_id, dataset_types, dataset_only)
     if data is None:
         tmp_logger.error("Failed due to exception while gathering files")
         return generate_response(False, message="Database exception while gathering files")
 
-    if data == []:
+    if not data:
         tmp_logger.error("Failed due to no data found for the task")
         return generate_response(False, message="No data found for the task")
 
