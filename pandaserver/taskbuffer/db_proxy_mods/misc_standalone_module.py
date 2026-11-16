@@ -3256,11 +3256,11 @@ class MiscStandaloneModule(BaseModule):
             for datasetName, datasetID in res:
                 datasetDict = {"name": datasetName, "id": datasetID}
                 # read files
+                fileList = []
                 if not dataset_only:
                     varMap = {":jediTaskID": task_id, ":datasetID": datasetID}
                     self.cur.execute(sqlS + comment, varMap)
                     resF = self.cur.fetchall()
-                    fileList = []
                     for lfn, fileScope, fileID, status in resF:
                         fileDict = {
                             "lfn": lfn,
