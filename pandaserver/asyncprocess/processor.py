@@ -7,6 +7,7 @@ New request types: add a handler function and register it in HANDLERS.
 import contextlib
 import datetime
 import json
+import mmap
 import os
 import re
 import socket
@@ -161,7 +162,7 @@ _WINDOW_SLACK = datetime.timedelta(seconds=60)
 # from where it stopped, so a bound on the low side costs another request at most.
 _MAX_WINDOW_BYTES = 1 << 30
 
-# Bytes of a window read and passed to the matcher at a time.
+# Bytes of a window mapped and passed to the matcher at a time.
 _READ_CHUNK_BYTES = 8 << 20
 
 # The name of the thread that passes a window to the matcher.
@@ -448,7 +449,7 @@ def _time_window(f: BinaryIO, size: int, since: datetime.datetime | None, until:
     return window
 
 
-def _feed(f: BinaryIO, start: int, end: int | None, sink: int, errors: list[Exception]) -> None:
+def _feed(fd: int, start: int, end: int | None, sink: int, errors: list[Exception]) -> None:
     """
     Write a window of a file to the matcher's standard input, and close it.
 
@@ -457,27 +458,45 @@ def _feed(f: BinaryIO, start: int, end: int | None, sink: int, errors: list[Exce
     failure is kept in errors, so that a window read only in part is not taken
     for one searched whole.
 
+    The window is read through memory maps of the file, a piece at a time, and
+    never by read(2).  On XFS a read(2) holds a lock of the file for as long as
+    it waits on the disk, and every write to the file waits for that lock.  On
+    a server machine's log disk (2026-11), appends to a file stalled for up to
+    0.43 s at a time, for most of the time it was read 8 MiB per read(2), and
+    not at all while it was read through a map.  httpd, whose threads append to
+    panda-DBProxy.log, answered 503 while the live file was searched by read(2).
+    A page fault takes no such lock; rg reads a file it is given by a map too.
+
     Args:
-        f(BinaryIO): the file
+        fd(int): the descriptor of the file
         start(int): where the window starts
         end(int or None): where it ends, or None for the end of the file as it is when reached
         sink(int): the write end of the pipe to the matcher, which this closes
         errors(list): where a failure is kept
     """
     try:
-        with open(sink, "wb") as out:
-            f.seek(start)
-            position = start
-            while end is None or position < end:
-                chunk = f.read(_READ_CHUNK_BYTES if end is None else min(_READ_CHUNK_BYTES, end - position))
-                if not chunk:
-                    break
-                out.write(chunk)
-                position += len(chunk)
+        position = start
+        while True:
+            limit = os.fstat(fd).st_size if end is None else end
+            if position >= limit:
+                break
+            # a map starts at a multiple of the allocation granularity
+            map_start = position - position % mmap.ALLOCATIONGRANULARITY
+            length = min(limit, position + _READ_CHUNK_BYTES) - map_start
+            with mmap.mmap(fd, length, access=mmap.ACCESS_READ, offset=map_start) as piece:
+                piece.madvise(mmap.MADV_SEQUENTIAL)
+                # written from the map itself, so that pages are faulted in with the GIL released
+                with memoryview(piece) as view:
+                    written = position - map_start
+                    while written < length:
+                        written += os.write(sink, view[written:])
+            position = map_start + length
     except BrokenPipeError:
         pass
     except Exception as e:
         errors.append(e)
+    finally:
+        os.close(sink)
 
 
 def _run_grep(
@@ -524,7 +543,7 @@ def _run_grep(
             output.base_offset = output.window["offset"]
             matcher_input, sink = os.pipe()
             reader = threading.Thread(
-                target=_feed, args=(log_file, output.base_offset, output.window["end"], sink, read_errors), name=_READER_THREAD_NAME, daemon=True
+                target=_feed, args=(log_file.fileno(), output.base_offset, output.window["end"], sink, read_errors), name=_READER_THREAD_NAME, daemon=True
             )
             reader.start()
             # joined before the file is closed, which is once the matcher is gone

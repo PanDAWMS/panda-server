@@ -104,10 +104,6 @@ class _TaskBroker(_SectionClass):
     procConfig: str
 
 
-class _TaskGen(_SectionClass):
-    modConfig: str
-
-
 class _TaskRefine(_SectionClass):
     loopCycle: int
     modConfig: str
@@ -150,7 +146,6 @@ _SECTION_CLASSES: dict[str, type[_SectionClass]] = {
     "msgprocessor": _MsgProcessor,
     "postprocessor": _PostProcessor,
     "taskbroker": _TaskBroker,
-    "taskgen": _TaskGen,
     "taskrefine": _TaskRefine,
     "tasksetup": _TaskSetup,
     "tcommando": _TCommando,
@@ -170,7 +165,6 @@ mq: _Mq
 msgprocessor: _MsgProcessor
 postprocessor: _PostProcessor
 taskbroker: _TaskBroker
-taskgen: _TaskGen
 taskrefine: _TaskRefine
 tasksetup: _TaskSetup
 tcommando: _TCommando

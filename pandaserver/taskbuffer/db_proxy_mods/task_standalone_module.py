@@ -420,56 +420,6 @@ class TaskStandaloneModule(BaseModule):
             self.dump_error_message(tmpLog)
             return False, None
 
-    # insert new TaskParams and update parent TaskParams. mainly used by TaskGenerator
-    def insertUpdateTaskParams_JEDI(
-        self, jediTaskID: int, vo: str, prodSourceLabel: str, updateTaskParams: str | None, insertTaskParamsList: list[str]
-    ) -> tuple[bool, list[int] | None]:
-        comment = " /* JediDBProxy.insertUpdateTaskParams_JEDI */"
-        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmpLog.debug("start")
-        try:
-            # sql to insert new task parameters
-            sqlIT = f"INSERT INTO {panda_config.schemaDEFT}.T_TASK "
-            sqlIT += "(taskid,status,submit_time,vo,prodSourceLabel,jedi_task_parameters,parent_tid) VALUES "
-            sqlIT += f"({panda_config.schemaDEFT}.PRODSYS2_TASK_ID_SEQ.nextval,"
-            sqlIT += ":status,CURRENT_DATE,:vo,:prodSourceLabel,:param,:parent_tid) "
-            sqlIT += "RETURNING taskid INTO :jediTaskID"
-            # sql to update parent task parameters
-            sqlUT = f"UPDATE {panda_config.schemaJEDI}.JEDI_TaskParams SET taskParams=:taskParams "
-            sqlUT += "WHERE jediTaskID=:jediTaskID "
-            # begin transaction
-            self.conn.begin()
-            # insert task parameters
-            newJediTaskIDs = []
-            for taskParams in insertTaskParamsList:
-                varMap: dict[str, Any] = {}
-                varMap[":vo"] = vo
-                varMap[":param"] = taskParams
-                varMap[":status"] = "waiting"
-                varMap[":parent_tid"] = jediTaskID
-                varMap[":prodSourceLabel"] = prodSourceLabel
-                varMap[":jediTaskID"] = self.cur.var(varNUMBER)
-                self.cur.execute(sqlIT + comment, varMap)
-                val = self.getvalue_corrector(self.cur.getvalue(varMap[":jediTaskID"]))
-                newJediTaskID = int(val)
-                newJediTaskIDs.append(newJediTaskID)
-            # update task parameters
-            varMap = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":taskParams"] = updateTaskParams
-            self.cur.execute(sqlUT + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmpLog.debug(f"done new jediTaskIDs={str(newJediTaskIDs)}")
-            return True, newJediTaskIDs
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dump_error_message(tmpLog)
-            return False, None
-
     # reset unused files
     def resetUnusedFiles_JEDI(self, jediTaskID: int, inputChunk: InputChunk) -> int:
         comment = " /* JediDBProxy.resetUnusedFiles_JEDI */"

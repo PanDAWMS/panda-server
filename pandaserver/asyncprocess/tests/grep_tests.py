@@ -411,7 +411,7 @@ class TestTimeWindow(_GrepCase):
 
     def test_read_error(self) -> None:
         # a window read only in part is not taken for one searched whole
-        def fail(f: Any, start: int, end: int | None, sink: int, errors: list[Exception]) -> None:
+        def fail(fd: int, start: int, end: int | None, sink: int, errors: list[Exception]) -> None:
             os.close(sink)
             errors.append(OSError(5, "Input/output error"))
 
@@ -421,6 +421,44 @@ class TestTimeWindow(_GrepCase):
         self.assertEqual(out["status"], "failed")
         self.assertIn("Input/output error", out["error_msg"])
         self._assert_no_reader()
+
+
+class TestFeed(unittest.TestCase):
+    """The thread that passes a window of a file to the matcher."""
+
+    def _feed(self, data: bytes, start: int, end: int | None) -> tuple[bytes, list[Exception]]:
+        """Pass a window of a file holding data through a pipe, and give what came out and the failures kept."""
+        with tempfile.TemporaryFile() as f:
+            f.write(data)
+            f.flush()
+            source, sink = os.pipe()
+            errors: list[Exception] = []
+            reader = threading.Thread(target=processor._feed, args=(f.fileno(), start, end, sink, errors))
+            reader.start()
+            with open(source, "rb") as out:
+                passed = out.read()
+            reader.join()
+        return passed, errors
+
+    def test_window(self) -> None:
+        # windows starting and ending off the bounds of the maps, over several maps, are
+        # passed byte for byte, up to their end or to the end of the file
+        data = bytes(range(256)) * 400
+        with mock.patch.object(processor, "_READ_CHUNK_BYTES", 10000):
+            for start, end in ((0, None), (12345, None), (12345, 87654), (4096, 8192), (len(data) - 1, None), (len(data), None)):
+                with self.subTest(start=start, end=end):
+                    self.assertEqual(self._feed(data, start, end), (data[start:end], []))
+
+    def test_matcher_gone(self) -> None:
+        # a matcher that has stopped ends the thread, which is no failure
+        with tempfile.TemporaryFile() as f:
+            f.write(b"x" * (1 << 20))
+            f.flush()
+            source, sink = os.pipe()
+            os.close(source)
+            errors: list[Exception] = []
+            processor._feed(f.fileno(), 0, None, sink, errors)
+        self.assertEqual(errors, [])
 
 
 class TestHandleLogList(unittest.TestCase):

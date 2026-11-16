@@ -131,7 +131,7 @@ class JobBrokerBase(object):
         self.summaryList.append(f"the number of initial candidates: {len(initial_list)}")
 
     # dump summary
-    def dump_summary(self, tmp_log: "MsgWrapper", final_candidates: Collection[Any] | None = None) -> None:
+    def dump_summary(self, tmp_log: "MsgWrapper", final_candidates: Collection[Any] | None = None, footer: Collection[str] | None = None) -> None:
         if not self.summaryList:
             return
         tmp_log.info("")
@@ -140,6 +140,9 @@ class JobBrokerBase(object):
         if not final_candidates:
             final_candidates = []
         tmp_log.info(f"the number of final candidates: {len(final_candidates)}")
+        # concluding lines after the final count
+        for m in footer or []:
+            tmp_log.info(m)
         tmp_log.info("")
 
     # add summary entry and show intermediate message

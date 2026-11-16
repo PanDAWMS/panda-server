@@ -195,14 +195,22 @@ class TaskCommandoThread(WorkerThread):
                                         tmpTaskSpec.unsetFailGoalUnreached()
                                     if updateTaskStatus:
                                         tmpTaskSpec.status = JediTaskSpec.commandStatusMap()[commandStr]["done"]
-                                    tmpMsg = f"set task_status={tmpTaskSpec.status}"
-                                    tmpLog.sendMsg(tmpMsg, self.msgType)
-                                    tmpLog.info(tmpMsg)
-                                    # break only moves on a task that is still in tobroken
-                                    old_status_to_update = [JediTaskSpec.commandStatusMap()["break"]["doing"]] if commandStr == "break" else None
+                                    # only move on a task that is still in the doing status of the command, since
+                                    # the task list can be long and the task may have been handled by another
+                                    # process or got a further command since it was taken
+                                    doing_status = JediTaskSpec.commandStatusMap()[commandStr]["doing"]
                                     tmpRet = self.taskBufferIF.updateTask_JEDI(
-                                        tmpTaskSpec, {"jediTaskID": jediTaskID}, oldStatus=old_status_to_update, setOldModTime=True
+                                        tmpTaskSpec, {"jediTaskID": jediTaskID}, oldStatus=[doing_status], setOldModTime=True
                                     )
+                                    update_ok, n_updated = tmpRet
+                                    if not update_ok:
+                                        tmpLog.error(f"failed to set task_status={tmpTaskSpec.status}")
+                                    elif not n_updated:
+                                        tmpLog.info(f"skipped setting task_status={tmpTaskSpec.status} since the task is no longer in {doing_status}")
+                                    else:
+                                        tmpMsg = f"set task_status={tmpTaskSpec.status}"
+                                        tmpLog.sendMsg(tmpMsg, self.msgType)
+                                        tmpLog.info(tmpMsg)
                                     tmpLog.info(f"done with {str(tmpRet)}")
                                     break
                                 else:
