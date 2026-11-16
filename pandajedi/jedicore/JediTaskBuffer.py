@@ -401,13 +401,6 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         with self.proxyPool.get() as proxy:
             return proxy.resetUnusedFiles_JEDI(jediTaskID, inputChunk)
 
-    # insert TaskParams
-    def insertUpdateTaskParams_JEDI(
-        self, jediTaskID: int, vo: str, prodSourceLabel: str, updateTaskParams: str | None, insertTaskParamsList: list[str]
-    ) -> tuple[bool, list[int] | None]:
-        with self.proxyPool.get() as proxy:
-            return proxy.insertUpdateTaskParams_JEDI(jediTaskID, vo, prodSourceLabel, updateTaskParams, insertTaskParamsList)
-
     # set missing files
     def setMissingFiles_JEDI(self, jediTaskID: int, datasetID: int, fileIDs: list[int]) -> bool:
         with self.proxyPool.get() as proxy:

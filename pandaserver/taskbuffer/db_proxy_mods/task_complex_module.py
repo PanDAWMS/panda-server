@@ -4352,13 +4352,20 @@ class TaskComplexModule(BaseModule):
                 self.conn.begin()
                 # lock
                 varMap = {":comm_task": jediTaskID}
-                sqlLock = f"SELECT comm_cmd FROM {panda_config.schemaDEFT}.PRODSYS_COMM WHERE comm_task=:comm_task FOR UPDATE "
+                sqlLock = f"SELECT comm_cmd FROM {panda_config.schemaDEFT}.PRODSYS_COMM WHERE comm_task=:comm_task FOR UPDATE NOWAIT "
                 toSkip = False
                 sync_action_only = False
                 resetFrozenTime = False
                 try:
                     tmpLog.debug(sqlLock + comment + str(varMap))
                     self.cur.execute(sqlLock + comment, varMap)
+                    # another process may have taken the command between the SELECT above and this lock,
+                    # in which case comm_cmd is no longer the bare command (e.g. finish -> finishing)
+                    res_lock = self.cur.fetchone()
+                    current_command = res_lock[0] if res_lock is not None else None
+                    if current_command != commandStr:
+                        toSkip = True
+                        tmpLog.debug(f"skip jediTaskID={jediTaskID} since command={commandStr} was already taken as {current_command}")
                 except Exception as e:
                     if self.is_no_wait_exception(e):
                         # resource busy and acquire with NOWAIT specified
