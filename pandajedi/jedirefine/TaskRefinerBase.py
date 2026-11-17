@@ -464,7 +464,10 @@ class TaskRefinerBase(object):
         if "noAutoPause" in taskParamMap and taskParamMap["noAutoPause"]:
             self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["noAutoPause"])
         if "workflowHoldup" in taskParamMap and taskParamMap["workflowHoldup"]:
-            self.setSplitRule(None, 1, JediTaskSpec.splitRuleToken["workflowHoldup"])
+            # bit flags (see WORKFLOW_HOLDUP_* in JediTaskSpec). int() also turns the boolean True
+            # that earlier submissions carry into 1, the input hold it always meant; written as is,
+            # it would become "WH=True", which no reader matches.
+            self.setSplitRule(None, int(taskParamMap["workflowHoldup"]), JediTaskSpec.splitRuleToken["workflowHoldup"])
         if taskParamMap.get("workflowID"):
             # the native workflow this task is a step of, so that consumers can find its siblings
             # without the unindexed scan of workflow_steps by target_id

@@ -88,6 +88,11 @@ stub("pandacommon.pandalogger.PandaLogger", PandaLogger=lambda: types.SimpleName
 stub("pandacommon.pandautils.PandaUtils", naive_utcnow=lambda: None)
 stub("pandaserver.config", panda_config=types.SimpleNamespace(schemaJEDI="ATLAS_PANDA", schemaDEFT="ATLAS_DEFT"))
 
+from pandaserver.taskbuffer.JediTaskSpec import (  # noqa: E402
+    WORKFLOW_HOLDUP_BROKERAGE,
+    WORKFLOW_HOLDUP_INPUT,
+    JediTaskSpec,
+)
 from pandaserver.workflow.step_handler_plugins.panda_task_step_handler import (  # noqa: E402
     PandaTaskStepHandler,
 )
@@ -136,6 +141,10 @@ class FakeTaskBuffer:
         self.existing_task_names = existing_task_names or {}
         self.name_lookup_fails = name_lookup_fails
         self.name_lookups = []
+        self.config_values = {}
+
+    def getConfigValue(self, component, key, app="pandaserver", vo=None, default=None):
+        return self.config_values.get((component, key), default)
 
     def get_existing_task_names(self, vo, prod_source_label, task_names):
         self.name_lookups.append((vo, prod_source_label, list(task_names)))
@@ -252,7 +261,10 @@ def main():
     tbif = make_tbif()
     handler = PandaTaskStepHandler(tbif)
     handler.submit_target(make_step(all_inputs_complete=False))
-    failures += not check("workflowHoldup set", tbif.inserted[0].get("workflowHoldup") is True)
+    # an integer now, read as bit flags; 1 is the input hold it always meant
+    failures += not check(
+        "workflowHoldup set to the input bit", tbif.inserted[0].get("workflowHoldup") == WORKFLOW_HOLDUP_INPUT, tbif.inserted[0].get("workflowHoldup")
+    )
 
     print("\n=== the task names the workflow it is a step of ===")
     # Nothing else in a task identifies its workflow, and the reverse lookup is a scan of
@@ -266,6 +278,80 @@ def main():
         "workflowID is in the submitted task parameters", tbif.inserted[0].get("workflowID") == step.workflow_id, tbif.inserted[0].get("workflowID")
     )
     failures += not check("...and it is the step's own workflow", step.workflow_id is not None, step.workflow_id)
+
+    print("\n=== a data-free analysis step is held for brokerage ===")
+    # A step with no input has nothing to place it, so it waits for its siblings that data locality
+    # places, and follows them. It is held only if there is such a sibling to wait for.
+    free_params = copy.deepcopy(simul_params)
+    free_params["prodSourceLabel"] = "user"
+    free_params["vo"] = "atlas"
+    free_params["jobParameters"] = [p for p in free_params["jobParameters"] if p.get("param_type") != "input"]
+    free_params["noInput"] = True
+
+    def make_sibling(step_id, inputs, outputs=(), takes_input=True):
+        params = copy.deepcopy(simul_params)
+        if not takes_input:
+            params["jobParameters"] = [p for p in params["jobParameters"] if p.get("param_type") != "input"]
+        sibling = FakeStep({"task_params": params, "input_data_dict": {name: {} for name in inputs}, "output_data_list": list(outputs)})
+        sibling.step_id = step_id
+        return sibling
+
+    def submit_free(siblings, affinity=True):
+        free_step = make_step(params=free_params, definition={"output_data_list": ["generate/outDS"]})
+        tbif = make_tbif(steps_by_id={free_step.step_id: free_step, **{s.step_id: s for s in siblings}})
+        tbif.config_values[("anal_jobbroker", "WORKFLOW_AFFINITY")] = affinity
+        PandaTaskStepHandler(tbif).submit_target(free_step)
+        return tbif.inserted[0].get("workflowHoldup") if tbif.inserted else "not submitted"
+
+    bound = make_sibling(11, ["{signal}"])
+    value = submit_free([bound])
+    failures += not check("held with the brokerage bit when a sibling is bound by data", value == WORKFLOW_HOLDUP_BROKERAGE, value)
+    value = submit_free([bound], affinity=False)
+    failures += not check("not held when workflow affinity is off", value is None, value)
+    value = submit_free([])
+    failures += not check("not held when it is the only step", value is None, value)
+    value = submit_free([make_sibling(12, [], takes_input=False)])
+    failures += not check("not held when no sibling reads data either", value is None, value)
+    # A sibling reading this step's output waits on it, so waiting on that sibling would deadlock.
+    # Workflow 148's make_background_2: a root input plus generate_some's output.
+    consumer = make_sibling(13, ["{background}", "generate/outDS"])
+    value = submit_free([consumer])
+    failures += not check("a sibling consuming its output is not waited for", value is None, value)
+    value = submit_free([consumer, bound])
+    failures += not check("...while a bound one alongside still is", value == WORKFLOW_HOLDUP_BROKERAGE, value)
+    # a literal dataset leaves input_data_dict empty but still binds the step to its data
+    value = submit_free([make_sibling(14, [])])
+    failures += not check("a sibling reading a literal dataset counts as bound", value == WORKFLOW_HOLDUP_BROKERAGE, value)
+
+    print("\n=== a step that reads data is never held for brokerage ===")
+    user_input_params = copy.deepcopy(simul_params)
+    user_input_params["prodSourceLabel"] = "user"
+    tbif = make_tbif(steps_by_id={11: bound})
+    tbif.config_values[("anal_jobbroker", "WORKFLOW_AFFINITY")] = True
+    PandaTaskStepHandler(tbif).submit_target(make_step(params=user_input_params))
+    failures += not check("no brokerage bit on a step with input", "workflowHoldup" not in tbif.inserted[0], tbif.inserted[0].get("workflowHoldup"))
+    tbif = make_tbif(steps_by_id={11: bound})
+    tbif.config_values[("anal_jobbroker", "WORKFLOW_AFFINITY")] = True
+    PandaTaskStepHandler(tbif).submit_target(make_step(params=user_input_params, all_inputs_complete=False))
+    failures += not check("only the input bit while inputs are incomplete", tbif.inserted[0].get("workflowHoldup") == WORKFLOW_HOLDUP_INPUT)
+
+    print("\n=== the two holds share one split rule without mixing ===")
+    task_spec = JediTaskSpec()
+    task_spec.splitRule = "WH=2,NG=3"
+    # Without reading bits, WH=2 would also switch on the input hold: mutable datasets and the
+    # wait for ready files in the contents feeder, and release by on_all_inputs_done.
+    failures += not check("the brokerage bit is not an input hold", not task_spec.is_workflow_holdup())
+    failures += not check("...and is a brokerage hold", task_spec.is_workflow_brokerage_holdup())
+    task_spec.set_workflow_holdup(True)
+    failures += not check("setting the input bit keeps the brokerage one", task_spec.splitRule == "WH=3,NG=3", task_spec.splitRule)
+    task_spec.set_workflow_holdup(False, WORKFLOW_HOLDUP_BROKERAGE)
+    failures += not check("clearing the brokerage bit keeps the input one", task_spec.splitRule == "WH=1,NG=3", task_spec.splitRule)
+    task_spec.set_workflow_holdup(False)
+    failures += not check("clearing the last bit removes the rule", task_spec.splitRule == "NG=3", task_spec.splitRule)
+    task_spec.splitRule = "WH=1"
+    failures += not check("an existing task's WH=1 still means the input hold", task_spec.is_workflow_holdup() and not task_spec.is_workflow_brokerage_holdup())
+    # the refiner writes int(value): a boolean from a submission made before the change is 1
+    failures += not check("a boolean from an earlier submission refines to the input bit", int(True) == WORKFLOW_HOLDUP_INPUT)
 
     print("\n=== a production label without the role is refused ===")
     # only the task-level production label is guarded; see PRODUCTION_SOURCE_LABELS

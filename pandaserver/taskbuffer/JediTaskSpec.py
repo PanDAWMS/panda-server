@@ -17,6 +17,14 @@ task specification for JEDI
 
 """
 
+# Bit flags carried by the workflowHoldup split rule. A task submitted by a native workflow step
+# can be held for two independent reasons, released by different parties.
+# Waiting for inputs still being produced upstream; released by the workflow engine.
+WORKFLOW_HOLDUP_INPUT = 1
+# A step with no input, waiting for its data-bound siblings to be brokered so that it can follow
+# them; released by the workflow manager watchdog, or expired by the regular pending cycle.
+WORKFLOW_HOLDUP_BROKERAGE = 2
+
 
 class JediTaskSpec(object):
     # attributes
@@ -1818,14 +1826,38 @@ class JediTaskSpec(object):
     def allow_incomplete_input(self) -> bool:
         return self.check_split_rule("allowIncompleteInDS")
 
+    def _workflow_holdup_value(self) -> int:
+        """The workflowHoldup rule's value as bit flags, 0 when the rule is absent"""
+        if self.splitRule is not None:
+            tmpMatch = re.search(r"(?:^|,)" + self.splitRuleToken["workflowHoldup"] + r"=(\d+)", self.splitRule)
+            if tmpMatch is not None:
+                return int(tmpMatch.group(1))
+        return 0
+
     # check if workflow holdup
     def is_workflow_holdup(self) -> bool:
-        return self.check_split_rule("workflowHoldup")
+        """Whether the task waits for its inputs to be completed by its workflow
+
+        Only the input bit counts. The rule also carries the brokerage hold, which must not make
+        the datasets mutable or wait for ready files.
+        """
+        return bool(self._workflow_holdup_value() & WORKFLOW_HOLDUP_INPUT)
+
+    def is_workflow_brokerage_holdup(self) -> bool:
+        """Whether the task waits for the data-bound steps of its workflow to be brokered first"""
+        return bool(self._workflow_holdup_value() & WORKFLOW_HOLDUP_BROKERAGE)
 
     # set workflow holdup
-    def set_workflow_holdup(self, value: bool) -> None:
-        if value:
-            self.setSplitRule("workflowHoldup", "1")
+    def set_workflow_holdup(self, value: bool, kind: int = WORKFLOW_HOLDUP_INPUT) -> None:
+        """Set or clear one kind of workflow hold, leaving the other as it is
+
+        Args:
+            value: True to hold, False to release
+            kind: WORKFLOW_HOLDUP_INPUT or WORKFLOW_HOLDUP_BROKERAGE
+        """
+        new_value = self._workflow_holdup_value() | kind if value else self._workflow_holdup_value() & ~kind
+        if new_value:
+            self.setSplitRule("workflowHoldup", str(new_value))
         else:
             self.removeSplitRule(self.splitRuleToken["workflowHoldup"])
 

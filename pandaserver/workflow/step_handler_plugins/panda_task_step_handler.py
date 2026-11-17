@@ -6,6 +6,10 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.taskbuffer.JediTaskSpec import (
+    WORKFLOW_HOLDUP_BROKERAGE,
+    WORKFLOW_HOLDUP_INPUT,
+)
 from pandaserver.workflow.step_handler_plugins.base_step_handler import BaseStepHandler
 from pandaserver.workflow.workflow_base import (
     PARENT_TASK_ID_PARAM,
@@ -43,6 +47,43 @@ ANALYSIS_TASK_PRIORITY = 1000
 
 # main logger
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
+
+
+# What a panda-task step reads is described by its own task parameters, so deciding it belongs
+# with the flavor that defines them. The workflow manager watchdog imports these too, for the
+# same steps -- it only looks at JEDI task flavors.
+def step_task_takes_input(step_spec: WFStepSpec) -> bool | None:
+    """Whether the step's task reads an input dataset of any kind
+
+    Read from the task parameters rather than from input_data_dict, which carries only inputs
+    written as references: a step naming a literal dataset has an empty input_data_dict and still
+    reads data, so it is bound by data locality like any other.
+
+    Returns:
+        bool | None: None for a step with no task parameters, whose target is not a PanDA task
+    """
+    task_params = step_spec.definition_json_map.get("task_params")
+    if not isinstance(task_params, dict):
+        return None
+    if task_params.get("noInput") is True:
+        return False
+    return any(isinstance(job_param, dict) and job_param.get("param_type") == "input" for job_param in task_params.get("jobParameters") or [])
+
+
+def brokerage_bound_steps(step_specs: list[WFStepSpec]) -> list[WFStepSpec]:
+    """The steps whose placement data locality decides alone, independently of their siblings
+
+    A step that reads input of which nothing is produced inside the workflow: its data already
+    exists, so brokerage will put it where the data is. These are the steps a data-free sibling
+    waits for before being brokered. A step that also consumes a sibling's output is excluded,
+    because that sibling may be the very one waiting, and waiting on it would deadlock.
+    """
+    produced_inside = {name for step_spec in step_specs for name in step_spec.definition_json_map.get("output_data_list", [])}
+    return [
+        step_spec
+        for step_spec in step_specs
+        if step_task_takes_input(step_spec) and not produced_inside.intersection(step_spec.definition_json_map.get("input_data_dict", {}))
+    ]
 
 
 class PandaTaskStepHandler(BaseStepHandler):
@@ -394,6 +435,46 @@ class PandaTaskStepHandler(BaseStepHandler):
         tmp_log.info(f"a previous attempt recorded taskName={task_name} but queued no task; submitting again")
         return True, ""
 
+    def needs_brokerage_holdup(self, step_spec: WFStepSpec, task_param_map: dict[str, Any], tmp_log: LogWrapper) -> bool:
+        """
+        Whether the step's task should wait for its data-bound siblings before being brokered
+
+        An analysis step with no input has nothing to place it, so it is drawn to wherever the rest
+        of its workflow is going. Brokered before its siblings, it sees only a prediction spread
+        over every replica of their inputs; brokered after them, it sees where they actually went.
+        Only worth holding when workflow affinity is on and some sibling is bound by data; the
+        hold is released by the workflow manager watchdog or expires with the pending cycle.
+
+        Args:
+            step_spec: the step being submitted
+            task_param_map: its task parameters
+            tmp_log: logger
+
+        Returns:
+            bool: True to hold the task's brokerage
+        """
+        try:
+            # workflow affinity exists only in analysis brokerage
+            if task_param_map.get("prodSourceLabel") != "user":
+                return False
+            if step_task_takes_input(step_spec) is not False:
+                return False
+            if not self.tbif.getConfigValue("anal_jobbroker", "WORKFLOW_AFFINITY", "jedi", task_param_map.get("vo")):
+                return False
+            # Classify over all steps, this one included: what this step produces is what makes a
+            # sibling consuming it unbound, and leaving it out would have that sibling waited for
+            # while it waits on this step.
+            all_step_specs = self.tbif.get_steps_of_workflow(workflow_id=step_spec.workflow_id) or []
+            bound_specs = [s for s in brokerage_bound_steps(all_step_specs) if s.step_id != step_spec.step_id]
+            if not bound_specs:
+                return False
+            tmp_log.info(f"brokerage held until data-bound steps {sorted(s.step_id for s in bound_specs)} are placed")
+            return True
+        except Exception as e:
+            # a preference that cannot be worked out is no reason to hold or to fail the step
+            tmp_log.warning(f"failed to decide brokerage holdup, not holding: {e}")
+            return False
+
     def submit_target(self, step_spec: WFStepSpec, **kwargs: Any) -> WFStepTargetSubmitResult:
         """
         Submit a target for processing the PanDA task step.
@@ -450,9 +531,16 @@ class PandaTaskStepHandler(BaseStepHandler):
             if not is_resolved:
                 submit_result.message = message
                 return submit_result
+            # workflowHoldup carries bit flags, one per reason to hold the task
+            holdup_value = 0
             if not step_spec.get_parameter("all_inputs_complete"):
-                # Some inputs are not complete, set workflowHoldup to True to hold up the workflow until released by workflow processor
-                task_param_map["workflowHoldup"] = True
+                # Some inputs are not complete: hold up the task until released by the workflow processor
+                holdup_value |= WORKFLOW_HOLDUP_INPUT
+            if self.needs_brokerage_holdup(step_spec, task_param_map, tmp_log):
+                # No input to place it: hold up its brokerage until its data-bound siblings are placed
+                holdup_value |= WORKFLOW_HOLDUP_BROKERAGE
+            if holdup_value:
+                task_param_map["workflowHoldup"] = holdup_value
             # Name the workflow on the task. Nothing else in the task identifies it, and the
             # reverse lookup is a scan of workflow_steps, so a consumer such as brokerage can only
             # afford to ask about its workflow if the task carries the ID itself.
