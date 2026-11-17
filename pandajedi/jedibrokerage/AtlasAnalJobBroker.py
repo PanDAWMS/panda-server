@@ -1231,12 +1231,18 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     tmp_msg += "criteria=-remoteio"
                     msg_map[tmpSiteName] = tmp_msg
                     continue
+                # check local IO since the site requires direct IO while the task requires copy-to-scratch
+                if taskSpec.useLocalIO() and tmpSiteSpec.always_use_direct_io() and not inputChunk.isMerging:
+                    tmp_msg = f"  skip site={tmpSiteName} since copy-to-scratch is disabled "
+                    tmp_msg += "criteria=-localio"
+                    msg_map[tmpSiteName] = tmp_msg
+                    continue
 
                 # check disk space
                 if tmpSiteSpec.maxwdir:
                     if CoreUtils.use_direct_io_for_job(taskSpec, tmpSiteSpec, inputChunk):
                         minDiskCount: Any = minDiskCountR
-                        if maxSizePerJob is not None and not taskSpec.useLocalIO():
+                        if maxSizePerJob is not None:
                             tmpMinDiskCountR: float = tmpOutDiskSize * maxSizePerJob + tmpWorkDiskSize
                             tmpMinDiskCountR /= 1024 * 1024
                             if tmpMinDiskCountR > minDiskCount:
