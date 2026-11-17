@@ -110,7 +110,7 @@ def memoize(f: _F) -> _F:
 
 # convert dict to bind variable dict
 def convert_dict_to_bind_vars(item: dict[str, Any]) -> dict[str, Any]:
-    ret = dict()
+    ret = {}
     for k in item:
         ret[f":{k}"] = item[k]
     return ret
@@ -723,10 +723,7 @@ class BaseModule:
         if not hasattr(panda_config, "record_statuschange") or panda_config.record_statuschange is not True:
             return
         # get job info
-        varMap: dict[str, Any] = {}
-        varMap[":PandaID"] = pandaID
-        varMap[":jobStatus"] = jobStatus
-        varMap[":modificationHost"] = self.myHostName
+        varMap: dict[str, Any] = {":PandaID": pandaID, ":jobStatus": jobStatus, ":modificationHost": self.myHostName}
         if jobInfo is not None:
             varMap[":computingSite"] = jobInfo.computingSite
             varMap[":cloud"] = jobInfo.cloud
@@ -938,9 +935,7 @@ class BaseModule:
             sqlCT += "SET superStatus=:superStatus "
             sqlCT += "WHERE jediTaskID=:jediTaskID "
             # set super status
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":superStatus"] = superStatus
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":superStatus": superStatus}
             self.cur.execute(sqlCT + comment, varMap)
             return True
         except Exception:
@@ -956,9 +951,7 @@ class BaseModule:
             sqlD = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
             sqlD += "SET status=:status,timeStamp=CURRENT_DATE "
             sqlD += "WHERE taskID=:jediTaskID "
-            varMap: dict[str, Any] = {}
-            varMap[":status"] = taskStatus
-            varMap[":jediTaskID"] = jediTaskID
+            varMap: dict[str, Any] = {":status": taskStatus, ":jediTaskID": jediTaskID}
             tmpLog.debug(sqlD + comment + str(varMap))
             self.cur.execute(sqlD + comment, varMap)
             return True
@@ -972,9 +965,7 @@ class BaseModule:
         comment = " /* JediDBProxy.record_task_status_change */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
         tmpLog.debug("start")
-        varMap: dict[str, Any] = dict()
-        varMap[":jediTaskID"] = jedi_task_id
-        varMap[":modificationHost"] = socket.getfqdn()
+        varMap: dict[str, Any] = {":jediTaskID": jedi_task_id, ":modificationHost": socket.getfqdn()}
         # sql
         sqlNS = (
             "INSERT INTO {0}.TASKS_STATUSLOG "
