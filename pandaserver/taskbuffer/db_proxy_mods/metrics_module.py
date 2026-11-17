@@ -487,11 +487,7 @@ class MetricsModule(BaseModule):
         sqlBD += "WHERE f1.PandaID=:PandaID AND f1.type=:type AND f1.status=:status "
         sqlBD += "AND f2.lfn=f1.lfn AND f2.type=:type AND f2.status=:status AND f2.jediTaskID=:jediTaskID "
         sqlBD += "GROUP BY f2.lfn "
-        varMap: dict[str, Any] = {}
-        varMap[":jediTaskID"] = jediTaskID
-        varMap[":PandaID"] = pandaID
-        varMap[":status"] = "corrupted"
-        varMap[":type"] = "zipinput"
+        varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":PandaID": pandaID, ":status": "corrupted", ":type": "zipinput"}
         self.cur.execute(sqlBD + comment, varMap)
         resBD = self.cur.fetchall()
         tooMany = False
@@ -675,9 +671,7 @@ class MetricsModule(BaseModule):
             # read the number of running jobs with prio<=MIN
             tables.append(f"{panda_config.schemaPANDA}.jobsActive4")
             sqlMVforRun = re.sub("currentPriority>=", "currentPriority<=", sqlMV)
-        varMap: dict[str, Any] = {}
-        varMap[":vo"] = vo
-        varMap[":prodSourceLabel"] = prodSourceLabel
+        varMap: dict[str, Any] = {":vo": vo, ":prodSourceLabel": prodSourceLabel}
         if cloud is not None:
             varMap[":cloud"] = cloud
         for tmpPrio in tmpPrioMap.keys():
