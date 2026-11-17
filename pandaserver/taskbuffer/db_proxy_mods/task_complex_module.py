@@ -151,9 +151,7 @@ class TaskComplexModule(BaseModule):
             sqlSEQ += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
             sqlSEQ += "WHERE jediTaskID=:jediTaskID AND datasetName=:datasetName "
             for jediTaskID in jediTaskIDs:
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":datasetName"] = "seq_number"
+                varMap = {":jediTaskID": jediTaskID, ":datasetName": "seq_number"}
                 self.conn.begin()
                 self.cur.execute(sqlSEQ + comment, varMap)
                 # commit
@@ -271,13 +269,14 @@ class TaskComplexModule(BaseModule):
                 sqlPPC += "WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID "
                 sqlPPC += "AND tabD.jediTaskID=:jediTaskID AND tabD.type IN (:type1,:type2) "
                 sqlPPC += "AND tabD.datasetName IN (:dsName,:didName) AND tabC.status=:fileStatus "
-                varMap: dict[str, Any] = {}
-                varMap[":type1"] = "output"
-                varMap[":type2"] = "log"
-                varMap[":jediTaskID"] = parent_tid
-                varMap[":fileStatus"] = "finished"
-                varMap[":didName"] = datasetSpec.datasetName
-                varMap[":dsName"] = datasetSpec.datasetName.split(":")[-1]  # type: ignore[union-attr]  # a column, declared optional because a fresh spec has it unset
+                varMap: dict[str, Any] = {
+                    ":type1": "output",
+                    ":type2": "log",
+                    ":jediTaskID": parent_tid,
+                    ":fileStatus": "finished",
+                    ":didName": datasetSpec.datasetName,
+                    ":dsName": datasetSpec.datasetName.split(":")[-1],  # type: ignore[union-attr]  # a column, declared optional because a fresh spec has it unset
+                }
                 # begin transaction
                 self.conn.begin()
                 self.cur.execute(sqlPPC + comment, varMap)
@@ -305,13 +304,14 @@ class TaskComplexModule(BaseModule):
                 sqlSFU += "AND tabD.jediTaskID=:jediTaskID AND tabD.type IN (:type1,:type2) "
                 sqlSFU += "AND tabD.datasetName IN (:dsName,:didName) AND tabC.status=:fileStatus "
                 for tmpTaskID in str(skipFilesUsedBy).split(","):
-                    varMap = {}
-                    varMap[":type1"] = "input"
-                    varMap[":type2"] = "pseudo_input"
-                    varMap[":jediTaskID"] = tmpTaskID
-                    varMap[":fileStatus"] = "finished"
-                    varMap[":didName"] = datasetSpec.datasetName
-                    varMap[":dsName"] = datasetSpec.datasetName.split(":")[-1]  # type: ignore[union-attr]  # a column, declared optional because a fresh spec has it unset
+                    varMap = {
+                        ":type1": "input",
+                        ":type2": "pseudo_input",
+                        ":jediTaskID": tmpTaskID,
+                        ":fileStatus": "finished",
+                        ":didName": datasetSpec.datasetName,
+                        ":dsName": datasetSpec.datasetName.split(":")[-1],  # type: ignore[union-attr]  # a column, declared optional because a fresh spec has it unset
+                    }
                     try:
                         # begin transaction
                         self.conn.begin()
@@ -370,7 +370,7 @@ class TaskComplexModule(BaseModule):
             # make LFN list
             if order_by == "eventsAlignment" and nEventsPerJob:
                 aligned = []
-                unaligned = dict()
+                unaligned = {}
                 for tmpLFN, (tmpGUID, tmpFileVar) in filelValMap.items():
                     if "events" in tmpFileVar and int(tmpFileVar["events"]) % nEventsPerJob == 0:
                         aligned.append(tmpLFN)
@@ -640,8 +640,7 @@ class TaskComplexModule(BaseModule):
             self.conn.begin()
             # check task
             try:
-                varMap = {}
-                varMap[":jediTaskID"] = datasetSpec.jediTaskID
+                varMap = {":jediTaskID": datasetSpec.jediTaskID}
                 self.cur.execute(sqlTL + comment, varMap)
                 resTask = self.cur.fetchone()
             except Exception as e:
@@ -715,9 +714,7 @@ class TaskComplexModule(BaseModule):
                             sizePendingEventChunk = nChunkInBunch * nEventsPerJob
                             strSizePendingEventChunk = f"{nEventsPerJob}*{nChunkInBunch} events required"
                     # check dataset status
-                    varMap = {}
-                    varMap[":jediTaskID"] = datasetSpec.jediTaskID
-                    varMap[":datasetID"] = datasetSpec.datasetID
+                    varMap = {":jediTaskID": datasetSpec.jediTaskID, ":datasetID": datasetSpec.datasetID}
                     self.cur.execute(sqlDs + comment, varMap)
                     resDs = self.cur.fetchone()
                     if resDs is None:
@@ -737,9 +734,7 @@ class TaskComplexModule(BaseModule):
                         nFilesUnprocessed = resDs[1]
                         # count existing files
                         if resDs[0] == "ready":
-                            varMap = {}
-                            varMap[":jediTaskID"] = datasetSpec.jediTaskID
-                            varMap[":datasetID"] = datasetSpec.datasetID
+                            varMap = {":jediTaskID": datasetSpec.jediTaskID, ":datasetID": datasetSpec.datasetID}
                             self.cur.execute(sqlCo + comment, varMap)
                             resCo = self.cur.fetchone()
                             numUniqueLfn = resCo[0]
@@ -751,9 +746,7 @@ class TaskComplexModule(BaseModule):
                         if not nFilesUsedInDS:
                             nFilesUsedInDS = 0
                         # get existing file list
-                        varMap = {}
-                        varMap[":jediTaskID"] = datasetSpec.jediTaskID
-                        varMap[":datasetID"] = datasetSpec.datasetID
+                        varMap = {":jediTaskID": datasetSpec.jediTaskID, ":datasetID": datasetSpec.datasetID}
                         self.cur.execute(sqlCh + comment, varMap)
                         tmpRes = self.cur.fetchall()
                         tmpLog.debug(f"{len(tmpRes)} file records in DB")
@@ -876,8 +869,7 @@ class TaskComplexModule(BaseModule):
                         tmpLog.debug(f"get fileIDs for {nInsert} inputs")
                         newFileIDs = []
                         if nInsert > 0:
-                            varMap = {}
-                            varMap[":nIDs"] = nInsert
+                            varMap = {":nIDs": nInsert}
                             self.cur.execute(sqlFID, varMap)
                             resFID = self.cur.fetchall()
                             for (fileID,) in resFID:
@@ -913,9 +905,7 @@ class TaskComplexModule(BaseModule):
                             sqlFR += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
                             sqlFR += "jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
                             sqlFR += "ORDER BY lfn, startEvent "
-                            varMap = {}
-                            varMap[":datasetID"] = datasetSpec.datasetID
-                            varMap[":jediTaskID"] = datasetSpec.jediTaskID
+                            varMap = {":datasetID": datasetSpec.datasetID, ":jediTaskID": datasetSpec.jediTaskID}
                             if isMutableDataset or datasetSpec.state == "mutable":
                                 varMap[":status"] = "pending"
                             else:
@@ -1082,11 +1072,7 @@ class TaskComplexModule(BaseModule):
                         tmpLog.debug(f"length of pendingFID {len(orig_pendingFID)} -> {len(toActivateFID)}")
                         for tmpFileID in toActivateFID:
                             if tmpFileID in orig_pendingFID:
-                                varMap = {}
-                                varMap[":status"] = "ready"
-                                varMap[":jediTaskID"] = datasetSpec.jediTaskID
-                                varMap[":datasetID"] = datasetSpec.datasetID
-                                varMap[":fileID"] = tmpFileID
+                                varMap = {":status": "ready", ":jediTaskID": datasetSpec.jediTaskID, ":datasetID": datasetSpec.datasetID, ":fileID": tmpFileID}
                                 self.cur.execute(sqlFU + comment, varMap)
                                 nActivatedPending += 1
                                 nReady += 1
@@ -1098,10 +1084,7 @@ class TaskComplexModule(BaseModule):
                             tmpLog.debug("lost or recovered files")
                             uniqueFileKeySet = set(uniqueFileKeyList)
                             for uniqueFileKey, fileVarMap in existingFiles.items():
-                                varMap = {}
-                                varMap[":jediTaskID"] = datasetSpec.jediTaskID
-                                varMap[":datasetID"] = datasetSpec.datasetID
-                                varMap[":fileID"] = fileVarMap["fileID"]
+                                varMap = {":jediTaskID": datasetSpec.jediTaskID, ":datasetID": datasetSpec.datasetID, ":fileID": fileVarMap["fileID"]}
                                 lostInPending = False
                                 if uniqueFileKey not in uniqueFileKeySet:
                                     if fileVarMap["status"] == "lost":
@@ -1136,9 +1119,7 @@ class TaskComplexModule(BaseModule):
                         # get master status
                         masterStatus = None
                         if not datasetSpec.isMaster():
-                            varMap = {}
-                            varMap[":jediTaskID"] = datasetSpec.jediTaskID
-                            varMap[":datasetID"] = datasetSpec.masterID
+                            varMap = {":jediTaskID": datasetSpec.jediTaskID, ":datasetID": datasetSpec.masterID}
                             self.cur.execute(sqlMS + comment, varMap)
                             resMS = self.cur.fetchone()
                             (masterStatus,) = resMS
@@ -1147,10 +1128,7 @@ class TaskComplexModule(BaseModule):
                         if nFilesToUseDS is None:
                             nFilesToUseDS = 0
                         # update dataset
-                        varMap = {}
-                        varMap[":jediTaskID"] = datasetSpec.jediTaskID
-                        varMap[":datasetID"] = datasetSpec.datasetID
-                        varMap[":nFiles"] = nInsert + len(existingFiles) - nLost
+                        varMap = {":jediTaskID": datasetSpec.jediTaskID, ":datasetID": datasetSpec.datasetID, ":nFiles": nInsert + len(existingFiles) - nLost}
                         if skip_short_output:
                             # remove pending files to avoid wrong task transition due to nFiles>nFilesTobeUsed
                             varMap[":nFiles"] -= nPending - nActivatedPending
@@ -1242,8 +1220,7 @@ class TaskComplexModule(BaseModule):
                             self.cur.execute(sqlDU + comment, varMap)
                         # propagate number of input events to DEFT
                         if datasetSpec.isMaster():
-                            varMap = {}
-                            varMap[":jediTaskID"] = datasetSpec.jediTaskID
+                            varMap = {":jediTaskID": datasetSpec.jediTaskID}
                             varMap.update(INPUT_TYPES_var_map)
                             tmpLog.debug(sqlCE + comment + str(varMap))
                             self.cur.execute(sqlCE + comment, varMap)
@@ -1314,8 +1291,7 @@ class TaskComplexModule(BaseModule):
             self.conn.begin()
             # check status
             taskStatus = None
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID}
             tmpLog.debug(sqlS + comment + str(varMap))
             self.cur.execute(sqlS + comment, varMap)
             res = self.cur.fetchone()
@@ -1330,27 +1306,19 @@ class TaskComplexModule(BaseModule):
                     # task status is irrelevant
                     tmpLog.debug(f"task.status={taskStatus} is not for contents update")
                     # unlock
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":status"] = taskStatus
+                    varMap = {":jediTaskID": jediTaskID, ":status": taskStatus}
                     if pid is not None:
                         varMap[":pid"] = pid
                     self.cur.execute(sqlL + comment, varMap)
                     tmpLog.debug("unlocked")
                 else:
                     # get number of unassigned datasets
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":type1"] = "output"
-                    varMap[":type2"] = "log"
+                    varMap = {":jediTaskID": jediTaskID, ":type1": "output", ":type2": "log"}
                     self.cur.execute(sqlD + comment, varMap)
                     (nUnassignedDSs,) = self.cur.fetchone()
                     # update task
                     timeNow = naive_utcnow()
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":updateTime"] = timeNow
-                    varMap[":errorDialog"] = None
+                    varMap = {":jediTaskID": jediTaskID, ":updateTime": timeNow, ":errorDialog": None}
                     if taskSpec is not None:
                         # new task status is specified
                         varMap[":status"] = taskSpec.status
@@ -1495,10 +1463,7 @@ class TaskComplexModule(BaseModule):
                 # loop over all datasets
                 for tmpUnknownDataset in insertUnknown:
                     # check if already in DB
-                    varMap = {}
-                    varMap[":type"] = JediDatasetSpec.getUnknownInputType()
-                    varMap[":jediTaskID"] = taskSpec.jediTaskID
-                    varMap[":datasetName"] = tmpUnknownDataset
+                    varMap = {":type": JediDatasetSpec.getUnknownInputType(), ":jediTaskID": taskSpec.jediTaskID, ":datasetName": tmpUnknownDataset}
                     self.cur.execute(sqlUC + comment, varMap)
                     resUC = self.cur.fetchone()
                     if resUC is None:
@@ -1521,9 +1486,7 @@ class TaskComplexModule(BaseModule):
                     sqlC += "AND tabC.datasetID=tabD.datasetID "
                     sqlC += "AND tabC.status=:status "
                     sqlC += "AND masterID IS NULL AND pandaID IS NOT NULL "
-                    varMap = {}
-                    varMap[":jediTaskID"] = taskSpec.jediTaskID
-                    varMap[":status"] = "finished"
+                    varMap = {":jediTaskID": taskSpec.jediTaskID, ":status": "finished"}
                     self.cur.execute(sqlC + comment, varMap)
                     res = self.cur.fetchone()
                     if res is None:
@@ -1533,10 +1496,7 @@ class TaskComplexModule(BaseModule):
                         sqlD = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
                         sqlD += "SET status=:status,total_done_jobs=:nDone,timeStamp=CURRENT_DATE "
                         sqlD += "WHERE taskID=:jediTaskID "
-                        varMap = {}
-                        varMap[":status"] = taskSpec.status
-                        varMap[":jediTaskID"] = taskSpec.jediTaskID
-                        varMap[":nDone"] = nDone
+                        varMap = {":status": taskSpec.status, ":jediTaskID": taskSpec.jediTaskID, ":nDone": nDone}
                         tmpLog.debug(sqlD + comment + str(varMap))
                         self.cur.execute(sqlD + comment, varMap)
                         self.setSuperStatus_JEDI(taskSpec.jediTaskID, taskSpec.status)  # type: ignore[arg-type]  # the id is a column, which is declared optional
@@ -1551,15 +1511,12 @@ class TaskComplexModule(BaseModule):
                     if taskSpec.status == "scouting":
                         sqlD += ",start_time=CURRENT_DATE"
                     sqlD += " WHERE taskID=:jediTaskID "
-                    varMap = {}
-                    varMap[":status"] = deftStatus
-                    varMap[":jediTaskID"] = taskSpec.jediTaskID
+                    varMap = {":status": deftStatus, ":jediTaskID": taskSpec.jediTaskID}
                     tmpLog.debug(sqlD + comment + str(varMap))
                     self.cur.execute(sqlD + comment, varMap)
                     self.setSuperStatus_JEDI(taskSpec.jediTaskID, deftStatus)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                     if taskSpec.status == "running":
-                        varMap = {}
-                        varMap[":jediTaskID"] = taskSpec.jediTaskID
+                        varMap = {":jediTaskID": taskSpec.jediTaskID}
                         sqlDS = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
                         sqlDS += "SET start_time=timeStamp "
                         sqlDS += "WHERE taskID=:jediTaskID AND start_time IS NULL "
@@ -1598,13 +1555,14 @@ class TaskComplexModule(BaseModule):
         failedRet = None
         try:
             # sql
-            varMap: dict[str, Any] = {}
-            varMap[":status1"] = "prepared"
-            varMap[":status2"] = "scouted"
-            # tobroken tasks come here as breaking once TaskCommando has killed their jobs
-            varMap[":status3"] = "breaking"
-            varMap[":status4"] = "toabort"
-            varMap[":status5"] = "passed"
+            varMap: dict[str, Any] = {
+                ":status1": "prepared",
+                ":status2": "scouted",
+                # tobroken tasks come here as breaking once TaskCommando has killed their jobs
+                ":status3": "breaking",
+                ":status4": "toabort",
+                ":status5": "passed",
+            }
             sqlRT = "SELECT tabT.jediTaskID,tabT.status,tabT.eventService,tabT.site,tabT.useJumbo,tabT.splitRule "
             sqlRT += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
             sqlRT += "WHERE tabT.status=tabA.status "
@@ -1656,8 +1614,7 @@ class TaskComplexModule(BaseModule):
                 self.conn.begin()
                 # check task
                 try:
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
+                    varMap = {":jediTaskID": jediTaskID}
                     self.cur.execute(sqlNW + comment, varMap)
                 except Exception:
                     tmpLog.debug(f"skip locked jediTaskID={jediTaskID}")
@@ -1668,12 +1625,13 @@ class TaskComplexModule(BaseModule):
                 # special action for scouted
                 if taskStatus == "scouted":
                     # make avalanche
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":newStatus"] = "running"
-                    varMap[":oldStatus"] = taskStatus
-                    # set old update time to trigger JG immediately
-                    varMap[":updateTime"] = naive_utcnow() - datetime.timedelta(hours=6)
+                    varMap = {
+                        ":jediTaskID": jediTaskID,
+                        ":newStatus": "running",
+                        ":oldStatus": taskStatus,
+                        # set old update time to trigger JG immediately
+                        ":updateTime": naive_utcnow() - datetime.timedelta(hours=6),
+                    }
                     self.cur.execute(sqlSC + comment, varMap)
                     nRows = self.cur.rowcount
                     tmpLog.debug(f"changed status to {varMap[':newStatus']} for jediTaskID={jediTaskID} with {nRows}")
@@ -1685,17 +1643,12 @@ class TaskComplexModule(BaseModule):
                         get_task_utils_module(self).enableJumboInTask_JEDI(jediTaskID, eventService, site, useJumbo, splitRule)
                 else:
                     # lock task
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":lockedBy"] = pid
-                    varMap[":status"] = taskStatus
-                    varMap[":timeLimit"] = timeLimit
+                    varMap = {":jediTaskID": jediTaskID, ":lockedBy": pid, ":status": taskStatus, ":timeLimit": timeLimit}
                     self.cur.execute(sqlLK + comment, varMap)
                     nRows = self.cur.rowcount
                     if nRows == 1:
                         # read task
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
+                        varMap = {":jediTaskID": jediTaskID}
                         self.cur.execute(sqlTS + comment, varMap)
                         resTS = self.cur.fetchone()
                         if resTS is not None:
@@ -1703,8 +1656,7 @@ class TaskComplexModule(BaseModule):
                             taskSpec.pack(resTS)
                             retTasks.append(taskSpec)
                             # read datasets
-                            varMap = {}
-                            varMap[":jediTaskID"] = taskSpec.jediTaskID
+                            varMap = {":jediTaskID": taskSpec.jediTaskID}
                             self.cur.execute(sqlDS + comment, varMap)
                             resList = self.cur.fetchall()
                             for resDS in resList:
@@ -1764,8 +1716,7 @@ class TaskComplexModule(BaseModule):
         """
         # get tasks/datasets
         if not target_tasks:
-            var_map: dict[str, Any] = {}
-            var_map[":vo"] = vo
+            var_map: dict[str, Any] = {":vo": vo}
             if prod_source_label not in [None, "", "any"]:
                 var_map[":prodSourceLabel"] = prod_source_label
             if cloud_name not in [None, "", "any"]:
@@ -2107,9 +2058,7 @@ class TaskComplexModule(BaseModule):
         orig_task_spec = None
         try:
             # read task
-            var_map: dict[str, Any] = {}
-            var_map[":jediTaskID"] = jedi_task_id
-            var_map[":statusInDB"] = task_status_map[jedi_task_id]
+            var_map: dict[str, Any] = {":jediTaskID": jedi_task_id, ":statusInDB": task_status_map[jedi_task_id]}
             if jedi_task_id not in locked_tasks:
                 tmp_log.debug(sql_read_task + comment + str(var_map))
                 self.cur.execute(sql_read_task + comment, var_map)
@@ -2134,9 +2083,7 @@ class TaskComplexModule(BaseModule):
                 to_skip = False
                 for tmp_item in task_dataset_map[jedi_task_id]:
                     tmp_dataset_id, n_files_unprocessed = tmp_item[:2]
-                    var_map = {}
-                    var_map[":jediTaskID"] = jedi_task_id
-                    var_map[":datasetID"] = tmp_dataset_id
+                    var_map = {":jediTaskID": jedi_task_id, ":datasetID": tmp_dataset_id}
                     self.cur.execute(sel_check_files + comment, var_map)
                     (newNumFiles,) = self.cur.fetchone()
                     tmp_log.debug(f"jediTaskID={jedi_task_id} datasetID={tmp_dataset_id} nFilesToBeUsed-nFilesUsed old:{n_files_unprocessed} new:{newNumFiles}")
@@ -2158,11 +2105,7 @@ class TaskComplexModule(BaseModule):
                 return to_skip, orig_task_spec, locked_tasks, locked_by_another
             # lock task
             if not is_dry_run and jedi_task_id not in locked_tasks:
-                var_map = {}
-                var_map[":jediTaskID"] = jedi_task_id
-                var_map[":newLockedBy"] = pid
-                var_map[":status"] = task_status_map[jedi_task_id]
-                var_map[":timeLimit"] = time_limit
+                var_map = {":jediTaskID": jedi_task_id, ":newLockedBy": pid, ":status": task_status_map[jedi_task_id], ":timeLimit": time_limit}
                 tmp_log.debug(sql_to_lock_task + comment + str(var_map))
                 self.cur.execute(sql_to_lock_task + comment, var_map)
                 n_row = self.cur.rowcount
@@ -2239,8 +2182,7 @@ class TaskComplexModule(BaseModule):
         num_hpo_workers = None
         # count the number of files for avalanche
         if not to_skip:
-            var_map: dict[str, Any] = {}
-            var_map[":jediTaskID"] = jedi_task_id
+            var_map: dict[str, Any] = {":jediTaskID": jedi_task_id}
             var_map.update(INPUT_TYPES_var_map)
             tmp_log.debug(sql_avalanche + comment + str(var_map))
             self.cur.execute(sql_avalanche + comment, var_map)
@@ -2257,8 +2199,7 @@ class TaskComplexModule(BaseModule):
         if not to_skip:
             # for analysis use DN as userName
             if original_task_spec.prodSourceLabel in ["user"]:
-                var_map = {}
-                var_map[":name"] = original_task_spec.userName
+                var_map = {":name": original_task_spec.userName}
                 tmp_log.debug(sql_dn + comment + str(var_map))
                 self.cur.execute(sql_dn + comment, var_map)
                 tmp_res = self.cur.fetchone()
@@ -2275,10 +2216,7 @@ class TaskComplexModule(BaseModule):
                         to_skip = True
                         err_msg = f"{original_task_spec.origUserName} has an empty DN"
                         tmp_log.error(f"{err_msg} for jediTaskID={jedi_task_id}")
-                        var_map = {}
-                        var_map[":jediTaskID"] = jedi_task_id
-                        var_map[":status"] = "tobroken"
-                        var_map[":err"] = err_msg
+                        var_map = {":jediTaskID": jedi_task_id, ":status": "tobroken", ":err": err_msg}
                         self.cur.execute(sql_update_task_status + comment, var_map)
                         self.record_task_status_change(jedi_task_id)
                     else:
@@ -2296,15 +2234,11 @@ class TaskComplexModule(BaseModule):
                 if num_max_hpo_jobs is not None:
                     sql_n_hpo_jobs = f"SELECT total_req_jobs FROM {panda_config.schemaDEFT}.T_TASK "
                     sql_n_hpo_jobs += "WHERE taskid=:taskid "
-                    var_map = {}
-                    var_map[":taskid"] = jedi_task_id
+                    var_map = {":taskid": jedi_task_id}
                     self.cur.execute(sql_n_hpo_jobs + comment, var_map)
                     (tmp_num_hpo_jobs,) = self.cur.fetchone()
                     if tmp_num_hpo_jobs >= num_max_hpo_jobs:
-                        var_map = {}
-                        var_map[":jediTaskID"] = jedi_task_id
-                        var_map[":status"] = original_task_spec.status
-                        var_map[":err"] = "skipped max number of HPO jobs reached"
+                        var_map = {":jediTaskID": jedi_task_id, ":status": original_task_spec.status, ":err": "skipped max number of HPO jobs reached"}
                         self.cur.execute(sql_update_task_status + comment, var_map)
                         tmp_log.debug(f"jediTaskID={jedi_task_id} to finish due to maxNumHpoJobs={num_max_hpo_jobs} numHpoJobs={tmp_num_hpo_jobs}")
                         if not self._commit():
@@ -2316,9 +2250,7 @@ class TaskComplexModule(BaseModule):
                         to_skip = True
                         return to_skip, num_avalanche, num_hpo_workers
                 # get number of active samples
-                var_map = {}
-                var_map[":jediTaskID"] = jedi_task_id
-                var_map[":eventStatus"] = EventServiceUtils.ST_ready
+                var_map = {":jediTaskID": jedi_task_id, ":eventStatus": EventServiceUtils.ST_ready}
                 self.cur.execute(sql_get_n_events + comment, var_map)
                 tmp_res = self.cur.fetchall()
                 num_hpo_workers = {}
@@ -2327,11 +2259,12 @@ class TaskComplexModule(BaseModule):
                     num_hpo_workers[dataset_id_hpo] = tmp_num_events_hpo
                     total_num_events_hpo += tmp_num_events_hpo
                 # subtract ready workers
-                var_map = {}
-                var_map[":jediTaskID"] = jedi_task_id
-                var_map[":esSent"] = EventServiceUtils.ST_sent
-                var_map[":esRunning"] = EventServiceUtils.ST_running
-                var_map[":f_type"] = "pseudo_input"
+                var_map = {
+                    ":jediTaskID": jedi_task_id,
+                    ":esSent": EventServiceUtils.ST_sent,
+                    ":esRunning": EventServiceUtils.ST_running,
+                    ":f_type": "pseudo_input",
+                }
                 self.cur.execute(sql_get_n_hpo_workers + comment, var_map)
                 tmp_res = self.cur.fetchall()
                 total_num_workers_hpo = 0
@@ -2341,9 +2274,7 @@ class TaskComplexModule(BaseModule):
                         num_hpo_workers[dataset_id_hpo] -= tmp_num_workers_hpo
                 # go to pending if no events (samples)
                 if not [i for i in num_hpo_workers.values() if i > 0]:
-                    var_map = {}
-                    var_map[":jediTaskID"] = jedi_task_id
-                    var_map[":status"] = original_task_spec.status
+                    var_map = {":jediTaskID": jedi_task_id, ":status": original_task_spec.status}
                     if not num_hpo_workers:
                         var_map[":err"] = "skipped since no HP points to evaluate"
                     else:
@@ -2351,14 +2282,10 @@ class TaskComplexModule(BaseModule):
                     self.cur.execute(sql_update_task_status + comment, var_map)
                     # set frozenTime
                     if total_num_events_hpo + total_num_workers_hpo == 0 and original_task_spec.frozenTime is None:
-                        var_map = {}
-                        var_map[":jediTaskID"] = jedi_task_id
-                        var_map[":frozenTime"] = naive_utcnow()
+                        var_map = {":jediTaskID": jedi_task_id, ":frozenTime": naive_utcnow()}
                         self.cur.execute(sql_update_frozen_time + comment, var_map)
                     elif total_num_events_hpo + total_num_workers_hpo > 0 and original_task_spec.frozenTime is not None:
-                        var_map = {}
-                        var_map[":jediTaskID"] = jedi_task_id
-                        var_map[":frozenTime"] = None
+                        var_map = {":jediTaskID": jedi_task_id, ":frozenTime": None}
                         self.cur.execute(sql_update_frozen_time + comment, var_map)
                     tmp_log.debug(
                         f"HPO jediTaskID={jedi_task_id} skipped due to nSamplesToEvaluate={total_num_events_hpo} nReadyWorkers={total_num_workers_hpo}"
@@ -2436,9 +2363,7 @@ class TaskComplexModule(BaseModule):
         sql_update_dataset_status += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         to_skip = False
         # See if there are different memory requirements that need to be mapped to different chunks
-        var_map: dict[str, Any] = {}
-        var_map[":jediTaskID"] = jedi_task_id
-        var_map[":datasetID"] = dataset_id
+        var_map: dict[str, Any] = {":jediTaskID": jedi_task_id, ":datasetID": dataset_id}
         if not simulation_with_file_stat:
             if use_jumbo == JediTaskSpec.enum_useJumbo["lack"] and orig_n_files_unprocessed == 0:
                 var_map[":status"] = "running"
@@ -2460,14 +2385,10 @@ class TaskComplexModule(BaseModule):
         if not memory_requirements:
             to_skip = True
             tmp_log.debug(f"skip jediTaskID={jedi_task_id} datasetID={primary_dataset_id} since memory requirements are empty")
-            var_map = dict()
-            var_map[":jediTaskID"] = jedi_task_id
-            var_map[":datasetID"] = primary_dataset_id
+            var_map = {":jediTaskID": jedi_task_id, ":datasetID": primary_dataset_id}
             self.cur.execute(sql_check_dataset + comment, var_map)
             tmp_n_files_used, tmp_n_files_to_be_used, tmp_n_files_finished, tmp_n_files_failed = self.cur.fetchone()
-            var_map = dict()
-            var_map[":jediTaskID"] = jedi_task_id
-            var_map[":datasetID"] = primary_dataset_id
+            var_map = {":jediTaskID": jedi_task_id, ":datasetID": primary_dataset_id}
             self.cur.execute(sql_check_files + comment, var_map)
             tmp_res = self.cur.fetchall()
             n_done = 0
@@ -2507,10 +2428,7 @@ class TaskComplexModule(BaseModule):
             )
             tmp_log.debug(tmp_msg)
             if tmp_n_files_used < tmp_n_files_to_be_used and tmp_n_files_to_be_used > 0 and n_unknown == 0:
-                var_map = dict()
-                var_map[":jediTaskID"] = jedi_task_id
-                var_map[":datasetID"] = primary_dataset_id
-                var_map[":nFilesUsed"] = n_done + n_active
+                var_map = {":jediTaskID": jedi_task_id, ":datasetID": primary_dataset_id, ":nFilesUsed": n_done + n_active}
                 self.cur.execute(sql_update_dataset_n_used_files + comment, var_map)
                 tmp_log.debug(
                     "jediTaskID={} datasetID={} set nFilesUsed={} from {} to fix empty memory req".format(
@@ -2518,10 +2436,7 @@ class TaskComplexModule(BaseModule):
                     )
                 )
             if tmp_n_files_to_be_used > n_done + n_running + n_ready:
-                var_map = dict()
-                var_map[":jediTaskID"] = jedi_task_id
-                var_map[":datasetID"] = primary_dataset_id
-                var_map[":nFilesToBeUsed"] = n_done + n_running + n_ready
+                var_map = {":jediTaskID": jedi_task_id, ":datasetID": primary_dataset_id, ":nFilesToBeUsed": n_done + n_running + n_ready}
                 self.cur.execute(sql_update_dataset_n_unprocessed_files + comment, var_map)
                 tmp_log.debug(
                     "jediTaskID={} datasetID={} set nFilesToBeUsed={} from {} to fix empty memory req ".format(
@@ -2529,10 +2444,7 @@ class TaskComplexModule(BaseModule):
                     )
                 )
             if n_active == 0:
-                var_map = dict()
-                var_map[":jediTaskID"] = jedi_task_id
-                var_map[":datasetID"] = primary_dataset_id
-                var_map[":status"] = "finished"
+                var_map = {":jediTaskID": jedi_task_id, ":datasetID": primary_dataset_id, ":status": "finished"}
                 self.cur.execute(sql_update_dataset_status + comment, var_map)
                 tmp_log.debug(f"jediTaskID={jedi_task_id} datasetID={primary_dataset_id} set status=finished to fix empty memory requirements")
         return to_skip, memory_requirements
@@ -2605,9 +2517,7 @@ class TaskComplexModule(BaseModule):
             dataset_id_list.append(tmp_dataset_id)
         # read datasets
         for dataset_id in dataset_id_list:
-            var_map = {}
-            var_map[":jediTaskID"] = jedi_task_id
-            var_map[":datasetID"] = dataset_id
+            var_map = {":jediTaskID": jedi_task_id, ":datasetID": dataset_id}
             try:
                 for input_chunk in input_chunk_list:
                     # select
@@ -2905,9 +2815,7 @@ class TaskComplexModule(BaseModule):
                     )
                     # bind variables: ids here, statuses and counts further down, and mypy 2.x
                     # takes the type of a name from its first assignment in the function
-                    var_map: dict[str, Any] = {}
-                    var_map[":datasetID"] = dataset_id
-                    var_map[":jediTaskID"] = jedi_task_id
+                    var_map: dict[str, Any] = {":datasetID": dataset_id, ":jediTaskID": jedi_task_id}
                     var_map.update(constituent_var_map)
                     if not tmp_dataset_spec.toKeepTrack():
                         if not simulation_with_file_stat:
@@ -3032,12 +2940,13 @@ class TaskComplexModule(BaseModule):
                     for tmp_file_spec in file_spec_list:
                         # lock files
                         if not is_dry_run and tmp_dataset_spec.toKeepTrack():
-                            var_map = {}
-                            var_map[":jediTaskID"] = tmp_file_spec.jediTaskID
-                            var_map[":datasetID"] = tmp_file_spec.datasetID
-                            var_map[":fileID"] = tmp_file_spec.fileID
-                            var_map[":nStatus"] = "picked"
-                            var_map[":oStatus"] = "ready"
+                            var_map = {
+                                ":jediTaskID": tmp_file_spec.jediTaskID,
+                                ":datasetID": tmp_file_spec.datasetID,
+                                ":fileID": tmp_file_spec.fileID,
+                                ":nStatus": "picked",
+                                ":oStatus": "ready",
+                            }
                             self.cur.execute(sql_update_file_status + comment, var_map)
                             n_file_row = self.cur.rowcount
                             if n_file_row != 1 and not (use_jumbo == JediTaskSpec.enum_useJumbo["lack"] and orig_n_files_unprocessed == 0):
@@ -3137,10 +3046,7 @@ class TaskComplexModule(BaseModule):
                     # update file counts in dataset
                     n_files_used = tmp_dataset_spec.nFilesUsed + total_already_read_files_map[dataset_id]
                     tmp_dataset_spec.nFilesUsed = n_files_used
-                    var_map = {}
-                    var_map[":jediTaskID"] = jedi_task_id
-                    var_map[":datasetID"] = dataset_id
-                    var_map[":nFilesUsed"] = n_files_used
+                    var_map = {":jediTaskID": jedi_task_id, ":datasetID": dataset_id, ":nFilesUsed": n_files_used}
                     self.cur.execute(sql_update_file_stat + comment, var_map)
                 tmp_log.debug(
                     "jediTaskID={2} datasetID={0} has {1} files to be processed for ramCount={3}".format(
@@ -3550,10 +3456,7 @@ class TaskComplexModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get tasks to set scout job data
-            varMap: dict[str, Any] = {}
-            varMap[":status"] = "running"
-            varMap[":minJobs"] = 5
-            varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(hours=24)
+            varMap: dict[str, Any] = {":status": "running", ":minJobs": 5, ":timeLimit": naive_utcnow() - datetime.timedelta(hours=24)}
             sqlSCF = "SELECT tabT.jediTaskID "
             sqlSCF += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA,{1}.T_TASK tabD ".format(panda_config.schemaJEDI, panda_config.schemaDEFT)
             sqlSCF += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
@@ -3599,11 +3502,12 @@ class TaskComplexModule(BaseModule):
                         # begin transaction
                         self.conn.begin()
                         # update task status
-                        varMap = {}
-                        varMap[":jediTaskID"] = taskSpec.jediTaskID
-                        varMap[":newStatus"] = taskSpec.status
-                        varMap[":oldStatus"] = "running"
-                        varMap[":errorDialog"] = taskSpec.errorDialog
+                        varMap = {
+                            ":jediTaskID": taskSpec.jediTaskID,
+                            ":newStatus": taskSpec.status,
+                            ":oldStatus": "running",
+                            ":errorDialog": taskSpec.errorDialog,
+                        }
                         self.cur.execute(sqlTU + comment, varMap)
                         nRow = self.cur.rowcount
                         # update DEFT task
@@ -3648,17 +3552,18 @@ class TaskComplexModule(BaseModule):
         try:
             # sql to get tasks/datasets
             if simTasks is None:
-                varMap: dict[str, Any] = {}
-                varMap[":taskstatus1"] = "running"
-                varMap[":taskstatus2"] = "scouting"
-                varMap[":taskstatus3"] = "merging"
-                varMap[":taskstatus4"] = "preprocessing"
-                varMap[":taskstatus5"] = "ready"
-                varMap[":taskstatus6"] = "throttled"
-                varMap[":dsEndStatus1"] = "finished"
-                varMap[":dsEndStatus2"] = "done"
-                varMap[":dsEndStatus3"] = "failed"
-                varMap[":dsEndStatus4"] = "removed"
+                varMap: dict[str, Any] = {
+                    ":taskstatus1": "running",
+                    ":taskstatus2": "scouting",
+                    ":taskstatus3": "merging",
+                    ":taskstatus4": "preprocessing",
+                    ":taskstatus5": "ready",
+                    ":taskstatus6": "throttled",
+                    ":dsEndStatus1": "finished",
+                    ":dsEndStatus2": "done",
+                    ":dsEndStatus3": "failed",
+                    ":dsEndStatus4": "removed",
+                }
                 if vo is not None:
                     varMap[":vo"] = vo
                 if prodSourceLabel is not None:
@@ -3706,9 +3611,7 @@ class TaskComplexModule(BaseModule):
             if simTasks is None:
                 minSuccessScouts = 5
                 timeToCheck = naive_utcnow() - datetime.timedelta(minutes=10)
-                varMap = {}
-                varMap[":scouting"] = "scouting"
-                varMap[":running"] = "running"
+                varMap = {":scouting": "scouting", ":running": "running"}
                 if prodSourceLabel:
                     varMap[":prodSourceLabel"] = prodSourceLabel
                 else:
@@ -3747,11 +3650,7 @@ class TaskComplexModule(BaseModule):
                 # append to list
                 for jediTaskID, taskstatus, walltimeUnit, totJobs, totFinished in resList:
                     # update assessmentTime to avoid frequent check
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":timeLimit"] = timeToCheck
-                    varMap[":scouting"] = "scouting"
-                    varMap[":running"] = "running"
+                    varMap = {":jediTaskID": jediTaskID, ":timeLimit": timeToCheck, ":scouting": "scouting", ":running": "running"}
                     self.cur.execute(sqlLK + comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow and totFinished and jediTaskID not in jediTaskIDstatusMap:
@@ -3770,9 +3669,7 @@ class TaskComplexModule(BaseModule):
             # get tasks to force avalanche
             if simTasks is None:
                 taskstatus = "scouting"
-                varMap = {}
-                varMap[":taskstatus"] = taskstatus
-                varMap[":walltimeUnit"] = "ava"
+                varMap = {":taskstatus": taskstatus, ":walltimeUnit": "ava"}
                 sqlFA = "SELECT jediTaskID "
                 sqlFA += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
                 sqlFA += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
@@ -3863,9 +3760,7 @@ class TaskComplexModule(BaseModule):
                 oldStatus = None
                 try:
                     # read task
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":statusInDB"] = taskStatus
+                    varMap = {":jediTaskID": jediTaskID, ":statusInDB": taskStatus}
                     self.cur.execute(sqlRT + comment, varMap)
                     resRT = self.cur.fetchone()
                     # locked by another
@@ -3881,10 +3776,7 @@ class TaskComplexModule(BaseModule):
                         taskSpec.lockedBy = None
                         taskSpec.lockedTime = None
                     # lock
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":newLockedBy"] = pid
-                    varMap[":status"] = taskStatus
+                    varMap = {":jediTaskID": jediTaskID, ":newLockedBy": pid, ":status": taskStatus}
                     self.cur.execute(sqlLK + comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow != 1:
@@ -3918,9 +3810,7 @@ class TaskComplexModule(BaseModule):
                     ):
                         # reset walltimeUnit
                         if jediTaskID in toAvalancheTasks:
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":status"] = taskSpec.status
+                            varMap = {":jediTaskID": jediTaskID, ":status": taskSpec.status}
                             self.cur.execute(sqlRWU + comment, varMap)
                         # set average job data
                         if jediTaskID in set_scout_data_only:
@@ -3940,21 +3830,13 @@ class TaskComplexModule(BaseModule):
                             tmpLog.debug(f"done set only scout data for jediTaskID={jediTaskID} in status={taskSpec.status}")
                         else:
                             # get nFiles to be used
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":status1"] = "pending"
-                            varMap[":status2"] = "lost"
-                            varMap[":status3"] = "missing"
-                            varMap[":status4"] = "staging"
+                            varMap = {":jediTaskID": jediTaskID, ":status1": "pending", ":status2": "lost", ":status3": "missing", ":status4": "staging"}
                             varMap.update(INPUT_TYPES_var_map)
                             self.cur.execute(sqlFUD + comment, varMap)
                             resFUD = self.cur.fetchall()
                             # update nFiles to be used
                             for datasetID, nReadyFiles in resFUD:
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = datasetID
-                                varMap[":nFilesToBeUsed"] = nReadyFiles
+                                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":nFilesToBeUsed": nReadyFiles}
                                 tmpLog.debug(f"jediTaskID={jediTaskID} datasetID={datasetID} set nFilesToBeUsed={nReadyFiles}")
                                 self.cur.execute(sqlFUU + comment, varMap)
                             # new task status
@@ -3975,9 +3857,7 @@ class TaskComplexModule(BaseModule):
                                     errorDialog = "not enough scout jobs succeeded"
                     elif taskSpec.status in ["running", "merging", "preprocessing", "ready", "throttled"]:
                         # get input datasets
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":status"] = "ready"
+                        varMap = {":jediTaskID": jediTaskID, ":status": "ready"}
                         varMap.update(PROCESS_TYPES_var_map)
                         self.cur.execute(sqlRD + comment, varMap)
                         resRD = self.cur.fetchall()
@@ -3995,9 +3875,7 @@ class TaskComplexModule(BaseModule):
                                 toSkip = True
                                 break
                             # set status for input datasets
-                            varMap = {}
-                            varMap[":datasetID"] = datasetID
-                            varMap[":jediTaskID"] = jediTaskID
+                            varMap = {":datasetID": datasetID, ":jediTaskID": jediTaskID}
                             if masterID is not None:
                                 # secondary dataset, this will be reset in post-processor
                                 varMap[":status"] = "done"
@@ -4017,9 +3895,7 @@ class TaskComplexModule(BaseModule):
                         if not toSkip:
                             # check just in case if there is mutable dataset
                             if not mutableFlag:
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":state"] = "mutable"
+                                varMap = {":jediTaskID": jediTaskID, ":state": "mutable"}
                                 varMap.update(INPUT_TYPES_var_map)
                                 self.cur.execute(sqlMTC + comment, varMap)
                                 resMTC = self.cur.fetchone()
@@ -4031,10 +3907,7 @@ class TaskComplexModule(BaseModule):
                                 # go to defined to trigger CF
                                 newTaskStatus = "defined"
                                 # change status of mutable datasets to trigger CF
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":state"] = "mutable"
-                                varMap[":status"] = "toupdate"
+                                varMap = {":jediTaskID": jediTaskID, ":state": "mutable", ":status": "toupdate"}
                                 self.cur.execute(sqlMUT + comment, varMap)
                                 nRow = self.cur.rowcount
                                 tmpLog.debug(f"jediTaskID={jediTaskID} updated {nRow} mutable datasets")
@@ -4043,11 +3916,7 @@ class TaskComplexModule(BaseModule):
                                 for varMap in varMapList:
                                     self.cur.execute(sqlDIU + comment, varMap)
                                 # update output datasets
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":type1"] = "log"
-                                varMap[":type2"] = "output"
-                                varMap[":status"] = "prepared"
+                                varMap = {":jediTaskID": jediTaskID, ":type1": "log", ":type2": "output", ":status": "prepared"}
                                 self.cur.execute(sqlDOU + comment, varMap)
                                 # new task status
                                 if taskSpec.status == "preprocessing" and preprocessedFlag:
@@ -4055,9 +3924,7 @@ class TaskComplexModule(BaseModule):
                                     newTaskStatus = "registered"
                                     # update split rule
                                     taskSpec.setPreProcessed()
-                                    varMap = {}
-                                    varMap[":jediTaskID"] = jediTaskID
-                                    varMap[":splitRule"] = taskSpec.splitRule
+                                    varMap = {":jediTaskID": jediTaskID, ":splitRule": taskSpec.splitRule}
                                     self.cur.execute(sqlUSL + comment, varMap)
                                 else:
                                     newTaskStatus = "prepared"
@@ -4066,12 +3933,13 @@ class TaskComplexModule(BaseModule):
                         tmpLog.debug(f"skip jediTaskID={jediTaskID} due to status={taskSpec.status}")
                     # update tasks
                     if not toSkip:
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":status"] = newTaskStatus
-                        varMap[":oldStatus"] = oldStatus
-                        varMap[":errorDialog"] = errorDialog
-                        varMap[":splitRule"] = taskSpec.splitRule
+                        varMap = {
+                            ":jediTaskID": jediTaskID,
+                            ":status": newTaskStatus,
+                            ":oldStatus": oldStatus,
+                            ":errorDialog": errorDialog,
+                            ":splitRule": taskSpec.splitRule,
+                        }
                         self.cur.execute(sqlTU + comment, varMap)
                         tmpLog.debug(f"done new status={newTaskStatus} for jediTaskID={jediTaskID}{f' since {errorDialog}' if errorDialog else ''}")
                         if newTaskStatus == "exhausted":
@@ -4084,9 +3952,7 @@ class TaskComplexModule(BaseModule):
                         ret_list.append(jediTaskID)
                     else:
                         # unlock
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":status"] = taskSpec.status
+                        varMap = {":jediTaskID": jediTaskID, ":status": taskSpec.status}
                         self.cur.execute(sqlTUU + comment, varMap)
                         nRow = self.cur.rowcount
                         tmpLog.debug(f"unlock jediTaskID={jediTaskID} in status={taskSpec.status} with {nRow}")
@@ -4110,10 +3976,11 @@ class TaskComplexModule(BaseModule):
         retJediTaskIDs = []
         try:
             # sql to get tasks to assign
-            varMap: dict[str, Any] = {}
-            varMap[":status"] = "assigning"
-            varMap[":worldCloud"] = JediTaskSpec.worldCloudName
-            varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=30)
+            varMap: dict[str, Any] = {
+                ":status": "assigning",
+                ":worldCloud": JediTaskSpec.worldCloudName,
+                ":timeLimit": naive_utcnow() - datetime.timedelta(minutes=30),
+            }
             sqlSCF = "SELECT jediTaskID "
             sqlSCF += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
             sqlSCF += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
@@ -4151,8 +4018,7 @@ class TaskComplexModule(BaseModule):
             resList = self.cur.fetchall()
             for (jediTaskID,) in resList:
                 # update modificationTime
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
+                varMap = {":jediTaskID": jediTaskID}
                 self.cur.execute(sqlSPC + comment, varMap)
                 nRow = self.cur.rowcount
                 if nRow > 0:
@@ -4178,9 +4044,7 @@ class TaskComplexModule(BaseModule):
         retJediTaskIDs = []
         try:
             # sql to get tasks to assign
-            varMap: dict[str, Any] = {}
-            varMap[":status"] = "assigning"
-            varMap[":worldCloud"] = JediTaskSpec.worldCloudName
+            varMap: dict[str, Any] = {":status": "assigning", ":worldCloud": JediTaskSpec.worldCloudName}
             sqlSCF = "SELECT jediTaskID "
             sqlSCF += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
             sqlSCF += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
@@ -4244,10 +4108,7 @@ class TaskComplexModule(BaseModule):
                         sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
                         sql += "SET cloud=:cloud,status=:status,oldStatus=NULL,stateChangeTime=CURRENT_DATE "
                         sql += "WHERE jediTaskID=:jediTaskID AND cloud IS NULL "
-                        varMap: dict[str, Any] = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":status"] = "ready"
-                        varMap[":cloud"] = tmpVal
+                        varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":status": "ready", ":cloud": tmpVal}
                         # set cloud
                         self.cur.execute(sql + comment, varMap)
                         nRow = self.cur.rowcount
@@ -4258,22 +4119,19 @@ class TaskComplexModule(BaseModule):
                         sql += "SET storageToken=:token,destination=:destination "
                         sql += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
                         for tmpItem in tmpVal["datasets"]:
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":datasetID"] = tmpItem["datasetID"]
-                            varMap[":token"] = tmpItem["token"]
-                            varMap[":destination"] = tmpItem["destination"]
+                            varMap = {
+                                ":jediTaskID": jediTaskID,
+                                ":datasetID": tmpItem["datasetID"],
+                                ":token": tmpItem["token"],
+                                ":destination": tmpItem["destination"],
+                            }
                             self.cur.execute(sql + comment, varMap)
                             tmpLog.debug(f"set token={tmpItem['token']} for jediTaskID={jediTaskID} datasetID={tmpItem['datasetID']}")
                         # sql to set ready
                         sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
                         sql += "SET nucleus=:nucleus,status=:newStatus,oldStatus=NULL,stateChangeTime=CURRENT_DATE,modificationTime=CURRENT_DATE-1/24 "
                         sql += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":nucleus"] = tmpVal["nucleus"]
-                        varMap[":newStatus"] = "ready"
-                        varMap[":oldStatus"] = "assigning"
+                        varMap = {":jediTaskID": jediTaskID, ":nucleus": tmpVal["nucleus"], ":newStatus": "ready", ":oldStatus": "assigning"}
                         self.cur.execute(sql + comment, varMap)
                         nRow = self.cur.rowcount
                         tmpLog.debug(f"set nucleus={tmpVal['nucleus']} for jediTaskID={jediTaskID} with {nRow}")
@@ -4286,8 +4144,7 @@ class TaskComplexModule(BaseModule):
                         # get parameters to enable jumbo
                         sqlRT = f"SELECT eventService,site,useJumbo,splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks "
                         sqlRT += "WHERE jediTaskID=:jediTaskID "
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
+                        varMap = {":jediTaskID": jediTaskID}
                         self.cur.execute(sqlRT + comment, varMap)
                         resRT = self.cur.fetchone()
                         if resRT is not None:
@@ -4379,8 +4236,7 @@ class TaskComplexModule(BaseModule):
                 if not toSkip:
                     if isOK:
                         # check task status
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
+                        varMap = {":jediTaskID": jediTaskID}
                         sqlTC = f"SELECT status,oldStatus,wallTimeUnit,splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks "
                         sqlTC += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
                         self.cur.execute(sqlTC + comment, varMap)
@@ -4460,9 +4316,7 @@ class TaskComplexModule(BaseModule):
                             get_task_utils_module(self).updateInputDatasetsStaged_JEDI(jediTaskID, None, use_commit=False, by="release")
                     if isOK and update_task:
                         # update task status
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":taskStatus"] = taskStatus
+                        varMap = {":jediTaskID": jediTaskID, ":taskStatus": taskStatus}
                         if newTaskStatus != "dummy":
                             varMap[":status"] = newTaskStatus
                         varMap[":errDiag"] = comComment
@@ -4522,8 +4376,7 @@ class TaskComplexModule(BaseModule):
                                 self.push_task_status_message(None, jediTaskID, actualNewStatus, splitRule)
                     # update command table
                     if not toSkip:
-                        varMap = {}
-                        varMap[":comm_task"] = jediTaskID
+                        varMap = {":comm_task": jediTaskID}
                         if isOK:
                             varMap[":comm_cmd"] = commandStr + "ing"
                         else:
@@ -4551,17 +4404,12 @@ class TaskComplexModule(BaseModule):
                                 sqlJT = f"UPDATE {panda_config.schemaPANDA}.jobsActive4 "
                                 sqlJT += "SET jobStatus=:newJobStatus "
                                 sqlJT += "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":oldJobStatus"] = oldJobStatus
+                                varMap = {":jediTaskID": jediTaskID, ":oldJobStatus": oldJobStatus}
                                 self.cur.arraysize = 100000
                                 self.cur.execute(sqlJS + comment, varMap)
                                 resJS = self.cur.fetchall()
                                 for jobPandaID, jobCloud, jobComputingSite, jobProdSourceLabel in resJS:
-                                    varMap = {}
-                                    varMap[":PandaID"] = jobPandaID
-                                    varMap[":newJobStatus"] = newJobStatus
-                                    varMap[":oldJobStatus"] = oldJobStatus
+                                    varMap = {":PandaID": jobPandaID, ":newJobStatus": newJobStatus, ":oldJobStatus": oldJobStatus}
                                     self.cur.execute(sqlJT + comment, varMap)
                                     if self.cur.rowcount > 0:
                                         self.record_job_status_change(
@@ -4574,8 +4422,7 @@ class TaskComplexModule(BaseModule):
                     raise RuntimeError("Commit error")
             # find orphaned tasks to rescue
             for commandStr, taskStatusMap in commandStatusMap.items():
-                varMap = {}
-                varMap[":status"] = taskStatusMap["doing"]
+                varMap = {":status": taskStatusMap["doing"]}
                 # skip dummy status
                 if varMap[":status"] in ["dummy", "paused"]:
                     continue
@@ -4605,8 +4452,7 @@ class TaskComplexModule(BaseModule):
                     self.conn.begin()
                     # lock
                     try:
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
+                        varMap = {":jediTaskID": jediTaskID}
                         self.cur.execute(sql_orphaned_lock + comment, varMap)
                     except Exception as e:
                         tmpLog.debug(f"skip locked jediTaskID={jediTaskID} due to {str(e)}")
@@ -4629,8 +4475,7 @@ class TaskComplexModule(BaseModule):
                 if retTaskIDs[jediTaskID]["command"] in ["incexec"]:
                     # start transaction
                     self.conn.begin()
-                    varMap = {}
-                    varMap[":comm_task"] = jediTaskID
+                    varMap = {":comm_task": jediTaskID}
                     self.cur.execute(sqlCC + comment, varMap)
                     tmpComComment = None
                     for (clobCC,) in self.cur:
@@ -4673,9 +4518,7 @@ class TaskComplexModule(BaseModule):
             if timeoutLimit is not None:
                 timeoutDate = naive_utcnow() - datetime.timedelta(hours=timeoutLimit)
             # sql to get pending tasks
-            varMap: dict[str, Any] = {}
-            varMap[":status"] = "pending"
-            varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=timeLimit)
+            varMap: dict[str, Any] = {":status": "pending", ":timeLimit": naive_utcnow() - datetime.timedelta(minutes=timeLimit)}
             sqlTL = "SELECT jediTaskID,frozenTime,errorDialog,parent_tid,splitRule,startTime "
             sqlTL += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
             sqlTL += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
@@ -4717,10 +4560,7 @@ class TaskComplexModule(BaseModule):
                 if not parentRunning and timeoutDate is not None and frozenTime is not None and frozenTime < timeoutDate:
                     timeoutFlag = True
                     # go to exhausted
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":newStatus"] = "exhausted"
-                    varMap[":oldStatus"] = "pending"
+                    varMap = {":jediTaskID": jediTaskID, ":newStatus": "exhausted", ":oldStatus": "pending"}
                     if errorDialog is None:
                         errorDialog = ""
                     else:
@@ -4729,9 +4569,7 @@ class TaskComplexModule(BaseModule):
                     varMap[":errorDialog"] = errorDialog[: JediTaskSpec._limitLength["errorDialog"]]
                     sql = sqlTO
                 else:
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":oldStatus"] = "pending"
+                    varMap = {":jediTaskID": jediTaskID, ":oldStatus": "pending"}
                     sql = sqlTU
                 self.cur.execute(sql + comment, varMap)
                 tmpRow = self.cur.rowcount
@@ -4840,11 +4678,7 @@ class TaskComplexModule(BaseModule):
                 # change placeholder in filename. lfn was copied from the job's file spec
                 # by convertFromJobFileSpec() above, which never yields None
                 newLFN = fileSpec.lfn.replace("$JEDIFILEID", str(fileID))  # type: ignore[union-attr]
-                varMap = {}
-                varMap[":jediTaskID"] = fileSpec.jediTaskID
-                varMap[":datasetID"] = datasetID
-                varMap[":fileID"] = fileID
-                varMap[":newLFN"] = newLFN
+                varMap = {":jediTaskID": fileSpec.jediTaskID, ":datasetID": datasetID, ":fileID": fileID, ":newLFN": newLFN}
                 if not simul:
                     self.cur.execute(sqlFU + comment, varMap)
                 # return IDs in a map since changes to jobSpec are not effective
@@ -4961,8 +4795,7 @@ class TaskComplexModule(BaseModule):
                 self.conn.begin()
             self.cur.arraysize = 100000
             # check task status
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID}
             sqlTK = f"SELECT status,oldStatus,attemptNr,prodSourceLabel FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE "
             self.cur.execute(sqlTK + comment, varMap)
             resTK = self.cur.fetchone()
@@ -5005,8 +4838,7 @@ class TaskComplexModule(BaseModule):
                         scout_metics_ok = False
                         scout_metrics_extra = {}
                     # check max attempts
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
+                    varMap = {":jediTaskID": jediTaskID}
                     sqlMAX = "SELECT MAX(c.maxAttempt) "
                     sqlMAX += "FROM {0}.JEDI_Datasets d, {0}.JEDI_Dataset_Contents c ".format(panda_config.schemaJEDI)
                     sqlMAX += "WHERE c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID "
@@ -5106,8 +4938,7 @@ class TaskComplexModule(BaseModule):
                         newErrorDialog = msg_str
                     else:
                         # get input datasets
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
+                        varMap = {":jediTaskID": jediTaskID}
                         sqlDS = "SELECT datasetID,masterID,nFiles,nFilesFinished,nFilesFailed,nFilesUsed,status,state,type,datasetName,nFilesMissing "
                         sqlDS += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
                         sqlDS += "WHERE jediTaskID=:jediTaskID "
@@ -5137,34 +4968,19 @@ class TaskComplexModule(BaseModule):
                                         secMap[masterID] = []
                                     secMap[masterID].append((datasetID, nFilesFinished, status, state, datasetType))
                                     # update dataset
-                                    varMap = {}
-                                    varMap[":jediTaskID"] = jediTaskID
-                                    varMap[":datasetID"] = datasetID
-                                    varMap[":nDiff"] = 0
-                                    varMap[":nRun"] = 0
-                                    varMap[":status"] = "ready"
+                                    varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":nDiff": 0, ":nRun": 0, ":status": "ready"}
                                     tmpLog.debug(f"set status={varMap[':status']} for 2nd datasetID={datasetID}")
                                     self.cur.execute(sqlRD + comment, varMap)
                                 else:
                                     # set dataset status to defined to trigger file lookup when state is not set
-                                    varMap = {}
-                                    varMap[":jediTaskID"] = jediTaskID
-                                    varMap[":datasetID"] = datasetID
-                                    varMap[":nDiff"] = 0
-                                    varMap[":nRun"] = 0
-                                    varMap[":status"] = "defined"
+                                    varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":nDiff": 0, ":nRun": 0, ":status": "defined"}
                                     tmpLog.debug(f"set status={varMap[':status']} for 2nd datasetID={datasetID}")
                                     self.cur.execute(sqlRD + comment, varMap)
                             else:
                                 # set done if no more try is needed
                                 if nFiles == nFilesFinished and status == "failed":
                                     # update dataset
-                                    varMap = {}
-                                    varMap[":jediTaskID"] = jediTaskID
-                                    varMap[":datasetID"] = datasetID
-                                    varMap[":nDiff"] = 0
-                                    varMap[":nRun"] = 0
-                                    varMap[":status"] = "done"
+                                    varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":nDiff": 0, ":nRun": 0, ":status": "done"}
                                     tmpLog.debug(f"set status={varMap[':status']} for datasetID={datasetID}")
                                     self.cur.execute(sqlRD + comment, varMap)
                                 # no retry if master dataset successfully finished
@@ -5172,31 +4988,25 @@ class TaskComplexModule(BaseModule):
                                     tmpLog.debug(f"no {commStr} for datasetID={datasetID} : nFiles==nFilesFinished")
                                     continue
                                 # count unprocessed files
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = datasetID
-                                varMap[":status"] = "ready"
-                                varMap[":keepTrack"] = 1
+                                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":status": "ready", ":keepTrack": 1}
                                 self.cur.execute(sqlCU + comment, varMap)
                                 (nUnp,) = self.cur.fetchone()
                                 # update files
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = datasetID
-                                varMap[":status"] = "ready"
-                                varMap[":proc_status"] = "ready"
-                                varMap[":maxAttempt"] = maxAttempt
-                                varMap[":keepTrack"] = 1
+                                varMap = {
+                                    ":jediTaskID": jediTaskID,
+                                    ":datasetID": datasetID,
+                                    ":status": "ready",
+                                    ":proc_status": "ready",
+                                    ":maxAttempt": maxAttempt,
+                                    ":keepTrack": 1,
+                                }
                                 nDiff = 0
                                 self.cur.execute(sqlRFO + comment, varMap)
                                 nDiff += self.cur.rowcount
                                 self.cur.execute(sqlRFF + comment, varMap)
                                 nDiff += self.cur.rowcount
                                 # reset running files
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = datasetID
-                                varMap[":oldStatus1"] = "picked"
+                                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":oldStatus1": "picked"}
                                 if taskOldStatus == "exhausted":
                                     varMap[":oldStatus2"] = "dummy"
                                 else:
@@ -5209,28 +5019,23 @@ class TaskComplexModule(BaseModule):
                                 nRun = self.cur.rowcount
                                 # reset ramCount
                                 if commStr == "incexec":
-                                    varMap = {}
-                                    varMap[":jediTaskID"] = jediTaskID
-                                    varMap[":datasetID"] = datasetID
-                                    varMap[":status"] = "ready"
-                                    varMap[":keepTrack"] = 1
+                                    varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":status": "ready", ":keepTrack": 1}
                                     self.cur.execute(sqlRRC + comment, varMap)
                                     # reset lost files
-                                    varMap = {}
-                                    varMap[":jediTaskID"] = jediTaskID
-                                    varMap[":datasetID"] = datasetID
-                                    varMap[":oldStatus1"] = "lost"
-                                    varMap[":oldStatus2"] = "missing"
-                                    varMap[":newStatus"] = "ready"
-                                    varMap[":proc_status"] = "ready"
-                                    varMap[":keepTrack"] = 1
-                                    varMap[":maxAttempt"] = maxAttempt
+                                    varMap = {
+                                        ":jediTaskID": jediTaskID,
+                                        ":datasetID": datasetID,
+                                        ":oldStatus1": "lost",
+                                        ":oldStatus2": "missing",
+                                        ":newStatus": "ready",
+                                        ":proc_status": "ready",
+                                        ":keepTrack": 1,
+                                        ":maxAttempt": maxAttempt,
+                                    }
                                     self.cur.execute(sqlRR + comment, varMap)
                                     nLost = self.cur.rowcount
                                     if nLost > 0 and nFilesMissing:
-                                        varMap = {}
-                                        varMap[":jediTaskID"] = jediTaskID
-                                        varMap[":datasetID"] = datasetID
+                                        varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID}
                                         self.cur.execute(sqlRL + comment, varMap)
                                         tmpLog.debug(f"reset nFilesMissing for datasetID={datasetID}")
                                 # no retry if no failed files
@@ -5239,21 +5044,13 @@ class TaskComplexModule(BaseModule):
                                     continue
                                 # count failed files which could be screwed up when files are lost
                                 if nDiff == 0 and nRun == 0 and nFilesUsed <= (nFilesFinished + nFilesFailed):
-                                    varMap = {}
-                                    varMap[":jediTaskID"] = jediTaskID
-                                    varMap[":datasetID"] = datasetID
-                                    varMap[":status"] = "ready"
-                                    varMap[":keepTrack"] = 1
+                                    varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":status": "ready", ":keepTrack": 1}
                                     self.cur.execute(sqlCF + comment, varMap)
                                     (newNumFailed,) = self.cur.fetchone()
                                     nDiff = nFilesFailed - newNumFailed
                                     tmpLog.debug(f"got nFilesFailed={newNumFailed} while {nFilesFailed} in DB for datasetID={datasetID}")
                                 # update dataset
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = datasetID
-                                varMap[":nDiff"] = nDiff
-                                varMap[":nRun"] = nRun
+                                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":nDiff": nDiff, ":nRun": nRun}
                                 if commStr == "retry":
                                     varMap[":status"] = "ready"
                                     tmpLog.debug(f"set status={varMap[':status']} for datasetID={datasetID} diff={nDiff}")
@@ -5275,23 +5072,21 @@ class TaskComplexModule(BaseModule):
                             # loop over all datasets
                             for datasetID, nFilesFinished, status, state, datasetType in secMap[masterID]:
                                 # update files
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = datasetID
-                                varMap[":status"] = "ready"
-                                varMap[":proc_status"] = "ready"
-                                varMap[":maxAttempt"] = maxAttempt
-                                varMap[":keepTrack"] = 1
+                                varMap = {
+                                    ":jediTaskID": jediTaskID,
+                                    ":datasetID": datasetID,
+                                    ":status": "ready",
+                                    ":proc_status": "ready",
+                                    ":maxAttempt": maxAttempt,
+                                    ":keepTrack": 1,
+                                }
                                 nDiff = 0
                                 self.cur.execute(sqlRFO + comment, varMap)
                                 nDiff += self.cur.rowcount
                                 self.cur.execute(sqlRFF + comment, varMap)
                                 nDiff += self.cur.rowcount
                                 # reset running files
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = datasetID
-                                varMap[":oldStatus1"] = "picked"
+                                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":oldStatus1": "picked"}
                                 if taskOldStatus == "exhausted":
                                     varMap[":oldStatus2"] = "dummy"
                                 else:
@@ -5304,36 +5099,27 @@ class TaskComplexModule(BaseModule):
                                 nRun = self.cur.rowcount
                                 # reset ramCount
                                 if commStr == "incexec":
-                                    varMap = {}
-                                    varMap[":jediTaskID"] = jediTaskID
-                                    varMap[":datasetID"] = datasetID
-                                    varMap[":status"] = "ready"
-                                    varMap[":keepTrack"] = 1
+                                    varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":status": "ready", ":keepTrack": 1}
                                     self.cur.execute(sqlRRC + comment, varMap)
                                     # reset lost files
-                                    varMap = {}
-                                    varMap[":jediTaskID"] = jediTaskID
-                                    varMap[":datasetID"] = datasetID
-                                    varMap[":oldStatus1"] = "lost"
-                                    varMap[":oldStatus2"] = "missing"
-                                    varMap[":newStatus"] = "ready"
-                                    varMap[":proc_status"] = "ready"
-                                    varMap[":keepTrack"] = 1
-                                    varMap[":maxAttempt"] = maxAttempt
+                                    varMap = {
+                                        ":jediTaskID": jediTaskID,
+                                        ":datasetID": datasetID,
+                                        ":oldStatus1": "lost",
+                                        ":oldStatus2": "missing",
+                                        ":newStatus": "ready",
+                                        ":proc_status": "ready",
+                                        ":keepTrack": 1,
+                                        ":maxAttempt": maxAttempt,
+                                    }
                                     self.cur.execute(sqlRR + comment, varMap)
                                     nLost = self.cur.rowcount
                                     if nLost > 0 and nFilesMissing:
-                                        varMap = {}
-                                        varMap[":jediTaskID"] = jediTaskID
-                                        varMap[":datasetID"] = datasetID
+                                        varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID}
                                         self.cur.execute(sqlRL + comment, varMap)
                                         tmpLog.debug(f"reset nFilesMissing for datasetID={datasetID}")
                                 # update dataset
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = datasetID
-                                varMap[":nDiff"] = nDiff
-                                varMap[":nRun"] = nRun
+                                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":nDiff": nDiff, ":nRun": nRun}
                                 if commStr == "incexec" and datasetType == "input":
                                     varMap[":status"] = "toupdate"
                                 else:
@@ -5342,11 +5128,12 @@ class TaskComplexModule(BaseModule):
                                 self.cur.execute(sqlRD + comment, varMap)
                         # discard events
                         if discardEvents:
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":newStatus"] = EventServiceUtils.ST_discarded
-                            varMap[":esDone"] = EventServiceUtils.ST_done
-                            varMap[":esFinished"] = EventServiceUtils.ST_finished
+                            varMap = {
+                                ":jediTaskID": jediTaskID,
+                                ":newStatus": EventServiceUtils.ST_discarded,
+                                ":esDone": EventServiceUtils.ST_done,
+                                ":esFinished": EventServiceUtils.ST_finished,
+                            }
                             self.cur.execute(sqlDE + comment, varMap)
                             nDE = self.cur.rowcount
                             tmpLog.debug(f"discarded {nDE} events")
@@ -5364,10 +5151,7 @@ class TaskComplexModule(BaseModule):
                             # for incremental execution
                             newTaskStatus = JediTaskSpec.commandStatusMap()[commStr]["done"]
                 # update task
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":status"] = newTaskStatus
-                varMap[":errorDialog"] = newErrorDialog
+                varMap = {":jediTaskID": jediTaskID, ":status": newTaskStatus, ":errorDialog": newErrorDialog}
                 if newTaskStatus != taskOldStatus and newTaskStatus != "exhausted":
                     tmpLog.debug(f"set taskStatus={newTaskStatus} from {taskStatus} for command={commStr}")
                     # set old update time to trigger subsequent process
@@ -5376,9 +5160,7 @@ class TaskComplexModule(BaseModule):
                     deftStatus = "ready"
                     self.setSuperStatus_JEDI(jediTaskID, deftStatus)
                     # update DEFT
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":status"] = deftStatus
+                    varMap = {":jediTaskID": jediTaskID, ":status": deftStatus}
                     self.cur.execute(sqlTT + comment, varMap)
                     # task status log
                     self.record_task_status_change(jediTaskID)
@@ -5398,12 +5180,7 @@ class TaskComplexModule(BaseModule):
                         self.record_task_status_change(jediTaskID)
                 # update output/lib/log
                 if newTaskStatus != taskOldStatus and taskStatus != "exhausted" and newTaskStatus != "exhausted":
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":type1"] = "output"
-                    varMap[":type2"] = "lib"
-                    varMap[":type3"] = "log"
-                    varMap[":status"] = "done"
+                    varMap = {":jediTaskID": jediTaskID, ":type1": "output", ":type2": "lib", ":type3": "log", ":status": "done"}
                     self.cur.execute(sqlUO + comment, varMap)
                 # retry or reactivate child tasks
                 if retryChildTasks and newTaskStatus != taskOldStatus and taskStatus != "exhausted" and newTaskStatus != "exhausted":
@@ -5462,10 +5239,7 @@ class TaskComplexModule(BaseModule):
             if useCommit:
                 self.conn.begin()
             # get output datasets of parent task
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":type1"] = "output"
-            varMap[":type2"] = "log"
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":type1": "output", ":type2": "log"}
             self.cur.execute(sqlPD + comment, varMap)
             resList = self.cur.fetchall()
             parentDatasets = set()
@@ -5473,8 +5247,7 @@ class TaskComplexModule(BaseModule):
                 parentDatasets.add(tmpDS)
                 parentDatasets.add(tmpDC)
             # get child tasks
-            varMap = {}
-            varMap[":jediTaskID"] = jediTaskID
+            varMap = {":jediTaskID": jediTaskID}
             self.cur.execute(sqlGT + comment, varMap)
             resList = self.cur.fetchall()
             for cJediTaskID, cTaskStatus in resList:
@@ -5483,8 +5256,7 @@ class TaskComplexModule(BaseModule):
                     tmpLog.debug(f"not to retry child jediTaskID={cJediTaskID} in {cTaskStatus}")
                     continue
                 # get input datasets of child task
-                varMap = {}
-                varMap[":jediTaskID"] = cJediTaskID
+                varMap = {":jediTaskID": cJediTaskID}
                 varMap.update(PROCESS_TYPES_var_map)
                 self.cur.execute(sqlRD + comment, varMap)
                 dsList = self.cur.fetchall()
@@ -5492,18 +5264,13 @@ class TaskComplexModule(BaseModule):
                 for datasetID, datasetName in dsList:
                     # set dataset status to mutable
                     if datasetName in parentDatasets or datasetName.split(":")[-1] in parentDatasets:
-                        varMap = {}
-                        varMap[":jediTaskID"] = cJediTaskID
-                        varMap[":datasetID"] = datasetID
-                        varMap[":state"] = "mutable"
+                        varMap = {":jediTaskID": cJediTaskID, ":datasetID": datasetID, ":state": "mutable"}
                         self.cur.execute(sqlMD + comment, varMap)
                         inputReady = True
                 # set task status
                 if not inputReady:
                     # set task status to registered since dataset is not ready
-                    varMap = {}
-                    varMap[":jediTaskID"] = cJediTaskID
-                    varMap[":status"] = "registered"
+                    varMap = {":jediTaskID": cJediTaskID, ":status": "registered"}
                     self.cur.execute(sqlCT + comment, varMap)
                     # add missing record_task_status_change and push_task_status_message updates
                     self.record_task_status_change(cJediTaskID)
@@ -5556,11 +5323,7 @@ class TaskComplexModule(BaseModule):
                     # get origin
                     originIDs = get_job_complex_module(self).getOriginPandaIDsJEDI(oldPandaID, jediTaskID, self.cur)
                     for originID in originIDs:
-                        varMap: dict[str, Any] = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":oldPandaID"] = oldPandaID
-                        varMap[":newPandaID"] = newPandaID
-                        varMap[":originPandaID"] = originID
+                        varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":oldPandaID": oldPandaID, ":newPandaID": newPandaID, ":originPandaID": originID}
                         if relationType is not None:
                             varMap[":relationType"] = relationType
                         self.cur.execute(sqlIN + comment, varMap)
@@ -5597,10 +5360,7 @@ class TaskComplexModule(BaseModule):
             to_update_files = True
             retVal = 0
             # varMap
-            varMap: dict[str, Any] = dict()
-            varMap[":jediTaskID"] = jeditaskid
-            varMap[":type1"] = "input"
-            varMap[":type2"] = "pseudo_input"
+            varMap: dict[str, Any] = {":jediTaskID": jeditaskid, ":type1": "input", ":type2": "pseudo_input"}
             # sql to get datasetIDs
             sqlGD = f"SELECT datasetID,masterID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
             # sql to update file counts
@@ -5626,8 +5386,7 @@ class TaskComplexModule(BaseModule):
             # get datasetIDs from DB if no fileID nor datasetID provided by the message
             tmpLog.debug(f"running sql: {sqlGD} {varMap}")
             self.cur.execute(sqlGD + comment, varMap)
-            varMap = dict()
-            varMap[":jediTaskID"] = jeditaskid
+            varMap = {":jediTaskID": jeditaskid}
             if scope != "pseudo_dataset" and check_scope:
                 varMap[":scope"] = scope
             varMap[":old_status"] = "staging"
@@ -5715,8 +5474,7 @@ class TaskComplexModule(BaseModule):
             # update task to trigger CF immediately
             if retVal:
                 sqlUT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationTime=CURRENT_DATE-1 WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL "
-                varMap = dict()
-                varMap[":jediTaskID"] = jeditaskid
+                varMap = {":jediTaskID": jeditaskid}
                 self.cur.execute(sqlUT + comment, varMap)
                 tmpLog.debug(f"unlocked task with {self.cur.rowcount}")
             # commit
@@ -5742,9 +5500,7 @@ class TaskComplexModule(BaseModule):
             sqlT = ("SELECT jediTaskID FROM {0}.JEDI_Tasks t WHERE t.jediTaskID=:jediTaskID AND t.site =:site AND t.status IN ('ready','running') ").format(
                 panda_config.schemaJEDI
             )
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jedi_taskid
-            varMap[":site"] = site
+            varMap: dict[str, Any] = {":jediTaskID": jedi_taskid, ":site": site}
             self.cur.execute(sqlT + comment, varMap)
             resT = self.cur.fetchall()
             if not resT:
@@ -5755,9 +5511,7 @@ class TaskComplexModule(BaseModule):
             sqlJC = ("SELECT pandaID FROM {0}.jobsActive4 WHERE jediTaskID=:jediTaskID AND jobStatus='activated' AND computingSite!=:computingSite ").format(
                 panda_config.schemaPANDA
             )
-            varMap = {}
-            varMap[":jediTaskID"] = jedi_taskid
-            varMap[":computingSite"] = site
+            varMap = {":jediTaskID": jedi_taskid, ":computingSite": site}
             self.cur.execute(sqlJC + comment, varMap)
             pandaIDs = self.cur.fetchall()
             n_jobs_closed = 0
@@ -5811,10 +5565,7 @@ class TaskComplexModule(BaseModule):
             if uniqueTaskName is True:
                 sqlDup = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks "
                 sqlDup += "WHERE userName=:userName AND taskName=:taskName AND jediTaskID<>:jediTaskID FOR UPDATE "
-                varMap: dict[str, Any] = {}
-                varMap[":userName"] = taskSpec.userName
-                varMap[":taskName"] = taskSpec.taskName
-                varMap[":jediTaskID"] = jediTaskID
+                varMap: dict[str, Any] = {":userName": taskSpec.userName, ":taskName": taskSpec.taskName, ":jediTaskID": jediTaskID}
                 self.cur.execute(sqlDup + comment, varMap)
                 resDupList = self.cur.fetchall()
                 tmpErrStr = ""
@@ -5847,9 +5598,7 @@ class TaskComplexModule(BaseModule):
                 tmpLog.debug("deleting unknown datasets")
                 sql = f"DELETE FROM {panda_config.schemaJEDI}.JEDI_Datasets "
                 sql += "WHERE jediTaskID=:jediTaskID AND type=:type "
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":type"] = JediDatasetSpec.getUnknownInputType()
+                varMap = {":jediTaskID": jediTaskID, ":type": JediDatasetSpec.getUnknownInputType()}
                 self.cur.execute(sql + comment, varMap)
                 tmpLog.debug("inserting datasets")
                 # sql to insert datasets
@@ -5967,8 +5716,7 @@ class TaskComplexModule(BaseModule):
                     for outputTemplate in outputTemplateList:
                         sqlH = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Output_Template (outTempID,datasetID,"
                         sqlL = f"VALUES({panda_config.schemaJEDI}.JEDI_OUTPUT_TEMPLATE_ID_SEQ.nextval,:datasetID,"
-                        varMap = {}
-                        varMap[":datasetID"] = datasetIdMap[outputMapKey]
+                        varMap = {":datasetID": datasetIdMap[outputMapKey]}
                         for tmpAttr, tmpVal in outputTemplate.items():
                             tmpKey = ":" + tmpAttr
                             sqlH += f"{tmpAttr},"
@@ -5979,8 +5727,7 @@ class TaskComplexModule(BaseModule):
                         sql = sqlH + sqlL
                         self.cur.execute(sql + comment, varMap)
                 # check if jobParams is already there
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
+                varMap = {":jediTaskID": jediTaskID}
                 sql = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_JobParams_Template "
                 sql += "WHERE jediTaskID=:jediTaskID "
                 self.cur.execute(sql + comment, varMap)
@@ -5988,25 +5735,19 @@ class TaskComplexModule(BaseModule):
                 if resPar is None:
                     # insert job parameters
                     tmpLog.debug("inserting jobParamsTmpl")
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":templ"] = jobParamsTemplate
+                    varMap = {":jediTaskID": jediTaskID, ":templ": jobParamsTemplate}
                     sql = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_JobParams_Template "
                     sql += "(jediTaskID,jobParamsTemplate) VALUES (:jediTaskID,:templ) "
                 else:
                     tmpLog.debug("replacing jobParamsTmpl")
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":templ"] = jobParamsTemplate
+                    varMap = {":jediTaskID": jediTaskID, ":templ": jobParamsTemplate}
                     sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_JobParams_Template "
                     sql += "SET jobParamsTemplate=:templ WHERE jediTaskID=:jediTaskID"
                 self.cur.execute(sql + comment, varMap)
                 # update task parameters
                 if taskParams is not None:
                     tmpLog.debug("updating taskParams")
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":taskParams"] = taskParams
+                    varMap = {":jediTaskID": jediTaskID, ":taskParams": taskParams}
                     sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_TaskParams SET taskParams=:taskParams "
                     sql += "WHERE jediTaskID=:jediTaskID "  # type: ignore[arg-type]  # the id is a column, which is declared optional
                     self.cur.execute(sql + comment, varMap)
@@ -6119,10 +5860,7 @@ class TaskComplexModule(BaseModule):
             self.conn.begin()
             self.cur.arraysize = 100
             # get datasets
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":type1"] = "output"
-            varMap[":type2"] = "log"
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":type1": "output", ":type2": "log"}
             # unmerged datasets
             if isUnMerging:
                 varMap[":type1"] = "trn_" + varMap[":type1"]
@@ -6135,9 +5873,7 @@ class TaskComplexModule(BaseModule):
                 varMap[":type1"] = "tmpl_" + varMap[":type1"]
                 varMap[":type2"] = "tmpl_" + varMap[":type2"]
             # keep dataset types
-            tmpl_VarMap = {}
-            tmpl_VarMap[":type1"] = varMap[":type1"]
-            tmpl_VarMap[":type2"] = varMap[":type2"]
+            tmpl_VarMap = {":type1": varMap[":type1"], ":type2": varMap[":type2"]}
             if provenanceID is not None:
                 varMap[":provenanceID"] = provenanceID
             self.cur.execute(sqlD + comment, varMap)
@@ -6164,12 +5900,13 @@ class TaskComplexModule(BaseModule):
                                 doInstantiate = True
                         else:
                             # check if concrete dataset is already there
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":type1"] = re.sub("^tmpl_", "", tmpl_VarMap[":type1"])
-                            varMap[":type2"] = re.sub("^tmpl_", "", tmpl_VarMap[":type2"])
-                            varMap[":templateID"] = datasetID
-                            varMap[":closedState"] = "closed"
+                            varMap = {
+                                ":jediTaskID": jediTaskID,
+                                ":type1": re.sub("^tmpl_", "", tmpl_VarMap[":type1"]),
+                                ":type2": re.sub("^tmpl_", "", tmpl_VarMap[":type2"]),
+                                ":templateID": datasetID,
+                                ":closedState": "closed",
+                            }
                             if provenanceID is not None:
                                 varMap[":provenanceID"] = provenanceID
                             if instantiatedSite is not None:
@@ -6191,9 +5928,7 @@ class TaskComplexModule(BaseModule):
                                 doInstantiate = True
                         if doInstantiate:
                             # read dataset template
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":datasetID"] = datasetID
+                            varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID}
                             self.cur.execute(sqlT1 + comment, varMap)
                             resT1 = self.cur.fetchone()
                             cDatasetSpec = JediDatasetSpec()
@@ -6216,12 +5951,13 @@ class TaskComplexModule(BaseModule):
                                 # set destination
                                 if cDatasetSpec.destination in [None, ""]:
                                     cDatasetSpec.destination = cDatasetSpec.site
-                                varMap = {}
-                                varMap[":datasetName"] = cDatasetSpec.datasetName
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = fileDatasetID
-                                varMap[":site"] = cDatasetSpec.site
-                                varMap[":destination"] = cDatasetSpec.destination
+                                varMap = {
+                                    ":datasetName": cDatasetSpec.datasetName,
+                                    ":jediTaskID": jediTaskID,
+                                    ":datasetID": fileDatasetID,
+                                    ":site": cDatasetSpec.site,
+                                    ":destination": cDatasetSpec.destination,
+                                }
                                 self.cur.execute(sqlCN + comment, varMap)
                             tmpLog.debug(f"instantiated {cDatasetSpec.datasetName} datasetID={fileDatasetID}")
                             if masterID is not None:
@@ -6241,9 +5977,7 @@ class TaskComplexModule(BaseModule):
                         tmpl_RelationMap[datasetID][instantiatedSite] = fileDatasetID
                     fileDatasetIDs.append(fileDatasetID)
                 # get output templates
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":datasetID"] = datasetID
+                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID}
                 self.cur.execute(sqlR + comment, varMap)
                 resTmpList = self.cur.fetchall()
                 maxSerialNr = None
@@ -6322,10 +6056,7 @@ class TaskComplexModule(BaseModule):
                                         continue
                                     parallelOutMap[firstFileID].append(fileSpec)
                             # increment SN
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":outTempID"] = outTempID
-                            varMap[":diff"] = nFileLoop
+                            varMap = {":jediTaskID": jediTaskID, ":outTempID": outTempID, ":diff": nFileLoop}
                             varMapsForSN.append(varMap)
             # bulk increment
             if len(varMapsForSN) > 0 and not simul:
@@ -6337,9 +6068,7 @@ class TaskComplexModule(BaseModule):
                 self.cur.executemany(sqlII + comment, varMapsForInsert)
             # set masterID to concrete datasets
             for fileDatasetID, (masterID, instantiatedSite) in mstr_RelationMap.items():
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":datasetID"] = fileDatasetID
+                varMap = {":jediTaskID": jediTaskID, ":datasetID": fileDatasetID}
                 if masterID in tmpl_RelationMap and instantiatedSite in tmpl_RelationMap[masterID]:
                     varMap[":masterID"] = tmpl_RelationMap[masterID][instantiatedSite]
                 else:
