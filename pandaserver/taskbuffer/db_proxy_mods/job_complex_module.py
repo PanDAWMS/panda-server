@@ -4590,7 +4590,7 @@ class JobComplexModule(BaseModule):
             "GROUP BY computingSite, jobStatus, gshare, resource_type"
         )
 
-        ret: dict[str, Any] = dict()
+        ret: dict[str, Any] = {}
         try:
             if time_window is None:
                 time_floor = naive_utcnow() - datetime.timedelta(hours=12)
@@ -4618,7 +4618,7 @@ class JobComplexModule(BaseModule):
                 get_entity_module(self).reload_shares()
 
                 # create map
-                share_label_map = dict()
+                share_label_map = {}
                 for computing_site, job_status, gshare, resource_type, n_jobs in res:
                     if gshare not in share_label_map:
                         for share in get_entity_module(self).leave_shares:
