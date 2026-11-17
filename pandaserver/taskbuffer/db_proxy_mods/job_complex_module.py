@@ -36,6 +36,10 @@ MAX_EXCLUDED_TASK_IDS = 500
 MAX_ARCHITECTURE_MATCHING_TRIES = 5
 
 
+class JobAlreadyDeleted(RuntimeError):
+    """The job was already removed from jobsDefined/Active, typically by a concurrent process. Expected, so logged at DEBUG."""
+
+
 # Module class to define job-related methods that use another module's methods or serve as their dependencies
 class JobComplexModule(BaseModule):
     # constructor
@@ -1687,7 +1691,7 @@ class JobComplexModule(BaseModule):
                 n = self.cur.rowcount
                 if n == 0:
                     # already deleted
-                    raise RuntimeError(f"PandaID={job.PandaID} already deleted")
+                    raise JobAlreadyDeleted(f"PandaID={job.PandaID} already deleted")
                 else:
                     # insert
                     job.modificationTime = naive_utcnow()
@@ -1887,6 +1891,8 @@ class JobComplexModule(BaseModule):
                 if self.is_no_wait_exception(e):
                     # resource busy and acquire with NOWAIT specified. Expected when another process holds the lock
                     tmp_log.debug("skipped with NOWAIT since resource is locked")
+                elif isinstance(e, JobAlreadyDeleted):
+                    tmp_log.debug(f"skipped since {e}")
                 else:
                     self.dump_error_message(tmp_log)
                 exec_time = naive_utcnow() - start_time
