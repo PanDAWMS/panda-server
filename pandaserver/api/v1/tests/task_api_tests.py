@@ -296,6 +296,22 @@ class TestTaskAPI(unittest.TestCase):
         for row in output["data"]["rows"]:
             self.assertEqual(row["jediTaskID"], int(JEDI_TASK_ID))
 
+    def test_get_command_history(self) -> None:
+        url = f"{api_url_ssl}/task/get_command_history"
+        print(f"Testing URL: {url}")
+        data = {"task_id": JEDI_TASK_ID}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertEqual(set(output["data"]), {"rows", "as_of", "retained_from"})
+        statuses = {"received", "responded", "error", "queued", "accepted", "rejected", "superseded"}
+        for row in output["data"]["rows"]:
+            # the other tests send commands for the fake task too, so it may have rows
+            self.assertEqual(row["jediTaskID"], int(JEDI_TASK_ID))
+            self.assertIn(row["status"], statuses)
+            self.assertIsInstance(row["parameters"], dict)
+
     def test_get_status(self) -> None:
         url = f"{api_url_ssl}/task/get_status"
         print(f"Testing URL: {url}")

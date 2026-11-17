@@ -19,7 +19,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
-from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore import CoreUtils, task_command_log
 from pandaserver.srvcore.CoreUtils import clean_user_id, shorten_for_log
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
@@ -34,6 +34,16 @@ MESSAGE_TASK_OWNER = "not the task owner or no production role"
 MESSAGE_TASK_ID = "jediTaskID must be an integer"
 MESSAGE_DATABASE = "database error in the PanDA server"
 MESSAGE_JSON = "failed to load JSON"
+MESSAGE_COMMAND_LOG = "failed to record the command in the task command log, so it was not run"
+
+# names of the parameters in which an endpoint takes the task, or the list of tasks, it acts on.
+# A POST endpoint of a module registered with log_task_commands is recorded when it has one
+COMMAND_TASK_ID_PARAMETERS = ("task_id", "jedi_task_id", "task_id_list")
+# largest JSON size, in bytes, of an argument recorded in the task command log. A larger one is
+# recorded as {"omitted_bytes": size}
+COMMAND_ARGUMENT_SIZE_LIMIT = 64 * 1024
+# longest message, in characters, and largest JSON size of the data, in bytes, recorded from a response
+COMMAND_RESPONSE_FIELD_LIMIT = 1024
 
 
 def get_endpoint(protocol: str) -> tuple[bool, str]:
@@ -323,6 +333,201 @@ def isinstance_types(expected_type: Any) -> tuple[Any, ...]:
     return (origin or expected_type,)
 
 
+# modules whose POST endpoints are recorded in the task command log, with what returns the
+# TaskBuffer to record through
+_command_logging_modules: dict[str, Callable[[], Any]] = {}
+
+
+def log_task_commands(module_name: str, task_buffer: Callable[[], Any]) -> None:
+    """
+    Record the commands the POST endpoints of an API module receive in the task command log, TASKS_COMMANDLOG.
+
+    request_validation records an endpoint of a registered module when the endpoint is called with
+    POST and takes the tasks it acts on in a parameter named in COMMAND_TASK_ID_PARAMETERS. So a new
+    endpoint is recorded without being listed anywhere.
+
+    Args:
+        module_name(str): __name__ of the API module
+        task_buffer(callable): returns the TaskBuffer to record through, e.g. ``lambda: global_task_buffer``,
+            so that it is resolved at request time rather than at import time when it may still be None
+    """
+    _command_logging_modules[module_name] = task_buffer
+
+
+def get_command_task_ids(arguments: dict[str, Any]) -> list[int]:
+    """
+    Get the tasks a command acts on from the arguments of its endpoint.
+
+    Args:
+        arguments(dict): the bound arguments of the endpoint, by parameter name
+
+    Returns:
+        list: the jediTaskIDs from the first parameter named in COMMAND_TASK_ID_PARAMETERS, or an empty list when there is none
+    """
+    for name in COMMAND_TASK_ID_PARAMETERS:
+        value = arguments.get(name)
+        if value is None:
+            continue
+        if isinstance(value, (list, tuple, set, frozenset)):
+            return [int(task_id) for task_id in value]
+        return [int(value)]
+    return []
+
+
+def _encode_json_capped(value: Any, limit: int) -> Any:
+    # the value itself when its JSON fits in limit bytes, else {"omitted_bytes": size}. A value
+    # JSON cannot hold, e.g. NaN, which IS JSON (STRICT) rejects, is kept as its str
+    try:
+        encoded = json.dumps(value, default=str, allow_nan=False)
+    except ValueError:
+        value = str(value)
+        encoded = json.dumps(value)
+    size = len(encoded.encode())
+    if size > limit:
+        return {"omitted_bytes": size}
+    return value
+
+
+def encode_command_parameters(arguments: dict[str, Any]) -> str:
+    """
+    Encode the arguments of a task command for the task command log.
+
+    Args:
+        arguments(dict): the bound arguments of the endpoint, by parameter name
+
+    Returns:
+        str: JSON of the arguments other than req and the tasks, each replaced by
+            {"omitted_bytes": size} when its JSON is over COMMAND_ARGUMENT_SIZE_LIMIT bytes
+    """
+    parameters = {
+        name: _encode_json_capped(value, COMMAND_ARGUMENT_SIZE_LIMIT)
+        for name, value in arguments.items()
+        if name != "req" and name not in COMMAND_TASK_ID_PARAMETERS
+    }
+    return json.dumps(parameters, default=str)
+
+
+def encode_command_response(response: Any) -> str:
+    """
+    Encode the response an endpoint returned for a task command for the task command log.
+
+    Args:
+        response(Any): what the endpoint returned, normally {"success", "message", "data"} from generate_response
+
+    Returns:
+        str: JSON of {"success", "message", "data"}, with the message cut to COMMAND_RESPONSE_FIELD_LIMIT
+            characters and the data replaced by {"omitted_bytes": size} when its JSON is over
+            COMMAND_RESPONSE_FIELD_LIMIT bytes. Anything else is kept as {"response": its str, cut}
+    """
+    if isinstance(response, dict) and "success" in response:
+        message = response.get("message")
+        encoded = {
+            "success": response.get("success"),
+            "message": None if message is None else str(message)[:COMMAND_RESPONSE_FIELD_LIMIT],
+            "data": _encode_json_capped(response.get("data"), COMMAND_RESPONSE_FIELD_LIMIT),
+        }
+    else:
+        encoded = {"response": str(response)[:COMMAND_RESPONSE_FIELD_LIMIT]}
+    return json.dumps(encoded, default=str)
+
+
+def encode_command_exception(exc: BaseException) -> str:
+    """
+    Encode the exception an endpoint raised instead of responding to a task command, for the task command log.
+
+    Args:
+        exc(Exception): the exception
+
+    Returns:
+        str: JSON of {"exception": "<type>: <message>"}, cut to COMMAND_RESPONSE_FIELD_LIMIT characters
+    """
+    return json.dumps({"exception": f"{type(exc).__name__}: {exc}"[:COMMAND_RESPONSE_FIELD_LIMIT]})
+
+
+def get_client_address(req: PandaRequest) -> str | None:
+    """
+    Get the address of the client that sent a request.
+
+    Args:
+        req(PandaRequest): the request
+
+    Returns:
+        str or None: the client's host name when httpd looked it up (HostnameLookups), else its IP
+            address, or None when neither is known. A proxy between the client and httpd gives its own
+    """
+    return req.get_remote_host() or req.subprocess_env.get("REMOTE_ADDR")
+
+
+def run_logged_task_command(
+    func: Callable[..., Any],
+    bound_args: inspect.BoundArguments,
+    req: PandaRequest,
+    task_ids: list[int],
+    task_buffer: Any,
+    tmp_logger: LogWrapper,
+) -> Any:
+    """
+    Run a task command and record it in the task command log, TASKS_COMMANDLOG.
+
+    The rows are written as received before the command runs, and the command is refused when they
+    cannot be written, so that every command that ran has its rows. While the command runs, the key
+    of the rows is in task_command_log.current_task_command, where TaskBuffer reads it to mark the
+    rows queued when the command is registered for JEDI. The response is recorded after; a failure
+    to record it is only logged, since the command has run by then.
+
+    Args:
+        func(callable): the endpoint
+        bound_args(inspect.BoundArguments): its arguments, validated and cast
+        req(PandaRequest): the request
+        task_ids(list): the tasks the command acts on
+        task_buffer(TaskBuffer): the TaskBuffer to record through
+        tmp_logger(LogWrapper): the logger of the endpoint
+
+    Returns:
+        Any: what the endpoint returned, or the response refusing the command
+    """
+    dn = get_dn(req)
+    requester = clean_user_id(dn)
+    if requester in ["", "NULL", None]:
+        requester = dn
+    try:
+        command_key = task_buffer.insert_task_command(
+            task_ids,
+            func.__name__,
+            encode_command_parameters(bound_args.arguments),
+            requester,
+            has_production_role(req),
+            get_client_address(req),
+        )
+    except Exception as e:
+        tmp_logger.error(f"failed to record the command with {type(e).__name__}: {e}")
+        command_key = None
+    if command_key is None:
+        tmp_logger.error(MESSAGE_COMMAND_LOG)
+        return generate_response(False, message=MESSAGE_COMMAND_LOG)
+    tmp_logger.debug(f"recorded in the task command log as command_id={command_key['command_id']}")
+
+    def record_response(encoded: str, is_error: bool) -> None:
+        try:
+            is_ok = task_buffer.set_task_command_response(command_key, encoded, is_error)
+        except Exception as e:
+            tmp_logger.error(f"failed to record the response with {type(e).__name__}: {e}")
+            is_ok = False
+        if not is_ok:
+            tmp_logger.error(f"failed to record the response of command_id={command_key['command_id']} in the task command log")
+
+    token = task_command_log.current_task_command.set(command_key)
+    try:
+        response = func(*bound_args.args, **bound_args.kwargs)
+    except Exception as e:
+        record_response(encode_command_exception(e), True)
+        raise
+    finally:
+        task_command_log.current_task_command.reset(token)
+    record_response(encode_command_response(response), False)
+    return response
+
+
 def request_validation(
     logger: logging.Logger,
     secure: bool = True,
@@ -334,6 +539,9 @@ def request_validation(
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Decorator that validates an incoming API request before the handler runs.
+
+    For a module registered with log_task_commands, a POST request that names the tasks it acts on
+    is also recorded in the task command log once it has passed validation; see run_logged_task_command.
 
     Args:
         logger: Logger instance passed to LogWrapper for the decorated function.
@@ -501,6 +709,13 @@ def request_validation(
                     if not resolved_buffer.validate_ownership_or_production_role(task_id, dn, prod_role):
                         tmp_logger.error(MESSAGE_TASK_OWNER)
                         return generate_response(False, message=MESSAGE_TASK_OWNER)
+
+            # record a task command in the task command log while running it
+            command_task_buffer = _command_logging_modules.get(func.__module__)
+            if command_task_buffer is not None and expected_request_method == "POST":
+                command_task_ids = get_command_task_ids(bound_args.arguments)
+                if command_task_ids:
+                    return run_logged_task_command(func, bound_args, req, command_task_ids, command_task_buffer(), tmp_logger)
 
             return func(*bound_args.args, **bound_args.kwargs)
 

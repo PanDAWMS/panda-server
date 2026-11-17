@@ -16,7 +16,8 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.closer import Closer
 from pandaserver.dataservice.setupper import Setupper
-from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore import CoreUtils, task_command_log
+from pandaserver.srvcore.task_command_log import TaskCommandKey
 from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
 from pandaserver.taskbuffer.DataCarousel import DataCarouselRequestSpec
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
@@ -1621,7 +1622,17 @@ class TaskBuffer:
             tmpStatus = proxy.checkBanUser(user, None, True)
             if tmpStatus is True:
                 # exec
-                ret = proxy.insertTaskParamsPanda(taskParams, user, prodRole, fqans, parent_tid, properErrorCode, allowActiveTask, decode)
+                ret = proxy.insertTaskParamsPanda(
+                    taskParams,
+                    user,
+                    prodRole,
+                    fqans,
+                    parent_tid,
+                    properErrorCode,
+                    allowActiveTask,
+                    decode,
+                    command_key=task_command_log.current_task_command.get(),
+                )
             elif tmpStatus == 1:
                 ret = False, "Failed to update DN in PandaDB"
             elif tmpStatus == 2:
@@ -1661,6 +1672,7 @@ class TaskBuffer:
                 properErrorCode,
                 comQualifier,
                 broadcast,
+                command_key=task_command_log.current_task_command.get(),
             )
         return ret
 
@@ -2052,6 +2064,29 @@ class TaskBuffer:
     def get_task_status_history(self, jedi_task_id: int) -> tuple[bool, str, dict[str, Any]]:
         with self.proxyPool.get() as proxy:
             return proxy.get_task_status_history(jedi_task_id)
+
+    # record a task command received through the API
+    def insert_task_command(
+        self,
+        task_ids: list[int],
+        command: str,
+        parameters: str,
+        requester: str,
+        prod_role: bool,
+        client_addr: str | None,
+    ) -> TaskCommandKey | None:
+        with self.proxyPool.get() as proxy:
+            return proxy.insert_task_command(task_ids, command, parameters, requester, prod_role, client_addr)
+
+    # record the response the API returned for a task command
+    def set_task_command_response(self, command_key: TaskCommandKey, response: str, is_error: bool) -> bool:
+        with self.proxyPool.get() as proxy:
+            return proxy.set_task_command_response(command_key, response, is_error)
+
+    # get the task commands recorded for a task
+    def get_task_command_history(self, jedi_task_id: int) -> tuple[bool, str, dict[str, Any]]:
+        with self.proxyPool.get() as proxy:
+            return proxy.get_task_command_history(jedi_task_id)
 
     # reactivate task
     def reactivateTask(self, jediTaskID: int, keep_attempt_nr: bool = False, trigger_job_generation: bool = False) -> tuple[int | None, str]:

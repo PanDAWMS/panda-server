@@ -6,7 +6,9 @@ request says, so it is meant to be reviewed by hand whenever it changes. The fir
 takes the tables the code reads most often, counted over the places in the code that read
 the database, leaving out users (it holds DNs and mail addresses); filesTable_ARCH and
 CONFIG were added for the coverage they bring, and jobs_StatusLog and TASKS_STATUSLOG
-after them. Secrets and proxykey are never to be listed.
+after them. TASKS_COMMANDLOG came with GET /v1/task/get_command_history, for the commands
+that change a task without a status change; it holds the requester as the compact user
+name, as JEDI_Tasks does, not the DN. Secrets and proxykey are never to be listed.
 
 GET /v1/job/get_status_history and GET /v1/task/get_status_history read the status logs
 too. The first widens its window by STATUS_HISTORY_CLOCK_SLACK (api/v1/job_api.py) and to
@@ -57,6 +59,7 @@ _TABLES = (
     AllowedTable("CONFIG", "schemaPANDA"),
     AllowedTable("jobs_StatusLog", "schemaPANDA"),
     AllowedTable("TASKS_STATUSLOG", "schemaJEDI"),
+    AllowedTable("TASKS_COMMANDLOG", "schemaJEDI"),
 )
 
 ALLOWED_TABLES: dict[str, AllowedTable] = {table.name.lower(): table for table in _TABLES}
