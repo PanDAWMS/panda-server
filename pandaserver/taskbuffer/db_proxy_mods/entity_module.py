@@ -950,8 +950,7 @@ class EntityModule(BaseModule):
         sqlU += "SET hs06sec=:hs06sec WHERE PandaID=:PandaID "
 
         # get job attributes
-        varMap: dict[str, Any] = {}
-        varMap[":PandaID"] = pandaID
+        varMap: dict[str, Any] = {":PandaID": pandaID}
         self.cur.execute(sqlJ + comment, varMap)
         resJ = self.cur.fetchone()
         if resJ is None:
@@ -984,9 +983,7 @@ class EntityModule(BaseModule):
                     if hs06sec > maxHS06sec:
                         hs06sec = maxHS06sec
                     # update HS06sec
-                    varMap = {}
-                    varMap[":PandaID"] = pandaID
-                    varMap[":hs06sec"] = hs06sec
+                    varMap = {":PandaID": pandaID, ":hs06sec": hs06sec}
                     self.cur.execute(sqlU + comment, varMap)
                     tmp_log.debug(f"set HS06sec={hs06sec}")
         # return
@@ -1400,19 +1397,19 @@ class EntityModule(BaseModule):
             timeNow = naive_utcnow()
             self.conn.begin()
             # delete old records
-            varMap: dict[str, Any] = {}
-            varMap[":LASTMOD"] = timeNow - datetime.timedelta(hours=48)
+            varMap: dict[str, Any] = {":LASTMOD": timeNow - datetime.timedelta(hours=48)}
             self.cur.execute(sqlDel + comment, varMap)
             # set 0 to old records
-            varMap = {}
-            varMap[":HOURS"] = interval
-            varMap[":GETJOB"] = 0
-            varMap[":UPDATEJOB"] = 0
-            varMap[":NOJOB"] = 0
-            varMap[":GETJOBABS"] = 0
-            varMap[":UPDATEJOBABS"] = 0
-            varMap[":NOJOBABS"] = 0
-            varMap[":LASTMOD"] = timeNow - datetime.timedelta(hours=interval)
+            varMap = {
+                ":HOURS": interval,
+                ":GETJOB": 0,
+                ":UPDATEJOB": 0,
+                ":NOJOB": 0,
+                ":GETJOBABS": 0,
+                ":UPDATEJOBABS": 0,
+                ":NOJOBABS": 0,
+                ":LASTMOD": timeNow - datetime.timedelta(hours=interval),
+            }
             self.cur.execute(sqlRst + comment, varMap)
             # commit
             if not self._commit():
@@ -1426,10 +1423,7 @@ class EntityModule(BaseModule):
                 # start transaction
                 self.conn.begin()
                 # check individual host info first
-                varMap = {}
-                varMap[":FLAG"] = hostID
-                varMap[":SITE"] = tmpSite
-                varMap[":HOURS"] = interval
+                varMap = {":FLAG": hostID, ":SITE": tmpSite, ":HOURS": interval}
                 self.cur.arraysize = 10
                 locked = True
                 try:
@@ -1491,9 +1485,7 @@ class EntityModule(BaseModule):
                     self.conn.begin()
                     # get all info
                     sumExist = False
-                    varMap = {}
-                    varMap[":SITE"] = tmpSite
-                    varMap[":HOURS"] = interval
+                    varMap = {":SITE": tmpSite, ":HOURS": interval}
                     self.cur.arraysize = 100
                     self.cur.execute(sqlAll + comment, varMap)
                     res = self.cur.fetchall()
@@ -1612,9 +1604,7 @@ class EntityModule(BaseModule):
         comment = " /* DBProxy.getCurrentSiteData */"
         tmp_log = self.create_tagged_logger(comment)
         sql = "SELECT SITE,getJob,updateJob,FLAG FROM ATLAS_PANDAMETA.SiteData WHERE FLAG IN (:FLAG1,:FLAG2) and HOURS=3"
-        varMap: dict[str, Any] = {}
-        varMap[":FLAG1"] = "production"
-        varMap[":FLAG2"] = "analysis"
+        varMap: dict[str, Any] = {":FLAG1": "production", ":FLAG2": "analysis"}
         try:
             # set autocommit on
             self.conn.begin()
@@ -1677,19 +1667,14 @@ class EntityModule(BaseModule):
             timeNow = naive_utcnow()
             nHours = 1000 + timeNow.hour * 60 + timeNow.minute
             # delete old records
-            varMap: dict[str, Any] = {}
-            varMap[":FLAG1"] = "max"
-            varMap[":FLAG2"] = "snapshot"
+            varMap: dict[str, Any] = {":FLAG1": "max", ":FLAG2": "snapshot"}
             self.conn.begin()
             self.cur.execute(sqlDel + comment, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # get nRunning
-            varMap = {}
-            varMap[":jobStatus"] = "running"
-            varMap[":prodSourceLabel1"] = "user"
-            varMap[":prodSourceLabel2"] = "panda"
+            varMap = {":jobStatus": "running", ":prodSourceLabel1": "user", ":prodSourceLabel2": "panda"}
             self.conn.begin()
             self.cur.arraysize = 10000
             self.cur.execute(sqlRun + comment, varMap)
@@ -1703,10 +1688,7 @@ class EntityModule(BaseModule):
                 if not computingSite.startswith("ANALY_"):
                     continue
                 # check if the row is already there
-                varMap = {}
-                varMap[":FLAG"] = "snapshot"
-                varMap[":SITE"] = computingSite
-                varMap[":HOURS"] = nHours
+                varMap = {":FLAG": "snapshot", ":SITE": computingSite, ":HOURS": nHours}
                 # start transaction
                 self.conn.begin()
                 self.cur.arraysize = 10
@@ -1718,19 +1700,14 @@ class EntityModule(BaseModule):
                 else:
                     sql = sqlUp
                 # set current nRunning
-                varMap = {}
-                varMap[":FLAG"] = "snapshot"
-                varMap[":SITE"] = computingSite
-                varMap[":HOURS"] = nHours
-                varMap[":RUNNING"] = nRunning
+                varMap = {":FLAG": "snapshot", ":SITE": computingSite, ":HOURS": nHours, ":RUNNING": nRunning}
                 # insert or update
                 self.cur.execute(sql + comment, varMap)
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
             # get max nRunning
-            varMap = {}
-            varMap[":FLAG"] = "snapshot"
+            varMap = {":FLAG": "snapshot"}
             self.conn.begin()
             self.cur.arraysize = 10000
             self.cur.execute(sqlMax + comment, varMap)
@@ -1743,10 +1720,7 @@ class EntityModule(BaseModule):
                 # start transaction
                 self.conn.begin()
                 # check if the row is already there
-                varMap = {}
-                varMap[":FLAG"] = "max"
-                varMap[":SITE"] = computingSite
-                varMap[":HOURS"] = 0
+                varMap = {":FLAG": "max", ":SITE": computingSite, ":HOURS": 0}
                 self.cur.arraysize = 10
                 self.cur.execute(sqlCh + comment, varMap)
                 res = self.cur.fetchone()
@@ -1756,11 +1730,7 @@ class EntityModule(BaseModule):
                 else:
                     sql = sqlUp
                 # set max nRunning
-                varMap = {}
-                varMap[":FLAG"] = "max"
-                varMap[":SITE"] = computingSite
-                varMap[":HOURS"] = 0
-                varMap[":RUNNING"] = maxnRunning
+                varMap = {":FLAG": "max", ":SITE": computingSite, ":HOURS": 0, ":RUNNING": maxnRunning}
                 self.cur.execute(sql + comment, varMap)
                 # commit
                 if not self._commit():
@@ -2227,8 +2197,7 @@ class EntityModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap: dict[str, Any] = {}
-            varMap[":owner"] = owner
+            varMap: dict[str, Any] = {":owner": owner}
             tmpS, tmpR = self.getClobObj(sqlC, varMap, use_commit=False)
             if not tmpR:
                 # insert dummy for new entry
@@ -2250,9 +2219,7 @@ class EntityModule(BaseModule):
                         del data[file_key]
             else:
                 data[key] = value
-            varMap = {}
-            varMap[":owner"] = owner
-            varMap[":data"] = json.dumps(data)
+            varMap = {":owner": owner, ":data": json.dumps(data)}
             self.cur.execute(sqlU + comment, varMap)
             # commit
             if not self._commit():
@@ -2274,8 +2241,7 @@ class EntityModule(BaseModule):
             # sql to get data
             sqlC = "SELECT data FROM ATLAS_PANDA.Secrets WHERE owner=:owner "
             # check
-            varMap: dict[str, Any] = {}
-            varMap[":owner"] = owner
+            varMap: dict[str, Any] = {":owner": owner}
             tmpS, tmpR = self.getClobObj(sqlC, varMap, use_commit=use_commit)
             # The decoded object, or the json text when get_json is set. That flag
             # decides which, and each use below is guarded by it -- an invariant the
@@ -2848,8 +2814,7 @@ class EntityModule(BaseModule):
             # select
             name = CoreUtils.clean_user_id(dn)
             sql = "SELECT cpua1, cpua7, cpua30, quotaa1, quotaa7, quotaa30 FROM ATLAS_PANDAMETA.users WHERE name=:name"
-            varMap: dict[str, Any] = {}
-            varMap[":name"] = name
+            varMap: dict[str, Any] = {":name": name}
             self.cur.arraysize = 10
             self.cur.execute(sql + comment, varMap)
             res = self.cur.fetchall()
@@ -2896,8 +2861,7 @@ class EntityModule(BaseModule):
             # check gridpref
             name = CoreUtils.clean_user_id(userName)
             sql = "SELECT gridpref FROM ATLAS_PANDAMETA.users WHERE name=:name"
-            varMap: dict[str, Any] = {}
-            varMap[":name"] = name
+            varMap: dict[str, Any] = {":name": name}
             self.cur.arraysize = 10
             self.cur.execute(sql + comment, varMap)
             res = self.cur.fetchone()
@@ -2959,8 +2923,7 @@ class EntityModule(BaseModule):
             sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
             sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,"
             sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
-            varMap: dict[str, Any] = {}
-            varMap[":name"] = name
+            varMap: dict[str, Any] = {":name": name}
             self.cur.execute(sql + comment, varMap)
             self.cur.arraysize = 10
             res = self.cur.fetchall()
@@ -2992,9 +2955,7 @@ class EntityModule(BaseModule):
                         # new jobID = 1 + existing jobID
                         retJobID = dbJobID + 1
                 # update DB
-                varMap = {}
-                varMap[":name"] = name
-                varMap[":jobid"] = retJobID
+                varMap = {":name": name, ":jobid": retJobID}
                 sql = "UPDATE ATLAS_PANDAMETA.users SET jobid=:jobid WHERE name=:name"
                 self.cur.execute(sql + comment, varMap)
                 tmp_log.debug(f"set JobID={retJobID}")
@@ -3024,8 +2985,7 @@ class EntityModule(BaseModule):
             self.conn.begin()
             # select
             sql = "SELECT status,dn FROM ATLAS_PANDAMETA.users WHERE name=:name"
-            varMap: dict[str, Any] = {}
-            varMap[":name"] = name
+            varMap: dict[str, Any] = {":name": name}
             self.cur.execute(sql + comment, varMap)
             self.cur.arraysize = 10
             res = self.cur.fetchone()
@@ -3037,9 +2997,7 @@ class EntityModule(BaseModule):
                 elif jediCheck and (dnInDB in ["", None] or dnInDB != dn):
                     # add DN
                     sqlUp = "UPDATE ATLAS_PANDAMETA.users SET dn=:dn WHERE name=:name "
-                    varMap = {}
-                    varMap[":name"] = name
-                    varMap[":dn"] = dn
+                    varMap = {":name": name, ":dn": dn}
                     self.cur.execute(sqlUp + comment, varMap)
                     retI = self.cur.rowcount
                     tmp_log.debug(f"update DN with Status={retI}")
@@ -3053,9 +3011,7 @@ class EntityModule(BaseModule):
                     sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
                     sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
                     sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
-                    varMap = {}
-                    varMap[":name"] = name
-                    varMap[":dn"] = dn
+                    varMap = {":name": name, ":dn": dn}
                     self.cur.execute(sqlAdd + comment, varMap)
                     retI = self.cur.rowcount
                     tmp_log.debug(f"inserted new row with Status={retI}")
@@ -3094,8 +3050,7 @@ class EntityModule(BaseModule):
             # set autocommit on
             self.conn.begin()
             # select
-            varMap: dict[str, Any] = {}
-            varMap[":name"] = name
+            varMap: dict[str, Any] = {":name": name}
             self.cur.execute(sql + comment, varMap)
             self.cur.arraysize = 10
             res = self.cur.fetchall()
@@ -3138,10 +3093,7 @@ class EntityModule(BaseModule):
             # set autocommit on
             self.conn.begin()
             # set
-            varMap: dict[str, Any] = {}
-            varMap[":name"] = userName
-            varMap[":email"] = emailAddr
-            varMap[":uptime"] = naive_utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            varMap: dict[str, Any] = {":name": userName, ":email": emailAddr, ":uptime": naive_utcnow().strftime("%Y-%m-%d %H:%M:%S")}
             self.cur.execute(sql + comment, varMap)
             # commit
             if not self._commit():
@@ -3164,8 +3116,7 @@ class EntityModule(BaseModule):
         try:
             # set autocommit on
             self.conn.begin()
-            varMap: dict[str, Any] = {}
-            varMap[":status"] = "disabled"
+            varMap: dict[str, Any] = {":status": "disabled"}
             self.cur.execute(sql + comment, varMap)
             self.cur.arraysize = 10
             res = self.cur.fetchall()
@@ -3392,8 +3343,7 @@ class EntityModule(BaseModule):
             sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
             sql += "WHERE tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
             sql += "AND tabT.jediTaskID=:jediTaskID "
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID}
             # begin transaction
             self.conn.begin()
             # get
@@ -3428,9 +3378,7 @@ class EntityModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get RW
-            varMap: dict[str, Any] = {}
-            varMap[":vo"] = vo
-            varMap[":prodSourceLabel"] = prodSourceLabel
+            varMap: dict[str, Any] = {":vo": vo, ":prodSourceLabel": prodSourceLabel}
             if priority is not None:
                 varMap[":priority"] = priority
             sql = "SELECT tabT.jediTaskID,tabT.cloud,tabD.datasetID,nFiles-nFilesFinished-nFilesFailed,walltime "
@@ -3475,9 +3423,7 @@ class EntityModule(BaseModule):
             sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rownum<=1"
             for jediTaskID, cloud, datasetID, nRem, walltime in resList:
                 # get effective size
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":datasetID"] = datasetID
+                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID}
                 # begin transaction
                 self.conn.begin()
                 # get file
@@ -3517,10 +3463,7 @@ class EntityModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get RW
-            varMap: dict[str, Any] = {}
-            varMap[":vo"] = vo
-            varMap[":prodSourceLabel"] = prodSourceLabel
-            varMap[":worldCloud"] = JediTaskSpec.worldCloudName
+            varMap: dict[str, Any] = {":vo": vo, ":prodSourceLabel": prodSourceLabel, ":worldCloud": JediTaskSpec.worldCloudName}
             if priority is not None:
                 varMap[":priority"] = priority
             sql = "SELECT tabT.nucleus,SUM((nEvents-nEventsUsed)*(CASE WHEN cpuTime IS NULL THEN 300 ELSE cpuTime END)) "
@@ -3590,8 +3533,7 @@ class EntityModule(BaseModule):
             sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
             sql += "WHERE tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
             sql += "AND tabT.jediTaskID=:jediTaskID "
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID}
             # begin transaction
             self.conn.begin()
             # get
