@@ -18,8 +18,10 @@ from pandaserver.api.v1.common import (
     get_fqan,
     has_production_role,
     log_task_commands,
+    parse_utc_time,
     request_validation,
 )
+from pandaserver.config import panda_config
 from pandaserver.srvcore.CoreUtils import clean_user_id, make_reassign_comment
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer import task_split_rules
@@ -32,6 +34,9 @@ _logger = PandaLogger().getLogger("api_task")
 # non-Optional for the same reason as BaseModule.conn/cur: an Optional type would
 # only push a None check onto every handler without making any of them safer.
 global_task_buffer: TaskBuffer = None  # type: ignore[assignment]
+
+# most rows one get_job_rows or get_dataset_rows call returns. A task with more is cut there, and the answer says so
+MAX_TASK_ROWS = 1000
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
@@ -1065,6 +1070,134 @@ def get_command_history(req: PandaRequest, task_id: int) -> dict[str, Any]:
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     success, message, data = global_task_buffer.get_task_command_history(task_id)
+    if not success:
+        tmp_logger.debug(f"Failed with {message}")
+        return generate_response(False, message=message, data=data)
+
+    tmp_logger.debug(f"""Done with {len(data["rows"])} rows""")
+    return generate_response(True, data=data)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_job_rows(req: PandaRequest, task_id: int, since: str | None = None) -> dict[str, Any]:
+    """
+    Get the job rows of a task
+
+    Gets the rows of the jobs of a task from jobsDefined4, jobsActive4, jobsArchived4 and the archive, with their number by
+    status. Requires a secure connection.
+
+    jobsArchived4 and the archive are partitioned by day and by a few days on modificationTime, and the task is looked up
+    once in each of their partitions a window touches. The window starts at since, or at the creation of the task without
+    since, and ends at the database time. Both ends are moved out by 10 minutes for the clocks of the servers and then to
+    whole UTC days. A task that is not found and is given no since is read without a start, in every partition. A call
+    that would look up more partitions than the db_read_probe_budget of the server allows is refused, not cut short; a
+    later since lets it fit.
+
+    The rows of all four tables are read by one statement, so a job moving between tables meanwhile is read once, and a
+    row the same in two tables is given once. The counts are read by a second statement, so a job that changes its status
+    in between may be counted under its new status.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/task/get_job_rows
+
+    Args:
+        req(PandaRequest): internally generated request object
+        task_id(int): JEDI Task ID
+        since(str, optional): read the jobs modified at or after this time from jobsArchived4 and the archive, in UTC,
+            e.g. `2026-10-12 14:30:45` (ISO 8601 is accepted). Defaults to the creation of the task
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The jobs of the task, and what tells how complete they are.
+            {"rows": [...], "truncated": bool, "max_rows": int, "counts": {str: int}, "as_of": datetime,
+             "since": datetime or None, "until": datetime, "retained_from": datetime or None, "partitions": int,
+             "probes": int, "budget": int}
+            - rows: one dict per job, ordered by PandaID, with PandaID, jobStatus, jobSubStatus, creationTime,
+              modificationTime, stateChangeTime, endTime, prodSourceLabel, currentPriority, computingSite and attemptNr
+            - truncated, max_rows: whether the rows were cut at max_rows, the most a call returns
+            - counts: the number of jobs by jobStatus, every job in the window counted, however many rows were cut
+            - as_of: database time in UTC taken before the rows were read
+            - since, until: the window read on jobsArchived4 and the archive, after the widening. since is None when it
+              has no start
+            - retained_from: time from which the archive holds every row, or None when it cannot be told. Old partitions
+              are dropped, so jobs of a task older than this may be missing
+            - partitions, probes, budget: the partitions of the two tables the window touches, each table counted as at
+              least 1, the index lookups of the call, two for each table or partition, and the db_read_probe_budget
+        On failure, with the reason in the message, the reason as values:
+            - None: task_id is not an integer
+            - {"rejected": "invalid_window"}: since is not a time
+            - {"rejected": "probe_budget", "probes": int, "partitions": int, "budget": int}: the lookups exceed the budget
+            - {"error": str}: the database failed, with the error code (ORA-xxxxx, or the SQLSTATE on Postgres)
+    """
+    tmp_logger = LogWrapper(_logger, f"get_job_rows < task_id={task_id} since={since} >")
+    tmp_logger.debug("Start")
+
+    try:
+        task_id = int(task_id)
+    except ValueError:
+        tmp_logger.error("Failed due to invalid task_id")
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    since_time: datetime.datetime | None = None
+    if since:
+        try:
+            since_time = parse_utc_time(since)
+        except ValueError as e:
+            message = f"invalid since: {e}"
+            tmp_logger.debug(message)
+            return generate_response(False, message=message, data={"rejected": "invalid_window"})
+
+    success, message, data = global_task_buffer.get_task_job_rows(task_id, since_time, panda_config.db_read_probe_budget, MAX_TASK_ROWS)
+    if not success:
+        tmp_logger.debug(f"Failed with {message}")
+        return generate_response(False, message=message, data=data)
+
+    tmp_logger.debug(f"""Done with {len(data["rows"])} rows""")
+    return generate_response(True, data=data)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_dataset_rows(req: PandaRequest, task_id: int) -> dict[str, Any]:
+    """
+    Get the dataset rows of a task
+
+    Gets the rows JEDI_Datasets holds for a task, with every column. Requires a secure connection.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/task/get_dataset_rows
+
+    Args:
+        req(PandaRequest): internally generated request object
+        task_id(int): JEDI Task ID
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The datasets of the task.
+            {"rows": [...], "truncated": bool, "max_rows": int, "as_of": datetime}
+            - rows: one dict per dataset, ordered by datasetID, with every column keyed as JediDatasetSpec names it
+              (jediTaskID, datasetID, datasetName, type, masterID, status, nFiles, ...), and None for NULL. A task that
+              is not found has none
+            - truncated, max_rows: whether the rows were cut at max_rows, the most a call returns
+            - as_of: database time in UTC taken before the rows were read
+        On failure, with the reason in the message: {"error": str} when the database failed, with the error code (ORA-xxxxx,
+            or the SQLSTATE on Postgres), and None otherwise.
+    """
+    tmp_logger = LogWrapper(_logger, f"get_dataset_rows < task_id={task_id} >")
+    tmp_logger.debug("Start")
+
+    try:
+        task_id = int(task_id)
+    except ValueError:
+        tmp_logger.error("Failed due to invalid task_id")
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    success, message, data = global_task_buffer.get_task_dataset_rows(task_id, MAX_TASK_ROWS)
     if not success:
         tmp_logger.debug(f"Failed with {message}")
         return generate_response(False, message=message, data=data)

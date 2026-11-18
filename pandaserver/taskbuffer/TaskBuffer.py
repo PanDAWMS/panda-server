@@ -2088,6 +2088,16 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             return proxy.get_task_command_history(jedi_task_id)
 
+    # get the rows of the jobs of a task and their number by status
+    def get_task_job_rows(self, jedi_task_id: int, since: datetime.datetime | None, probe_budget: int, max_rows: int) -> tuple[bool, str, dict[str, Any]]:
+        with self.proxyPool.get() as proxy:
+            return proxy.get_task_job_rows(jedi_task_id, since, probe_budget, max_rows)
+
+    # get the rows of the datasets of a task
+    def get_task_dataset_rows(self, jedi_task_id: int, max_rows: int) -> tuple[bool, str, dict[str, Any]]:
+        with self.proxyPool.get() as proxy:
+            return proxy.get_task_dataset_rows(jedi_task_id, max_rows)
+
     # reactivate task
     def reactivateTask(self, jediTaskID: int, keep_attempt_nr: bool = False, trigger_job_generation: bool = False) -> tuple[int | None, str]:
         with self.proxyPool.get() as proxy:
