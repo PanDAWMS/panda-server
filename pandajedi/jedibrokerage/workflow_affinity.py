@@ -11,6 +11,7 @@ Candidates are duck-typed: anything with a ``siteName`` attribute will do.
 
 from __future__ import annotations
 
+import datetime
 import random
 from typing import Any, Collection, Iterable, Protocol, TypeVar
 
@@ -167,3 +168,27 @@ def summarize_anchor(anchor: dict[str, Any] | None, max_sites: int = 5) -> str:
         return "no workflow anchor"
     ranked = sorted(weights.items(), key=lambda item: item[1], reverse=True)[:max_sites]
     return ", ".join(f"{site}={weight:g}" for site, weight in ranked)
+
+
+def brokerage_holdup_expired(creation_time: datetime.datetime | None, now: datetime.datetime, wait_minutes: float) -> bool:
+    """
+    Whether a task held for its workflow's brokerage has waited long enough to go on regardless
+
+    The hold is a preference, so it must never strand a step whose siblings are stuck. Rather than
+    a timer of its own, it rides the regular pending cycle: a held task sits in pending, and the
+    watchdog reactivates pending tasks after waitForPending minutes, sending it back through the
+    contents feeder. The first feed happens within minutes of creation, so a task older than that
+    interval can only be on a feed after reactivation -- the point at which to stop holding.
+
+    Args:
+        creation_time: when the task was created
+        now: current time
+        wait_minutes: the pending reactivation interval
+
+    Returns:
+        bool: True if the hold should be dropped
+    """
+    if creation_time is None:
+        # nothing to measure against, and holding without bound is the worse failure
+        return True
+    return now - creation_time >= datetime.timedelta(minutes=wait_minutes)
