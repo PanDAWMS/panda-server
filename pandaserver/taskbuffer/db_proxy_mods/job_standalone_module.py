@@ -59,11 +59,7 @@ class JobStandaloneModule(BaseModule):
                 # begin transaction
                 self.conn.begin()
                 # check all inputs are ready
-                varMap: dict[str, Any] = {}
-                varMap[":type"] = "input"
-                varMap[":status1"] = "ready"
-                varMap[":status2"] = "cached"
-                varMap[":PandaID"] = job.PandaID
+                varMap: dict[str, Any] = {":type": "input", ":status1": "ready", ":status2": "cached", ":PandaID": job.PandaID}
                 self.cur.arraysize = 100
                 self.cur.execute(sql0 + comment, varMap)
                 res = self.cur.fetchall()
@@ -72,10 +68,7 @@ class JobStandaloneModule(BaseModule):
                     job.jobStatus = "activated"
 
                     # delete
-                    varMap = {}
-                    varMap[":PandaID"] = job.PandaID
-                    varMap[":oldJobStatus1"] = "assigned"
-                    varMap[":oldJobStatus2"] = "defined"
+                    varMap = {":PandaID": job.PandaID, ":oldJobStatus1": "assigned", ":oldJobStatus2": "defined"}
                     self.cur.execute(sql1 + comment, varMap)
                     n = self.cur.rowcount
                     if n == 0:
@@ -94,9 +87,7 @@ class JobStandaloneModule(BaseModule):
                                 self.cur.execute(sqlF + comment, varMap)
                         # job parameters
                         sqlJob = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
-                        varMap = {}
-                        varMap[":PandaID"] = job.PandaID
-                        varMap[":param"] = job.jobParameters
+                        varMap = {":PandaID": job.PandaID, ":param": job.jobParameters}
                         self.cur.execute(sqlJob + comment, varMap)
                         updatedFlag = True
                         to_push = job.is_push_job()
@@ -126,9 +117,7 @@ class JobStandaloneModule(BaseModule):
                                 self.cur.execute(sqlF + comment, varMap)
                         # job parameters
                         sqlJob = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
-                        varMap = {}
-                        varMap[":PandaID"] = job.PandaID
-                        varMap[":param"] = job.jobParameters
+                        varMap = {":PandaID": job.PandaID, ":param": job.jobParameters}
                         self.cur.execute(sqlJob + comment, varMap)
                         updatedFlag = True
                 # record status change in the same transaction as the move or update
@@ -201,9 +190,7 @@ class JobStandaloneModule(BaseModule):
                             self.cur.execute(sqlF + comment, varMap)
                     # update parameters
                     sqlJob = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
-                    varMap = {}
-                    varMap[":PandaID"] = job.PandaID
-                    varMap[":param"] = job.jobParameters
+                    varMap = {":PandaID": job.PandaID, ":param": job.jobParameters}
                     self.cur.execute(sqlJob + comment, varMap)
                     updatedFlag = True
                 # record status change in the same transaction as the update
@@ -256,8 +243,7 @@ class JobStandaloneModule(BaseModule):
             # transaction causes Request ndbd time-out in ATLAS_PANDA.jobsActive4
             self.conn.begin()
             # select
-            varMap: dict[str, Any] = {}
-            varMap[":PandaID"] = pandaID
+            varMap: dict[str, Any] = {":PandaID": pandaID}
             self.cur.arraysize = 10
             self.cur.execute(sql1 + comment, varMap)
             res = self.cur.fetchone()
@@ -286,8 +272,7 @@ class JobStandaloneModule(BaseModule):
                 # return
                 return None
             # delete
-            varMap = {}
-            varMap[":PandaID"] = pandaID
+            varMap = {":PandaID": pandaID}
             if not forPending:
                 varMap[":oldJobStatus1"] = "waiting"
             else:
@@ -303,8 +288,7 @@ class JobStandaloneModule(BaseModule):
                     raise RuntimeError("Commit error")
                 return None
             # delete from jobsDefined4 just in case
-            varMap = {}
-            varMap[":PandaID"] = pandaID
+            varMap = {":PandaID": pandaID}
             sqlD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
             self.cur.execute(sqlD + comment, varMap)
             # increase priority
@@ -400,13 +384,14 @@ class JobStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # update
-            varMap: dict[str, Any] = {}
-            varMap[":PandaID"] = pandaID
-            varMap[":newJobStatus"] = "defined"
-            varMap[":oldJobStatus1"] = "assigned"
-            varMap[":oldJobStatus2"] = "defined"
-            varMap[":oldJobStatus3"] = "pending"
-            varMap[":modificationHost"] = self.hostname
+            varMap: dict[str, Any] = {
+                ":PandaID": pandaID,
+                ":newJobStatus": "defined",
+                ":oldJobStatus1": "assigned",
+                ":oldJobStatus2": "defined",
+                ":oldJobStatus3": "pending",
+                ":modificationHost": self.hostname,
+            }
             self.cur.execute(sql1 + comment, varMap)
             retU = self.cur.rowcount
             # not found
@@ -415,8 +400,7 @@ class JobStandaloneModule(BaseModule):
                 tmp_log.debug("Not found for UPDATE")
             else:
                 # select
-                varMap = {}
-                varMap[":PandaID"] = pandaID
+                varMap = {":PandaID": pandaID}
                 self.cur.arraysize = 10
                 self.cur.execute(sql2 + comment, varMap)
                 res = self.cur.fetchone()
@@ -500,8 +484,7 @@ class JobStandaloneModule(BaseModule):
                     # for jobs which are just reset
                     tables.append("ATLAS_PANDA.jobsDefined4")
                 # select
-                varMap: dict[str, Any] = {}
-                varMap[":PandaID"] = pandaID
+                varMap: dict[str, Any] = {":PandaID": pandaID}
                 for table in tables:
                     # start transaction
                     self.conn.begin()
@@ -542,8 +525,7 @@ class JobStandaloneModule(BaseModule):
                         # job parameters
                         job.jobParameters = None
                         sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
-                        varMap = {}
-                        varMap[":PandaID"] = job.PandaID
+                        varMap = {":PandaID": job.PandaID}
                         self.cur.execute(sqlJobP + comment, varMap)
                         for (clobJobP,) in self.cur:
                             if clobJobP is not None:
@@ -661,8 +643,7 @@ class JobStandaloneModule(BaseModule):
             retStr = ""
             # loop over tables
             for table in ["ATLAS_PANDA.jobsDefined4", "ATLAS_PANDA.jobsActive4"]:
-                varMap: dict[str, Any] = {}
-                varMap[":PandaID"] = pandaID
+                varMap: dict[str, Any] = {":PandaID": pandaID}
                 sql = sqlX % table
                 # start transaction
                 self.conn.begin()
@@ -750,9 +731,7 @@ class JobStandaloneModule(BaseModule):
                         raise RuntimeError("Commit error")
                     break
                 # update
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                varMap[":specialHandling"] = specialHandling
+                varMap = {":PandaID": pandaID, ":specialHandling": specialHandling}
                 self.cur.execute((sqlU + comment) % table, varMap)
                 retD = self.cur.rowcount
                 # commit
@@ -810,8 +789,7 @@ class JobStandaloneModule(BaseModule):
                 sql += "WHERE modificationTime<:modificationTime "
             else:
                 sql += "WHERE stateChangeTime<:modificationTime "
-            varMap: dict[str, Any] = {}
-            varMap[":modificationTime"] = timeLimit
+            varMap: dict[str, Any] = {":modificationTime": timeLimit}
             stat_var_names_str, stat_var_map = get_sql_IN_bind_variables(statList, prefix=":stat")
             sql += f"AND jobStatus IN ({stat_var_names_str}) "
             varMap.update(stat_var_map)
@@ -874,12 +852,13 @@ class JobStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug(f"{timeNow} {rownum} {highPrio}")
         try:
-            varMap: dict[str, Any] = {}
-            varMap[":jobStatus"] = "transferring"
-            varMap[":currentPriority"] = 800
-            varMap[":pLabel1"] = "managed"
-            varMap[":pLabel2"] = "test"
-            varMap[":esJumbo"] = EventServiceUtils.jumboJobFlagNumber
+            varMap: dict[str, Any] = {
+                ":jobStatus": "transferring",
+                ":currentPriority": 800,
+                ":pLabel1": "managed",
+                ":pLabel2": "test",
+                ":esJumbo": EventServiceUtils.jumboJobFlagNumber,
+            }
             # make sql
             sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
             sql += "WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND prodSourceLabel IN (:pLabel1,:pLabel2) "
@@ -925,8 +904,7 @@ class JobStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
         try:
-            varMap: dict[str, Any] = {}
-            varMap[":jobStatus"] = "assigned"
+            varMap: dict[str, Any] = {":jobStatus": "assigned"}
             if prio > 0:
                 varMap[":currentPriority"] = prio
             varMap[":timeLimit"] = timeLimit
@@ -988,8 +966,7 @@ class JobStandaloneModule(BaseModule):
                 self.conn.begin()
                 self.cur.arraysize = 10
                 # check job status
-                varMap: dict[str, Any] = {}
-                varMap[":PandaID"] = pandaID
+                varMap: dict[str, Any] = {":PandaID": pandaID}
                 self.cur.execute(sqlJ + comment, varMap)
                 resJ = self.cur.fetchone()
                 if resJ is not None:
@@ -1009,8 +986,7 @@ class JobStandaloneModule(BaseModule):
                     # return True so that subsequent procedure can keep going
                     return True
                 # select
-                varMap = {}
-                varMap[":PandaID"] = pandaID
+                varMap = {":PandaID": pandaID}
                 self.cur.arraysize = 10
                 self.cur.execute(sql0 + comment, varMap)
                 res = self.cur.fetchone()
@@ -1029,9 +1005,7 @@ class JobStandaloneModule(BaseModule):
                 if newStatus in ["failed"] and origSize > maxSize:
                     metadata = metadata[:maxSize]
                 # insert
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                varMap[":metaData"] = metadata
+                varMap = {":PandaID": pandaID, ":metaData": metadata}
                 self.cur.execute(sql1 + comment, varMap)
                 # commit
                 if not self._commit():
@@ -1068,8 +1042,7 @@ class JobStandaloneModule(BaseModule):
             # autocommit on
             self.conn.begin()
             # select
-            varMap: dict[str, Any] = {}
-            varMap[":PandaID"] = pandaID
+            varMap: dict[str, Any] = {":PandaID": pandaID}
             self.cur.arraysize = 10
             # check job table
             self.cur.execute(sqlJ + comment, varMap)
@@ -1088,9 +1061,7 @@ class JobStandaloneModule(BaseModule):
                     # insert
                     sql = sqlI
                 # write stdout
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                varMap[":stdOut"] = stdOut
+                varMap = {":PandaID": pandaID, ":stdOut": stdOut}
                 self.cur.execute(sql + comment, varMap)
             # commit
             if not self._commit():
@@ -1273,7 +1244,7 @@ class JobStandaloneModule(BaseModule):
         sql_mv = re.sub("COUNT\(\*\)", "SUM(njobs)", sql)
         sql_mv = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sql_mv)
 
-        ret: dict[str, Any] = dict()
+        ret: dict[str, Any] = {}
         try:
             # calculate the time floor based on the window specified by the caller
             if time_window is None:
@@ -1888,9 +1859,7 @@ class JobStandaloneModule(BaseModule):
             sqlGF = "SELECT distinct jobDefinitionID FROM ATLAS_PANDA.jobsActive4 "
             sqlGF += "WHERE jediTaskID=:jediTaskID AND jobStatus=:jobStatus "
             sqlGF += "AND attemptNr<maxAttempt "
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":jobStatus"] = "failed"
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":jobStatus": "failed"}
             self.cur.execute(sqlGF + comment, varMap)
             resGF = self.cur.fetchall()
             retList = []
@@ -1931,18 +1900,14 @@ class JobStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # check if merge job is active
-            varMap: dict[str, Any] = {}
-            varMap[":PandaID"] = pandaID
+            varMap: dict[str, Any] = {":PandaID": pandaID}
             self.cur.execute(sqlJ + comment, varMap)
             resJ = self.cur.fetchone()
             if resJ is None:
                 tmp_log.debug("merge job not found")
             else:
                 # get input files
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                varMap[":type1"] = "input"
-                varMap[":type2"] = "pseudo_input"
+                varMap = {":PandaID": pandaID, ":type1": "input", ":type2": "pseudo_input"}
                 self.cur.execute(sqlF + comment, varMap)
                 resF = self.cur.fetchall()
                 fileIDsMap: dict[str, Any] = {}
@@ -1955,11 +1920,7 @@ class JobStandaloneModule(BaseModule):
                 for datasetID in fileIDsMap:
                     fileIDs = fileIDsMap[datasetID]
                     for fileID in fileIDs:
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":datasetID"] = datasetID
-                        varMap[":fileID"] = fileID
-                        varMap[":type1"] = "lib"
+                        varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":fileID": fileID, ":type1": "lib"}
                         self.cur.execute(sqlP + comment, varMap)
                         resP = self.cur.fetchone()
                         if resP is not None and resP[0] is not None:
@@ -1969,8 +1930,7 @@ class JobStandaloneModule(BaseModule):
                         break
                 # check pre-merge job
                 for tmpPandaID in pandaIDs:
-                    varMap = {}
-                    varMap[":PandaID"] = tmpPandaID
+                    varMap = {":PandaID": tmpPandaID}
                     self.cur.execute(sqlC + comment, varMap)
                     resC = self.cur.fetchone()
                     if resC is None:
@@ -2012,9 +1972,7 @@ class JobStandaloneModule(BaseModule):
                 "jobStatus,commandToPilot FROM ATLAS_PANDA.jobsArchived4 "
                 "WHERE PandaID=:pandaID AND modificationTime>:timeLimit "
             )
-            varMap: dict[str, Any] = dict()
-            varMap[":pandaID"] = int(pandaID)
-            varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(hours=1)
+            varMap: dict[str, Any] = {":pandaID": int(pandaID), ":timeLimit": naive_utcnow() - datetime.timedelta(hours=1)}
             # begin transaction
             self.conn.begin()
             # select
@@ -2045,16 +2003,13 @@ class JobStandaloneModule(BaseModule):
             # sql to get workers
             sqlC = "SELECT j.PandaID,m.metaData FROM {0} j,{1} m "
             sqlC += "WHERE j.jediTaskID=:jediTaskID AND j.jobStatus=:jobStatus AND m.PandaID=j.PandaID AND j.prodSourceLabel=:label "
-            retMap = dict()
+            retMap = {}
             for a, m in [
                 ("ATLAS_PANDA.jobsArchived4", "ATLAS_PANDA.metaTable"),
                 ("ATLAS_PANDAARCH.jobsArchived", "ATLAS_PANDAARCH.metaTable_ARCH"),
             ]:
                 sql = sqlC.format(a, m)
-                varMap: dict[str, Any] = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":label"] = "user"
-                varMap[":jobStatus"] = "finished"
+                varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":label": "user", ":jobStatus": "finished"}
                 # start transaction
                 self.conn.begin()
                 self.cur.execute(sql + comment, varMap)
@@ -2096,13 +2051,14 @@ class JobStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # insert
-            varMap: dict[str, Any] = {}
-            varMap[":PandaID"] = panda_id
-            varMap[":prodSourceLabel"] = prod_source_label
-            varMap[":jobStatus"] = job_status
-            varMap[":attemptNr"] = attempt_nr
-            varMap[":data"] = data
-            varMap[":timeStamp"] = naive_utcnow()
+            varMap: dict[str, Any] = {
+                ":PandaID": panda_id,
+                ":prodSourceLabel": prod_source_label,
+                ":jobStatus": job_status,
+                ":attemptNr": attempt_nr,
+                ":data": data,
+                ":timeStamp": naive_utcnow(),
+            }
             self.cur.execute(sqlI + comment, varMap)
             tmp_log.debug("successfully inserted")
             retVal = True
@@ -2131,11 +2087,7 @@ class JobStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # update
-            varMap: dict[str, Any] = {}
-            varMap[":PandaID"] = panda_id
-            varMap[":attemptNr"] = attempt_nr
-            varMap[":data"] = data
-            varMap[":timeStamp"] = naive_utcnow()
+            varMap: dict[str, Any] = {":PandaID": panda_id, ":attemptNr": attempt_nr, ":data": data, ":timeStamp": naive_utcnow()}
             self.cur.execute(sqlU + comment, varMap)
             nRow = self.cur.rowcount
             if nRow == 1:
@@ -2169,9 +2121,7 @@ class JobStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # delete
-            varMap: dict[str, Any] = {}
-            varMap[":PandaID"] = panda_id
-            varMap[":attemptNr"] = attempt_nr
+            varMap: dict[str, Any] = {":PandaID": panda_id, ":attemptNr": attempt_nr}
             self.cur.execute(sqlD + comment, varMap)
             tmp_log.debug("successfully deleted")
             retVal = True
@@ -2204,9 +2154,7 @@ class JobStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap: dict[str, Any] = {}
-            varMap[":PandaID"] = panda_id
-            varMap[":attemptNr"] = attempt_nr
+            varMap: dict[str, Any] = {":PandaID": panda_id, ":attemptNr": attempt_nr}
             self.cur.execute(sqlGR + comment, varMap)
             resGR = self.cur.fetchall()
             if not resGR:
@@ -2269,9 +2217,7 @@ class JobStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap: dict[str, Any] = {}
-            varMap[":PandaID"] = panda_id
-            varMap[":attemptNr"] = attempt_nr
+            varMap: dict[str, Any] = {":PandaID": panda_id, ":attemptNr": attempt_nr}
             if take_over_from is None:
                 varMap[":lockedBy"] = pid
             else:
@@ -2289,11 +2235,7 @@ class JobStandaloneModule(BaseModule):
             if resGL:
                 for panda_id, attempt_nr in resGL:
                     # lock
-                    varMap = {}
-                    varMap[":PandaID"] = panda_id
-                    varMap[":attemptNr"] = attempt_nr
-                    varMap[":lockedBy"] = pid
-                    varMap[":lockedTime"] = utc_now
+                    varMap = {":PandaID": panda_id, ":attemptNr": attempt_nr, ":lockedBy": pid, ":lockedTime": utc_now}
                     self.cur.execute(sqlUL + comment, varMap)
                     if take_over_from is None:
                         tmp_log.debug(f"successfully locked record by {pid}")
@@ -2331,10 +2273,7 @@ class JobStandaloneModule(BaseModule):
             # start transaction
             self.conn.begin()
             # check
-            varMap: dict[str, Any] = {}
-            varMap[":PandaID"] = panda_id
-            varMap[":attemptNr"] = attempt_nr
-            varMap[":lockedBy"] = pid
+            varMap: dict[str, Any] = {":PandaID": panda_id, ":attemptNr": attempt_nr, ":lockedBy": pid}
             self.cur.execute(sqlGL + comment, varMap)
             resGL = self.cur.fetchall()
             if not resGL:
@@ -2342,10 +2281,7 @@ class JobStandaloneModule(BaseModule):
             else:
                 for panda_id, attempt_nr in resGL:
                     # lock
-                    varMap = {}
-                    varMap[":PandaID"] = panda_id
-                    varMap[":attemptNr"] = attempt_nr
-                    varMap[":lockedTime"] = naive_utcnow() - datetime.timedelta(minutes=lock_offset)
+                    varMap = {":PandaID": panda_id, ":attemptNr": attempt_nr, ":lockedTime": naive_utcnow() - datetime.timedelta(minutes=lock_offset)}
                     self.cur.execute(sqlUL + comment, varMap)
                     tmp_log.debug("successfully unlocked record")
                     retVal = True
@@ -2373,10 +2309,11 @@ class JobStandaloneModule(BaseModule):
             retVal: list[Any] | None = None
             if only_unlocked:
                 # try to get only records unlocked or with expired lock
-                varMap: dict[str, Any] = {}
-                varMap[":limit"] = limit * 10
-                varMap[":lockedTime"] = naive_utcnow() - datetime.timedelta(minutes=time_limit)
-                varMap[":timeStamp"] = naive_utcnow() - datetime.timedelta(seconds=grace_period)
+                varMap: dict[str, Any] = {
+                    ":limit": limit * 10,
+                    ":lockedTime": naive_utcnow() - datetime.timedelta(minutes=time_limit),
+                    ":timeStamp": naive_utcnow() - datetime.timedelta(seconds=grace_period),
+                }
                 # sql to get record
                 sqlGR = (
                     "SELECT * "
@@ -2415,8 +2352,7 @@ class JobStandaloneModule(BaseModule):
                 ).format(panda_config.schemaPANDA)
                 # start transaction
                 self.conn.begin()
-                varMap = {}
-                varMap[":limit"] = limit
+                varMap = {":limit": limit}
                 # check
                 self.cur.execute(sqlS + comment, varMap)
                 retVal = self.cur.fetchall()
@@ -2454,8 +2390,7 @@ class JobStandaloneModule(BaseModule):
                     # start transaction
                     self.conn.begin()
                     # read
-                    varMap: dict[str, Any] = {}
-                    varMap[":PandaID"] = panda_id
+                    varMap: dict[str, Any] = {":PandaID": panda_id}
                     self.cur.execute(sqlR.format(table) + comment, varMap)
                     data = self.cur.fetchone()
                     if data is not None:
@@ -2463,9 +2398,7 @@ class JobStandaloneModule(BaseModule):
                         if commandToPilot == "tobekilled":
                             retVal = (False, "job is being killed")
                         else:
-                            varMap = {}
-                            varMap[":PandaID"] = panda_id
-                            varMap[":commandToPilot"] = com
+                            varMap = {":PandaID": panda_id, ":commandToPilot": com}
                             self.cur.execute(sqlU.format(table) + comment, varMap)
                             nRow = self.cur.rowcount
                             if nRow:
