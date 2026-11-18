@@ -15,6 +15,8 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
+from pandaserver.srvcore import task_command_log
+from pandaserver.srvcore.task_command_log import TaskCommandKey
 from pandaserver.taskbuffer.JediTaskSpec import (
     push_status_changes as task_push_status_changes,
 )
@@ -976,6 +978,95 @@ class BaseModule:
         ).format(panda_config.schemaJEDI)
         self.cur.execute(sqlNS + comment, varMap)
         tmpLog.debug("done")
+
+    # mark in the task command log that a command was registered for JEDI in PRODSYS_COMM
+    def mark_task_command_queued(self, jedi_task_id: int, command_key: TaskCommandKey | None, comm_cmd: str) -> None:
+        """
+        Mark in TASKS_COMMANDLOG that a command was registered for JEDI, in the caller's transaction.
+
+        The caller deletes from PRODSYS_COMM the command registered before for the task, so the row
+        of that command, if JEDI has not taken it yet, becomes superseded. The row of the API request
+        registering this command becomes queued. A command that does not come through the API, e.g.
+        from Data Carousel or JEDI itself, has no row of its own, so command_key is None for it.
+        Raises on a database error, so that the registration rolls back with it.
+
+        Args:
+            jedi_task_id(int): jediTaskID of the task
+            command_key(dict or None): key of the rows of the API request, or None
+            comm_cmd(str): the command written to PRODSYS_COMM
+        """
+        comment = " /* DBProxy.mark_task_command_queued */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
+        now = self.get_db_utc_now()
+        sql_superseded = (
+            f"UPDATE {panda_config.schemaJEDI}.TASKS_COMMANDLOG "
+            "SET status=:new_status,status_time=:now,status_reason=:reason "
+            "WHERE jediTaskID=:jediTaskID AND status=:old_status "
+        )
+        var_map: dict[str, Any] = {
+            ":jediTaskID": jedi_task_id,
+            ":new_status": task_command_log.STATUS_SUPERSEDED,
+            ":old_status": task_command_log.STATUS_QUEUED,
+            ":now": now,
+            ":reason": f"superseded by {comm_cmd}",
+        }
+        if command_key is not None:
+            # ConBridge reruns a call whose child died, which may have queued the row already
+            sql_superseded += "AND command_id<>:command_id "
+            var_map[":command_id"] = command_key["command_id"]
+        self.cur.execute(sql_superseded + comment, var_map)
+        n_superseded = self.cur.rowcount
+        n_queued = 0
+        if command_key is not None:
+            sql_queued = (
+                f"UPDATE {panda_config.schemaJEDI}.TASKS_COMMANDLOG "
+                "SET status=:new_status,status_time=:now "
+                "WHERE command_id=:command_id AND jediTaskID=:jediTaskID AND command_time=:command_time AND status=:old_status "
+            )
+            var_map = {
+                ":command_id": command_key["command_id"],
+                ":jediTaskID": jedi_task_id,
+                ":command_time": command_key["command_time"],
+                ":new_status": task_command_log.STATUS_QUEUED,
+                ":old_status": task_command_log.STATUS_RECEIVED,
+                ":now": now,
+            }
+            self.cur.execute(sql_queued + comment, var_map)
+            n_queued = self.cur.rowcount
+        tmp_log.debug(f"{comm_cmd} superseded {n_superseded} and queued {n_queued} rows with command_key={command_key}")
+
+    # mark in the task command log that JEDI took or rejected the command registered in PRODSYS_COMM
+    def mark_task_command_taken(self, jedi_task_id: int, accepted: bool, reason: str) -> None:
+        """
+        Mark in TASKS_COMMANDLOG the queued row of a task as accepted or rejected, in the caller's transaction.
+
+        Called where JEDI takes the command of a task out of PRODSYS_COMM. A task has at most one
+        queued row, since a new registration supersedes the one before. A command that did not come
+        through the API has no row, and then nothing is changed. Raises on a database error, so that
+        taking the command rolls back with it.
+
+        Args:
+            jedi_task_id(int): jediTaskID of the task
+            accepted(bool): True if JEDI took the command, False if it rejected it
+            reason(str): what JEDI did, e.g. the task status change, or why it rejected the command
+        """
+        comment = " /* DBProxy.mark_task_command_taken */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
+        new_status = task_command_log.STATUS_ACCEPTED if accepted else task_command_log.STATUS_REJECTED
+        sql = (
+            f"UPDATE {panda_config.schemaJEDI}.TASKS_COMMANDLOG "
+            "SET status=:new_status,status_time=:now,status_reason=:reason "
+            "WHERE jediTaskID=:jediTaskID AND status=:old_status "
+        )
+        var_map = {
+            ":jediTaskID": jedi_task_id,
+            ":new_status": new_status,
+            ":old_status": task_command_log.STATUS_QUEUED,
+            ":now": self.get_db_utc_now(),
+            ":reason": reason[:256],
+        }
+        self.cur.execute(sql + comment, var_map)
+        tmp_log.debug(f"{new_status} {self.cur.rowcount} rows with reason={reason}")
 
     # push task status message
     def push_task_status_message(self, task_spec: "JediTaskSpec | None", jedi_task_id: int | None, status: str | None, split_rule: str | None = None) -> None:

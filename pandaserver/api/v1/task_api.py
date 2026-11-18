@@ -17,6 +17,7 @@ from pandaserver.api.v1.common import (
     get_email_address,
     get_fqan,
     has_production_role,
+    log_task_commands,
     request_validation,
 )
 from pandaserver.srvcore.CoreUtils import clean_user_id, make_reassign_comment
@@ -39,6 +40,10 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     """
     global global_task_buffer
     global_task_buffer = task_buffer
+
+
+# every POST endpoint that takes the task it acts on is recorded in the task command log
+log_task_commands(__name__, lambda: global_task_buffer)
 
 
 @request_validation(_logger, secure=True, request_method="POST", task_owner=True, task_buffer=lambda: global_task_buffer)
@@ -632,7 +637,7 @@ def reload_input(req: PandaRequest, task_id: int, ignore_hard_exhausted: bool = 
     """
     Reload input
 
-    Request to reload the input for a given task. Requires a secure connection and production role.
+    Request to reload the input for a given task. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -993,6 +998,73 @@ def get_status_history(req: PandaRequest, task_id: int) -> dict[str, Any]:
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     success, message, data = global_task_buffer.get_task_status_history(task_id)
+    if not success:
+        tmp_logger.debug(f"Failed with {message}")
+        return generate_response(False, message=message, data=data)
+
+    tmp_logger.debug(f"""Done with {len(data["rows"])} rows""")
+    return generate_response(True, data=data)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_command_history(req: PandaRequest, task_id: int) -> dict[str, Any]:
+    """
+    Get task command history
+
+    Gets the commands for a task that the POST endpoints of this API received, as recorded in the task command log
+    (TASKS_COMMANDLOG), oldest first. Requires a secure connection.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/task/get_command_history
+
+    Args:
+        req(PandaRequest): internally generated request object
+        task_id(int): JEDI Task ID
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The commands for the task, and what tells how complete they are.
+            {"rows": [...], "as_of": datetime, "retained_from": datetime or None}
+            - rows: one dict per command, with
+              - command_id: ID of the request. A request acting on several tasks has one row per task with the same ID
+              - jediTaskID, command (the endpoint, e.g. retry), parameters (dict of the other arguments; one over
+                64 KiB of JSON is {"omitted_bytes": size})
+              - requester (user name), prod_role (bool), client_addr (host name or IP address of the client, or of a
+                proxy in between), server_host (the server that received it)
+              - command_time: when it was received, in UTC
+              - status: where the command is, one of
+                - received: the server has not responded yet, or stopped before it did
+                - responded: the server responded and nothing further follows; whether the command was done or
+                  refused is in response, which each endpoint shapes in its own way
+                - error: the server raised an exception instead of responding
+                - queued: registered for JEDI, which has not taken it yet
+                - accepted / rejected: JEDI took the command, or rejected it
+                - superseded: a later command for the task replaced it before JEDI took it
+              - status_time: when status last changed, in UTC
+              - status_reason: why status moved on from queued, e.g. "running -> toretry", "task in done" or "superseded by kill"
+              - response: {"success", "message", "data"} returned to the client, with message and data shortened,
+                or {"exception": str}; None while received
+              - response_time: when the server responded, in UTC
+              A task without rows got no command through these endpoints
+            - as_of: database time in UTC taken before the rows were read. Every command received by then is in rows
+            - retained_from: time from which the table holds every row, or None when it cannot be told. Old partitions are dropped,
+              so a task without rows before this time may still have got commands then
+        On failure, with the reason in the message: {"error": str} when the database failed, with the error code (ORA-xxxxx, or
+            the SQLSTATE on Postgres), and None otherwise.
+    """
+    tmp_logger = LogWrapper(_logger, f"get_command_history < task_id={task_id} >")
+    tmp_logger.debug("Start")
+
+    try:
+        task_id = int(task_id)
+    except ValueError:
+        tmp_logger.error("Failed due to invalid task_id")
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    success, message, data = global_task_buffer.get_task_command_history(task_id)
     if not success:
         tmp_logger.debug(f"Failed with {message}")
         return generate_response(False, message=message, data=data)

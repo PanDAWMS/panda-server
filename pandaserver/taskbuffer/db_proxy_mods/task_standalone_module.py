@@ -1,4 +1,5 @@
 import datetime
+import json
 import logging
 import math
 import random
@@ -11,6 +12,8 @@ from typing import Any
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
+from pandaserver.srvcore import task_command_log
+from pandaserver.srvcore.task_command_log import TaskCommandKey
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.db_proxy_mods.base_module import (
     BaseModule,
@@ -5249,6 +5252,184 @@ class TaskStandaloneModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             rows = [dict(zip(columns, row)) for row in res]
+            tmp_log.debug(f"done with {len(rows)} rows from {n_partitions} partitions in {elapsed:.3f} sec")
+            return True, "", {"rows": rows, "as_of": as_of, "retained_from": retained_from}
+        except Exception as e:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            err_code = get_db_error_code(e)
+            return False, f"database error {err_code}", {"error": err_code}
+
+    # record a task command received through the API in TASKS_COMMANDLOG
+    def insert_task_command(
+        self,
+        task_ids: list[int],
+        command: str,
+        parameters: str,
+        requester: str,
+        prod_role: bool,
+        client_addr: str | None,
+    ) -> TaskCommandKey | None:
+        """
+        Write the rows of a task command the API received, as received, before the command runs.
+
+        Args:
+            task_ids(list): jediTaskIDs the command targets. One row is written per task, all with the same COMMAND_ID
+            command(str): name of the API endpoint
+            parameters(str): arguments of the request other than the task ID, as JSON
+            requester(str): user name of the requester
+            prod_role(bool): True if the requester has a production role
+            client_addr(str or None): address of the client that sent the command. The server host is the one this proxy runs on
+
+        Returns:
+            dict or None: the key of the rows, {"command_id": int, "command_time": datetime}, or None when they were not written
+        """
+        comment = " /* DBProxy.insert_task_command */"
+        tmp_log = self.create_tagged_logger(comment, f"command={command} jediTaskID={task_ids[0] if len(task_ids) == 1 else task_ids}")
+        try:
+            self.conn.begin()
+            now = self.get_db_utc_now()
+            self.cur.execute(f"SELECT {panda_config.schemaJEDI}.TASKS_COMMANDLOG_ID_SEQ.nextval FROM dual " + comment)
+            command_id = int(self.cur.fetchone()[0])
+            sql = (
+                f"INSERT INTO {panda_config.schemaJEDI}.TASKS_COMMANDLOG "
+                "(command_id,jediTaskID,command,parameters,requester,prod_role,client_addr,server_host,command_time,status,status_time) "
+                "VALUES (:command_id,:jediTaskID,:command,:parameters,:requester,:prod_role,:client_addr,:server_host,:command_time,:status,:status_time) "
+            )
+            var_maps = [
+                {
+                    ":command_id": command_id,
+                    ":jediTaskID": task_id,
+                    ":command": command,
+                    ":parameters": parameters,
+                    ":requester": requester,
+                    ":prod_role": 1 if prod_role else 0,
+                    ":client_addr": client_addr,
+                    ":server_host": self.myHostName,
+                    ":command_time": now,
+                    ":status": task_command_log.STATUS_RECEIVED,
+                    ":status_time": now,
+                }
+                for task_id in task_ids
+            ]
+            self.cur.executemany(sql + comment, var_maps)
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug(f"inserted {len(var_maps)} rows with command_id={command_id}")
+            return {"command_id": command_id, "command_time": now}
+        except Exception:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            return None
+
+    # record in TASKS_COMMANDLOG the response the API returned for a task command
+    def set_task_command_response(self, command_key: TaskCommandKey, response: str, is_error: bool) -> bool:
+        """
+        Write the response the API returned for a task command to its rows.
+
+        The status moves to responded, or error, only from received: a command registered for
+        JEDI is already queued, or further on, by the time the API responds.
+
+        Args:
+            command_key(dict): key of the rows, as insert_task_command returned it
+            response(str): the response, as JSON
+            is_error(bool): True if the API ended with an exception instead of a response
+
+        Returns:
+            bool: True if the rows were updated
+        """
+        comment = " /* DBProxy.set_task_command_response */"
+        tmp_log = self.create_tagged_logger(comment, f"command_id={command_key['command_id']}")
+        try:
+            self.conn.begin()
+            now = self.get_db_utc_now()
+            sql = (
+                f"UPDATE {panda_config.schemaJEDI}.TASKS_COMMANDLOG "
+                "SET response=:response,response_time=:now,"
+                "status_time=CASE WHEN status=:received THEN :now ELSE status_time END,"
+                "status=CASE WHEN status=:received THEN :new_status ELSE status END "
+                "WHERE command_id=:command_id AND command_time=:command_time "
+            )
+            var_map = {
+                ":response": response,
+                ":now": now,
+                ":received": task_command_log.STATUS_RECEIVED,
+                ":new_status": task_command_log.STATUS_ERROR if is_error else task_command_log.STATUS_RESPONDED,
+                ":command_id": command_key["command_id"],
+                ":command_time": command_key["command_time"],
+            }
+            self.cur.execute(sql + comment, var_map)
+            n_rows = self.cur.rowcount
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug(f"updated {n_rows} rows")
+            return True
+        except Exception:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            return False
+
+    # get the task commands TASKS_COMMANDLOG holds for a task
+    def get_task_command_history(self, jedi_task_id: int) -> tuple[bool, str, dict[str, Any]]:
+        """
+        Get the rows TASKS_COMMANDLOG holds for a task.
+
+        Args:
+            jedi_task_id(int): jediTaskID of the task
+
+        Returns:
+            bool: True if the rows were read
+            str: why not, when they were not
+            dict: when read, {"rows": [dict, ...], "as_of": datetime, "retained_from": datetime or None}.
+                as_of is the database time in UTC taken before the rows were read, so the rows
+                hold every command received by then. retained_from is the time from which the
+                table holds every row; commands before it may have been dropped. On a database
+                error, {"error": <code>}
+        """
+        comment = " /* DBProxy.get_task_command_history */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log.debug("start")
+        columns = [
+            "command_id",
+            "jediTaskID",
+            "command",
+            "parameters",
+            "requester",
+            "prod_role",
+            "client_addr",
+            "server_host",
+            "command_time",
+            "status",
+            "status_time",
+            "status_reason",
+            "response",
+            "response_time",
+        ]
+        try:
+            self.conn.begin()
+            as_of = self.get_db_utc_now()
+            n_partitions, retained_from = self.get_partition_window(panda_config.schemaJEDI, "TASKS_COMMANDLOG")
+            sql = f"SELECT {','.join(columns)} FROM {panda_config.schemaJEDI}.TASKS_COMMANDLOG WHERE jediTaskID=:jediTaskID ORDER BY command_time,command_id "
+            start_time = time.monotonic()
+            self.cur.arraysize = 1000
+            self.cur.execute(sql + comment, {":jediTaskID": jedi_task_id})
+            rows = []
+            # read each CLOB while its row is current, as misc_standalone_module does for task params
+            for values in self.cur:
+                row = dict(zip(columns, values))
+                # the JSON columns come as a CLOB on Oracle and decoded already on Postgres
+                for json_column in ("parameters", "response"):
+                    value = row[json_column]
+                    if hasattr(value, "read"):
+                        value = value.read()
+                    if isinstance(value, str):
+                        value = json.loads(value)
+                    row[json_column] = value
+                row["prod_role"] = bool(row["prod_role"])
+                rows.append(row)
+            elapsed = time.monotonic() - start_time
+            if not self._commit():
+                raise RuntimeError("Commit error")
             tmp_log.debug(f"done with {len(rows)} rows from {n_partitions} partitions in {elapsed:.3f} sec")
             return True, "", {"rows": rows, "as_of": as_of, "retained_from": retained_from}
         except Exception as e:
