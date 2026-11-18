@@ -14,6 +14,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
+from pandaserver.srvcore.task_command_log import TaskCommandKey
 from pandaserver.taskbuffer import (
     ErrorCode,
     EventServiceUtils,
@@ -3563,6 +3564,7 @@ class TaskEventModule(BaseModule):
         properErrorCode: bool = False,
         allowActiveTask: bool = False,
         decode: bool = True,
+        command_key: TaskCommandKey | None = None,
     ) -> tuple[Any, Any]:
         comment = " /* JediDBProxy.insertTaskParamsPanda */"
         try:
@@ -3850,6 +3852,7 @@ class TaskEventModule(BaseModule):
                             varMap[":comm_owner"] = "DEFT"
                             varMap[":comm_parameters"] = json.dumps(newTaskParams)
                             self.cur.execute(sqlIC + comment, varMap)
+                            self.mark_task_command_queued(jediTaskID, command_key, varMap[":comm_cmd"])
                             tmp_log.info(f"{varMap[':comm_cmd']} jediTaskID={jediTaskID} with {str(newTaskParams)}")
                             retVal = "reactivation accepted. "
                             retVal += f"jediTaskID={jediTaskID} (currently in {taskStatus} state) will be re-executed with old and/or new input"
@@ -4016,6 +4019,7 @@ class TaskEventModule(BaseModule):
         properErrorCode: bool = False,
         comQualifier: str | None = None,
         broadcast: bool = False,
+        command_key: TaskCommandKey | None = None,
     ) -> tuple[Any, str]:
         comment = " /* JediDBProxy.sendCommandTaskPanda */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
@@ -4083,6 +4087,7 @@ class TaskEventModule(BaseModule):
                     ":comm_comment": comm_comment,
                 },
             )
+            self.mark_task_command_queued(jediTaskID, command_key, comStr)
 
             return_message = f"command={comStr} is registered for task ID {jediTaskID}. will be executed in a few minutes"
             tmp_log.info(return_message)

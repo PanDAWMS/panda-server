@@ -301,7 +301,12 @@ class TaskRefinerBase(object):
         else:
             self.setSplitRule(taskParamMap, "nFilesPerJob", JediTaskSpec.splitRuleToken["nFilesPerJob"])
         self.setSplitRule(taskParamMap, "nEventsPerJob", JediTaskSpec.splitRuleToken["nEventsPerJob"])
-        self.setSplitRule(taskParamMap, "nGBPerJob", JediTaskSpec.splitRuleToken["nGBPerJob"])
+        # NG is read back as an integer number of GB, so a fractional value such as 0.5 from pbook
+        # would be read as 0; round it down to keep it a maximum, but not below 1
+        n_gb_per_job = taskParamMap.get("nGBPerJob")
+        if isinstance(n_gb_per_job, float):
+            n_gb_per_job = max(1, int(n_gb_per_job))
+        self.setSplitRule(None, n_gb_per_job, JediTaskSpec.splitRuleToken["nGBPerJob"])
         self.setSplitRule(taskParamMap, "nMaxFilesPerJob", JediTaskSpec.splitRuleToken["nMaxFilesPerJob"])
         self.setSplitRule(taskParamMap, "maxEventsPerJob", JediTaskSpec.splitRuleToken["maxEventsPerJob"])
         self.setSplitRule(taskParamMap, "nEventsPerWorker", JediTaskSpec.splitRuleToken["nEventsPerWorker"])
