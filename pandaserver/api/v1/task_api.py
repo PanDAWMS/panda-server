@@ -637,7 +637,7 @@ def reload_input(req: PandaRequest, task_id: int, ignore_hard_exhausted: bool = 
     """
     Reload input
 
-    Request to reload the input for a given task. Requires a secure connection and production role.
+    Request to reload the input for a given task. Requires a secure connection.
 
     API details:
         HTTP Method: POST
