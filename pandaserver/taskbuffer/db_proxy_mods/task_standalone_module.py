@@ -5503,7 +5503,9 @@ class TaskStandaloneModule(BaseModule):
             return False, f"database error {err_code}", {"error": err_code}
 
     # get the rows of the jobs of a task from the job tables and the archive
-    def get_task_job_rows(self, jedi_task_id: int, since: datetime.datetime | None, probe_budget: int, max_rows: int) -> tuple[bool, str, dict[str, Any]]:
+    def get_task_job_rows(
+        self, jedi_task_id: int, since: datetime.datetime | None, probe_budget: int, max_rows: int, after_panda_id: int | None = None
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Get the rows of the jobs of a task in jobsDefined4, jobsActive4, jobsArchived4 and the archive (jobsArchived of
         the archive schema), and their number by jobStatus.
@@ -5519,20 +5521,26 @@ class TaskStandaloneModule(BaseModule):
         and a row the same in two tables is given once. The counts are read by a second statement, so a job changing
         its status between the two may be counted under its new status.
 
+        A task with more jobs than max_rows is read in pages: each next page is asked with after_panda_id set to the
+        last PandaID of the page before, until a page is not truncated. The pages are ordered over all the tables, so
+        a job moving between tables from one page to the next is still read once.
+
         Args:
             jedi_task_id(int): jediTaskID of the task
             since(datetime): read the jobs modified at or after this time from jobsArchived4 and the archive, or None
                 for from the creation of the task
             probe_budget(int): most index lookups the request may cost
             max_rows(int): most rows to return
+            after_panda_id(int): return only the jobs with a larger PandaID, or None for from the first
 
         Returns:
             bool: True if the rows were read
             str: why not, when they were not
-            dict: when read, {"rows": [dict, ...], "truncated": bool, "max_rows": int, "counts": {jobStatus: int},
-                "as_of": datetime, "since": datetime or None, "until": datetime, "retained_from": datetime or None,
-                "partitions": int, "probes": int, "budget": int}. rows are ordered by PandaID with the columns in
-                TASK_JOB_ROW_COLUMNS, and cut at max_rows when truncated. counts hold every job in the window,
+            dict: when read, {"rows": [dict, ...], "truncated": bool, "max_rows": int, "after_panda_id": int or None,
+                "counts": {jobStatus: int}, "as_of": datetime, "since": datetime or None, "until": datetime,
+                "retained_from": datetime or None, "partitions": int, "probes": int, "budget": int}. rows are
+                ordered by PandaID with the columns in TASK_JOB_ROW_COLUMNS, start after after_panda_id, and are cut
+                at max_rows when truncated. counts hold every job in the window, whatever after_panda_id is and
                 however many rows were cut. as_of is the database time in UTC taken before the rows were read.
                 since and until are the window read. retained_from is the time from which the archive holds
                 every row. partitions is the number of partitions of the two tables the window touches, each table
@@ -5541,7 +5549,7 @@ class TaskStandaloneModule(BaseModule):
                 error {"error": <code>}
         """
         comment = " /* DBProxy.get_task_job_rows */"
-        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} since={since}")
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} since={since} after_panda_id={after_panda_id}")
         tmp_log.debug("start")
         live_tables = [f"{panda_config.schemaPANDA}.jobsDefined4", f"{panda_config.schemaPANDA}.jobsActive4"]
         archive_table = (panda_config.schemaPANDAARCH, "jobsArchived")
@@ -5582,16 +5590,22 @@ class TaskStandaloneModule(BaseModule):
                 var_map[":since"] = window_start
             tables = [(table, "") for table in live_tables] + [(f"{owner}.{table_name}", window) for owner, table_name in windowed_tables]
 
-            def union(columns: str) -> str:
-                return "UNION ".join(f"SELECT {columns} FROM {table} WHERE jediTaskID=:jediTaskID {condition}" for table, condition in tables)
+            def union(columns: str, page: str = "") -> str:
+                return "UNION ".join(f"SELECT {columns} FROM {table} WHERE jediTaskID=:jediTaskID {condition}{page}" for table, condition in tables)
 
+            # a page is put on each table, where the index can start from it, and the counts take none
+            page = ""
+            rows_var_map = dict(var_map)
+            if after_panda_id is not None:
+                page = "AND PandaID>:after_panda_id "
+                rows_var_map[":after_panda_id"] = after_panda_id
             columns = ",".join(TASK_JOB_ROW_COLUMNS)
-            sql = f"SELECT {columns} FROM ({union(columns)}) tmp_union ORDER BY PandaID "
+            sql = f"SELECT {columns} FROM ({union(columns, page)}) tmp_union ORDER BY PandaID "
             # one row more than returned tells whether there are more
             sql += row_limit_clause(self.backend, max_rows + 1)
             start_time = time.monotonic()
             self.cur.arraysize = max_rows + 1
-            self.cur.execute(sql + comment, var_map)
+            self.cur.execute(sql + comment, rows_var_map)
             res = self.cur.fetchall()
             rows_time = time.monotonic() - start_time
             truncated = len(res) > max_rows
@@ -5611,6 +5625,7 @@ class TaskStandaloneModule(BaseModule):
                 "rows": rows,
                 "truncated": truncated,
                 "max_rows": max_rows,
+                "after_panda_id": after_panda_id,
                 "counts": counts,
                 "as_of": as_of,
                 "since": window_start,

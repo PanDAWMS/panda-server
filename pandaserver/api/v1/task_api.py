@@ -1079,7 +1079,7 @@ def get_command_history(req: PandaRequest, task_id: int) -> dict[str, Any]:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_job_rows(req: PandaRequest, task_id: int, since: str | None = None) -> dict[str, Any]:
+def get_job_rows(req: PandaRequest, task_id: int, since: str | None = None, after_panda_id: int | None = None) -> dict[str, Any]:
     """
     Get the job rows of a task
 
@@ -1097,6 +1097,10 @@ def get_job_rows(req: PandaRequest, task_id: int, since: str | None = None) -> d
     row the same in two tables is given once. The counts are read by a second statement, so a job that changes its status
     in between may be counted under its new status.
 
+    A task with more jobs than one call returns is read in pages: ask the next page with after_panda_id set to the last
+    PandaID of the page before, with the same since, until a page is not truncated. The pages are ordered over all four
+    tables, so a job moving between tables from one page to the next is still read once.
+
     API details:
         HTTP Method: GET
         Path: /v1/task/get_job_rows
@@ -1106,19 +1110,24 @@ def get_job_rows(req: PandaRequest, task_id: int, since: str | None = None) -> d
         task_id(int): JEDI Task ID
         since(str, optional): read the jobs modified at or after this time from jobsArchived4 and the archive, in UTC,
             e.g. `2026-10-12 14:30:45` (ISO 8601 is accepted). Defaults to the creation of the task
+        after_panda_id(int, optional): return only the jobs with a larger PandaID, for the next page. Defaults to from the first
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
 
     Response data:
         dict: The jobs of the task, and what tells how complete they are.
-            {"rows": [...], "truncated": bool, "max_rows": int, "counts": {str: int}, "as_of": datetime,
-             "since": datetime or None, "until": datetime, "retained_from": datetime or None, "partitions": int,
-             "probes": int, "budget": int}
-            - rows: one dict per job, ordered by PandaID, with PandaID, jobStatus, jobSubStatus, creationTime,
-              modificationTime, stateChangeTime, endTime, prodSourceLabel, currentPriority, computingSite and attemptNr
-            - truncated, max_rows: whether the rows were cut at max_rows, the most a call returns
-            - counts: the number of jobs by jobStatus, every job in the window counted, however many rows were cut
+            {"rows": [...], "truncated": bool, "max_rows": int, "after_panda_id": int or None, "counts": {str: int},
+             "as_of": datetime, "since": datetime or None, "until": datetime, "retained_from": datetime or None,
+             "partitions": int, "probes": int, "budget": int}
+            - rows: one dict per job, ordered by PandaID and starting after after_panda_id, with PandaID, jobStatus,
+              jobSubStatus, creationTime, modificationTime, stateChangeTime, endTime, prodSourceLabel, currentPriority,
+              computingSite and attemptNr
+            - truncated, max_rows: whether the rows were cut at max_rows, the most a call returns; when cut, the next
+              page starts after the last PandaID of rows
+            - after_panda_id: the one given, or None
+            - counts: the number of jobs by jobStatus, every job in the window counted, whatever page this is and however
+              many rows were cut
             - as_of: database time in UTC taken before the rows were read
             - since, until: the window read on jobsArchived4 and the archive, after the widening. since is None when it
               has no start
@@ -1132,7 +1141,7 @@ def get_job_rows(req: PandaRequest, task_id: int, since: str | None = None) -> d
             - {"rejected": "probe_budget", "probes": int, "partitions": int, "budget": int}: the lookups exceed the budget
             - {"error": str}: the database failed, with the error code (ORA-xxxxx, or the SQLSTATE on Postgres)
     """
-    tmp_logger = LogWrapper(_logger, f"get_job_rows < task_id={task_id} since={since} >")
+    tmp_logger = LogWrapper(_logger, f"get_job_rows < task_id={task_id} since={since} after_panda_id={after_panda_id} >")
     tmp_logger.debug("Start")
 
     try:
@@ -1150,7 +1159,7 @@ def get_job_rows(req: PandaRequest, task_id: int, since: str | None = None) -> d
             tmp_logger.debug(message)
             return generate_response(False, message=message, data={"rejected": "invalid_window"})
 
-    success, message, data = global_task_buffer.get_task_job_rows(task_id, since_time, panda_config.db_read_probe_budget, MAX_TASK_ROWS)
+    success, message, data = global_task_buffer.get_task_job_rows(task_id, since_time, panda_config.db_read_probe_budget, MAX_TASK_ROWS, after_panda_id)
     if not success:
         tmp_logger.debug(f"Failed with {message}")
         return generate_response(False, message=message, data=data)

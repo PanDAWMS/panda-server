@@ -306,7 +306,7 @@ class TestTaskAPI(unittest.TestCase):
         print(output)
         self.assertEqual(status, 0)
         self.assertTrue(output["success"])
-        keys = {"rows", "truncated", "max_rows", "counts", "as_of", "since", "until", "retained_from", "partitions", "probes", "budget"}
+        keys = {"rows", "truncated", "max_rows", "after_panda_id", "counts", "as_of", "since", "until", "retained_from", "partitions", "probes", "budget"}
         self.assertEqual(set(output["data"]), keys)
         self.assertIsNotNone(output["data"]["since"])
         self.assertLessEqual(output["data"]["probes"], output["data"]["budget"])
@@ -328,6 +328,19 @@ class TestTaskAPI(unittest.TestCase):
         if JEDI_TASK_ID == -1:
             self.assertEqual(output["data"]["rows"], [])
             self.assertEqual(output["data"]["counts"], {})
+
+    def test_get_job_rows_page(self) -> None:
+        url = f"{api_url_ssl}/task/get_job_rows"
+        print(f"Testing URL: {url}")
+        since = (datetime.utcnow() - timedelta(days=3)).strftime("%Y-%m-%d %H:%M:%S")
+        data = {"task_id": JEDI_TASK_ID, "since": since, "after_panda_id": 1}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertEqual(output["data"]["after_panda_id"], 1)
+        for row in output["data"]["rows"]:
+            self.assertGreater(row["PandaID"], 1)
 
     def test_get_job_rows_default_window(self) -> None:
         url = f"{api_url_ssl}/task/get_job_rows"

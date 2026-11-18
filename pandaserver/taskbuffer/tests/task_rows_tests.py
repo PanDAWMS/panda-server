@@ -58,6 +58,7 @@ class TestGetTaskJobRows(unittest.TestCase):
                 "rows": [dict(zip(TASK_JOB_ROW_COLUMNS, self.job_row))],
                 "truncated": False,
                 "max_rows": 1000,
+                "after_panda_id": None,
                 "counts": {"finished": 7, "running": 2},
                 "as_of": AS_OF,
                 "since": since,
@@ -75,7 +76,7 @@ class TestGetTaskJobRows(unittest.TestCase):
         (task_sql, task_vars), (rows_sql, rows_vars), (counts_sql, counts_vars) = self.statements()
         self.assertIn("SELECT creationDate FROM ATLAS_PANDA.JEDI_Tasks WHERE jediTaskID=:jediTaskID", task_sql)
         self.assertEqual(rows_vars, {":jediTaskID": 123, ":since": since, ":until": until})
-        self.assertIs(counts_vars, rows_vars)
+        self.assertEqual(counts_vars, rows_vars)
         for sql in (rows_sql, counts_sql):
             for table in ("ATLAS_PANDA.jobsDefined4", "ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsArchived4", "ATLAS_PANDAARCH.jobsArchived"):
                 self.assertIn(f"FROM {table} WHERE jediTaskID=:jediTaskID", sql)
@@ -87,6 +88,18 @@ class TestGetTaskJobRows(unittest.TestCase):
         self.assertIn("ORDER BY PandaID FETCH FIRST 1001 ROWS ONLY", rows_sql)
         self.assertIn("SELECT jobStatus,COUNT(*) FROM (SELECT PandaID,jobStatus FROM", counts_sql)
         self.assertIn("GROUP BY jobStatus", counts_sql)
+
+    def test_page(self) -> None:
+        success, message, data = TaskStandaloneModule.get_task_job_rows(self.proxy, 123, None, 1000, 1000, after_panda_id=500)
+        self.assertTrue(success, message)
+        self.assertEqual(data["after_panda_id"], 500)
+        (_, _), (rows_sql, rows_vars), (counts_sql, counts_vars) = self.statements()
+        # the page is put on every table of the rows, and the counts still take every job in the window
+        self.assertEqual(rows_sql.count("PandaID>:after_panda_id"), 4)
+        self.assertEqual(rows_vars[":after_panda_id"], 500)
+        self.assertNotIn("after_panda_id", counts_sql)
+        self.assertNotIn(":after_panda_id", counts_vars)
+        self.assertEqual(data["counts"], {"finished": 7, "running": 2})
 
     def test_since_given(self) -> None:
         success, message, data = TaskStandaloneModule.get_task_job_rows(self.proxy, 123, datetime.datetime(2026, 11, 12, 8, 0, 0), 1000, 1000)
