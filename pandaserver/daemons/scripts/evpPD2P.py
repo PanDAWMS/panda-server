@@ -73,7 +73,7 @@ def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     # thread to ev-pd2p
     class EvpThr(threading.Thread):
         def __init__(
-            self, lock: threading.Semaphore, pool: "ThreadPool", aTaskBuffer: Any, aSiteMapper: SiteMapper.SiteMapper, fileName: str, ignoreError: bool
+            self, lock: threading.Semaphore, pool: "ThreadPool", aTaskBuffer: "TaskBuffer", aSiteMapper: SiteMapper.SiteMapper, fileName: str, ignoreError: bool
         ) -> None:
             threading.Thread.__init__(self)
             self.lock = lock

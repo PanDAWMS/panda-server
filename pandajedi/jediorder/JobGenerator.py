@@ -66,7 +66,7 @@ TIME_PROFILE_DEEP = 2
 
 # get parameters to get tasks
 def get_params_to_get_tasks(
-    taskBufferIF: Any,
+    taskBufferIF: "JediTaskBufferInterface | JediTaskBuffer",
     paramsToGetTasks: dict[str, dict[str, dict[str, dict[str, dict[str, int]]]]],
     vo: str,
     prodSourceLabel: str,
