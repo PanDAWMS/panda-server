@@ -3,11 +3,14 @@ import shutil
 import traceback
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("cache_pilot_config")
@@ -22,7 +25,7 @@ source_file_list = [
 default_dest_dir = getattr(panda_config, "pilot_cache_dir", "/var/cache/pandaserver/pilot")
 
 
-def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
+def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     _logger.debug("start")
     try:
         # ensure the destination directory

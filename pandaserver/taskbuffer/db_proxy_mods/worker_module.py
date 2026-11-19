@@ -145,7 +145,7 @@ class WorkerModule(BaseModule):
         status: str,
         lockInterval: int | None,
         comInterval: int | None,
-        params: dict[str, Any] | None,
+        params: dict[str, Any] | list[Any] | None,
         useCommit: bool = True,
     ) -> bool:
         comment = " /* DBProxy.commandToHarvester */"

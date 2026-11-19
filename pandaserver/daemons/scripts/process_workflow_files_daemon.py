@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -14,12 +14,15 @@ from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.workflow_processor import WorkflowProcessor
 
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 # logger
 _logger = PandaLogger().getLogger("process_workflow_files")
 
 
 # main
-def main(tbuf: Any = None, **kwargs: Any) -> None:
+def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     _logger.debug("===================== start =====================")
 
     # overall timeout value
@@ -71,7 +74,7 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
 
     # thread
     class EvpThr(threading.Thread):
-        def __init__(self, task_buffer: Any, lock: threading.Semaphore, pool: "ThreadPool", file_name: str, to_delete: bool, get_log: bool) -> None:
+        def __init__(self, task_buffer: "TaskBuffer", lock: threading.Semaphore, pool: "ThreadPool", file_name: str, to_delete: bool, get_log: bool) -> None:
             threading.Thread.__init__(self)
             self.lock = lock
             self.pool = pool
@@ -160,6 +163,7 @@ def main(tbuf: Any = None, **kwargs: Any) -> None:
 if __name__ == "__main__":
     import sys
 
+    data: dict[str, Any]
     if len(sys.argv) > 1:
         data = {"target": sys.argv[1], "test_mode": True, "dump_workflow": True}
     else:

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -8,12 +8,15 @@ from pandaserver.config import panda_config
 from pandaserver.proxycache import panda_proxy_cache, token_cache
 from pandaserver.srvcore import CoreUtils
 
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 # logger
 _logger = PandaLogger().getLogger("activeusers_query")
 
 
 # main
-def main(tbuf: Any = None, **kwargs: Any) -> None:
+def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     # logger
     tmpLog = LogWrapper(_logger)
     requester_id = GenericThread().get_full_id(__name__, __file__)

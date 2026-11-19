@@ -6,7 +6,7 @@ import sys
 import time
 import traceback
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import requests
 import urllib3
@@ -22,12 +22,15 @@ from pandaserver.config import panda_config
 from pandaserver.jobdispatcher.Watcher import Watcher
 from pandaserver.taskbuffer import EventServiceUtils
 
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 # logger
 _logger = PandaLogger().getLogger("copyArchive")
 
 
 # main
-def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
+def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # password

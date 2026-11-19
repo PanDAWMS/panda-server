@@ -1,17 +1,20 @@
 import time
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
 
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 _logger = PandaLogger().getLogger("pilot_streaming")
 
 
 class PilotStreaming(object):
-    def __init__(self, tbuf: Any) -> None:
+    def __init__(self, tbuf: "TaskBuffer") -> None:
         self._logger = _logger
         self.tbuf = tbuf
         return
@@ -79,7 +82,7 @@ class PilotStreaming(object):
 
 
 # main
-def main(tbuf: Any = None, **kwargs: Any) -> None:
+def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # instantiate TB

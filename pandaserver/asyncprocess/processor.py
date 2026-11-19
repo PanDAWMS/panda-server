@@ -816,7 +816,7 @@ HANDLERS: dict[str, Callable[..., None]] = {
 }
 
 
-def run(service_name: str, tbuf: TaskBufferLike = None) -> None:
+def run(service_name: str, tbuf: "TaskBufferLike | None" = None) -> None:
     """
     Process one daemon cycle for the given service.
     Call this from the service-specific entrypoint (daemon script or WatchDog).
@@ -827,7 +827,9 @@ def run(service_name: str, tbuf: TaskBufferLike = None) -> None:
     _cycle_started_at = cycle_started_at
     _logger.debug(f"start with service={service_name}")
     if tbuf is None:
-        from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf
+        from pandaserver.taskbuffer.TaskBuffer import taskBuffer as default_task_buffer
+
+        tbuf = default_task_buffer
 
     # keep this machine's liveness record current
     tbuf.upsert_machine_heartbeat(MY_HOSTNAME, service_name)

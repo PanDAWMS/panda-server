@@ -6,7 +6,7 @@ import os.path
 import threading
 import time
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -16,12 +16,15 @@ from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.dataservice import RecoverLostFilesCore
 
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 # logger
 _logger = PandaLogger().getLogger("recover_lost_files")
 
 
 # main
-def main(tbuf: Any = None, **kwargs: Any) -> None:
+def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     _logger.debug("===================== start =====================")
 
     # overall timeout value

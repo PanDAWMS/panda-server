@@ -1899,7 +1899,7 @@ class TaskBuffer:
 
     # reset files in JEDI
     def resetFileStatusInJEDI(
-        self, dn: str, prodManager: bool, datasetName: str, lostFiles: list[str], recoverParent: bool, simul: bool = False
+        self, dn: str | None, prodManager: bool, datasetName: str, lostFiles: list[str], recoverParent: bool, simul: bool = False
     ) -> tuple[bool, int | None, dict[str, list[str]] | None, str | None]:
         with self.proxyPool.get() as proxy:
             # exec
@@ -2197,7 +2197,7 @@ class TaskBuffer:
         status: str,
         lockInterval: int | None = None,
         comInterval: int | None = None,
-        params: dict[str, Any] | None = None,
+        params: dict[str, Any] | list[Any] | None = None,
     ) -> bool:
         with self.proxyPool.get() as proxy:
             # exec

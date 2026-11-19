@@ -12,7 +12,7 @@ import typing
 from collections.abc import Callable
 from functools import wraps
 from types import ModuleType, UnionType
-from typing import Any, Union, get_args, get_origin
+from typing import TYPE_CHECKING, Any, Union, get_args, get_origin
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
@@ -25,6 +25,9 @@ from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
     STRUCTURED_RESULT_KEY,
 )
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 TIME_OUT = "TimeOut"
 
@@ -534,7 +537,7 @@ def request_validation(
     production: bool = False,
     request_method: str | None = None,
     task_owner: bool = False,
-    task_buffer: Any = None,
+    task_buffer: "Callable[[], TaskBuffer] | TaskBuffer | None" = None,
     task_id_param: str = "task_id",
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """

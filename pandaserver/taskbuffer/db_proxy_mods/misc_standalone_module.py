@@ -1944,7 +1944,7 @@ class MiscStandaloneModule(BaseModule):
 
     # reset files in JEDI
     def resetFileStatusInJEDI(
-        self, dn: str, is_prod_manager: bool, dataset_name: str, lost_files: list[str], recover_parent: bool, simul: bool
+        self, dn: str | None, is_prod_manager: bool, dataset_name: str, lost_files: list[str], recover_parent: bool, simul: bool
     ) -> tuple[bool, int | None, dict[str, list[str]] | None, str | None]:
         """
         Reset file status in JEDI for lost files
@@ -1955,7 +1955,7 @@ class MiscStandaloneModule(BaseModule):
         5) if simul is True, do not commit changes
         6) return list of input files that produced the lost files
 
-        :param dn: DN of the requester
+        :param dn: DN of the requester; None matches no task owner, so only a production manager gets through
         :param is_prod_manager: whether the requester is a production manager
         :param dataset_name: name of the dataset
         :param lost_files: list of lost LFNs

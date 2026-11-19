@@ -4,7 +4,7 @@ import json
 import os
 import socket
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from zlib import adler32
 
 from pandacommon.pandalogger import logger_utils
@@ -14,6 +14,9 @@ from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
 from pandaserver.daemons.scripts.metric_collector import MetricsDB
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 main_logger = PandaLogger().getLogger("task_evaluator")
@@ -35,7 +38,7 @@ class TaskEvaluationDB(object):
     Proxy to access the task_evaluation table in DB
     """
 
-    def __init__(self, tbuf: Any) -> None:
+    def __init__(self, tbuf: "TaskBuffer") -> None:
         self.tbuf = tbuf
 
     # Nothing applies @_decor, here or anywhere else in the tree. Annotated rather than
@@ -185,7 +188,7 @@ class FetchData(object):
     methods to fetch or evaluate data values to store
     """
 
-    def __init__(self, tbuf: Any) -> None:
+    def __init__(self, tbuf: "TaskBuffer") -> None:
         self.tbuf = tbuf
         # initialize stored data
         self.gshare_status = None
@@ -343,7 +346,7 @@ class FetchData(object):
 
 
 # main
-def main(tbuf: Any = None, **kwargs: Any) -> None:
+def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
