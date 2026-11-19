@@ -280,8 +280,9 @@ def main(
             msg_str = f"Reset file status for {tmpDS} in the DB: done with {ts} for jediTaskID={jediTaskID}"
             print_msg(msg_str, log_stream)
         s |= ts
-        # recover provenance
-        if options.reproduceParent:
+        # recover provenance. A database error comes back without the map of lost input files,
+        # and was reported above, so there is nothing to reproduce for this dataset
+        if options.reproduceParent and lostInputFiles is not None:
             # reproduce input
             for lostDS in lostInputFiles:
                 com_args = ["--ds", lostDS, "--resurrectDS"]
