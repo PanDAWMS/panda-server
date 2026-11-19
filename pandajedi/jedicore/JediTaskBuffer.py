@@ -359,7 +359,13 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         n_files_per_chunk: int = 1,
         bulk_fetch_for_multiple_jobs: bool = False,
         master_dataset_id: int | None = None,
-    ) -> tuple[Any, Any, Any, Any, Any]:
+    ) -> tuple[
+        dict[Any, Any] | list[dict[str, Any]] | None,
+        int | list[int | None] | None,
+        list[Any] | None,
+        dict[Any, Any],
+        dict[Any, Any] | list[dict[Any, Any]] | None,
+    ]:
         with self.proxyPool.get() as proxy:
             return proxy.getOutputFiles_JEDI(
                 jediTaskID,

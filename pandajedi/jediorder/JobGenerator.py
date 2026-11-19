@@ -1715,7 +1715,7 @@ class JobGeneratorThread(WorkerThread):
                         tmpToRegister = []
                         tmpParOutMap = fetched_parallel_out_map[siteName].pop(0)
                     else:
-                        outSubChunk, serialNr, tmpToRegister, siteDsMap, tmpParOutMap = self.taskBufferIF.getOutputFiles_JEDI(
+                        outSubChunk, serialNr, fetched_to_register, siteDsMap, tmpParOutMap = self.taskBufferIF.getOutputFiles_JEDI(
                             taskSpec.jediTaskID,  # type: ignore[arg-type]  # the id is a column, which is declared optional
                             provenanceID,
                             simul,
@@ -1731,6 +1731,9 @@ class JobGeneratorThread(WorkerThread):
                             n_files_per_chunk,
                             master_dataset_id=inputChunk.masterIndexName,
                         )
+                        # a failed fetch returns None for the datasets as well as for the files, and the
+                        # files are checked just below
+                        tmpToRegister = fetched_to_register if fetched_to_register is not None else []
                     if outSubChunk is None:
                         # failed
                         tmpLog.error("failed to get OutputFiles")
@@ -2201,7 +2204,9 @@ class JobGeneratorThread(WorkerThread):
                 False,
                 True,
             )
-            if outSubChunk is None:
+            # a failed fetch returns None for the files and the datasets alike; a single (not bulk)
+            # fetch returns the files as one map
+            if not isinstance(outSubChunk, dict) or datasetToRegister is None:
                 # failed
                 tmpLog.error("doGeneratePrePro failed to get OutputFiles")
                 return failedRet

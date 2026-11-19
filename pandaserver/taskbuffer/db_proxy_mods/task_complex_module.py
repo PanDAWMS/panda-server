@@ -5813,7 +5813,7 @@ class TaskComplexModule(BaseModule):
         dict[Any, Any] | list[dict[str, Any]] | None,
         int | list[int | None] | None,
         list[Any] | None,
-        dict[Any, Any] | None,
+        dict[Any, Any],
         dict[Any, Any] | list[dict[Any, Any]] | None,
     ]:
         comment = " /* JediDBProxy.getOutputFiles_JEDI */"
@@ -5825,13 +5825,14 @@ class TaskComplexModule(BaseModule):
         tmpLog.debug(f"isUnMerging={isUnMerging} isPrePro={isPrePro} provenanceID={provenanceID}")
         tmpLog.debug(f"middleName={middleName} registerDatasets={registerDatasets} idPool={len(fileIDPool)}")
         tmpLog.debug(f"n_files_per_chunk={n_files_per_chunk} bulk_fetch={bulk_fetch_for_multiple_jobs}")
+        # before the try, so that the failure return hands back a map as well
+        if siteDsMap is None:
+            siteDsMap = {}
+        if parallelOutMap is None:
+            parallelOutMap = {}
         try:
             if instantiatedSites is None:
                 instantiatedSites = ""
-            if siteDsMap is None:
-                siteDsMap = {}
-            if parallelOutMap is None:
-                parallelOutMap = {}
             outMap = {}
             datasetToRegister = []
             indexFileID = 0
