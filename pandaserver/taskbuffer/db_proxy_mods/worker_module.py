@@ -1508,7 +1508,7 @@ class WorkerModule(BaseModule):
             return []
 
     # get workers with stale harvester states and newer pilot state
-    def get_workers_to_synchronize(self) -> list[Any] | dict[str, Any]:
+    def get_workers_to_synchronize(self) -> dict[str, Any]:
         comment = " /* DBProxy.get_workers_to_synchronize */"
         tmp_log = self.create_tagged_logger(comment)
         try:
@@ -1576,7 +1576,8 @@ class WorkerModule(BaseModule):
             self._rollback()
             # error
             self.dump_error_message(tmp_log)
-            return []
+            # the same empty shape as a run with nothing to synchronize
+            return {}
 
     # get the max workerID
     def get_max_worker_id(self, harvester_id: str) -> int | None:

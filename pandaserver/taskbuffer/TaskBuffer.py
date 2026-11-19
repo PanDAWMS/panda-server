@@ -2586,7 +2586,7 @@ class TaskBuffer:
         return ret
 
     # get workers with stale states and update them with pilot information
-    def get_workers_to_synchronize(self) -> list[Any] | dict[str, Any]:
+    def get_workers_to_synchronize(self) -> dict[str, Any]:
         with self.proxyPool.get() as proxy:
             ret = proxy.get_workers_to_synchronize()
         return ret
