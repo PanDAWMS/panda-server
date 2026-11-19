@@ -28,6 +28,11 @@ from pandaserver.taskbuffer.offline_run_script import generate_offline_run_scrip
 _logger = PandaLogger().getLogger("TaskBuffer")
 
 if TYPE_CHECKING:
+    from pandaserver.taskbuffer.InputChunk import InputChunk
+    from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
+    from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+    from pandaserver.taskbuffer.WorkQueue import WorkQueue
+
     # For a type checker TaskBuffer has the DBProxy API. At run time a DBProxy method that
     # TaskBuffer does not define itself is forwarded through the pool by TaskBuffer.__getattr__
     _DBProxyAPI = OraDBProxy.DBProxy
@@ -1279,12 +1284,61 @@ class TaskBuffer(_DBProxyAPI):
         return res
 
     # ==== JEDI taskbuffer functions ===========================
+    # These were JediTaskBuffer's; each does more than one DBProxy call, so it is not forwarded
 
-    # ==== Data Carousel functions =============================
+    # get JEDI datasets with jediTaskID, with their files when getFiles is set
+    def getDatasetsWithJediTaskID_JEDI(
+        self, jediTaskID: int, datasetTypes: list[str] | None = None, getFiles: bool = False
+    ) -> "tuple[bool, list[JediDatasetSpec] | None]":
+        with self.proxyPool.get() as proxy:
+            retStat, datasetSpecList = proxy.getDatasetsWithJediTaskID_JEDI(jediTaskID, datasetTypes=datasetTypes)
+            if retStat is True and getFiles is True and datasetSpecList is not None:
+                for datasetSpec in datasetSpecList:
+                    # read files
+                    retStat, fileSpecList = proxy.getFilesInDatasetWithID_JEDI(jediTaskID, datasetSpec.datasetID, None, None)
+                    if retStat is False:
+                        break
+                    for fileSpec in fileSpecList:
+                        datasetSpec.addFile(fileSpec)
+            # return
+            return retStat, datasetSpecList
 
-    # ==== Workflow functions ==================================
+    # peek at the tasks to be processed, without locking them
+    def checkWaitingTaskPrio_JEDI(
+        self,
+        vo: str | None,
+        workQueue: "WorkQueue | None",
+        prodSourceLabel: str | None,
+        cloudName: str | None,
+        resource_name: str | None = None,
+        pid: str | None = None,
+    ) -> "list[tuple[int, list[tuple[JediTaskSpec, str, InputChunk]]]] | int | None":
+        with self.proxyPool.get() as proxy:
+            return proxy.getTasksToBeProcessed_JEDI(pid, vo, workQueue, prodSourceLabel, cloudName, isPeeking=True, resource_name=resource_name)
 
-    # ==========================================================
+    # set tasks to be assigned
+    def setScoutJobDataToTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None) -> bool | None:
+        # get the site mapper before taking a proxy: rebuilding it takes one from the same pool,
+        # which holds a single proxy in a task-buffer child process
+        tmp_site_mapper = self.get_site_mapper()
+        with self.proxyPool.get() as proxy:
+            return proxy.set_scout_job_data_to_tasks_jedi_db(vo, prodSourceLabel, tmp_site_mapper)
+
+    # prepare tasks to be finished
+    def prepareTasksToBeFinished_JEDI(
+        self, vo: str | None, prodSourceLabel: str | None, nTasks: int = 50, simTasks: list[int] | None = None, pid: str = "lock", noBroken: bool = False
+    ) -> list[int] | None:
+        # get the site mapper before taking a proxy, as in setScoutJobDataToTasks_JEDI
+        tmp_site_mapper = self.get_site_mapper()
+        with self.proxyPool.get() as proxy:
+            return proxy.prepare_tasks_to_be_finished_jedi_db(vo, prodSourceLabel, nTasks, simTasks, pid, noBroken, tmp_site_mapper)
+
+    # get jobsetID
+    def getUserJobsetID_JEDI(self, userName: str) -> tuple[bool, int]:
+        with self.proxyPool.get() as proxy:
+            tmpJobID, tmpDummy, tmpStat = proxy.getUserParameter(userName, 1, None)
+            # return
+            return tmpStat, tmpJobID
 
 
 # Singleton
