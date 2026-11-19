@@ -1994,6 +1994,22 @@ class JobStandaloneModule(BaseModule):
             self.dump_error_message(tmp_log)
             return retVal
 
+    # check the status of several jobs
+    def check_job_statuses(self, panda_ids: list[int]) -> list[dict[str, Any]]:
+        """
+        Check the status of several jobs, as checkJobStatus does for one, on this one proxy.
+
+        A caller that reaches the proxy through the pool takes it once for the whole list, so it does
+        not wait for a proxy, and wake its connection, once per job.
+
+        Args:
+            panda_ids (list[int]): The PanDA job IDs.
+
+        Returns:
+            list[dict[str, Any]]: One {"status": ..., "command": ...} per job ID, in the same order.
+        """
+        return [self.checkJobStatus(panda_id) for panda_id in panda_ids]
+
     # get user job metadata
     def getUserJobMetadata(self, jediTaskID: int) -> dict[Any, Any]:
         comment = " /* DBProxy.getUserJobMetadata */"
