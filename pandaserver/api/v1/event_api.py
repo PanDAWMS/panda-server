@@ -281,6 +281,10 @@ def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120
         message = "failed to convert event_ranges with json"
         tmp_logger.error(message)
         return generate_response(False, message)
+    if not isinstance(event_range_list, list):
+        message = "event_ranges is not a JSON list"
+        tmp_logger.error(message)
+        return generate_response(False, message)
 
     timed_method = TimedMethod(global_task_buffer.updateEventRanges, timeout)
     timed_method.run(event_range_list, version)
