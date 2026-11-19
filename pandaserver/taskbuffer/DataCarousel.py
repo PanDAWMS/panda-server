@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Concatenate,
@@ -30,6 +31,10 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+
+if TYPE_CHECKING:
+    # annotations only: TaskBuffer imports this module at run time
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 import polars as pl  # isort:skip
 
@@ -426,7 +431,7 @@ class DataCarouselInterface(object):
     """
 
     # constructor
-    def __init__(self, taskbufferIF: Any, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, taskbufferIF: "TaskBuffer", *args: Any, **kwargs: Any) -> None:
         # attributes
         self.taskBufferIF = taskbufferIF
         self.ddmIF = rucioAPI
@@ -1561,6 +1566,10 @@ class DataCarouselInterface(object):
         tmp_log = LogWrapper(logger, f"_get_task_params_map task_id={task_id}")
         try:
             task_params_str = self.taskBufferIF.getTaskParamsWithID_JEDI(task_id)
+            if task_params_str is None:
+                # the database layer has logged why
+                tmp_log.warning("failed to get task params ; skipped")
+                return None
             task_params_map: dict[str, Any] = json.loads(task_params_str)
         except Exception:
             tmp_log.warning(f"failed to get task params ; {traceback.format_exc()}")
@@ -2114,9 +2123,8 @@ class DataCarouselInterface(object):
                     "task_user": request_dict["userName"],
                     "task_group": request_dict["workingGroup"],
                 }
-                dc_req_spec = request_id_spec_map.get(request_id)
-                if dc_req_spec:
-                    ret_list.append((dc_req_spec, extra_params))
+                if found_spec := request_id_spec_map.get(request_id):
+                    ret_list.append((found_spec, extra_params))
             to_stage_count = 0
             for request_dict in to_stage_request_list:
                 request_id = request_dict["request_id"]
@@ -2128,9 +2136,8 @@ class DataCarouselInterface(object):
                     "task_user": request_dict["userName"],
                     "task_group": request_dict["workingGroup"],
                 }
-                dc_req_spec = request_id_spec_map.get(request_id)
-                if dc_req_spec:
-                    ret_list.append((dc_req_spec, extra_params))
+                if found_spec := request_id_spec_map.get(request_id):
+                    ret_list.append((found_spec, extra_params))
                     to_stage_count += 1
             if tmp_to_print_df is not None and not (to_pin_df.is_empty() and to_stage_df.is_empty()):
                 tmp_to_print_df = tmp_to_print_df.with_columns(
@@ -2728,7 +2735,7 @@ class DataCarouselInterface(object):
                 tmp_log.warning(f"failed to get files in dataset {dataset} from DDM ; skipped")
                 return None
             # make filenames_dict for updateInputFilesStaged_JEDI
-            filenames_dict = {}
+            filenames_dict: dict[str, tuple[int | None, int | None]] = {}
             dummy_value_tuple = (None, None)
             for lfn in lfn_set:
                 filenames_dict[lfn] = dummy_value_tuple
@@ -2784,8 +2791,8 @@ class DataCarouselInterface(object):
                         # rule not found
                         dc_req_spec.set_parameter("rule_unfound", True)
                         tmp_log.error(f"request_id={dc_req_spec.request_id} ddm_rule_id={ddm_rule_id} rule not found")
-                        tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
-                        if tmp_ret:
+                        updated_spec = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                        if updated_spec:
                             tmp_log.debug(f"request_id={dc_req_spec.request_id} updated DB about rule not found")
                         else:
                             tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB ; skipped")
@@ -2867,8 +2874,8 @@ class DataCarouselInterface(object):
                                         f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={dc_req_spec.ddm_rule_id} refreshed lifetime to be {DONE_LIFETIME_DAYS} days long"
                                     )
                                 # update staged files in DB for done requests
-                                tmp_ret = self._update_staged_files(dc_req_spec)
-                                if tmp_ret:
+                                files_updated = self._update_staged_files(dc_req_spec)
+                                if files_updated:
                                     tmp_log.debug(f"request_id={dc_req_spec.request_id} done; updated staged files")
                                 else:
                                     tmp_log.warning(f"request_id={dc_req_spec.request_id} done; failed to update staged files ; skipped")
@@ -3071,25 +3078,25 @@ class DataCarouselInterface(object):
             if done_requests_set or cancelled_requests_set or retired_requests_set:
                 if done_requests_set:
                     # done requests
-                    ret = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(done_requests_set))
-                    if ret is None:
+                    n_deleted = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(done_requests_set))
+                    if n_deleted is None:
                         tmp_log.warning("failed to delete done requests; skipped")
                     else:
-                        tmp_log.debug(f"deleted {ret} done requests older than {done_age_limit_days} days or rule_unfound or remove_when_done")
+                        tmp_log.debug(f"deleted {n_deleted} done requests older than {done_age_limit_days} days or rule_unfound or remove_when_done")
                 if cancelled_requests_set:
                     # cancelled requests
-                    ret = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(cancelled_requests_set))
-                    if ret is None:
+                    n_deleted = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(cancelled_requests_set))
+                    if n_deleted is None:
                         tmp_log.warning("failed to delete cancelled requests; skipped")
                     else:
-                        tmp_log.debug(f"deleted {ret} cancelled requests")
+                        tmp_log.debug(f"deleted {n_deleted} cancelled requests")
                 if retired_requests_set:
                     # retired requests
-                    ret = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(retired_requests_set))
-                    if ret is None:
+                    n_deleted = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(retired_requests_set))
+                    if n_deleted is None:
                         tmp_log.warning("failed to delete retired requests; skipped")
                     else:
-                        tmp_log.debug(f"deleted {ret} retired requests")
+                        tmp_log.debug(f"deleted {n_deleted} retired requests")
             else:
                 tmp_log.debug("no terminated requests to delete; skipped")
             # clean up outdated requests
@@ -3326,8 +3333,8 @@ class DataCarouselInterface(object):
                         if suggested_dst_list:
                             dc_req_spec.set_parameter("suggested_dst_list", suggested_dst_list)
                         # update DB
-                        tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
-                        if tmp_ret:
+                        updated_spec = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                        if updated_spec:
                             tmp_log.info(
                                 f"updated DB about change source of queued request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id} , to_pin={to_pin} , suggested_dst_list={suggested_dst_list}"
                             )
@@ -3387,8 +3394,8 @@ class DataCarouselInterface(object):
                                 # update source_replica_expression
                                 set_map["source_replica_expression"] = f"{SRC_REPLI_EXPR_PREFIX}|{dc_req_spec.source_rse}"
                                 # update DB
-                                tmp_ret = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
-                                if tmp_ret is not None:
+                                updated_spec = self.taskBufferIF.update_data_carousel_request_JEDI(dc_req_spec)
+                                if updated_spec is not None:
                                     tmp_log.info(
                                         f"updated DB about change source of staging request; source_rse={dc_req_spec.source_rse} , ddm_rule_id={dc_req_spec.ddm_rule_id}"
                                     )

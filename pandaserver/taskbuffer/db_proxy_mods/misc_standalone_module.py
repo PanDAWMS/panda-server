@@ -2966,7 +2966,7 @@ class MiscStandaloneModule(BaseModule):
             return {}
 
     # lock process
-    def lockProcess_PANDA(self, component: str, pid: str, time_limit: int = 5, force: bool = False) -> bool:
+    def lockProcess_PANDA(self, component: str, pid: str, time_limit: float = 5, force: bool = False) -> bool:
         comment = " /* DBProxy.lockProcess_PANDA */"
         tmp_log = self.create_tagged_logger(comment, f"component={component} pid={pid}")
         # defaults
