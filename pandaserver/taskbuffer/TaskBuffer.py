@@ -1345,17 +1345,9 @@ class TaskBuffer:
         return ret
 
     # add metadata
-    def addMetadata(self, ids: list[int], metadataList: list[str], newStatusList: list[str]) -> list[bool]:
-        # get DBproxy
+    def addMetadata(self, pandaID: int, metadata: str, newStatus: str) -> bool:
         with self.proxyPool.get() as proxy:
-            # add metadata
-            index = 0
-            retList = []
-            for id in ids:
-                ret = proxy.addMetadata(id, metadataList[index], newStatusList[index])
-                retList.append(ret)
-                index += 1
-        return retList
+            return proxy.addMetadata(pandaID, metadata, newStatus)
 
     # add stdout
     def addStdOut(self, id: int, stdout: str) -> bool:
@@ -1685,32 +1677,10 @@ class TaskBuffer:
 
     # get active JediTasks in a time range
     def getJediTasksInTimeRange(
-        self, dn: str | None, timeRangeStr: str, fullFlag: bool = False, minTaskID: int | None = None, task_type: str = "user"
+        self, dn: str, timeRange: datetime.datetime, fullFlag: bool = False, minTaskID: int | None = None, task_type: str = "user"
     ) -> dict[Any, Any]:
-        # check DN
-        if dn in ["NULL", "", "None", None]:
-            return {}
-        # check timeRange
-        match = re.match(r"^(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)$", timeRangeStr)
-        if match is None:
-            return {}
-        timeRange = datetime.datetime(
-            year=int(match.group(1)),
-            month=int(match.group(2)),
-            day=int(match.group(3)),
-            hour=int(match.group(4)),
-            minute=int(match.group(5)),
-            second=int(match.group(6)),
-        )
-        # max range is 30 days
-        maxRange = naive_utcnow() - datetime.timedelta(days=30)
-        if timeRange < maxRange:
-            timeRange = maxRange
-        # get proxy
         with self.proxyPool.get() as proxy:
-            # exec
-            ret = proxy.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID, task_type)
-        return ret
+            return proxy.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID, task_type)
 
     def getTaskIDsWithCriteria_JEDI(self, criteria: dict[str, Any], since: str | None = None, nTasks: int = 50) -> list[int] | None:
         with self.proxyPool.get() as proxy:
@@ -1769,19 +1739,9 @@ class TaskBuffer:
         return retVal, json.dumps(ret[1])
 
     # update even ranges
-    def updateEventRanges(self, eventRanges: str, version: int = 0) -> Any:
-        # decode json
-        try:
-            eventRanges = json.loads(eventRanges)
-        except Exception:
-            return json.dumps("ERROR : failed to convert eventRanges with json")
-        # get proxy
+    def updateEventRanges(self, eventDictParam: Any, version: int = 0) -> tuple[list[Any], dict[Any, Any]]:
         with self.proxyPool.get() as proxy:
-            # exec
-            ret = proxy.updateEventRanges(eventRanges, version)
-        if version != 0:
-            return ret
-        return json.dumps(ret[0]), json.dumps(ret[1])
+            return proxy.updateEventRanges(eventDictParam, version)
 
     # change task priority
     def changeTaskPriorityPanda(self, jediTaskID: int, newPriority: int) -> int | None:
@@ -2314,19 +2274,9 @@ class TaskBuffer:
         return ret_val
 
     # check Job status
-    def checkJobStatus(self, pandaIDs: str) -> list[dict[str, Any]]:
-        try:
-            id_list = pandaIDs.split(",")
-        except Exception:
-            id_list = []
-        # get DBproxy
+    def checkJobStatus(self, pandaID: int | str) -> dict[str, Any]:
         with self.proxyPool.get() as proxy:
-            # exec
-            retList = []
-            for pandaID in id_list:
-                ret = proxy.checkJobStatus(pandaID)
-                retList.append(ret)
-        return retList
+            return proxy.checkJobStatus(pandaID)
 
     # get the status history of jobs
     def get_job_status_history(

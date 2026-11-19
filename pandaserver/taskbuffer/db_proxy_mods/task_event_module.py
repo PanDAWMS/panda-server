@@ -4124,6 +4124,8 @@ class TaskEventModule(BaseModule):
     ) -> dict[Any, Any]:
         comment = " /* DBProxy.getJediTasksInTimeRange */"
         tmp_log = self.create_tagged_logger(comment)
+        # look back at most 30 days
+        timeRange = max(timeRange, naive_utcnow() - datetime.timedelta(days=30))
         tmp_log.debug(f"DN={dn} range={timeRange.strftime('%Y-%m-%d %H:%M:%S')} full={fullFlag}")
         try:
             # get compact DN

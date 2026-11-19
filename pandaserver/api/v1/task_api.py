@@ -1508,7 +1508,19 @@ def get_tasks_modified_since(
 
     tmp_logger.debug(f"parameters dn:{dn} since:{since} full:{full} min_task_id:{min_task_id} prod_source_label:{prod_source_label}")
 
-    tasks = global_task_buffer.getJediTasksInTimeRange(dn, since, full, min_task_id, prod_source_label)
+    # since is "%Y-%m-%d %H:%M:%S"; without a usable DN or time the answer is no tasks
+    tasks: dict[Any, Any] = {}
+    match = re.match(r"^(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)$", since)
+    if dn is not None and dn not in ("NULL", "", "None") and match is not None:
+        since_time = datetime.datetime(
+            year=int(match.group(1)),
+            month=int(match.group(2)),
+            day=int(match.group(3)),
+            hour=int(match.group(4)),
+            minute=int(match.group(5)),
+            second=int(match.group(6)),
+        )
+        tasks = global_task_buffer.getJediTasksInTimeRange(dn, since_time, full, min_task_id, prod_source_label)
 
     tmp_logger.debug("Done")
 
