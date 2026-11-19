@@ -1,6 +1,5 @@
 import copy
 import datetime
-import functools
 import json
 import os
 import socket
@@ -144,22 +143,6 @@ class MetricsDB(object):
 
     def __init__(self, tbuf: "TaskBuffer") -> None:
         self.tbuf = tbuf
-
-    # Nothing applies @_decor, here or anywhere else in the tree. Annotated rather than
-    # deleted, but note what it does before using it: the wrapper discards the wrapped
-    # method's return value and swallows every exception without logging it.
-    def _decor(method: Any) -> Any:
-        def _decorator(_method: Any, *args: Any, **kwargs: Any) -> Any:
-            @functools.wraps(_method)
-            def _wrapped_method(self: Any, *args: Any, **kwargs: Any) -> None:
-                try:
-                    _method(self, *args, **kwargs)
-                except Exception:
-                    pass
-
-            return _wrapped_method
-
-        return _decorator(method)
 
     def update(self, metric: str, key_type: str, entity_dict: dict[Any, Any]) -> None:
         tmp_log = logger_utils.make_logger(main_logger, "MetricsDB.update")
@@ -477,7 +460,6 @@ class FetchData(object):
             return site_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
-            # main() reads a None back as "got no valid data"
             return None
 
     def gshare_preference(self) -> dict[Any, Any] | None:
@@ -576,7 +558,6 @@ class FetchData(object):
             return gshare_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
-            # main() reads a None back as "got no valid data"
             return None
 
     def analy_site_eval(self) -> dict[Any, Any] | None:
@@ -587,21 +568,19 @@ class FetchData(object):
             class_A_set = set()
             class_B_set = set()
             class_C_set = set()
+            # MetricsDB
+            mdb = MetricsDB(self.tbuf)
+            # get analysis jobs wait time stats
+            apjwt_dict = mdb.get_metrics("analy_pmerge_jobs_wait_time", "site")
+            if apjwt_dict is None:
+                tmp_log.warning("failed to get analy_pmerge_jobs_wait_time from DB; skipped")
+                return None
             # get resource_type of sites (GRID, hpc, cloud, ...) from schedconfig
             res = self.tbuf.querySQL(
                 ("SELECT /* use_json_type */ scj.panda_queue, scj.data.resource_type FROM ATLAS_PANDA.schedconfig_json scj "),
                 {},
             )
             site_resource_type_map = {site: resource_type for site, resource_type in res}
-            # MetricsDB
-            mdb = MetricsDB(self.tbuf)
-            # get analysis jobs wait time stats
-            apjwt_dict = mdb.get_metrics("analy_pmerge_jobs_wait_time", "site")
-            if apjwt_dict is None:
-                # get_metrics answers None when the query failed, and every site below is
-                # evaluated from this map. main() reports a None back as "got no valid data"
-                tmp_log.warning("failed to get analy_pmerge_jobs_wait_time from DB; skipped")
-                return None
             # evaluate derived values from stats
             # max of w_cl95upp and long_q_mean for ranking. Only consider GRID sites
             ranking_wait_time_list = []
@@ -692,7 +671,6 @@ class FetchData(object):
             return site_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
-            # main() reads a None back as "got no valid data"
             return None
 
     def users_jobs_stats(self) -> dict[Any, Any] | None:
@@ -790,7 +768,6 @@ class FetchData(object):
             return site_gshare_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
-            # main() reads a None back as "got no valid data"
             return None
 
     def analy_user_eval(self) -> dict[Any, Any] | None:
@@ -802,10 +779,13 @@ class FetchData(object):
             mdb = MetricsDB(self.tbuf)
             # get analysis site classification evalutation
             ase_dict = mdb.get_metrics("analy_site_eval", "site", fresher_than_minutes_ago=120)
+            if ase_dict is None:
+                tmp_log.warning("failed to get analy_site_eval from DB; skipped")
+                return None
             # get users jobs stats
             ujs_dict = mdb.get_metrics("users_jobs_stats", fresher_than_minutes_ago=15)
-            if ase_dict is None or ujs_dict is None:
-                tmp_log.warning("failed to get analy_site_eval or users_jobs_stats from DB; skipped")
+            if ujs_dict is None:
+                tmp_log.warning("failed to get users_jobs_stats from DB; skipped")
                 return None
             # for each site x gshare
             for (site, gshare), usage_dict in ujs_dict.items():
@@ -873,7 +853,6 @@ class FetchData(object):
             return user_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
-            # main() reads a None back as "got no valid data"
             return None
 
 
