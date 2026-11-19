@@ -33,6 +33,54 @@ from pandaserver.taskbuffer.JediFileSpec import JediFileSpec
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec, is_msg_driven
 from pandaserver.taskbuffer.WorkQueue import WorkQueue
 
+# columns of the jobs get_task_job_rows reads, spelled as in JobSpec
+TASK_JOB_ROW_COLUMNS = (
+    "PandaID",
+    "jobStatus",
+    "jobSubStatus",
+    "creationTime",
+    "modificationTime",
+    "stateChangeTime",
+    "endTime",
+    "prodSourceLabel",
+    "currentPriority",
+    "computingSite",
+    "attemptNr",
+)
+
+# slack put on both ends of the window of get_task_job_rows before they are moved to whole UTC days. The
+# creation of a task and the modificationTime of a job are written with the clock of a server, and the end
+# of the window is the database time, so a job may have been modified a little before the task was made,
+# by their clocks, or a little after the database time
+TASK_JOB_ROWS_CLOCK_SLACK = datetime.timedelta(minutes=10)
+
+
+def floor_to_day(time_stamp: datetime.datetime) -> datetime.datetime:
+    """
+    Get the start of the day of a time.
+
+    Args:
+        time_stamp(datetime): the time
+
+    Returns:
+        datetime: midnight at the start of its day
+    """
+    return time_stamp.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def ceil_to_day(time_stamp: datetime.datetime) -> datetime.datetime:
+    """
+    Get the start of the day after a time, or the time itself when it is midnight.
+
+    Args:
+        time_stamp(datetime): the time
+
+    Returns:
+        datetime: the first midnight at or after the time
+    """
+    floored = floor_to_day(time_stamp)
+    return floored if floored == time_stamp else floored + datetime.timedelta(days=1)
+
 
 # Module class to define isolated task related methods
 class TaskStandaloneModule(BaseModule):
@@ -5432,6 +5480,199 @@ class TaskStandaloneModule(BaseModule):
                 raise RuntimeError("Commit error")
             tmp_log.debug(f"done with {len(rows)} rows from {n_partitions} partitions in {elapsed:.3f} sec")
             return True, "", {"rows": rows, "as_of": as_of, "retained_from": retained_from}
+        except Exception as e:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            err_code = get_db_error_code(e)
+            return False, f"database error {err_code}", {"error": err_code}
+
+    # get the rows of the jobs of a task from the job tables and the archive
+    def get_task_job_rows(
+        self, jedi_task_id: int, since: datetime.datetime | None, probe_budget: int, max_rows: int, after_panda_id: int | None = None
+    ) -> tuple[bool, str, dict[str, Any]]:
+        """
+        Get the rows of the jobs of a task in jobsDefined4, jobsActive4, jobsArchived4 and the archive (jobsArchived of
+        the archive schema), and their number by jobStatus.
+
+        jobsArchived4 and the archive are partitioned on modificationTime and their jediTaskID indexes are local, so the
+        task is looked up once in each of their partitions that the window touches. The window is read on those two
+        tables only. It starts at since, or at the creation of the task when since is None, less a slack for the clocks
+        and down to the start of the day, and has no start when there is neither. It ends at the start of the day after
+        the database time plus the slack, which leaves out the partitions made ahead. A request costing more index
+        lookups than the budget is refused rather than cut short.
+
+        The rows of every table are read by one statement, so a job moving between tables while it runs is read once,
+        and a row the same in two tables is given once. The counts are read by a second statement, so a job changing
+        its status between the two may be counted under its new status.
+
+        A task with more jobs than max_rows is read in pages: each next page is asked with after_panda_id set to the
+        last PandaID of the page before, until a page is not truncated. The pages are ordered over all the tables, so
+        a job moving between tables from one page to the next is still read once.
+
+        Args:
+            jedi_task_id(int): jediTaskID of the task
+            since(datetime): read the jobs modified at or after this time from jobsArchived4 and the archive, or None
+                for from the creation of the task
+            probe_budget(int): most index lookups the request may cost
+            max_rows(int): most rows to return
+            after_panda_id(int): return only the jobs with a larger PandaID, or None for from the first
+
+        Returns:
+            bool: True if the rows were read
+            str: why not, when they were not
+            dict: when read, {"rows": [dict, ...], "truncated": bool, "max_rows": int, "after_panda_id": int or None,
+                "counts": {jobStatus: int}, "as_of": datetime, "since": datetime or None, "until": datetime,
+                "retained_from": datetime or None, "partitions": int, "probes": int, "budget": int}. rows are
+                ordered by PandaID with the columns in TASK_JOB_ROW_COLUMNS, start after after_panda_id, and are cut
+                at max_rows when truncated. counts hold every job in the window, whatever after_panda_id is and
+                however many rows were cut. as_of is the database time in UTC taken before the rows were read.
+                since and until are the window read. retained_from is the time from which the archive holds
+                every row. partitions is the number of partitions of the two tables the window touches, each table
+                counted as at least 1, and probes is the index lookups of both statements. When refused,
+                {"rejected": "probe_budget", "probes": int, "partitions": int, "budget": int}, and on a database
+                error {"error": <code>}
+        """
+        comment = " /* DBProxy.get_task_job_rows */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} since={since} after_panda_id={after_panda_id}")
+        tmp_log.debug("start")
+        live_tables = [f"{panda_config.schemaPANDA}.jobsDefined4", f"{panda_config.schemaPANDA}.jobsActive4"]
+        archive_table = (panda_config.schemaPANDAARCH, "jobsArchived")
+        windowed_tables = [(panda_config.schemaPANDA, "jobsArchived4"), archive_table]
+        try:
+            self.conn.begin()
+            as_of = self.get_db_utc_now()
+            var_map: dict[str, Any] = {":jediTaskID": jedi_task_id}
+            if since is None:
+                self.cur.execute(f"SELECT creationDate FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID " + comment, var_map)
+                res = self.cur.fetchone()
+                if res is not None and res[0] is not None:
+                    since = res[0]
+            window_start = floor_to_day(since - TASK_JOB_ROWS_CLOCK_SLACK) if since is not None else None
+            window_end = ceil_to_day(as_of + TASK_JOB_ROWS_CLOCK_SLACK)
+            # each table is looked up at least once, also when the window touches none of its partitions
+            n_partitions = 0
+            retained_from = None
+            for owner, table_name in windowed_tables:
+                n_touched, table_retained_from = self.get_partition_window(owner, table_name, window_start, window_end)
+                n_partitions += max(n_touched, 1)
+                # jobs leave jobsArchived4 for the archive, so only the archive tells what is kept
+                if (owner, table_name) == archive_table:
+                    retained_from = table_retained_from
+            # the rows and the counts each look up every table once
+            n_probes = 2 * (len(live_tables) + n_partitions)
+            if n_probes > probe_budget:
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                err_msg = f"2 statements x {len(live_tables) + n_partitions} lookups = {n_probes} index lookups exceed the budget of {probe_budget}"
+                tmp_log.debug(f"refused since {err_msg}")
+                return False, err_msg, {"rejected": "probe_budget", "probes": n_probes, "partitions": n_partitions, "budget": probe_budget}
+            # the conditions on the partition key are what lets the database skip partitions
+            window = "AND modificationTime<:until "
+            var_map[":until"] = window_end
+            if window_start is not None:
+                window += "AND modificationTime>=:since "
+                var_map[":since"] = window_start
+            tables = [(table, "") for table in live_tables] + [(f"{owner}.{table_name}", window) for owner, table_name in windowed_tables]
+
+            def union(columns: str, page: str = "") -> str:
+                return "UNION ".join(f"SELECT {columns} FROM {table} WHERE jediTaskID=:jediTaskID {condition}{page}" for table, condition in tables)
+
+            # a page is put on each table, where the index can start from it, and the counts take none
+            page = ""
+            rows_var_map = dict(var_map)
+            if after_panda_id is not None:
+                page = "AND PandaID>:after_panda_id "
+                rows_var_map[":after_panda_id"] = after_panda_id
+            columns = ",".join(TASK_JOB_ROW_COLUMNS)
+            sql = f"SELECT {columns} FROM ({union(columns, page)}) tmp_union ORDER BY PandaID "
+            # one row more than returned tells whether there are more
+            sql += f"FETCH FIRST {max_rows + 1} ROWS ONLY "
+            start_time = time.monotonic()
+            self.cur.arraysize = max_rows + 1
+            self.cur.execute(sql + comment, rows_var_map)
+            res = self.cur.fetchall()
+            rows_time = time.monotonic() - start_time
+            truncated = len(res) > max_rows
+            rows = [dict(zip(TASK_JOB_ROW_COLUMNS, row)) for row in res[:max_rows]]
+            sql = f"SELECT jobStatus,COUNT(*) FROM ({union('PandaID,jobStatus')}) tmp_union GROUP BY jobStatus "
+            start_time = time.monotonic()
+            self.cur.execute(sql + comment, var_map)
+            counts = {job_status: int(n_jobs) for job_status, n_jobs in self.cur.fetchall()}
+            counts_time = time.monotonic() - start_time
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug(
+                f"done with {len(rows)} rows (truncated={truncated}) in {rows_time:.3f} sec and {sum(counts.values())} jobs counted "
+                f"in {counts_time:.3f} sec by {n_probes} index lookups"
+            )
+            data = {
+                "rows": rows,
+                "truncated": truncated,
+                "max_rows": max_rows,
+                "after_panda_id": after_panda_id,
+                "counts": counts,
+                "as_of": as_of,
+                "since": window_start,
+                "until": window_end,
+                "retained_from": retained_from,
+                "partitions": n_partitions,
+                "probes": n_probes,
+                "budget": probe_budget,
+            }
+            return True, "", data
+        except Exception as e:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            err_code = get_db_error_code(e)
+            return False, f"database error {err_code}", {"error": err_code}
+
+    # get the rows of the datasets of a task from JEDI_Datasets
+    def get_task_dataset_rows(self, jedi_task_id: int, max_rows: int, after_dataset_id: int | None = None) -> tuple[bool, str, dict[str, Any]]:
+        """
+        Get the rows JEDI_Datasets holds for a task.
+
+        A task with more datasets than max_rows is read in pages: each next page is asked with after_dataset_id set to
+        the last datasetID of the page before, until a page is not truncated.
+
+        Args:
+            jedi_task_id(int): jediTaskID of the task
+            max_rows(int): most rows to return
+            after_dataset_id(int): return only the datasets with a larger datasetID, or None for from the first
+
+        Returns:
+            bool: True if the rows were read
+            str: why not, when they were not
+            dict: when read, {"rows": [dict, ...], "truncated": bool, "max_rows": int, "as_of": datetime}. rows are
+                ordered by datasetID, with every column keyed as JediDatasetSpec names it, start after after_dataset_id,
+                and are cut at max_rows when truncated. as_of is the database time in UTC taken before the rows were read. On a database error,
+                {"error": <code>}
+        """
+        comment = " /* DBProxy.get_task_dataset_rows */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} after_dataset_id={after_dataset_id}")
+        tmp_log.debug("start")
+        columns = JediDatasetSpec.columnNames().split(",")
+        try:
+            self.conn.begin()
+            as_of = self.get_db_utc_now()
+            var_map: dict[str, Any] = {":jediTaskID": jedi_task_id}
+            sql = f"SELECT {','.join(columns)} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
+            if after_dataset_id is not None:
+                sql += "AND datasetID>:after_dataset_id "
+                var_map[":after_dataset_id"] = after_dataset_id
+            sql += "ORDER BY datasetID "
+            # one row more than returned tells whether there are more
+            sql += f"FETCH FIRST {max_rows + 1} ROWS ONLY "
+            start_time = time.monotonic()
+            self.cur.arraysize = max_rows + 1
+            self.cur.execute(sql + comment, var_map)
+            res = self.cur.fetchall()
+            elapsed = time.monotonic() - start_time
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            truncated = len(res) > max_rows
+            rows = [dict(zip(columns, row)) for row in res[:max_rows]]
+            tmp_log.debug(f"done with {len(rows)} rows (truncated={truncated}) in {elapsed:.3f} sec")
+            return True, "", {"rows": rows, "truncated": truncated, "max_rows": max_rows, "as_of": as_of}
         except Exception as e:
             self._rollback()
             self.dump_error_message(tmp_log)

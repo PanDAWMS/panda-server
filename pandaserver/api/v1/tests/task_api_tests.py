@@ -296,6 +296,106 @@ class TestTaskAPI(unittest.TestCase):
         for row in output["data"]["rows"]:
             self.assertEqual(row["jediTaskID"], int(JEDI_TASK_ID))
 
+    def test_get_job_rows(self) -> None:
+        url = f"{api_url_ssl}/task/get_job_rows"
+        print(f"Testing URL: {url}")
+        # a window of a few days fits the budget also where jobsArchived4 keeps years of daily partitions
+        since = (datetime.utcnow() - timedelta(days=3)).strftime("%Y-%m-%d %H:%M:%S")
+        data = {"task_id": JEDI_TASK_ID, "since": since}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        keys = {"rows", "truncated", "max_rows", "after_panda_id", "counts", "as_of", "since", "until", "retained_from", "partitions", "probes", "budget"}
+        self.assertEqual(set(output["data"]), keys)
+        self.assertIsNotNone(output["data"]["since"])
+        self.assertLessEqual(output["data"]["probes"], output["data"]["budget"])
+        columns = {
+            "PandaID",
+            "jobStatus",
+            "jobSubStatus",
+            "creationTime",
+            "modificationTime",
+            "stateChangeTime",
+            "endTime",
+            "prodSourceLabel",
+            "currentPriority",
+            "computingSite",
+            "attemptNr",
+        }
+        for row in output["data"]["rows"]:
+            self.assertEqual(set(row), columns)
+        if JEDI_TASK_ID == -1:
+            self.assertEqual(output["data"]["rows"], [])
+            self.assertEqual(output["data"]["counts"], {})
+
+    def test_get_job_rows_page(self) -> None:
+        url = f"{api_url_ssl}/task/get_job_rows"
+        print(f"Testing URL: {url}")
+        since = (datetime.utcnow() - timedelta(days=3)).strftime("%Y-%m-%d %H:%M:%S")
+        data = {"task_id": JEDI_TASK_ID, "since": since, "after_panda_id": 1}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertEqual(output["data"]["after_panda_id"], 1)
+        for row in output["data"]["rows"]:
+            self.assertGreater(row["PandaID"], 1)
+
+    def test_get_job_rows_default_window(self) -> None:
+        url = f"{api_url_ssl}/task/get_job_rows"
+        print(f"Testing URL: {url}")
+        data = {"task_id": JEDI_TASK_ID}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        if JEDI_TASK_ID == -1:
+            # an unknown task is read without a window, which the budget may refuse
+            if output["success"]:
+                self.assertIsNone(output["data"]["since"])
+            else:
+                self.assertEqual(output["data"]["rejected"], "probe_budget")
+        else:
+            self.assertTrue(output["success"])
+            self.assertIsNotNone(output["data"]["since"])
+
+    def test_get_job_rows_invalid_since(self) -> None:
+        url = f"{api_url_ssl}/task/get_job_rows"
+        print(f"Testing URL: {url}")
+        data = {"task_id": JEDI_TASK_ID, "since": "yesterday"}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertFalse(output["success"])
+        self.assertEqual(output["data"], {"rejected": "invalid_window"})
+
+    def test_get_dataset_rows(self) -> None:
+        url = f"{api_url_ssl}/task/get_dataset_rows"
+        print(f"Testing URL: {url}")
+        data = {"task_id": JEDI_TASK_ID}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertEqual(set(output["data"]), {"rows", "truncated", "max_rows", "as_of"})
+        if JEDI_TASK_ID == -1:
+            self.assertEqual(output["data"]["rows"], [])
+        for row in output["data"]["rows"]:
+            self.assertEqual(row["jediTaskID"], int(JEDI_TASK_ID))
+            self.assertIn("masterID", row)
+
+    def test_get_dataset_rows_page(self) -> None:
+        url = f"{api_url_ssl}/task/get_dataset_rows"
+        print(f"Testing URL: {url}")
+        data = {"task_id": JEDI_TASK_ID, "after_dataset_id": 1}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertEqual(set(output["data"]), {"rows", "truncated", "max_rows", "as_of"})
+        for row in output["data"]["rows"]:
+            self.assertGreater(row["datasetID"], 1)
+
     def test_get_command_history(self) -> None:
         url = f"{api_url_ssl}/task/get_command_history"
         print(f"Testing URL: {url}")
