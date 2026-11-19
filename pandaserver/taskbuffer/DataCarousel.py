@@ -2662,10 +2662,14 @@ class DataCarouselInterface(object):
             by (str): annotation of the caller of this method; default is "watchdog"
         """
         tmp_log = LogWrapper(logger, "keep_alive_ddm_rules")
-        # get all requests
-        all_requests_map, _ = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI()
-        # get requests of active tasks
-        active_tasked_requests_map, _ = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_exclusion_list=FINAL_TASK_STATUSES)
+        # get all requests, and those of active tasks
+        all_requests = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI()
+        active_tasked_requests = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_exclusion_list=FINAL_TASK_STATUSES)
+        if all_requests is None or active_tasked_requests is None:
+            tmp_log.warning("failed to query requests ; skipped")
+            return
+        all_requests_map, _ = all_requests
+        active_tasked_requests_map, _ = active_tasked_requests
         for dc_req_spec in all_requests_map.values():
             try:
                 if dc_req_spec.status not in [DataCarouselRequestStatus.staging, DataCarouselRequestStatus.done]:
@@ -2758,6 +2762,7 @@ class DataCarouselInterface(object):
         dc_req_specs = self.taskBufferIF.get_data_carousel_staging_requests_JEDI(time_limit_minutes=time_limit_minutes)
         if dc_req_specs is None:
             tmp_log.warning("failed to query requests to check ; skipped")
+            return
         elif not dc_req_specs:
             tmp_log.debug("got no requests to check ; skipped")
         for dc_req_spec in dc_req_specs:
@@ -2896,7 +2901,11 @@ class DataCarouselInterface(object):
         Get tasks with enough staged files and resume them
         """
         tmp_log = LogWrapper(logger, "resume_tasks_from_staging")
-        ret_requests_map, ret_relation_map = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_filter_list=["staging"])
+        staging_requests = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_filter_list=["staging"])
+        if staging_requests is None:
+            tmp_log.warning("failed to query requests ; skipped")
+            return
+        ret_requests_map, ret_relation_map = staging_requests
         n_resumed_tasks = 0
         for task_id, request_id_list in ret_relation_map.items():
             to_resume = False
@@ -2991,12 +3000,13 @@ class DataCarouselInterface(object):
             cancelled_requests_set = set()
             retired_requests_set = set()
             # get requests of terminated and active tasks
-            terminated_tasks_requests_map, terminated_tasks_relation_map = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(
-                status_filter_list=FINAL_TASK_STATUSES
-            )
-            active_tasks_requests_map, active_tasks_relation_map = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(
-                status_exclusion_list=FINAL_TASK_STATUSES
-            )
+            terminated_tasks_requests = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_filter_list=FINAL_TASK_STATUSES)
+            active_tasks_requests = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_exclusion_list=FINAL_TASK_STATUSES)
+            if terminated_tasks_requests is None or active_tasks_requests is None:
+                tmp_log.warning("failed to query requests ; skipped")
+                return
+            terminated_tasks_requests_map, terminated_tasks_relation_map = terminated_tasks_requests
+            active_tasks_requests_map, active_tasks_relation_map = active_tasks_requests
             now_time = naive_utcnow()
             # set of requests of terminated tasks
             request_ids_of_terminated_tasks = set()
@@ -3096,9 +3106,11 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, "rescue_pending_tasks_with_done_requests")
         # get requests of pending tasks
-        pending_tasked_requests_map, pending_tasked_relation_map = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(
-            status_filter_list=["pending"]
-        )
+        pending_tasked_requests = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_filter_list=["pending"])
+        if pending_tasked_requests is None:
+            tmp_log.warning("failed to query requests ; skipped")
+            return
+        pending_tasked_requests_map, pending_tasked_relation_map = pending_tasked_requests
         # create inverse relation map: request_id -> list of task_id
         pending_tasked_inverse_relation_map: dict[str, Any] = dict()
         for task_id, request_id_list in pending_tasked_relation_map.items():
