@@ -338,10 +338,10 @@ def isinstance_types(expected_type: Any) -> tuple[Any, ...]:
 
 # modules whose POST endpoints are recorded in the task command log, with what returns the
 # TaskBuffer to record through
-_command_logging_modules: dict[str, Callable[[], Any]] = {}
+_command_logging_modules: dict[str, Callable[[], "TaskBuffer"]] = {}
 
 
-def log_task_commands(module_name: str, task_buffer: Callable[[], Any]) -> None:
+def log_task_commands(module_name: str, task_buffer: Callable[[], "TaskBuffer"]) -> None:
     """
     Record the commands the POST endpoints of an API module receive in the task command log, TASKS_COMMANDLOG.
 
@@ -466,7 +466,7 @@ def run_logged_task_command(
     bound_args: inspect.BoundArguments,
     req: PandaRequest,
     task_ids: list[int],
-    task_buffer: Any,
+    task_buffer: "TaskBuffer",
     tmp_logger: LogWrapper,
 ) -> Any:
     """
