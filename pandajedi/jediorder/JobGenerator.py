@@ -1123,9 +1123,12 @@ class JobGeneratorThread(WorkerThread):
                         bulk_fetch_for_multiple_jobs=True,
                         master_dataset_id=inputChunk.masterIndexName,
                     )
-                    for tmp_dataset_spec in tmp_datasets_to_register:
-                        if tmp_dataset_spec not in datasetToRegister:
-                            datasetToRegister.append(tmp_dataset_spec)
+                    # a failed bulk fetch, already logged by the database layer, returns no files, so
+                    # the jobs of this site fetch their own one by one below
+                    if tmp_datasets_to_register is not None:
+                        for tmp_dataset_spec in tmp_datasets_to_register:
+                            if tmp_dataset_spec not in datasetToRegister:
+                                datasetToRegister.append(tmp_dataset_spec)
                     if not simul:
                         try:
                             # num_outputs_per_job is None when the task has no output datasets,
