@@ -5627,35 +5627,44 @@ class TaskStandaloneModule(BaseModule):
             return False, f"database error {err_code}", {"error": err_code}
 
     # get the rows of the datasets of a task from JEDI_Datasets
-    def get_task_dataset_rows(self, jedi_task_id: int, max_rows: int) -> tuple[bool, str, dict[str, Any]]:
+    def get_task_dataset_rows(self, jedi_task_id: int, max_rows: int, after_dataset_id: int | None = None) -> tuple[bool, str, dict[str, Any]]:
         """
         Get the rows JEDI_Datasets holds for a task.
+
+        A task with more datasets than max_rows is read in pages: each next page is asked with after_dataset_id set to
+        the last datasetID of the page before, until a page is not truncated.
 
         Args:
             jedi_task_id(int): jediTaskID of the task
             max_rows(int): most rows to return
+            after_dataset_id(int): return only the datasets with a larger datasetID, or None for from the first
 
         Returns:
             bool: True if the rows were read
             str: why not, when they were not
             dict: when read, {"rows": [dict, ...], "truncated": bool, "max_rows": int, "as_of": datetime}. rows are
-                ordered by datasetID, with every column keyed as JediDatasetSpec names it, and cut at max_rows when
-                truncated. as_of is the database time in UTC taken before the rows were read. On a database error,
+                ordered by datasetID, with every column keyed as JediDatasetSpec names it, start after after_dataset_id,
+                and are cut at max_rows when truncated. as_of is the database time in UTC taken before the rows were read. On a database error,
                 {"error": <code>}
         """
         comment = " /* DBProxy.get_task_dataset_rows */"
-        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} after_dataset_id={after_dataset_id}")
         tmp_log.debug("start")
         columns = JediDatasetSpec.columnNames().split(",")
         try:
             self.conn.begin()
             as_of = self.get_db_utc_now()
-            sql = f"SELECT {','.join(columns)} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID ORDER BY datasetID "
+            var_map: dict[str, Any] = {":jediTaskID": jedi_task_id}
+            sql = f"SELECT {','.join(columns)} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
+            if after_dataset_id is not None:
+                sql += "AND datasetID>:after_dataset_id "
+                var_map[":after_dataset_id"] = after_dataset_id
+            sql += "ORDER BY datasetID "
             # one row more than returned tells whether there are more
             sql += f"FETCH FIRST {max_rows + 1} ROWS ONLY "
             start_time = time.monotonic()
             self.cur.arraysize = max_rows + 1
-            self.cur.execute(sql + comment, {":jediTaskID": jedi_task_id})
+            self.cur.execute(sql + comment, var_map)
             res = self.cur.fetchall()
             elapsed = time.monotonic() - start_time
             if not self._commit():

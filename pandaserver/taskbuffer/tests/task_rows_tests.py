@@ -11,6 +11,7 @@ from pandaserver.taskbuffer.db_proxy_mods.task_standalone_module import (
     floor_to_day,
 )
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
+from pandaserver.taskbuffer.WrappedCursor import convert_query_in_printf_format
 
 AS_OF = datetime.datetime(2026, 11, 18, 9, 0, 0)
 ARCHIVE_RETAINED_FROM = datetime.datetime(2024, 1, 1)
@@ -191,6 +192,50 @@ class TestGetTaskDatasetRows(unittest.TestCase):
         self.assertTrue(success, message)
         self.assertTrue(data["truncated"])
         self.assertEqual([row["jediTaskID"] for row in data["rows"]], [11, 12])
+
+    def dataset_rows(self, *dataset_ids: int) -> list[tuple[Any, ...]]:
+        index = self.columns.index("datasetID")
+        return [tuple(dataset_id if i == index else None for i in range(len(self.columns))) for dataset_id in dataset_ids]
+
+    def test_first_page(self) -> None:
+        self.proxy.cur.fetchall.return_value = self.dataset_rows(11, 12, 13)
+        success, message, data = TaskStandaloneModule.get_task_dataset_rows(self.proxy, 123, 2)
+        self.assertTrue(success, message)
+        self.assertEqual(set(data), {"rows", "truncated", "max_rows", "as_of"})
+        self.assertTrue(data["truncated"])
+        self.assertEqual([row["datasetID"] for row in data["rows"]], [11, 12])
+        sql, var_map = self.proxy.cur.execute.call_args.args
+        self.assertNotIn("after_dataset_id", sql)
+        self.assertEqual(var_map, {":jediTaskID": 123})
+
+    def test_later_page(self) -> None:
+        self.proxy.cur.fetchall.return_value = self.dataset_rows(13, 14, 15)
+        success, message, data = TaskStandaloneModule.get_task_dataset_rows(self.proxy, 123, 2, after_dataset_id=12)
+        self.assertTrue(success, message)
+        self.assertEqual(set(data), {"rows", "truncated", "max_rows", "as_of"})
+        self.assertTrue(data["truncated"])
+        self.assertEqual([row["datasetID"] for row in data["rows"]], [13, 14])
+        sql, var_map = self.proxy.cur.execute.call_args.args
+        self.assertIn("WHERE jediTaskID=:jediTaskID AND datasetID>:after_dataset_id ORDER BY datasetID FETCH FIRST 3 ROWS ONLY", sql)
+        self.assertEqual(var_map, {":jediTaskID": 123, ":after_dataset_id": 12})
+
+    def test_last_page(self) -> None:
+        self.proxy.cur.fetchall.return_value = self.dataset_rows(15)
+        success, message, data = TaskStandaloneModule.get_task_dataset_rows(self.proxy, 123, 2, after_dataset_id=14)
+        self.assertTrue(success, message)
+        self.assertFalse(data["truncated"])
+        self.assertEqual([row["datasetID"] for row in data["rows"]], [15])
+
+    def test_page_on_postgres(self) -> None:
+        # what WrappedCursor makes of the page on Postgres: the binds in order, and FETCH FIRST left as it is
+        self.proxy.backend = "postgres"
+        self.proxy.cur.fetchall.return_value = []
+        success, message, data = TaskStandaloneModule.get_task_dataset_rows(self.proxy, 123, 1000, after_dataset_id=12)
+        self.assertTrue(success, message)
+        statement, var_map = self.proxy.cur.execute.call_args.args
+        sql, params = convert_query_in_printf_format(statement, [var_map], {})
+        self.assertIn("WHERE jediTaskID=%s AND datasetID>%s ORDER BY datasetID FETCH FIRST 1001 ROWS ONLY", sql)
+        self.assertEqual(params, [[123, 12]])
 
     def test_database_error(self) -> None:
         self.proxy.cur.execute.side_effect = Exception("ORA-00942: table or view does not exist")

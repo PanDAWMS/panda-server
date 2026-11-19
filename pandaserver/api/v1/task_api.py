@@ -1169,11 +1169,14 @@ def get_job_rows(req: PandaRequest, task_id: int, since: str | None = None, afte
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_dataset_rows(req: PandaRequest, task_id: int) -> dict[str, Any]:
+def get_dataset_rows(req: PandaRequest, task_id: int, after_dataset_id: int | None = None) -> dict[str, Any]:
     """
     Get the dataset rows of a task
 
     Gets the rows JEDI_Datasets holds for a task, with every column. Requires a secure connection.
+
+    A task with more datasets than one call returns is read in pages: ask the next page with after_dataset_id set to the
+    last datasetID of the page before, until a page is not truncated.
 
     API details:
         HTTP Method: GET
@@ -1182,6 +1185,8 @@ def get_dataset_rows(req: PandaRequest, task_id: int) -> dict[str, Any]:
     Args:
         req(PandaRequest): internally generated request object
         task_id(int): JEDI Task ID
+        after_dataset_id(int, optional): return only the datasets with a larger datasetID, for the next page. Defaults to
+            from the first
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
@@ -1189,15 +1194,16 @@ def get_dataset_rows(req: PandaRequest, task_id: int) -> dict[str, Any]:
     Response data:
         dict: The datasets of the task.
             {"rows": [...], "truncated": bool, "max_rows": int, "as_of": datetime}
-            - rows: one dict per dataset, ordered by datasetID, with every column keyed as JediDatasetSpec names it
-              (jediTaskID, datasetID, datasetName, type, masterID, status, nFiles, ...), and None for NULL. A task that
-              is not found has none
-            - truncated, max_rows: whether the rows were cut at max_rows, the most a call returns
-            - as_of: database time in UTC taken before the rows were read
+            - rows: one dict per dataset, ordered by datasetID and starting after after_dataset_id, with every column keyed
+              as JediDatasetSpec names it (jediTaskID, datasetID, datasetName, type, masterID, status, nFiles, ...), and
+              None for NULL. A task that is not found has none
+            - truncated, max_rows: whether the rows were cut at max_rows, the most a call returns; when cut, the next
+              page starts after the last datasetID of rows
+            - as_of: database time in UTC taken before the rows of this page were read
         On failure, with the reason in the message: {"error": str} when the database failed, with the error code (ORA-xxxxx,
             or the SQLSTATE on Postgres), and None otherwise.
     """
-    tmp_logger = LogWrapper(_logger, f"get_dataset_rows < task_id={task_id} >")
+    tmp_logger = LogWrapper(_logger, f"get_dataset_rows < task_id={task_id} after_dataset_id={after_dataset_id} >")
     tmp_logger.debug("Start")
 
     try:
@@ -1206,7 +1212,7 @@ def get_dataset_rows(req: PandaRequest, task_id: int) -> dict[str, Any]:
         tmp_logger.error("Failed due to invalid task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
-    success, message, data = global_task_buffer.get_task_dataset_rows(task_id, MAX_TASK_ROWS)
+    success, message, data = global_task_buffer.get_task_dataset_rows(task_id, MAX_TASK_ROWS, after_dataset_id)
     if not success:
         tmp_logger.debug(f"Failed with {message}")
         return generate_response(False, message=message, data=data)

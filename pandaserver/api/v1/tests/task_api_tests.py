@@ -384,6 +384,18 @@ class TestTaskAPI(unittest.TestCase):
             self.assertEqual(row["jediTaskID"], int(JEDI_TASK_ID))
             self.assertIn("masterID", row)
 
+    def test_get_dataset_rows_page(self) -> None:
+        url = f"{api_url_ssl}/task/get_dataset_rows"
+        print(f"Testing URL: {url}")
+        data = {"task_id": JEDI_TASK_ID, "after_dataset_id": 1}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertEqual(set(output["data"]), {"rows", "truncated", "max_rows", "as_of"})
+        for row in output["data"]["rows"]:
+            self.assertGreater(row["datasetID"], 1)
+
     def test_get_command_history(self) -> None:
         url = f"{api_url_ssl}/task/get_command_history"
         print(f"Testing URL: {url}")

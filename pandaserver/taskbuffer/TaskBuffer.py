@@ -2096,9 +2096,9 @@ class TaskBuffer:
             return proxy.get_task_job_rows(jedi_task_id, since, probe_budget, max_rows, after_panda_id)
 
     # get the rows of the datasets of a task
-    def get_task_dataset_rows(self, jedi_task_id: int, max_rows: int) -> tuple[bool, str, dict[str, Any]]:
+    def get_task_dataset_rows(self, jedi_task_id: int, max_rows: int, after_dataset_id: int | None = None) -> tuple[bool, str, dict[str, Any]]:
         with self.proxyPool.get() as proxy:
-            return proxy.get_task_dataset_rows(jedi_task_id, max_rows)
+            return proxy.get_task_dataset_rows(jedi_task_id, max_rows, after_dataset_id)
 
     # reactivate task
     def reactivateTask(self, jediTaskID: int, keep_attempt_nr: bool = False, trigger_job_generation: bool = False) -> tuple[int | None, str]:
