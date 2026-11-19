@@ -32,7 +32,11 @@ metric_list = [
     ("analy_site_eval", "site", 30),
     ("users_jobs_stats", "both", 5),
     ("analy_user_eval", "neither", 10),
+    ("tape_throughput", "neither", 15),
 ]
+
+# default time window in hours to measure tape throughput
+DEFAULT_TAPE_THROUGHPUT_WINDOW_HOURS = 6
 
 # constant maps
 class_value_rank_map = {1: "A_sites", 0: "B_sites", -1: "C_sites"}
@@ -851,6 +855,104 @@ class FetchData(object):
             tmp_log.debug(f"{user_dict}")
             # return
             return user_dict
+        except Exception:
+            tmp_log.error(traceback.format_exc())
+            return None
+
+    def tape_throughput(self) -> dict[Any, Any] | None:
+        """
+        Measure the staging throughput (files per hour) of each source physical tape of Data Carousel within a recent time window,
+        from the staged files of staging and done Data Carousel requests
+
+        Returns:
+            dict | None : {tape: {"throughput": files per hour or None if failed, "n_files_staged": ..., "n_requests": ..., "window_hours": ...}}, or None if failed
+        """
+        tmp_log = logger_utils.make_logger(main_logger, "FetchData.tape_throughput")
+        tmp_log.debug("start")
+        try:
+            # source physical tapes from Data Carousel config
+            dc_config = self.tbuf.getConfigValue("data_carousel", "DATA_CAROUSEL_CONFIG", "jedi", "atlas")
+            try:
+                source_tapes = list(dc_config["data"]["source_tapes_config"])
+            except (TypeError, KeyError):
+                tmp_log.warning("failed to get source_tapes_config from DATA_CAROUSEL_CONFIG; skipped")
+                return None
+            # time window
+            window_hours = self.tbuf.getConfigValue("data_carousel", "TAPE_THROUGHPUT_WINDOW_HOURS", "jedi", "atlas")
+            if not window_hours or window_hours <= 0:
+                window_hours = DEFAULT_TAPE_THROUGHPUT_WINDOW_HOURS
+            now_time = naive_utcnow()
+            t_A = now_time - datetime.timedelta(hours=window_hours)
+            # get staging and done requests which have staged files within the window
+            sql = (
+                f"SELECT source_tape, status, staged_files, start_time, end_time, parameters "
+                f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
+                f"WHERE status IN (:status_staging, :status_done) "
+                f"AND start_time IS NOT NULL "
+                f"AND staged_files > 0 "
+                f"AND (end_time IS NULL OR end_time >= :t_A) "
+            )
+            var_map = {
+                ":status_staging": "staging",
+                ":status_done": "done",
+                ":t_A": t_A,
+            }
+            res = self.tbuf.querySQL(sql, var_map)
+            if res is None:
+                tmp_log.warning("failed to query data_carousel_requests; skipped")
+                return None
+            # initialize with zero throughput for all tapes
+            n_files_map: dict[str, float] = {}
+            n_requests_map: dict[str, int] = {}
+            failed_tapes: set[str] = set()
+            for tape in source_tapes:
+                n_files_map[tape] = 0
+                n_requests_map[tape] = 0
+            # sum up the files staged within the window
+            for source_tape, status, staged_files, start_time, end_time, parameters in res:
+                if source_tape not in n_files_map:
+                    continue
+                try:
+                    # skip requests reusing existing DDM rules or to pin, which do not really trigger staging
+                    param_map = json.loads(parameters) if parameters else {}
+                    if param_map.get("reuse_rule") or param_map.get("to_pin"):
+                        continue
+                    # end of staging of the request
+                    if status == "done" and end_time is not None:
+                        end = min(end_time, now_time)
+                    else:
+                        end = now_time
+                    if start_time >= t_A:
+                        # started within the window; take all staged files
+                        n_files = float(staged_files)
+                    else:
+                        # started before the window; take the part proportional to the staging time within the window
+                        staging_seconds = (end - start_time).total_seconds()
+                        overlap_seconds = (end - t_A).total_seconds()
+                        if staging_seconds <= 0 or overlap_seconds <= 0:
+                            continue
+                        n_files = staged_files * overlap_seconds / staging_seconds
+                    n_files_map[source_tape] += n_files
+                    n_requests_map[source_tape] += 1
+                except Exception:
+                    tmp_log.error(f"source_tape={source_tape} failed to evaluate a request: {traceback.format_exc()}")
+                    failed_tapes.add(source_tape)
+            # compute throughput in files per hour
+            ret_dict: dict[str, Any] = {}
+            for tape in source_tapes:
+                throughput = None
+                if tape not in failed_tapes:
+                    throughput = n_files_map[tape] / window_hours
+                ret_dict[tape] = {
+                    "throughput": throughput,
+                    "n_files_staged": n_files_map[tape],
+                    "n_requests": n_requests_map[tape],
+                    "window_hours": window_hours,
+                }
+                tmp_log.debug(f"source_tape={tape} {ret_dict[tape]}")
+            # done
+            tmp_log.debug("done")
+            return ret_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
             return None
