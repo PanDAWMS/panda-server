@@ -721,7 +721,7 @@ class AtlasAnalWatchDog(TypicalWatchDogBase):
                 if task_spec.getNumFilesPerJob() is None and task_spec.getNumEventsPerJob() is None:
                     tmpLog.info(f" >>> set max walltime to 1 hr for jediTaskID={task_id}")
                     task_spec.set_max_walltime(1)
-                    self.taskBufferIF.updateTask_JEDI(task_spec, {"jediTaskID": task_id})
+                    self.taskBufferIF.updateTask_JEDI(task_spec, {"jediTaskID": task_id}, updateDEFT=False)
                 tmpLog.info(f">>> done jediTaskID={task_id}")
             # done
             tmpLog.debug("done")

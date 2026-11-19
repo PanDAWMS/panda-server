@@ -224,7 +224,7 @@ class AtlasWorkflowManagerWatchDog(WatchDogBase):
         """
         task_id = task_spec.jediTaskID
         task_spec.set_workflow_holdup(False, WORKFLOW_HOLDUP_BROKERAGE)
-        self.taskBufferIF.updateTask_JEDI(task_spec, {"jediTaskID": task_id})
+        self.taskBufferIF.updateTask_JEDI(task_spec, {"jediTaskID": task_id}, updateDEFT=False)
         if task_spec.status == "pending":
             if not self.taskBufferIF.release_task_on_hold(task_id):
                 tmpLog.warning(f"task_id={task_id} brokerage holdup unset but not released from pending; retried next cycle")

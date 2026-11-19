@@ -165,13 +165,13 @@ class PostProcessorThread(WorkerThread):
                 task_spec.status = "broken"
                 task_spec.setErrDiag(err_str)
                 task_spec.lockedBy = None
-                self.taskBufferIF.updateTask_JEDI(task_spec, {"jediTaskID": task_spec.jediTaskID})
+                self.taskBufferIF.updateTask_JEDI(task_spec, {"jediTaskID": task_spec.jediTaskID}, updateDEFT=False)
 
             # handle transient failure — skip final procedure
             elif tmp_stat == Interaction.SC_FAILED:
                 err_str = "post-processing temporarily failed"
                 task_spec.setErrDiag(err_str, True)
-                self.taskBufferIF.updateTask_JEDI(task_spec, {"jediTaskID": task_spec.jediTaskID})
+                self.taskBufferIF.updateTask_JEDI(task_spec, {"jediTaskID": task_spec.jediTaskID}, updateDEFT=False)
                 tmp_log.info(f"set task_status={task_spec.status} since {task_spec.errorDialog}")
                 tmp_log.info("done")
                 continue

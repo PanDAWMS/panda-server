@@ -200,7 +200,7 @@ class TaskCommandoThread(WorkerThread):
                                     # process or got a further command since it was taken
                                     doing_status = JediTaskSpec.commandStatusMap()[commandStr]["doing"]
                                     tmpRet = self.taskBufferIF.updateTask_JEDI(
-                                        tmpTaskSpec, {"jediTaskID": jediTaskID}, oldStatus=[doing_status], setOldModTime=True
+                                        tmpTaskSpec, {"jediTaskID": jediTaskID}, oldStatus=[doing_status], setOldModTime=True, updateDEFT=False
                                     )
                                     update_ok, n_updated = tmpRet
                                     if not update_ok:

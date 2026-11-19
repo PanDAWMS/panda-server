@@ -952,6 +952,7 @@ class JobGeneratorThread(WorkerThread):
                             oldStatus=JediTaskSpec.statusForJobGenerator() + ["pending"],
                             setOldModTime=setOldModTime,
                             setFrozenTime=not noFrozenTime,
+                            updateDEFT=False,
                         )
                         tmpMsg = f"set task_status={taskSpec.status} oldTask={setOldModTime} with {str(retDB)}"
                         if taskSpec.errorDialog:
