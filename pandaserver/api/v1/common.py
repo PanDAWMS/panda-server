@@ -706,6 +706,12 @@ def request_validation(
                     dn = get_dn(req)
                     prod_role = has_production_role(req)
                     resolved_buffer = task_buffer() if callable(task_buffer) else task_buffer
+                    # task_owner without a task_buffer is a mistake in the decorator's arguments;
+                    # refuse the request rather than fail on the missing buffer
+                    if resolved_buffer is None:
+                        message = "task ownership cannot be checked: request_validation has no task_buffer"
+                        tmp_logger.error(message)
+                        return generate_response(False, message=message)
                     if not resolved_buffer.validate_ownership_or_production_role(task_id, dn, prod_role):
                         tmp_logger.error(MESSAGE_TASK_OWNER)
                         return generate_response(False, message=MESSAGE_TASK_OWNER)
