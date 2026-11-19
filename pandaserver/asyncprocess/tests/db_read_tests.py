@@ -348,7 +348,7 @@ class TestCompose(unittest.TestCase):
         self.assertEqual(oracle.names, ("jobstatus", "hour(modificationtime)", "count(*)", "min(pandaid)"))
         (postgres,) = self.compose(raw, "postgres")
         self.assertIn("date_trunc('hour',modificationtime)", postgres.sql)
-        self.assertTrue(postgres.sql.endswith(" LIMIT 1001" + STATEMENT_COMMENT))
+        self.assertTrue(postgres.sql.endswith(" FETCH FIRST 1001 ROWS ONLY" + STATEMENT_COMMENT))
 
     def test_postgres_conversion(self) -> None:
         # what WrappedCursor makes of the statement: one %s per bind variable, in order, and nothing else touched
@@ -368,7 +368,7 @@ class TestCompose(unittest.TestCase):
             sql,
             "SELECT date_trunc('day',modificationtime),COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
             "WHERE pandaid IN (%s,%s) AND computingsite LIKE %s ESCAPE '!' AND modificationtime < %s "
-            "GROUP BY date_trunc('day',modificationtime) LIMIT 1001" + STATEMENT_COMMENT,
+            "GROUP BY date_trunc('day',modificationtime) FETCH FIRST 1001 ROWS ONLY" + STATEMENT_COMMENT,
         )
         self.assertEqual(params, [[1, 2, "CERN!_1!%%", D0]])
 

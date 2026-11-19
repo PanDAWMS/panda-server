@@ -141,8 +141,6 @@ def compose_statement(plan: TablePlan, query: Query, from_values: dict[FromQuery
         order = [f"{expression_of.get(key.name) or _identifier(key.name)}{' DESC' if key.descending else ''}" for key in query.order_by]
         sql += " ORDER BY " + ",".join(order)
     # each clause starts with a space, which is what keeps a bind variable ending the one before apart from it
-    if backend == "postgres":
-        sql += f" LIMIT {query.limit + 1}"
-    else:
-        sql += f" FETCH FIRST {query.limit + 1} ROWS ONLY"
+    # standard SQL that Oracle and Postgres both take as it is
+    sql += f" FETCH FIRST {query.limit + 1} ROWS ONLY"
     return Statement(sql + STATEMENT_COMMENT, binds, tuple(names), query.limit)

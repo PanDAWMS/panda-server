@@ -82,22 +82,6 @@ def ceil_to_day(time_stamp: datetime.datetime) -> datetime.datetime:
     return floored if floored == time_stamp else floored + datetime.timedelta(days=1)
 
 
-def row_limit_clause(backend: str, n_rows: int) -> str:
-    """
-    Get the clause that ends a statement after its first rows.
-
-    Args:
-        backend(str): the database backend
-        n_rows(int): how many rows to read at most
-
-    Returns:
-        str: the clause, LIMIT for Postgres and FETCH FIRST otherwise
-    """
-    if backend == "postgres":
-        return f"LIMIT {n_rows} "
-    return f"FETCH FIRST {n_rows} ROWS ONLY "
-
-
 # Module class to define isolated task related methods
 class TaskStandaloneModule(BaseModule):
     # constructor
@@ -5602,7 +5586,7 @@ class TaskStandaloneModule(BaseModule):
             columns = ",".join(TASK_JOB_ROW_COLUMNS)
             sql = f"SELECT {columns} FROM ({union(columns, page)}) tmp_union ORDER BY PandaID "
             # one row more than returned tells whether there are more
-            sql += row_limit_clause(self.backend, max_rows + 1)
+            sql += f"FETCH FIRST {max_rows + 1} ROWS ONLY "
             start_time = time.monotonic()
             self.cur.arraysize = max_rows + 1
             self.cur.execute(sql + comment, rows_var_map)
@@ -5668,7 +5652,7 @@ class TaskStandaloneModule(BaseModule):
             as_of = self.get_db_utc_now()
             sql = f"SELECT {','.join(columns)} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID ORDER BY datasetID "
             # one row more than returned tells whether there are more
-            sql += row_limit_clause(self.backend, max_rows + 1)
+            sql += f"FETCH FIRST {max_rows + 1} ROWS ONLY "
             start_time = time.monotonic()
             self.cur.arraysize = max_rows + 1
             self.cur.execute(sql + comment, {":jediTaskID": jedi_task_id})

@@ -156,8 +156,7 @@ class TestGetTaskJobRows(unittest.TestCase):
         success, message, data = TaskStandaloneModule.get_task_job_rows(self.proxy, 123, None, 1000, 1000)
         self.assertTrue(success, message)
         rows_sql = self.statements()[1][0]
-        self.assertIn("ORDER BY PandaID LIMIT 1001", rows_sql)
-        self.assertNotIn("FETCH FIRST", rows_sql)
+        self.assertIn("ORDER BY PandaID FETCH FIRST 1001 ROWS ONLY", rows_sql)
 
     def test_database_error(self) -> None:
         self.proxy.cur.fetchall.side_effect = Exception("ORA-01013: user requested cancel of current operation")
