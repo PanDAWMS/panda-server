@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -273,6 +274,15 @@ def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120
 
     tmp_logger = LogWrapper(_logger, f"update_event_ranges({event_ranges})")
     tmp_logger.debug("Start")
+
+    # The task buffer answered input that is not JSON with an error string, which was then read
+    # as the (Returns, Commands) pair, so the caller got a success made of its first two characters
+    try:
+        json.loads(event_ranges)
+    except json.JSONDecodeError:
+        message = "failed to convert event_ranges with json"
+        tmp_logger.error(message)
+        return generate_response(False, message)
 
     timed_method = TimedMethod(global_task_buffer.updateEventRanges, timeout)
     timed_method.run(event_ranges, version)
