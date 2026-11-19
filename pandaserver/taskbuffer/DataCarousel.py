@@ -3206,6 +3206,8 @@ class DataCarouselInterface(object):
             elif dc_req_spec_resubmitted is False:
                 err_msg = "request not found or not resubmittable; skipped"
                 tmp_log.warning(err_msg)
+                # the declared answer for a request not resubmitted is None, with err_msg saying why
+                dc_req_spec_resubmitted = None
             else:
                 err_msg = "failed to resubmit"
                 tmp_log.error(err_msg)
