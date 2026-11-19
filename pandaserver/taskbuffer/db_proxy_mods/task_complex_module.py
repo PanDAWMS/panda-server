@@ -54,7 +54,7 @@ class TaskComplexModule(BaseModule):
 
     # get the list of datasets to feed contents to DB
     def getDatasetsToFeedContents_JEDI(
-        self, vo: str | None, prodSourceLabel: str | None, task_id: int | None = None, force_read: bool = False
+        self, vo: str | None = None, prodSourceLabel: str | None = None, task_id: int | None = None, force_read: bool = False
     ) -> list[Any] | None:
         """Get the list of datasets to feed contents to DB
 
@@ -5797,15 +5797,15 @@ class TaskComplexModule(BaseModule):
         jediTaskID: int,
         provenanceID: int | None,
         simul: bool,
-        instantiateTmpl: bool,
-        instantiatedSites: str | None,
-        isUnMerging: bool,
-        isPrePro: bool,
-        siteDsMap: dict[Any, Any] | None,
-        middleName: str,
-        registerDatasets: bool,
-        parallelOutMap: dict[Any, Any] | None,
-        fileIDPool: Sequence[int],
+        instantiateTmpl: bool = False,
+        instantiatedSites: str | None = None,
+        isUnMerging: bool = False,
+        isPrePro: bool = False,
+        siteDsMap: dict[Any, Any] | None = None,
+        middleName: str = "",
+        registerDatasets: bool = False,
+        parallelOutMap: dict[Any, Any] | None = None,
+        fileIDPool: Sequence[int] = [],
         n_files_per_chunk: int = 1,
         bulk_fetch_for_multiple_jobs: bool = False,
         master_dataset_id: int | None = None,

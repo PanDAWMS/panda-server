@@ -1223,7 +1223,7 @@ class JobStandaloneModule(BaseModule):
         return None
 
     # get job statistics per site and resource type (SCORE, MCORE, ...)
-    def getJobStatisticsPerSiteResource(self, time_window: int | None) -> dict[Any, Any]:
+    def getJobStatisticsPerSiteResource(self, time_window: int | None = None) -> dict[Any, Any]:
         comment = " /* DBProxy.getJobStatisticsPerSiteResource */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1648,7 +1648,7 @@ class JobStandaloneModule(BaseModule):
         return None
 
     # throttle user jobs
-    def throttleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool) -> Any:
+    def throttleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool = False) -> Any:
         comment = " /* DBProxy.throttleUserJobs */"
         tmp_log = self.create_tagged_logger(comment, f"user={prodUserName} group={workingGroup}")
         tmp_log.debug("start")
@@ -1749,7 +1749,7 @@ class JobStandaloneModule(BaseModule):
             return None
 
     # unthrottle user jobs
-    def unThrottleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool) -> Any:
+    def unThrottleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool = False) -> Any:
         comment = " /* DBProxy.unThrottleUserJobs */"
         tmp_log = self.create_tagged_logger(comment, f"user={prodUserName} group={workingGroup}")
         tmp_log.debug("start")
@@ -2300,7 +2300,13 @@ class JobStandaloneModule(BaseModule):
 
     # list pandaID, jobStatus, attemptNr, timeStamp of job output report
     def listJobOutputReport(
-        self, only_unlocked: bool, time_limit: int, limit: int, grace_period: int, labels: list[str] | None, anti_labels: list[str] | None
+        self,
+        only_unlocked: bool = False,
+        time_limit: int = 5,
+        limit: int = 999999,
+        grace_period: int = 3,
+        labels: list[str] | None = None,
+        anti_labels: list[str] | None = None,
     ) -> list[Any] | None:
         comment = " /* DBProxy.listJobOutputReport */"
         tmp_log = self.create_tagged_logger(comment)

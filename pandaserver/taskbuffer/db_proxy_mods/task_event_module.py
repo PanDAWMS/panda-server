@@ -2844,7 +2844,7 @@ class TaskEventModule(BaseModule):
 
     # reduce input per job
     def reduce_input_per_job(
-        self, panda_id: int | None, jedi_task_id: int | None, attempt_nr: int | None, excluded_rules: str | None, steps: int, dry_mode: bool
+        self, panda_id: int | None, jedi_task_id: int | None, attempt_nr: int | None, excluded_rules: str | None, steps: int, dry_mode: bool = False
     ) -> tuple[bool | None, str]:
         comment = " /* DBProxy.reduce_input_per_job */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id} jediTaskID={jedi_task_id} attemptNr={attempt_nr}")

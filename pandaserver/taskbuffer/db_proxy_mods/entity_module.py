@@ -1360,7 +1360,7 @@ class EntityModule(BaseModule):
         return None
 
     # update site data
-    def updateSiteData(self, hostID: str, pilotRequests: dict[str, Any], interval: int) -> bool:
+    def updateSiteData(self, hostID: str, pilotRequests: dict[str, Any], interval: int = 3) -> bool:
         comment = " /* DBProxy.updateSiteData */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")

@@ -177,7 +177,7 @@ class WorkflowModule(BaseModule):
         # no branch above produced a value, which the return type covers as None
         return None
 
-    def get_workflow_data_by_name(self, name: str, workflow_id: int | None) -> WFDataSpec | None:
+    def get_workflow_data_by_name(self, name: str, workflow_id: int | None = None) -> WFDataSpec | None:
         """
         Retrieve a workflow data specification by its name and workflow ID
 

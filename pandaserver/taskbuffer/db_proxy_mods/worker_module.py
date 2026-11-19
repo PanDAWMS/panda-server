@@ -143,9 +143,9 @@ class WorkerModule(BaseModule):
         command: str,
         ack_requested: bool,
         status: str,
-        lockInterval: int | None,
-        comInterval: int | None,
-        params: dict[str, Any] | list[Any] | None,
+        lockInterval: int | None = None,
+        comInterval: int | None = None,
+        params: dict[str, Any] | list[Any] | None = None,
         useCommit: bool = True,
     ) -> bool:
         comment = " /* DBProxy.commandToHarvester */"

@@ -4559,7 +4559,7 @@ class JobComplexModule(BaseModule):
             return False
 
     # get job statistics per site, prodsourcelabel (managed, user, test...), and resource type (SCORE, MCORE...)
-    def get_job_statistics_per_site_label_resource(self, time_window: int | None) -> dict[Any, Any]:
+    def get_job_statistics_per_site_label_resource(self, time_window: int | None = None) -> dict[Any, Any]:
         comment = " /* DBProxy.get_job_statistics_per_site_label_resource */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")

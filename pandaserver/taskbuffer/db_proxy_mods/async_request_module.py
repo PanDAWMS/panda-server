@@ -63,7 +63,7 @@ class AsyncRequestModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False
 
-    def get_alive_machines(self, service_name: str | None, within_minutes: int) -> list[str]:
+    def get_alive_machines(self, service_name: str | None, within_minutes: int = 60) -> list[str]:
         """
         Return hostnames in the service that have sent a heartbeat within within_minutes.
 

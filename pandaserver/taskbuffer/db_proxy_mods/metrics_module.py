@@ -591,7 +591,7 @@ class MetricsModule(BaseModule):
             return {}
 
     # get carbon footprint for a task, the level has to be 'regional' or 'global'. If misspelled, it defaults to 'global'
-    def get_task_carbon_footprint(self, jedi_task_id: int, level: str) -> dict[str, Any] | None:
+    def get_task_carbon_footprint(self, jedi_task_id: int, level: str = "global") -> dict[str, Any] | None:
         comment = " /* JediDBProxy.get_task_carbon_footprint */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} n_files={level}")
         tmp_log.debug("start")
@@ -772,7 +772,7 @@ class MetricsModule(BaseModule):
             return False, {}
 
     # get job statistics by global share
-    def getJobStatisticsByGlobalShare(self, vo: str, exclude_rwq: bool) -> tuple[bool, dict[str, Any]]:
+    def getJobStatisticsByGlobalShare(self, vo: str, exclude_rwq: bool = False) -> tuple[bool, dict[str, Any]]:
         """
         :param vo: Virtual Organization
         :param exclude_rwq: True/False. Indicates whether we want to indicate special workqueues from the statistics

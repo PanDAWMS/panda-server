@@ -1800,7 +1800,7 @@ class TaskUtilsModule(BaseModule):
 
     # get JEDI task with ID
     def getTaskWithID_JEDI(
-        self, jediTaskID: int, fullFlag: bool, lockTask: bool = False, pid: str | None = None, lockInterval: int | None = None, clearError: bool = False
+        self, jediTaskID: int, fullFlag: bool = False, lockTask: bool = False, pid: str | None = None, lockInterval: int | None = None, clearError: bool = False
     ) -> tuple[bool, JediTaskSpec | None]:
         comment = " /* JediDBProxy.getTaskWithID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
