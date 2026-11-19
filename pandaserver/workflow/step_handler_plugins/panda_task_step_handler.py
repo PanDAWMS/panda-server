@@ -711,7 +711,7 @@ class PandaTaskStepHandler(BaseStepHandler):
             # Unset workflowHoldup, release the task if in pending, and trigger jedi_contents_feeder
             if task_spec.is_workflow_holdup():
                 task_spec.set_workflow_holdup(False)
-                self.tbif.updateTask_JEDI(task_spec, {"jediTaskID": task_spec.jediTaskID})
+                self.tbif.updateTask_JEDI(task_spec, {"jediTaskID": task_spec.jediTaskID}, updateDEFT=False)
                 tmp_log.info(f"task_id={task_id} unset workflowHoldup")
                 if task_spec.status == "pending":
                     tmp_ret = self.tbif.release_task_on_hold(task_id)

@@ -101,5 +101,5 @@ class DBProxyPool:
     def cleanup(self) -> None:
         _logger.debug("cleanup start")
         for conn in self.connList:
-            conn.cleanup()
+            conn.disconnect()
         _logger.debug("cleanup done")

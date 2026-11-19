@@ -4,7 +4,7 @@ import os.path
 import threading
 import time
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -14,12 +14,15 @@ from pandaserver.brokerage import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.event_picker import EventPicker
 
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 # logger
 _logger = PandaLogger().getLogger("evpPD2P")
 
 
 # main
-def main(tbuf: Any = None, **kwargs: Any) -> None:
+def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     _logger.debug("===================== start =====================")
 
     # overall timeout value

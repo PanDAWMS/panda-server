@@ -17,7 +17,7 @@ proxyS.connect(jedi_config.db.dbhost, jedi_config.db.dbpasswd, jedi_config.db.db
 
 sql = "select major || '.' || minor || '.' || patch from ATLAS_PANDA.pandadb_version where component = 'PanDA'"
 
-res = proxyS.querySQL(sql)
+res = proxyS.querySQLS(sql, {})[1]
 dbVersion = res[0][0]
 
 serverDBVersion = JediDBSchemaInfo.JediDBSchemaInfo().method()

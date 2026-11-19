@@ -1,12 +1,15 @@
 import time
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore.CoreUtils import create_shards
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("worker_sync")
@@ -21,7 +24,7 @@ def translate_status_to_command(pilot_status: str) -> str | None:
 
 
 class WorkerSync(object):
-    def __init__(self, tbuf: Any) -> None:
+    def __init__(self, tbuf: "TaskBuffer") -> None:
         self._logger = _logger
         self.tbuf = tbuf
         return
@@ -71,7 +74,7 @@ class WorkerSync(object):
 
 
 # main
-def main(tbuf: Any = None, **kwargs: Any) -> None:
+def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer

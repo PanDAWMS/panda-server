@@ -89,7 +89,9 @@ class TaskStandaloneModule(BaseModule):
         super().__init__(log_stream)
 
     # get files from the JEDI contents table with jediTaskID and/or datasetID
-    def getFilesInDatasetWithID_JEDI(self, jediTaskID: int | None, datasetID: int | None, nFiles: int | None, status: str | None) -> tuple[bool, Any]:
+    def getFilesInDatasetWithID_JEDI(
+        self, jediTaskID: int | None = None, datasetID: int | None = None, nFiles: int | None = None, status: str | None = None
+    ) -> tuple[bool, Any]:
         comment = " /* JediDBProxy.getFilesInDatasetWithID_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID}")
         tmpLog.debug(f"start nFiles={nFiles} status={status}")
@@ -829,7 +831,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # unlock tasks
-    def unlockTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None, waitTime: int, hostName: str | None, pgid: int | None) -> int | None:
+    def unlockTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None, waitTime: int, hostName: str | None = None, pgid: int | None = None) -> int | None:
         comment = " /* JediDBProxy.unlockTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} host={hostName} pgid={pgid}")
         tmpLog.debug("start")
@@ -1769,7 +1771,7 @@ class TaskStandaloneModule(BaseModule):
             return None
 
     # restart contents update
-    def restartTasksForContentsUpdate_JEDI(self, vo: str | None, prodSourceLabel: str | None, timeLimit: int) -> tuple[int | None, set[int] | None]:
+    def restartTasksForContentsUpdate_JEDI(self, vo: str | None, prodSourceLabel: str | None, timeLimit: int = 30) -> tuple[int | None, set[int] | None]:
         comment = " /* JediDBProxy.restartTasksForContentsUpdate_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} limit={timeLimit}min")
         tmpLog.debug("start")
@@ -2466,12 +2468,12 @@ class TaskStandaloneModule(BaseModule):
         vo: str | None,
         prodSourceLabel: str | None,
         taskStatusList: list[str],
-        taskCriteria: dict[str, Any],
-        datasetCriteria: dict[str, Any] | None,
-        taskParamList: list[str],
-        datasetParamList: list[str],
-        taskLockColumn: str | None,
-        taskLockInterval: int,
+        taskCriteria: dict[str, Any] = {},
+        datasetCriteria: dict[str, Any] | None = {},
+        taskParamList: list[str] = [],
+        datasetParamList: list[str] = [],
+        taskLockColumn: str | None = None,
+        taskLockInterval: int = 60,
     ) -> list[Any] | None:
         comment = " /* JediDBProxy.getTasksWithCriteria_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
@@ -3257,7 +3259,7 @@ class TaskStandaloneModule(BaseModule):
             return []
 
     # get JEDI tasks to be assessed
-    def getAchievedTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None, timeLimit: int, nTasks: int) -> list[Any] | None:
+    def getAchievedTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None, timeLimit: int = 60, nTasks: int = 50) -> list[Any] | None:
         comment = " /* JediDBProxy.getAchievedTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
@@ -3420,7 +3422,7 @@ class TaskStandaloneModule(BaseModule):
             return failedRet
 
     # get tasks to take periodic action
-    def get_tasks_for_periodic_action(self, vo: str | None, prod_source_label: str | None, time_limit: int, n_tasks: int) -> list[int] | None:
+    def get_tasks_for_periodic_action(self, vo: str | None, prod_source_label: str | None, time_limit: int = 12, n_tasks: int = 100) -> list[int] | None:
         """
         Get JEDI tasks to take periodic action.
         Args:
@@ -4803,7 +4805,7 @@ class TaskStandaloneModule(BaseModule):
         return None
 
     # turn a task into pending status for some reason
-    def makeTaskPending_JEDI(self, jedi_taskid: int, reason: str) -> int | None:
+    def makeTaskPending_JEDI(self, jedi_taskid: int, reason: str = "unknown") -> int | None:
         comment = " /* JediDBProxy.makeTaskPending_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_taskid}")
         try:
@@ -4888,7 +4890,7 @@ class TaskStandaloneModule(BaseModule):
 
     # query tasks and preassign them to dedicate workqueue, sql_query should query jeditaskid
     def queryTasksToPreassign_JEDI(
-        self, sql_query: str, params_map: dict[str, Any], site: str, blacklist: list[str] | set[str], limit: int
+        self, sql_query: str, params_map: dict[str, Any], site: str, blacklist: list[str] | set[str] = set(), limit: int = 1
     ) -> list[tuple[Any, dict[str, Any]]] | None:
         comment = " /* JediDBProxy.queryTasksToPreassign_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"site={site}")
@@ -4953,7 +4955,7 @@ class TaskStandaloneModule(BaseModule):
 
     # undo preassigned tasks
     def undoPreassignedTasks_JEDI(
-        self, jedi_taskids: list[int], task_orig_attr_map: dict[str, Any], params_map: dict[str, Any], force: bool
+        self, jedi_taskids: list[int], task_orig_attr_map: dict[str, Any], params_map: dict[str, Any], force: bool = False
     ) -> list[int] | None:
         comment = " /* JediDBProxy.undoPreassignedTasks_JEDI */"
         tmpLog = self.create_tagged_logger(comment)

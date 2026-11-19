@@ -101,7 +101,7 @@ def _connect_reader() -> DBProxy:
     handler runs under a deadline, and the caller can submit again.
 
     Returns:
-        DBProxy: the connected proxy, to be closed with cleanup()
+        DBProxy: the connected proxy, to be closed with disconnect()
 
     Raises:
         DBReaderUnavailableError: when panda_config has no dbuser_reader, or the connection fails
@@ -417,7 +417,7 @@ def _run(parameters: dict[str, Any], started: float, tmp_logger: LogWrapper) -> 
             return False, f"the read-only transaction could not start: {code}", None
     finally:
         close_started = time.monotonic()
-        proxy.cleanup()
+        proxy.disconnect()
         close_seconds = time.monotonic() - close_started
     # where the time went besides the statements, whose times are in the summary
     steps = {"connect": connect_seconds, "start": batch.start_seconds, "dictionary": batch.dictionary_seconds, "close": close_seconds}

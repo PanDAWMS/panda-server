@@ -295,7 +295,7 @@ class ConBridge(object):
             # close database connection
             _logger.debug(f"child  {self.pid} closing database connection")
             if self.proxy:
-                self.proxy.cleanup()
+                self.proxy.disconnect()
             # close sockets
             _logger.debug(f"child  {self.pid} closing sockets")
             try:

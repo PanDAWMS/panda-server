@@ -5,7 +5,7 @@ import json
 import os
 import socket
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from zlib import adler32
 
 import numpy as np
@@ -16,6 +16,9 @@ from pandacommon.pandautils.thread_utils import GenericThread
 from scipy import stats
 
 from pandaserver.config import panda_config
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 main_logger = PandaLogger().getLogger("metric_collector")
@@ -67,7 +70,7 @@ def weighted_stats(values: Any, weights: Any) -> tuple[Any, Any, Any]:
 
 
 # get site slot to-running rate statistics
-def get_site_strr_stats(tbuf: Any, time_window: int = 21600, cutoff: int = 300) -> tuple[bool, dict[str, Any]]:
+def get_site_strr_stats(tbuf: "TaskBuffer", time_window: int = 21600, cutoff: int = 300) -> tuple[bool, dict[str, Any]]:
     """
     :param time_window: float, time window in hours to compute slot to-running rate
     """
@@ -139,7 +142,7 @@ class MetricsDB(object):
     Proxy to access the metrics table in DB
     """
 
-    def __init__(self, tbuf: Any) -> None:
+    def __init__(self, tbuf: "TaskBuffer") -> None:
         self.tbuf = tbuf
 
     # Nothing applies @_decor, here or anywhere else in the tree. Annotated rather than
@@ -311,7 +314,7 @@ class FetchData(object):
     methods to fetch or evaluate data values to store
     """
 
-    def __init__(self, tbuf: Any) -> None:
+    def __init__(self, tbuf: "TaskBuffer") -> None:
         self.tbuf = tbuf
         # initialize stored data
         self.gshare_status: list[dict[str, Any]] | None = None
@@ -875,7 +878,7 @@ class FetchData(object):
 
 
 # main
-def main(tbuf: Any = None, **kwargs: Any) -> None:
+def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # instantiate TB

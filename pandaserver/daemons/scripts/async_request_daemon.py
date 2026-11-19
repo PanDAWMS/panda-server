@@ -5,7 +5,7 @@ For JEDI machines, use pandajedi/jedidog/AsyncRequestWatchDog.py which calls the
 
 import sys
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandautils.thread_utils import GenericThread
 
@@ -13,8 +13,11 @@ from pandaserver.asyncprocess import processor
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import SERVICE_SERVER
 
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
+
+def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     requester_id = GenericThread().get_full_id(__name__, __file__)
 
     if tbuf is None:

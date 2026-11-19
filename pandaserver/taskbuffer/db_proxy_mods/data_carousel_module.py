@@ -1,6 +1,6 @@
 import datetime
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
@@ -466,7 +466,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # clean up data carousel requests
-    def clean_up_data_carousel_requests_JEDI(self, time_limit_days: int = 30) -> int | None:
+    def clean_up_data_carousel_requests_JEDI(self, time_limit_days: float = 30) -> int | None:
         comment = " /* JediDBProxy.clean_up_data_carousel_requests_JEDI */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -586,7 +586,7 @@ class DataCarouselModule(BaseModule):
             return None
 
     # resubmit a data carousel request
-    def resubmit_data_carousel_request_JEDI(self, request_id: int, exclude_prev_dst: bool = False) -> DataCarouselRequestSpec | bool | None:
+    def resubmit_data_carousel_request_JEDI(self, request_id: int, exclude_prev_dst: bool = False) -> DataCarouselRequestSpec | Literal[False] | None:
         comment = " /* JediDBProxy.resubmit_data_carousel_request_JEDI */"
         tmp_log = self.create_tagged_logger(comment, f"request_id={request_id} exclude_prev_dst={exclude_prev_dst}")
         tmp_log.debug("start")

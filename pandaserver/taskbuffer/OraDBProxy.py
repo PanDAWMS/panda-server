@@ -77,7 +77,7 @@ class DBProxy(
         # init modules. this also installs the connection and cursor placeholders
         super().__init__(_logger)
 
-        # use special error codes for reconnection in querySQL
+        # use special error codes for reconnection in querySQLS
         self.useOtherError = useOtherError
 
         # most milliseconds one round trip may take, given to connect(). None for no limit

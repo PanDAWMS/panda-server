@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -21,13 +21,16 @@ from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.dataservice.finisher import Finisher
 from pandaserver.taskbuffer import EventServiceUtils
 
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 _logger = PandaLogger().getLogger("datasetManager")
 
 TRANSFER_TIMEOUT_HI_PRIORITY = 2
 TRANSFER_TIMEOUT_LO_PRIORITY = 6
 
 
-def main(tbuf: Any = None, **kwargs: Any) -> None:
+def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     _logger.debug("===================== start =====================")
 
     # memory checker

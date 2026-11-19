@@ -111,10 +111,9 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
     tmp_logger = LogWrapper(_logger, f"get_status job_ids={job_ids} timeout={timeout}")
     tmp_logger.debug("Start")
 
-    # The task buffer method expect a comma separated list of job_ids
-    job_ids_str = ",".join([str(job_id) for job_id in job_ids])
-    timed_method = TimedMethod(global_task_buffer.checkJobStatus, timeout)
-    timed_method.run(job_ids_str)
+    # one status per requested job, all read on one DB proxy within the timeout
+    timed_method = TimedMethod(global_task_buffer.check_job_statuses, timeout)
+    timed_method.run(job_ids)
 
     # Time out
     if timed_method.result == Protocol.TimeOutToken:

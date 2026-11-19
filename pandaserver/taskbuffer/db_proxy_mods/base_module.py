@@ -439,35 +439,15 @@ class BaseModule:
                 pass
         return
 
-    # cleanup
-    def cleanup(self) -> None:
-        comment = " /* DBProxy.cleanup */"
+    # close the connection and drop its exit hook. Named apart from TaskBuffer.cleanup, which
+    # closes a whole pool of these
+    def disconnect(self) -> None:
+        comment = " /* DBProxy.disconnect */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
         self.close_connection()
         atexit.unregister(self.close_connection)
         tmp_log.debug("done")
-
-    # query an SQL
-    def querySQL(self, sql: str, arraySize: int = 1000) -> Any:
-        comment = " /* DBProxy.querySQL */"
-        tmp_log = self.create_tagged_logger(comment)
-        try:
-            tmp_log.debug(f"SQL={sql} ")
-            # begin transaction
-            self.conn.begin()
-            self.cur.arraysize = arraySize
-            self.cur.execute(sql + comment)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            return res
-        except Exception:
-            # roll back
-            self._rollback(self.useOtherError)
-            self.dump_error_message(tmp_log)
-            return None
 
     # query an SQL return Status
     def querySQLS(self, sql: str, varMap: dict[str, Any], arraySize: int = 1000) -> tuple[Any, Any]:

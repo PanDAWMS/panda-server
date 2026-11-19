@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -274,15 +275,30 @@ def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120
     tmp_logger = LogWrapper(_logger, f"update_event_ranges({event_ranges})")
     tmp_logger.debug("Start")
 
+    try:
+        event_range_list = json.loads(event_ranges)
+    except json.JSONDecodeError:
+        message = "failed to convert event_ranges with json"
+        tmp_logger.error(message)
+        return generate_response(False, message)
+    if not isinstance(event_range_list, list):
+        message = "event_ranges is not a JSON list"
+        tmp_logger.error(message)
+        return generate_response(False, message)
+
     timed_method = TimedMethod(global_task_buffer.updateEventRanges, timeout)
-    timed_method.run(event_ranges, version)
+    timed_method.run(event_range_list, version)
 
     # Case of time out
     if timed_method.result == Protocol.TimeOutToken:
         tmp_logger.error("Timed out")
         return generate_response(False, TIME_OUT)
 
-    data = {"Returns": timed_method.result[0], "Commands": timed_method.result[1]}
+    returns, commands = timed_method.result
+    # version 0 clients take both as JSON strings
+    if version == 0:
+        returns, commands = json.dumps(returns), json.dumps(commands)
+    data = {"Returns": returns, "Commands": commands}
 
     _logger.debug(f"Done with: {data}")
     return generate_response(True, data=data)

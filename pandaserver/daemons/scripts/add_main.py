@@ -23,7 +23,7 @@ _logger = PandaLogger().getLogger("add_main")
 
 
 # main
-def main(argv: Sequence[str] = (), tbuf: Any = None, lock_pool: LockPool | None = None, **kwargs: Any) -> bool:
+def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, lock_pool: LockPool | None = None, **kwargs: Any) -> bool:
     requester_id = GenericThread().get_full_id(__name__, __file__)
 
     prelock_pid = GenericThread().get_pid()
@@ -81,7 +81,7 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, lock_pool: LockPool | None 
 
     # thread for adder
     class AdderThread(GenericThread):
-        def __init__(self, taskBuffer: Any, aSiteMapper: SiteMapper, job_output_reports: WeightedLists, lock_pool: LockPool | None) -> None:
+        def __init__(self, taskBuffer: "TaskBuffer", aSiteMapper: SiteMapper, job_output_reports: WeightedLists, lock_pool: LockPool | None) -> None:
             GenericThread.__init__(self)
             self.taskBuffer = taskBuffer
             self.aSiteMapper = aSiteMapper
@@ -242,7 +242,8 @@ def main(argv: Sequence[str] = (), tbuf: Any = None, lock_pool: LockPool | None 
         for thr in adderThrList:
             # thr.join()
             thr.proc_join()
-        [tbuf.cleanup(requester=requester_id) for tbuf in tbuf_list]
+        for tbuf in tbuf_list:
+            tbuf.cleanup(requester=requester_id)
         end_time = naive_utcnow()
         sleep_time = interval - (end_time - start_time).seconds
         if sleep_time > 0 and iLoop + 1 < nLoop:

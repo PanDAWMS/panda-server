@@ -1,7 +1,7 @@
 import sys
 import time
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger import logger_utils
 from pandacommon.pandautils.thread_utils import GenericThread
@@ -10,12 +10,15 @@ from pandaserver.config import panda_config
 from pandaserver.configurator import Carbon as carbon_module
 from pandaserver.configurator.Carbon import CarbonEmissions
 
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 # logger
 base_logger = carbon_module._logger
 
 
 # main
-def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
+def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     requester_id = GenericThread().get_full_id(__name__, __file__)
 
     # instantiate TB

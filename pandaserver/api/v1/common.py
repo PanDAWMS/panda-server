@@ -12,7 +12,7 @@ import typing
 from collections.abc import Callable
 from functools import wraps
 from types import ModuleType, UnionType
-from typing import Any, Union, get_args, get_origin
+from typing import TYPE_CHECKING, Any, Union, get_args, get_origin
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
@@ -25,6 +25,9 @@ from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.db_proxy_mods.async_request_module import (
     STRUCTURED_RESULT_KEY,
 )
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 TIME_OUT = "TimeOut"
 
@@ -534,7 +537,7 @@ def request_validation(
     production: bool = False,
     request_method: str | None = None,
     task_owner: bool = False,
-    task_buffer: Any = None,
+    task_buffer: "Callable[[], TaskBuffer] | TaskBuffer | None" = None,
     task_id_param: str = "task_id",
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
@@ -706,6 +709,12 @@ def request_validation(
                     dn = get_dn(req)
                     prod_role = has_production_role(req)
                     resolved_buffer = task_buffer() if callable(task_buffer) else task_buffer
+                    # task_owner without a task_buffer is a mistake in the decorator's arguments;
+                    # refuse the request rather than fail on the missing buffer
+                    if resolved_buffer is None:
+                        message = "task ownership cannot be checked: request_validation has no task_buffer"
+                        tmp_logger.error(message)
+                        return generate_response(False, message=message)
                     if not resolved_buffer.validate_ownership_or_production_role(task_id, dn, prod_role):
                         tmp_logger.error(MESSAGE_TASK_OWNER)
                         return generate_response(False, message=MESSAGE_TASK_OWNER)

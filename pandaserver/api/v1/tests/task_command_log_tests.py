@@ -310,7 +310,7 @@ class TestRegisteringForJedi(unittest.TestCase):
 
         proxy = make_proxy(TaskEventModule, answer)
         proxy._check_command_allowed = mock.Mock(return_value=(True, ""))
-        ret = proxy.sendCommandTaskPanda(TASK_ID, DN, True, "kill", properErrorCode=True, command_key=KEY)
+        ret = proxy.send_command_task_panda_db(TASK_ID, DN, True, "kill", properErrorCode=True, command_key=KEY)
         self.assertEqual(ret[0], 0)
         tables = [sql.split()[0] + " " + next(word for word in sql.split() if "." in word) for sql, _ in proxy.cur.executed]
         # the row is marked after the command is written, and before the commit
@@ -330,7 +330,7 @@ class TestRegisteringForJedi(unittest.TestCase):
         proxy._check_command_allowed = mock.Mock(return_value=(True, ""))
         proxy._rollback = mock.Mock()
         proxy.dump_error_message = mock.Mock()
-        ret = proxy.sendCommandTaskPanda(TASK_ID, DN, True, "kill", properErrorCode=True, command_key=KEY)
+        ret = proxy.send_command_task_panda_db(TASK_ID, DN, True, "kill", properErrorCode=True, command_key=KEY)
         self.assertEqual(ret, (1, "failed to register command"))
         proxy.conn.commit.assert_not_called()
         proxy._rollback.assert_called_once()

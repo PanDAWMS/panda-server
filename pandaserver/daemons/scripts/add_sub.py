@@ -4,7 +4,7 @@ import sys
 import time
 import traceback
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -17,12 +17,15 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
 # logger
 _logger = PandaLogger().getLogger("add_sub")
 
 
 # main
-def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
+def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     tmp_log = LogWrapper(_logger, None)
     requester_id = GenericThread().get_full_id(__name__, __file__)
 

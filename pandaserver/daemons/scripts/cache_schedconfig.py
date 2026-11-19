@@ -13,12 +13,15 @@ from argparse import ArgumentParser
 from collections.abc import Collection, Sequence
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 # logger
 _logger = PandaLogger().getLogger("cache_schedconfig")
@@ -32,7 +35,7 @@ class cacheSchedConfig:
     Class to dump schedconfig on a per-queue basis into cache files
     """
 
-    def __init__(self, tbuf: Any) -> None:
+    def __init__(self, tbuf: "TaskBuffer") -> None:
         self.tbuf = tbuf
         # the queue rows, read by getQueueData() before anything dumps them
         self.queueData: list[dict[str, Any]] = []
@@ -115,7 +118,7 @@ class cacheSchedConfig:
         }
 
     def query_column_sql(self, sql: str, varMap: dict[str, Any] | None = None, arraySize: int = 100) -> list[dict[str, Any]]:
-        res = self.tbuf.querySQL(sql, varMap, arraySize=arraySize)
+        res = self.tbuf.querySQL(sql, varMap if varMap is not None else {}, arraySize=arraySize)
         retList: list[dict[str, Any]] = []
         for (
             panda_queue,
@@ -229,7 +232,7 @@ class cacheSchedConfig:
             json.dump(dump_me, f, sort_keys=True, indent=4)
 
 
-def main(argv: Sequence[str] = (), tbuf: Any = None, **kwargs: Any) -> None:
+def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     _logger.debug("start")
     try:
         # parse arguments

@@ -229,6 +229,7 @@ class TaskRefinerThread(WorkerThread):
                                     oldStatus=[taskStatus],
                                     insertUnknown=impl.unknownDatasetList,
                                     setFrozenTime=setFrozenTime,
+                                    updateDEFT=False,
                                 )
                                 continue
                             errStr = f"failed to extract common parameters with {type(e).__name__}:{e} {traceback.format_exc()}"
@@ -261,7 +262,7 @@ class TaskRefinerThread(WorkerThread):
                                     impl.taskSpec.discard_unsafe_refined_changes()
                                     tmpLog.info(errStr)
                                     self.taskBufferIF.updateTask_JEDI(
-                                        impl.taskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus], setFrozenTime=False
+                                        impl.taskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus], setFrozenTime=False, updateDEFT=False
                                     )
                                     continue
                                 else:
@@ -326,6 +327,7 @@ class TaskRefinerThread(WorkerThread):
                                     oldStatus=[taskStatus],
                                     insertUnknown=impl.unknownDatasetList,
                                     setFrozenTime=setFrozenTime,
+                                    updateDEFT=False,
                                 )
                                 continue
                             elif (
@@ -340,7 +342,11 @@ class TaskRefinerThread(WorkerThread):
                                 impl.taskSpec.discard_unsafe_refined_changes()
                                 tmpLog.info(tmpErrStr)
                                 self.taskBufferIF.updateTask_JEDI(
-                                    impl.taskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus], insertUnknown=impl.unknownDatasetList
+                                    impl.taskSpec,
+                                    {"jediTaskID": impl.taskSpec.jediTaskID},
+                                    oldStatus=[taskStatus],
+                                    insertUnknown=impl.unknownDatasetList,
+                                    updateDEFT=False,
                                 )
                                 continue
                             else:
@@ -577,7 +583,7 @@ class TaskRefinerThread(WorkerThread):
                         tmpTaskSpec.status = "tobroken"
                         if errStr != "":
                             tmpTaskSpec.setErrDiag(errStr, True)
-                        self.taskBufferIF.updateTask_JEDI(tmpTaskSpec, {"jediTaskID": tmpTaskSpec.jediTaskID}, oldStatus=[taskStatus])
+                        self.taskBufferIF.updateTask_JEDI(tmpTaskSpec, {"jediTaskID": tmpTaskSpec.jediTaskID}, oldStatus=[taskStatus], updateDEFT=False)
                     elif impl is not None:
                         tmpLog.info("registering")
                         # fill JEDI tables
@@ -621,7 +627,9 @@ class TaskRefinerThread(WorkerThread):
                                     tmpTaskSpec.status = newTaskStatus
                                     tmpTaskSpec.errorDialog = impl.taskSpec.errorDialog
                                     tmpTaskSpec.setErrDiag(tmpErrStr, True)
-                                    self.taskBufferIF.updateTask_JEDI(tmpTaskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus])
+                                    self.taskBufferIF.updateTask_JEDI(
+                                        tmpTaskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus], updateDEFT=False
+                                    )
                                 tmp_msg = f"set task_status={newTaskStatus} sourceLabel={prodSourceLabel}"
                                 tmpLog.info(tmp_msg)
                                 tmpLog.sendMsg(tmp_msg, self.msgType)
@@ -641,7 +649,9 @@ class TaskRefinerThread(WorkerThread):
                                 # update task with new params
                                 tmp_msg = f"updating task params with old_task_status={taskStatus} sourceLabel={prodSourceLabel}"
                                 tmpLog.info(tmp_msg)
-                                self.taskBufferIF.updateTask_JEDI(impl.taskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus])
+                                self.taskBufferIF.updateTask_JEDI(
+                                    impl.taskSpec, {"jediTaskID": impl.taskSpec.jediTaskID}, oldStatus=[taskStatus], updateDEFT=False
+                                )
                                 # appending for incremental execution
                                 tmpStat = self.taskBufferIF.appendDatasets_JEDI(
                                     jediTaskID, impl.inMasterDatasetSpec, impl.inSecDatasetSpecList, impl.in_content_dataset_specs

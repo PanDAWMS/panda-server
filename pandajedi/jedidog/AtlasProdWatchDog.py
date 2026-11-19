@@ -309,7 +309,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                 taskSpec.status = "assigning"
                 taskSpec.oldStatus = None
                 taskSpec.setToMoveDatasets()
-                self.taskBufferIF.updateTask_JEDI(taskSpec, {"jediTaskID": taskSpec.jediTaskID}, setOldModTime=True)
+                self.taskBufferIF.updateTask_JEDI(taskSpec, {"jediTaskID": taskSpec.jediTaskID}, setOldModTime=True, updateDEFT=False)
                 tmpLog.debug(f"#ATM #KV label=managed action=trigger_new_brokerage by setting task_status={taskSpec.status}")
                 continue
 
@@ -363,7 +363,7 @@ class AtlasProdWatchDog(TypicalWatchDogBase):
                 else:
                     taskSpec.status = taskSpec.oldStatus
                 taskSpec.oldStatus = None
-                self.taskBufferIF.updateTask_JEDI(taskSpec, {"jediTaskID": taskSpec.jediTaskID}, setOldModTime=True)
+                self.taskBufferIF.updateTask_JEDI(taskSpec, {"jediTaskID": taskSpec.jediTaskID}, setOldModTime=True, updateDEFT=False)
                 tmpLog.debug("finished to reassign")
 
     # action for throttled tasks

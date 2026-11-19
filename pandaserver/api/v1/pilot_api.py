@@ -653,8 +653,7 @@ def update_job(
 
     # add meta_data
     if meta_data != "":
-        ret = global_task_buffer.addMetadata([job_id], [meta_data], [job_status])
-        if len(ret) > 0 and not ret[0]:
+        if not global_task_buffer.addMetadata(job_id, meta_data, job_status):
             message = "Failed to add meta_data"
             tmp_logger.debug(message)
             return generate_response(True, message, data={"StatusCode": Protocol.SC_Failed, "ErrorDiag": message})

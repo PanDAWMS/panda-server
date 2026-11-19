@@ -182,7 +182,7 @@ class MiscStandaloneModule(BaseModule):
             return None
 
     # update modificationtime for a jediTaskID to trigger subsequent process
-    def updateTaskModTimeJEDI(self, jediTaskID: int, newStatus: str | None) -> bool:
+    def updateTaskModTimeJEDI(self, jediTaskID: int, newStatus: str | None = None) -> bool:
         comment = " /* DBProxy.updateTaskModTimeJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"<jediTaskID={jediTaskID}>")
         tmp_log.debug("start")
@@ -1944,7 +1944,7 @@ class MiscStandaloneModule(BaseModule):
 
     # reset files in JEDI
     def resetFileStatusInJEDI(
-        self, dn: str, is_prod_manager: bool, dataset_name: str, lost_files: list[str], recover_parent: bool, simul: bool
+        self, dn: str | None, is_prod_manager: bool, dataset_name: str, lost_files: list[str], recover_parent: bool, simul: bool = False
     ) -> tuple[bool, int | None, dict[str, list[str]] | None, str | None]:
         """
         Reset file status in JEDI for lost files
@@ -1955,7 +1955,7 @@ class MiscStandaloneModule(BaseModule):
         5) if simul is True, do not commit changes
         6) return list of input files that produced the lost files
 
-        :param dn: DN of the requester
+        :param dn: DN of the requester; None matches no task owner, so only a production manager gets through
         :param is_prod_manager: whether the requester is a production manager
         :param dataset_name: name of the dataset
         :param lost_files: list of lost LFNs
@@ -2966,7 +2966,7 @@ class MiscStandaloneModule(BaseModule):
             return {}
 
     # lock process
-    def lockProcess_PANDA(self, component: str, pid: str, time_limit: int, force: bool = False) -> bool:
+    def lockProcess_PANDA(self, component: str, pid: str, time_limit: float = 5, force: bool = False) -> bool:
         comment = " /* DBProxy.lockProcess_PANDA */"
         tmp_log = self.create_tagged_logger(comment, f"component={component} pid={pid}")
         # defaults
@@ -3750,7 +3750,7 @@ class MiscStandaloneModule(BaseModule):
             return False, None
 
     # update JEDI dataset
-    def updateDataset_JEDI(self, datasetSpec: JediDatasetSpec, criteria: dict[str, Any], lockTask: bool) -> tuple[bool, int | None]:
+    def updateDataset_JEDI(self, datasetSpec: JediDatasetSpec, criteria: dict[str, Any], lockTask: bool = False) -> tuple[bool, int | None]:
         comment = " /* JediDBProxy.updateDataset_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"datasetID={datasetSpec.datasetID}")
         tmpLog.debug("start")
@@ -4081,8 +4081,8 @@ class MiscStandaloneModule(BaseModule):
         resource_name: str | None,
         component: str | None,
         pid: str,
-        forceOption: bool,
-        timeLimit: int,
+        forceOption: bool = False,
+        timeLimit: int = 5,
     ) -> bool:
         comment = " /* JediDBProxy.lockProcess_JEDI */"
         # defaults

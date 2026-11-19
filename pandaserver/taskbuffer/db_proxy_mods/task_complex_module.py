@@ -54,7 +54,7 @@ class TaskComplexModule(BaseModule):
 
     # get the list of datasets to feed contents to DB
     def getDatasetsToFeedContents_JEDI(
-        self, vo: str | None, prodSourceLabel: str | None, task_id: int | None = None, force_read: bool = False
+        self, vo: str | None = None, prodSourceLabel: str | None = None, task_id: int | None = None, force_read: bool = False
     ) -> list[Any] | None:
         """Get the list of datasets to feed contents to DB
 
@@ -2244,7 +2244,7 @@ class TaskComplexModule(BaseModule):
                         if not self._commit():
                             raise RuntimeError("Commit error")
                         # send finish command
-                        get_task_event_module(self).sendCommandTaskPanda(
+                        get_task_event_module(self).send_command_task_panda_db(
                             jedi_task_id, "HPO task finished since max_num_jobs reached", True, "finish", comQualifier="soft"
                         )
                         to_skip = True
@@ -2300,7 +2300,7 @@ class TaskComplexModule(BaseModule):
                         and naive_utcnow() - original_task_spec.frozenTime > datetime.timedelta(hours=wait_interval)
                     ):
                         # send finish command
-                        get_task_event_module(self).sendCommandTaskPanda(
+                        get_task_event_module(self).send_command_task_panda_db(
                             jedi_task_id, "HPO task finished since inactive for one day", True, "finish", comQualifier="soft"
                         )
                     to_skip = True
@@ -3450,8 +3450,8 @@ class TaskComplexModule(BaseModule):
             return failed_return
 
     # set scout job data to tasks
-    def setScoutJobDataToTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None, site_mapper: "SiteMapper") -> bool | None:
-        comment = " /* JediDBProxy.setScoutJobDataToTasks_JEDI */"
+    def set_scout_job_data_to_tasks_jedi_db(self, vo: str | None, prodSourceLabel: str | None, site_mapper: "SiteMapper") -> bool | None:
+        comment = " /* JediDBProxy.set_scout_job_data_to_tasks_jedi_db */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
         try:
@@ -3532,7 +3532,7 @@ class TaskComplexModule(BaseModule):
             return None
 
     # prepare tasks to be finished
-    def prepareTasksToBeFinished_JEDI(
+    def prepare_tasks_to_be_finished_jedi_db(
         self,
         vo: str | None,
         prodSourceLabel: str | None,
@@ -3542,7 +3542,7 @@ class TaskComplexModule(BaseModule):
         noBroken: bool = False,
         site_mapper: "SiteMapper | None" = None,
     ) -> list[int] | None:
-        comment = " /* JediDBProxy.prepareTasksToBeFinished_JEDI */"
+        comment = " /* JediDBProxy.prepare_tasks_to_be_finished_jedi_db */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
         # return value for failure
@@ -5797,15 +5797,15 @@ class TaskComplexModule(BaseModule):
         jediTaskID: int,
         provenanceID: int | None,
         simul: bool,
-        instantiateTmpl: bool,
-        instantiatedSites: str | None,
-        isUnMerging: bool,
-        isPrePro: bool,
-        siteDsMap: dict[Any, Any] | None,
-        middleName: str,
-        registerDatasets: bool,
-        parallelOutMap: dict[Any, Any] | None,
-        fileIDPool: Sequence[int],
+        instantiateTmpl: bool = False,
+        instantiatedSites: str | None = None,
+        isUnMerging: bool = False,
+        isPrePro: bool = False,
+        siteDsMap: dict[Any, Any] | None = None,
+        middleName: str = "",
+        registerDatasets: bool = False,
+        parallelOutMap: dict[Any, Any] | None = None,
+        fileIDPool: Sequence[int] = [],
         n_files_per_chunk: int = 1,
         bulk_fetch_for_multiple_jobs: bool = False,
         master_dataset_id: int | None = None,
@@ -5813,7 +5813,7 @@ class TaskComplexModule(BaseModule):
         dict[Any, Any] | list[dict[str, Any]] | None,
         int | list[int | None] | None,
         list[Any] | None,
-        dict[Any, Any] | None,
+        dict[Any, Any],
         dict[Any, Any] | list[dict[Any, Any]] | None,
     ]:
         comment = " /* JediDBProxy.getOutputFiles_JEDI */"
@@ -5825,13 +5825,17 @@ class TaskComplexModule(BaseModule):
         tmpLog.debug(f"isUnMerging={isUnMerging} isPrePro={isPrePro} provenanceID={provenanceID}")
         tmpLog.debug(f"middleName={middleName} registerDatasets={registerDatasets} idPool={len(fileIDPool)}")
         tmpLog.debug(f"n_files_per_chunk={n_files_per_chunk} bulk_fetch={bulk_fetch_for_multiple_jobs}")
+        # The two maps gain entries inside the transaction below: siteDsMap the IDs of the datasets
+        # it inserts, parallelOutMap the file specs. Work on copies, so that a failed call, whose
+        # transaction is rolled back, hands the caller's maps back as they were. A caller sharing
+        # the objects (an in-process JediTaskBuffer) is not left holding rolled-back IDs either
+        site_ds_map_given: dict[Any, Any] = siteDsMap if siteDsMap is not None else {}
+        parallel_out_map_given: dict[Any, Any] = parallelOutMap if parallelOutMap is not None else {}
+        siteDsMap = {dataset_id: dict(per_site) for dataset_id, per_site in site_ds_map_given.items()}
+        parallelOutMap = {file_id: list(file_specs) for file_id, file_specs in parallel_out_map_given.items()}
         try:
             if instantiatedSites is None:
                 instantiatedSites = ""
-            if siteDsMap is None:
-                siteDsMap = {}
-            if parallelOutMap is None:
-                parallelOutMap = {}
             outMap = {}
             datasetToRegister = []
             indexFileID = 0
@@ -6110,4 +6114,4 @@ class TaskComplexModule(BaseModule):
             self._rollback()
             # error
             self.dump_error_message(tmpLog)
-            return None, None, None, siteDsMap, parallelOutMap
+            return None, None, None, site_ds_map_given, parallel_out_map_given

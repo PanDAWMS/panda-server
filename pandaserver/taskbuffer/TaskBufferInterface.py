@@ -15,6 +15,12 @@ from pandaserver.taskbuffer import FileSpec, JobSpec
 if TYPE_CHECKING:
     from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
+    # the methods reached through TaskBufferInterfaceChild.__getattr__ are TaskBuffer's, as for
+    # pandajedi's JediTaskBufferInterface; Any so mypy does not check those calls yet
+    _Proxied: Any = TaskBuffer
+else:
+    _Proxied = object
+
 JobSpec.reserveChangedState = True
 FileSpec.reserveChangedState = True
 
@@ -67,7 +73,7 @@ class TaskBufferMethod:
 
 
 # child class
-class TaskBufferInterfaceChild:
+class TaskBufferInterfaceChild(_Proxied):
     # constructor
     def __init__(self, commDict: dict[int, Any], childlock: "multiprocessing.Queue[int]", comLock: dict[int, Any], resLock: dict[int, Any]) -> None:
         self.childlock = childlock
@@ -83,14 +89,13 @@ class TaskBufferInterfaceChild:
 # master class
 class TaskBufferInterface:
     # The TaskBuffer this interface serves, installed by launch() before the child process
-    # runs. Its type is Any since launch() takes it untyped from the caller
-    taskBuffer: Any
+    # runs, like the process and the shared objects stop() also relies on
+    taskBuffer: "TaskBuffer"
 
     # constructor
     def __init__(self) -> None:
         # make manager to create shared objects
         self.manager = multiprocessing.Manager()
-        self.taskBuffer = None
 
     # main loop
     def run(self, taskBuffer: "TaskBuffer", commDict: dict[int, Any], comLock: dict[int, Any], resLock: dict[int, Any], to_stop: Any) -> None:

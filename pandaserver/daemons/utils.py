@@ -24,6 +24,8 @@ from pandacommon.pandautils.thread_utils import GenericThread, LockPool
 from pandaserver.config import daemon_config, panda_config
 
 if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+
     # imported for annotations only; _make_tbif() imports it at runtime, where the order matters
     from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
 
@@ -76,14 +78,15 @@ def kill_proc_tree(
     return (gone, alive)
 
 
-# tbuf is a TaskBuffer or the interface proxy that stands in for one, neither of which can be
-# named here since the module is imported inside the function on purpose, hence Any
+# tbuf is a TaskBuffer or the interface proxy that stands in for one, whose base is TaskBuffer to
+# a reader of the source and Any to mypy. TaskBuffer is imported for annotations only: at run
+# time the module is imported inside the function on purpose
 def daemon_loop(
     dem_config: dict[str, Any],
     msg_queue: "multiprocessing.Queue[str]",
     pipe_conn: Connection,
     worker_lifetime: int,
-    tbuf: Any = None,
+    tbuf: "TaskBuffer | None" = None,
     lock_pool: LockPool | None = None,
 ) -> None:
     """
@@ -334,7 +337,7 @@ class DaemonWorker(object):
         dem_config: dict[str, Any],
         msg_queue: "multiprocessing.Queue[str]",
         worker_lifetime: int,
-        tbuf: Any = None,
+        tbuf: "TaskBuffer | None" = None,
         lock_pool: LockPool | None = None,
     ) -> None:
         # synchronized with lock
@@ -366,7 +369,7 @@ class DaemonWorker(object):
         dem_config: dict[str, Any],
         msg_queue: "multiprocessing.Queue[str]",
         worker_lifetime: int,
-        tbuf: Any,
+        tbuf: "TaskBuffer | None",
         lock_pool: LockPool | None,
     ) -> None:
         """

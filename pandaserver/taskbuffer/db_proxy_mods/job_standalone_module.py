@@ -1223,7 +1223,7 @@ class JobStandaloneModule(BaseModule):
         return None
 
     # get job statistics per site and resource type (SCORE, MCORE, ...)
-    def getJobStatisticsPerSiteResource(self, time_window: int | None) -> dict[Any, Any]:
+    def getJobStatisticsPerSiteResource(self, time_window: int | None = None) -> dict[Any, Any]:
         comment = " /* DBProxy.getJobStatisticsPerSiteResource */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
@@ -1648,7 +1648,7 @@ class JobStandaloneModule(BaseModule):
         return None
 
     # throttle user jobs
-    def throttleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool) -> Any:
+    def throttleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool = False) -> Any:
         comment = " /* DBProxy.throttleUserJobs */"
         tmp_log = self.create_tagged_logger(comment, f"user={prodUserName} group={workingGroup}")
         tmp_log.debug("start")
@@ -1749,7 +1749,7 @@ class JobStandaloneModule(BaseModule):
             return None
 
     # unthrottle user jobs
-    def unThrottleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool) -> Any:
+    def unThrottleUserJobs(self, prodUserName: str, workingGroup: str | None, get_dict: bool = False) -> Any:
         comment = " /* DBProxy.unThrottleUserJobs */"
         tmp_log = self.create_tagged_logger(comment, f"user={prodUserName} group={workingGroup}")
         tmp_log.debug("start")
@@ -1993,6 +1993,22 @@ class JobStandaloneModule(BaseModule):
             self._rollback()
             self.dump_error_message(tmp_log)
             return retVal
+
+    # check the status of several jobs
+    def check_job_statuses(self, panda_ids: list[int]) -> list[dict[str, Any]]:
+        """
+        Check the status of several jobs, as checkJobStatus does for one, on this one proxy.
+
+        A caller that reaches the proxy through the pool takes it once for the whole list, so it does
+        not wait for a proxy, and wake its connection, once per job.
+
+        Args:
+            panda_ids (list[int]): The PanDA job IDs.
+
+        Returns:
+            list[dict[str, Any]]: One {"status": ..., "command": ...} per job ID, in the same order.
+        """
+        return [self.checkJobStatus(panda_id) for panda_id in panda_ids]
 
     # get user job metadata
     def getUserJobMetadata(self, jediTaskID: int) -> dict[Any, Any]:
@@ -2300,7 +2316,13 @@ class JobStandaloneModule(BaseModule):
 
     # list pandaID, jobStatus, attemptNr, timeStamp of job output report
     def listJobOutputReport(
-        self, only_unlocked: bool, time_limit: int, limit: int, grace_period: int, labels: list[str] | None, anti_labels: list[str] | None
+        self,
+        only_unlocked: bool = False,
+        time_limit: int = 5,
+        limit: int = 999999,
+        grace_period: int = 3,
+        labels: list[str] | None = None,
+        anti_labels: list[str] | None = None,
     ) -> list[Any] | None:
         comment = " /* DBProxy.listJobOutputReport */"
         tmp_log = self.create_tagged_logger(comment)

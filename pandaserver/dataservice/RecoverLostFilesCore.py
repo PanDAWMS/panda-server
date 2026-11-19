@@ -1,7 +1,7 @@
 import argparse
 import copy
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.thread_utils import GenericThread
@@ -11,6 +11,9 @@ from rucio.common.exception import DataIdentifierNotFound
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.userinterface import Client
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 
 # get files form rucio
@@ -62,10 +65,10 @@ def print_msg(message: str, log_stream: LogWrapper | None, is_error: bool = Fals
 
 
 # main
-# taskBuffer is a TaskBuffer, which cannot be named here since the module is imported inside
-# the function on purpose, hence Any
+# TaskBuffer is imported for annotations only: at run time the module is imported inside the
+# function on purpose
 def main(
-    taskBuffer: Any = None,
+    taskBuffer: "TaskBuffer | None" = None,
     exec_options: dict[str, Any] | None = None,
     log_stream: LogWrapper | None = None,
     args_list: list[str] | None = None,
@@ -280,8 +283,9 @@ def main(
             msg_str = f"Reset file status for {tmpDS} in the DB: done with {ts} for jediTaskID={jediTaskID}"
             print_msg(msg_str, log_stream)
         s |= ts
-        # recover provenance
-        if options.reproduceParent:
+        # recover provenance. A database error comes back without the map of lost input files,
+        # and was reported above, so there is nothing to reproduce for this dataset
+        if options.reproduceParent and lostInputFiles is not None:
             # reproduce input
             for lostDS in lostInputFiles:
                 com_args = ["--ds", lostDS, "--resurrectDS"]
