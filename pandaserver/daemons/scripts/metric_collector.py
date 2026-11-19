@@ -38,6 +38,10 @@ metric_list = [
 # default time window in hours to measure tape throughput
 DEFAULT_TAPE_THROUGHPUT_WINDOW_HOURS = 6
 
+# minimum staging time in seconds of a tape when it staged any files, to avoid division by zero for instantaneous staging;
+# matches default CheckDCRequests_LOCK_TIME_MINUTES = 5 of AtlasDataCarouselWatchDog, the shortest interval between status changes of a request
+MIN_TAPE_STAGING_SECONDS = 300
+
 # constant maps
 class_value_rank_map = {1: "A_sites", 0: "B_sites", -1: "C_sites"}
 
@@ -862,10 +866,13 @@ class FetchData(object):
     def tape_throughput(self) -> dict[Any, Any] | None:
         """
         Measure the staging throughput (files per hour) of each source physical tape of Data Carousel within a recent time window,
-        from the staged files of staging and done Data Carousel requests
+        from the staged files of staging and done Data Carousel requests.
+        The throughput is the files staged within the window divided by the time when the tape was staging within the window,
+        i.e. the union of the staging intervals of its requests, so that a tape idle for most of the window is not underestimated
 
         Returns:
-            dict | None : {tape: {"throughput": files per hour or None if failed, "n_files_staged": ..., "n_requests": ..., "window_hours": ...}}, or None if failed
+            dict | None : {tape: {"throughput": files per hour or None if failed, "n_files_staged": ..., "n_requests": ..., "staging_hours": ..., "window_hours": ...}},
+                or None if failed
         """
         tmp_log = logger_utils.make_logger(main_logger, "FetchData.tape_throughput")
         tmp_log.debug("start")
@@ -904,10 +911,12 @@ class FetchData(object):
             # initialize with zero throughput for all tapes
             n_files_map: dict[str, float] = {}
             n_requests_map: dict[str, int] = {}
+            intervals_map: dict[str, list[tuple[datetime.datetime, datetime.datetime]]] = {}
             failed_tapes: set[str] = set()
             for tape in source_tapes:
                 n_files_map[tape] = 0
                 n_requests_map[tape] = 0
+                intervals_map[tape] = []
             # sum up the files staged within the window
             for source_tape, status, staged_files, start_time, end_time, parameters in res:
                 if source_tape not in n_files_map:
@@ -934,19 +943,42 @@ class FetchData(object):
                         n_files = staged_files * overlap_seconds / staging_seconds
                     n_files_map[source_tape] += n_files
                     n_requests_map[source_tape] += 1
+                    intervals_map[source_tape].append((max(start_time, t_A), end))
                 except Exception:
                     tmp_log.error(f"source_tape={source_tape} failed to evaluate a request: {traceback.format_exc()}")
                     failed_tapes.add(source_tape)
             # compute throughput in files per hour
             ret_dict: dict[str, Any] = {}
             for tape in source_tapes:
+                # time when the tape was staging, as the union of the staging intervals of its requests
+                staging_seconds = 0.0
+                union_start = None
+                union_end = None
+                for interval_start, interval_end in sorted(intervals_map[tape]):
+                    if union_end is not None and interval_start <= union_end:
+                        # overlapping; extend current union
+                        union_end = max(union_end, interval_end)
+                    else:
+                        # disjoint; close current union and start a new one
+                        if union_start is not None and union_end is not None:
+                            staging_seconds += (union_end - union_start).total_seconds()
+                        union_start = interval_start
+                        union_end = interval_end
+                if union_start is not None and union_end is not None:
+                    staging_seconds += (union_end - union_start).total_seconds()
+                # throughput
                 throughput = None
                 if tape not in failed_tapes:
-                    throughput = n_files_map[tape] / window_hours
+                    if n_files_map[tape] > 0:
+                        staging_seconds = max(staging_seconds, MIN_TAPE_STAGING_SECONDS)
+                        throughput = n_files_map[tape] * 3600 / staging_seconds
+                    else:
+                        throughput = 0.0
                 ret_dict[tape] = {
                     "throughput": throughput,
                     "n_files_staged": n_files_map[tape],
                     "n_requests": n_requests_map[tape],
+                    "staging_hours": staging_seconds / 3600,
                     "window_hours": window_hours,
                 }
                 tmp_log.debug(f"source_tape={tape} {ret_dict[tape]}")
