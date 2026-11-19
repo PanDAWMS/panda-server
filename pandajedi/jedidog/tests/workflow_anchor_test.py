@@ -17,6 +17,7 @@ import os
 import sys
 import types
 import warnings
+from typing import Any
 
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
@@ -171,6 +172,190 @@ def main():
     failures += not check("an aged one is recomputed", not watchdog.anchor_is_fresh(aged))
     broken = FakeWorkflowSpec(3, {WORKFLOW_ANCHOR_PARAM: {"weights": {"A": 1}, "computed_at": "not-a-time"}})
     failures += not check("an unparsable timestamp is recomputed rather than trusted", not watchdog.anchor_is_fresh(broken))
+
+    print("\n=== replica lookups go through the per-VO DDM client ===")
+    # The watchdog is handed the multi-VO DDMInterface wrapper, which has no replica methods of
+    # its own. Passing it straight through failed every lookup, so a workflow had no input sites
+    # and therefore no anchor before its steps were submitted.
+    vo_client = object()
+
+    class FakeDDMInterface:
+        def getInterface(self, vo, group=None):
+            return vo_client if vo == "atlas" else None
+
+    received: dict[str, Any] = {}
+
+    def fake_get_sites_with_data(site_list, site_mapper, ddm_if, dataset_name, *args):
+        received["ddm_if"] = ddm_if
+        return wd.Interaction.SC_SUCCEEDED, {"SITE_A": {}}
+
+    def fake_sites_with_disk(data_site_map, includeTape=False):
+        return list(data_site_map)
+
+    # untyped handles, since these stand-ins deliberately do not match the real signatures
+    stand_in: Any = watchdog
+    broker_utils: Any = wd.AtlasBrokerUtils
+    stand_in.ddmIF = FakeDDMInterface()
+    stand_in.vo = "atlas"
+    original = (broker_utils.get_sites_with_data, broker_utils.getAnalSitesWithDataDisk)
+    broker_utils.get_sites_with_data = fake_get_sites_with_data
+    broker_utils.getAnalSitesWithDataDisk = fake_sites_with_disk
+    try:
+        sites = stand_in.sites_holding_dataset(["SITE_A"], None, "some:dataset", Log())
+    finally:
+        broker_utils.get_sites_with_data, broker_utils.getAnalSitesWithDataDisk = original
+    failures += not check("the per-VO client is what reaches the lookup", received.get("ddm_if") is vo_client, received)
+    failures += not check("...and its answer comes back", sites == ["SITE_A"], sites)
+
+    print("\n=== workflow 148: the free step waits for the data-bound ones ===")
+    # The live case. make_signal and make_background_1 read root inputs and are placed by data
+    # locality; generate_some reads nothing and was brokered before them, against a prediction.
+    # make_background_2 reads a root input and generate_some's output, so it must not be waited
+    # for: it waits on generate_some itself.
+    from pandaserver.taskbuffer.JediTaskSpec import (
+        WORKFLOW_HOLDUP_BROKERAGE,
+        JediTaskSpec,
+    )
+
+    def step(step_id, name, inputs, outputs, task_id=None, takes_input=True, status="running"):
+        job_params = [{"param_type": "input", "dataset": "x"}] if takes_input else []
+        definition = {"task_params": {"jobParameters": job_params}, "input_data_dict": {i: {} for i in inputs}, "output_data_list": outputs}
+        return types.SimpleNamespace(
+            step_id=step_id, name=name, flavor="panda_task", status=status, target_id=str(task_id) if task_id else None, definition_json_map=definition
+        )
+
+    def task(task_id, status="running", split_rule=None):
+        task_spec = JediTaskSpec()
+        task_spec.jediTaskID = task_id
+        task_spec.status = status
+        task_spec.site = None
+        task_spec.splitRule = split_rule
+        return task_spec
+
+    class FakeTaskBuffer:
+        def __init__(self, steps, tasks, output_sites):
+            self.steps, self.tasks, self.output_sites = steps, tasks, output_sites
+            self.events = []
+            self.workflow = FakeWorkflowSpec(148)
+
+        def get_steps_of_workflow(self, workflow_id):
+            return self.steps
+
+        def get_data_of_workflow(self, workflow_id, type_filter_list=None):
+            return [types.SimpleNamespace(name="signal", target_id="ds:signal"), types.SimpleNamespace(name="background", target_id="ds:background/")]
+
+        def get_site_mapper(self):
+            return types.SimpleNamespace(siteSpecList={}, getSite=lambda name: types.SimpleNamespace(get_unified_name=lambda: name))
+
+        def getTaskWithID_JEDI(self, task_id, *args):
+            return True, self.tasks[task_id]
+
+        def getDatasetsWithJediTaskID_JEDI(self, task_id, types_):
+            # an outDS and a log dataset at the same site, as analysis instantiates them
+            return True, [types.SimpleNamespace(site=site) for site in self.output_sites.get(task_id, [])]
+
+        def getConfigValue(self, *args, **kwargs):
+            return True
+
+        def query_workflows(self, **kwargs):
+            return [self.workflow]
+
+        def update_workflow(self, workflow_spec):
+            self.events.append("store anchor")
+
+        def updateTask_JEDI(self, task_spec, criteria, *args, **kwargs):
+            self.events.append(f"update {task_spec.jediTaskID} {task_spec.splitRule}")
+
+        def release_task_on_hold(self, task_id):
+            self.events.append(f"release {task_id}")
+            return True
+
+        def push_task_trigger_message(self, msg_type, task_id):
+            self.events.append(f"trigger {msg_type} {task_id}")
+
+    class FakeWorkflowInterface:
+        def __init__(self, tbif, locked=False):
+            self.tbif, self.locked = tbif, locked
+
+        def workflow_lock(self, workflow_id):
+            import contextlib
+
+            @contextlib.contextmanager
+            def lock():
+                yield None if self.locked else self.tbif.workflow
+
+            return lock()
+
+    def run_pass(tbif, locked=False):
+        dog: Any = wd.AtlasWorkflowManagerWatchDog.__new__(wd.AtlasWorkflowManagerWatchDog)
+        dog.taskBufferIF = tbif
+        dog.vo = "atlas"
+        dog.workflow_interface = FakeWorkflowInterface(tbif, locked)
+        dog.get_process_lock = lambda *a, **k: True
+        replicas = {"ds:signal": ["CERN-T0", "CERN"], "ds:background/": ["CERN-T0", "CERN", "INFN-CNAF"]}
+        dog.sites_holding_dataset = lambda analysis_sites, site_mapper, dataset_name, log: replicas[dataset_name]
+        dog.doComputeWorkflowAnchors()
+        return dog
+
+    def workflow_148(background_placed):
+        steps = [
+            step(1, "make_signal", ["signal"], ["make_signal/outDS"], task_id=101),
+            step(2, "make_background_1", ["background"], ["make_background_1/outDS"], task_id=102),
+            step(3, "generate_some", [], ["generate_some/outDS"], task_id=103, takes_input=False),
+            step(4, "premix", ["make_signal/outDS", "make_background_1/outDS"], ["premix/outDS"], status="registered"),
+            step(5, "make_background_2", ["background", "generate_some/outDS"], ["make_background_2/outDS"], status="registered"),
+        ]
+        tasks = {101: task(101), 102: task(102), 103: task(103, status="pending", split_rule=f"WH={WORKFLOW_HOLDUP_BROKERAGE},NG=3")}
+        output_sites = {101: ["CERN-T0", "CERN-T0"]}
+        if background_placed:
+            output_sites[102] = ["CERN-T0", "CERN-T0"]
+        return FakeTaskBuffer(steps, tasks, output_sites)
+
+    tbif = workflow_148(background_placed=False)
+    dog = run_pass(tbif)
+    anchor_inputs, holdup = dog.gather_anchor_inputs(148, Log())
+    failures += not check("only make_background_1 is waited for", holdup["unplaced_bound_step_ids"] == [2], holdup["unplaced_bound_step_ids"])
+    failures += not check("generate_some is the held task", [t.jediTaskID for t in holdup["held_task_specs"]] == [103])
+    failures += not check("the workflow is unsettled", holdup["unsettled"] is True)
+    failures += not check("an outDS and a log at one site count as one step there", anchor_inputs["output_sites"] == ["CERN-T0"], anchor_inputs["output_sites"])
+    # a bound step submitted but not yet placed still says where it is going
+    failures += not check(
+        "an unplaced submitted step still contributes its input sites",
+        anchor_inputs["input_sites"].count("INFN-CNAF") == 2,
+        anchor_inputs["input_sites"],
+    )
+    failures += not check("the anchor is stored", "store anchor" in tbif.events, tbif.events)
+    failures += not check("nothing is released while a bound step is unplaced", not any(e.startswith("release") for e in tbif.events), tbif.events)
+    stored = tbif.workflow.get_parameter(WORKFLOW_ANCHOR_PARAM)
+    failures += not check("an unsettled anchor is never fresh, so the next pass looks again", not dog.anchor_is_fresh(tbif.workflow), stored)
+
+    print("\n=== ...and is released once they are placed ===")
+    tbif = workflow_148(background_placed=True)
+    run_pass(tbif)
+    failures += not check("the held task is released", "release 103" in tbif.events, tbif.events)
+    failures += not check(
+        "the anchor is stored before anything is released",
+        "store anchor" in tbif.events and tbif.events.index("store anchor") < tbif.events.index("release 103"),
+        tbif.events,
+    )
+    failures += not check("the brokerage bit is cleared and the rest of the rule kept", "update 103 NG=3" in tbif.events, tbif.events)
+    failures += not check("the contents feeder is triggered", "trigger jedi_contents_feeder 103" in tbif.events, tbif.events)
+    weights = tbif.workflow.get_parameter(WORKFLOW_ANCHOR_PARAM)["weights"]
+    failures += not check("the anchor names where the bound steps went", max(weights, key=weights.get) == "CERN-T0", weights)
+
+    print("\n=== a workflow the engine holds is neither anchored nor released ===")
+    # the released tasks must see the new anchor, so no anchor means no release either
+    tbif = workflow_148(background_placed=True)
+    run_pass(tbif, locked=True)
+    failures += not check("nothing released when the anchor could not be stored", not any(e.startswith("release") for e in tbif.events), tbif.events)
+
+    print("\n=== the hold expires with the regular pending cycle ===")
+    from pandajedi.jedibrokerage.workflow_affinity import brokerage_holdup_expired
+
+    created = datetime.datetime(2026, 11, 16, 10, 0)
+    failures += not check("a first feed minutes after creation still holds", not brokerage_holdup_expired(created, created + datetime.timedelta(minutes=3), 60))
+    failures += not check("a feed after the pending reactivation lets go", brokerage_holdup_expired(created, created + datetime.timedelta(minutes=61), 60))
+    failures += not check("no creation time never holds for ever", brokerage_holdup_expired(None, created, 60))
 
     print("\n=== the pass runs before the workflows are processed ===")
     # An analysis task is job-generated almost as soon as it is submitted, so an anchor computed

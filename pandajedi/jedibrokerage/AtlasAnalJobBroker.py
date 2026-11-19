@@ -91,7 +91,7 @@ class AtlasAnalJobBroker(JobBrokerBase):
             self.set_task_common(cache_key, anchor)
         weights = (anchor or {}).get("weights") or None
         if weights:
-            tmpLog.info(f"workflow_id={workflow_id} anchor: {workflow_affinity.summarize_anchor(anchor)}")
+            tmpLog.info(f"workflow_id={workflow_id} anchor: {workflow_affinity.summarize_anchor(anchor)} computed_at={(anchor or {}).get('computed_at')}")
         else:
             tmpLog.info(f"workflow_id={workflow_id} has no anchor yet")
         return weights
@@ -2374,6 +2374,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 f"""nFailed={bw_map["nFailed"]} nClosed={bw_map["nClosed"]} nFinished={bw_map["nFinished"]} """
                 f"""dataW={tmpDataWeight} totalInGB={totalSize} localInGB={localSize} nFiles={totalNumFiles} """
             )
+            if anchor_weights:
+                tmpStr += f"""wfAffW={tmpAffinityWeight:.2f} """
             weightStr[tmpPseudoSiteName] = tmpStr
             # append
             if tmpSiteName in sitesUsedByTask:

@@ -8,6 +8,7 @@ import uuid
 from multiprocessing.connection import Connection
 from typing import TYPE_CHECKING, Any
 
+from pandajedi.jedibrokerage import workflow_affinity
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
@@ -15,7 +16,7 @@ from pandajedi.jedicore.ScoutUtils import get_num_scout_chunks_for_dataset
 from pandajedi.jedicore.ThreadUtils import ListWithLock, ThreadPool, WorkerThread
 from pandajedi.jedirefine import RefinerUtils
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
-from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+from pandaserver.taskbuffer.JediTaskSpec import WORKFLOW_HOLDUP_BROKERAGE, JediTaskSpec
 
 from .JediKnight import JediKnight
 
@@ -711,6 +712,17 @@ class ContentsFeederThread(WorkerThread):
                 # hold up by the workflow
                 taskOnHold = True
                 tmpLog.debug("task to hold up by workflow")
+            # brokerage holdup by the workflow: a step with no input waits for its data-bound
+            # siblings to be placed, so that it can follow them; it is released by the workflow
+            # manager watchdog, or let go here once it has been through the regular pending cycle
+            if not taskOnHold and not taskBroken and taskSpec.is_workflow_brokerage_holdup():
+                wait_minutes = getattr(getattr(jedi_config, "watchdog", None), "waitForPending", 60)
+                if workflow_affinity.brokerage_holdup_expired(taskSpec.creationDate, naive_utcnow(), wait_minutes):
+                    self.expire_brokerage_holdup(taskSpec, tmpLog)
+                else:
+                    taskOnHold = True
+                    taskSpec.setErrDiag(f"held until the data-bound steps of workflow {taskSpec.get_workflow_id()} are brokered")
+                    tmpLog.info("task to hold up brokerage by workflow")
             # no master input
             if not taskOnHold and not taskBroken and allUpdated and nFilesMaster == 0 and checkedMaster:
                 tmpErrStr = "primary input dataset is empty or all files are excluded "
@@ -788,6 +800,21 @@ class ContentsFeederThread(WorkerThread):
                 else:
                     tmpLog.warning("failed to push trigger message to jedi_job_generator")
             tmpLog.debug("done")
+
+    def expire_brokerage_holdup(self, taskSpec: JediTaskSpec, tmpLog: MsgWrapper) -> None:
+        """
+        Drop a task's brokerage holdup for good, leaving any other workflow hold in place
+
+        Written through a spec carrying nothing but the split rule, since updateTask_JEDI writes
+        every changed attribute and the feeder's own spec is mid-way through being updated.
+        """
+        taskSpec.set_workflow_holdup(False, WORKFLOW_HOLDUP_BROKERAGE)
+        update_spec = JediTaskSpec()
+        update_spec.jediTaskID = taskSpec.jediTaskID
+        update_spec.status = taskSpec.status
+        update_spec.splitRule = taskSpec.splitRule
+        self.taskBufferIF.updateTask_JEDI(update_spec, {"jediTaskID": taskSpec.jediTaskID}, updateDEFT=False, setFrozenTime=False)
+        tmpLog.info(f"brokerage holdup expired after the pending cycle; brokered without waiting for workflow {taskSpec.get_workflow_id()}")
 
     # update dataset
     def updateDatasetStatus(self, datasetSpec: JediDatasetSpec, datasetStatus: str, tmpLog: MsgWrapper, datasetState: str | None = None) -> None:
