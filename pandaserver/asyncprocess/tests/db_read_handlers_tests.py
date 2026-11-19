@@ -54,7 +54,7 @@ class FakeProxy:
     def get_db_utc_now(self) -> datetime.datetime:
         return AS_OF
 
-    def cleanup(self) -> None:
+    def disconnect(self) -> None:
         self.closed = True
 
 

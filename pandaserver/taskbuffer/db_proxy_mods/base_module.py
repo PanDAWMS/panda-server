@@ -439,9 +439,10 @@ class BaseModule:
                 pass
         return
 
-    # cleanup
-    def cleanup(self) -> None:
-        comment = " /* DBProxy.cleanup */"
+    # close the connection and drop its exit hook. Named apart from TaskBuffer.cleanup, which
+    # closes a whole pool of these
+    def disconnect(self) -> None:
+        comment = " /* DBProxy.disconnect */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
         self.close_connection()
