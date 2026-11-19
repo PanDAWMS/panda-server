@@ -5825,11 +5825,14 @@ class TaskComplexModule(BaseModule):
         tmpLog.debug(f"isUnMerging={isUnMerging} isPrePro={isPrePro} provenanceID={provenanceID}")
         tmpLog.debug(f"middleName={middleName} registerDatasets={registerDatasets} idPool={len(fileIDPool)}")
         tmpLog.debug(f"n_files_per_chunk={n_files_per_chunk} bulk_fetch={bulk_fetch_for_multiple_jobs}")
-        # before the try, so that the failure return hands back a map as well
-        if siteDsMap is None:
-            siteDsMap = {}
-        if parallelOutMap is None:
-            parallelOutMap = {}
+        # The two maps gain entries inside the transaction below: siteDsMap the IDs of the datasets
+        # it inserts, parallelOutMap the file specs. Work on copies, so that a failed call, whose
+        # transaction is rolled back, hands the caller's maps back as they were. A caller sharing
+        # the objects (an in-process JediTaskBuffer) is not left holding rolled-back IDs either
+        site_ds_map_given: dict[Any, Any] = siteDsMap if siteDsMap is not None else {}
+        parallel_out_map_given: dict[Any, Any] = parallelOutMap if parallelOutMap is not None else {}
+        siteDsMap = {dataset_id: dict(per_site) for dataset_id, per_site in site_ds_map_given.items()}
+        parallelOutMap = {file_id: list(file_specs) for file_id, file_specs in parallel_out_map_given.items()}
         try:
             if instantiatedSites is None:
                 instantiatedSites = ""
@@ -6111,4 +6114,4 @@ class TaskComplexModule(BaseModule):
             self._rollback()
             # error
             self.dump_error_message(tmpLog)
-            return None, None, None, siteDsMap, parallelOutMap
+            return None, None, None, site_ds_map_given, parallel_out_map_given
