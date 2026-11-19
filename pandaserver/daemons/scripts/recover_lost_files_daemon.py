@@ -70,7 +70,7 @@ def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
 
     # thread to ev-pd2p
     class EvpThr(threading.Thread):
-        def __init__(self, lock: threading.Semaphore, pool: "ThreadPool", tb_if: Any, file_name: str, to_delete: bool) -> None:
+        def __init__(self, lock: threading.Semaphore, pool: "ThreadPool", tb_if: "TaskBuffer", file_name: str, to_delete: bool) -> None:
             threading.Thread.__init__(self)
             self.lock = lock
             self.pool = pool
