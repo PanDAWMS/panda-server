@@ -1193,9 +1193,7 @@ class DataCarouselInterface(object):
                         tmp_log.error(f"ddm_rule_id={ddm_rule_id} cannot get source_rse from source_replica_expression: {source_replica_expression}")
                         raise RuntimeError("cannot get source_rse from staging rule's source_replica_expression")
                     else:
-                        tmp_log.debug(f"already staging with ddm_rule_id={ddm_rule_id} source_rse={source_rse}")
-                        if preferred_rses and source_rse not in preferred_rses:
-                            tmp_log.debug(f"preferred_rses={preferred_rses} ignored as already staging from source_rse={source_rse}")
+                        tmp_log.debug(f"already staging with ddm_rule_id={ddm_rule_id} source_rse={source_rse} (preferred_rses={preferred_rses})")
                 else:
                     # no source_replica_expression of the rule; choose any source
                     tmp_log.warning(f"already staging with ddm_rule_id={ddm_rule_id} without source_replica_expression; to choose a random source_rse")
@@ -1577,6 +1575,28 @@ class DataCarouselInterface(object):
         self._task_params_cache[task_id] = task_params_map
         return task_params_map
 
+    def _all_active_tasks_to_backfill(self, task_specs: list[JediTaskSpec]) -> bool:
+        """
+        Check whether there are active tasks and all of them have task parameter data_carousel_backfill
+
+        Args:
+            task_specs (list[JediTaskSpec]): tasks mapped to the request
+
+        Returns:
+            bool : True if there are active tasks and all of them are to backfill, False otherwise
+        """
+        has_active_task = False
+        for task_spec in task_specs:
+            if task_spec.status in FINAL_TASK_STATUSES:
+                continue
+            if task_spec.jediTaskID is None:
+                return False
+            task_params_map = self._get_task_params_map(task_spec.jediTaskID)
+            if task_params_map is None or not task_params_map.get("data_carousel_backfill"):
+                return False
+            has_active_task = True
+        return has_active_task
+
     def _update_to_backfill(self, queued_requests: list[tuple[DataCarouselRequestSpec, list[JediTaskSpec]]]) -> None:
         """
         Evaluate and update to_backfill of queued requests (except to_pin requests) according to their active tasks
@@ -1593,16 +1613,7 @@ class DataCarouselInterface(object):
             seen_task_ids.update(task_spec.jediTaskID for task_spec in task_specs if task_spec.jediTaskID is not None)
             if dc_req_spec.get_parameter("to_pin"):
                 continue
-            # evaluate to_backfill with active tasks
-            to_backfill = False
-            active_task_specs = [task_spec for task_spec in task_specs if task_spec.status not in FINAL_TASK_STATUSES]
-            if active_task_specs:
-                to_backfill = True
-                for task_spec in active_task_specs:
-                    task_params_map = self._get_task_params_map(task_spec.jediTaskID) if task_spec.jediTaskID is not None else None
-                    if task_params_map is None or not task_params_map.get("data_carousel_backfill"):
-                        to_backfill = False
-                        break
+            to_backfill = self._all_active_tasks_to_backfill(task_specs)
             if to_backfill:
                 n_to_backfill += 1
             if dc_req_spec.get_parameter("to_backfill") == to_backfill:
