@@ -2509,11 +2509,13 @@ class DataCarouselInterface(object):
             bool|None : True for success, None otherwise
         """
         tmp_log = LogWrapper(logger, f"cancel_request request_id={dc_req_spec.request_id} by={by}" + (f" reason={reason}" if reason else " "))
-        # cancel
-        ret: bool | None = self.taskBufferIF.cancel_data_carousel_request_JEDI(dc_req_spec.request_id)
-        if ret:
+        # cancel; the database answers the number of requests cancelled, or None on failure
+        ret = None
+        n_cancelled = self.taskBufferIF.cancel_data_carousel_request_JEDI(dc_req_spec.request_id)
+        if n_cancelled:
             tmp_log.debug("cancelled")
-        elif ret == 0:
+            ret = True
+        elif n_cancelled == 0:
             tmp_log.debug("already terminated; skipped")
         else:
             tmp_log.error("failed to cancel")
