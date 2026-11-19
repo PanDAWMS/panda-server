@@ -2244,7 +2244,7 @@ class TaskComplexModule(BaseModule):
                         if not self._commit():
                             raise RuntimeError("Commit error")
                         # send finish command
-                        get_task_event_module(self).sendCommandTaskPanda(
+                        get_task_event_module(self).send_command_task_panda_db(
                             jedi_task_id, "HPO task finished since max_num_jobs reached", True, "finish", comQualifier="soft"
                         )
                         to_skip = True
@@ -2300,7 +2300,7 @@ class TaskComplexModule(BaseModule):
                         and naive_utcnow() - original_task_spec.frozenTime > datetime.timedelta(hours=wait_interval)
                     ):
                         # send finish command
-                        get_task_event_module(self).sendCommandTaskPanda(
+                        get_task_event_module(self).send_command_task_panda_db(
                             jedi_task_id, "HPO task finished since inactive for one day", True, "finish", comQualifier="soft"
                         )
                     to_skip = True
@@ -3450,8 +3450,8 @@ class TaskComplexModule(BaseModule):
             return failed_return
 
     # set scout job data to tasks
-    def setScoutJobDataToTasks_JEDI(self, vo: str | None, prodSourceLabel: str | None, site_mapper: "SiteMapper") -> bool | None:
-        comment = " /* JediDBProxy.setScoutJobDataToTasks_JEDI */"
+    def set_scout_job_data_to_tasks_jedi_db(self, vo: str | None, prodSourceLabel: str | None, site_mapper: "SiteMapper") -> bool | None:
+        comment = " /* JediDBProxy.set_scout_job_data_to_tasks_jedi_db */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
         try:
@@ -3532,7 +3532,7 @@ class TaskComplexModule(BaseModule):
             return None
 
     # prepare tasks to be finished
-    def prepareTasksToBeFinished_JEDI(
+    def prepare_tasks_to_be_finished_jedi_db(
         self,
         vo: str | None,
         prodSourceLabel: str | None,
@@ -3542,7 +3542,7 @@ class TaskComplexModule(BaseModule):
         noBroken: bool = False,
         site_mapper: "SiteMapper | None" = None,
     ) -> list[int] | None:
-        comment = " /* JediDBProxy.prepareTasksToBeFinished_JEDI */"
+        comment = " /* JediDBProxy.prepare_tasks_to_be_finished_jedi_db */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel}")
         tmpLog.debug("start")
         # return value for failure

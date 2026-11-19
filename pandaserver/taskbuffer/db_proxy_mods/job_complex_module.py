@@ -2252,7 +2252,7 @@ class JobComplexModule(BaseModule):
         return match_gpu_spec(gpu_spec, target_architecture["gpus"])
 
     # get jobs
-    def getJobs(
+    def get_jobs_db(
         self,
         nJobs: int,
         siteName: str,
@@ -2285,7 +2285,7 @@ class JobComplexModule(BaseModule):
         4. Update the jobs to status SENT
         5. Pack the files and if jobs are AES also the event ranges
         """
-        comment = " /* DBProxy.getJobs */"
+        comment = " /* DBProxy.get_jobs_db */"
         timeStart = naive_utcnow()
         tmp_log = self.create_tagged_logger(comment, f"{siteName} {datetime.datetime.isoformat(timeStart)}")
         tmp_log.debug("Start")
@@ -2580,7 +2580,7 @@ class JobComplexModule(BaseModule):
                                         self.cur.execute(sqlJWH + comment, varMap)
                                         resJWH = self.cur.fetchone()
                                         if resJWH is None:
-                                            tmp_log.debug(f"getJobs : Site {tmpSiteID} harvester_id={harvester_id} not found")
+                                            tmp_log.debug(f"get_jobs_db : Site {tmpSiteID} harvester_id={harvester_id} not found")
                                         else:
                                             varMap = {":harvesterID": harvester_id, ":workerID": worker_id, ":PandaID": tmpPandaID}
                                             self.cur.execute(sqlJWC + comment, varMap)

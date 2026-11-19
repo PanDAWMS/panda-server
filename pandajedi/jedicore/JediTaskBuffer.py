@@ -488,7 +488,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         # which holds a single proxy in a task-buffer child process
         tmp_site_mapper = self.get_site_mapper()
         with self.proxyPool.get() as proxy:
-            return proxy.setScoutJobDataToTasks_JEDI(vo, prodSourceLabel, tmp_site_mapper)
+            return proxy.set_scout_job_data_to_tasks_jedi_db(vo, prodSourceLabel, tmp_site_mapper)
 
     # prepare tasks to be finished
     def prepareTasksToBeFinished_JEDI(
@@ -497,7 +497,7 @@ class JediTaskBuffer(TaskBuffer.TaskBuffer, CommandReceiveInterface):
         # get the site mapper before taking a proxy, as in setScoutJobDataToTasks_JEDI
         tmp_site_mapper = self.get_site_mapper()
         with self.proxyPool.get() as proxy:
-            return proxy.prepareTasksToBeFinished_JEDI(vo, prodSourceLabel, nTasks, simTasks, pid, noBroken, tmp_site_mapper)
+            return proxy.prepare_tasks_to_be_finished_jedi_db(vo, prodSourceLabel, nTasks, simTasks, pid, noBroken, tmp_site_mapper)
 
     # get tasks to be assigned
     def getTasksToAssign_JEDI(self, vo: str | None, prodSourceLabel: str | None, workQueue: WorkQueue, resource_name: str) -> list[int] | None:

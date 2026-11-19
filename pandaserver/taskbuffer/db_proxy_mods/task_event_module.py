@@ -3494,10 +3494,10 @@ class TaskEventModule(BaseModule):
         """
         Look up which of the given task names already exist, in JEDI or still queued in DEFT
 
-        Production tasks are not duplicate-checked when they are inserted (insertTaskParamsPanda
+        Production tasks are not duplicate-checked when they are inserted (insert_task_params_panda_db
         gates that on taskType being "anal"), so this exists to let a caller warn about a colliding
         taskName up front. The lookup is group scoped rather than user scoped, mirroring the
-        isOfficial branch of the duplication check in insertTaskParamsPanda, because a production
+        isOfficial branch of the duplication check in insert_task_params_panda_db, because a production
         taskName is owned by the group and not by the submitter.
 
         Args:
@@ -3554,7 +3554,7 @@ class TaskEventModule(BaseModule):
             return None
 
     # insert TaskParams
-    def insertTaskParamsPanda(
+    def insert_task_params_panda_db(
         self,
         taskParams: Any,
         dn: str,
@@ -3566,7 +3566,7 @@ class TaskEventModule(BaseModule):
         decode: bool = True,
         command_key: TaskCommandKey | None = None,
     ) -> tuple[Any, Any]:
-        comment = " /* JediDBProxy.insertTaskParamsPanda */"
+        comment = " /* JediDBProxy.insert_task_params_panda_db */"
         try:
             # get compact DN
             compact_dn = CoreUtils.clean_user_id(dn)
@@ -4008,7 +4008,7 @@ class TaskEventModule(BaseModule):
         return True, ""
 
     # send command to task through DEFT
-    def sendCommandTaskPanda(
+    def send_command_task_panda_db(
         self,
         jediTaskID: int,
         dn: str,
@@ -4021,7 +4021,7 @@ class TaskEventModule(BaseModule):
         broadcast: bool = False,
         command_key: TaskCommandKey | None = None,
     ) -> tuple[Any, str]:
-        comment = " /* JediDBProxy.sendCommandTaskPanda */"
+        comment = " /* JediDBProxy.send_command_task_panda_db */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         try:
             # get compact DN

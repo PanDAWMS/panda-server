@@ -895,7 +895,7 @@ class TaskBuffer:
         with self.proxyPool.get() as proxy:
             # get waiting jobs
             t_before = time.time()
-            jobs, nSent = proxy.getJobs(
+            jobs, nSent = proxy.get_jobs_db(
                 nJobs,
                 siteName,
                 prodSourceLabel,
@@ -1622,7 +1622,7 @@ class TaskBuffer:
             tmpStatus = proxy.checkBanUser(user, None, True)
             if tmpStatus is True:
                 # exec
-                ret = proxy.insertTaskParamsPanda(
+                ret = proxy.insert_task_params_panda_db(
                     taskParams,
                     user,
                     prodRole,
@@ -1662,7 +1662,7 @@ class TaskBuffer:
     ) -> tuple[Any, str]:
         with self.proxyPool.get() as proxy:
             # exec
-            ret = proxy.sendCommandTaskPanda(
+            ret = proxy.send_command_task_panda_db(
                 jediTaskID,
                 dn,
                 prodRole,

@@ -731,7 +731,7 @@ class WorkflowModule(BaseModule):
         """
         Queue the task of a workflow step in DEFT, resolving the late-bound task ID
 
-        This is a deliberately narrow counterpart to insertTaskParamsPanda for workflow steps. A step
+        This is a deliberately narrow counterpart to insert_task_params_panda_db for workflow steps. A step
         needs only a plain insert, and none of the branches that function carries: the duplication
         check is analysis-only, parentTaskName is rejected for workflow steps because the engine
         orders them itself, and the reactivation path applies to resubmitting an existing task.
@@ -742,7 +742,7 @@ class WorkflowModule(BaseModule):
         rewritten, since a workflow step is submitted on behalf of whoever the description names. The
         caller is responsible for having verified that the submitter may do so, and for having filled
         those three in from the submitter's credentials where the description leaves them to it; the
-        step handler's apply_submitter_credentials does that, with insertTaskParamsPanda's rule.
+        step handler's apply_submitter_credentials does that, with insert_task_params_panda_db's rule.
 
         The task ID cannot be known before the insert, because it comes from the sequence the insert
         itself consumes, so any TASKID_PLACEHOLDER in the parameters is resolved immediately
@@ -778,7 +778,7 @@ class WorkflowModule(BaseModule):
             schema_deft = panda_config.schemaDEFT
             task_params = json.dumps(task_params_map)
 
-            # honour the per-user active task limit, as insertTaskParamsPanda does; a workflow can
+            # honour the per-user active task limit, as insert_task_params_panda_db does; a workflow can
             # submit many steps unattended, so the backstop matters more here than for a human
             # submitting one task at a time
             max_n_tasks = self.getConfigValue("dbproxy", f"MAX_ACTIVE_TASKS_PER_USER_{prod_source_label}")
@@ -822,7 +822,7 @@ class WorkflowModule(BaseModule):
                     var_map[":nextval"] = next_val
                     task_id_expression = ":nextval"
                     own_id_expression = ":nextval"
-                # a task with no parent is its own parent, matching insertTaskParamsPanda
+                # a task with no parent is its own parent, matching insert_task_params_panda_db
                 if parent_tid is None:
                     parent_expression = own_id_expression
                 else:
