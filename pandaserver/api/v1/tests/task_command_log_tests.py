@@ -7,7 +7,7 @@ import json
 import logging
 import unittest
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 from unittest import mock
 
 from pandaserver.api.v1 import common, task_api
@@ -26,6 +26,9 @@ from pandaserver.srvcore import task_command_log
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.taskbuffer.db_proxy_mods.task_complex_module import TaskComplexModule
 from pandaserver.taskbuffer.db_proxy_mods.task_event_module import TaskEventModule
+
+if TYPE_CHECKING:
+    from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
 _logger = logging.getLogger("task_command_log_tests")
 
@@ -114,7 +117,8 @@ class TestRecordingAroundEndpoints(unittest.TestCase):
         global fake_task_buffer
         fake_task_buffer = FakeTaskBuffer()
         seen_keys.clear()
-        log_task_commands(__name__, lambda: fake_task_buffer)
+        # the fake implements only what run_logged_task_command uses of a TaskBuffer
+        log_task_commands(__name__, lambda: cast("TaskBuffer", fake_task_buffer))
 
     def tearDown(self) -> None:
         common._command_logging_modules.pop(__name__, None)
