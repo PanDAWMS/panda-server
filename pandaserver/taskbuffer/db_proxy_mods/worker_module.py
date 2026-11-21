@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+import time
 from typing import Any
 
 from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
@@ -11,7 +12,7 @@ from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_host_name
 from pandaserver.taskbuffer import ErrorCode, SiteSpec
-from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, memoize
+from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, get_db_error_code, memoize
 from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.HarvesterMetricsSpec import HarvesterMetricsSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
@@ -19,6 +20,11 @@ from pandaserver.taskbuffer.ResourceSpec import BASIC_RESOURCE_TYPE
 from pandaserver.taskbuffer.WorkerSpec import WorkerSpec
 
 DEFAULT_PRODSOURCELABEL = "managed"
+
+# the columns get_job_worker_rows returns: every column of Harvester_Workers. The pilot columns are written by the
+# pilot through updateWorkerPilotStatus and are not in WorkerSpec, so that updateWorkers, which sets every key of the
+# harvester's data that WorkerSpec has, cannot overwrite them
+JOB_WORKER_ROW_COLUMNS = WorkerSpec._attributes + ("pilotStartTime", "pilotEndTime", "pilotStatus", "pilotStatusSyncTime")
 
 
 # Module class to define methods related to worker and harvester
@@ -1506,6 +1512,58 @@ class WorkerModule(BaseModule):
             # error
             self.dump_error_message(tmp_log)
             return []
+
+    # get the rows of the harvester workers of a job
+    def get_job_worker_rows(self, panda_id: int, max_rows: int) -> tuple[bool, str, dict[str, Any]]:
+        """
+        Get the rows Harvester_Workers holds for the workers related to a job in Harvester_Rel_Jobs_Workers.
+
+        Args:
+            panda_id(int): PandaID of the job
+            max_rows(int): most rows to return
+
+        Returns:
+            bool: True if the rows were read
+            str: why not, when they were not
+            dict: when read, {"rows": [dict, ...], "truncated": bool, "max_rows": int, "as_of": datetime}. rows are
+                ordered by harvesterID and workerID, with every column of Harvester_Workers keyed as WorkerSpec names
+                it plus pilotStartTime, pilotEndTime, pilotStatus and pilotStatusSyncTime, and are cut at max_rows when
+                truncated. as_of is the database time in UTC taken before the rows were read. On a database error,
+                {"error": <code>}
+        """
+        comment = " /* DBProxy.get_job_worker_rows */"
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id}")
+        tmp_log.debug("start")
+        try:
+            self.conn.begin()
+            as_of = self.get_db_utc_now()
+            # the PandaID index of the relations is local to their PandaID partitions, so one partition is read, and
+            # each relation finds its worker by the global primary key
+            sql = (
+                f"SELECT {','.join(f'w.{column}' for column in JOB_WORKER_ROW_COLUMNS)} "
+                "FROM ATLAS_PANDA.Harvester_Workers w, ATLAS_PANDA.Harvester_Rel_Jobs_Workers r "
+                "WHERE w.harvesterID=r.harvesterID AND w.workerID=r.workerID AND r.PandaID=:PandaID "
+                "ORDER BY w.harvesterID, w.workerID "
+                # one row more than returned tells whether there are more
+                f"FETCH FIRST {max_rows + 1} ROWS ONLY "
+            )
+            var_map: dict[str, Any] = {":PandaID": panda_id}
+            start_time = time.monotonic()
+            self.cur.arraysize = max_rows + 1
+            self.cur.execute(sql + comment, var_map)
+            res = self.cur.fetchall()
+            elapsed = time.monotonic() - start_time
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            truncated = len(res) > max_rows
+            rows = [dict(zip(JOB_WORKER_ROW_COLUMNS, row)) for row in res[:max_rows]]
+            tmp_log.debug(f"done with {len(rows)} rows (truncated={truncated}) in {elapsed:.3f} sec")
+            return True, "", {"rows": rows, "truncated": truncated, "max_rows": max_rows, "as_of": as_of}
+        except Exception as e:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            err_code = get_db_error_code(e)
+            return False, f"database error {err_code}", {"error": err_code}
 
     # get workers with stale harvester states and newer pilot state
     def get_workers_to_synchronize(self) -> dict[str, Any]:

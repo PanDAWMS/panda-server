@@ -46,6 +46,10 @@ MAX_DATASET_KEYS = 1000
 # keys one name given to get_datasets_by_name is looked up with: the name as given and its other form
 KEYS_PER_DATASET_NAME = 2
 
+# most rows one get_worker_rows call returns. A job normally has one worker, so the cap only bounds the read, and the
+# answer says when it cut
+MAX_JOB_WORKER_ROWS = 1000
+
 # slack put on both ends of a get_status_history window before it is widened to whole days. A
 # creationTime is written with the clock of a server and jobs_StatusLog with the database clock, so
 # a job created at 00:00:02 may have its first row at 23:59:57 of the day before; widening to the
@@ -421,6 +425,57 @@ def get_datasets_by_name(req: PandaRequest, names: List[str]) -> Dict[str, Any]:
     for row in data["rows"]:
         row["asked_as"] = asked_as.get(row["name"], [])
     data["keys_per_name"] = KEYS_PER_DATASET_NAME
+    tmp_logger.debug(f"""Done with {len(data["rows"])} rows""")
+    return generate_response(True, data=data)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_worker_rows(req: PandaRequest, job_id: int) -> Dict[str, Any]:
+    """
+    Get the worker rows of a job
+
+    Gets the rows Harvester_Workers holds for the harvester workers of a job, with every column. The workers are those
+    Harvester_Rel_Jobs_Workers relates to the job. Requires a secure connection.
+
+    A row holds the current state of a worker only; no history of its status is kept. A job gets a worker when harvester
+    reports the job in the pandaid_list of the worker (push mode), or when a pilot that passes its harvester_id and
+    worker_id gets the job (pull mode). In pull mode getting the job also sets the worker to status running with nJobs 1,
+    and adds it when harvester has not reported it yet, with its other columns null until harvester does. A job that
+    harvester later reports no longer in the pandaid_list of a worker loses that worker. Old workers are removed by the
+    database, outside the server, so an old enough job may have lost its workers.
+
+    API details:
+        HTTP Method: GET
+        Path: /v1/job/get_worker_rows
+
+    Args:
+        req(PandaRequest): internally generated request object
+        job_id(int): PanDA job ID
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+
+    Response data:
+        dict: The workers of the job.
+            {"rows": [...], "truncated": bool, "max_rows": int, "as_of": datetime}
+            - rows: one dict per worker, ordered by harvesterID and workerID, with every column of Harvester_Workers and
+              None for NULL. The keys are the names of WorkerSpec (harvesterID, workerID, status, submitTime, startTime,
+              endTime, lastUpdate, diagMessage, errorCode, nativeStatus, nativeExitCode, ...), plus pilotStartTime,
+              pilotEndTime, pilotStatus and pilotStatusSyncTime, which the pilot sets. startTime is when the worker got
+              its CPUs and pilotStartTime when the pilot on it started. A job without workers, or not found, has none
+            - truncated, max_rows: whether the rows were cut at max_rows, the most a call returns
+            - as_of: database time in UTC taken before the rows were read
+        On failure, with the reason in the message: {"error": str} when the database failed, with the error code
+            (ORA-xxxxx, or the SQLSTATE on Postgres).
+    """
+    tmp_logger = LogWrapper(_logger, f"get_worker_rows < job_id={job_id} >")
+    tmp_logger.debug("Start")
+
+    success, message, data = global_task_buffer.get_job_worker_rows(job_id, MAX_JOB_WORKER_ROWS)
+    if not success:
+        tmp_logger.debug(f"Failed with {message}")
+        return generate_response(False, message=message, data=data)
+
     tmp_logger.debug(f"""Done with {len(data["rows"])} rows""")
     return generate_response(True, data=data)
 
