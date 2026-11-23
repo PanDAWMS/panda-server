@@ -1794,8 +1794,8 @@ class JobGeneratorThread(WorkerThread):
                         # get dataset
                         if tmpFileSpec.datasetID not in outDsMap:
                             ds_ok, tmpDataset = self.taskBufferIF.getDatasetWithID_JEDI(taskSpec.jediTaskID, tmpFileSpec.datasetID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
-                            # not found
-                            if not ds_ok:
+                            # failed, or not found: a missing row comes back as None with ds_ok set
+                            if not ds_ok or tmpDataset is None:
                                 tmpLog.error(f"failed to get DS with datasetID={tmpFileSpec.datasetID}")
                                 return failedRet
                             outDsMap[tmpFileSpec.datasetID] = tmpDataset  # type: ignore[index]  # the id is a column, which is declared optional
@@ -1830,8 +1830,8 @@ class JobGeneratorThread(WorkerThread):
                         for tmpFileSpec in tmpFileSpecList:
                             if tmpFileSpec.datasetID not in outDsMap:
                                 ds_ok, tmpDataset = self.taskBufferIF.getDatasetWithID_JEDI(taskSpec.jediTaskID, tmpFileSpec.datasetID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
-                                # not found
-                                if not ds_ok:
+                                # failed, or not found: a missing row comes back as None with ds_ok set
+                                if not ds_ok or tmpDataset is None:
                                     tmpLog.error(f"failed to get DS with datasetID={tmpFileSpec.datasetID}")
                                     return failedRet
                                 outDsMap[tmpFileSpec.datasetID] = tmpDataset
@@ -2254,11 +2254,11 @@ class JobGeneratorThread(WorkerThread):
                 # get dataset
                 if tmpFileSpec.datasetID not in outDsMap:
                     ds_ok, tmpDataset = self.taskBufferIF.getDatasetWithID_JEDI(taskSpec.jediTaskID, tmpFileSpec.datasetID)  # type: ignore[arg-type]  # the id is a column, which is declared optional
-                    # not found
-                    if not ds_ok:
+                    # failed, or not found: a missing row comes back as None with ds_ok set
+                    if not ds_ok or tmpDataset is None:
                         tmpLog.error(f"doGeneratePrePro failed to get logDS with datasetID={tmpFileSpec.datasetID}")
                         return failedRet
-                    outDsMap[tmpFileSpec.datasetID] = tmpDataset  # type: ignore[assignment]
+                    outDsMap[tmpFileSpec.datasetID] = tmpDataset
                 # convert to job's FileSpec
                 tmpDatasetSpec = outDsMap[tmpFileSpec.datasetID]
                 tmpOutFileSpec = tmpFileSpec.convertToJobFileSpec(tmpDatasetSpec, setType="log")
