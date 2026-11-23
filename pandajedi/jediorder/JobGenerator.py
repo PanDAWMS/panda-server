@@ -1357,6 +1357,9 @@ class JobGeneratorThread(WorkerThread):
                         # get segment information
                         if taskSpec.is_work_segmented() and tmpDatasetSpec.isMaster() and tmpDatasetSpec.isPseudo():
                             segmentID = tmpDatasetSpec.datasetID
+                            if tmpDatasetSpec.containerName is None:
+                                tmpLog.error(f"no containerName to take the segment name from in datasetID={segmentID}")
+                                return failedRet
                             segmentName = tmpDatasetSpec.containerName.split("/")[0]
                         # making files
                         for tmpFileSpec in tmpFileSpecList:
@@ -1460,6 +1463,9 @@ class JobGeneratorThread(WorkerThread):
                                         jobSpec.failedAttempt = tmpFileSpec.failedAttempt
                             # total file size
                             if tmpInFileSpec.status != "cached":
+                                if tmpFileSpec.fsize is None:
+                                    tmpLog.error(f"no fsize for {tmpFileSpec.lfn}")
+                                    return failedRet
                                 totalFileSize += tmpFileSpec.fsize
                             # lumi block number
                             if tmpDatasetSpec.isMaster() and lumiBlockNr is None:
@@ -2319,7 +2325,8 @@ class JobGeneratorThread(WorkerThread):
             size_map = {}
             for tmpFileSpec in tmpFileSpecList:
                 tmpLFNs.append(tmpFileSpec.lfn)
-                size_map[tmpFileSpec.lfn] = tmpFileSpec.fsize
+                # the size only orders the files below, so one that has none goes last, like an empty one
+                size_map[tmpFileSpec.lfn] = tmpFileSpec.fsize or 0
             # tweak file list if necessary
             if isMerging:
                 # sort by descending size not to process empty files first
