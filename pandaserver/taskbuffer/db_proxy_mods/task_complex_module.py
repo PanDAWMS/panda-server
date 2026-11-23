@@ -5817,11 +5817,11 @@ class TaskComplexModule(BaseModule):
         bulk_fetch_for_multiple_jobs: bool = False,
         master_dataset_id: int | None = None,
     ) -> tuple[
-        list[dict[str, Any]] | None,
+        list[dict[str, JediFileSpec]] | None,
         list[int | None] | None,
         list[Any] | None,
         dict[Any, Any],
-        list[dict[Any, Any]],
+        list[dict[int, list[JediFileSpec]]],
     ]:
         comment = " /* JediDBProxy.getOutputFiles_JEDI */"
         if master_dataset_id:

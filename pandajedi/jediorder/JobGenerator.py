@@ -30,8 +30,9 @@ from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.FileSpec import FileSpec
-from pandaserver.taskbuffer.InputChunk import InputChunk
+from pandaserver.taskbuffer.InputChunk import InputChunk, SubChunk
 from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
+from pandaserver.taskbuffer.JediFileSpec import JediFileSpec
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.ResourceSpec import ResourceSpec
@@ -41,7 +42,7 @@ from pandaserver.userinterface import Client as PandaClient
 
 from .JediKnight import JediKnight
 from .JobBroker import JobBroker
-from .JobSplitter import JobSplitter
+from .JobSplitter import JobSplitter, SiteChunks
 from .JobThrottler import JobThrottler
 from .TaskSetupper import TaskSetupper
 
@@ -563,8 +564,8 @@ class JobGeneratorThread(WorkerThread):
         # (datasetID, fileID) of that lib.tgz; the specs come back from the task buffer,
         # which is not annotated yet, so the (fileSpec, datasetSpec) pairs stay Any
         self.buildSpecMap: dict[tuple[Any, tuple[str, ...]], tuple[Any, Any]] = {}
-        self.finished_lib_specs_map: dict[tuple[Any, tuple[str, ...]], tuple[Any, Any]] = {}
-        self.active_lib_specs_map: dict[tuple[Any, Any], tuple[Any, Any]] = {}
+        self.finished_lib_specs_map: dict[tuple[Any, tuple[str, ...]], tuple[JediFileSpec, JediDatasetSpec | None]] = {}
+        self.active_lib_specs_map: dict[tuple[Any, Any], tuple[JediFileSpec, JediDatasetSpec | None]] = {}
         self.workQueue = workQueue
         self.resource_name = resource_name
         self.cloud = cloud
@@ -984,7 +985,7 @@ class JobGeneratorThread(WorkerThread):
         self,
         taskSpec: JediTaskSpec,
         cloudName: str | None,
-        inSubChunkList: list[Any],
+        inSubChunkList: list[SiteChunks],
         inputChunk: InputChunk,
         tmpLog: MsgWrapper,
         simul: bool = False,
@@ -1399,6 +1400,7 @@ class JobGeneratorThread(WorkerThread):
                                 and tmpDatasetSpec.isMaster()
                             ):
                                 if not taskSpec.useJobCloning() or not setSpecialHandlingForJC:
+                                    nEventsPerWorker: int | None
                                     if taskSpec.useJobCloning():
                                         # single event range for job cloning
                                         if tmpFileSpec.startEvent is not None:
@@ -1443,7 +1445,7 @@ class JobGeneratorThread(WorkerThread):
                                         tmpFirstEventOffset = None
                                         tmpFirstEvent = None
                                     specialHandling += EventServiceUtils.encodeFileInfo(
-                                        tmpFileSpec.lfn,
+                                        tmpFileSpec.lfn,  # type: ignore[arg-type]  # a column, declared optional because a fresh spec has it unset
                                         tmpStartEvent,
                                         tmpEndEvent,
                                         nEventsPerWorker,
@@ -1459,7 +1461,7 @@ class JobGeneratorThread(WorkerThread):
                                 totalMasterEvents += tmpFileSpec.getEffectiveNumEvents()
                                 # set failure count
                                 if tmpFileSpec.failedAttempt is not None:
-                                    if jobSpec.failedAttempt in [None, "NULL"] or jobSpec.failedAttempt < tmpFileSpec.failedAttempt:
+                                    if jobSpec.failedAttempt in [None, "NULL"] or jobSpec.failedAttempt < tmpFileSpec.failedAttempt:  # type: ignore[operator]  # "NULL" sentinel, see spec_column.py
                                         jobSpec.failedAttempt = tmpFileSpec.failedAttempt
                             # total file size
                             if tmpInFileSpec.status != "cached":
@@ -1605,7 +1607,7 @@ class JobGeneratorThread(WorkerThread):
                             for tmpDatasetSpec, tmpFileSpecList in inSubChunk:
                                 if not tmpDatasetSpec.isMaster():
                                     try:
-                                        middleName = "." + ".".join(tmpFileSpecList[0].lfn.split(".")[4 : 4 + len(field_num_to_lfn)])
+                                        middleName = "." + ".".join(tmpFileSpecList[0].lfn.split(".")[4 : 4 + len(field_num_to_lfn)])  # type: ignore[union-attr]  # a column, declared optional because a fresh spec has it unset
                                     except Exception:
                                         pass
                                     break
@@ -1727,6 +1729,10 @@ class JobGeneratorThread(WorkerThread):
                     # outputs
                     if self.time_profile_level >= TIME_PROFILE_ON:
                         tmpLog.debug(stop_watch.get_elapsed_time("outputs"))
+                    # the output files of this job, keyed by stream name. Both fetches below come through
+                    # the JEDI task buffer interface, which is untyped, and the bulk one through an
+                    # untyped map as well, so the files are declared here
+                    outSubChunk: dict[str, JediFileSpec] | None
                     if siteName in fetched_out_sub_chunks and fetched_out_sub_chunks[siteName]:
                         outSubChunk = fetched_out_sub_chunks[siteName].pop(0)
                         serialNr = fetched_serial_numbers[siteName].pop(0)
@@ -1792,9 +1798,9 @@ class JobGeneratorThread(WorkerThread):
                             if not ds_ok:
                                 tmpLog.error(f"failed to get DS with datasetID={tmpFileSpec.datasetID}")
                                 return failedRet
-                            outDsMap[tmpFileSpec.datasetID] = tmpDataset
+                            outDsMap[tmpFileSpec.datasetID] = tmpDataset  # type: ignore[index]  # the id is a column, which is declared optional
                         # convert to job's FileSpec
-                        tmpDatasetSpec = outDsMap[tmpFileSpec.datasetID]
+                        tmpDatasetSpec = outDsMap[tmpFileSpec.datasetID]  # type: ignore[index]  # the id is a column, which is declared optional
                         tmpOutFileSpec = tmpFileSpec.convertToJobFileSpec(tmpDatasetSpec, useEventService=taskSpec.useEventService(siteSpec))
                         # stay output on site
                         if taskSpec.stayOutputOnSite():
@@ -1830,7 +1836,7 @@ class JobGeneratorThread(WorkerThread):
                                     return failedRet
                                 outDsMap[tmpFileSpec.datasetID] = tmpDataset
                     # lib.tgz. cloning jobs will set it later in increaseEventServiceConsumers
-                    paramList = []
+                    paramList: list[tuple[str, Any]] = []
                     if buildFileSpec is not None and not taskSpec.useEventService(siteSpec):
                         tmpBuildFileSpec = copy.copy(buildFileSpec)
                         jobSpec.addFile(tmpBuildFileSpec)
@@ -1957,6 +1963,8 @@ class JobGeneratorThread(WorkerThread):
             secondKey.sort()
             buildSpecMapKey = (taskSpec.jediTaskID, tuple(secondKey))
             tmpStat = True
+            fileSpec: JediFileSpec | None
+            datasetSpec: JediDatasetSpec | None
             if buildSpecMapKey in self.buildSpecMap:
                 # reuse active lib.tgz
                 if self.buildSpecMap[buildSpecMapKey] in self.active_lib_specs_map:
@@ -1985,7 +1993,8 @@ class JobGeneratorThread(WorkerThread):
             # lib.tgz is already available
             if fileSpec is not None:
                 if fileSpec.creationDate > naive_utcnow() - datetime.timedelta(days=periodToUselibTgz):
-                    pandaFileSpec = fileSpec.convertToJobFileSpec(datasetSpec, setType="input")
+                    # both readers of lib.tgz return its dataset together with the file
+                    pandaFileSpec = fileSpec.convertToJobFileSpec(datasetSpec, setType="input")  # type: ignore[arg-type]
                     pandaFileSpec.dispatchDBlock = pandaFileSpec.dataset
                     pandaFileSpec.prodDBlockToken = "local"
                     if fileSpec.status == "finished":
@@ -2182,7 +2191,7 @@ class JobGeneratorThread(WorkerThread):
         siteName: str,
         siteSpec: SiteSpec,
         taskParamMap: dict[str, Any],
-        inSubChunks: list[Any],
+        inSubChunks: list[SubChunk],
         tmpLog: MsgWrapper,
         simul: bool = False,
     ) -> tuple[Interaction.StatusCode, JobSpec | None, list[Any]]:
@@ -2238,7 +2247,8 @@ class JobGeneratorThread(WorkerThread):
                 # failed
                 tmpLog.error("doGeneratePrePro failed to get OutputFiles")
                 return failedRet
-            outSubChunk = out_sub_chunk_list[0]
+            # declared, since through the JEDI task buffer interface the result is partly untyped
+            outSubChunk: dict[str, JediFileSpec] = out_sub_chunk_list[0]
             outDsMap: dict[Any, JediDatasetSpec] = {}
             for tmpFileSpec in outSubChunk.values():
                 # get dataset
@@ -2274,8 +2284,8 @@ class JobGeneratorThread(WorkerThread):
     def makeJobParameters(
         self,
         taskSpec: JediTaskSpec,
-        inSubChunk: list[tuple[JediDatasetSpec, list[Any]]],
-        outSubChunk: dict[str, Any],
+        inSubChunk: SubChunk,
+        outSubChunk: dict[str, JediFileSpec],
         serialNr: int,
         paramList: list[tuple[str, Any]],
         jobSpec: JobSpec,
@@ -2284,7 +2294,7 @@ class JobGeneratorThread(WorkerThread):
         isMerging: bool,
         jobFileList: list[FileSpec],
         useEventService: bool,
-        random_seed_list: list[Any] | None,
+        random_seed_list: list[JediFileSpec] | None,
         random_seed_dataset: JediDatasetSpec | None,
         tmp_log: MsgWrapper,
     ) -> tuple[str, dict[str, Any] | None]:
@@ -2311,7 +2321,7 @@ class JobGeneratorThread(WorkerThread):
             sourceURL = taskParamMap["sourceURL"]
         # get random seed
         if taskSpec.useRandomSeed() and not isMerging:
-            tmpRandomFileSpec = None
+            tmpRandomFileSpec: JediFileSpec | None = None
             if random_seed_list:
                 tmpRandomFileSpec = random_seed_list.pop(0)
                 tmpRandomDatasetSpec = random_seed_dataset
@@ -2322,8 +2332,10 @@ class JobGeneratorThread(WorkerThread):
                     if tmp_file_spec_list:
                         tmpRandomFileSpec = tmp_file_spec_list[0]
             if tmpRandomFileSpec is not None:
-                tmpJobFileSpec = tmpRandomFileSpec.convertToJobFileSpec(tmpRandomDatasetSpec, setType="pseudo_input")
-                rndmSeed = tmpRandomFileSpec.firstEvent + taskSpec.getRndmSeedOffset()
+                # getRandomSeed_JEDI() returns the seed dataset together with its files, and writes
+                # each seed into firstEvent of the row it inserts
+                tmpJobFileSpec = tmpRandomFileSpec.convertToJobFileSpec(tmpRandomDatasetSpec, setType="pseudo_input")  # type: ignore[arg-type]
+                rndmSeed = tmpRandomFileSpec.firstEvent + taskSpec.getRndmSeedOffset()  # type: ignore[operator]
                 jobSpec.addFile(tmpJobFileSpec)
         # input
         if self.time_profile_level >= TIME_PROFILE_DEEP:
@@ -2332,10 +2344,10 @@ class JobGeneratorThread(WorkerThread):
             # stream name
             streamName = tmpDatasetSpec.streamName
             # LFNs
-            tmpLFNs = []
+            tmpLFNs: list[str] = []
             size_map = {}
             for tmpFileSpec in tmpFileSpecList:
-                tmpLFNs.append(tmpFileSpec.lfn)
+                tmpLFNs.append(tmpFileSpec.lfn)  # type: ignore[arg-type]  # a column, declared optional because a fresh spec has it unset
                 # the size only orders the files below, so one that has none goes last, like an empty one
                 size_map[tmpFileSpec.lfn] = tmpFileSpec.fsize or 0
             # tweak file list if necessary
@@ -2391,7 +2403,7 @@ class JobGeneratorThread(WorkerThread):
         for streamName, tmpFileSpec in outSubChunk.items():
             streamName = streamName.split("|")[0]
             streamLFNsMap.setdefault(streamName, [])
-            streamLFNsMap[streamName].append(tmpFileSpec.lfn)
+            streamLFNsMap[streamName].append(tmpFileSpec.lfn)  # type: ignore[arg-type]  # a column, declared optional because a fresh spec has it unset
         # extract placeholders with range expression, e.g., IN[0:2]
         for tmpMatch in re.finditer("\$\{([^\}]+)\}", parTemplate):
             tmpPatt = tmpMatch.group(1)
@@ -2705,8 +2717,8 @@ class JobGeneratorThread(WorkerThread):
         self,
         pandaJob: JobSpec,
         index: int,
-        parallelOutMap: dict[int, Any],
-        outDsMap: dict[int, Any],
+        parallelOutMap: dict[int, list[JediFileSpec]],
+        outDsMap: dict[int, JediDatasetSpec],
         sites: list[str] | None = None,
         forJumbo: bool = False,
         taskSpec: JediTaskSpec = None,  # type: ignore[assignment]
@@ -2757,9 +2769,9 @@ class JobGeneratorThread(WorkerThread):
             ):
                 newFileSpec = copy.copy(fileSpec)
             else:
-                newFileSpec = parallelOutMap[fileSpec.fileID][index % nSites]  # type: ignore[index]  # "NULL" sentinel, see spec_column.py
-                datasetSpec = outDsMap[newFileSpec.datasetID]  # type: ignore[index]  # "NULL" sentinel, see spec_column.py
-                newFileSpec = newFileSpec.convertToJobFileSpec(datasetSpec, useEventService=True)
+                parallelFileSpec = parallelOutMap[fileSpec.fileID][index % nSites]  # type: ignore[index]  # "NULL" sentinel, see spec_column.py
+                datasetSpec = outDsMap[parallelFileSpec.datasetID]  # type: ignore[index]  # the id is a column, which is declared optional
+                newFileSpec = parallelFileSpec.convertToJobFileSpec(datasetSpec, useEventService=True)
             # set locality
             if inputChunk is not None and newFileSpec.type == "input":
                 if siteCandidate is not None:
@@ -2895,7 +2907,7 @@ class JobGeneratorThread(WorkerThread):
         return newPandaJobs, newOldPandaIds
 
     # get the largest attempt number
-    def getLargestAttemptNr(self, inSubChunk: list[tuple[JediDatasetSpec, list[Any]]]) -> int:
+    def getLargestAttemptNr(self, inSubChunk: SubChunk) -> int:
         largestAttemptNr = 0
         for tmpDatasetSpec, tmpFileSpecList in inSubChunk:
             if tmpDatasetSpec.isMaster():

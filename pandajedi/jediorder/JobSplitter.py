@@ -1,5 +1,5 @@
 import copy
-from typing import Any
+from typing import Any, TypedDict
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -7,10 +7,18 @@ from pandajedi.jedicore import Interaction
 from pandajedi.jedicore.MsgWrapper import MsgWrapper
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.srvcore import CoreUtils
-from pandaserver.taskbuffer.InputChunk import InputChunk
+from pandaserver.taskbuffer.InputChunk import InputChunk, SubChunk
 from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
+
+
+# What doSplit() returns for each site: the sub-chunks split for it, one per job, and the site
+# candidate. siteName is a comma-separated list when jobs run at several sites in parallel
+class SiteChunks(TypedDict):
+    siteName: str
+    subChunks: list[SubChunk]
+    siteCandidate: Any
 
 
 # class to split job
@@ -29,7 +37,7 @@ class JobSplitter:
     # split
     def doSplit(
         self, taskSpec: JediTaskSpec, inputChunk: InputChunk, siteMapper: SiteMapper, allow_chunk_size_limit: bool = False
-    ) -> tuple[Interaction.StatusCode, list[dict[str, Any]], bool]:
+    ) -> tuple[Interaction.StatusCode, list[SiteChunks], bool]:
         # make logger
         tmpLog = MsgWrapper(logger, f"< jediTaskID={taskSpec.jediTaskID} datasetID={inputChunk.masterIndexName} >")
         tmpLog.debug(f"--- start chunk_size_limit={allow_chunk_size_limit}")
@@ -125,8 +133,8 @@ class JobSplitter:
         )
         tmpLog.debug("--- main loop")
         # split
-        returnList = []
-        subChunks: list[Any] = []
+        returnList: list[SiteChunks] = []
+        subChunks: list[SubChunk] = []
         iSubChunks = 0
         if inputChunk.useScout() and not inputChunk.isMerging:
             default_nSubChunks = 2
@@ -154,7 +162,7 @@ class JobSplitter:
                         siteName = inputChunk.getParallelSites(taskSpec.getNumSitesPerJob(), nSubChunks, [siteName])
                     returnList.append(
                         {
-                            "siteName": siteName,
+                            "siteName": siteName,  # type: ignore[typeddict-item]  # set with the site candidate, see above
                             "subChunks": subChunks,
                             "siteCandidate": siteCandidate,
                         }
@@ -314,7 +322,7 @@ class JobSplitter:
                     siteName = inputChunk.getParallelSites(taskSpec.getNumSitesPerJob(), nSubChunks, [siteName])
                 returnList.append(
                     {
-                        "siteName": siteName,
+                        "siteName": siteName,  # type: ignore[typeddict-item]  # set with the site candidate, see above
                         "subChunks": subChunks,
                         "siteCandidate": siteCandidate,
                     }

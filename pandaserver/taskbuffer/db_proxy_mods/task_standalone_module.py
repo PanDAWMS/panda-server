@@ -2209,7 +2209,7 @@ class TaskStandaloneModule(BaseModule):
             return False, None
 
     # get random seed
-    def getRandomSeed_JEDI(self, jediTaskID: int, simul: bool, n_files: int = 1) -> tuple[bool, tuple[Any, Any]]:
+    def getRandomSeed_JEDI(self, jediTaskID: int, simul: bool, n_files: int = 1) -> tuple[bool, tuple[list[JediFileSpec] | None, JediDatasetSpec | None]]:
         comment = " /* JediDBProxy.getRandomSeed_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
