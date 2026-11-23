@@ -1446,11 +1446,13 @@ class DataCarouselInterface(object):
                 tmp_log.debug(f"chose source_tape={source_tape} uniformly among {tapes} as weights not available")
             else:
                 source_tape = random.choices(tapes, weights=[weights[tape] for tape in tapes])[0]
+                # throughput in 3 decimals; weight in 3 significant digits as it can be far below 1 with large backlog
                 details = []
                 for tape in tapes:
                     throughput = tape_load.throughput_map.get(tape) if tape_load.throughput_map else None
-                    details.append((tape, throughput, tape_load.get_backlog(tape), weights[tape]))
-                tmp_log.debug(f"chose source_tape={source_tape} weighted among (tape, throughput, backlog, weight): {details} with n_files={n_files}")
+                    throughput_str = f"{throughput:.3f}" if throughput is not None else "None"
+                    details.append(f"{tape}(throughput={throughput_str}, backlog={tape_load.get_backlog(tape)}, weight={weights[tape]:.3g})")
+                tmp_log.debug(f"chose source_tape={source_tape} with n_files={n_files} weighted among: {' , '.join(details)}")
         # add files of the dataset to the chosen tape, so that later choices sharing tape_load take it into account
         tape_load.added_map[source_tape] = tape_load.added_map.get(source_tape, 0) + n_files
         return source_tape
