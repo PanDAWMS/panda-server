@@ -91,6 +91,11 @@ class JediFileSpec(object):
     # checker does not see it without this declaration. It maps a column name to the
     # value last assigned to it.
     _changedAttrs: dict[str, Any]
+    # Not columns either, and installed the same way. InputChunk.getSubChunk() sets both on the
+    # copies it hands out for a site: locality to what SiteCandidate.getFileLocality() answers,
+    # replacing the empty dict __init__ installs, and sourceName for a remote file
+    locality: dict[Any, Any] | str | None
+    sourceName: str | None
 
     # constructor
     def __init__(self) -> None:

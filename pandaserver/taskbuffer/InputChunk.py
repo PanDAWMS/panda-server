@@ -1,7 +1,7 @@
 import copy
 import math
 import random
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -9,7 +9,14 @@ from pandaserver.srvcore import CoreUtils
 
 if TYPE_CHECKING:
     from pandaserver.taskbuffer.JediDatasetSpec import JediDatasetSpec
+    from pandaserver.taskbuffer.JediFileSpec import JediFileSpec
     from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
+
+# One sub-chunk, the input of one job: each dataset with the files the job takes from it.
+# getSubChunk() returns this, while its own body works on the untyped datasets of this class
+# (see the note in __init__). Only the two names are quoted: they are imported for type
+# checking only, and the alias itself has to exist at run time, where `SubChunk | None` is built
+SubChunk: TypeAlias = list[tuple["JediDatasetSpec", list["JediFileSpec"]]]
 
 logger = PandaLogger().getLogger(__name__.split(".")[-1])
 
@@ -391,7 +398,8 @@ class InputChunk:
                         if tmpFileSpec.lfn in lfn_set:
                             continue
                         lfn_set.add(tmpFileSpec.lfn)
-                        tmpAtomSize += tmpFileSpec.fsize
+                        # getSubChunk() has added up this size already, which a None would not survive
+                        tmpAtomSize += tmpFileSpec.fsize  # type: ignore[operator]
             if maxAtomSize < tmpAtomSize:
                 maxAtomSize = tmpAtomSize
         # reset counters
@@ -468,7 +476,7 @@ class InputChunk:
         min_walltime: float | None = None,
         max_events: int | None = None,
         skip_short_output: bool = False,
-    ) -> tuple[list[Any] | None, bool]:
+    ) -> tuple[SubChunk | None, bool]:
         if coreCount is None:
             # the same value the parameter defaults to; float(None) below would raise
             coreCount = 1
