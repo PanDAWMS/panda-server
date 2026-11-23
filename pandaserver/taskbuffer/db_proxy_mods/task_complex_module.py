@@ -5792,6 +5792,13 @@ class TaskComplexModule(BaseModule):
             return False, "tobroken"
 
     # generate output files for task, and instantiate template datasets if necessary
+    # Returns per job: the output files keyed by stream name, the largest serial number used,
+    # and the parallel output files keyed by the fileID of the first one; plus the datasets to
+    # register and the site dataset map. A bulk fetch makes n_files_per_chunk jobs with one file
+    # per stream. Otherwise it makes one job, and n_files_per_chunk is the number of files per
+    # stream (one for a log), the further ones keyed "<stream>|<n>". A failed call returns None
+    # for the first three and the caller's maps for the last two, the parallel output map as the
+    # only element of its list
     def getOutputFiles_JEDI(
         self,
         jediTaskID: int,
@@ -5810,11 +5817,11 @@ class TaskComplexModule(BaseModule):
         bulk_fetch_for_multiple_jobs: bool = False,
         master_dataset_id: int | None = None,
     ) -> tuple[
-        dict[Any, Any] | list[dict[str, Any]] | None,
-        int | list[int | None] | None,
+        list[dict[str, Any]] | None,
+        list[int | None] | None,
         list[Any] | None,
         dict[Any, Any],
-        dict[Any, Any] | list[dict[Any, Any]] | None,
+        list[dict[Any, Any]],
     ]:
         comment = " /* JediDBProxy.getOutputFiles_JEDI */"
         if master_dataset_id:
@@ -6108,10 +6115,10 @@ class TaskComplexModule(BaseModule):
             if bulk_fetch_for_multiple_jobs:
                 return output_map_for_bulk_fetch, max_serial_numbers_for_bulk_fetch, datasetToRegister, siteDsMap, parallel_out_map_for_bulk_fetch
             else:
-                return outMap, maxSerialNr, datasetToRegister, siteDsMap, parallelOutMap
+                return [outMap], [maxSerialNr], datasetToRegister, siteDsMap, [parallelOutMap]
         except Exception:
             # roll back
             self._rollback()
             # error
             self.dump_error_message(tmpLog)
-            return None, None, None, site_ds_map_given, parallel_out_map_given
+            return None, None, None, site_ds_map_given, [parallel_out_map_given]
