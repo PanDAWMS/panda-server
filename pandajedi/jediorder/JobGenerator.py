@@ -1399,6 +1399,9 @@ class JobGeneratorThread(WorkerThread):
                                     if taskSpec.useJobCloning():
                                         # single event range for job cloning
                                         if tmpFileSpec.startEvent is not None:
+                                            if tmpFileSpec.endEvent is None:
+                                                tmpLog.error(f"cannot clone jobs for {tmpFileSpec.lfn} with startEvent but no endEvent")
+                                                return failedRet
                                             nEventsPerWorker = tmpFileSpec.endEvent - tmpFileSpec.startEvent + 1
                                         else:
                                             nEventsPerWorker = tmpFileSpec.nEvents
@@ -1407,15 +1410,24 @@ class JobGeneratorThread(WorkerThread):
                                         nEventsPerWorker = 1
                                     else:
                                         nEventsPerWorker = taskSpec.getNumEventsPerWorker()
+                                    # the count goes into specialHandling, which decodeFileInfo() reads back
+                                    # with int(). A None written there stops the decoding of the whole field
+                                    if nEventsPerWorker is None:
+                                        tmpLog.error(f"no number of events per worker for {tmpFileSpec.lfn}")
+                                        return failedRet
                                     # set start and end events
                                     tmpStartEvent = tmpFileSpec.startEvent
                                     if tmpStartEvent is None:
                                         tmpStartEvent = 0
                                     tmpEndEvent = tmpFileSpec.endEvent
                                     if tmpEndEvent is None:
+                                        # without an end event the range runs to the last event of the file. The
+                                        # None test that used to follow the subtraction could never fire, since a
+                                        # NULL nEvents raised in the subtraction first
+                                        if tmpFileSpec.nEvents is None:
+                                            tmpLog.error(f"no endEvent or nEvents for {tmpFileSpec.lfn}")
+                                            return failedRet
                                         tmpEndEvent = tmpFileSpec.nEvents - 1
-                                        if tmpEndEvent is None:
-                                            tmpEndEvent = 0
                                     if tmpEndEvent < tmpStartEvent:
                                         tmpEndEvent = tmpStartEvent
                                     # first event number and offset without/with in-file positional event numbers
