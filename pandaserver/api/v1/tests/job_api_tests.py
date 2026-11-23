@@ -81,6 +81,24 @@ class TestJobAPI(unittest.TestCase):
         for row in output["data"]["rows"]:
             self.assertEqual(row["PandaID"], PANDA_JOB_ID)
 
+    def test_get_worker_rows(self) -> None:
+        # def get_worker_rows(req: PandaRequest, job_id: int) -> Dict:
+        url = f"{api_url_ssl}/job/get_worker_rows"
+        print(f"Testing URL: {url}")
+        data = {"job_id": PANDA_JOB_ID}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        self.assertEqual(status, 0)
+        self.assertTrue(output["success"])
+        self.assertEqual(set(output["data"]), {"rows", "truncated", "max_rows", "as_of"})
+        # an unknown job has no workers rather than failing the call
+        if PANDA_JOB_ID == -1:
+            self.assertEqual(output["data"]["rows"], [])
+        for row in output["data"]["rows"]:
+            self.assertEqual(len(row), 31)
+            for column in ("harvesterID", "workerID", "status", "submitTime", "startTime", "endTime", "diagMessage", "pilotStartTime", "pilotStatus"):
+                self.assertIn(column, row)
+
     def test_get_status_history_window(self) -> None:
         # a window of a few days touches a few daily partitions, and comes back widened to whole UTC days
         url = f"{api_url_ssl}/job/get_status_history"
@@ -373,6 +391,45 @@ class TestGetDatasetsByName(unittest.TestCase):
 
     def test_error_passed_on(self) -> None:
         out, task_buffer = self._call(["a.x_sub1"], answer=(False, "database error ORA-00942", {"error": "ORA-00942"}))
+        self.assertEqual((out["success"], out["message"], out["data"]), (False, "database error ORA-00942", {"error": "ORA-00942"}))
+
+
+class TestGetWorkerRows(unittest.TestCase):
+    """Unit tests for the checks of get_worker_rows (no live server needed)."""
+
+    ANSWER: dict[str, Any] = {"rows": [], "truncated": False, "max_rows": 1000, "as_of": None}
+
+    @staticmethod
+    def _request(method: str = "GET") -> PandaRequest:
+        """A request the endpoint decorator lets through with the given method: secure, and not a limited proxy."""
+        return cast(PandaRequest, SimpleNamespace(subprocess_env={"REQUEST_METHOD": method, "SSL_CLIENT_S_DN": "/CN=alice"}))
+
+    def _call(self, job_id: Any, method: str = "GET", answer: tuple[bool, str, dict[str, Any]] | None = None) -> tuple[dict[str, Any], mock.MagicMock]:
+        task_buffer = mock.MagicMock()
+        task_buffer.get_job_worker_rows.return_value = answer or (True, "", dict(self.ANSWER))
+        with mock.patch.object(job_api, "global_task_buffer", task_buffer):
+            out = job_api.get_worker_rows(self._request(method), job_id=job_id)
+        return out, task_buffer
+
+    def test_job_id_of_the_url_converted(self) -> None:
+        out, task_buffer = self._call("7000000001")
+        self.assertTrue(out["success"], out["message"])
+        self.assertEqual(out["data"], self.ANSWER)
+        self.assertEqual(task_buffer.get_job_worker_rows.call_args[0], (7000000001, job_api.MAX_JOB_WORKER_ROWS))
+
+    def test_job_id_not_a_number_refused(self) -> None:
+        out, task_buffer = self._call("abc")
+        self.assertFalse(out["success"])
+        self.assertIn("Type error", out["message"])
+        task_buffer.get_job_worker_rows.assert_not_called()
+
+    def test_post_refused(self) -> None:
+        out, task_buffer = self._call(7000000001, method="POST")
+        self.assertFalse(out["success"])
+        task_buffer.get_job_worker_rows.assert_not_called()
+
+    def test_error_passed_on(self) -> None:
+        out, task_buffer = self._call("7000000001", answer=(False, "database error ORA-00942", {"error": "ORA-00942"}))
         self.assertEqual((out["success"], out["message"], out["data"]), (False, "database error ORA-00942", {"error": "ORA-00942"}))
 
 
