@@ -1,6 +1,5 @@
 import copy
 import datetime
-import functools
 import json
 import os
 import socket
@@ -33,7 +32,15 @@ metric_list = [
     ("analy_site_eval", "site", 30),
     ("users_jobs_stats", "both", 5),
     ("analy_user_eval", "neither", 10),
+    ("tape_throughput", "neither", 15),
 ]
+
+# default time window in hours to measure tape throughput
+DEFAULT_TAPE_THROUGHPUT_WINDOW_HOURS = 6
+
+# minimum staging time in seconds of a tape when it staged any files, to avoid division by zero for instantaneous staging;
+# matches default CheckDCRequests_LOCK_TIME_MINUTES = 5 of AtlasDataCarouselWatchDog, the shortest interval between status changes of a request
+MIN_TAPE_STAGING_SECONDS = 300
 
 # constant maps
 class_value_rank_map = {1: "A_sites", 0: "B_sites", -1: "C_sites"}
@@ -144,22 +151,6 @@ class MetricsDB(object):
 
     def __init__(self, tbuf: "TaskBuffer") -> None:
         self.tbuf = tbuf
-
-    # Nothing applies @_decor, here or anywhere else in the tree. Annotated rather than
-    # deleted, but note what it does before using it: the wrapper discards the wrapped
-    # method's return value and swallows every exception without logging it.
-    def _decor(method: Any) -> Any:
-        def _decorator(_method: Any, *args: Any, **kwargs: Any) -> Any:
-            @functools.wraps(_method)
-            def _wrapped_method(self: Any, *args: Any, **kwargs: Any) -> None:
-                try:
-                    _method(self, *args, **kwargs)
-                except Exception:
-                    pass
-
-            return _wrapped_method
-
-        return _decorator(method)
 
     def update(self, metric: str, key_type: str, entity_dict: dict[Any, Any]) -> None:
         tmp_log = logger_utils.make_logger(main_logger, "MetricsDB.update")
@@ -477,7 +468,6 @@ class FetchData(object):
             return site_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
-            # main() reads a None back as "got no valid data"
             return None
 
     def gshare_preference(self) -> dict[Any, Any] | None:
@@ -576,7 +566,6 @@ class FetchData(object):
             return gshare_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
-            # main() reads a None back as "got no valid data"
             return None
 
     def analy_site_eval(self) -> dict[Any, Any] | None:
@@ -587,21 +576,19 @@ class FetchData(object):
             class_A_set = set()
             class_B_set = set()
             class_C_set = set()
+            # MetricsDB
+            mdb = MetricsDB(self.tbuf)
+            # get analysis jobs wait time stats
+            apjwt_dict = mdb.get_metrics("analy_pmerge_jobs_wait_time", "site")
+            if apjwt_dict is None:
+                tmp_log.warning("failed to get analy_pmerge_jobs_wait_time from DB; skipped")
+                return None
             # get resource_type of sites (GRID, hpc, cloud, ...) from schedconfig
             res = self.tbuf.querySQL(
                 ("SELECT /* use_json_type */ scj.panda_queue, scj.data.resource_type FROM ATLAS_PANDA.schedconfig_json scj "),
                 {},
             )
             site_resource_type_map = {site: resource_type for site, resource_type in res}
-            # MetricsDB
-            mdb = MetricsDB(self.tbuf)
-            # get analysis jobs wait time stats
-            apjwt_dict = mdb.get_metrics("analy_pmerge_jobs_wait_time", "site")
-            if apjwt_dict is None:
-                # get_metrics answers None when the query failed, and every site below is
-                # evaluated from this map. main() reports a None back as "got no valid data"
-                tmp_log.warning("failed to get analy_pmerge_jobs_wait_time from DB; skipped")
-                return None
             # evaluate derived values from stats
             # max of w_cl95upp and long_q_mean for ranking. Only consider GRID sites
             ranking_wait_time_list = []
@@ -692,7 +679,6 @@ class FetchData(object):
             return site_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
-            # main() reads a None back as "got no valid data"
             return None
 
     def users_jobs_stats(self) -> dict[Any, Any] | None:
@@ -790,7 +776,6 @@ class FetchData(object):
             return site_gshare_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
-            # main() reads a None back as "got no valid data"
             return None
 
     def analy_user_eval(self) -> dict[Any, Any] | None:
@@ -802,10 +787,13 @@ class FetchData(object):
             mdb = MetricsDB(self.tbuf)
             # get analysis site classification evalutation
             ase_dict = mdb.get_metrics("analy_site_eval", "site", fresher_than_minutes_ago=120)
+            if ase_dict is None:
+                tmp_log.warning("failed to get analy_site_eval from DB; skipped")
+                return None
             # get users jobs stats
             ujs_dict = mdb.get_metrics("users_jobs_stats", fresher_than_minutes_ago=15)
-            if ase_dict is None or ujs_dict is None:
-                tmp_log.warning("failed to get analy_site_eval or users_jobs_stats from DB; skipped")
+            if ujs_dict is None:
+                tmp_log.warning("failed to get users_jobs_stats from DB; skipped")
                 return None
             # for each site x gshare
             for (site, gshare), usage_dict in ujs_dict.items():
@@ -873,7 +861,132 @@ class FetchData(object):
             return user_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
-            # main() reads a None back as "got no valid data"
+            return None
+
+    def tape_throughput(self) -> dict[Any, Any] | None:
+        """
+        Measure the staging throughput (files per hour) of each source physical tape of Data Carousel within a recent time window,
+        from the staged files of staging and done Data Carousel requests.
+        The throughput is the files staged within the window divided by the time when the tape was staging within the window,
+        i.e. the union of the staging intervals of its requests, so that a tape idle for most of the window is not underestimated
+
+        Returns:
+            dict | None : {tape: {"throughput": files per hour or None if failed, "n_files_staged": ..., "n_requests": ..., "staging_hours": ..., "window_hours": ...}},
+                or None if failed
+        """
+        tmp_log = logger_utils.make_logger(main_logger, "FetchData.tape_throughput")
+        tmp_log.debug("start")
+        try:
+            # source physical tapes from Data Carousel config
+            dc_config = self.tbuf.getConfigValue("data_carousel", "DATA_CAROUSEL_CONFIG", "jedi", "atlas")
+            try:
+                source_tapes = list(dc_config["data"]["source_tapes_config"])
+            except (TypeError, KeyError):
+                tmp_log.warning("failed to get source_tapes_config from DATA_CAROUSEL_CONFIG; skipped")
+                return None
+            # time window
+            window_hours = self.tbuf.getConfigValue("data_carousel", "TAPE_THROUGHPUT_WINDOW_HOURS", "jedi", "atlas")
+            if not window_hours or window_hours <= 0:
+                window_hours = DEFAULT_TAPE_THROUGHPUT_WINDOW_HOURS
+            now_time = naive_utcnow()
+            t_A = now_time - datetime.timedelta(hours=window_hours)
+            # get staging and done requests which have staged files within the window
+            sql = (
+                f"SELECT source_tape, status, staged_files, start_time, end_time, parameters "
+                f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
+                f"WHERE status IN (:status_staging, :status_done) "
+                f"AND start_time IS NOT NULL "
+                f"AND staged_files > 0 "
+                f"AND (end_time IS NULL OR end_time >= :t_A) "
+            )
+            var_map = {
+                ":status_staging": "staging",
+                ":status_done": "done",
+                ":t_A": t_A,
+            }
+            res = self.tbuf.querySQL(sql, var_map)
+            if res is None:
+                tmp_log.warning("failed to query data_carousel_requests; skipped")
+                return None
+            # initialize with zero throughput for all tapes
+            n_files_map: dict[str, float] = {}
+            n_requests_map: dict[str, int] = {}
+            intervals_map: dict[str, list[tuple[datetime.datetime, datetime.datetime]]] = {}
+            failed_tapes: set[str] = set()
+            for tape in source_tapes:
+                n_files_map[tape] = 0
+                n_requests_map[tape] = 0
+                intervals_map[tape] = []
+            # sum up the files staged within the window
+            for source_tape, status, staged_files, start_time, end_time, parameters in res:
+                if source_tape not in n_files_map:
+                    continue
+                try:
+                    # skip requests reusing existing DDM rules or to pin, which do not really trigger staging
+                    param_map = json.loads(parameters) if parameters else {}
+                    if param_map.get("reuse_rule") or param_map.get("to_pin"):
+                        continue
+                    # end of staging of the request
+                    if status == "done" and end_time is not None:
+                        end = min(end_time, now_time)
+                    else:
+                        end = now_time
+                    if start_time >= t_A:
+                        # started within the window; take all staged files
+                        n_files = float(staged_files)
+                    else:
+                        # started before the window; take the part proportional to the staging time within the window
+                        staging_seconds = (end - start_time).total_seconds()
+                        overlap_seconds = (end - t_A).total_seconds()
+                        if staging_seconds <= 0 or overlap_seconds <= 0:
+                            continue
+                        n_files = staged_files * overlap_seconds / staging_seconds
+                    n_files_map[source_tape] += n_files
+                    n_requests_map[source_tape] += 1
+                    intervals_map[source_tape].append((max(start_time, t_A), end))
+                except Exception:
+                    tmp_log.error(f"source_tape={source_tape} failed to evaluate a request: {traceback.format_exc()}")
+                    failed_tapes.add(source_tape)
+            # compute throughput in files per hour
+            ret_dict: dict[str, Any] = {}
+            for tape in source_tapes:
+                # time when the tape was staging, as the union of the staging intervals of its requests
+                staging_seconds = 0.0
+                union_start = None
+                union_end = None
+                for interval_start, interval_end in sorted(intervals_map[tape]):
+                    if union_end is not None and interval_start <= union_end:
+                        # overlapping; extend current union
+                        union_end = max(union_end, interval_end)
+                    else:
+                        # disjoint; close current union and start a new one
+                        if union_start is not None and union_end is not None:
+                            staging_seconds += (union_end - union_start).total_seconds()
+                        union_start = interval_start
+                        union_end = interval_end
+                if union_start is not None and union_end is not None:
+                    staging_seconds += (union_end - union_start).total_seconds()
+                # throughput
+                throughput = None
+                if tape not in failed_tapes:
+                    if n_files_map[tape] > 0:
+                        staging_seconds = max(staging_seconds, MIN_TAPE_STAGING_SECONDS)
+                        throughput = n_files_map[tape] * 3600 / staging_seconds
+                    else:
+                        throughput = 0.0
+                ret_dict[tape] = {
+                    "throughput": throughput,
+                    "n_files_staged": n_files_map[tape],
+                    "n_requests": n_requests_map[tape],
+                    "staging_hours": staging_seconds / 3600,
+                    "window_hours": window_hours,
+                }
+                tmp_log.debug(f"source_tape={tape} {ret_dict[tape]}")
+            # done
+            tmp_log.debug("done")
+            return ret_dict
+        except Exception:
+            tmp_log.error(traceback.format_exc())
             return None
 
 

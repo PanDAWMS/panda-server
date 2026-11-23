@@ -92,6 +92,12 @@ TO_REFRESH_MIN_LIFETIME_HOURS = 2
 # maximum quota of files for fair share queue before normal queue
 QUEUE_FAIR_SHARE_MAX_QUOTA = 10000
 
+# default maximum age in minutes of the tape_throughput metric to be used in weighting the choice of source tapes
+DEFAULT_TAPE_THROUGHPUT_MAX_AGE_MINUTES = 60
+
+# floor of tape throughput in files per hour, taken by tapes with zero or null throughput in weighting the choice of source tapes; temporary value
+TAPE_THROUGHPUT_FLOOR = 60
+
 # polars config
 pl.Config.set_ascii_tables(True)
 pl.Config.set_tbl_hide_dataframe_shape(True)
@@ -420,6 +426,36 @@ def get_resubmit_request_spec(dc_req_spec: DataCarouselRequestSpec, exclude_prev
         tmp_log.error(f"got error ; {traceback.format_exc()}")
     # no branch above produced a value, which the return type covers as None
     return None
+
+
+@dataclass
+class TapeLoad:
+    """
+    Load of source physical tapes, to weight the choice of source tapes; filled lazily and shared among the choices of a batch of datasets
+
+    Fields:
+        loaded          (bool)          : whether throughput_map and backlog_map have been filled from DB
+        throughput_map  (dict|None)     : staging throughput in files per hour (None if unknown) of each tape, from tape_throughput metric; None if not available
+        backlog_map     (dict|None)     : number of files waiting to be staged of each tape, from queued and staging requests in DB; None if not available
+        added_map       (dict)          : number of files of the datasets already chosen in this batch of each tape, not yet in DB
+    """
+
+    loaded: bool = False
+    throughput_map: dict[str, float | None] | None = None
+    backlog_map: dict[str, int] | None = None
+    added_map: dict[str, int] = field(default_factory=dict)
+
+    def get_backlog(self, tape: str) -> int:
+        """
+        Get the number of files waiting to be staged of a tape, including those of the datasets already chosen in this batch
+
+        Args:
+            tape (str): physical tape
+
+        Returns:
+            int : number of files waiting to be staged
+        """
+        return (self.backlog_map or {}).get(tape, 0) + self.added_map.get(tape, 0)
 
 
 # ==============================================================
@@ -918,7 +954,7 @@ class DataCarouselInterface(object):
                     ret_map[dataset] = job_param
         return ret_map
 
-    def _get_full_replicas_per_type(self, dataset: str) -> dict[str, list[str]]:
+    def _get_full_replicas_per_type(self, dataset: str) -> tuple[dict[str, list[str]], int | None]:
         """
         Get full replicas per type of a dataset
 
@@ -926,14 +962,19 @@ class DataCarouselInterface(object):
             dataset (str): dataset name
 
         Returns:
-            dict : map in form of datasets: jobParameters
+            dict : map of replica type ("tape", "datadisk", "disk") to list of RSEs with full replicas
+            int | None : number of files of the dataset from its full replicas, or None if no full replica
         """
         # tmp_log = LogWrapper(logger, f"_get_full_replicas_per_type dataset={dataset}")
         ds_repli_dict = self.ddmIF.convert_list_dataset_replicas(dataset, use_file_lookup=True, skip_incomplete_element=True)
         tape_replicas = []
         datadisk_replicas = []
         disk_replicas = []
-        for rse in ds_repli_dict:
+        n_files = None
+        for rse, replica_list in ds_repli_dict.items():
+            # number of files of the dataset; all replicas here are full
+            if n_files is None and replica_list:
+                n_files = replica_list[0].get("total")
             if rse in self.tape_rses:
                 tape_replicas.append(rse)
             if rse in self.datadisk_rses:
@@ -943,9 +984,9 @@ class DataCarouselInterface(object):
         # return
         ret = {"tape": tape_replicas, "datadisk": datadisk_replicas, "disk": disk_replicas}
         # tmp_log.debug(f"{ret}")
-        return ret
+        return ret, n_files
 
-    def _get_filtered_replicas(self, dataset: str) -> tuple[dict[str, list[str]], (dict[str, Any] | None), bool, dict[str, list[str]]]:
+    def _get_filtered_replicas(self, dataset: str) -> tuple[dict[str, list[str]], (dict[str, Any] | None), bool, dict[str, list[str]], (int | None)]:
         """
         Get filtered replicas of a dataset and the staging rule and whether all replicas are without rules
 
@@ -957,8 +998,9 @@ class DataCarouselInterface(object):
             dict | None : staging rule as returned by DDM, None if not existing
             bool : whether all replicas on datadisk are without rules
             dict : original replicas map
+            int | None : number of files of the dataset from its full replicas, or None if no full replica
         """
-        replicas_map = self._get_full_replicas_per_type(dataset)
+        replicas_map, n_files = self._get_full_replicas_per_type(dataset)
         rules = self.ddmIF.list_did_rules(dataset, all_accounts=True)
         rse_expression_list = []
         staging_rule = None
@@ -980,7 +1022,7 @@ class DataCarouselInterface(object):
             if staging_rule is not None or replica in rse_expression_list:
                 filtered_replicas_map["datadisk"].append(replica)
         all_disk_repli_ruleless = has_disk_replica and len(filtered_replicas_map["datadisk"]) == 0
-        return filtered_replicas_map, staging_rule, all_disk_repli_ruleless, replicas_map
+        return filtered_replicas_map, staging_rule, all_disk_repli_ruleless, replicas_map, n_files
 
     def _get_datasets_from_collection(self, collection: str) -> list[str] | None:
         """
@@ -1079,7 +1121,7 @@ class DataCarouselInterface(object):
 
     def _get_source_type_of_dataset(
         self, dataset: str, active_source_rses_set: set[str] | None = None
-    ) -> tuple[(str | None), set[str], (dict[str, Any] | None), bool, list[str]]:
+    ) -> tuple[(str | None), set[str], (dict[str, Any] | None), bool, list[str], (int | None)]:
         """
         Get source type and permanent (tape or datadisk) RSEs of a dataset
 
@@ -1093,6 +1135,7 @@ class DataCarouselInterface(object):
             dict | None : staging rule as returned by DDM if existing, otherwise None
             bool : whether to pin the dataset
             list : list of suggested destination RSEs; currently only datadisks with full replicas to pin
+            int | None : number of files of the dataset from its full replicas, or None if no full replica
         """
         tmp_log = LogWrapper(logger, f"_get_source_type_of_dataset dataset={dataset}")
         try:
@@ -1105,7 +1148,7 @@ class DataCarouselInterface(object):
             if active_source_rses_set is None:
                 active_source_rses_set = self._get_active_source_rses()
             # get filtered replicas and staging rule of the dataset
-            filtered_replicas_map, staging_rule, all_disk_repli_ruleless, orig_replicas_map = self._get_filtered_replicas(dataset)
+            filtered_replicas_map, staging_rule, all_disk_repli_ruleless, orig_replicas_map, n_files = self._get_filtered_replicas(dataset)
             # algorithm
             if filtered_replicas_map["datadisk"]:
                 # replicas already on datadisk and with rule
@@ -1135,27 +1178,35 @@ class DataCarouselInterface(object):
             # return
             tmp_log.debug(
                 f"source_type={source_type} rse_set={rse_set} staging_rule={staging_rule} to_pin={to_pin} "
-                f"suggested_destination_rses_set={suggested_destination_rses_set}"
+                f"suggested_destination_rses_set={suggested_destination_rses_set} n_files={n_files}"
             )
-            return (source_type, rse_set, staging_rule, to_pin, list(suggested_destination_rses_set))
+            return (source_type, rse_set, staging_rule, to_pin, list(suggested_destination_rses_set), n_files)
         except Exception as e:
             # other unexpected errors
             raise e
 
     def _choose_tape_source_rse(
-        self, dataset: str, rse_set: set[str], staging_rule: dict[str, Any] | None, no_cern: bool = True, preferred_rses: set[str] | None = None
+        self,
+        dataset: str,
+        rse_set: set[str],
+        staging_rule: dict[str, Any] | None,
+        preferred_rses: set[str] | None = None,
+        n_files: int | None = None,
+        tape_load: TapeLoad | None = None,
     ) -> tuple[str, (str | None), (str | None)]:
         """
         Choose a TAPE source RSE
         If with existing staging rule, then get source RSE from it
-        Otherwise, choose randomly among the preferred source RSEs if given and available, else among all RSEs in rse_set
+        Otherwise, among the preferred source RSEs if given and available, else among all RSEs in rse_set,
+        choose a physical tape weighted by its estimated waiting time (see _choose_source_tape), then choose randomly among the RSEs of the tape
 
         Args:
             dataset (str): dataset name
             rse_set (set): set of TAPE source RSE set to choose from
             staging_rule: DDM staging rule
-            no_cern: skip CERN-PROD RSE whenever possible if True
             preferred_rses (set|None): preferred TAPE source RSEs, e.g. RSEs of the physical tape from task parameter "initial_tape"; ignored if none in rse_set or with existing staging rule
+            n_files (int|None): number of files of the dataset; None if unknown
+            tape_load (TapeLoad|None): load of tapes to share among the choices of a batch of datasets; if None, a new one is used
 
         Returns:
             str: the dataset name
@@ -1193,9 +1244,7 @@ class DataCarouselInterface(object):
                         tmp_log.error(f"ddm_rule_id={ddm_rule_id} cannot get source_rse from source_replica_expression: {source_replica_expression}")
                         raise RuntimeError("cannot get source_rse from staging rule's source_replica_expression")
                     else:
-                        tmp_log.debug(f"already staging with ddm_rule_id={ddm_rule_id} source_rse={source_rse}")
-                        if preferred_rses and source_rse not in preferred_rses:
-                            tmp_log.debug(f"preferred_rses={preferred_rses} ignored as already staging from source_rse={source_rse}")
+                        tmp_log.debug(f"already staging with ddm_rule_id={ddm_rule_id} source_rse={source_rse} (preferred_rses={preferred_rses})")
                 else:
                     # no source_replica_expression of the rule; choose any source
                     tmp_log.warning(f"already staging with ddm_rule_id={ddm_rule_id} without source_replica_expression; to choose a random source_rse")
@@ -1217,20 +1266,20 @@ class DataCarouselInterface(object):
                         tmp_log.debug(f"to choose among preferred source RSEs {rse_list}")
                     else:
                         tmp_log.warning(f"none of preferred_rses={preferred_rses} in available {rse_set} ; choose as usual")
-                # choose source RSE
-                if len(rse_list) == 1:
-                    source_rse = rse_list[0]
-                elif len(rse_list) == 0:
+                if not rse_list:
                     tmp_log.error("no source_rse found to choose from")
                     raise RuntimeError("no source_rse found to choose from")
-                else:
-                    non_CERN_rse_list = [rse for rse in rse_list if "CERN-PROD" not in rse]
-                    if non_CERN_rse_list and no_cern:
-                        # choose non-CERN-PROD source RSE
-                        source_rse = random.choice(non_CERN_rse_list)
-                    else:
-                        source_rse = random.choice(rse_list)
-                tmp_log.debug(f"chose source_rse={source_rse}")
+                # group source RSEs by physical tape
+                tape_rses_map: dict[str, list[str]] = {}
+                for rse in sorted(rse_list):
+                    tape = self._get_source_tape_from_rse(rse) or rse
+                    tape_rses_map.setdefault(tape, []).append(rse)
+                # choose physical tape, then source RSE of the tape
+                if tape_load is None:
+                    tape_load = TapeLoad()
+                source_tape = self._choose_source_tape(dataset, tape_rses_map, n_files, tape_load)
+                source_rse = random.choice(tape_rses_map[source_tape])
+                tmp_log.debug(f"chose source_tape={source_tape} source_rse={source_rse}")
             # add to prestage
             return (dataset, source_rse, ddm_rule_id)
         except Exception as e:
@@ -1268,6 +1317,145 @@ class DataCarouselInterface(object):
             set[str] : set of source RSEs mapped to the tape, empty if none
         """
         return {rse for rse, rse_config in self.dc_config_map.source_rses_config.items() if rse_config.tape == source_tape}
+
+    def _get_tape_throughput_map(self) -> dict[str, float | None] | None:
+        """
+        Get the staging throughput of source physical tapes from the tape_throughput metric made by metric_collector
+
+        Returns:
+            dict | None : throughput in files per hour (None if unknown) of each tape, or None if the metric is not available or too old
+        """
+        tmp_log = LogWrapper(logger, "_get_tape_throughput_map")
+        try:
+            max_age_minutes = self.taskBufferIF.getConfigValue("data_carousel", "TAPE_THROUGHPUT_MAX_AGE_MINUTES", "jedi", "atlas")
+            if not max_age_minutes or max_age_minutes <= 0:
+                max_age_minutes = DEFAULT_TAPE_THROUGHPUT_MAX_AGE_MINUTES
+            sql = f"SELECT value_json FROM {panda_config.schemaPANDA}.Metrics WHERE metric=:metric AND timestamp>=:min_timestamp "
+            var_map = {
+                ":metric": "tape_throughput",
+                ":min_timestamp": naive_utcnow() - timedelta(minutes=max_age_minutes),
+            }
+            res = self.taskBufferIF.querySQL(sql, var_map)
+            if not res or res[0][0] is None:
+                tmp_log.warning(f"no tape_throughput metric fresher than {max_age_minutes} minutes")
+                return None
+            value_dict = json.loads(res[0][0])
+            throughput_map: dict[str, float | None] = {}
+            for tape, tape_value in value_dict.items():
+                throughput_map[tape] = tape_value.get("throughput")
+            return throughput_map
+        except Exception:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+
+    def _get_tape_backlog_map(self) -> dict[str, int] | None:
+        """
+        Get the number of files waiting to be staged of each source physical tape,
+        as the total files of queued requests plus the remaining files of staging requests, excluding requests to pin
+
+        Returns:
+            dict | None : number of files waiting to be staged of each tape, or None if failed
+        """
+        tmp_log = LogWrapper(logger, "_get_tape_backlog_map")
+        try:
+            sql = (
+                f"SELECT source_tape, status, total_files, staged_files, parameters "
+                f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
+                f"WHERE status IN (:status_queued, :status_staging) AND source_tape IS NOT NULL "
+            )
+            var_map = {
+                ":status_queued": DataCarouselRequestStatus.queued,
+                ":status_staging": DataCarouselRequestStatus.staging,
+            }
+            res = self.taskBufferIF.querySQL(sql, var_map, arraySize=99999)
+            if res is None:
+                tmp_log.warning("failed to query requests")
+                return None
+            backlog_map: dict[str, int] = {}
+            for source_tape, status, total_files, staged_files, parameters in res:
+                # skip requests to pin, which do not really stage from tape
+                if parameters and json.loads(parameters).get("to_pin"):
+                    continue
+                n_files = total_files or 0
+                if status == DataCarouselRequestStatus.staging:
+                    n_files -= staged_files or 0
+                backlog_map[source_tape] = backlog_map.get(source_tape, 0) + max(n_files, 0)
+            return backlog_map
+        except Exception:
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return None
+
+    def _get_tape_weights(self, tapes: list[str], n_files: int, tape_load: TapeLoad) -> dict[str, float] | None:
+        """
+        Get the weights of source physical tapes to choose, as the reciprocal of the estimated waiting time of a dataset staged from each tape,
+        i.e. throughput / (files waiting to be staged on the tape + files of the dataset).
+        Tapes with zero or null throughput take TAPE_THROUGHPUT_FLOOR
+
+        Args:
+            tapes (list[str]): physical tapes to choose from
+            n_files (int): number of files of the dataset to stage
+            tape_load (TapeLoad): load of tapes, already filled
+
+        Returns:
+            dict | None : weight of each tape, or None if not available (no load of tapes, or all tapes with null throughput) and to choose uniformly
+        """
+        if tape_load.throughput_map is None or tape_load.backlog_map is None:
+            return None
+        throughput_list = [tape_load.throughput_map.get(tape) for tape in tapes]
+        if all(throughput is None for throughput in throughput_list):
+            return None
+        weights: dict[str, float] = {}
+        for tape, throughput in zip(tapes, throughput_list):
+            if not throughput or throughput <= 0:
+                throughput = TAPE_THROUGHPUT_FLOOR
+            n_files_to_stage = tape_load.get_backlog(tape) + n_files
+            weights[tape] = throughput / max(n_files_to_stage, 1)
+        return weights
+
+    def _choose_source_tape(self, dataset: str, tape_rses_map: dict[str, list[str]], n_files: int | None, tape_load: TapeLoad) -> str:
+        """
+        Choose a source physical tape, randomly weighted by the reciprocal of the estimated waiting time (see _get_tape_weights), or uniformly if weights not available.
+        Then add the files of the dataset to the backlog of the chosen tape in tape_load, so that later choices sharing tape_load take it into account
+
+        Args:
+            dataset (str): dataset name
+            tape_rses_map (dict[str, list[str]]): source RSEs of each physical tape to choose from
+            n_files (int|None): number of files of the dataset; None if unknown, taken as 0
+            tape_load (TapeLoad): load of tapes; will be filled if not yet
+
+        Returns:
+            str : chosen physical tape
+        """
+        tmp_log = LogWrapper(logger, f"_choose_source_tape dataset={dataset}")
+        tapes = sorted(tape_rses_map)
+        if n_files is None:
+            n_files = 0
+        if len(tapes) == 1:
+            # only one tape; no need to weight
+            source_tape = tapes[0]
+        else:
+            # fill load of tapes
+            if not tape_load.loaded:
+                tape_load.throughput_map = self._get_tape_throughput_map()
+                tape_load.backlog_map = self._get_tape_backlog_map()
+                tape_load.loaded = True
+            # choose
+            weights = self._get_tape_weights(tapes, n_files, tape_load)
+            if weights is None:
+                source_tape = random.choice(tapes)
+                tmp_log.debug(f"chose source_tape={source_tape} uniformly among {tapes} as weights not available")
+            else:
+                source_tape = random.choices(tapes, weights=[weights[tape] for tape in tapes])[0]
+                # throughput in 3 decimals; weight in 3 significant digits as it can be far below 1 with large backlog
+                details = []
+                for tape in tapes:
+                    throughput = tape_load.throughput_map.get(tape) if tape_load.throughput_map else None
+                    throughput_str = f"{throughput:.3f}" if throughput is not None else "None"
+                    details.append(f"{tape}(throughput={throughput_str}, backlog={tape_load.get_backlog(tape)}, weight={weights[tape]:.3g})")
+                tmp_log.debug(f"chose source_tape={source_tape} with n_files={n_files} weighted among: {' , '.join(details)}")
+        # add files of the dataset to the chosen tape, so that later choices sharing tape_load take it into account
+        tape_load.added_map[source_tape] = tape_load.added_map.get(source_tape, 0) + n_files
+        return source_tape
 
     @refresh
     def get_input_datasets_to_prestage(
@@ -1316,6 +1504,8 @@ class DataCarouselInterface(object):
             }
             # get active source rses
             active_source_rses_set = self._get_active_source_rses()
+            # load of source tapes shared among the choices of all datasets of the task
+            tape_load = TapeLoad()
             # preferred source physical tape from task params, and its source RSEs
             preferred_rses = None
             preferred_tape = task_params_map.get("initial_tape")
@@ -1385,12 +1575,14 @@ class DataCarouselInterface(object):
                 if existing_dcreq_id is not None:
                     ret_map["related_dcreq_ids"].append(existing_dcreq_id)
                 # get source type and RSEs
-                source_type, rse_set, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
+                source_type, rse_set, staging_rule, to_pin, suggested_dst_list, n_files = self._get_source_type_of_dataset(dataset, active_source_rses_set)
                 if staging_rule:
                     # reuse existing DDM rule
                     if dataset_collection := jobparam_ds_coll_map.get(dataset):
                         coll_on_tape_set.add(dataset_collection)
-                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule, preferred_rses=preferred_rses)
+                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(
+                        dataset, rse_set, staging_rule, preferred_rses=preferred_rses, tape_load=tape_load
+                    )
                     tmp_log.debug(f"dataset={dataset} has existing ddm_rule_id={ddm_rule_id} ; to reuse it")
                     prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
                     tmp_log.debug(f"got prestaging for existing rule: {prestaging_tuple}")
@@ -1416,8 +1608,10 @@ class DataCarouselInterface(object):
                     tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
                     if dataset_collection := jobparam_ds_coll_map.get(dataset):
                         coll_on_tape_set.add(dataset_collection)
-                    # choose source RSE
-                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule, preferred_rses=preferred_rses)
+                    # choose source RSE; dataset to pin does not really stage from tape, so not adding to the load of tapes
+                    _, source_rse, ddm_rule_id = self._choose_tape_source_rse(
+                        dataset, rse_set, staging_rule, preferred_rses=preferred_rses, n_files=(0 if to_pin else n_files), tape_load=tape_load
+                    )
                     prestaging_tuple = (dataset, source_rse, ddm_rule_id, to_pin, suggested_dst_list)
                     tmp_log.debug(f"got prestaging: {prestaging_tuple}")
                     # add to prestage
@@ -1577,6 +1771,28 @@ class DataCarouselInterface(object):
         self._task_params_cache[task_id] = task_params_map
         return task_params_map
 
+    def _all_active_tasks_to_backfill(self, task_specs: list[JediTaskSpec]) -> bool:
+        """
+        Check whether there are active tasks and all of them have task parameter data_carousel_backfill
+
+        Args:
+            task_specs (list[JediTaskSpec]): tasks mapped to the request
+
+        Returns:
+            bool : True if there are active tasks and all of them are to backfill, False otherwise
+        """
+        has_active_task = False
+        for task_spec in task_specs:
+            if task_spec.status in FINAL_TASK_STATUSES:
+                continue
+            if task_spec.jediTaskID is None:
+                return False
+            task_params_map = self._get_task_params_map(task_spec.jediTaskID)
+            if task_params_map is None or not task_params_map.get("data_carousel_backfill"):
+                return False
+            has_active_task = True
+        return has_active_task
+
     def _update_to_backfill(self, queued_requests: list[tuple[DataCarouselRequestSpec, list[JediTaskSpec]]]) -> None:
         """
         Evaluate and update to_backfill of queued requests (except to_pin requests) according to their active tasks
@@ -1593,16 +1809,7 @@ class DataCarouselInterface(object):
             seen_task_ids.update(task_spec.jediTaskID for task_spec in task_specs if task_spec.jediTaskID is not None)
             if dc_req_spec.get_parameter("to_pin"):
                 continue
-            # evaluate to_backfill with active tasks
-            to_backfill = False
-            active_task_specs = [task_spec for task_spec in task_specs if task_spec.status not in FINAL_TASK_STATUSES]
-            if active_task_specs:
-                to_backfill = True
-                for task_spec in active_task_specs:
-                    task_params_map = self._get_task_params_map(task_spec.jediTaskID) if task_spec.jediTaskID is not None else None
-                    if task_params_map is None or not task_params_map.get("data_carousel_backfill"):
-                        to_backfill = False
-                        break
+            to_backfill = self._all_active_tasks_to_backfill(task_specs)
             if to_backfill:
                 n_to_backfill += 1
             if dc_req_spec.get_parameter("to_backfill") == to_backfill:
@@ -3264,8 +3471,8 @@ class DataCarouselInterface(object):
         # re-choose source_rse for queued request
         active_source_rses_set = self._get_active_source_rses()
         dataset = dc_req_spec.dataset
-        source_type, rse_set_orig, staging_rule, to_pin, suggested_dst_list = self._get_source_type_of_dataset(dataset, active_source_rses_set)
-        replicas_map = self._get_full_replicas_per_type(dataset)
+        source_type, rse_set_orig, staging_rule, to_pin, suggested_dst_list, _ = self._get_source_type_of_dataset(dataset, active_source_rses_set)
+        replicas_map, _ = self._get_full_replicas_per_type(dataset)
         # exclude original source RSE if possible
         if dc_req_spec.status == DataCarouselRequestStatus.staging and not rse_set_orig:
             # for already staging request, DDM rule already exists, choose source RSE from unfiltered tape replicas if no filtered RSE
@@ -3308,7 +3515,7 @@ class DataCarouselInterface(object):
                 else:
                     # choose source RSE
                     tmp_log.debug(f"dataset={dataset} on tapes {rse_set} ; choosing one")
-                    _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule)
+                    _, new_source_rse, ddm_rule_id = self._choose_tape_source_rse(dataset, rse_set, staging_rule, n_files=dc_req_spec.total_files)
                     if not new_source_rse:
                         # failed to choose source RSE
                         err_msg = f"dataset={dataset} failed to choose source RSE ; skipped"
