@@ -991,11 +991,11 @@ class JobGeneratorThread(WorkerThread):
         simul: bool = False,
         taskParamMap: dict[str, Any] | None = None,
         splitter: JobSplitter | None = None,
-    ) -> tuple[Interaction.StatusCode, list[JobSpec], list[Any], list[Any], dict[int, Any], dict[int, Any]]:
+    ) -> tuple[Interaction.StatusCode, list[JobSpec], list[Any], list[Any], dict[int, Any], dict[int, JediDatasetSpec]]:
         # Return for failure. Every caller checks the status before it touches the rest,
         # and then only measures, iterates or indexes them, so empty stands in for None
         # and spares each of those uses a check it never made
-        failedRet: tuple[Interaction.StatusCode, list[JobSpec], list[Any], list[Any], dict[int, Any], dict[int, Any]] = (
+        failedRet: tuple[Interaction.StatusCode, list[JobSpec], list[Any], list[Any], dict[int, Any], dict[int, JediDatasetSpec]] = (
             Interaction.SC_FAILED,
             [],
             [],
@@ -1025,7 +1025,7 @@ class JobGeneratorThread(WorkerThread):
             useBoundary = taskSpec.useGroupWithBoundaryID()
             # loop over all sub chunks
             jobSpecList = []
-            outDsMap: dict[int, Any] = {}
+            outDsMap: dict[int, JediDatasetSpec] = {}
             datasetToRegister = []
             oldPandaIDs: list[Any] = []
             siteDsMap: dict[str, Any] = {}
@@ -2684,7 +2684,7 @@ class JobGeneratorThread(WorkerThread):
         nConsumers: int,
         nSitesPerJob: int,
         parallelOutMap: dict[int, Any],
-        outDsMap: dict[int, Any],
+        outDsMap: dict[int, JediDatasetSpec],
         oldPandaIDs: list[Any],
         taskSpec: JediTaskSpec,
         inputChunk: InputChunk,
@@ -2819,7 +2819,7 @@ class JobGeneratorThread(WorkerThread):
 
     # make jumbo jobs
     def makeJumboJobs(
-        self, pandaJobs: list[JobSpec], taskSpec: JediTaskSpec, inputChunk: InputChunk, simul: bool, outDsMap: dict[int, Any], tmpLog: MsgWrapper
+        self, pandaJobs: list[JobSpec], taskSpec: JediTaskSpec, inputChunk: InputChunk, simul: bool, outDsMap: dict[int, JediDatasetSpec], tmpLog: MsgWrapper
     ) -> list[JobSpec]:
         jumboJobs: list[Any] = []
         # no original
