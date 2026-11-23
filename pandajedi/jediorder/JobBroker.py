@@ -34,7 +34,7 @@ class JobBroker(FactoryBase[JobBrokerBase]):
         self.requireImpl(vo, sourceLabel).setLockID(pid, tid)
 
     # get base lock ID
-    def getBaseLockID(self, vo: str, sourceLabel: str) -> str | None:
+    def getBaseLockID(self, vo: str | None, sourceLabel: str | None) -> str | None:
         return self.requireImpl(vo, sourceLabel).getBaseLockID()
 
     # set test mode

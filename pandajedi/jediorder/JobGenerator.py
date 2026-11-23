@@ -612,6 +612,7 @@ class JobGeneratorThread(WorkerThread):
                     nSubmitSucceeded = 0
                     task_common_dict: dict[str, Any] = {}
                     for idxInputList, tmpInputItem in enumerate(inputList):
+                        taskSpec: JediTaskSpec
                         taskSpec, cloudName, inputChunk = tmpInputItem
                         # reset error dialog
                         taskSpec.errorDialog = None
@@ -923,10 +924,10 @@ class JobGeneratorThread(WorkerThread):
                             tmpLog.debug("skip due to lock failure")
                             continue
                         # reset unused files
-                        self.taskBufferIF.resetUnusedFiles_JEDI(taskSpec.jediTaskID, inputChunk)
+                        self.taskBufferIF.resetUnusedFiles_JEDI(taskSpec.jediTaskID, inputChunk)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                         # set jumbo flag
                         if pendingJumbo:
-                            tmpFlagStat = self.taskBufferIF.setUseJumboFlag_JEDI(taskSpec.jediTaskID, "pending")
+                            tmpFlagStat = self.taskBufferIF.setUseJumboFlag_JEDI(taskSpec.jediTaskID, "pending")  # type: ignore[arg-type]  # the id is a column, which is declared optional
                             tmpErrStr = "going to generate jumbo or real co-jumbo jobs when needed"
                             tmpLog.debug(tmpErrStr)
                             if tmpFlagStat:
@@ -935,7 +936,7 @@ class JobGeneratorThread(WorkerThread):
                                 taskSpec.setOnHold()
                                 taskSpec.setErrDiag(tmpErrStr)
                         elif jobsSubmitted and taskSpec.getNumJumboJobs() is not None and inputChunk.useJumbo is not None:
-                            self.taskBufferIF.setUseJumboFlag_JEDI(taskSpec.jediTaskID, "running")
+                            self.taskBufferIF.setUseJumboFlag_JEDI(taskSpec.jediTaskID, "running")  # type: ignore[arg-type]  # the id is a column, which is declared optional
                         # unset lockedBy when all inputs are done for a task
                         setOldModTime = False
                         if idxInputList + 1 == len(inputList):
