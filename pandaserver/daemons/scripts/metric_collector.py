@@ -168,7 +168,23 @@ class MetricsDB(object):
             """timestamp = :timestamp """
             """WHERE computingSite=:site AND gshare=:gshare AND metric=:metric """
         )
-        sql_insert = """INSERT INTO ATLAS_PANDA.Metrics """ """VALUES ( """ """:site, :gshare, :metric, :patch_value_json, :timestamp """ """) """
+        # guarded against already-updated rows: the fallback below re-attempts every row in the
+        # batch, not just the ones update() missed (executemanySQL only returns one aggregate
+        # rowcount, not per-row results), so a plain INSERT would hit the unique constraint
+        # (computingSite, gshare, metric) on every row that was, in fact, just updated.
+        # On Postgres a text bind isn't implicitly cast to the json column's type in
+        # INSERT ... SELECT the way it is in INSERT ... VALUES - see DBProxy.backfill_pilot_attributes
+        # for the same gotcha. Dead branch under Oracle today since this daemon isn't enabled
+        # on any Postgres deployment yet.
+        value_json_bind = "CAST(:patch_value_json AS JSON)" if panda_config.backend == "postgres" else ":patch_value_json"
+        sql_insert = (
+            f"""INSERT INTO ATLAS_PANDA.Metrics (computingSite, gshare, metric, value_json, timestamp) """
+            f"""SELECT :site, :gshare, :metric, {value_json_bind}, :timestamp FROM dual """
+            """WHERE NOT EXISTS ( """
+            """    SELECT 1 FROM ATLAS_PANDA.Metrics """
+            """    WHERE computingSite=:site AND gshare=:gshare AND metric=:metric """
+            """) """
+        )
         # now
         now_time = naive_utcnow()
         # var map template
