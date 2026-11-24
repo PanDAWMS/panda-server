@@ -2,12 +2,16 @@ import copy
 import json
 import re
 import traceback
+from typing import TYPE_CHECKING
 
 from pandacommon.pandalogger import logger_utils
 from pandacommon.pandamsgbkr.msg_bkr_utils import MsgObj
 
 from pandajedi.jediconfig import jedi_config
 from pandajedi.jedimsgprocessor.base_msg_processor import BaseMsgProcPlugin
+
+if TYPE_CHECKING:
+    from pandajedi.jedimsgprocessor.kafka_msg_processor import KafkaMsgProcPlugin
 
 base_logger = logger_utils.setup_logger(__name__.split(".")[-1])
 
@@ -54,7 +58,7 @@ class StatusReportMsgProcPlugin(BaseMsgProcPlugin):
     def initialize(self, in_collective: bool = False) -> None:
         BaseMsgProcPlugin.initialize(self, in_collective)
         # forwarding plugins: incoming message will be forwarded to process method of these plugins
-        self.forwarding_plugins = []
+        self.forwarding_plugins: list["KafkaMsgProcPlugin"] = []
         forwarding_plugin_names = self.params.get("forwarding_plugins", [])
         if "kafka" in forwarding_plugin_names:
             # Kafka
