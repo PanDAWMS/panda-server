@@ -26,7 +26,7 @@ class JediPostProcessorMsgProcPlugin(BaseMsgProcPlugin):
         ddmIF = DDMInterface()
         ddmIF.setupInterface()
         # factory bases and post processor thread object for all vos and prodsourcelabels
-        self.post_processor_thread_dict = dict()
+        self.post_processor_thread_dict: dict[tuple[str | None, str | None], PostProcessorThread] = dict()
         for itemStr in jedi_config.postprocessor.procConfig.split(";"):
             items = convert_config_params(itemStr)
             vos = parse_init_params(items[0])
