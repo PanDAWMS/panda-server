@@ -147,7 +147,7 @@ def retry(
         clean_id = clean_user_id(user)
         for job_id in job_ids:
             global_task_buffer.finalizePendingJobs(clean_id, job_id)
-        global_task_buffer.increaseAttemptNrPanda(task_id, 5)
+        global_task_buffer.increaseAttemptNrPanda(task_id, 3, only_exhausted=True)
         return_str = f"retry has been triggered for failed jobs while the task is still {ret[1]}"
         if not new_parameters:
             ret = 0, return_str
