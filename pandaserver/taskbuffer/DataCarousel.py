@@ -3289,29 +3289,33 @@ class DataCarouselInterface(object):
                     if n_deleted is None:
                         tmp_log.warning("failed to delete done requests; skipped")
                     else:
-                        tmp_log.debug(f"deleted {n_deleted} done requests older than {done_age_limit_days} days or rule_unfound or remove_when_done")
+                        tmp_log.debug(
+                            f"deleted {n_deleted} done requests older than {done_age_limit_days} days or rule_unfound or remove_when_done: {sorted(done_requests_set)}"
+                        )
                 if cancelled_requests_set:
                     # cancelled requests
                     n_deleted = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(cancelled_requests_set))
                     if n_deleted is None:
                         tmp_log.warning("failed to delete cancelled requests; skipped")
                     else:
-                        tmp_log.debug(f"deleted {n_deleted} cancelled requests")
+                        tmp_log.debug(f"deleted {n_deleted} cancelled requests: {sorted(cancelled_requests_set)}")
                 if retired_requests_set:
                     # retired requests
                     n_deleted = self.taskBufferIF.delete_data_carousel_requests_JEDI(list(retired_requests_set))
                     if n_deleted is None:
                         tmp_log.warning("failed to delete retired requests; skipped")
                     else:
-                        tmp_log.debug(f"deleted {n_deleted} retired requests")
+                        tmp_log.debug(f"deleted {n_deleted} retired requests: {sorted(retired_requests_set)}")
             else:
                 tmp_log.debug("no terminated requests to delete; skipped")
-            # clean up outdated requests
-            ret_outdated = self.taskBufferIF.clean_up_data_carousel_requests_JEDI(time_limit_days=outdated_age_limit_days)
-            if ret_outdated is None:
+            # clean up outdated requests not related to any active task
+            outdated_request_ids = self.taskBufferIF.clean_up_data_carousel_requests_JEDI(time_limit_days=outdated_age_limit_days)
+            if outdated_request_ids is None:
                 tmp_log.warning("failed to delete outdated requests; skipped")
             else:
-                tmp_log.debug(f"deleted {ret_outdated} outdated requests older than {outdated_age_limit_days} days")
+                tmp_log.debug(
+                    f"deleted {len(outdated_request_ids)} outdated requests older than {outdated_age_limit_days} days and without active tasks: {outdated_request_ids}"
+                )
         except Exception:
             tmp_log.error(f"got error ; {traceback.format_exc()}")
 

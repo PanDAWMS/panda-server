@@ -6,6 +6,7 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.DataCarousel import (
+    FINAL_TASK_STATUSES,
     DataCarouselRequestSpec,
     DataCarouselRequestStatus,
     get_resubmit_request_spec,
@@ -466,23 +467,53 @@ class DataCarouselModule(BaseModule):
             return None
 
     # clean up data carousel requests
-    def clean_up_data_carousel_requests_JEDI(self, time_limit_days: float = 30) -> int | None:
+    def clean_up_data_carousel_requests_JEDI(self, time_limit_days: float = 30) -> list[int] | None:
+        """
+        Delete terminated requests which ended longer than time_limit_days ago and are not related to any active task
+
+        Args:
+            time_limit_days (float): age limit in days since end_time of the request
+
+        Returns:
+            list[int] | None : request IDs of the deleted requests, or None if failed
+        """
         comment = " /* JediDBProxy.clean_up_data_carousel_requests_JEDI */"
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
         try:
             # start transaction
             self.conn.begin()
-            # sql to delete terminated requests
             now_time = naive_utcnow()
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.final_statuses, prefix=":status")
-            sql_delete_req = (
-                f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_requests WHERE status IN ({status_var_names_str}) AND end_time<=:end_time_max "
+            task_status_var_names_str, task_status_var_map = get_sql_IN_bind_variables(FINAL_TASK_STATUSES, prefix=":task_status")
+            # condition that the request is not related to any active task
+            sql_no_active_task = (
+                f"NOT EXISTS (SELECT 1 FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.JEDI_Tasks t "
+                f"WHERE rel.request_id=req.request_id AND rel.task_id=t.jediTaskID AND t.status NOT IN ({task_status_var_names_str})) "
+            )
+            # sql to query terminated requests old enough and without active tasks
+            sql_query_req = (
+                f"SELECT req.request_id FROM {panda_config.schemaJEDI}.data_carousel_requests req "
+                f"WHERE req.status IN ({status_var_names_str}) AND req.end_time<=:end_time_max AND {sql_no_active_task}"
             )
             var_map = {":end_time_max": now_time - datetime.timedelta(days=time_limit_days)}
             var_map.update(status_var_map)
-            self.cur.execute(sql_delete_req + comment, var_map)
-            ret_req: int = self.cur.rowcount
+            var_map.update(task_status_var_map)
+            self.cur.execute(sql_query_req + comment, var_map)
+            res = self.cur.fetchall()
+            # sql to delete a request; check conditions again in case it got related to an active task in the meantime
+            sql_delete_req = (
+                f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_requests req "
+                f"WHERE req.request_id=:request_id AND req.status IN ({status_var_names_str}) AND {sql_no_active_task}"
+            )
+            deleted_request_ids = []
+            for (request_id,) in res:
+                var_map = {":request_id": request_id}
+                var_map.update(status_var_map)
+                var_map.update(task_status_var_map)
+                self.cur.execute(sql_delete_req + comment, var_map)
+                if self.cur.rowcount:
+                    deleted_request_ids.append(request_id)
             # sql to delete relations
             sql_delete_rel = (
                 f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_relations rel "
@@ -495,8 +526,10 @@ class DataCarouselModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return
-            tmp_log.debug(f"cleaned up {ret_req} requests and {ret_rel} relations older than {time_limit_days} days")
-            return ret_req
+            tmp_log.debug(
+                f"cleaned up {len(deleted_request_ids)} requests and {ret_rel} relations older than {time_limit_days} days and without active tasks: {deleted_request_ids}"
+            )
+            return deleted_request_ids
         except Exception:
             # roll back
             self._rollback()
