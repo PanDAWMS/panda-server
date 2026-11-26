@@ -790,6 +790,7 @@ class DataCarouselInterface(object):
         #
         got_lock = None
         locked_spec = None
+        lock_start_time = None
         try:
             # try to update locked_by and lock_time
             sql_lock = (
@@ -814,9 +815,10 @@ class DataCarouselInterface(object):
                 got_lock = False
                 tmp_log.debug("did not get lock; skipped")
             else:
-                # got the lock
+                # got the lock ; not to log as it is routine
                 got_lock = True
-                tmp_log.debug("got lock")
+                lock_start_time = naive_utcnow()
+                # tmp_log.debug("got lock")
             if got_lock:
                 # yield the updated request spec locked
                 locked_spec = self.get_request_by_id(request_id)
@@ -843,8 +845,11 @@ class DataCarouselInterface(object):
                     tmp_log.error("more than one requests updated to unlock; unexpected")
                 elif row_count == 0:
                     tmp_log.error("no request updated to unlock; skipped")
-                else:
-                    tmp_log.debug("released lock")
+                elif lock_start_time is not None and (lock_held_sec := (naive_utcnow() - lock_start_time).total_seconds()) > lock_expiration_sec / 2:
+                    # released the lock ; only to log when held so long that it could expire and be taken by others
+                    tmp_log.warning(f"released lock held for {lock_held_sec:.1f} sec, over half of lock_expiration_sec={lock_expiration_sec}")
+                # else:
+                #     tmp_log.debug("released lock")
 
     def _update_rses(self, time_limit_minutes: int | float = 30) -> None:
         """
