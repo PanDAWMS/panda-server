@@ -1105,8 +1105,7 @@ class EntityModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"siteid={site_id}")
         tmp_log.debug("start")
 
-        sqlS = "SELECT /* use_json_type */ scj.data.corepower FROM ATLAS_PANDA.schedconfig_json scj "
-        sqlS += "WHERE panda_queue=:siteid "
+        sqlS = "SELECT /* use_json_type */ scj.data.corepower FROM ATLAS_PANDA.schedconfig_json scj WHERE panda_queue=:siteid "
 
         varMap = {":siteid": site_id}
 
@@ -1741,8 +1740,10 @@ class EntityModule(BaseModule):
             # set autocommit on
             self.conn.begin()
             # sql to get num slots
-            sqlSL = "SELECT pandaQueueName, gshare, resourcetype, numslots FROM ATLAS_PANDA.Harvester_Slots "
-            sqlSL += "WHERE (expirationTime IS NULL OR expirationTime>CURRENT_DATE) "
+            sqlSL = (
+                "SELECT pandaQueueName, gshare, resourcetype, numslots FROM ATLAS_PANDA.Harvester_Slots "
+                "WHERE (expirationTime IS NULL OR expirationTime>CURRENT_DATE) "
+            )
 
             num_slots_by_site: dict[str, Any] = {}
             self.cur.execute(sqlSL + comment)
@@ -2888,12 +2889,13 @@ class EntityModule(BaseModule):
             self.conn.begin()
             # select
             name = CoreUtils.clean_user_id(dn)
-            sql = "SELECT jobid,status FROM ATLAS_PANDAMETA.users WHERE name=:name "
-            sql += "FOR UPDATE "
-            sqlAdd = "INSERT INTO ATLAS_PANDAMETA.users "
-            sqlAdd += "(ID,NAME,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-            sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,"
-            sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
+            sql = "SELECT jobid, status FROM ATLAS_PANDAMETA.users WHERE name=:name FOR UPDATE "
+            sqlAdd = (
+                "INSERT INTO ATLAS_PANDAMETA.users "
+                "(ID, NAME, LASTMOD, FIRSTJOB, LATESTJOB, CACHETIME, NCURRENT, JOBID) "
+                "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval, :name, "
+                "CURRENT_DATE, CURRENT_DATE, CURRENT_DATE, CURRENT_DATE, 0, 1) "
+            )
             varMap: dict[str, Any] = {":name": name}
             self.cur.execute(sql + comment, varMap)
             self.cur.arraysize = 10
@@ -2978,10 +2980,10 @@ class EntityModule(BaseModule):
                 # new user
                 if jediCheck:
                     name = CoreUtils.clean_user_id(dn)
-                    sqlAdd = "INSERT INTO ATLAS_PANDAMETA.users "
-                    sqlAdd += "(ID,NAME,DN,LASTMOD,FIRSTJOB,LATESTJOB,CACHETIME,NCURRENT,JOBID) "
-                    sqlAdd += "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval,:name,:dn,"
-                    sqlAdd += "CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,CURRENT_DATE,0,1) "
+                    sqlAdd = (
+                        "INSERT INTO ATLAS_PANDAMETA.users (ID, NAME, DN, LASTMOD, FIRSTJOB, LATESTJOB, CACHETIME, NCURRENT, JOBID) "
+                        "VALUES(ATLAS_PANDAMETA.USERS_ID_SEQ.nextval, :name, :dn, CURRENT_DATE, CURRENT_DATE, CURRENT_DATE, CURRENT_DATE, 0, 1) "
+                    )
                     varMap = {":name": name, ":dn": dn}
                     self.cur.execute(sqlAdd + comment, varMap)
                     retI = self.cur.rowcount
@@ -3191,11 +3193,9 @@ class EntityModule(BaseModule):
 
         if self.backend == "postgres":
             sql_merge = (
-                "INSERT INTO ATLAS_PANDA.network_matrix_kv "
-                "(src, dst, key, value, ts) "
+                "INSERT INTO ATLAS_PANDA.network_matrix_kv (src, dst, key, value, ts) "
                 "SELECT  src, dst, key, value, ts FROM ATLAS_PANDA.NETWORK_MATRIX_KV_TEMP "
-                "ON CONFLICT (src, dst, key) "
-                "DO UPDATE SET value=EXCLUDED.value, ts=EXCLUDED.ts "
+                "ON CONFLICT (src, dst, key) DO UPDATE SET value=EXCLUDED.value, ts=EXCLUDED.ts "
             )
         else:
             sql_merge = (
@@ -3304,10 +3304,12 @@ class EntityModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get RW
-            sql = "SELECT ROUND(SUM((nFiles-nFilesFinished-nFilesFailed-nFilesOnHold)*walltime)/24/3600) "
-            sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
-            sql += "WHERE tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
-            sql += "AND tabT.jediTaskID=:jediTaskID "
+            sql = (
+                "SELECT ROUND(SUM((nFiles-nFilesFinished-nFilesFailed-nFilesOnHold)*walltime)/24/3600) "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_Datasets tabD "
+                "WHERE tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
+                "AND tabT.jediTaskID=:jediTaskID "
+            )
             varMap: dict[str, Any] = {":jediTaskID": jediTaskID}
             # begin transaction
             self.conn.begin()
@@ -3346,12 +3348,15 @@ class EntityModule(BaseModule):
             varMap: dict[str, Any] = {":vo": vo, ":prodSourceLabel": prodSourceLabel}
             if priority is not None:
                 varMap[":priority"] = priority
-            sql = "SELECT tabT.jediTaskID,tabT.cloud,tabD.datasetID,nFiles-nFilesFinished-nFilesFailed,walltime "
-            sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sql += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sql += "AND tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
-            sql += "AND (nFiles-nFilesFinished-nFilesFailed)>0 "
-            sql += "AND tabT.vo=:vo AND prodSourceLabel=:prodSourceLabel "
+            sql = (
+                "SELECT tabT.jediTaskID, tabT.cloud, tabD.datasetID, nFiles-nFilesFinished-nFilesFailed, walltime "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_Datasets tabD, "
+                f"{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
+                "AND (nFiles-nFilesFinished-nFilesFailed)>0 "
+                "AND tabT.vo=:vo AND prodSourceLabel=:prodSourceLabel "
+            )
 
             if priority is not None:
                 sql += "AND currentPriority>=:priority "
@@ -3383,9 +3388,11 @@ class EntityModule(BaseModule):
                 raise RuntimeError("Commit error")
             # loop over all tasks
             retMap = {}
-            sqlF = "SELECT fsize,startEvent,endEvent,nEvents "
-            sqlF += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rownum<=1"
+            sqlF = (
+                "SELECT fsize, startEvent, endEvent, nEvents "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rownum<=1"
+            )
             for jediTaskID, cloud, datasetID, nRem, walltime in resList:
                 # get effective size
                 varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID}
@@ -3431,13 +3438,16 @@ class EntityModule(BaseModule):
             varMap: dict[str, Any] = {":vo": vo, ":prodSourceLabel": prodSourceLabel, ":worldCloud": JediTaskSpec.worldCloudName}
             if priority is not None:
                 varMap[":priority"] = priority
-            sql = "SELECT tabT.nucleus,SUM((nEvents-nEventsUsed)*(CASE WHEN cpuTime IS NULL THEN 300 ELSE cpuTime END)) "
-            sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sql += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sql += "AND tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
-            sql += "AND (nFiles-nFilesFinished-nFilesFailed)>0 "
-            sql += "AND tabT.vo=:vo AND prodSourceLabel=:prodSourceLabel "
-            sql += "AND tabT.cloud=:worldCloud "
+            sql = (
+                "SELECT tabT.nucleus, SUM((nEvents-nEventsUsed)*(CASE WHEN cpuTime IS NULL THEN 300 ELSE cpuTime END)) "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_Datasets tabD, "
+                f"{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
+                "AND (nFiles-nFilesFinished-nFilesFailed)>0 "
+                "AND tabT.vo=:vo AND prodSourceLabel=:prodSourceLabel "
+                "AND tabT.cloud=:worldCloud "
+            )
 
             if priority is not None:
                 sql += "AND currentPriority>=:priority "
@@ -3494,10 +3504,10 @@ class EntityModule(BaseModule):
                 "WHEN cpuTime IS NULL THEN 300 "
                 "WHEN cpuTimeUnit='mHS06sPerEvent' OR cpuTimeUnit='mHS06sPerEventFixed' THEN cpuTime/1000 "
                 "ELSE cpuTime END) "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_Datasets tabD "
+                "WHERE tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
+                "AND tabT.jediTaskID=:jediTaskID "
             )
-            sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
-            sql += "WHERE tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
-            sql += "AND tabT.jediTaskID=:jediTaskID "
             varMap: dict[str, Any] = {":jediTaskID": jediTaskID}
             # begin transaction
             self.conn.begin()
