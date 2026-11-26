@@ -85,18 +85,18 @@ class EntityModule(BaseModule):
         """
         comment = " /* DBProxy.get_hs_leave_distribution */"
 
-        sql_hs_distribution = """
-            SELECT gshare, jobstatus_grouped, SUM(HS)
-            FROM
-                (SELECT gshare, HS,
-                     CASE
-                         WHEN jobstatus IN('activated') THEN 'queued'
-                         WHEN jobstatus IN('sent', 'running') THEN 'executing'
-                         ELSE 'ignore'
-                     END jobstatus_grouped
-                 FROM ATLAS_PANDA.JOBS_SHARE_STATS JSS) a
-            GROUP BY gshare, jobstatus_grouped
-            """
+        sql_hs_distribution = (
+            "SELECT gshare, jobstatus_grouped, SUM(HS) "
+            "FROM "
+            "(SELECT gshare, HS, "
+            "CASE "
+            "WHEN jobstatus IN('activated') THEN 'queued' "
+            "WHEN jobstatus IN('sent', 'running') THEN 'executing' "
+            "ELSE 'ignore' "
+            "END jobstatus_grouped "
+            "FROM ATLAS_PANDA.JOBS_SHARE_STATS JSS) a "
+            "GROUP BY gshare, jobstatus_grouped "
+        )
 
         self.cur.execute(sql_hs_distribution + comment)
         hs_distribution_raw = self.cur.fetchall()
@@ -153,11 +153,10 @@ class EntityModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
 
-        sql = """
-               SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE, TRANSPATH, RTYPE,
-               VO, QUEUE_ID, THROTTLED
-               FROM ATLAS_PANDA.GLOBAL_SHARES
-               """
+        sql = (
+            "SELECT NAME, VALUE, PARENT, PRODSOURCELABEL, WORKINGGROUP, CAMPAIGN, PROCESSINGTYPE, TRANSPATH, RTYPE, VO, QUEUE_ID, THROTTLED "
+            "FROM ATLAS_PANDA.GLOBAL_SHARES "
+        )
         var_map = None
 
         if parents == "":
@@ -465,11 +464,7 @@ class EntityModule(BaseModule):
                 jtid_bindings = ",".join(f":jtid{i}" for i in range(len(shard_taskid_set)))
 
                 # select only tasks without lock
-                sql_tasks_not_locked = f"""
-                       SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Tasks
-                       WHERE jediTaskID IN ({jtid_bindings}) AND lockedBy IS NULL
-                       """
-
+                sql_tasks_not_locked = f"SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Tasks WHERE jediTaskID IN ({jtid_bindings}) AND lockedBy IS NULL "
                 self.cur.execute(sql_tasks_not_locked + comment, var_map)
                 res = self.cur.fetchall()
 
@@ -492,10 +487,7 @@ class EntityModule(BaseModule):
                     continue
 
                 # update the task
-                sql_task = f"""
-                       UPDATE ATLAS_PANDA.jedi_tasks set gshare=:gshare
-                       WHERE jeditaskid IN ({jtid_bindings})
-                       """
+                sql_task = f"UPDATE ATLAS_PANDA.jedi_tasks set gshare=:gshare WHERE jeditaskid IN ({jtid_bindings}) "
 
                 self.cur.execute(sql_task + comment, var_map)
                 tmp_log.debug(f"""set tasks {",".join([str(i) for i in good_taskid_set])} to gshare={gshare}""")
@@ -514,11 +506,7 @@ class EntityModule(BaseModule):
                     var_map[":starting"] = "starting"
 
                 # update the jobs
-                sql_jobs = """
-                       UPDATE ATLAS_PANDA.{0} set gshare=:gshare
-                       WHERE jeditaskid IN ({1})
-                       AND jobstatus IN ({2})
-                       """
+                sql_jobs = "UPDATE ATLAS_PANDA.{0} set gshare=:gshare WHERE jeditaskid IN ({1}) AND jobstatus IN ({2}) "
 
                 for table in ["jobsactive4", "jobsdefined4"]:
                     self.cur.execute(
@@ -886,10 +874,7 @@ class EntityModule(BaseModule):
 
             # We want to sort by global share, highest priority and lowest pandaid
             leave_bindings = " ".join(tmp_list)
-            ret_sql = f"""
-                      ORDER BY (CASE {leave_bindings} ELSE {len(sorted_leaves)} END), currentpriority desc, pandaid asc)
-                      WHERE ROWNUM <= :njobs
-                      """
+            ret_sql = f"ORDER BY (CASE {leave_bindings} ELSE {len(sorted_leaves)} END), currentpriority desc, pandaid asc) WHERE ROWNUM <= :njobs "
 
             tmp_log.debug(f"ret_sql: {ret_sql}. var_map: {var_map}")
             return ret_sql, var_map
@@ -914,10 +899,7 @@ class EntityModule(BaseModule):
             var_map[":njobs"] = max_jobs
 
             # We want to ignore global share and just take the oldest pandaid
-            ret_sql = """
-                      ORDER BY pandaid asc)
-                      WHERE ROWNUM <= :njobs
-                      """
+            ret_sql = "ORDER BY pandaid asc) WHERE ROWNUM <= :njobs "
 
             tmp_log.debug(f"ret_sql: {ret_sql}. var_map: {var_map}")
             return ret_sql, var_map
@@ -1183,10 +1165,7 @@ class EntityModule(BaseModule):
         tmp_log.debug("start")
 
         var_map = {":pq": pq_name}
-        sql_get_queue_config = """
-        SELECT data FROM ATLAS_PANDA.SCHEDCONFIG_JSON
-        WHERE panda_queue = :pq
-        """
+        sql_get_queue_config = "SELECT data FROM ATLAS_PANDA.SCHEDCONFIG_JSON WHERE panda_queue = :pq "
         tmp_v, pq_data = self.getClobObj(sql_get_queue_config + comment, var_map)
         if pq_data is None:
             tmp_log.debug("Could not find queue configuration")  # Don't log as ERROR. This is typically a queue that was disabled in CRIC.
@@ -1267,29 +1246,21 @@ class EntityModule(BaseModule):
 
             # run the updates
             if var_map_update:
-                sql_update = """
-                             UPDATE ATLAS_PANDA.SCHEDCONFIG_JSON SET data = :data, last_update = :last_update
-                             WHERE panda_queue = :pq
-                             """
+                sql_update = "UPDATE ATLAS_PANDA.SCHEDCONFIG_JSON SET data = :data, last_update = :last_update WHERE panda_queue = :pq "
                 tmp_log.debug("start updates")
                 self.cur.executemany(sql_update + comment, var_map_update)
                 tmp_log.debug("finished updates")
 
             # run the inserts
             if var_map_insert:
-                sql_insert = """
-                             INSERT INTO ATLAS_PANDA.SCHEDCONFIG_JSON (panda_queue, data, last_update)
-                             VALUES (:pq, :data, :last_update)
-                             """
+                sql_insert = "INSERT INTO ATLAS_PANDA.SCHEDCONFIG_JSON (panda_queue, data, last_update) VALUES (:pq, :data, :last_update) "
                 tmp_log.debug("start inserts")
                 self.cur.executemany(sql_insert + comment, var_map_insert)
                 tmp_log.debug("finished inserts")
 
             # delete inactive queues
             tmp_log.debug("Going to delete obsoleted queues")
-            sql_delete = """
-                         DELETE FROM ATLAS_PANDA.SCHEDCONFIG_JSON WHERE last_update < current_date - INTERVAL '7' DAY
-                         """
+            sql_delete = "DELETE FROM ATLAS_PANDA.SCHEDCONFIG_JSON WHERE last_update < current_date - INTERVAL '7' DAY "
             self.cur.execute(sql_delete + comment)
             tmp_log.debug("deleted old queues")
 
@@ -1753,13 +1724,13 @@ class EntityModule(BaseModule):
             pandaEndpointMap, endpoint_detailed_status_summary = self.getDdmEndpoints()
 
             # sql to get site spec
-            sql = """
-                   SELECT /* use_json_type */ panda_queue, data, b.site_name, c.role
-                   FROM (ATLAS_PANDA.schedconfig_json a
-                   LEFT JOIN ATLAS_PANDA.panda_site b ON a.panda_queue = b.panda_site_name)
-                   LEFT JOIN ATLAS_PANDA.site c ON b.site_name = c.site_name
-                   WHERE panda_queue IS NOT NULL
-                   """
+            sql = (
+                "SELECT /* use_json_type */ panda_queue, data, b.site_name, c.role "
+                "FROM (ATLAS_PANDA.schedconfig_json a "
+                "LEFT JOIN ATLAS_PANDA.panda_site b ON a.panda_queue = b.panda_site_name) "
+                "LEFT JOIN ATLAS_PANDA.site c ON b.site_name = c.site_name "
+                "WHERE panda_queue IS NOT NULL "
+            )
             self.cur.arraysize = 10000
             # self.cur.execute(sql+comment)
             # resList = self.cur.fetchall()
@@ -2061,21 +2032,21 @@ class EntityModule(BaseModule):
             endpoint_dict[ddm_endpoint_name] = tmp_endpoint
 
         # get relationship between panda sites and ddm endpoints
-        sql_panda_ddm = """
-               SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name,
-                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write,
-                      nvl(pdr.scope, 'default') as scope, de.blacklisted_read
-               FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
-               WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
-               """
+        sql_panda_ddm = (
+            "SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name, "
+            "de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write, "
+            "nvl(pdr.scope, 'default') as scope, de.blacklisted_read "
+            "FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de "
+            "WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name "
+        )
         if self.backend == "mysql":
-            sql_panda_ddm = """
-               SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name,
-                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write,
-                      ifnull(pdr.scope, 'default') as scope, de.blacklisted
-               FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
-               WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
-               """
+            sql_panda_ddm = (
+                "SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name, "
+                "de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write, "
+                "ifnull(pdr.scope, 'default') as scope, de.blacklisted "
+                "FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de "
+                "WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name "
+            )
 
         self.cur.execute(f"{sql_panda_ddm}{comment}")
         results_panda_ddm = self.cur.fetchall()
@@ -3216,10 +3187,7 @@ class EntityModule(BaseModule):
         # For performance reasons we will insert the data into a temporary table
         # and then merge this data into the permanent table.
 
-        sql_insert = """
-        INSERT INTO ATLAS_PANDA.network_matrix_kv_temp (src, dst, key, value, ts)
-        VALUES (:src, :dst, :key, :value, :ts)
-        """
+        sql_insert = "INSERT INTO ATLAS_PANDA.network_matrix_kv_temp (src, dst, key, value, ts) VALUES (:src, :dst, :key, :value, :ts) "
 
         if self.backend == "postgres":
             sql_merge = (
@@ -3230,16 +3198,16 @@ class EntityModule(BaseModule):
                 "DO UPDATE SET value=EXCLUDED.value, ts=EXCLUDED.ts "
             )
         else:
-            sql_merge = """
-            MERGE /*+ FULL(nm_kv) */ INTO ATLAS_PANDA.network_matrix_kv nm_kv USING
-                (SELECT  src, dst, key, value, ts FROM ATLAS_PANDA.NETWORK_MATRIX_KV_TEMP) input
-                ON (nm_kv.src = input.src AND nm_kv.dst= input.dst AND nm_kv.key = input.key)
-            WHEN NOT MATCHED THEN
-                INSERT (src, dst, key, value, ts)
-                VALUES (input.src, input.dst, input.key, input.value, input.ts)
-            WHEN MATCHED THEN
-                UPDATE SET nm_kv.value = input.value, nm_kv.ts = input.ts
-            """
+            sql_merge = (
+                "MERGE /*+ FULL(nm_kv) */ INTO ATLAS_PANDA.network_matrix_kv nm_kv USING "
+                "(SELECT  src, dst, key, value, ts FROM ATLAS_PANDA.NETWORK_MATRIX_KV_TEMP) input "
+                "ON (nm_kv.src = input.src AND nm_kv.dst= input.dst AND nm_kv.key = input.key) "
+                "WHEN NOT MATCHED THEN "
+                "INSERT (src, dst, key, value, ts) "
+                "VALUES (input.src, input.dst, input.key, input.value, input.ts) "
+                "WHEN MATCHED THEN "
+                "UPDATE SET nm_kv.value = input.value, nm_kv.ts = input.ts "
+            )
         try:
             self.conn.begin()
             for shard in create_shards(data, 100):
@@ -3286,10 +3254,7 @@ class EntityModule(BaseModule):
         tmp_log.debug("start")
 
         # delete any data older than a week
-        sql_delete = """
-        DELETE FROM ATLAS_PANDA.network_matrix_kv
-        WHERE ts < (current_date - 7)
-        """
+        sql_delete = "DELETE FROM ATLAS_PANDA.network_matrix_kv WHERE ts < (current_date - 7) "
         try:
             self.conn.begin()
             time1 = time.time()
@@ -3319,10 +3284,10 @@ class EntityModule(BaseModule):
         tmp_log.debug("start")
 
         ups_queues = []
-        sql = f"""
-              SELECT /* use_json_type */ scj.panda_queue FROM {panda_config.schemaPANDA}.schedconfig_json scj
-              WHERE scj.data.capability='ucore' AND scj.data.workflow = 'pull_ups'
-              """
+        sql = (
+            f"SELECT /* use_json_type */ scj.panda_queue FROM {panda_config.schemaPANDA}.schedconfig_json scj "
+            "WHERE scj.data.capability='ucore' AND scj.data.workflow = 'pull_ups' "
+        )
 
         self.cur.execute(sql + comment)
         res = self.cur.fetchall()
@@ -3603,11 +3568,11 @@ class EntityModule(BaseModule):
 
         key_var_names_str, key_var_map = get_sql_IN_bind_variables(keyList, prefix=":key")
 
-        sql = f"""
-        SELECT src, key, value, ts FROM {panda_config.schemaJEDI}.network_matrix_kv
-        WHERE dst = :dst AND key IN ({key_var_names_str})
-        AND ts > :latest_validity
-        """
+        sql = (
+            f"SELECT src, key, value, ts FROM {panda_config.schemaJEDI}.network_matrix_kv "
+            f"WHERE dst = :dst AND key IN ({key_var_names_str}) "
+            "AND ts > :latest_validity "
+        )
 
         varMap.update(key_var_map)
 
@@ -3648,14 +3613,14 @@ class EntityModule(BaseModule):
 
         varMap = {":latest_validity": latest_validity, ":nqueued_cap": nqueued_cap}
 
-        sql = f"""
-              SELECT dst
-              FROM {panda_config.schemaJEDI}.network_matrix_kv
-              WHERE key = 'Production Output_queued'
-              AND ts > :latest_validity
-              GROUP BY dst
-              HAVING SUM(value) > :nqueued_cap
-        """
+        sql = (
+            "SELECT dst "
+            f"FROM {panda_config.schemaJEDI}.network_matrix_kv "
+            "WHERE key = 'Production Output_queued' "
+            "AND ts > :latest_validity "
+            "GROUP BY dst "
+            "HAVING SUM(value) > :nqueued_cap "
+        )
 
         self.cur.execute(sql + comment, varMap)
         try:
@@ -3676,12 +3641,12 @@ class EntityModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment)
         tmpLog.debug("start")
 
-        sql = """
-        SELECT pdr.panda_site_name, de.site_name, nvl(pdr.scope, 'default')
-        FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
-        WHERE pdr.default_write = 'Y'
-        AND pdr.ddm_endpoint_name = de.ddm_endpoint_name
-        """
+        sql = (
+            "SELECT pdr.panda_site_name, de.site_name, nvl(pdr.scope, 'default') "
+            "FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de "
+            "WHERE pdr.default_write = 'Y' "
+            "AND pdr.ddm_endpoint_name = de.ddm_endpoint_name "
+        )
 
         self.cur.execute(sql + comment)
         resList = self.cur.fetchall()
@@ -3710,31 +3675,31 @@ class EntityModule(BaseModule):
         var_map = {":vo": vo}
 
         # sql to query on pre-cached job statistics tables, creating a single result set with active gshares and resource workqueues
-        sql_get_active_combinations = f"""
-            WITH gshare_results AS ( 
-            SELECT /*+ RESULT_CACHE */ gshare AS name, resource_type 
-            FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS 
-            WHERE vo=:vo 
-            UNION 
-            SELECT /*+ RESULT_CACHE */ gshare AS name, resource_type 
-            FROM {panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS 
-            WHERE vo=:vo 
-            ), wq_results AS ( 
-            SELECT jwq.QUEUE_NAME AS name, jss.resource_type 
-            FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS jss 
-            JOIN {panda_config.schemaPANDA}.JEDI_WORK_QUEUE jwq ON jss.WORKQUEUE_ID = jwq.QUEUE_ID 
-            WHERE jwq.QUEUE_FUNCTION = 'Resource' AND jss.vo=:vo AND jwq.vo=:vo 
-            UNION 
-            SELECT jwq.QUEUE_NAME AS name, jss.resource_type 
-            FROM {panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS jss 
-            JOIN {panda_config.schemaPANDA}.JEDI_WORK_QUEUE jwq ON jss.WORKQUEUE_ID = jwq.QUEUE_ID 
-            WHERE jwq.QUEUE_FUNCTION = 'Resource' AND jss.vo=:vo AND jwq.vo=:vo 
-            ) 
-            SELECT name, resource_type FROM gshare_results 
-            UNION 
-            SELECT name, resource_type FROM wq_results 
-            GROUP BY name, resource_type
-        """
+        sql_get_active_combinations = (
+            "WITH gshare_results AS ( "
+            "SELECT /*+ RESULT_CACHE */ gshare AS name, resource_type "
+            f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
+            "WHERE vo=:vo "
+            "UNION "
+            "SELECT /*+ RESULT_CACHE */ gshare AS name, resource_type "
+            f"FROM {panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS "
+            "WHERE vo=:vo "
+            "), wq_results AS ( "
+            "SELECT jwq.QUEUE_NAME AS name, jss.resource_type "
+            f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS jss "
+            f"JOIN {panda_config.schemaPANDA}.JEDI_WORK_QUEUE jwq ON jss.WORKQUEUE_ID = jwq.QUEUE_ID "
+            "WHERE jwq.QUEUE_FUNCTION = 'Resource' AND jss.vo=:vo AND jwq.vo=:vo "
+            "UNION "
+            "SELECT jwq.QUEUE_NAME AS name, jss.resource_type "
+            f"FROM {panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS jss "
+            f"JOIN {panda_config.schemaPANDA}.JEDI_WORK_QUEUE jwq ON jss.WORKQUEUE_ID = jwq.QUEUE_ID "
+            "WHERE jwq.QUEUE_FUNCTION = 'Resource' AND jss.vo=:vo AND jwq.vo=:vo "
+            ") "
+            "SELECT name, resource_type FROM gshare_results "
+            "UNION "
+            "SELECT name, resource_type FROM wq_results "
+            "GROUP BY name, resource_type "
+        )
 
         return_map: dict[str, Any] = {}
         try:
