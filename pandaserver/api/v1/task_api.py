@@ -67,6 +67,11 @@ def retry(
 
     Retry a given task e.g. in exhausted state. Requires a secure connection without a production role to retry own tasks and with a production role to retry others' tasks.
 
+    An analysis task that is still running, scouting or pending is not retried as a whole. Instead, its failed jobs
+    are retried: only the input files that have used up their attempts (attemptNr reached maxAttempt, or failedAttempt
+    reached maxFailure) get 3 more attempts and are reactivated. Input files that still have attempts left are not
+    changed, so repeating the retry does not keep raising their limits.
+
     API details:
         HTTP Method: POST
         Path: /v1/task/retry
