@@ -279,16 +279,18 @@ class DataCarouselModule(BaseModule):
                 dc_req_spec = DataCarouselRequestSpec()
                 dc_req_spec.pack(res)
                 request_spec_map[dc_req_spec.request_id] = dc_req_spec
-            # sql to query related tasks of these requests
+            # sql to query related tasks of all requests ; tasks of requests not in request_spec_map are skipped
             sql_query_tasks = (
                 f"SELECT rel.request_id, t.jediTaskID, t.status, COALESCE(t.endTime, t.stateChangeTime) "
-                f"FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.data_carousel_requests req, {panda_config.schemaJEDI}.JEDI_Tasks t "
-                f"WHERE rel.request_id=req.request_id AND rel.task_id=t.jediTaskID AND req.status IN ({status_var_names_str}) "
+                f"FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.JEDI_Tasks t "
+                f"WHERE rel.task_id=t.jediTaskID "
             )
-            self.cur.execute(sql_query_tasks + comment, status_var_map)
+            self.cur.execute(sql_query_tasks + comment, {})
             res_tasks = self.cur.fetchall()
             task_specs_map: dict[int, list[JediTaskSpec]] = {}
             for request_id, task_id, task_status, end_time in res_tasks:
+                if request_id not in request_spec_map:
+                    continue
                 task_spec = JediTaskSpec()
                 task_spec.jediTaskID = task_id
                 task_spec.status = task_status

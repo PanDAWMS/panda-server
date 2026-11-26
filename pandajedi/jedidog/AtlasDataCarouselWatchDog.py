@@ -26,7 +26,7 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 StageDCRequests_LOCK_TIME_MINUTES = 5
 CheckDCRequests_LOCK_TIME_MINUTES = 5
 KeepRulesAlive_LOCK_TIME_MINUTES = 60
-UpdateRequestsUsage_LOCK_TIME_MINUTES = 60
+UpdateRequestsUsage_LOCK_TIME_MINUTES = 480
 CleanDCRequests_LOCK_TIME_MINUTES = 1440
 RescuePendingTasks_LOCK_TIME_MINUTES = 120
 
@@ -126,7 +126,8 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
 
     def doUpdateRequestsUsage(self) -> None:
         """
-        Action to update the usage of DC requests (remove_when_done and last_used_time) according to their related tasks
+        Action to update the usage of DC requests (remove_when_done and last_used_time) according to their related tasks,
+        and keep alive DDM rules of done requests within grace period after last used
         """
         tmpLog = MsgWrapper(logger, " #ATM #KV doUpdateRequestsUsage")
         tmpLog.debug("start")

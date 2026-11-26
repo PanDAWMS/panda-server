@@ -2851,15 +2851,23 @@ class DataCarouselInterface(object):
         # return
         return is_valid, ddm_rule_id, the_rule
 
-    def refresh_ddm_rule_of_request(self, dc_req_spec: DataCarouselRequestSpec, lifetime_days: int, force_refresh: bool = False, by: str = "unknown") -> bool:
+    def refresh_ddm_rule_of_request(
+        self,
+        dc_req_spec: DataCarouselRequestSpec,
+        lifetime_days: int | None = None,
+        force_refresh: bool = False,
+        by: str = "unknown",
+        until_time: datetime | None = None,
+    ) -> bool:
         """
         Refresh lifetime of the DDM rule of one request
 
         Args:
             dc_req_spec (DataCarouselRequestSpec): spec of the request
-            lifetime_days (int): lifetime in days to set
-            force_refresh (bool): force to refresh regardless of to_refresh max/min lifetime
+            lifetime_days (int|None): lifetime in days to set ; ignored if until_time is given
+            force_refresh (bool): force to refresh regardless of to_refresh max/min lifetime ; ignored if until_time is given
             by (str): annotation of the caller of this method; default is "watchdog"
+            until_time (datetime|None): if given, refresh only if the rule expires before until_time, to make it last until until_time
 
         Returns:
             bool : True for success, False otherwise
@@ -2873,10 +2881,18 @@ class DataCarouselInterface(object):
             # rule not valid; skipped
             tmp_log.error(f"ddm_rule_id={ddm_rule_id} rule not valid; skipped")
             return ret
+        now_time = naive_utcnow()
+        if until_time is not None:
+            # refresh only if the rule expires before until_time ; rule without expiration lasts long enough
+            if the_rule["expires_at"] and the_rule["expires_at"] < until_time:
+                ret = self._refresh_ddm_rule(ddm_rule_id, int((until_time - now_time).total_seconds()))
+            return ret
+        if lifetime_days is None:
+            tmp_log.error("neither lifetime_days nor until_time given ; skipped")
+            return ret
         # rule lifetime
         rule_lifetime = None
         if the_rule["expires_at"]:
-            now_time = naive_utcnow()
             rule_lifetime = the_rule["expires_at"] - now_time
         # trigger renewal if force_refresh or when lifetime within the range
         if (
@@ -2928,38 +2944,6 @@ class DataCarouselInterface(object):
             tmp_log.warning(f"got invalid last_used_time={last_used_time_str} ; ignored")
             return None
 
-    def _extend_rule_for_grace_period(self, dc_req_spec: DataCarouselRequestSpec, ddm_rule_id: str, the_rule: dict[str, Any], grace_days: int | float) -> bool:
-        """
-        Extend the DDM rule of a done request without active tasks to cover its grace period after last used (with margin), if the rule expires earlier
-
-        Args:
-            dc_req_spec (DataCarouselRequestSpec): spec of the request
-            ddm_rule_id (str): DDM rule ID of the request
-            the_rule (dict): DDM rule data
-            grace_days (int|float): grace period in days after last used
-
-        Returns:
-            bool : True if the rule was extended, False otherwise
-        """
-        if dc_req_spec.status != DataCarouselRequestStatus.done or dc_req_spec.get_parameter("remove_when_done"):
-            # not to be kept for grace period
-            return False
-        grace_end_time = self._get_grace_end_time(dc_req_spec, grace_days)
-        now_time = naive_utcnow()
-        if grace_end_time is None or grace_end_time <= now_time:
-            # no grace period or grace period over
-            return False
-        rule_expiration_time = the_rule.get("expires_at")
-        if rule_expiration_time is None or rule_expiration_time >= grace_end_time:
-            # rule lifetime long enough
-            return False
-        lifetime_sec = int((grace_end_time + timedelta(days=LAST_USED_GRACE_RULE_MARGIN_DAYS) - now_time).total_seconds())
-        if not self._refresh_ddm_rule(ddm_rule_id, lifetime_sec):
-            return False
-        tmp_log = LogWrapper(logger, f"_extend_rule_for_grace_period request_id={dc_req_spec.request_id}")
-        tmp_log.debug(f"ddm_rule_id={ddm_rule_id} refreshed lifetime to be {lifetime_sec / 86400:.2f} days long to cover grace period until {grace_end_time}")
-        return True
-
     def keep_alive_ddm_rules(self, by: str = "watchdog") -> None:
         """
         Keep alive DDM rules of requests of active tasks; also check all requests if their DDM rules are valid
@@ -2976,8 +2960,6 @@ class DataCarouselInterface(object):
             return
         all_requests_map, _ = all_requests
         active_tasked_requests_map, _ = active_tasked_requests
-        # grace period after last used
-        grace_days = self._get_last_used_grace_days()
         for dc_req_spec in all_requests_map.values():
             try:
                 if dc_req_spec.status not in [DataCarouselRequestStatus.staging, DataCarouselRequestStatus.done]:
@@ -3006,10 +2988,7 @@ class DataCarouselInterface(object):
                             pass
                 else:
                     # requests of non-active tasks; check if the rule is valid
-                    is_valid, ddm_rule_id, the_rule = self._check_ddm_rule_of_request(dc_req_spec, by=by)
-                    # keep the rule alive until the grace period after last used ends
-                    if is_valid and ddm_rule_id and the_rule:
-                        self._extend_rule_for_grace_period(dc_req_spec, ddm_rule_id, the_rule, grace_days)
+                    is_valid, ddm_rule_id, _ = self._check_ddm_rule_of_request(dc_req_spec, by=by)
                     # if not is_valid:
                     #     tmp_log.warning(f"ddm_rule_id={ddm_rule_id} rule not valid")
             except Exception:
@@ -3020,6 +2999,7 @@ class DataCarouselInterface(object):
         Update the usage of staging and done requests according to their related tasks:
             remove_when_done : if the request has active tasks, True if any of them has task parameter remove_rule_when_done ; unchanged if no active task
             last_used_time : now if the request has active tasks ; if all related tasks ended, the latest end time of them
+        Also keep alive the DDM rules of done requests without active tasks (except remove_when_done) to cover the grace period after last used
 
         Args:
             by (str): annotation of the caller of this method; default is "watchdog"
@@ -3030,8 +3010,11 @@ class DataCarouselInterface(object):
             tmp_log.warning("failed to query requests ; skipped")
             return
         n_updated = 0
+        n_rules_refreshed = 0
         seen_task_ids: set[int] = set()
-        now_time_str = naive_utcnow().replace(microsecond=0).isoformat()
+        now_time = naive_utcnow()
+        now_time_str = now_time.replace(microsecond=0).isoformat()
+        grace_days = self._get_last_used_grace_days()
         for dc_req_spec, task_specs in requests_with_tasks:
             try:
                 params_to_update: dict[str, Any] = {}
@@ -3061,28 +3044,43 @@ class DataCarouselInterface(object):
                     last_used_time_str = latest_end_time.isoformat()
                     if dc_req_spec.get_parameter("last_used_time") != last_used_time_str:
                         params_to_update["last_used_time"] = last_used_time_str
-                if not params_to_update:
-                    # unchanged
-                    continue
                 # update DB
-                with self.request_lock(dc_req_spec.request_id) as locked_spec:
-                    if not locked_spec:
-                        # not getting lock; skip
-                        tmp_log.warning(f"request_id={dc_req_spec.request_id} did not get lock; skipped")
-                        continue
-                    locked_spec.update_parameters(params_to_update)
-                    if self.taskBufferIF.update_data_carousel_request_JEDI(locked_spec):
-                        n_updated += 1
-                        if not has_active_task or "remove_when_done" in params_to_update:
-                            # not to log the routine refresh of last_used_time of requests with active tasks
-                            tmp_log.debug(f"request_id={dc_req_spec.request_id} status={locked_spec.status} updated DB with {params_to_update}")
-                    else:
-                        tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB ; skipped")
+                if params_to_update:
+                    with self.request_lock(dc_req_spec.request_id) as locked_spec:
+                        if not locked_spec:
+                            # not getting lock; skip
+                            tmp_log.warning(f"request_id={dc_req_spec.request_id} did not get lock; skipped")
+                            continue
+                        locked_spec.update_parameters(params_to_update)
+                        if self.taskBufferIF.update_data_carousel_request_JEDI(locked_spec):
+                            n_updated += 1
+                            if not has_active_task or "remove_when_done" in params_to_update:
+                                # not to log the routine refresh of last_used_time of requests with active tasks
+                                tmp_log.debug(f"request_id={dc_req_spec.request_id} status={locked_spec.status} updated DB with {params_to_update}")
+                        else:
+                            tmp_log.error(f"request_id={dc_req_spec.request_id} failed to update DB ; skipped")
+                # keep alive the DDM rule of done request without active tasks until the grace period after last used ends, with margin for the daily clean-up
+                if (
+                    not has_active_task
+                    and latest_end_time is not None
+                    and dc_req_spec.status == DataCarouselRequestStatus.done
+                    and not dc_req_spec.get_parameter("remove_when_done")
+                ):
+                    grace_end_time = latest_end_time + timedelta(days=grace_days)
+                    if grace_end_time > now_time:
+                        until_time = grace_end_time + timedelta(days=LAST_USED_GRACE_RULE_MARGIN_DAYS)
+                        if self.refresh_ddm_rule_of_request(dc_req_spec, by=by, until_time=until_time):
+                            n_rules_refreshed += 1
+                            tmp_log.debug(
+                                f"request_id={dc_req_spec.request_id} ddm_rule_id={dc_req_spec.ddm_rule_id} refreshed lifetime until {until_time} to cover grace period"
+                            )
             except Exception:
                 tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
         # clean up cache of tasks not active anymore
         self._prune_task_params_cache("update_requests_usage", seen_task_ids)
-        tmp_log.debug(f"checked {len(requests_with_tasks)} requests ; updated {n_updated} requests in DB")
+        tmp_log.debug(
+            f"checked {len(requests_with_tasks)} requests ; updated {n_updated} requests in DB ; refreshed {n_rules_refreshed} DDM rules for grace period"
+        )
 
     def _update_staged_files(self, dc_req_spec: DataCarouselRequestSpec, task_id_list: list[int] | None = None) -> bool | None:
         """
