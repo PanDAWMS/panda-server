@@ -26,6 +26,7 @@ logger = PandaLogger().getLogger(__name__.split(".")[-1])
 StageDCRequests_LOCK_TIME_MINUTES = 5
 CheckDCRequests_LOCK_TIME_MINUTES = 5
 KeepRulesAlive_LOCK_TIME_MINUTES = 60
+UpdateRequestsUsage_LOCK_TIME_MINUTES = 60
 CleanDCRequests_LOCK_TIME_MINUTES = 1440
 RescuePendingTasks_LOCK_TIME_MINUTES = 120
 
@@ -123,6 +124,27 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             errtype, errvalue = sys.exc_info()[:2]
             tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
 
+    def doUpdateRequestsUsage(self) -> None:
+        """
+        Action to update the usage of DC requests (remove_when_done and last_used_time) according to their related tasks
+        """
+        tmpLog = MsgWrapper(logger, " #ATM #KV doUpdateRequestsUsage")
+        tmpLog.debug("start")
+        try:
+            # watchdog lock
+            got_lock = self.get_process_lock("AtlasDataCarousDog.doUpdateReqUsage", timeLimit=UpdateRequestsUsage_LOCK_TIME_MINUTES)
+            if not got_lock:
+                tmpLog.debug("locked by another watchdog process. Skipped")
+                return
+            tmpLog.debug("got watchdog lock")
+            # update usage of requests
+            self.data_carousel_interface.update_requests_usage()
+            # done
+            tmpLog.debug("done")
+        except Exception:
+            errtype, errvalue = sys.exc_info()[:2]
+            tmpLog.error(f"failed with {errtype} {errvalue} {traceback.format_exc()}")
+
     def doCleanDCRequests(self) -> None:
         """
         Action to clean up old DC requests in DB table
@@ -171,6 +193,8 @@ class AtlasDataCarouselWatchDog(WatchDogBase):
             # get logger
             origTmpLog = MsgWrapper(logger)
             origTmpLog.debug("start")
+            # update usage of DC requests before cleaning them up
+            self.doUpdateRequestsUsage()
             # clean up old DC requests
             self.doCleanDCRequests()
             # keep staging rules alive

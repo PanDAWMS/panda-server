@@ -6,7 +6,6 @@ from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_u
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.DataCarousel import (
-    FINAL_TASK_STATUSES,
     DataCarouselRequestSpec,
     DataCarouselRequestStatus,
     get_resubmit_request_spec,
@@ -253,6 +252,64 @@ class DataCarouselModule(BaseModule):
             self.dump_error_message(tmp_log)
             return None
 
+    # get data carousel requests with their related tasks
+    def get_data_carousel_requests_with_tasks_JEDI(self, status_list: list[str]) -> list[tuple[DataCarouselRequestSpec, list[JediTaskSpec]]] | None:
+        """
+        Get data carousel requests in given statuses with their related tasks
+
+        Args:
+            status_list (list[str]): statuses of requests to get
+
+        Returns:
+            list | None : list of tuples in form of (request_spec, [task_spec, ...]) where task specs have jediTaskID, status and endTime (stateChangeTime if endTime is null) ; None if failed
+        """
+        comment = " /* JediDBProxy.get_data_carousel_requests_with_tasks_JEDI */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("start")
+        try:
+            # start transaction
+            self.conn.begin()
+            status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_list, prefix=":status")
+            # sql to query requests
+            sql_query_req = f"SELECT {DataCarouselRequestSpec.columnNames()} FROM {panda_config.schemaJEDI}.data_carousel_requests WHERE status IN ({status_var_names_str}) "
+            self.cur.execute(sql_query_req + comment, status_var_map)
+            res_list = self.cur.fetchall()
+            request_spec_map = {}
+            for res in res_list:
+                dc_req_spec = DataCarouselRequestSpec()
+                dc_req_spec.pack(res)
+                request_spec_map[dc_req_spec.request_id] = dc_req_spec
+            # sql to query related tasks of these requests
+            sql_query_tasks = (
+                f"SELECT rel.request_id, t.jediTaskID, t.status, COALESCE(t.endTime, t.stateChangeTime) "
+                f"FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.data_carousel_requests req, {panda_config.schemaJEDI}.JEDI_Tasks t "
+                f"WHERE rel.request_id=req.request_id AND rel.task_id=t.jediTaskID AND req.status IN ({status_var_names_str}) "
+            )
+            self.cur.execute(sql_query_tasks + comment, status_var_map)
+            res_tasks = self.cur.fetchall()
+            task_specs_map: dict[int, list[JediTaskSpec]] = {}
+            for request_id, task_id, task_status, end_time in res_tasks:
+                task_spec = JediTaskSpec()
+                task_spec.jediTaskID = task_id
+                task_spec.status = task_status
+                task_spec.endTime = end_time
+                task_specs_map.setdefault(request_id, []).append(task_spec)
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            ret_list = []
+            for request_id, dc_req_spec in request_spec_map.items():
+                ret_list.append((dc_req_spec, task_specs_map.get(request_id, [])))
+            tmp_log.debug(f"got {len(ret_list)} requests in {status_list}")
+            return ret_list
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
     # get data carousel requests of tasks by task status
     def get_data_carousel_requests_by_task_status_JEDI(
         self, status_filter_list: list[str] | None = None, status_exclusion_list: list[str] | None = None
@@ -469,7 +526,8 @@ class DataCarouselModule(BaseModule):
     # clean up data carousel requests
     def clean_up_data_carousel_requests_JEDI(self, time_limit_days: float = 30) -> list[int] | None:
         """
-        Delete terminated requests which ended longer than time_limit_days ago and are not related to any active task
+        Delete terminated requests which ended longer than time_limit_days ago and are not related to any task
+        Requests related to tasks are cleaned up by clean_up_requests of DataCarousel according to their tasks
 
         Args:
             time_limit_days (float): age limit in days since end_time of the request
@@ -485,32 +543,29 @@ class DataCarouselModule(BaseModule):
             self.conn.begin()
             now_time = naive_utcnow()
             status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.final_statuses, prefix=":status")
-            task_status_var_names_str, task_status_var_map = get_sql_IN_bind_variables(FINAL_TASK_STATUSES, prefix=":task_status")
-            # condition that the request is not related to any active task
-            sql_no_active_task = (
+            # condition that the request is not related to any task
+            sql_no_task = (
                 f"NOT EXISTS (SELECT 1 FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.JEDI_Tasks t "
-                f"WHERE rel.request_id=req.request_id AND rel.task_id=t.jediTaskID AND t.status NOT IN ({task_status_var_names_str})) "
+                f"WHERE rel.request_id=req.request_id AND rel.task_id=t.jediTaskID) "
             )
-            # sql to query terminated requests old enough and without active tasks
+            # sql to query terminated requests old enough and without tasks
             sql_query_req = (
                 f"SELECT req.request_id FROM {panda_config.schemaJEDI}.data_carousel_requests req "
-                f"WHERE req.status IN ({status_var_names_str}) AND req.end_time<=:end_time_max AND {sql_no_active_task}"
+                f"WHERE req.status IN ({status_var_names_str}) AND req.end_time<=:end_time_max AND {sql_no_task}"
             )
             var_map = {":end_time_max": now_time - datetime.timedelta(days=time_limit_days)}
             var_map.update(status_var_map)
-            var_map.update(task_status_var_map)
             self.cur.execute(sql_query_req + comment, var_map)
             res = self.cur.fetchall()
-            # sql to delete a request; check conditions again in case it got related to an active task in the meantime
+            # sql to delete a request; check conditions again in case it got related to a task in the meantime
             sql_delete_req = (
                 f"DELETE FROM {panda_config.schemaJEDI}.data_carousel_requests req "
-                f"WHERE req.request_id=:request_id AND req.status IN ({status_var_names_str}) AND {sql_no_active_task}"
+                f"WHERE req.request_id=:request_id AND req.status IN ({status_var_names_str}) AND {sql_no_task}"
             )
             deleted_request_ids = []
             for (request_id,) in res:
                 var_map = {":request_id": request_id}
                 var_map.update(status_var_map)
-                var_map.update(task_status_var_map)
                 self.cur.execute(sql_delete_req + comment, var_map)
                 if self.cur.rowcount:
                     deleted_request_ids.append(request_id)
@@ -527,7 +582,7 @@ class DataCarouselModule(BaseModule):
                 raise RuntimeError("Commit error")
             # return
             tmp_log.debug(
-                f"cleaned up {len(deleted_request_ids)} requests and {ret_rel} relations older than {time_limit_days} days and without active tasks: {deleted_request_ids}"
+                f"cleaned up {len(deleted_request_ids)} requests and {ret_rel} relations older than {time_limit_days} days and without tasks: {deleted_request_ids}"
             )
             return deleted_request_ids
         except Exception:
