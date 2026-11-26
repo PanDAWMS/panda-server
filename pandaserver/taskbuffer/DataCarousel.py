@@ -2957,20 +2957,23 @@ class DataCarouselInterface(object):
             by (str): annotation of the caller of this method; default is "watchdog"
         """
         tmp_log = LogWrapper(logger, "keep_alive_ddm_rules")
-        # get all requests, and those of active tasks
-        all_requests = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI()
-        active_tasked_requests = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_exclusion_list=FINAL_TASK_STATUSES)
-        if all_requests is None or active_tasked_requests is None:
+        # get staging and done requests with their related tasks
+        requests_with_tasks = self.taskBufferIF.get_data_carousel_requests_with_tasks_JEDI([DataCarouselRequestStatus.staging, DataCarouselRequestStatus.done])
+        if requests_with_tasks is None:
             tmp_log.warning("failed to query requests ; skipped")
             return
-        all_requests_map, _ = all_requests
-        active_tasked_requests_map, _ = active_tasked_requests
-        for dc_req_spec in all_requests_map.values():
+        for dc_req_spec, task_specs in requests_with_tasks:
             try:
-                if dc_req_spec.status not in [DataCarouselRequestStatus.staging, DataCarouselRequestStatus.done]:
-                    # skip requests without need to keep rules alive
+                if not task_specs:
+                    # requests without tasks ; skipped
                     continue
-                if dc_req_spec.request_id in active_tasked_requests_map:
+                # whether with active tasks
+                has_active_task = False
+                for task_spec in task_specs:
+                    if task_spec.status not in FINAL_TASK_STATUSES:
+                        has_active_task = True
+                        break
+                if has_active_task:
                     # requests of active tasks; decide lifetime in days
                     days = None
                     if dc_req_spec.status == DataCarouselRequestStatus.staging:
@@ -3387,39 +3390,44 @@ class DataCarouselInterface(object):
             done_requests_set = set()
             cancelled_requests_set = set()
             retired_requests_set = set()
-            # get requests of terminated and active tasks
-            terminated_tasks_requests = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_filter_list=FINAL_TASK_STATUSES)
-            active_tasks_requests = self.taskBufferIF.get_data_carousel_requests_by_task_status_JEDI(status_exclusion_list=FINAL_TASK_STATUSES)
-            if terminated_tasks_requests is None or active_tasks_requests is None:
+            # get requests with their related tasks
+            requests_with_tasks = self.taskBufferIF.get_data_carousel_requests_with_tasks_JEDI(
+                DataCarouselRequestStatus.active_statuses + DataCarouselRequestStatus.final_statuses
+            )
+            if requests_with_tasks is None:
                 tmp_log.warning("failed to query requests ; skipped")
                 return
-            terminated_tasks_requests_map, terminated_tasks_relation_map = terminated_tasks_requests
-            active_tasks_requests_map, active_tasks_relation_map = active_tasks_requests
             now_time = naive_utcnow()
-            # set of requests of terminated tasks
-            request_ids_of_terminated_tasks = set()
-            for request_id_list in terminated_tasks_relation_map.values():
-                request_ids_of_terminated_tasks |= set(request_id_list)
-            # set of requests of active tasks
-            request_ids_of_active_tasks = set()
-            for request_id_list in active_tasks_relation_map.values():
-                request_ids_of_active_tasks |= set(request_id_list)
-            # loop over requests of terminated tasks
-            for request_id in request_ids_of_terminated_tasks:
-                if request_id in active_tasks_requests_map:
-                    # the request is also mapped to some active task, not to be cleaned up; skipped
+            request_spec_map = {}
+            for dc_req_spec, task_specs in requests_with_tasks:
+                if not task_specs:
+                    # requests without tasks ; handled as orphan or outdated requests below
                     continue
-                dc_req_spec = terminated_tasks_requests_map[request_id]
-                if dc_req_spec.status == DataCarouselRequestStatus.done:
-                    # requests done ; to clean up if DDM rule not found or to remove when done, or both old enough and not used within grace period
-                    to_clean_up = False
-                    if dc_req_spec.get_parameter("rule_unfound") or dc_req_spec.get_parameter("remove_when_done"):
-                        to_clean_up = True
-                    elif dc_req_spec.end_time and dc_req_spec.end_time < now_time - timedelta(days=done_age_limit_days):
-                        grace_end_time = self._get_grace_end_time(dc_req_spec, last_used_grace_days)
-                        if grace_end_time is None or grace_end_time < now_time:
-                            to_clean_up = True
-                    if to_clean_up:
+                request_id = dc_req_spec.request_id
+                request_spec_map[request_id] = dc_req_spec
+                is_done = dc_req_spec.status == DataCarouselRequestStatus.done
+                to_remove = dc_req_spec.get_parameter("rule_unfound") or dc_req_spec.get_parameter("remove_when_done")
+                if is_done and not to_remove:
+                    grace_end_time = self._get_grace_end_time(dc_req_spec, last_used_grace_days)
+                    if grace_end_time is not None and grace_end_time >= now_time:
+                        # requests done and used within grace period ; not to clean up regardless of tasks
+                        continue
+                # whether with active tasks
+                has_active_task = False
+                for task_spec in task_specs:
+                    if task_spec.status not in FINAL_TASK_STATUSES:
+                        has_active_task = True
+                        break
+                if has_active_task:
+                    if dc_req_spec.status == DataCarouselRequestStatus.staging and dc_req_spec.get_parameter("rule_unfound"):
+                        # requests staging but DDM rule not found; to cancel
+                        self.cancel_request(dc_req_spec, by=by, reason="rule_unfound")
+                    # requests with active tasks not to be cleaned up
+                    continue
+                # requests whose related tasks all ended
+                if is_done:
+                    # requests done ; to clean up if DDM rule not found or to remove when done, or old enough (already not used within grace period)
+                    if to_remove or (dc_req_spec.end_time and dc_req_spec.end_time < now_time - timedelta(days=done_age_limit_days)):
                         done_requests_set.add(request_id)
                 elif dc_req_spec.status == DataCarouselRequestStatus.queued:
                     # requests queued while related tasks all terminated; to cancel (to clean up in next cycle)
@@ -3433,12 +3441,6 @@ class DataCarouselInterface(object):
                 elif dc_req_spec.status == DataCarouselRequestStatus.retired:
                     # requests retired; to clean up
                     retired_requests_set.add(request_id)
-            # loop over requests of active tasks to cancel bad ones
-            for request_id in request_ids_of_active_tasks:
-                dc_req_spec = active_tasks_requests_map[request_id]
-                if dc_req_spec.status == DataCarouselRequestStatus.staging and dc_req_spec.get_parameter("rule_unfound"):
-                    # requests staging but DDM rule not found; to cancel
-                    self.cancel_request(dc_req_spec, by=by, reason="rule_unfound")
             # cancel orphan requests
             orphan_requests = self._get_orphan_requests()
             if orphan_requests:
@@ -3446,7 +3448,7 @@ class DataCarouselInterface(object):
                     self.cancel_request(dc_req_spec, by=by, reason="orphan")
             # delete ddm rules of terminated requests of terminated tasks
             for request_id in done_requests_set | cancelled_requests_set | retired_requests_set:
-                dc_req_spec = terminated_tasks_requests_map[request_id]
+                dc_req_spec = request_spec_map[request_id]
                 ddm_rule_id = dc_req_spec.ddm_rule_id
                 if ddm_rule_id:
                     try:
