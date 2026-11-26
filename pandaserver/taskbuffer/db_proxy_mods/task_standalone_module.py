@@ -103,8 +103,7 @@ class TaskStandaloneModule(BaseModule):
         try:
             # sql
             varMap: dict[str, Any] = {}
-            sql = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
-            sql += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+            sql = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
             useAND = False
             if jediTaskID is not None:
                 sql += "jediTaskID=:jediTaskID "
@@ -191,9 +190,7 @@ class TaskStandaloneModule(BaseModule):
             # sql to update lock
             varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
-            sqlS = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlS += "SET lockedTime=CURRENT_DATE "
-            sqlS += "WHERE jediTaskID=:jediTaskID "
+            sqlS = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedTime=CURRENT_DATE WHERE jediTaskID=:jediTaskID "
             # begin transaction
             self.conn.begin()
             # get old status
@@ -219,14 +216,11 @@ class TaskStandaloneModule(BaseModule):
         failedRet = False, None
         try:
             # sql
-            sql = f"SELECT {JediTaskSpec.columnNames()} "
-            sql += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+            sql = f"SELECT {JediTaskSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
             if lockTask:
                 sql += "AND lockedBy IS NULL FOR UPDATE NOWAIT"
-            sqlLK = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=:lockedBy,lockedTime=CURRENT_DATE "
-            sqlLK += "WHERE jediTaskID=:jediTaskID "
-            sqlDS = f"SELECT {JediDatasetSpec.columnNames()} "
-            sqlDS += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
+            sqlLK = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=:lockedBy,lockedTime=CURRENT_DATE WHERE jediTaskID=:jediTaskID "
+            sqlDS = f"SELECT {JediDatasetSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = 10000
@@ -234,8 +228,7 @@ class TaskStandaloneModule(BaseModule):
             res = None
             try:
                 # read task
-                varMap: dict[str, Any] = {}
-                varMap[":jediTaskID"] = jediTaskID
+                varMap: dict[str, Any] = {":jediTaskID": jediTaskID}
                 self.cur.execute(sql + comment, varMap)
                 res = self.cur.fetchone()
                 if res is None:
@@ -322,9 +315,7 @@ class TaskStandaloneModule(BaseModule):
         varMap: dict[str, Any] = {}
         try:
             # sql
-            sql = "SELECT jediTaskID "
-            sql += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sql += "WHERE "
+            sql = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE "
             conditions = []
             for tmpKey, tmpVal in criteria.items():
                 if tmpVal in ["NULL", "NOT NULL"]:
@@ -407,9 +398,7 @@ class TaskStandaloneModule(BaseModule):
         try:
             # SQL
             sql = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_JobParams_Template (jediTaskID,jobParamsTemplate) VALUES (:jediTaskID,:templ) "
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":templ"] = templ
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":templ": templ}
             # begin transaction
             self.conn.begin()
             # insert
@@ -435,10 +424,12 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to insert task parameters
-            sqlT = f"INSERT INTO {panda_config.schemaDEFT}.T_TASK "
-            sqlT += "(taskid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,parent_tid) VALUES "
-            sqlT += f"({panda_config.schemaDEFT}.PRODSYS2_TASK_ID_SEQ.nextval,"
-            sqlT += ":status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,"
+            sqlT = (
+                f"INSERT INTO {panda_config.schemaDEFT}.T_TASK "
+                "(taskid, status, submit_time, vo, prodSourceLabel, userName, taskName, jedi_task_parameters, parent_tid) VALUES "
+                f"({panda_config.schemaDEFT}.PRODSYS2_TASK_ID_SEQ.nextval, "
+                ":status, CURRENT_DATE, :vo, :prodSourceLabel, :userName, :taskName, :param, "
+            )
             if parent_tid is None:
                 sqlT += f"{panda_config.schemaDEFT}.PRODSYS2_TASK_ID_SEQ.currval) "
             else:
@@ -447,12 +438,7 @@ class TaskStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # insert task parameters
-            varMap: dict[str, Any] = {}
-            varMap[":vo"] = vo
-            varMap[":param"] = taskParams
-            varMap[":status"] = "waiting"
-            varMap[":userName"] = userName
-            varMap[":taskName"] = taskName
+            varMap: dict[str, Any] = {":vo": vo, ":param": taskParams, ":status": "waiting", ":userName": userName, ":taskName": taskName}
             if parent_tid is not None:
                 varMap[":parent_tid"] = parent_tid
             varMap[":prodSourceLabel"] = prodSourceLabel
@@ -481,33 +467,32 @@ class TaskStandaloneModule(BaseModule):
         try:
             nFileRowMaster = 0
             # sql to rollback files
-            sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:nStatus "
-            sql += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:oStatus "
+            sql = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:nStatus "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:oStatus "
+            )
             if inputChunk.ramCount in (None, 0):
                 sql += "AND (ramCount IS NULL OR ramCount=:ramCount) "
             else:
                 sql += "AND ramCount=:ramCount "
             # sql to reset nFilesUsed
-            sqlD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=nFilesUsed-:nFileRow "
-            sqlD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=nFilesUsed-:nFileRow WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # begin transaction
             self.conn.begin()
             for datasetSpec in inputChunk.getDatasets(includePseudo=True):
-                varMap: dict[str, Any] = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":datasetID"] = datasetSpec.datasetID
-                varMap[":nStatus"] = "ready"
-                varMap[":oStatus"] = "picked"
-                varMap[":ramCount"] = inputChunk.ramCount
+                varMap: dict[str, Any] = {
+                    ":jediTaskID": jediTaskID,
+                    ":datasetID": datasetSpec.datasetID,
+                    ":nStatus": "ready",
+                    ":oStatus": "picked",
+                    ":ramCount": inputChunk.ramCount,
+                }
                 # update contents
                 self.cur.execute(sql + comment, varMap)
                 nFileRow = self.cur.rowcount
                 tmpLog.debug(f"reset {nFileRow} rows for datasetID={datasetSpec.datasetID}")
                 if nFileRow > 0:
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":datasetID"] = datasetSpec.datasetID
-                    varMap[":nFileRow"] = nFileRow
+                    varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetSpec.datasetID, ":nFileRow": nFileRow}
                     # update dataset
                     self.cur.execute(sqlD + comment, varMap)
                     if datasetSpec.isMaster():
@@ -531,30 +516,26 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to set missing files
-            sqlF = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:nStatus "
-            sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID and status<>:nStatus"
+            sqlF = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:nStatus "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID and status<>:nStatus"
+            )
             # sql to set nFilesFailed
-            sqlD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesFailed=nFilesFailed+:nFileRow "
-            sqlD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlD = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesFailed=nFilesFailed+:nFileRow WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             # begin transaction
             self.conn.begin()
             nFileRow = 0
             # update contents
             for fileID in fileIDs:
-                varMap: dict[str, Any] = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":datasetID"] = datasetID
-                varMap[":fileID"] = fileID
-                varMap[":nStatus"] = "missing"
+                varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":fileID": fileID, ":nStatus": "missing"}
                 self.cur.execute(sqlF + comment, varMap)
                 nRow = self.cur.rowcount
                 nFileRow += nRow
             # update dataset
             if nFileRow > 0:
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":datasetID"] = datasetID
-                varMap[":nFileRow"] = nFileRow
+                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":nFileRow": nFileRow}
                 self.cur.execute(sqlD + comment, varMap)
             # commit
             if not self._commit():
@@ -575,44 +556,47 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get orphaned tasks
-            sqlTR = "SELECT jediTaskID,lockedBy "
-            sqlTR += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlTR += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlTR += "AND tabT.status IN (:status1,:status2,:status3,:status4) AND lockedBy IS NOT NULL AND lockedTime<:timeLimit "
+            sqlTR = (
+                "SELECT jediTaskID, lockedBy "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.status IN (:status1, :status2, :status3, :status4) AND lockedBy IS NOT NULL AND lockedTime<:timeLimit "
+            )
             if vo not in [None, "any"]:
                 sqlTR += "AND vo=:vo "
             if prodSourceLabel not in [None, "any"]:
                 sqlTR += "AND prodSourceLabel=:prodSourceLabel "
             # sql to get picked datasets
-            sqlDP = f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlDP += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2,:type3,:type4,:type5) "
+            sqlDP = (
+                f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                "WHERE jediTaskID=:jediTaskID AND type IN (:type1, :type2, :type3, :type4, :type5) "
+            )
             # sql to rollback files
-            sqlF = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:nStatus "
-            sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:oStatus AND keepTrack=:keepTrack "
+            sqlF = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:nStatus "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:oStatus AND keepTrack=:keepTrack "
+            )
             # sql to reset nFilesUsed
-            sqlDU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=nFilesUsed-:nFileRow "
-            sqlDU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlDU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=nFilesUsed-:nFileRow WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql to unlock task
-            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=NULL,lockedTime=NULL "
-            sqlTU += "WHERE jediTaskID=:jediTaskID "
+            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=NULL, lockedTime=NULL WHERE jediTaskID=:jediTaskID "
             # sql to re-lock task
-            sqlRL = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedTime=CURRENT_DATE "
-            sqlRL += "WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy AND lockedTime<:timeLimit "
+            sqlRL = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy AND lockedTime<:timeLimit "
+            )
             # sql to re-lock task with nowait
-            sqlNW = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlNW += "WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy AND lockedTime<:timeLimit "
-            sqlNW += "FOR UPDATE NOWAIT "
+            sqlNW = (
+                f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+                "WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy AND lockedTime<:timeLimit "
+                "FOR UPDATE NOWAIT "
+            )
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = 10000
             timeLimit = naive_utcnow() - datetime.timedelta(minutes=waitTime)
             # get orphaned tasks
-            varMap: dict[str, Any] = {}
-            varMap[":status1"] = "ready"
-            varMap[":status2"] = "scouting"
-            varMap[":status3"] = "running"
-            varMap[":status4"] = "merging"
-            varMap[":timeLimit"] = timeLimit
+            varMap: dict[str, Any] = {":status1": "ready", ":status2": "scouting", ":status3": "running", ":status4": "merging", ":timeLimit": timeLimit}
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
             if prodSourceLabel not in [None, "any"]:
@@ -628,10 +612,7 @@ class TaskStandaloneModule(BaseModule):
                 tmpLog.debug(f"[jediTaskID={jediTaskID}] rescue")
                 self.conn.begin()
                 # re-lock the task with NOWAIT
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":lockedBy"] = lockedBy
-                varMap[":timeLimit"] = timeLimit
+                varMap = {":jediTaskID": jediTaskID, ":lockedBy": lockedBy, ":timeLimit": timeLimit}
                 toSkip = False
                 try:
                     self.cur.execute(sqlNW + comment, varMap)
@@ -644,48 +625,37 @@ class TaskStandaloneModule(BaseModule):
                         raise
                 if not toSkip:
                     # re-lock the task
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":lockedBy"] = lockedBy
-                    varMap[":timeLimit"] = timeLimit
+                    varMap = {":jediTaskID": jediTaskID, ":lockedBy": lockedBy, ":timeLimit": timeLimit}
                     self.cur.execute(sqlRL + comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow == 0:
                         tmpLog.debug(f"[jediTaskID={jediTaskID}] skip to rescue since failed to re-lock")
                     else:
                         # get input datasets
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":type1"] = "input"
-                        varMap[":type2"] = "trn_log"
-                        varMap[":type3"] = "trn_output"
-                        varMap[":type4"] = "pseudo_input"
-                        varMap[":type5"] = "random_seed"
+                        varMap = {
+                            ":jediTaskID": jediTaskID,
+                            ":type1": "input",
+                            ":type2": "trn_log",
+                            ":type3": "trn_output",
+                            ":type4": "pseudo_input",
+                            ":type5": "random_seed",
+                        }
                         self.cur.execute(sqlDP + comment, varMap)
                         resDatasetList = self.cur.fetchall()
                         # loop over all input datasets
                         for (datasetID,) in resDatasetList:
                             # update contents
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":datasetID"] = datasetID
-                            varMap[":nStatus"] = "ready"
-                            varMap[":oStatus"] = "picked"
-                            varMap[":keepTrack"] = 1
+                            varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":nStatus": "ready", ":oStatus": "picked", ":keepTrack": 1}
                             self.cur.execute(sqlF + comment, varMap)
                             nFileRow = self.cur.rowcount
                             tmpLog.debug(f"[jediTaskID={jediTaskID}] reset {nFileRow} rows for datasetID={datasetID}")
                             if nFileRow > 0:
                                 # reset nFilesUsed
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
-                                varMap[":datasetID"] = datasetID
-                                varMap[":nFileRow"] = nFileRow
+                                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":nFileRow": nFileRow}
                                 self.cur.execute(sqlDU + comment, varMap)
                         # unlock task
                         tmpLog.debug(f"[jediTaskID={jediTaskID}] unlock")
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
+                        varMap = {":jediTaskID": jediTaskID}
                         self.cur.execute(sqlTU + comment, varMap)
                         nRows = self.cur.rowcount
                         tmpLog.debug(f"[jediTaskID={jediTaskID}] done with nRows={nRows}")
@@ -710,21 +680,25 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             timeToCheck = naive_utcnow() - datetime.timedelta(minutes=waitTime)
-            varMap: dict[str, Any] = {}
-            varMap[":taskstatus1"] = "running"
-            varMap[":taskstatus2"] = "scouting"
-            varMap[":taskstatus3"] = "ready"
-            varMap[":prodSourceLabel"] = prodSourceLabel
-            varMap[":timeLimit"] = timeToCheck
+            varMap: dict[str, Any] = {
+                ":taskstatus1": "running",
+                ":taskstatus2": "scouting",
+                ":taskstatus3": "ready",
+                ":prodSourceLabel": prodSourceLabel,
+                ":timeLimit": timeToCheck,
+            }
             # sql to get tasks and datasetsto be checked
-            sqlRL = "SELECT tabT.jediTaskID,tabD.datasetID "
-            sqlRL += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
-            sqlRL += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlRL += "AND tabT.jediTaskID=tabD.jediTaskID "
-            sqlRL += "AND tabT.status IN (:taskstatus1,:taskstatus2,:taskstatus3) AND prodSourceLabel=:prodSourceLabel "
-            sqlRL += "AND tabT.lockedBy IS NULL AND tabT.lockedTime IS NULL "
-            sqlRL += "AND tabT.modificationTime<:timeLimit "
-            sqlRL += "AND (tabT.rescueTime IS NULL OR tabT.rescueTime<:timeLimit) "
+            sqlRL = (
+                "SELECT tabT.jediTaskID, tabD.datasetID "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA, "
+                f"{panda_config.schemaJEDI}.JEDI_Datasets tabD "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.jediTaskID=tabD.jediTaskID "
+                "AND tabT.status IN (:taskstatus1, :taskstatus2, :taskstatus3) AND prodSourceLabel=:prodSourceLabel "
+                "AND tabT.lockedBy IS NULL AND tabT.lockedTime IS NULL "
+                "AND tabT.modificationTime<:timeLimit "
+                "AND (tabT.rescueTime IS NULL OR tabT.rescueTime<:timeLimit) "
+            )
             if vo is not None:
                 sqlRL += "AND tabT.vo=:vo "
                 varMap[":vo"] = vo
@@ -734,18 +708,24 @@ class TaskStandaloneModule(BaseModule):
             sqlRL += f"AND tabD.type IN ({PROCESS_TYPES_var_str}) "
             varMap.update(PROCESS_TYPES_var_map)
             # sql to check if there is picked file
-            sqlDP = f"SELECT * FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlDP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:fileStatus AND rownum<2 "
+            sqlDP = (
+                f"SELECT * FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:fileStatus AND rownum<2 "
+            )
             # sql to set dummy lock to task
-            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTU += "SET lockedBy=:lockedBy,lockedTime=:lockedTime,rescueTime=CURRENT_DATE "
-            sqlTU += "WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL AND lockedTime IS NULL "
-            sqlTU += "AND modificationTime<:timeLimit "
+            sqlTU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET lockedBy=:lockedBy, lockedTime=:lockedTime, rescueTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL AND lockedTime IS NULL "
+                "AND modificationTime<:timeLimit "
+            )
             # sql to lock task with nowait
-            sqlNW = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlNW += "WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL AND lockedTime IS NULL "
-            sqlNW += "AND (rescueTime IS NULL OR rescueTime<:timeLimit) "
-            sqlNW += "FOR UPDATE NOWAIT "
+            sqlNW = (
+                f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+                "WHERE jediTaskID=:jediTaskID AND lockedBy IS NULL AND lockedTime IS NULL "
+                "AND (rescueTime IS NULL OR rescueTime<:timeLimit) "
+                "FOR UPDATE NOWAIT "
+            )
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = 10000
@@ -789,22 +769,15 @@ class TaskStandaloneModule(BaseModule):
                     for datasetID in datasetIDs:
                         tmpLog.debug(f"[jediTaskID={jediTaskID} datasetID={datasetID}] to check")
                         # check if there is picked file
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":datasetID"] = datasetID
-                        varMap[":fileStatus"] = "picked"
+                        varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":fileStatus": "picked"}
                         self.cur.execute(sqlDP + comment, varMap)
                         resDP = self.cur.fetchone()
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":timeLimit"] = timeToCheck
+                        varMap = {":jediTaskID": jediTaskID, ":timeLimit": timeToCheck}
                         if resDP is not None:
                             allOK = False
                             break
                     # set lock
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":timeLimit"] = timeToCheck
+                    varMap = {":jediTaskID": jediTaskID, ":timeLimit": timeToCheck}
                     if allOK:
                         # OK
                         varMap[":lockedBy"] = None
@@ -837,8 +810,7 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to look for locked tasks
-            sqlTR = f"SELECT jediTaskID,lockedBy,lockedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTR += "WHERE lockedBy IS NOT NULL AND lockedTime<:timeLimit "
+            sqlTR = f"SELECT jediTaskID, lockedBy, lockedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE lockedBy IS NOT NULL AND lockedTime<:timeLimit "
             if vo not in [None, "", "any"]:
                 sqlTR += "AND vo=:vo "
             if prodSourceLabel not in [None, "", "any"]:
@@ -846,19 +818,24 @@ class TaskStandaloneModule(BaseModule):
             if hostName is not None:
                 sqlTR += "AND lockedBy LIKE :patt "
             # sql to unlock
-            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTU += "SET lockedBy=NULL,lockedTime=NULL "
-            sqlTU += "WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy AND lockedTime<:timeLimit "
+            sqlTU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET lockedBy=NULL, lockedTime=NULL "
+                "WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy AND lockedTime<:timeLimit "
+            )
             timeNow = naive_utcnow()
             # sql to get picked datasets
-            sqlDP = f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlDP += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2,:type3,:type4,:type5) "
+            sqlDP = (
+                f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                "WHERE jediTaskID=:jediTaskID AND type IN (:type1, :type2, :type3, :type4, :type5) "
+            )
             # sql to rollback files
-            sqlF = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:nStatus "
-            sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:oStatus AND keepTrack=:keepTrack "
+            sqlF = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:nStatus "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:oStatus AND keepTrack=:keepTrack "
+            )
             # sql to reset nFilesUsed
-            sqlDU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=nFilesUsed-:nFileRow "
-            sqlDU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlDU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=nFilesUsed-:nFileRow WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = 1000
@@ -890,42 +867,32 @@ class TaskStandaloneModule(BaseModule):
                     # active process
                     if tmpPGID == pgid:
                         continue
-                varMap = {}
-                varMap[":lockedBy"] = lockedBy
-                varMap[":timeLimit"] = timeLimit
-                varMap[":jediTaskID"] = jediTaskID
+                varMap = {":lockedBy": lockedBy, ":timeLimit": timeLimit, ":jediTaskID": jediTaskID}
                 self.cur.execute(sqlTU + comment, varMap)
                 iTasks = self.cur.rowcount
                 if iTasks == 1:
                     tmpLog.debug(f"unlocked jediTaskID={jediTaskID} lockedBy={lockedBy} lockedTime={lockedTime}")
                     # get input datasets
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":type1"] = "input"
-                    varMap[":type2"] = "trn_log"
-                    varMap[":type3"] = "trn_output"
-                    varMap[":type4"] = "pseudo_input"
-                    varMap[":type5"] = "random_seed"
+                    varMap = {
+                        ":jediTaskID": jediTaskID,
+                        ":type1": "input",
+                        ":type2": "trn_log",
+                        ":type3": "trn_output",
+                        ":type4": "pseudo_input",
+                        ":type5": "random_seed",
+                    }
                     self.cur.execute(sqlDP + comment, varMap)
                     resDatasetList = self.cur.fetchall()
                     # loop over all input datasets
                     for (datasetID,) in resDatasetList:
                         # update contents
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":datasetID"] = datasetID
-                        varMap[":nStatus"] = "ready"
-                        varMap[":oStatus"] = "picked"
-                        varMap[":keepTrack"] = 1
+                        varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":nStatus": "ready", ":oStatus": "picked", ":keepTrack": 1}
                         self.cur.execute(sqlF + comment, varMap)
                         nFileRow = self.cur.rowcount
                         tmpLog.debug(f"unlocked jediTaskID={jediTaskID} released {nFileRow} rows for datasetID={datasetID}")
                         if nFileRow > 0:
                             # reset nFilesUsed
-                            varMap = {}
-                            varMap[":jediTaskID"] = jediTaskID
-                            varMap[":datasetID"] = datasetID
-                            varMap[":nFileRow"] = nFileRow
+                            varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":nFileRow": nFileRow}
                             self.cur.execute(sqlDU + comment, varMap)
                 nTasks += iTasks
             # commit
@@ -947,12 +914,10 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get size
-            sql = f"SELECT SUM(inputFileBytes)/1024/1024/1024 FROM {panda_config.schemaPANDA}.jobsDefined4 "
-            sql += "WHERE computingSite=:computingSite "
+            sql = f"SELECT SUM(inputFileBytes)/1024/1024/1024 FROM {panda_config.schemaPANDA}.jobsDefined4 WHERE computingSite=:computingSite "
             # begin transaction
             self.conn.begin()
-            varMap: dict[str, Any] = {}
-            varMap[":computingSite"] = siteName
+            varMap: dict[str, Any] = {":computingSite": siteName}
             # exec
             self.cur.execute(sql + comment, varMap)
             resSum = self.cur.fetchone()
@@ -984,8 +949,10 @@ class TaskStandaloneModule(BaseModule):
             var_map: dict[str, Any] = {}
             var_map[":vo"] = vo
             var_map[":prodSourceLabel"] = prodSourceLabel
-            sql = f"SELECT processingtype, nInputDataFiles FROM {panda_config.schemaPANDA}.typical_num_input "
-            sql += "WHERE vo=:vo AND agg_type=:agg_type AND agg_key=:agg_key AND prodSourceLabel=:prodSourceLabel "
+            sql = (
+                f"SELECT processingtype, nInputDataFiles FROM {panda_config.schemaPANDA}.typical_num_input "
+                "WHERE vo=:vo AND agg_type=:agg_type AND agg_key=:agg_key AND prodSourceLabel=:prodSourceLabel "
+            )
 
             if workQueue.is_global_share:
                 var_map[":agg_type"] = "gshare"
@@ -995,8 +962,7 @@ class TaskStandaloneModule(BaseModule):
                 var_map[":agg_key"] = str(workQueue.queue_id)
 
             # sql to get config
-            sqlC = "SELECT key,value FROM ATLAS_PANDA.CONFIG "
-            sqlC += "WHERE app=:app AND component=:component AND vo=:vo AND key LIKE :patt "
+            sqlC = "SELECT key, value FROM ATLAS_PANDA.CONFIG WHERE app=:app AND component=:component AND vo=:vo AND key LIKE :patt "
 
             # begin transaction
             self.conn.begin()
@@ -1011,11 +977,7 @@ class TaskStandaloneModule(BaseModule):
                 retMap[processingType] = int(math.ceil(numFile))
 
             # get from DB config
-            var_map = {}
-            var_map[":vo"] = vo
-            var_map[":app"] = "jedi"
-            var_map[":component"] = "jobgen"
-            var_map[":patt"] = f"TYPNFILES_{prodSourceLabel}_%"
+            var_map = {":vo": vo, ":app": "jedi", ":component": "jobgen", ":patt": f"TYPNFILES_{prodSourceLabel}_%"}
             self.cur.execute(sqlC + comment, var_map)
             resC = self.cur.fetchall()
             for tmpKey, tmpVal in resC:
@@ -1132,10 +1094,8 @@ class TaskStandaloneModule(BaseModule):
         retTaskIDs = []
         try:
             # sql to get jediTaskIDs to refine from the command table
-            sqlC = f"SELECT taskid,parent_tid FROM {panda_config.schemaDEFT}.T_TASK "
-            sqlC += "WHERE status=:status "
-            varMap: dict[str, Any] = {}
-            varMap[":status"] = "waiting"
+            sqlC = f"SELECT taskid, parent_tid FROM {panda_config.schemaDEFT}.T_TASK WHERE status=:status "
+            varMap: dict[str, Any] = {":status": "waiting"}
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sqlC += "AND vo=:vo "
@@ -1158,11 +1118,8 @@ class TaskStandaloneModule(BaseModule):
                 # start transaction
                 self.conn.begin()
                 # lock
-                varMap = {}
-                varMap[":taskid"] = jediTaskID
-                varMap[":status"] = "waiting"
-                sqlLock = f"SELECT taskid FROM {panda_config.schemaDEFT}.T_TASK WHERE taskid=:taskid AND status=:status "
-                sqlLock += "FOR UPDATE "
+                varMap = {":taskid": jediTaskID, ":status": "waiting"}
+                sqlLock = f"SELECT taskid FROM {panda_config.schemaDEFT}.T_TASK WHERE taskid=:taskid AND status=:status FOR UPDATE "
                 toSkip = False
                 try:
                     tmpLog.debug(sqlLock + comment + str(varMap))
@@ -1185,16 +1142,17 @@ class TaskStandaloneModule(BaseModule):
                 if not toSkip:
                     if isOK:
                         # insert task to JEDI
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
+                        varMap = {":jediTaskID": jediTaskID}
                         import uuid
 
                         varMap[":taskName"] = str(uuid.uuid4())
                         varMap[":status"] = "registered"
                         varMap[":userName"] = "tobeset"
                         varMap[":parent_tid"] = parent_tid
-                        sqlIT = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Tasks "
-                        sqlIT += "(jediTaskID,taskName,status,userName,creationDate,modificationTime,parent_tid,stateChangeTime"
+                        sqlIT = (
+                            f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Tasks "
+                            "(jediTaskID, taskName, status, userName, creationDate, modificationTime, parent_tid, stateChangeTime"
+                        )
                         if vo is not None:
                             sqlIT += ",vo"
                         if prodSourceLabel is not None:
@@ -1219,10 +1177,8 @@ class TaskStandaloneModule(BaseModule):
                                 # delete task and param until DEFT bug is fixed
                                 tmpLog.debug(f"trying to delete jediTaskID={jediTaskID}")
                                 # check status
-                                sqlDelCK = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-                                sqlDelCK += "WHERE jediTaskID=:jediTaskID "
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
+                                sqlDelCK = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+                                varMap = {":jediTaskID": jediTaskID}
                                 self.cur.execute(sqlDelCK + comment, varMap)
                                 resDelCK = self.cur.fetchone()
                                 if resDelCK is not None:
@@ -1230,10 +1186,8 @@ class TaskStandaloneModule(BaseModule):
                                 else:
                                     delStatus = None
                                 # get size of DEFT param
-                                sqlDelDZ = f"SELECT LENGTH(jedi_task_parameters) FROM {panda_config.schemaDEFT}.T_TASK "
-                                sqlDelDZ += "WHERE taskid=:jediTaskID "
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
+                                sqlDelDZ = f"SELECT LENGTH(jedi_task_parameters) FROM {panda_config.schemaDEFT}.T_TASK WHERE taskid=:jediTaskID "
+                                varMap = {":jediTaskID": jediTaskID}
                                 self.cur.execute(sqlDelDZ + comment, varMap)
                                 resDelDZ = self.cur.fetchone()
                                 if resDelDZ is not None:
@@ -1241,10 +1195,8 @@ class TaskStandaloneModule(BaseModule):
                                 else:
                                     delDeftSize = None
                                 # get size of JEDI param
-                                sqlDelJZ = f"SELECT LENGTH(taskParams) FROM {panda_config.schemaJEDI}.JEDI_TaskParams "
-                                sqlDelJZ += "WHERE jediTaskID=:jediTaskID "
-                                varMap = {}
-                                varMap[":jediTaskID"] = jediTaskID
+                                sqlDelJZ = f"SELECT LENGTH(taskParams) FROM {panda_config.schemaJEDI}.JEDI_TaskParams WHERE jediTaskID=:jediTaskID "
+                                varMap = {":jediTaskID": jediTaskID}
                                 self.cur.execute(sqlDelJZ + comment, varMap)
                                 resDelJZ = self.cur.fetchone()
                                 if resDelJZ is not None:
@@ -1254,17 +1206,13 @@ class TaskStandaloneModule(BaseModule):
                                 tmpLog.debug(f"jediTaskID={jediTaskID} has status={delStatus} param size in DEFT {delDeftSize} vs in JEDI {delJediSize}")
                                 # delete
                                 if delStatus == "registered" and delDeftSize != delJediSize and delJediSize == 2000:
-                                    sqlDelJP = f"DELETE FROM {panda_config.schemaJEDI}.JEDI_TaskParams "
-                                    sqlDelJP += "WHERE jediTaskID=:jediTaskID "
-                                    varMap = {}
-                                    varMap[":jediTaskID"] = jediTaskID
+                                    sqlDelJP = f"DELETE FROM {panda_config.schemaJEDI}.JEDI_TaskParams WHERE jediTaskID=:jediTaskID "
+                                    varMap = {":jediTaskID": jediTaskID}
                                     self.cur.execute(sqlDelJP + comment, varMap)
                                     nRowP = self.cur.rowcount
                                     tmpLog.debug(f"deleted param for jediTaskID={jediTaskID} with {nRowP}")
-                                    sqlDelJT = f"DELETE FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-                                    sqlDelJT += "WHERE jediTaskID=:jediTaskID "
-                                    varMap = {}
-                                    varMap[":jediTaskID"] = jediTaskID
+                                    sqlDelJT = f"DELETE FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+                                    varMap = {":jediTaskID": jediTaskID}
                                     self.cur.execute(sqlDelJT + comment, varMap)
                                     nRowT = self.cur.rowcount
                                     tmpLog.debug(f"deleted task for jediTaskID={jediTaskID} with {nRowT}")
@@ -1279,8 +1227,7 @@ class TaskStandaloneModule(BaseModule):
                                 tmpLog.error(f"failed to delete jediTaskID={jediTaskID} with {errtype} {errvalue}")
                     if isOK:
                         # check task parameters
-                        varMap = {}
-                        varMap[":taskid"] = jediTaskID
+                        varMap = {":taskid": jediTaskID}
                         sqlTC = f"SELECT taskid FROM {panda_config.schemaDEFT}.T_TASK WHERE taskid=:taskid "
                         tmpLog.debug(sqlTC + comment + str(varMap))
                         self.cur.execute(sqlTC + comment, varMap)
@@ -1290,14 +1237,10 @@ class TaskStandaloneModule(BaseModule):
                             isOK = False
                     if isOK:
                         # copy task parameters
-                        varMap = {}
-                        varMap[":taskid"] = jediTaskID
-                        sqlPaste = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_TaskParams (jediTaskID,taskParams) "
-                        sqlPaste += "VALUES(:taskid,:taskParams) "
-                        sqlSize = f"SELECT LENGTH(jedi_task_parameters) FROM {panda_config.schemaDEFT}.T_TASK "
-                        sqlSize += "WHERE taskid=:taskid "
-                        sqlCopy = f"SELECT jedi_task_parameters FROM {panda_config.schemaDEFT}.T_TASK "
-                        sqlCopy += "WHERE taskid=:taskid "
+                        varMap = {":taskid": jediTaskID}
+                        sqlPaste = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_TaskParams (jediTaskID, taskParams) VALUES(:taskid, :taskParams) "
+                        sqlSize = f"SELECT LENGTH(jedi_task_parameters) FROM {panda_config.schemaDEFT}.T_TASK WHERE taskid=:taskid "
+                        sqlCopy = f"SELECT jedi_task_parameters FROM {panda_config.schemaDEFT}.T_TASK WHERE taskid=:taskid "
                         try:
                             # get size
                             self.cur.execute(sqlSize + comment, varMap)
@@ -1312,9 +1255,7 @@ class TaskStandaloneModule(BaseModule):
                             # check size
                             if len(retStr) != totalSize:
                                 raise RuntimeError(f"taskParams was truncated {len(retStr)}/{totalSize} bytes")
-                            varMap = {}
-                            varMap[":taskid"] = jediTaskID
-                            varMap[":taskParams"] = retStr
+                            varMap = {":taskid": jediTaskID, ":taskParams": retStr}
                             self.cur.execute(sqlPaste + comment, varMap)
                             tmpLog.debug(f"inserted taskParams for jediTaskID={jediTaskID} {len(retStr)}/{totalSize}")
                         except Exception:
@@ -1324,15 +1265,12 @@ class TaskStandaloneModule(BaseModule):
                     # update
                     if isOK:
                         deftStatus = "registered"
-                        varMap = {}
-                        varMap[":taskid"] = jediTaskID
-                        varMap[":status"] = deftStatus
-                        varMap[":ndone"] = 0
-                        varMap[":nreq"] = 0
-                        varMap[":tevts"] = 0
-                        sqlUC = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
-                        sqlUC += "SET status=:status,timestamp=CURRENT_DATE,total_done_jobs=:ndone,total_req_jobs=:nreq,total_events=:tevts "
-                        sqlUC += "WHERE taskid=:taskid "
+                        varMap = {":taskid": jediTaskID, ":status": deftStatus, ":ndone": 0, ":nreq": 0, ":tevts": 0}
+                        sqlUC = (
+                            f"UPDATE {panda_config.schemaDEFT}.T_TASK "
+                            "SET status=:status, timestamp=CURRENT_DATE, total_done_jobs=:ndone, total_req_jobs=:nreq, total_events=:tevts "
+                            "WHERE taskid=:taskid "
+                        )
                         tmpLog.debug(sqlUC + comment + str(varMap))
                         self.cur.execute(sqlUC + comment, varMap)
                         self.setSuperStatus_JEDI(jediTaskID, deftStatus)
@@ -1351,16 +1289,14 @@ class TaskStandaloneModule(BaseModule):
             # find orphaned tasks to rescue
             self.conn.begin()
             time_limit = naive_utcnow() - datetime.timedelta(minutes=10)
-            varMap = {}
-            varMap[":status1"] = "registered"
-            varMap[":status2"] = JediTaskSpec.commandStatusMap()["incexec"]["done"]
-            varMap[":status3"] = "staged"
-            varMap[":timeLimit"] = time_limit
-            sqlOrpS = "SELECT * FROM ("
-            sqlOrpS += "SELECT tabT.jediTaskID,tabT.splitRule,tabT.status,tabT.parent_tid "
-            sqlOrpS += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlOrpS += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlOrpS += "AND tabT.status IN (:status1,:status2,:status3) AND tabT.modificationtime<:timeLimit "
+            varMap = {":status1": "registered", ":status2": JediTaskSpec.commandStatusMap()["incexec"]["done"], ":status3": "staged", ":timeLimit": time_limit}
+            sqlOrpS = (
+                "SELECT * FROM ("
+                "SELECT tabT.jediTaskID, tabT.splitRule, tabT.status, tabT.parent_tid "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.status IN (:status1, :status2, :status3) AND tabT.modificationtime<:timeLimit "
+            )
             if vo is not None:
                 sqlOrpS += "AND vo=:vo "
                 varMap[":vo"] = vo
@@ -1372,12 +1308,11 @@ class TaskStandaloneModule(BaseModule):
             self.cur.execute(sqlOrpS + comment, varMap)
             resList = self.cur.fetchall()
             # update modtime to avoid immediate reattempts
-            sqlOrpU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationtime=CURRENT_DATE "
-            sqlOrpU += "WHERE jediTaskID=:jediTaskID AND modificationtime<:timeLimit "
+            sqlOrpU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationtime=CURRENT_DATE WHERE jediTaskID=:jediTaskID AND modificationtime<:timeLimit "
+            )
             for jediTaskID, splitRule, taskStatus, parent_tid in resList:
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":timeLimit"] = time_limit
+                varMap = {":jediTaskID": jediTaskID, ":timeLimit": time_limit}
                 tmpLog.debug(sqlOrpU + comment + str(varMap))
                 self.cur.execute(sqlOrpU + comment, varMap)
                 nRow = self.cur.rowcount
@@ -1404,8 +1339,7 @@ class TaskStandaloneModule(BaseModule):
         try:
             # sql
             sql = f"SELECT taskParams FROM {panda_config.schemaJEDI}.JEDI_TaskParams WHERE jediTaskID=:jediTaskID "
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID}
             if use_commit:
                 # begin transaction
                 self.conn.begin()
@@ -1448,20 +1382,14 @@ class TaskStandaloneModule(BaseModule):
         # cap
         newSH = newSH[:500]
         # update live table
-        sqlL = f"UPDATE {panda_config.schemaPANDA}.jobsArchived4 "
-        sqlL += "SET jobMetrics=:newStr WHERE PandaID=:PandaID "
-        varMap: dict[str, Any] = {}
-        varMap[":PandaID"] = pandaID
-        varMap[":newStr"] = newSH
+        sqlL = f"UPDATE {panda_config.schemaPANDA}.jobsArchived4 SET jobMetrics=:newStr WHERE PandaID=:PandaID "
+        varMap: dict[str, Any] = {":PandaID": pandaID, ":newStr": newSH}
         self.cur.execute(sqlL + comment, varMap)
         nRow = self.cur.rowcount
         if nRow != 1:
             # update archive table
-            sqlA = f"UPDATE {panda_config.schemaPANDAARCH}.jobsArchived "
-            sqlA += "SET jobMetrics=:newStr WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30) "
-            varMap = {}
-            varMap[":PandaID"] = pandaID
-            varMap[":newStr"] = newSH
+            sqlA = f"UPDATE {panda_config.schemaPANDAARCH}.jobsArchived SET jobMetrics=:newStr WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30) "
+            varMap = {":PandaID": pandaID, ":newStr": newSH}
             self.cur.execute(sqlA + comment, varMap)
             nRow = self.cur.rowcount
         tmpLog.debug(f"done with {nRow}")
@@ -1488,8 +1416,7 @@ class TaskStandaloneModule(BaseModule):
                 sqlP += f"SELECT PandaID FROM {tableName} WHERE jediTaskID=:jediTaskID "
                 if tableName.startswith(panda_config.schemaPANDAARCH):
                     sqlP += "AND modificationTime>(CURRENT_DATE-30) "
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID}
             # start transaction
             self.conn.begin()
             self.cur.arraysize = 1000000
@@ -1528,11 +1455,7 @@ class TaskStandaloneModule(BaseModule):
                     sqlP += "UNION ALL "
                 sqlP += f"SELECT PandaID FROM {tableName} WHERE jediTaskID=:jediTaskID "
                 sqlP += "AND jobStatus NOT IN (:st1,:st2,:st3) "
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":st1"] = "running"
-            varMap[":st2"] = "holding"
-            varMap[":st3"] = "transferring"
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":st1": "running", ":st2": "holding", ":st3": "transferring"}
             # start transaction
             self.conn.begin()
             self.cur.arraysize = 1000000
@@ -1561,32 +1484,22 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get jediTaskID and datasetID
-            sqlT = f"SELECT jediTaskID,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE "
-            sqlT += "datasetName=:datasetName and type=:type "
+            sqlT = f"SELECT jediTaskID, datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE datasetName=:datasetName and type=:type "
             # sql to get fileID
-            sqlF = f"SELECT FileID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-            sqlF += "jediTaskID=:jediTaskID AND datasetID=:datasetID and lfn=:lfn "
+            sqlF = f"SELECT FileID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID and lfn=:lfn "
             # start transaction
             self.conn.begin()
-            varMap: dict[str, Any] = {}
-            varMap[":datasetName"] = datasetName
-            varMap[":type"] = fileType
+            varMap: dict[str, Any] = {":datasetName": datasetName, ":type": fileType}
             self.cur.arraysize = 1000000
             self.cur.execute(sqlT + comment, varMap)
             resList = self.cur.fetchall()
             retMap = None
             for jediTaskID, datasetID in resList:
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":datasetID"] = datasetID
-                varMap[":lfn"] = fileName
+                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":lfn": fileName}
                 self.cur.execute(sqlF + comment, varMap)
                 resFileList = self.cur.fetchall()
                 if resFileList != []:
-                    retMap = {}
-                    retMap["jediTaskID"] = jediTaskID
-                    retMap["datasetID"] = datasetID
-                    retMap["fileID"] = resFileList[0][0]
+                    retMap = {"jediTaskID": jediTaskID, "datasetID": datasetID, "fileID": resFileList[0][0]}
                     break
             # commit
             if not self._commit():
@@ -1627,16 +1540,12 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get PandaID
-            sqlP = f"SELECT PandaID FROM {panda_config.schemaPANDA}.filesTable4 WHERE "
-            sqlP += "jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlP = f"SELECT PandaID FROM {panda_config.schemaPANDA}.filesTable4 WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             # get creation time of the task
             sqlCT = f"SELECT creationDate FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
             # start transaction
             self.conn.begin()
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":datasetID"] = datasetID
-            varMap[":fileID"] = fileID
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":fileID": fileID}
             self.cur.arraysize = 100
             self.cur.execute(sqlP + comment, varMap)
             resP = self.cur.fetchone()
@@ -1646,8 +1555,7 @@ class TaskStandaloneModule(BaseModule):
                 pandaID = resP[0]
             else:
                 # get creation time of the task
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
+                varMap = {":jediTaskID": jediTaskID}
                 self.cur.execute(sqlCT + comment, varMap)
                 resCT = self.cur.fetchone()
                 if resCT is not None:
@@ -1657,15 +1565,14 @@ class TaskStandaloneModule(BaseModule):
                         tmpLog.debug("no JOBSARCHVIEW since creationDate is too old")
                     else:
                         # sql to get PandaID using JOBSARCHVIEW
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":datasetID"] = datasetID
-                        varMap[":fileID"] = fileID
-                        sqlAP = "SELECT fTab.PandaID "
-                        sqlAP += "FROM {0}.filesTable_ARCH fTab,{0}.{1} aTab WHERE ".format(panda_config.schemaPANDAARCH, archView)
-                        sqlAP += "fTab.PandaID=aTab.PandaID AND aTab.jediTaskID=:jediTaskID "
-                        sqlAP += "AND fTab.jediTaskID=:jediTaskID AND fTab.datasetID=:datasetID "
-                        sqlAP += "AND fTab.fileID=:fileID "
+                        varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":fileID": fileID}
+                        sqlAP = (
+                            "SELECT fTab.PandaID "
+                            f"FROM {panda_config.schemaPANDAARCH}.filesTable_ARCH fTab, {panda_config.schemaPANDAARCH}.{archView} aTab WHERE "
+                            "fTab.PandaID=aTab.PandaID AND aTab.jediTaskID=:jediTaskID "
+                            "AND fTab.jediTaskID=:jediTaskID AND fTab.datasetID=:datasetID "
+                            "AND fTab.fileID=:fileID "
+                        )
                         tmpLog.debug(sqlAP + comment + str(varMap))
                         self.cur.execute(sqlAP + comment, varMap)
                         resAP = self.cur.fetchone()
@@ -1691,20 +1598,23 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get fileID
-            sqlT = f"SELECT jediTaskID,datasetID,fileID FROM {panda_config.schemaPANDA}.filesTable4 WHERE "
-            sqlT += "pandaID=:pandaID "
-            sqlT += "UNION ALL "
-            sqlT += f"SELECT jediTaskID,datasetID,fileID FROM {panda_config.schemaPANDAARCH}.filesTable_ARCH WHERE "
-            sqlT += "pandaID=:pandaID "
-            sqlT += "AND modificationTime>CURRENT_DATE-180"
+            sqlT = (
+                f"SELECT jediTaskID, datasetID, fileID FROM {panda_config.schemaPANDA}.filesTable4 WHERE "
+                "pandaID=:pandaID "
+                "UNION ALL "
+                f"SELECT jediTaskID, datasetID, fileID FROM {panda_config.schemaPANDAARCH}.filesTable_ARCH WHERE "
+                "pandaID=:pandaID "
+                "AND modificationTime>CURRENT_DATE-180"
+            )
             # sql to read files
-            sqlFR = f"SELECT {JediFileSpec.columnNames()} "
-            sqlFR += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-            sqlFR += "jediTaskID=:jediTaskID AND datasetID=:datasetID and fileID=:fileID "
+            sqlFR = (
+                f"SELECT {JediFileSpec.columnNames()} "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+                "jediTaskID=:jediTaskID AND datasetID=:datasetID and fileID=:fileID "
+            )
             # start transaction
             self.conn.begin()
-            varMap: dict[str, Any] = {}
-            varMap[":pandaID"] = pandaID
+            varMap: dict[str, Any] = {":pandaID": pandaID}
             self.cur.arraysize = 1000000
             self.cur.execute(sqlT + comment, varMap)
             resTC = self.cur.fetchall()
@@ -1716,10 +1626,7 @@ class TaskStandaloneModule(BaseModule):
                 if fileID in fileIDList:
                     continue
                 # read files
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":datasetID"] = datasetID
-                varMap[":fileID"] = fileID
+                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":fileID": fileID}
                 self.cur.execute(sqlFR + comment, varMap)
                 tmpRes = self.cur.fetchone()
                 fileSpec = JediFileSpec()
@@ -1745,13 +1652,10 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to update task params
-            sqlT = f"UPDATE {panda_config.schemaJEDI}.JEDI_TaskParams SET taskParams=:taskParams "
-            sqlT += "WHERE jediTaskID=:jediTaskID "
+            sqlT = f"UPDATE {panda_config.schemaJEDI}.JEDI_TaskParams SET taskParams=:taskParams WHERE jediTaskID=:jediTaskID "
             # start transaction
             self.conn.begin()
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":taskParams"] = taskParams
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":taskParams": taskParams}
             self.cur.execute(sqlT + comment, varMap)
             nRow = self.cur.rowcount
             # commit
@@ -1777,19 +1681,23 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get stalled tasks in defined
-            varMap: dict[str, Any] = {}
-            varMap[":taskStatus1"] = "defined"
-            varMap[":taskStatus2"] = "ready"
-            varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=timeLimit)
-            varMap[":dsType"] = "input"
-            varMap[":dsState"] = "mutable"
-            varMap[":dsStatus1"] = "ready"
-            varMap[":dsStatus2"] = "toupdate"
-            sqlTL = "SELECT distinct tabT.jediTaskID,tabT.status,tabT.splitRule "
-            sqlTL += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlTL += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
-            sqlTL += "AND ((tabT.status=:taskStatus1 AND tabD.status=:dsStatus1) OR (tabT.status=:taskStatus2 AND tabD.status=:dsStatus2)) "
-            sqlTL += "AND tabD.type=:dsType AND tabD.state=:dsState AND tabT.modificationTime<:timeLimit "
+            varMap: dict[str, Any] = {
+                ":taskStatus1": "defined",
+                ":taskStatus2": "ready",
+                ":timeLimit": naive_utcnow() - datetime.timedelta(minutes=timeLimit),
+                ":dsType": "input",
+                ":dsState": "mutable",
+                ":dsStatus1": "ready",
+                ":dsStatus2": "toupdate",
+            }
+            sqlTL = (
+                "SELECT distinct tabT.jediTaskID, tabT.status, tabT.splitRule "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_Datasets tabD, "
+                f"{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
+                "AND ((tabT.status=:taskStatus1 AND tabD.status=:dsStatus1) OR (tabT.status=:taskStatus2 AND tabD.status=:dsStatus2)) "
+                "AND tabD.type=:dsType AND tabD.state=:dsState AND tabT.modificationTime<:timeLimit "
+            )
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sqlTL += "AND tabT.vo=:vo "
@@ -1797,39 +1705,47 @@ class TaskStandaloneModule(BaseModule):
                 varMap[":prodSourceLabel"] = prodSourceLabel
                 sqlTL += "AND tabT.prodSourceLabel=:prodSourceLabel "
             # get tasks in defined with only ready datasets
-            sqlTR = "SELECT distinct tabT.jediTaskID "
-            sqlTR += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlTR += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
-            sqlTR += "AND tabT.status=:taskStatus1 AND tabD.status=:dsStatus1 "
-            sqlTR += "AND tabD.type=:dsType AND tabT.modificationTime<:timeLimit "
-            sqlTR += "AND NOT EXISTS "
-            sqlTR += f"(SELECT 1 FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=tabT.jediTaskID AND type=:dsType AND status<>:dsStatus1) "
+            sqlTR = (
+                "SELECT distinct tabT.jediTaskID "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_Datasets tabD, "
+                f"{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
+                "AND tabT.status=:taskStatus1 AND tabD.status=:dsStatus1 "
+                "AND tabD.type=:dsType AND tabT.modificationTime<:timeLimit "
+                "AND NOT EXISTS "
+                f"(SELECT 1 FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=tabT.jediTaskID AND type=:dsType AND status<>:dsStatus1) "
+            )
             if vo not in [None, "any"]:
                 sqlTR += "AND tabT.vo=:vo "
             if prodSourceLabel not in [None, "any"]:
                 sqlTR += "AND tabT.prodSourceLabel=:prodSourceLabel "
             # get tasks in ready with defined datasets
-            sqlTW = "SELECT distinct tabT.jediTaskID,tabT.splitRule "
-            sqlTW += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlTW += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
-            sqlTW += "AND tabT.status=:taskStatus1 AND tabD.status=:dsStatus1 "
-            sqlTW += "AND tabD.type=:dsType AND tabT.modificationTime<:timeLimit "
+            sqlTW = (
+                "SELECT distinct tabT.jediTaskID, tabT.splitRule "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_Datasets tabD, "
+                f"{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
+                "AND tabT.status=:taskStatus1 AND tabD.status=:dsStatus1 "
+                "AND tabD.type=:dsType AND tabT.modificationTime<:timeLimit "
+            )
             if vo not in [None, "any"]:
                 sqlTW += "AND tabT.vo=:vo "
             if prodSourceLabel not in [None, "any"]:
                 sqlTW += "AND tabT.prodSourceLabel=:prodSourceLabel "
             # sql to update mutable datasets
-            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlTU += "SET status=:newStatus "
-            sqlTU += "WHERE jediTaskID=:jediTaskID AND type=:type AND state=:state AND status=:oldStatus "
+            sqlTU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+                "SET status=:newStatus "
+                "WHERE jediTaskID=:jediTaskID AND type=:type AND state=:state AND status=:oldStatus "
+            )
             # sql to update ready datasets
-            sqlRD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlRD += "SET status=:newStatus "
-            sqlRD += "WHERE jediTaskID=:jediTaskID AND type=:type AND status=:oldStatus "
+            sqlRD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:newStatus WHERE jediTaskID=:jediTaskID AND type=:type AND status=:oldStatus "
             # sql to update task
-            sqlTD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTD += "SET status=:newStatus,modificationtime=CURRENT_DATE "
-            sqlTD += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+            sqlTD = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET status=:newStatus, modificationtime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+            )
             # start transaction
             self.conn.begin()
             # get jediTaskIDs
@@ -1842,29 +1758,18 @@ class TaskStandaloneModule(BaseModule):
                 nRow = 0
                 if taskStatus == "defined":
                     # update mutable datasets
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":type"] = "input"
-                    varMap[":state"] = "mutable"
-                    varMap[":oldStatus"] = "ready"
-                    varMap[":newStatus"] = "toupdate"
+                    varMap = {":jediTaskID": jediTaskID, ":type": "input", ":state": "mutable", ":oldStatus": "ready", ":newStatus": "toupdate"}
                     self.cur.execute(sqlTU + comment, varMap)
                     nRow = self.cur.rowcount
                     tmpLog.debug(f"jediTaskID={jediTaskID} toupdate {nRow} datasets")
                     if nRow > 0:
                         nTasks += 1
                         # update task
-                        varMap = {}
-                        varMap[":jediTaskID"] = jediTaskID
-                        varMap[":oldStatus"] = "defined"
-                        varMap[":newStatus"] = "defined"
+                        varMap = {":jediTaskID": jediTaskID, ":oldStatus": "defined", ":newStatus": "defined"}
                         self.cur.execute(sqlTD + comment, varMap)
                 else:
                     # update task
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":oldStatus"] = "ready"
-                    varMap[":newStatus"] = "defined"
+                    varMap = {":jediTaskID": jediTaskID, ":oldStatus": "ready", ":newStatus": "defined"}
                     self.cur.execute(sqlTD + comment, varMap)
                     nRow = self.cur.rowcount
                     if nRow > 0:
@@ -1875,11 +1780,12 @@ class TaskStandaloneModule(BaseModule):
                     # added msg driven tasks
                     msg_driven_taskid_set.add(jediTaskID)
             # get tasks in defined with only ready datasets
-            varMap = {}
-            varMap[":taskStatus1"] = "defined"
-            varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=timeLimit)
-            varMap[":dsType"] = "input"
-            varMap[":dsStatus1"] = "ready"
+            varMap = {
+                ":taskStatus1": "defined",
+                ":timeLimit": naive_utcnow() - datetime.timedelta(minutes=timeLimit),
+                ":dsType": "input",
+                ":dsStatus1": "ready",
+            }
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
             if prodSourceLabel not in [None, "any"]:
@@ -1889,22 +1795,19 @@ class TaskStandaloneModule(BaseModule):
             resTR = self.cur.fetchall()
             for (jediTaskID,) in resTR:
                 # update ready datasets
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":type"] = "input"
-                varMap[":oldStatus"] = "ready"
-                varMap[":newStatus"] = "defined"
+                varMap = {":jediTaskID": jediTaskID, ":type": "input", ":oldStatus": "ready", ":newStatus": "defined"}
                 self.cur.execute(sqlRD + comment, varMap)
                 nRow = self.cur.rowcount
                 tmpLog.debug(f"jediTaskID={jediTaskID} reset {nRow} datasets in ready")
                 if nRow > 0:
                     nTasks += 1
             # get tasks in ready with defined datasets
-            varMap = {}
-            varMap[":taskStatus1"] = "ready"
-            varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=timeLimit)
-            varMap[":dsType"] = "input"
-            varMap[":dsStatus1"] = "defined"
+            varMap = {
+                ":taskStatus1": "ready",
+                ":timeLimit": naive_utcnow() - datetime.timedelta(minutes=timeLimit),
+                ":dsType": "input",
+                ":dsStatus1": "defined",
+            }
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
             if prodSourceLabel not in [None, "any"]:
@@ -1914,10 +1817,7 @@ class TaskStandaloneModule(BaseModule):
             resTW = self.cur.fetchall()
             for jediTaskID, splitRule in resTW:
                 # update task
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":oldStatus"] = "ready"
-                varMap[":newStatus"] = "defined"
+                varMap = {":jediTaskID": jediTaskID, ":oldStatus": "ready", ":newStatus": "defined"}
                 self.cur.execute(sqlTD + comment, varMap)
                 nRow = self.cur.rowcount
                 if nRow > 0:
@@ -1948,13 +1848,13 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get stalled tasks
-            varMap: dict[str, Any] = {}
-            varMap[":taskStatus"] = "exhausted"
-            varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(hours=timeLimit)
-            sqlTL = "SELECT tabT.jediTaskID,tabT.splitRule "
-            sqlTL += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlTL += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlTL += "AND tabT.status=:taskStatus AND tabT.modificationTime<:timeLimit "
+            varMap: dict[str, Any] = {":taskStatus": "exhausted", ":timeLimit": naive_utcnow() - datetime.timedelta(hours=timeLimit)}
+            sqlTL = (
+                "SELECT tabT.jediTaskID, tabT.splitRule "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.status=:taskStatus AND tabT.modificationTime<:timeLimit "
+            )
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sqlTL += "AND tabT.vo=:vo "
@@ -1962,9 +1862,11 @@ class TaskStandaloneModule(BaseModule):
                 varMap[":prodSourceLabel"] = prodSourceLabel
                 sqlTL += "AND tabT.prodSourceLabel=:prodSourceLabel "
             # sql to timeout tasks
-            sqlTO = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTO += "SET status=:newStatus,modificationtime=CURRENT_DATE,stateChangeTime=CURRENT_DATE "
-            sqlTO += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+            sqlTO = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET status=:newStatus, modificationtime=CURRENT_DATE, stateChangeTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+            )
             # start transaction
             self.conn.begin()
             # get jediTaskIDs
@@ -1975,9 +1877,7 @@ class TaskStandaloneModule(BaseModule):
             for jediTaskID, splitRule in resTL:
                 taskSpec = JediTaskSpec()
                 taskSpec.splitRule = splitRule
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":oldStatus"] = "exhausted"
+                varMap = {":jediTaskID": jediTaskID, ":oldStatus": "exhausted"}
                 if taskSpec.disableAutoFinish():
                     # to keep it exhausted since auto finish is disabled
                     varMap[":newStatus"] = "exhausted"
@@ -2029,17 +1929,21 @@ class TaskStandaloneModule(BaseModule):
         tmp_log.debug(f"associatedSites={str(associated_sites)}")
         try:
             # sql to get dataset
-            sql_read_dataset = f"SELECT {JediDatasetSpec.columnNames()} "
-            sql_read_dataset += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sql_read_dataset += "WHERE jediTaskID=:jediTaskID AND type=:type AND site=:site "
-            sql_read_dataset += "AND (state IS NULL OR state<>:state) "
-            sql_read_dataset += "ORDER BY creationTime DESC "
+            sql_read_dataset = (
+                f"SELECT {JediDatasetSpec.columnNames()} "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                "WHERE jediTaskID=:jediTaskID AND type=:type AND site=:site "
+                "AND (state IS NULL OR state<>:state) "
+                "ORDER BY creationTime DESC "
+            )
             # sql to read files
-            sql_read_file = f"SELECT {JediFileSpec.columnNames()} "
-            sql_read_file += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-            sql_read_file += "jediTaskID=:jediTaskID AND datasetID=:datasetID AND type=:type "
-            sql_read_file += "AND NOt status IN (:status1,:status2) "
-            sql_read_file += "ORDER BY creationDate DESC "
+            sql_read_file = (
+                f"SELECT {JediFileSpec.columnNames()} "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+                "jediTaskID=:jediTaskID AND datasetID=:datasetID AND type=:type "
+                "AND NOt status IN (:status1, :status2) "
+                "ORDER BY creationDate DESC "
+            )
             # sql to check the corresponding job status
             sql_check_job = (
                 f"SELECT jobStatus FROM {panda_config.schemaPANDA}.jobsDefined4 WHERE PandaID=:PandaID "
@@ -2132,28 +2036,25 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get dataset
-            sqlRD = f"SELECT {JediDatasetSpec.columnNames()} "
-            sqlRD += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlRD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlRD = (
+                f"SELECT {JediDatasetSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             # sql to read files
-            sqlFR = f"SELECT {JediFileSpec.columnNames()} "
-            sqlFR += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-            sqlFR += "jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlFR = (
+                f"SELECT {JediFileSpec.columnNames()} "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+                "jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            )
             # start transaction
             self.conn.begin()
             # get dataset
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":datasetID"] = datasetID
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":datasetID": datasetID}
             self.cur.execute(sqlRD + comment, varMap)
             tmpRes = self.cur.fetchone()
             datasetSpec = JediDatasetSpec()
             datasetSpec.pack(tmpRes)
             # get file
-            varMap = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":datasetID"] = datasetID
-            varMap[":fileID"] = fileID
+            varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetID, ":fileID": fileID}
             self.cur.execute(sqlFR + comment, varMap)
             tmpRes = self.cur.fetchone()
             fileSpec = JediFileSpec()
@@ -2181,14 +2082,10 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to insert dataset
-            sqlDS = f"SELECT distinct site FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlDS += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
+            sqlDS = f"SELECT distinct site FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type IN (:type1, :type2) "
             # start transaction
             self.conn.begin()
-            varMap: dict[str, Any] = {}
-            varMap[":jediTaskID"] = jediTaskID
-            varMap[":type1"] = "output"
-            varMap[":type2"] = "log"
+            varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":type1": "output", ":type2": "log"}
             # execute
             self.cur.execute(sqlDS + comment, varMap)
             resList = self.cur.fetchall()
@@ -2215,24 +2112,24 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get pseudo dataset for random seed
-            sqlDS = f"SELECT {JediDatasetSpec.columnNames()} "
-            sqlDS += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlDS += "WHERE jediTaskID=:jediTaskID AND type=:type "
+            sqlDS = f"SELECT {JediDatasetSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type=:type "
             # sql to get min random seed
-            sqlFR = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
-            sqlFR += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-            sqlFR += "jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
-            sqlFR += f"ORDER BY firstEvent) WHERE rownum<={n_files} "
+            sqlFR = (
+                f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+                "jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
+                f"ORDER BY firstEvent) WHERE rownum<={n_files} "
+            )
             # sql to update file status
-            sqlFU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlFU += "SET status=:status "
-            sqlFU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlFU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "SET status=:status "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            )
             # sql to get max random seed
-            sqlLR = f"SELECT MAX(firstEvent) FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlLR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlLR = f"SELECT MAX(firstEvent) FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql to get fileIDs
-            sqlFID = f"SELECT {panda_config.schemaJEDI}.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM "
-            sqlFID += "(SELECT level FROM dual CONNECT BY level<=:nIDs) "
+            sqlFID = f"SELECT {panda_config.schemaJEDI}.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM (SELECT level FROM dual CONNECT BY level<=:nIDs) "
             # sql to insert file
             sqlFI = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Dataset_Contents ({JediFileSpec.columnNames()}) "
             sqlFI += JediFileSpec.bindValuesExpression(useSeq=False)
@@ -2256,10 +2153,7 @@ class TaskStandaloneModule(BaseModule):
                 datasetSpec.pack(resDS)
                 # use existing random seeds
                 randomseed_file_specs = []
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":datasetID"] = datasetSpec.datasetID
-                varMap[":status"] = "ready"
+                varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetSpec.datasetID, ":status": "ready"}
                 self.cur.execute(sqlFR + comment, varMap)
                 var_maps: list[dict[str, Any]] = []
                 for resFR in self.cur.fetchall():
@@ -2268,11 +2162,7 @@ class TaskStandaloneModule(BaseModule):
                     tmpFileSpec.pack(resFR)
                     n_reused += 1
                     # update status
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":datasetID"] = datasetSpec.datasetID
-                    varMap[":fileID"] = tmpFileSpec.fileID
-                    varMap[":status"] = "picked"
+                    varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetSpec.datasetID, ":fileID": tmpFileSpec.fileID, ":status": "picked"}
                     var_maps.append(varMap)
                     randomseed_file_specs.append(tmpFileSpec)
                 if not simul and var_maps:
@@ -2281,9 +2171,7 @@ class TaskStandaloneModule(BaseModule):
                 n_new_files = n_files - len(var_maps)
                 if n_new_files > 0:
                     # get max random seed
-                    varMap = {}
-                    varMap[":jediTaskID"] = jediTaskID
-                    varMap[":datasetID"] = datasetSpec.datasetID
+                    varMap = {":jediTaskID": jediTaskID, ":datasetID": datasetSpec.datasetID}
                     self.cur.execute(sqlLR + comment, varMap)
                     resLR = self.cur.fetchone()
                     maxRndSeed = None
@@ -2345,13 +2233,14 @@ class TaskStandaloneModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
         # sql to get jobPrams for runXYZ
-        sqlSCF = "SELECT tabF.PandaID "
-        sqlSCF += "FROM {0}.JEDI_Datasets tabD, {0}.JEDI_Dataset_Contents tabF WHERE ".format(panda_config.schemaJEDI)
-        sqlSCF += "tabD.jediTaskID=tabF.jediTaskID AND tabD.jediTaskID=:jediTaskID AND tabF.status=:status "
-        sqlSCF += "AND tabD.datasetID=tabF.datasetID "
-        sqlSCF += "AND tabF.type=:type AND tabD.masterID IS NULL "
-        sqlSCD = f"SELECT metaData FROM {panda_config.schemaPANDA}.metaTable "
-        sqlSCD += "WHERE PandaID=:pandaID "
+        sqlSCF = (
+            "SELECT tabF.PandaID "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabF WHERE "
+            "tabD.jediTaskID=tabF.jediTaskID AND tabD.jediTaskID=:jediTaskID AND tabF.status=:status "
+            "AND tabD.datasetID=tabF.datasetID "
+            "AND tabF.type=:type AND tabD.masterID IS NULL "
+        )
+        sqlSCD = f"SELECT metaData FROM {panda_config.schemaPANDA}.metaTable WHERE PandaID=:pandaID "
         failedRet = False, None
         retVal = failedRet
         try:
@@ -2399,17 +2288,13 @@ class TaskStandaloneModule(BaseModule):
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmpLog.debug("start")
         # sql to get dataset
-        sqlDS = f"SELECT {JediDatasetSpec.columnNames()} "
-        sqlDS += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-        sqlDS += "WHERE jediTaskID=:jediTaskID AND type=:type "
+        sqlDS = f"SELECT {JediDatasetSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type=:type "
         # sql to insert file
         sqlFI = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Dataset_Contents ({JediFileSpec.columnNames()}) "
         sqlFI += JediFileSpec.bindValuesExpression()
         sqlFI += " RETURNING fileID INTO :newFileID"
         # sql to update dataset
-        sqlUD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-        sqlUD += "SET nFiles=nFiles+1 "
-        sqlUD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sqlUD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFiles=nFiles+1 WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         failedRet: tuple[bool, JediDatasetSpec | None, JediFileSpec | None] = False, None, None
         retVal = failedRet
         try:
@@ -2490,7 +2375,7 @@ class TaskStandaloneModule(BaseModule):
                 sqlRT += f"tabD.{tmpPar},"
             sqlRT = sqlRT[:-1]
             sqlRT += " "
-            sqlRT += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA".format(panda_config.schemaJEDI)
+            sqlRT += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT,{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA"
             if datasetCriteria:
                 sqlRT += f",{panda_config.schemaJEDI}.JEDI_Datasets tabD"
             sqlRT += " WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
@@ -2511,7 +2396,7 @@ class TaskStandaloneModule(BaseModule):
                     sqlRT += f"AND tabT.{tmpKey} IN ({tmp_var_names_str}) "
                     varMap.update(tmp_var_map)
                 elif tmpVal is not None:
-                    sqlRT += "AND tabT.{0}=:{0} ".format(tmpKey)
+                    sqlRT += f"AND tabT.{tmpKey}=:{tmpKey} "
                     varMap[f":{tmpKey}"] = tmpVal
                 else:
                     sqlRT += f"AND tabT.{tmpKey} IS NULL "
@@ -2521,20 +2406,22 @@ class TaskStandaloneModule(BaseModule):
                     sqlRT += f"AND tabD.{tmpKey} IN ({tmp_var_names_str}) "
                     varMap.update(tmp_var_map)
                 elif tmpVal is not None:
-                    sqlRT += "AND tabD.{0}=:{0} ".format(tmpKey)
+                    sqlRT += f"AND tabD.{tmpKey}=:{tmpKey} "
                     varMap[f":{tmpKey}"] = tmpVal
                 else:
                     sqlRT += f"AND tabD.{tmpKey} IS NULL "
             timeLimit = naive_utcnow() - datetime.timedelta(minutes=taskLockInterval)
             if taskLockColumn is not None:
-                sqlRT += "AND (tabT.{0} IS NULL OR tabT.{0}<:lockTimeLimit) ".format(taskLockColumn)
+                sqlRT += f"AND (tabT.{taskLockColumn} IS NULL OR tabT.{taskLockColumn}<:lockTimeLimit) "
                 varMap[":lockTimeLimit"] = timeLimit
             sqlRT += "ORDER BY tabT.jediTaskID "
             # sql to lock
             if taskLockColumn is not None:
-                sqlLK = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-                sqlLK += f"SET {taskLockColumn}=CURRENT_DATE "
-                sqlLK += "WHERE jediTaskID=:jediTaskID AND ({0} IS NULL OR {0}<:lockTimeLimit) ".format(taskLockColumn)
+                sqlLK = (
+                    f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                    f"SET {taskLockColumn}=CURRENT_DATE "
+                    f"WHERE jediTaskID=:jediTaskID AND ({taskLockColumn} IS NULL OR {taskLockColumn}<:lockTimeLimit) "
+                )
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = 10000
@@ -2586,8 +2473,7 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             retVal = None
-            sql = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sql += "WHERE jediTaskID=:jediTaskID "
+            sql = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
             varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             # start transaction
@@ -2616,23 +2502,31 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get the list of user/jobIDs
-            sqlL = "SELECT prodUserName,jobsetID,jobDefinitionID,MAX(PandaID) "
-            sqlL += f"FROM {panda_config.schemaPANDA}.jobsDefined4 "
-            sqlL += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel "
-            sqlL += "AND lockedBy=:lockedBy AND modificationTime<:timeLimit "
-            sqlL += "GROUP BY prodUserName,jobsetID,jobDefinitionID "
+            sqlL = (
+                "SELECT prodUserName, jobsetID, jobDefinitionID, MAX(PandaID) "
+                f"FROM {panda_config.schemaPANDA}.jobsDefined4 "
+                "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel "
+                "AND lockedBy=:lockedBy AND modificationTime<:timeLimit "
+                "GROUP BY prodUserName, jobsetID, jobDefinitionID "
+            )
             # sql to get data of lib.tgz
-            sqlD = "SELECT lfn,dataset,jediTaskID,datasetID,fileID "
-            sqlD += f"FROM {panda_config.schemaPANDA}.filesTable4 "
-            sqlD += "WHERE PandaID=:PandaID AND type=:type AND status=:status "
+            sqlD = (
+                "SELECT lfn, dataset, jediTaskID, datasetID, fileID "
+                f"FROM {panda_config.schemaPANDA}.filesTable4 "
+                "WHERE PandaID=:PandaID AND type=:type AND status=:status "
+            )
             # sql to read file spec
-            sqlF = f"SELECT {JediFileSpec.columnNames()} "
-            sqlF += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlF = (
+                f"SELECT {JediFileSpec.columnNames()} "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            )
             # sql to update modificationTime
-            sqlU = f"UPDATE {panda_config.schemaPANDA}.jobsDefined4 "
-            sqlU += "SET modificationTime=CURRENT_DATE "
-            sqlU += "WHERE prodUserName=:prodUserName AND jobsetID=:jobsetID AND jobDefinitionID=:jobDefinitionID "
+            sqlU = (
+                f"UPDATE {panda_config.schemaPANDA}.jobsDefined4 "
+                "SET modificationTime=CURRENT_DATE "
+                "WHERE prodUserName=:prodUserName AND jobsetID=:jobsetID AND jobDefinitionID=:jobDefinitionID "
+            )
             # start transaction
             self.conn.begin()
             self.cur.arraysize = 100000
@@ -2660,7 +2554,7 @@ class TaskStandaloneModule(BaseModule):
                 resD = self.cur.fetchall()
                 # loop over all files
                 for lfn, datasetName, jediTaskID, datasetID, fileID in resD:
-                    if re.search("\.lib\.tgz(\.\d+)*$", lfn) is not None:
+                    if re.search(r"\.lib\.tgz(\.\d+)*$", lfn) is not None:
                         # read file spec
                         varMap = {}
                         varMap[":jediTaskID"] = jediTaskID
@@ -2704,10 +2598,12 @@ class TaskStandaloneModule(BaseModule):
             varMap: dict[str, Any] = {}
             varMap[":status"] = "reassigning"
             varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=5)
-            sqlSCF = f"SELECT {JediTaskSpec.columnNames('tabT')} "
-            sqlSCF += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlSCF += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlSCF += "AND tabT.status=:status AND tabT.modificationTime<:timeLimit "
+            sqlSCF = (
+                f"SELECT {JediTaskSpec.columnNames('tabT')} "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.status=:status AND tabT.modificationTime<:timeLimit "
+            )
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sqlSCF += "AND vo=:vo "
@@ -2715,8 +2611,7 @@ class TaskStandaloneModule(BaseModule):
                 varMap[":prodSourceLabel"] = prodSourceLabel
                 sqlSCF += "AND prodSourceLabel=:prodSourceLabel "
             sqlSCF += "FOR UPDATE"
-            sqlSPC = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationTime=CURRENT_DATE "
-            sqlSPC += "WHERE jediTaskID=:jediTaskID "
+            sqlSPC = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationTime=CURRENT_DATE WHERE jediTaskID=:jediTaskID "
             # begin transaction
             self.conn.begin()
             # get tasks
@@ -2754,12 +2649,13 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to lock task
-            sqlPD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlPD += "SET lockedTime=CURRENT_DATE,modificationTime=CURRENT_DATE "
-            sqlPD += "WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy "
+            sqlPD = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET lockedTime=CURRENT_DATE, modificationTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy "
+            )
             # sql to check lock
-            sqlCL = f"SELECT lockedBy,lockedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlCL += "WHERE jediTaskID=:jediTaskID "
+            sqlCL = f"SELECT lockedBy, lockedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
             # begin transaction
             self.conn.begin()
             # lock
@@ -2798,8 +2694,7 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get files
-            sqlF = f"SELECT lfn FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
+            sqlF = f"SELECT lfn FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
             # begin transaction
             self.conn.begin()
             # lock
@@ -2832,9 +2727,7 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to unlock
-            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTU += "SET lockedBy=NULL,lockedTime=NULL "
-            sqlTU += "WHERE jediTaskID=:jediTaskID AND lockedBy=:pid "
+            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=NULL, lockedTime=NULL WHERE jediTaskID=:jediTaskID AND lockedBy=:pid "
             # begin transaction
             self.conn.begin()
             # unlock
@@ -2866,15 +2759,17 @@ class TaskStandaloneModule(BaseModule):
             varMap[":taskStatus"] = "running"
             varMap[":fileStat1"] = "ready"
             varMap[":fileStat2"] = "running"
-            sqlRT = "SELECT tabT.jediTaskID,tabT.numThrottled,AVG(tabC.failedAttempt) "
-            sqlRT += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA,".format(panda_config.schemaJEDI)
-            sqlRT += "{0}.JEDI_Datasets tabD,{0}.JEDI_Dataset_Contents tabC ".format(panda_config.schemaJEDI)
-            sqlRT += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlRT += "AND tabT.jediTaskID=tabD.jediTaskID AND tabT.jediTaskID=tabC.jediTaskID "
-            sqlRT += "AND tabD.datasetID=tabC.datasetID "
-            sqlRT += "AND tabT.status IN (:taskStatus) "
-            sqlRT += "AND tabT.numThrottled IS NOT NULL "
-            sqlRT += f"AND tabD.type IN ({INPUT_TYPES_var_str}) "
+            sqlRT = (
+                "SELECT tabT.jediTaskID, tabT.numThrottled, AVG(tabC.failedAttempt) "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA, "
+                f"{panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabC "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.jediTaskID=tabD.jediTaskID AND tabT.jediTaskID=tabC.jediTaskID "
+                "AND tabD.datasetID=tabC.datasetID "
+                "AND tabT.status IN (:taskStatus) "
+                "AND tabT.numThrottled IS NOT NULL "
+                f"AND tabD.type IN ({INPUT_TYPES_var_str}) "
+            )
             varMap.update(INPUT_TYPES_var_map)
             sqlRT += "AND tabD.masterID IS NULL "
             if vo not in [None, "any"]:
@@ -2897,12 +2792,14 @@ class TaskStandaloneModule(BaseModule):
             if not self._commit():
                 raise RuntimeError("Commit error")
             # sql to throttle tasks
-            sqlTH = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTH += "SET throttledTime=:releaseTime,modificationTime=CURRENT_DATE,"
-            sqlTH += "oldStatus=status,status=:newStatus,errorDialog=:errorDialog,"
-            sqlTH += "numThrottled=:numThrottled "
-            sqlTH += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
-            sqlTH += "AND lockedBy IS NULL "
+            sqlTH = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET throttledTime=:releaseTime, modificationTime=CURRENT_DATE, "
+                "oldStatus=status, status=:newStatus, errorDialog=:errorDialog, "
+                "numThrottled=:numThrottled "
+                "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+                "AND lockedBy IS NULL "
+            )
             attemptInterval = 5
             nTasks = 0
             for jediTaskID, numThrottled, largestAttemptNr in resList:
@@ -2960,11 +2857,13 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug(f"start waitTime={waitTime}min")
         try:
             # sql to throttle tasks
-            sqlTH = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTH += "SET throttledTime=:releaseTime,modificationTime=CURRENT_DATE,"
-            sqlTH += "oldStatus=:oldStatus,status=:newStatus,errorDialog=:errorDialog "
-            sqlTH += "WHERE jediTaskID=:jediTaskID AND status=:currentStatus "
-            sqlTH += "AND lockedBy IS NULL "
+            sqlTH = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET throttledTime=:releaseTime, modificationTime=CURRENT_DATE, "
+                "oldStatus=:oldStatus, status=:newStatus, errorDialog=:errorDialog "
+                "WHERE jediTaskID=:jediTaskID AND status=:currentStatus "
+                "AND lockedBy IS NULL "
+            )
             # begin transaction
             self.conn.begin()
             varMap: dict[str, Any] = {}
@@ -3004,10 +2903,13 @@ class TaskStandaloneModule(BaseModule):
             # sql to get tasks
             varMap: dict[str, Any] = {}
             varMap[":status"] = "throttled"
-            sqlTL = "SELECT tabT.jediTaskID,tabT.oldStatus "
-            sqlTL += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
-            sqlTL += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlTL += f"AND tabD.jediTaskID=tabT.jediTaskID AND tabD.type IN ({INPUT_TYPES_var_str}) "
+            sqlTL = (
+                "SELECT tabT.jediTaskID, tabT.oldStatus "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA, "
+                f"{panda_config.schemaJEDI}.JEDI_Datasets tabD "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                f"AND tabD.jediTaskID=tabT.jediTaskID AND tabD.type IN ({INPUT_TYPES_var_str}) "
+            )
             varMap.update(INPUT_TYPES_var_map)
             sqlTL += "AND tabD.masterID IS NULL "
             sqlTL += "AND tabT.status=:status AND tabT.lockedBy IS NULL "
@@ -3021,9 +2923,11 @@ class TaskStandaloneModule(BaseModule):
                 sqlTL += "AND tabT.prodSourceLabel=:prodSourceLabel "
 
             # sql to update tasks
-            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTU += "SET status=oldStatus,oldStatus=NULL,errorDialog=NULL,modificationtime=CURRENT_DATE "
-            sqlTU += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus AND lockedBy IS NULL "
+            sqlTU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET status=oldStatus, oldStatus=NULL, errorDialog=NULL, modificationtime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND status=:oldStatus AND lockedBy IS NULL "
+            )
 
             # start transaction
             self.conn.begin()
@@ -3138,10 +3042,12 @@ class TaskStandaloneModule(BaseModule):
             # sql to get tasks
             varMap: dict[str, Any] = {}
             varMap[":status"] = "throttled"
-            sqlTL = "SELECT jediTaskID,userName,workingGroup,errorDialog,currentPriority "
-            sqlTL += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlTL += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlTL += "AND tabT.status=:status AND tabT.lockedBy IS NULL "
+            sqlTL = (
+                "SELECT jediTaskID, userName, workingGroup, errorDialog, currentPriority "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.status=:status AND tabT.lockedBy IS NULL "
+            )
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sqlTL += "AND vo=:vo "
@@ -3270,10 +3176,12 @@ class TaskStandaloneModule(BaseModule):
             varMap: dict[str, Any] = {}
             varMap[":status1"] = "running"
             varMap[":status2"] = "pending"
-            sqlRT = "SELECT tabT.jediTaskID,tabT.status,tabT.goal,tabT.splitRule,parent_tid "
-            sqlRT += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlRT += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlRT += "AND tabT.status IN (:status1,:status2) "
+            sqlRT = (
+                "SELECT tabT.jediTaskID, tabT.status, tabT.goal, tabT.splitRule, parent_tid "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.status IN (:status1, :status2) "
+            )
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sqlRT += "AND tabT.vo=:vo "
@@ -3283,19 +3191,24 @@ class TaskStandaloneModule(BaseModule):
             sqlRT += "AND goal IS NOT NULL "
             sqlRT += "AND (assessmentTime IS NULL OR assessmentTime<:timeLimit) "
             sqlRT += f"AND rownum<{nTasks} "
-            sqlLK = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET assessmentTime=CURRENT_DATE "
-            sqlLK += "WHERE jediTaskID=:jediTaskID AND (assessmentTime IS NULL OR assessmentTime<:timeLimit) AND status=:status "
-            sqlDS = "SELECT datasetID,type,nEvents,status "
-            sqlDS += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlDS += "WHERE jediTaskID=:jediTaskID "
-            sqlDS += f"AND ((type IN ({INPUT_TYPES_var_str}) "
-            sqlDS += "AND masterID IS NULL) OR (type=:type1)) "
-            sqlFC = "SELECT COUNT(*) "
-            sqlFC += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlFC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND failedAttempt=:failedAttempt "
+            sqlLK = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET assessmentTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND (assessmentTime IS NULL OR assessmentTime<:timeLimit) AND status=:status "
+            )
+            sqlDS = (
+                "SELECT datasetID, type, nEvents, status "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                "WHERE jediTaskID=:jediTaskID "
+                f"AND ((type IN ({INPUT_TYPES_var_str}) "
+                "AND masterID IS NULL) OR (type=:type1)) "
+            )
+            sqlFC = (
+                "SELECT COUNT(*) "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND failedAttempt=:failedAttempt "
+            )
             # sql to check parent
-            sqlCP = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlCP += "WHERE jediTaskID=:parent_tid "
+            sqlCP = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:parent_tid "
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = 10000
@@ -3501,8 +3414,7 @@ class TaskStandaloneModule(BaseModule):
         try:
             retVal = set()
             # sql
-            sqlCD = f"SELECT site FROM {panda_config.schemaMETA}.SiteData "
-            sqlCD += "WHERE flag=:flag AND hours=:hours AND laststart<:laststart "
+            sqlCD = f"SELECT site FROM {panda_config.schemaMETA}.SiteData WHERE flag=:flag AND hours=:hours AND laststart<:laststart "
             # start transaction
             self.conn.begin()
             # check
@@ -3534,10 +3446,12 @@ class TaskStandaloneModule(BaseModule):
         try:
             # sql to get size
             var_map = {":vo": vo, ":prodSourceLabel": prodSourceLabel, ":resource_name": resource_name}
-            sql = "SELECT total_walltime, n_has_value, n_no_value "
-            sql += f"FROM {panda_config.schemaPANDA}.total_walltime_cache "
-            sql += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND resource_type=:resource_name "
-            sql += "AND agg_type=:agg_type AND agg_key=:agg_key"
+            sql = (
+                "SELECT total_walltime, n_has_value, n_no_value "
+                f"FROM {panda_config.schemaPANDA}.total_walltime_cache "
+                "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND resource_type=:resource_name "
+                "AND agg_type=:agg_type AND agg_key=:agg_key"
+            )
 
             if workQueue.is_global_share:
                 var_map[":agg_type"] = "gshare"
@@ -3588,43 +3502,51 @@ class TaskStandaloneModule(BaseModule):
         # sql to check useJumbo
         sqlJ = f"SELECT useJumbo FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
         # sql to get master input datasetIDs, also used as a sub-query to cover all master input datasets
-        sqlM = f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-        sqlM += "WHERE jediTaskID=:jediTaskID "
-        sqlM += f"AND type IN ({INPUT_TYPES_var_str}) "
-        sqlM += "AND masterID IS NULL "
+        sqlM = (
+            f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+            "WHERE jediTaskID=:jediTaskID "
+            f"AND type IN ({INPUT_TYPES_var_str}) "
+            "AND masterID IS NULL "
+        )
         # sql to get output datasetID and templateID
-        sqlO = f"SELECT datasetID,provenanceID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-        sqlO += "WHERE jediTaskID=:jediTaskID AND type=:type "
+        sqlO = f"SELECT datasetID, provenanceID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type=:type "
         # sql to check duplication without internal merge
-        sqlWM = "SELECT distinct outPandaID "
-        sqlWM += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-        sqlWM += "WHERE jediTaskID=:jediTaskID AND datasetID=:outDatasetID AND status IN (:statT1,:statT2) "
-        sqlWM += "MINUS "
-        sqlWM += "SELECT distinct PandaID "
-        sqlWM += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-        sqlWM += f"WHERE jediTaskID=:jediTaskID AND datasetID IN ({sqlM}) AND status=:statI "
+        sqlWM = (
+            "SELECT distinct outPandaID "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+            "WHERE jediTaskID=:jediTaskID AND datasetID=:outDatasetID AND status IN (:statT1, :statT2) "
+            "MINUS "
+            "SELECT distinct PandaID "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+            f"WHERE jediTaskID=:jediTaskID AND datasetID IN ({sqlM}) AND status=:statI "
+        )
         # sql to check duplication with jumbo
-        sqlJM = "WITH tmpTab AS ("
-        sqlJM += f"SELECT f.fileID,f.PandaID FROM {panda_config.schemaPANDA}.filesTable4 f, ("
-        sqlJM += f"SELECT PandaID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-        sqlJM += "WHERE jediTaskID=:jediTaskID AND datasetID=:outDatasetID AND status IN (:statT1,:statT2)) t "
-        sqlJM += f"WHERE f.PandaID=t.PandaID AND f.datasetID IN ({sqlM}) "
-        sqlJM += "UNION "
-        sqlJM += f"SELECT f.fileID,f.PandaID FROM {panda_config.schemaPANDAARCH}.filesTable_Arch f, ("
-        sqlJM += f"SELECT PandaID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-        sqlJM += "WHERE jediTaskID=:jediTaskID AND datasetID=:outDatasetID AND status IN (:statT1,:statT2)) t "
-        sqlJM += f"WHERE f.PandaID=t.PandaID AND f.datasetID IN ({sqlM}) AND f.modificationTime>CURRENT_DATE-365 "
-        sqlJM += ") "
-        sqlJM += "SELECT t1.PandaID FROM tmpTab t1, tmpTab t2 WHERE t1.fileID=t2.fileID AND t1.PandaID>t2.PandaID "
+        sqlJM = (
+            "WITH tmpTab AS ("
+            f"SELECT f.fileID, f.PandaID FROM {panda_config.schemaPANDA}.filesTable4 f, ("
+            f"SELECT PandaID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+            "WHERE jediTaskID=:jediTaskID AND datasetID=:outDatasetID AND status IN (:statT1, :statT2)) t "
+            f"WHERE f.PandaID=t.PandaID AND f.datasetID IN ({sqlM}) "
+            "UNION "
+            f"SELECT f.fileID, f.PandaID FROM {panda_config.schemaPANDAARCH}.filesTable_Arch f, ("
+            f"SELECT PandaID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+            "WHERE jediTaskID=:jediTaskID AND datasetID=:outDatasetID AND status IN (:statT1, :statT2)) t "
+            f"WHERE f.PandaID=t.PandaID AND f.datasetID IN ({sqlM}) AND f.modificationTime>CURRENT_DATE-365 "
+            ") "
+            "SELECT t1.PandaID FROM tmpTab t1, tmpTab t2 WHERE t1.fileID=t2.fileID AND t1.PandaID>t2.PandaID "
+        )
         # sql to check duplication with internal merge
-        sqlCM = "SELECT distinct c1.outPandaID "
-        sqlCM += "FROM {0}.JEDI_Dataset_Contents c1,{0}.JEDI_Dataset_Contents c2,{0}.JEDI_Datasets d ".format(panda_config.schemaJEDI)
-        sqlCM += "WHERE d.jediTaskID=:jediTaskID AND c1.jediTaskID=d.jediTaskID AND c1.datasetID=d.datasetID AND d.templateID=:templateID "
-        sqlCM += "AND c1.jediTaskID=c2.jediTaskID AND c2.datasetID=:outDatasetID AND c1.pandaID=c2.pandaID and c2.status IN (:statT1,:statT2) "
-        sqlCM += "MINUS "
-        sqlCM += "SELECT distinct PandaID "
-        sqlCM += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-        sqlCM += f"WHERE jediTaskID=:jediTaskID AND datasetID IN ({sqlM}) and status=:statI "
+        sqlCM = (
+            "SELECT distinct c1.outPandaID "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents c1, {panda_config.schemaJEDI}.JEDI_Dataset_Contents c2, "
+            f"{panda_config.schemaJEDI}.JEDI_Datasets d "
+            "WHERE d.jediTaskID=:jediTaskID AND c1.jediTaskID=d.jediTaskID AND c1.datasetID=d.datasetID AND d.templateID=:templateID "
+            "AND c1.jediTaskID=c2.jediTaskID AND c2.datasetID=:outDatasetID AND c1.pandaID=c2.pandaID and c2.status IN (:statT1, :statT2) "
+            "MINUS "
+            "SELECT distinct PandaID "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+            f"WHERE jediTaskID=:jediTaskID AND datasetID IN ({sqlM}) and status=:statI "
+        )
         try:
             retVal = 0
             # start transaction
@@ -3698,15 +3620,17 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql
-            sql = "SELECT COUNT(*),computingSite,jobStatus "
-            sql += f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
-            sql += f"WHERE jediTaskID=:jediTaskID AND modificationTime>CURRENT_DATE-{timeWindow}/24 "
-            sql += "AND ("
-            sql += "(jobStatus=:jobFailed AND pilotErrorCode IS NOT NULL AND pilotErrorCode<>0) OR "
-            sql += "(jobStatus=:jobClosed AND jobSubStatus=:toReassign AND relocationFlag<>:relThrottled) OR "
-            sql += "(jobStatus=:jobFinished) "
-            sql += ") "
-            sql += "GROUP BY computingSite,jobStatus "
+            sql = (
+                "SELECT COUNT(*), computingSite, jobStatus "
+                f"FROM {panda_config.schemaPANDA}.jobsArchived4 "
+                f"WHERE jediTaskID=:jediTaskID AND modificationTime>CURRENT_DATE-{timeWindow}/24 "
+                "AND ("
+                "(jobStatus=:jobFailed AND pilotErrorCode IS NOT NULL AND pilotErrorCode<>0) OR "
+                "(jobStatus=:jobClosed AND jobSubStatus=:toReassign AND relocationFlag<>:relThrottled) OR "
+                "(jobStatus=:jobFinished) "
+                ") "
+                "GROUP BY computingSite, jobStatus "
+            )
             varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":jobClosed"] = "closed"
@@ -3745,8 +3669,7 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql
-            sql = "SELECT COUNT(*),SUM(coreCount),jobStatus FROM ("
-            sql += f"SELECT PandaID,jobStatus,coreCount FROM {panda_config.schemaPANDA}.jobsDefined4 "
+            sql = f"SELECT COUNT(*), SUM(coreCount), jobStatus FROM (SELECT PandaID, jobStatus, coreCount FROM {panda_config.schemaPANDA}.jobsDefined4 "
             if is_user:
                 sql += "WHERE prodUserName=:target "
             else:
@@ -3799,13 +3722,17 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql
-            sql = "SELECT COUNT(*),SUM(coreCount),jobStatus,user_id,is_user FROM ("
-            sql += f"SELECT PandaID,jobStatus,coreCount,CASE WHEN workingGroup IS NULL THEN prodUserName ELSE workingGroup END AS user_id, CASE WHEN workingGroup IS NULL THEN 1 ELSE 0 END AS is_user FROM {panda_config.schemaPANDA}.jobsDefined4 "
-            sql += "WHERE vo=:vo AND prodSourceLabel=:prod_source_label "
-            sql += "UNION "
-            sql += f"SELECT PandaID,jobStatus,coreCount,CASE WHEN workingGroup IS NULL THEN prodUserName ELSE workingGroup END AS user_id, CASE WHEN workingGroup IS NULL THEN 1 ELSE 0 END AS is_user FROM {panda_config.schemaPANDA}.jobsActive4 "
-            sql += "WHERE vo=:vo AND prodSourceLabel=:prod_source_label "
-            sql += ") GROUP BY jobStatus,user_id,is_user "
+            sql = (
+                "SELECT COUNT(*), SUM(coreCount), jobStatus, user_id, is_user FROM ("
+                "SELECT PandaID, jobStatus, coreCount, CASE WHEN workingGroup IS NULL THEN prodUserName ELSE workingGroup END AS user_id, "
+                f"CASE WHEN workingGroup IS NULL THEN 1 ELSE 0 END AS is_user FROM {panda_config.schemaPANDA}.jobsDefined4 "
+                "WHERE vo=:vo AND prodSourceLabel=:prod_source_label "
+                "UNION "
+                "SELECT PandaID, jobStatus, coreCount, CASE WHEN workingGroup IS NULL THEN prodUserName ELSE workingGroup END AS user_id, "
+                f"CASE WHEN workingGroup IS NULL THEN 1 ELSE 0 END AS is_user FROM {panda_config.schemaPANDA}.jobsActive4 "
+                "WHERE vo=:vo AND prodSourceLabel=:prod_source_label "
+                ") GROUP BY jobStatus, user_id, is_user "
+            )
             varMap: dict[str, Any] = {}
             varMap[":vo"] = vo
             varMap[":prod_source_label"] = prod_source_label
@@ -3842,11 +3769,13 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql
-            sql = "SELECT distinct tabC.PandaID "
-            sql += "FROM {0}.JEDI_Datasets tabD,{0}.JEDI_Dataset_Contents tabC ".format(panda_config.schemaJEDI)
-            sql += "WHERE tabD.jediTaskID=:jediTaskID AND tabD.jediTaskID=tabC.jediTaskID "
-            sql += "AND tabD.datasetID=tabC.datasetID "
-            sql += "AND tabD.type=:dsType AND tabC.outPandaID=:pandaID "
+            sql = (
+                "SELECT distinct tabC.PandaID "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabC "
+                "WHERE tabD.jediTaskID=:jediTaskID AND tabD.jediTaskID=tabC.jediTaskID "
+                "AND tabD.datasetID=tabC.datasetID "
+                "AND tabD.type=:dsType AND tabC.outPandaID=:pandaID "
+            )
             varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
             varMap[":pandaID"] = pandaID
@@ -3883,20 +3812,22 @@ class TaskStandaloneModule(BaseModule):
             # sql to get PandaID of the first job
             varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
-            sql = "SELECT * FROM ("
-            sql += "SELECT tabF.datasetID,tabF.fileID "
-            sql += "FROM {0}.JEDI_Datasets tabD, {0}.JEDI_Dataset_Contents tabF ".format(panda_config.schemaJEDI)
-            sql += "WHERE tabD.jediTaskID=tabF.jediTaskID AND tabD.jediTaskID=:jediTaskID "
-            sql += "AND tabD.datasetID=tabF.datasetID "
-            sql += "AND tabD.masterID IS NULL "
-            sql += f"AND tabF.type IN ({INPUT_TYPES_var_str}) "
+            sql = (
+                "SELECT * FROM ("
+                "SELECT tabF.datasetID, tabF.fileID "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabF "
+                "WHERE tabD.jediTaskID=tabF.jediTaskID AND tabD.jediTaskID=:jediTaskID "
+                "AND tabD.datasetID=tabF.datasetID "
+                "AND tabD.masterID IS NULL "
+                f"AND tabF.type IN ({INPUT_TYPES_var_str}) "
+            )
             varMap.update(INPUT_TYPES_var_map)
             sql += "ORDER BY fileID "
             sql += ") WHERE rownum<2 "
             # sql to get PandaIDs
             sqlP = f"SELECT PandaID FROM {panda_config.schemaPANDA}.filesTable4 WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-            sqlPA = "SELECT PandaID FROM {0}.filesTable_arch WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID ".format(
-                panda_config.schemaPANDAARCH
+            sqlPA = (
+                f"SELECT PandaID FROM {panda_config.schemaPANDAARCH}.filesTable_arch WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             )
             # sql to get jobParms
             sqlJ = f"SELECT jobParameters FROM {panda_config.schemaPANDA}.jobParamsTable WHERE PandaID=:PandaID "
@@ -3968,8 +3899,7 @@ class TaskStandaloneModule(BaseModule):
             varMap: dict[str, Any] = {}
             varMap[":nIDs"] = nIDs
             # sql to get fileID
-            sqlFID = f"SELECT {panda_config.schemaJEDI}.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM "
-            sqlFID += "(SELECT level FROM dual CONNECT BY level<=:nIDs) "
+            sqlFID = f"SELECT {panda_config.schemaJEDI}.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM (SELECT level FROM dual CONNECT BY level<=:nIDs) "
             # start transaction
             self.conn.begin()
             self.cur.arraysize = 10000
@@ -3999,9 +3929,11 @@ class TaskStandaloneModule(BaseModule):
             varMap[":jediTaskID"] = jediTaskID
             varMap[":delFlag"] = "Y"
             # sql to set del flag
-            sqlFID = f"UPDATE /*+ INDEX_RS_ASC(JEDI_EVENTS JEDI_EVENTS_PK) */ {panda_config.schemaJEDI}.JEDI_Events "
-            sqlFID += "SET file_not_deleted=:delFlag "
-            sqlFID += "WHERE jediTaskID=:jediTaskID AND file_not_deleted IS NULL AND objStore_ID IS NOT NULL "
+            sqlFID = (
+                f"UPDATE /*+ INDEX_RS_ASC(JEDI_EVENTS JEDI_EVENTS_PK) */ {panda_config.schemaJEDI}.JEDI_Events "
+                "SET file_not_deleted=:delFlag "
+                "WHERE jediTaskID=:jediTaskID AND file_not_deleted IS NULL AND objStore_ID IS NOT NULL "
+            )
             # start transaction
             self.conn.begin()
             self.cur.execute(sqlFID + comment, varMap)
@@ -4025,8 +3957,7 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get files
-            sqlFID = f"SELECT lfn,fileID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlFID += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlFID = f"SELECT lfn, fileID FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # start transaction
             self.conn.begin()
             # get files
@@ -4057,17 +3988,23 @@ class TaskStandaloneModule(BaseModule):
                 commonIdx = commonIdx & set(lfnMap[datasetID].keys())
             tmpLog.debug(f"{len(commonIdx)} common files")
             # sql to remove uncommon
-            sqlRF = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlRF += "SET status=:newStatus "
-            sqlRF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-            sqlRF += "AND status=:oldStatus "
+            sqlRF = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "SET status=:newStatus "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                "AND status=:oldStatus "
+            )
             # sql to count files
-            sqlCF = f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlCF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status<>:status "
+            sqlCF = (
+                f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status<>:status "
+            )
             # sql to update nFiles
-            sqlUD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlUD += "SET nFiles=:nFiles,nFilesTobeUsed=:nFilesTobeUsed "
-            sqlUD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlUD = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+                "SET nFiles=:nFiles, nFilesTobeUsed=:nFilesTobeUsed "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             self.conn.begin()
             # remove uncommon
             for datasetID in datasetIDs:
@@ -4121,10 +4058,12 @@ class TaskStandaloneModule(BaseModule):
             varMap: dict[str, Any] = {}
             varMap[":status"] = "paused"
             varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=10)
-            sqlTL = "SELECT jediTaskID "
-            sqlTL += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlTL += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlTL += "AND tabT.status=:status AND tabT.modificationTime<:timeLimit AND tabT.lockedBy IS NULL "
+            sqlTL = (
+                "SELECT jediTaskID "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.status=:status AND tabT.modificationTime<:timeLimit AND tabT.lockedBy IS NULL "
+            )
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sqlTL += "AND vo=:vo "
@@ -4132,19 +4071,20 @@ class TaskStandaloneModule(BaseModule):
                 varMap[":prodSourceLabel"] = prodSourceLabel
                 sqlTL += "AND prodSourceLabel=:prodSourceLabel "
             # sql to update tasks
-            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTU += "SET modificationtime=CURRENT_DATE "
-            sqlTU += "WHERE jediTaskID=:jediTaskID AND status=:status AND lockedBy IS NULL "
+            sqlTU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET modificationtime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND status=:status AND lockedBy IS NULL "
+            )
             # sql to get jobs to throttle
-            sqlJS = f"SELECT PandaID,cloud,computingSite,prodSourceLabel FROM {panda_config.schemaPANDA}.jobsActive4 "
-            sqlJS += "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
+            sqlJS = (
+                f"SELECT PandaID, cloud, computingSite, prodSourceLabel FROM {panda_config.schemaPANDA}.jobsActive4 "
+                "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
+            )
             # sql to throttle a job
-            sqlJT = f"UPDATE {panda_config.schemaPANDA}.jobsActive4 "
-            sqlJT += "SET jobStatus=:newJobStatus "
-            sqlJT += "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
+            sqlJT = f"UPDATE {panda_config.schemaPANDA}.jobsActive4 SET jobStatus=:newJobStatus WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
             # sql to get jobs in jobsDefined
-            sqlJD = f"SELECT PandaID FROM {panda_config.schemaPANDA}.jobsDefined4 "
-            sqlJD += "WHERE jediTaskID=:jediTaskID "
+            sqlJD = f"SELECT PandaID FROM {panda_config.schemaPANDA}.jobsDefined4 WHERE jediTaskID=:jediTaskID "
             # start transaction
             self.conn.begin()
             tmpLog.debug(sqlTL + comment + str(varMap))
@@ -4212,12 +4152,14 @@ class TaskStandaloneModule(BaseModule):
             # get num of done jobs
             varMap: dict[str, Any] = dict()
             varMap[":jediTaskID"] = jediTaskID
-            sql = "SELECT COUNT(*) FROM ("
-            sql += "SELECT distinct c.PandaID "
-            sql += "FROM {0}.JEDI_Datasets d,{0}.JEDI_Dataset_Contents c ".format(panda_config.schemaJEDI)
-            sql += "WHERE c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID "
-            sql += "AND d.jediTaskID=:jediTaskID AND d.masterID IS NULL "
-            sql += f"AND d.type IN ({INPUT_TYPES_var_str}) "
+            sql = (
+                "SELECT COUNT(*) FROM ("
+                "SELECT distinct c.PandaID "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Datasets d, {panda_config.schemaJEDI}.JEDI_Dataset_Contents c "
+                "WHERE c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID "
+                "AND d.jediTaskID=:jediTaskID AND d.masterID IS NULL "
+                f"AND d.type IN ({INPUT_TYPES_var_str}) "
+            )
             varMap.update(INPUT_TYPES_var_map)
             sql += ") t "
             # start transaction
@@ -4249,8 +4191,9 @@ class TaskStandaloneModule(BaseModule):
             # get num of done jobs
             varMap: dict[str, Any] = dict()
             varMap[":status"] = "standby"
-            sql = f"SELECT /* use_json_type */ panda_queue, scj.data.catchall FROM {panda_config.schemaJEDI}.schedconfig_json scj "
-            sql += "WHERE scj.data.status=:status "
+            sql = (
+                f"SELECT /* use_json_type */ panda_queue, scj.data.catchall FROM {panda_config.schemaJEDI}.schedconfig_json scj WHERE scj.data.status=:status "
+            )
             self.conn.begin()
             self.cur.arraysize = 1000
             self.cur.execute(sql + comment, varMap)
@@ -4278,12 +4221,14 @@ class TaskStandaloneModule(BaseModule):
                                 varMap[":status"] = "starting"
                                 varMap[":resource_type"] = resource_type
                                 varMap[":computingsite"] = siteid
-                                sql = f"SELECT /*+ RESULT_CACHE */ SUM(njobs) FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
-                                sql += "WHERE vo=:vo AND resource_type=:resource_type AND jobstatus=:status AND computingsite=:computingsite "
+                                sql = (
+                                    f"SELECT /*+ RESULT_CACHE */ SUM(njobs) FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
+                                    "WHERE vo=:vo AND resource_type=:resource_type AND jobstatus=:status AND computingsite=:computingsite "
+                                )
                                 if workqueue.is_global_share:
                                     sql += "AND gshare=:gshare "
-                                    sql += "AND workqueue_id NOT IN (SELECT queue_id FROM {0}.jedi_work_queue WHERE queue_function=:func) ".format(
-                                        panda_config.schemaPANDA
+                                    sql += (
+                                        f"AND workqueue_id NOT IN (SELECT queue_id FROM {panda_config.schemaPANDA}.jedi_work_queue WHERE queue_function=:func) "
                                     )
                                     varMap[":gshare"] = workqueue.queue_name
                                     varMap[":func"] = "Resource"
@@ -4341,19 +4286,20 @@ class TaskStandaloneModule(BaseModule):
                 "AND (nFiles > nFilesFinished+nFilesFailed OR nFilesTobeUsed > nFilesFinished+nFilesFailed) "
             )
             # sql to update attemptNr for files
-            sql_update_file = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sql_update_file += "SET attemptNr=maxAttempt "
-            sql_update_file += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            sql_update_file += "AND status=:status AND keepTrack=:keepTrack "
-            sql_update_file += "AND maxAttempt IS NOT NULL AND attemptNr<maxAttempt "
-            sql_update_file += "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
+            sql_update_file = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "SET attemptNr=maxAttempt "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                "AND status=:status AND keepTrack=:keepTrack "
+                "AND maxAttempt IS NOT NULL AND attemptNr<maxAttempt "
+                "AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
+            )
             # sql to update nFilesFailed in input datasets
-            sql_update_dataset = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sql_update_dataset += "SET nFilesFailed=nFilesFailed+:nDiff "
-            sql_update_dataset += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sql_update_dataset = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesFailed=nFilesFailed+:nDiff WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             # sql to release task
-            sql_release = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=NULL,lockedTime=NULL "
-            sql_release += "WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy "
+            sql_release = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=NULL, lockedTime=NULL WHERE jediTaskID=:jediTaskID AND lockedBy=:lockedBy "
             # lock task
             n_loop = 100
             n_datasets = 100
@@ -4683,20 +4629,15 @@ class TaskStandaloneModule(BaseModule):
         # define the var map of query parameters
         var_map = {":vo": vo, ":startTimeMin": starttime_min, ":startTimeMax": starttime_max}
         # sql to query on jobs-tables (jobsactive4 and jobsdefined4)
-        sql_jt = """
-               SELECT computingSite, COUNT(*) FROM %s
-               WHERE vo=:vo
-               AND startTime IS NOT NULL AND startTime>=:startTimeMin AND startTime<:startTimeMax
-               AND jobStatus IN ('running', 'holding', 'transferring', 'finished', 'cancelled')
-               """
+        sql_jt = (
+            "SELECT computingSite, COUNT(*) FROM %s "
+            "WHERE vo=:vo "
+            "AND startTime IS NOT NULL AND startTime>=:startTimeMin AND startTime<:startTimeMax "
+            "AND jobStatus IN ('running', 'holding', 'transferring', 'finished', 'cancelled') "
+        )
         if exclude_rwq:
-            sql_jt += f"""
-               AND workqueue_id NOT IN
-               (SELECT queue_id FROM {panda_config.schemaPANDA}.jedi_work_queue WHERE queue_function = 'Resource')
-               """
-        sql_jt += """
-               GROUP BY computingSite
-               """
+            sql_jt += f"AND workqueue_id NOT IN (SELECT queue_id FROM {panda_config.schemaPANDA}.jedi_work_queue WHERE queue_function = 'Resource') "
+        sql_jt += "GROUP BY computingSite "
         # job tables
         tables = [f"{panda_config.schemaPANDA}.jobsActive4", f"{panda_config.schemaPANDA}.jobsDefined4"]
         # get
@@ -5051,8 +4992,9 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to set missing files
-            sqlF = ("UPDATE {0}.JEDI_Dataset_Contents SET status=:nStatus WHERE jediTaskID=:jediTaskID AND lfn LIKE :lfn AND status!=:nStatus ").format(
-                panda_config.schemaJEDI
+            sqlF = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:nStatus "
+                "WHERE jediTaskID=:jediTaskID AND lfn LIKE :lfn AND status!=:nStatus "
             )
             # begin transaction
             self.conn.begin()
@@ -5176,19 +5118,22 @@ class TaskStandaloneModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to get child tasks
-            sqlGT = f"SELECT jediTaskID,status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlGT += "WHERE parent_tid=:jediTaskID AND parent_tid<>jediTaskID "
+            sqlGT = f"SELECT jediTaskID, status FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE parent_tid=:jediTaskID AND parent_tid<>jediTaskID "
             # sql to change modification time to the time just before pending tasks are reactivated
             timeLimitT = naive_utcnow() - datetime.timedelta(minutes=5)
-            sqlCT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlCT += "SET modificationTime=CURRENT_DATE-1 "
-            sqlCT += "WHERE jediTaskID=:jediTaskID AND modificationTime<:timeLimit "
-            sqlCT += "AND status=:status AND lockedBy IS NULL "
+            sqlCT = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET modificationTime=CURRENT_DATE-1 "
+                "WHERE jediTaskID=:jediTaskID AND modificationTime<:timeLimit "
+                "AND status=:status AND lockedBy IS NULL "
+            )
             # sql to change state check time
             timeLimitD = naive_utcnow() - datetime.timedelta(minutes=5)
-            sqlCC = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlCC += "SET stateCheckTime=CURRENT_DATE-1 "
-            sqlCC += "WHERE jediTaskID=:jediTaskID AND state=:dsState AND stateCheckTime<:timeLimit "
+            sqlCC = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+                "SET stateCheckTime=CURRENT_DATE-1 "
+                "WHERE jediTaskID=:jediTaskID AND state=:dsState AND stateCheckTime<:timeLimit "
+            )
             # begin transaction
             self.conn.begin()
             # get tasks
