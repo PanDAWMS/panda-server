@@ -483,10 +483,12 @@ class MetricsModule(BaseModule):
         comment = " /* DBProxy.checkFailureCountWithCorruptedFiles */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} pandaID={pandaID}")
         # sql to failure counts
-        sqlBD = "SELECT f2.lfn,COUNT(*) FROM ATLAS_PANDA.filesTable4 f1, ATLAS_PANDA.filesTable4 f2 "
-        sqlBD += "WHERE f1.PandaID=:PandaID AND f1.type=:type AND f1.status=:status "
-        sqlBD += "AND f2.lfn=f1.lfn AND f2.type=:type AND f2.status=:status AND f2.jediTaskID=:jediTaskID "
-        sqlBD += "GROUP BY f2.lfn "
+        sqlBD = (
+            "SELECT f2.lfn, COUNT(*) FROM ATLAS_PANDA.filesTable4 f1, ATLAS_PANDA.filesTable4 f2 "
+            "WHERE f1.PandaID=:PandaID AND f1.type=:type AND f1.status=:status "
+            "AND f2.lfn=f1.lfn AND f2.type=:type AND f2.status=:status AND f2.jediTaskID=:jediTaskID "
+            "GROUP BY f2.lfn "
+        )
         varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":PandaID": pandaID, ":status": "corrupted", ":type": "zipinput"}
         self.cur.execute(sqlBD + comment, varMap)
         resBD = self.cur.fetchall()
@@ -565,8 +567,10 @@ class MetricsModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql
-            sql = f"SELECT sum(prorated_diskio_avg * njobs) / sum(njobs), computingSite FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
-            sql += "WHERE jobStatus=:jobStatus GROUP BY computingSite "
+            sql = (
+                f"SELECT sum(prorated_diskio_avg * njobs) / sum(njobs), computingSite FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
+                "WHERE jobStatus=:jobStatus GROUP BY computingSite "
+            )
             var_map: dict[str, Any] = dict()
             var_map[":jobStatus"] = "running"
             # begin transaction
@@ -654,8 +658,7 @@ class MetricsModule(BaseModule):
         comment = " /* DBProxy.getJobStatisticsWithWorkQueue_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} cloud={cloud}")
         tmpLog.debug(f"start minPriority={minPriority}")
-        sql0 = "SELECT computingSite,cloud,jobStatus,workQueue_ID,COUNT(*) FROM %s "
-        sql0 += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel "
+        sql0 = "SELECT computingSite, cloud, jobStatus, workQueue_ID, COUNT(*) FROM %s WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel "
         if cloud is not None:
             sql0 += "AND cloud=:cloud "
         tmpPrioMap = {}
@@ -664,7 +667,7 @@ class MetricsModule(BaseModule):
             tmpPrioMap[":minPriority"] = minPriority
         sql0 += "GROUP BY computingSite,cloud,prodSourceLabel,jobStatus,workQueue_ID "
         sqlMV = sql0
-        sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sqlMV)
+        sqlMV = re.sub(r"COUNT\(\*\)", "SUM(num_of_jobs)", sqlMV)
         sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
         tables = [f"{panda_config.schemaPANDA}.jobsActive4", f"{panda_config.schemaPANDA}.jobsDefined4"]
         if minPriority is not None:
@@ -739,9 +742,11 @@ class MetricsModule(BaseModule):
         comment = " /* DBProxy.get_core_statistics */"
         tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prod_source_label}")
         tmpLog.debug("start")
-        sql0 = f"SELECT /*+ RESULT_CACHE */ computingSite,jobStatus,SUM(num_of_cores) FROM {panda_config.schemaPANDA}.MV_JOBSACTIVE4_STATS "
-        sql0 += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel "
-        sql0 += "GROUP BY computingSite,cloud,prodSourceLabel,jobStatus "
+        sql0 = (
+            f"SELECT /*+ RESULT_CACHE */ computingSite, jobStatus, SUM(num_of_cores) FROM {panda_config.schemaPANDA}.MV_JOBSACTIVE4_STATS "
+            "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel "
+            "GROUP BY computingSite, cloud, prodSourceLabel, jobStatus "
+        )
         var_map = {":vo": vo, ":prodSourceLabel": prod_source_label}
         return_map: dict[str, dict[str, int]] = {}
         try:
@@ -785,20 +790,12 @@ class MetricsModule(BaseModule):
         var_map = {":vo": vo}
 
         # sql to query on pre-cached job statistics tables (JOBS_SHARE_STATS and JOBSDEFINED_SHARE_STATS)
-        sql_jt = """
-               SELECT /*+ RESULT_CACHE */ computingSite, jobStatus, gShare, SUM(njobs) FROM %s
-               WHERE vo=:vo
-               """
+        sql_jt = "SELECT /*+ RESULT_CACHE */ computingSite, jobStatus, gShare, SUM(njobs) FROM %s WHERE vo=:vo "
 
         if exclude_rwq:
-            sql_jt += f"""
-               AND workqueue_id NOT IN
-               (SELECT queue_id FROM {panda_config.schemaPANDA}.jedi_work_queue WHERE queue_function = 'Resource')
-               """
+            sql_jt += f"AND workqueue_id NOT IN (SELECT queue_id FROM {panda_config.schemaPANDA}.jedi_work_queue WHERE queue_function = 'Resource') "
 
-        sql_jt += """
-               GROUP BY computingSite, jobStatus, gshare
-               """
+        sql_jt += "GROUP BY computingSite, jobStatus, gshare "
 
         tables = [f"{panda_config.schemaPANDA}.JOBS_SHARE_STATS", f"{panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS"]
 
@@ -939,10 +936,7 @@ class MetricsModule(BaseModule):
         var_map = {":vo": vo, ":job_status": job_status}
 
         # sql to query on pre-cached job statistics table
-        sql_jt = """
-               SELECT /*+ RESULT_CACHE */ computingSite, nucleus, SUM(njobs) FROM %s
-               WHERE vo=:vo AND jobStatus=:job_status GROUP BY computingSite, nucleus
-               """
+        sql_jt = "SELECT /*+ RESULT_CACHE */ computingSite, nucleus, SUM(njobs) FROM %s WHERE vo=:vo AND jobStatus=:job_status GROUP BY computingSite, nucleus "
 
         if job_status in ["transferring", "running", "activatedholding"]:
             table = f"{panda_config.schemaPANDA}.JOBS_SHARE_STATS"
