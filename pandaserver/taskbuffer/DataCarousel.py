@@ -489,8 +489,8 @@ class DataCarouselInterface(object):
         self._last_update_ts_dict: dict[str, datetime | None] = {}
         # cache of task params map per task ID; task params do not change after task submission
         self._task_params_cache: dict[int, dict[str, Any]] = {}
-        # cache of task params map per task ID for update_requests_usage
-        self._usage_task_params_cache: dict[int, dict[str, Any]] = {}
+        # task IDs still needed in the cache of task params map, per consumer
+        self._task_params_cache_seen_map: dict[str, set[int]] = {}
         # full pid
         self.full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{os.getpid()}"
         # refresh
@@ -1756,20 +1756,17 @@ class DataCarouselInterface(object):
             tmp_log.error(f"got error ; {traceback.format_exc()}")
             return False
 
-    def _get_task_params_map(self, task_id: int, cache: dict[int, dict[str, Any]] | None = None) -> dict[str, Any] | None:
+    def _get_task_params_map(self, task_id: int) -> dict[str, Any] | None:
         """
         Get task params map of a task, cached since task params do not change after task submission
 
         Args:
             task_id (int): JEDI task ID
-            cache (dict|None): cache of task params map per task ID to use; if None, use the default one
 
         Returns:
             dict | None : task params map, or None if failed
         """
-        if cache is None:
-            cache = self._task_params_cache
-        if (cached_task_params_map := cache.get(task_id)) is not None:
+        if (cached_task_params_map := self._task_params_cache.get(task_id)) is not None:
             return cached_task_params_map
         tmp_log = LogWrapper(logger, f"_get_task_params_map task_id={task_id}")
         try:
@@ -1782,20 +1779,34 @@ class DataCarouselInterface(object):
         except Exception:
             tmp_log.warning(f"failed to get task params ; {traceback.format_exc()}")
             return None
-        cache[task_id] = task_params_map
+        self._task_params_cache[task_id] = task_params_map
         return task_params_map
 
-    def _all_active_tasks_have_task_param(self, task_specs: list[JediTaskSpec], param_name: str, cache: dict[int, dict[str, Any]] | None = None) -> bool:
+    def _prune_task_params_cache(self, consumer: str, seen_task_ids: set[int]) -> None:
         """
-        Check whether there are active tasks and all of them have the task parameter enabled
+        Record the task IDs still needed by a consumer of the cache of task params map, and drop the tasks needed by no consumer
+
+        Args:
+            consumer (str): name of the consumer, e.g. the calling method
+            seen_task_ids (set[int]): task IDs the consumer saw in its latest run
+        """
+        self._task_params_cache_seen_map[consumer] = seen_task_ids
+        needed_task_ids: set[int] = set()
+        for task_ids in self._task_params_cache_seen_map.values():
+            needed_task_ids |= task_ids
+        for task_id in list(self._task_params_cache):
+            if task_id not in needed_task_ids:
+                del self._task_params_cache[task_id]
+
+    def _all_active_tasks_to_backfill(self, task_specs: list[JediTaskSpec]) -> bool:
+        """
+        Check whether there are active tasks and all of them have task parameter data_carousel_backfill
 
         Args:
             task_specs (list[JediTaskSpec]): tasks mapped to the request
-            param_name (str): name of the task parameter, e.g. data_carousel_backfill
-            cache (dict|None): cache of task params map per task ID to use; if None, use the default one
 
         Returns:
-            bool : True if there are active tasks and all of them have the task parameter enabled, False otherwise
+            bool : True if there are active tasks and all of them are to backfill, False otherwise
         """
         has_active_task = False
         for task_spec in task_specs:
@@ -1803,31 +1814,11 @@ class DataCarouselInterface(object):
                 continue
             if task_spec.jediTaskID is None:
                 return False
-            task_params_map = self._get_task_params_map(task_spec.jediTaskID, cache=cache)
-            if task_params_map is None or not task_params_map.get(param_name):
+            task_params_map = self._get_task_params_map(task_spec.jediTaskID)
+            if task_params_map is None or not task_params_map.get("data_carousel_backfill"):
                 return False
             has_active_task = True
         return has_active_task
-
-    def _any_active_task_has_task_param(self, task_specs: list[JediTaskSpec], param_name: str, cache: dict[int, dict[str, Any]] | None = None) -> bool:
-        """
-        Check whether any active task has the task parameter enabled
-
-        Args:
-            task_specs (list[JediTaskSpec]): tasks mapped to the request
-            param_name (str): name of the task parameter, e.g. remove_rule_when_done
-            cache (dict|None): cache of task params map per task ID to use; if None, use the default one
-
-        Returns:
-            bool : True if any active task has the task parameter enabled, False otherwise
-        """
-        for task_spec in task_specs:
-            if task_spec.status in FINAL_TASK_STATUSES or task_spec.jediTaskID is None:
-                continue
-            task_params_map = self._get_task_params_map(task_spec.jediTaskID, cache=cache)
-            if task_params_map is not None and task_params_map.get(param_name):
-                return True
-        return False
 
     def _update_to_backfill(self, queued_requests: list[tuple[DataCarouselRequestSpec, list[JediTaskSpec]]]) -> None:
         """
@@ -1845,7 +1836,7 @@ class DataCarouselInterface(object):
             seen_task_ids.update(task_spec.jediTaskID for task_spec in task_specs if task_spec.jediTaskID is not None)
             if dc_req_spec.get_parameter("to_pin"):
                 continue
-            to_backfill = self._all_active_tasks_have_task_param(task_specs, "data_carousel_backfill")
+            to_backfill = self._all_active_tasks_to_backfill(task_specs)
             if to_backfill:
                 n_to_backfill += 1
             if dc_req_spec.get_parameter("to_backfill") == to_backfill:
@@ -1871,9 +1862,7 @@ class DataCarouselInterface(object):
             except Exception:
                 tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
         # clean up cache of tasks not mapped to queued requests anymore
-        for task_id in list(self._task_params_cache):
-            if task_id not in seen_task_ids:
-                del self._task_params_cache[task_id]
+        self._prune_task_params_cache("_update_to_backfill", seen_task_ids)
         tmp_log.debug(f"got {n_to_backfill} requests to backfill ; updated {n_updated} requests in DB")
 
     def submit_data_carousel_requests(
@@ -2918,25 +2907,58 @@ class DataCarouselInterface(object):
             return DEFAULT_LAST_USED_GRACE_DAYS
         return grace_days
 
-    def _get_last_used_time(self, dc_req_spec: DataCarouselRequestSpec) -> datetime | None:
+    def _get_grace_end_time(self, dc_req_spec: DataCarouselRequestSpec, grace_days: int | float) -> datetime | None:
         """
-        Get last_used_time of the request from its parameters
+        Get the end of the grace period of the request, i.e. last_used_time in its parameters plus grace_days
 
         Args:
             dc_req_spec (DataCarouselRequestSpec): spec of the request
+            grace_days (int|float): grace period in days after last used
 
         Returns:
-            datetime | None : last_used_time, or None if not set or invalid
+            datetime | None : end time of the grace period, or None if last_used_time not set or invalid
         """
         last_used_time_str = dc_req_spec.get_parameter("last_used_time")
         if not last_used_time_str:
             return None
         try:
-            return datetime.fromisoformat(last_used_time_str)
+            return datetime.fromisoformat(last_used_time_str) + timedelta(days=grace_days)
         except ValueError:
-            tmp_log = LogWrapper(logger, f"_get_last_used_time request_id={dc_req_spec.request_id}")
+            tmp_log = LogWrapper(logger, f"_get_grace_end_time request_id={dc_req_spec.request_id}")
             tmp_log.warning(f"got invalid last_used_time={last_used_time_str} ; ignored")
             return None
+
+    def _extend_rule_for_grace_period(self, dc_req_spec: DataCarouselRequestSpec, ddm_rule_id: str, the_rule: dict[str, Any], grace_days: int | float) -> bool:
+        """
+        Extend the DDM rule of a done request without active tasks to cover its grace period after last used (with margin), if the rule expires earlier
+
+        Args:
+            dc_req_spec (DataCarouselRequestSpec): spec of the request
+            ddm_rule_id (str): DDM rule ID of the request
+            the_rule (dict): DDM rule data
+            grace_days (int|float): grace period in days after last used
+
+        Returns:
+            bool : True if the rule was extended, False otherwise
+        """
+        if dc_req_spec.status != DataCarouselRequestStatus.done or dc_req_spec.get_parameter("remove_when_done"):
+            # not to be kept for grace period
+            return False
+        grace_end_time = self._get_grace_end_time(dc_req_spec, grace_days)
+        now_time = naive_utcnow()
+        if grace_end_time is None or grace_end_time <= now_time:
+            # no grace period or grace period over
+            return False
+        rule_expiration_time = the_rule.get("expires_at")
+        if rule_expiration_time is None or rule_expiration_time >= grace_end_time:
+            # rule lifetime long enough
+            return False
+        lifetime_sec = int((grace_end_time + timedelta(days=LAST_USED_GRACE_RULE_MARGIN_DAYS) - now_time).total_seconds())
+        if not self._refresh_ddm_rule(ddm_rule_id, lifetime_sec):
+            return False
+        tmp_log = LogWrapper(logger, f"_extend_rule_for_grace_period request_id={dc_req_spec.request_id}")
+        tmp_log.debug(f"ddm_rule_id={ddm_rule_id} refreshed lifetime to be {lifetime_sec / 86400:.2f} days long to cover grace period until {grace_end_time}")
+        return True
 
     def keep_alive_ddm_rules(self, by: str = "watchdog") -> None:
         """
@@ -2954,8 +2976,8 @@ class DataCarouselInterface(object):
             return
         all_requests_map, _ = all_requests
         active_tasked_requests_map, _ = active_tasked_requests
-        # grace period after last used, got when needed
-        grace_days = None
+        # grace period after last used
+        grace_days = self._get_last_used_grace_days()
         for dc_req_spec in all_requests_map.values():
             try:
                 if dc_req_spec.status not in [DataCarouselRequestStatus.staging, DataCarouselRequestStatus.done]:
@@ -2985,28 +3007,9 @@ class DataCarouselInterface(object):
                 else:
                     # requests of non-active tasks; check if the rule is valid
                     is_valid, ddm_rule_id, the_rule = self._check_ddm_rule_of_request(dc_req_spec, by=by)
-                    # done requests within grace period after last used ; keep the rule alive until the grace period ends
-                    if (
-                        is_valid
-                        and ddm_rule_id
-                        and the_rule
-                        and dc_req_spec.status == DataCarouselRequestStatus.done
-                        and not dc_req_spec.get_parameter("remove_when_done")
-                        and (last_used_time := self._get_last_used_time(dc_req_spec)) is not None
-                    ):
-                        if grace_days is None:
-                            grace_days = self._get_last_used_grace_days()
-                        now_time = naive_utcnow()
-                        grace_end_time = last_used_time + timedelta(days=grace_days)
-                        rule_expiration_time = the_rule.get("expires_at")
-                        if grace_end_time > now_time and rule_expiration_time is not None and rule_expiration_time < grace_end_time:
-                            # rule to expire before the end of grace period ; extend it to cover the grace period with margin
-                            lifetime_sec = int((grace_end_time + timedelta(days=LAST_USED_GRACE_RULE_MARGIN_DAYS) - now_time).total_seconds())
-                            if self._refresh_ddm_rule(ddm_rule_id, lifetime_sec):
-                                tmp_log.debug(
-                                    f"request_id={dc_req_spec.request_id} status={dc_req_spec.status} ddm_rule_id={ddm_rule_id} "
-                                    f"refreshed lifetime to be {lifetime_sec / 86400:.2f} days long to cover grace period after last_used_time={last_used_time}"
-                                )
+                    # keep the rule alive until the grace period after last used ends
+                    if is_valid and ddm_rule_id and the_rule:
+                        self._extend_rule_for_grace_period(dc_req_spec, ddm_rule_id, the_rule, grace_days)
                     # if not is_valid:
                     #     tmp_log.warning(f"ddm_rule_id={ddm_rule_id} rule not valid")
             except Exception:
@@ -3032,21 +3035,25 @@ class DataCarouselInterface(object):
         for dc_req_spec, task_specs in requests_with_tasks:
             try:
                 params_to_update: dict[str, Any] = {}
-                # active tasks and latest end time of ended tasks
+                # active tasks, whether any of them has remove_rule_when_done, and latest end time of ended tasks
                 has_active_task = False
+                remove_when_done = False
                 latest_end_time = None
                 for task_spec in task_specs:
                     if task_spec.status not in FINAL_TASK_STATUSES:
                         has_active_task = True
                         if task_spec.jediTaskID is not None:
                             seen_task_ids.add(task_spec.jediTaskID)
+                            if not remove_when_done:
+                                task_params_map = self._get_task_params_map(task_spec.jediTaskID)
+                                if task_params_map is not None and task_params_map.get("remove_rule_when_done"):
+                                    remove_when_done = True
                     elif task_spec.endTime is not None and (latest_end_time is None or task_spec.endTime > latest_end_time):
                         latest_end_time = task_spec.endTime
                 if has_active_task:
                     # still used by active tasks
                     params_to_update["last_used_time"] = now_time_str
-                    # decide remove_when_done by active tasks
-                    remove_when_done = self._any_active_task_has_task_param(task_specs, "remove_rule_when_done", cache=self._usage_task_params_cache)
+                    # remove_when_done decided by active tasks
                     if bool(dc_req_spec.get_parameter("remove_when_done")) != remove_when_done:
                         params_to_update["remove_when_done"] = remove_when_done
                 elif latest_end_time is not None:
@@ -3074,9 +3081,7 @@ class DataCarouselInterface(object):
             except Exception:
                 tmp_log.error(f"request_id={dc_req_spec.request_id} got error ; {traceback.format_exc()}")
         # clean up cache of tasks not active anymore
-        for task_id in list(self._usage_task_params_cache):
-            if task_id not in seen_task_ids:
-                del self._usage_task_params_cache[task_id]
+        self._prune_task_params_cache("update_requests_usage", seen_task_ids)
         tmp_log.debug(f"checked {len(requests_with_tasks)} requests ; updated {n_updated} requests in DB")
 
     def _update_staged_files(self, dc_req_spec: DataCarouselRequestSpec, task_id_list: list[int] | None = None) -> bool | None:
@@ -3361,7 +3366,6 @@ class DataCarouselInterface(object):
         self,
         done_age_limit_days: int | float = DONE_LIFETIME_DAYS,
         outdated_age_limit_days: int | float = DONE_LIFETIME_DAYS,
-        last_used_grace_days: int | float | None = None,
         by: str = "watchdog",
     ) -> None:
         """
@@ -3370,14 +3374,12 @@ class DataCarouselInterface(object):
         Args:
             done_age_limit_days (int|float): age limit in days since end_time for requests done and without active tasks
             outdated_age_limit_days (int|float): age limit in days for outdated requests without tasks
-            last_used_grace_days (int|float|None): grace period in days since last_used_time for requests done and without active tasks; if None, from config LAST_USED_GRACE_DAYS or default
             by (str): annotation of the caller of this method; default is "watchdog"
         """
         tmp_log = LogWrapper(logger, "clean_up_requests")
         try:
             # grace period after last used
-            if last_used_grace_days is None:
-                last_used_grace_days = self._get_last_used_grace_days()
+            last_used_grace_days = self._get_last_used_grace_days()
             # initialize
             done_requests_set = set()
             cancelled_requests_set = set()
@@ -3411,8 +3413,8 @@ class DataCarouselInterface(object):
                     if dc_req_spec.get_parameter("rule_unfound") or dc_req_spec.get_parameter("remove_when_done"):
                         to_clean_up = True
                     elif dc_req_spec.end_time and dc_req_spec.end_time < now_time - timedelta(days=done_age_limit_days):
-                        last_used_time = self._get_last_used_time(dc_req_spec)
-                        if last_used_time is None or last_used_time < now_time - timedelta(days=last_used_grace_days):
+                        grace_end_time = self._get_grace_end_time(dc_req_spec, last_used_grace_days)
+                        if grace_end_time is None or grace_end_time < now_time:
                             to_clean_up = True
                     if to_clean_up:
                         done_requests_set.add(request_id)
