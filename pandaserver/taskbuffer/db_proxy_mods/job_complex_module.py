@@ -448,14 +448,15 @@ class JobComplexModule(BaseModule):
 
                         try:
                             # try to update the computing element from the harvester worker table
-                            sql_ce = """
-                                     UPDATE ATLAS_PANDA.jobsActive4
-                                     SET computingelement = (SELECT * FROM (
-                                       SELECT computingelement FROM ATLAS_PANDA.harvester_workers hw, ATLAS_PANDA.Harvester_Rel_Jobs_Workers hrjw
-                                       WHERE hw.workerid = hrjw.workerid AND hw.harvesterid = hrjw.harvesterid AND hrjw.pandaid = :PandaID ORDER BY hw.workerid DESC
-                                       ) WHERE rownum=1)
-                                     WHERE PandaID=:PandaID
-                                     """
+                            sql_ce = (
+                                "UPDATE ATLAS_PANDA.jobsActive4 "
+                                "SET computingelement = (SELECT * FROM ( "
+                                "SELECT computingelement FROM ATLAS_PANDA.harvester_workers hw, ATLAS_PANDA.Harvester_Rel_Jobs_Workers hrjw "
+                                "WHERE hw.workerid = hrjw.workerid AND hw.harvesterid = hrjw.harvesterid AND hrjw.pandaid = :PandaID "
+                                "ORDER BY hw.workerid DESC "
+                                ") WHERE rownum=1) "
+                                "WHERE PandaID=:PandaID "
+                            )
                             varMap = {":PandaID": pandaID}
                             self.cur.execute(sql_ce + comment, varMap)
                             nRow = self.cur.rowcount
@@ -3170,7 +3171,7 @@ class JobComplexModule(BaseModule):
                     sql = " INSERT INTO ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ (col) VALUES (NULL) "
                     self.cur.arraysize = 10
                     self.cur.execute(sql + comment, {})
-                    sql2 = """ SELECT LAST_INSERT_ID() """
+                    sql2 = "SELECT LAST_INSERT_ID() "
                     self.cur.execute(sql2 + comment, {})
                     (job.jobsetID,) = self.cur.fetchone()
                 else:
