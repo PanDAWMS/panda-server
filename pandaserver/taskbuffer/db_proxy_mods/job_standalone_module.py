@@ -35,8 +35,9 @@ class JobStandaloneModule(BaseModule):
             return True
         tmp_log.debug("start")
         sql0 = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND NOT status IN (:status1,:status2) "
-        sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 "
-        sql1 += "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
+        sql1 = (
+            "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
+        )
         sql2 = f"INSERT INTO ATLAS_PANDA.jobsActive4 ({JobSpec.columnNames()}) "
         sql2 += JobSpec.bindValuesExpression()
         # host and time information
@@ -79,7 +80,7 @@ class JobStandaloneModule(BaseModule):
                         self.cur.execute(sql2 + comment, job.valuesMap())
                         # update files
                         for file in job.Files:
-                            sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()}" + "WHERE row_ID=:row_ID"
+                            sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()} WHERE row_ID=:row_ID"
                             varMap = file.valuesMap(onlyChanged=True)
                             if varMap != {}:
                                 varMap[":row_ID"] = file.row_ID
@@ -95,7 +96,8 @@ class JobStandaloneModule(BaseModule):
                     # update job
                     sqlJ = (
                         f"UPDATE ATLAS_PANDA.jobsDefined4 SET {job.bindUpdateChangesExpression()} "
-                    ) + "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
+                        "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
+                    )
                     varMap = job.valuesMap(onlyChanged=True)
                     varMap[":PandaID"] = job.PandaID
                     varMap[":oldJobStatus1"] = "assigned"
@@ -109,7 +111,7 @@ class JobStandaloneModule(BaseModule):
                     else:
                         # update files
                         for file in job.Files:
-                            sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()}" + "WHERE row_ID=:row_ID"
+                            sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()} WHERE row_ID=:row_ID"
                             varMap = file.valuesMap(onlyChanged=True)
                             if varMap != {}:
                                 varMap[":row_ID"] = file.row_ID
@@ -158,8 +160,10 @@ class JobStandaloneModule(BaseModule):
         tmp_log.debug("start")
         # set status
         job.jobStatus = "waiting"
-        sql1 = f"UPDATE ATLAS_PANDA.jobsDefined4 SET {job.bindUpdateChangesExpression()} "
-        sql1 += "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
+        sql1 = (
+            f"UPDATE ATLAS_PANDA.jobsDefined4 SET {job.bindUpdateChangesExpression()} "
+            "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
+        )
         # time information
         job.modificationTime = naive_utcnow()
         job.stateChangeTime = job.modificationTime
@@ -183,7 +187,7 @@ class JobStandaloneModule(BaseModule):
                 else:
                     # update files
                     for file in job.Files:
-                        sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()}" + "WHERE row_ID=:row_ID"
+                        sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()} WHERE row_ID=:row_ID"
                         varMap = file.valuesMap(onlyChanged=True)
                         if varMap != {}:
                             varMap[":row_ID"] = file.row_ID
@@ -233,10 +237,8 @@ class JobStandaloneModule(BaseModule):
         tmp_log.debug(f"activeTable={activeTable}")
         # select table
         table = "ATLAS_PANDA.jobsActive4"
-        sql1 = f"SELECT {JobSpec.columnNames()} FROM {table} "
-        sql1 += "WHERE PandaID=:PandaID"
-        sql2 = f"DELETE FROM {table} "
-        sql2 += "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
+        sql1 = f"SELECT {JobSpec.columnNames()} FROM {table} WHERE PandaID=:PandaID"
+        sql2 = f"DELETE FROM {table} WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
         sql3 = f"INSERT INTO ATLAS_PANDA.jobsDefined4 ({JobSpec.columnNames()}) "
         sql3 += JobSpec.bindValuesExpression()
         try:
@@ -321,8 +323,7 @@ class JobStandaloneModule(BaseModule):
                 break
             # Files
             oldSubList = []
-            sqlFile = f"SELECT {FileSpec.columnNames()} FROM ATLAS_PANDA.filesTable4 "
-            sqlFile += "WHERE PandaID=:PandaID"
+            sqlFile = f"SELECT {FileSpec.columnNames()} FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID"
             self.cur.arraysize = 10000
             self.cur.execute(sqlFile + comment, varMap)
             resFs = self.cur.fetchall()
@@ -345,7 +346,7 @@ class JobStandaloneModule(BaseModule):
                 # add file
                 job.addFile(file)
                 # update files
-                sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()}" + "WHERE row_ID=:row_ID"
+                sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()} WHERE row_ID=:row_ID"
                 varMap = file.valuesMap(onlyChanged=True)
                 if varMap != {}:
                     varMap[":row_ID"] = file.row_ID
@@ -373,13 +374,14 @@ class JobStandaloneModule(BaseModule):
         comment = " /* DBProxy.resetDefinedJob */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug("start")
-        sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET "
-        sql1 += "jobStatus=:newJobStatus,"
-        sql1 += "modificationTime=CURRENT_DATE,"
-        sql1 += "modificationHost=:modificationHost"
-        sql1 += " WHERE PandaID=:PandaID AND jobStatus IN (:oldJobStatus1,:oldJobStatus2,:oldJobStatus3) "
-        sql2 = f"SELECT {JobSpec.columnNames()} FROM ATLAS_PANDA.jobsDefined4 "
-        sql2 += "WHERE PandaID=:PandaID"
+        sql1 = (
+            "UPDATE ATLAS_PANDA.jobsDefined4 SET "
+            "jobStatus=:newJobStatus, "
+            "modificationTime=CURRENT_DATE, "
+            "modificationHost=:modificationHost "
+            "WHERE PandaID=:PandaID AND jobStatus IN (:oldJobStatus1, :oldJobStatus2, :oldJobStatus3) "
+        )
+        sql2 = f"SELECT {JobSpec.columnNames()} FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
         try:
             # begin transaction
             self.conn.begin()
@@ -420,8 +422,7 @@ class JobStandaloneModule(BaseModule):
                         job.jobParameters = str(clobJobP)
                     break
                 # Files
-                sqlFile = f"SELECT {FileSpec.columnNames()} FROM ATLAS_PANDA.filesTable4 "
-                sqlFile += "WHERE PandaID=:PandaID"
+                sqlFile = f"SELECT {FileSpec.columnNames()} FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID"
                 self.cur.arraysize = 10000
                 self.cur.execute(sqlFile + comment, varMap)
                 resFs = self.cur.fetchall()
@@ -466,8 +467,6 @@ class JobStandaloneModule(BaseModule):
         except Exception:
             tmp_log.debug(f"return None for {pandaID}:non-integer")
             return None
-        sql1_0 = "SELECT %s FROM %s "
-        sql1_1 = "WHERE PandaID=:PandaID"
         # a caller taking the error decides itself whether to try again. A dead connection is
         # reconnected by the pool before the proxy is handed out, in wakeUp
         nTry = 1 if raise_error else 3
@@ -489,7 +488,7 @@ class JobStandaloneModule(BaseModule):
                     # start transaction
                     self.conn.begin()
                     # select
-                    sql = sql1_0 % (JobSpec.columnNames(), table) + sql1_1
+                    sql = f"SELECT {JobSpec.columnNames()} FROM {table} WHERE PandaID=:PandaID"
                     self.cur.arraysize = 10
                     self.cur.execute(sql + comment, varMap)
                     res = self.cur.fetchall()
@@ -504,8 +503,7 @@ class JobStandaloneModule(BaseModule):
                         # start transaction
                         self.conn.begin()
                         # select
-                        sqlFile = f"SELECT {FileSpec.columnNames()} FROM ATLAS_PANDA.filesTable4 "
-                        sqlFile += "WHERE PandaID=:PandaID"
+                        sqlFile = f"SELECT {FileSpec.columnNames()} FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID"
                         self.cur.arraysize = 10000
                         self.cur.execute(sqlFile + comment, varMap)
                         resFs = self.cur.fetchall()
@@ -568,8 +566,7 @@ class JobStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"DN={dn}")
         tmp_log.debug(f"wg={workingGroup} prodRole={prodRole}")
         varMap: dict[str, Any] = {}
-        sqlX = "SELECT PandaID,jobStatus,specialHandling FROM %s "
-        sqlX += "WHERE "
+        sqlX = "SELECT PandaID, jobStatus, specialHandling FROM %s WHERE "
         if prodRole:
             pass
         elif workingGroup is not None:
@@ -630,10 +627,8 @@ class JobStandaloneModule(BaseModule):
         comment = " /* DBProxy.setDebugMode */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"dn={dn} prod={prodManager} wg={workingGroup} mode={modeOn}")
-        sqlX = "SELECT prodUserName,jobStatus,specialHandling,workingGroup FROM %s "
-        sqlX += "WHERE PandaID=:PandaID "
-        sqlU = "UPDATE %s SET specialHandling=:specialHandling "
-        sqlU += "WHERE PandaID=:PandaID "
+        sqlX = "SELECT prodUserName, jobStatus, specialHandling, workingGroup FROM %s WHERE PandaID=:PandaID "
+        sqlU = "UPDATE %s SET specialHandling=:specialHandling WHERE PandaID=:PandaID "
         try:
             # get compact DN
             compactDN = CoreUtils.clean_user_id(dn)
@@ -860,9 +855,11 @@ class JobStandaloneModule(BaseModule):
                 ":esJumbo": EventServiceUtils.jumboJobFlagNumber,
             }
             # make sql
-            sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
-            sql += "WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND prodSourceLabel IN (:pLabel1,:pLabel2) "
-            sql += "AND (eventService IS NULL OR eventService<>:esJumbo) "
+            sql = (
+                "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+                "WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime AND prodSourceLabel IN (:pLabel1, :pLabel2) "
+                "AND (eventService IS NULL OR eventService<>:esJumbo) "
+            )
             if highPrio:
                 varMap[":modificationTime"] = timeNow - datetime.timedelta(hours=1)
                 sql += f"AND currentPriority>=:currentPriority AND rownum<={rownum} "
@@ -909,8 +906,7 @@ class JobStandaloneModule(BaseModule):
                 varMap[":currentPriority"] = prio
             varMap[":timeLimit"] = timeLimit
             # make sql
-            sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
-            sql += "WHERE jobStatus=:jobStatus AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
+            sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND (prodDBUpdateTime IS NULL OR prodDBUpdateTime<:timeLimit) "
             if prio > 0:
                 sql += "AND currentPriority>=:currentPriority "
             sql += f"AND rownum<={rownum} "
@@ -953,9 +949,9 @@ class JobStandaloneModule(BaseModule):
         if newStatus == "failed":
             tmp_log.debug("skip")
             return True
-        sqlJ = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
-        sqlJ += "UNION "
-        sqlJ += "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
+        sqlJ = (
+            "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID UNION SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
+        )
         sql0 = "SELECT PandaID FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
         sql1 = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
         nTry = 1
@@ -1163,7 +1159,10 @@ class JobStandaloneModule(BaseModule):
         excluded_states = ["merging"]
 
         # sql template for jobs table
-        sql_template = "SELECT computingSite, resource_type, prodSourceLabel, jobStatus, COUNT(*) FROM {table_name} GROUP BY computingSite, resource_type, prodSourceLabel, jobStatus"
+        sql_template = (
+            "SELECT computingSite, resource_type, prodSourceLabel, jobStatus, COUNT(*) "
+            "FROM {table_name} GROUP BY computingSite, resource_type, prodSourceLabel, jobStatus"
+        )
         # sql template for statistics table (materialized view)
         sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
         sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
@@ -1602,8 +1601,7 @@ class JobStandaloneModule(BaseModule):
                         job.jobParameters = None
                         job_param_table_name = re.sub("jobsArchived", "jobParamsTable_ARCH", table)
                         sql_get_job_params = f"SELECT jobParameters FROM {job_param_table_name} WHERE PandaID=:PandaID"
-                        var_map = {}
-                        var_map[":PandaID"] = job.PandaID  # type: ignore[assignment]  # "NULL" sentinel, see spec_column.py
+                        var_map = {":PandaID": job.PandaID}
                         self.cur.execute(sql_get_job_params + comment, var_map)
                         for (clob_job_params,) in self.cur:
                             if clob_job_params is not None:
@@ -1856,9 +1854,9 @@ class JobStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # dql to get jobDefIDs
-            sqlGF = "SELECT distinct jobDefinitionID FROM ATLAS_PANDA.jobsActive4 "
-            sqlGF += "WHERE jediTaskID=:jediTaskID AND jobStatus=:jobStatus "
-            sqlGF += "AND attemptNr<maxAttempt "
+            sqlGF = (
+                "SELECT distinct jobDefinitionID FROM ATLAS_PANDA.jobsActive4 WHERE jediTaskID=:jediTaskID AND jobStatus=:jobStatus AND attemptNr<maxAttempt "
+            )
             varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":jobStatus": "failed"}
             self.cur.execute(sqlGF + comment, varMap)
             resGF = self.cur.fetchall()
@@ -1886,15 +1884,18 @@ class JobStandaloneModule(BaseModule):
             retVal = True
             retMsg = ""
             # sql to check if merge job is active
-            sqlJ = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
-            sqlJ += "UNION "
-            sqlJ += "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+            sqlJ = (
+                "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
+                "UNION "
+                "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+            )
             # sql to get input files
-            sqlF = "SELECT datasetID,fileID FROM ATLAS_PANDA.filesTable4 "
-            sqlF += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
+            sqlF = "SELECT datasetID, fileID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type IN (:type1, :type2) "
             # sql to get PandaIDs for pre-merged jobs
-            sqlP = "SELECT outPandaID FROM ATLAS_PANDA.JEDI_Dataset_Contents "
-            sqlP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND type<>:type1"
+            sqlP = (
+                "SELECT outPandaID FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND type<>:type1"
+            )
             # sql to check if pre-merge job is active
             sqlC = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
             # begin transaction
@@ -2017,8 +2018,10 @@ class JobStandaloneModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get workers
-            sqlC = "SELECT j.PandaID,m.metaData FROM {0} j,{1} m "
-            sqlC += "WHERE j.jediTaskID=:jediTaskID AND j.jobStatus=:jobStatus AND m.PandaID=j.PandaID AND j.prodSourceLabel=:label "
+            sqlC = (
+                "SELECT j.PandaID, m.metaData FROM {0} j, {1} m "
+                "WHERE j.jediTaskID=:jediTaskID AND j.jobStatus=:jobStatus AND m.PandaID=j.PandaID AND j.prodSourceLabel=:label "
+            )
             retMap = {}
             for a, m in [
                 ("ATLAS_PANDA.jobsArchived4", "ATLAS_PANDA.metaTable"),
