@@ -67,6 +67,11 @@ def retry(
 
     Retry a given task e.g. in exhausted state. Requires a secure connection without a production role to retry own tasks and with a production role to retry others' tasks.
 
+    An analysis task that is still running, scouting or pending is not retried as a whole. Instead, its failed jobs
+    are retried: only the input files that have used up their attempts (attemptNr reached maxAttempt, or failedAttempt
+    reached maxFailure) get 3 more attempts and are reactivated. Input files that still have attempts left are not
+    changed, so repeating the retry does not keep raising their limits.
+
     API details:
         HTTP Method: POST
         Path: /v1/task/retry
@@ -147,7 +152,7 @@ def retry(
         clean_id = clean_user_id(user)
         for job_id in job_ids:
             global_task_buffer.finalizePendingJobs(clean_id, job_id)
-        global_task_buffer.increaseAttemptNrPanda(task_id, 5)
+        global_task_buffer.increaseAttemptNrPanda(task_id, 3, only_exhausted=True)
         return_str = f"retry has been triggered for failed jobs while the task is still {ret[1]}"
         if not new_parameters:
             ret = 0, return_str

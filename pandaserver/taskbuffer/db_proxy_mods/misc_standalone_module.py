@@ -744,10 +744,11 @@ class MiscStandaloneModule(BaseModule):
             return False
 
     # increase attempt number for unprocessed files
-    def increaseAttemptNrPanda(self, jediTaskID: int, increasedNr: int) -> tuple[int | None, str]:
+    # only_exhausted=True leaves files that still have attempts left untouched, and only reactivates exhausted files
+    def increaseAttemptNrPanda(self, jediTaskID: int, increasedNr: int, only_exhausted: bool = False) -> tuple[int | None, str]:
         comment = " /* DBProxy.increaseAttemptNrPanda */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmp_log.debug(f"increasedNr={increasedNr}")
+        tmp_log.debug(f"increasedNr={increasedNr} only_exhausted={only_exhausted}")
         try:
             # sql to check task status
             sqlT = f"SELECT status,oldStatus FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE "
@@ -813,16 +814,17 @@ class MiscStandaloneModule(BaseModule):
                         }
                         nFilesIncreased = 0
                         nFilesReset = 0
-                        # still active and maxFailure is undefined
-                        sqlA = sqlAB + "AND maxAttempt>attemptNr AND maxFailure IS NULL "
-                        self.cur.execute(sqlA + comment, varMap)
-                        nRow = self.cur.rowcount
-                        nFilesIncreased += nRow
-                        # still active and maxFailure is defined
-                        sqlA = sqlAF + "AND maxAttempt>attemptNr AND (maxFailure IS NOT NULL AND maxFailure>failedAttempt) "
-                        self.cur.execute(sqlA + comment, varMap)
-                        nRow = self.cur.rowcount
-                        nFilesIncreased += nRow
+                        if not only_exhausted:
+                            # still active and maxFailure is undefined
+                            sqlA = sqlAB + "AND maxAttempt>attemptNr AND maxFailure IS NULL "
+                            self.cur.execute(sqlA + comment, varMap)
+                            nRow = self.cur.rowcount
+                            nFilesIncreased += nRow
+                            # still active and maxFailure is defined
+                            sqlA = sqlAF + "AND maxAttempt>attemptNr AND (maxFailure IS NOT NULL AND maxFailure>failedAttempt) "
+                            self.cur.execute(sqlA + comment, varMap)
+                            nRow = self.cur.rowcount
+                            nFilesIncreased += nRow
                         # already done and maxFailure is undefined
                         sqlA = sqlAB + "AND maxAttempt<=attemptNr AND maxFailure IS NULL "
                         self.cur.execute(sqlA + comment, varMap)

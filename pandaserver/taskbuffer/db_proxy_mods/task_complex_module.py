@@ -4749,70 +4749,85 @@ class TaskComplexModule(BaseModule):
             return False, None, retried_tasks
         try:
             # sql to retry files without maxFailure
-            sqlRFO = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlRFO += "SET maxAttempt=maxAttempt+:maxAttempt,proc_status=:proc_status "
-            sqlRFO += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
-            sqlRFO += "AND keepTrack=:keepTrack AND maxAttempt IS NOT NULL AND maxAttempt<=attemptNr AND maxFailure IS NULL "
+            sqlRFO = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "SET maxAttempt=maxAttempt+:maxAttempt,proc_status=:proc_status "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
+                "AND keepTrack=:keepTrack AND maxAttempt IS NOT NULL AND maxAttempt<=attemptNr AND maxFailure IS NULL "
+            )
             # sql to retry files with maxFailure
-            sqlRFF = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlRFF += "SET maxAttempt=maxAttempt+:maxAttempt,maxFailure=maxFailure+:maxAttempt,proc_status=:proc_status "
-            sqlRFF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
-            sqlRFF += "AND keepTrack=:keepTrack AND maxAttempt IS NOT NULL AND maxFailure IS NOT NULL AND (maxAttempt<=attemptNr OR maxFailure<=failedAttempt) "
+            sqlRFF = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "SET maxAttempt=maxAttempt+:maxAttempt,maxFailure=maxFailure+:maxAttempt,proc_status=:proc_status "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
+                "AND keepTrack=:keepTrack AND maxAttempt IS NOT NULL AND maxFailure IS NOT NULL AND (maxAttempt<=attemptNr OR maxFailure<=failedAttempt) "
+            )
             # sql to reset ramCount
-            sqlRRC = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlRRC += "SET ramCount=0 "
-            sqlRRC += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
-            sqlRRC += "AND keepTrack=:keepTrack "
+            sqlRRC = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "SET ramCount=0 "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
+                "AND keepTrack=:keepTrack "
+            )
             # sql to count unprocessed files
-            sqlCU = f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlCU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
-            sqlCU += "AND keepTrack=:keepTrack AND maxAttempt IS NOT NULL AND maxAttempt>attemptNr "
-            sqlCU += "AND (maxFailure IS NULL OR maxFailure>failedAttempt) "
+            sqlCU = (
+                f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
+                "AND keepTrack=:keepTrack AND maxAttempt IS NOT NULL AND maxAttempt>attemptNr "
+                "AND (maxFailure IS NULL OR maxFailure>failedAttempt) "
+            )
             # sql to count failed files
-            sqlCF = f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlCF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
-            sqlCF += "AND keepTrack=:keepTrack AND ((maxAttempt IS NOT NULL AND maxAttempt<=attemptNr) "
-            sqlCF += "OR (maxFailure IS NOT NULL AND maxFailure<=failedAttempt)) "
+            sqlCF = (
+                f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
+                "AND keepTrack=:keepTrack AND ((maxAttempt IS NOT NULL AND maxAttempt<=attemptNr) "
+                "OR (maxFailure IS NOT NULL AND maxFailure<=failedAttempt)) "
+            )
             # sql to retry/incexecute datasets
-            sqlRD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlRD += (
+            sqlRD = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
                 "SET status=:status,"
                 "nFilesUsed=(CASE WHEN nFilesUsed-:nDiff-:nRun > 0 THEN nFilesUsed-:nDiff-:nRun ELSE 0 END),"
                 "nFilesFailed=(CASE WHEN nFilesFailed-:nDiff > 0 THEN nFilesFailed-:nDiff ELSE 0 END) "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             )
-            sqlRD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql to reset lost files in datasets
-            sqlRL = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlRL += "SET nFiles=nFiles+nFilesMissing,nFilesToBeUsed=nFilesToBeUsed+nFilesMissing,nFilesMissing=0 "
-            sqlRL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlRL = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+                "SET nFiles=nFiles+nFilesMissing,nFilesToBeUsed=nFilesToBeUsed+nFilesMissing,nFilesMissing=0 "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             # sql to update task status
-            sqlUTB = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlUTB += "SET status=:status,oldStatus=NULL,modificationtime=:updateTime,errorDialog=:errorDialog,stateChangeTime=CURRENT_DATE "
-            sqlUTB += "WHERE jediTaskID=:jediTaskID "
-            sqlUTN = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlUTN += "SET status=:status,oldStatus=NULL,modificationtime=:updateTime,errorDialog=:errorDialog,"
-            sqlUTN += "stateChangeTime=CURRENT_DATE,startTime=NULL,attemptNr=attemptNr+1,frozenTime=NULL "
+            sqlUTB = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET status=:status,oldStatus=NULL,modificationtime=:updateTime,errorDialog=:errorDialog,stateChangeTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID "
+            )
+            sqlUTN = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET status=:status,oldStatus=NULL,modificationtime=:updateTime,errorDialog=:errorDialog,"
+                "stateChangeTime=CURRENT_DATE,startTime=NULL,attemptNr=attemptNr+1,frozenTime=NULL "
+            )
             if not keep_share_priority:
                 sqlUTN += ",currentPriority=taskPriority "
             sqlUTN += "WHERE jediTaskID=:jediTaskID "
             # sql to update DEFT task status
-            sqlTT = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
-            sqlTT += "SET status=:status,timeStamp=CURRENT_DATE,start_time=NULL "
-            sqlTT += "WHERE taskID=:jediTaskID AND start_time IS NOT NULL "
+            sqlTT = (
+                f"UPDATE {panda_config.schemaDEFT}.T_TASK "
+                "SET status=:status,timeStamp=CURRENT_DATE,start_time=NULL "
+                "WHERE taskID=:jediTaskID AND start_time IS NOT NULL "
+            )
             # sql to discard events
-            sqlDE = f"UPDATE {panda_config.schemaJEDI}.JEDI_Events "
-            sqlDE += "SET status=:newStatus "
-            sqlDE += "WHERE jediTaskID=:jediTaskID "
-            sqlDE += "AND status IN (:esFinished,:esDone) "
+            sqlDE = f"UPDATE {panda_config.schemaJEDI}.JEDI_Events SET status=:newStatus WHERE jediTaskID=:jediTaskID AND status IN (:esFinished,:esDone) "
             # sql to reset running files
-            sqlRR = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlRR += "SET status=:newStatus,attemptNr=attemptNr+1,maxAttempt=maxAttempt+:maxAttempt,proc_status=:proc_status "
-            sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status IN (:oldStatus1,:oldStatus2) "
-            sqlRR += "AND keepTrack=:keepTrack AND maxAttempt IS NOT NULL "
+            sqlRR = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "SET status=:newStatus,attemptNr=attemptNr+1,maxAttempt=maxAttempt+:maxAttempt,proc_status=:proc_status "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status IN (:oldStatus1,:oldStatus2) "
+                "AND keepTrack=:keepTrack AND maxAttempt IS NOT NULL "
+            )
             # sql to update output/lib/log datasets
-            sqlUO = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlUO += "SET status=:status "
-            sqlUO += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2,:type3) "
+            sqlUO = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2,:type3) "
             # start transaction
             if useCommit:
                 self.conn.begin()
