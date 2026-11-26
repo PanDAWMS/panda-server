@@ -2056,11 +2056,18 @@ class JobStandaloneModule(BaseModule):
         comment = " /* DBProxy.insertJobOutputReport */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id} attemptNr={attempt_nr}")
         tmp_log.debug("start")
-        # sql to insert
+        # guarded against the caller's own check-then-act race (update_job_output_report() calls
+        # updateJobOutputReport() first and only falls back here when 0 rows were updated) - two
+        # concurrent callers for the same (PandaID, attemptNr) could both see 0 rows updated and
+        # both land here, and a plain INSERT would hit JOB_OUTPUT_REPORT_PK on whichever commits second.
         sqlI = (
             "INSERT INTO {0}.Job_Output_Report "
             "(PandaID, prodSourceLabel, jobStatus, attemptNr, data, timeStamp) "
-            "VALUES(:PandaID, :prodSourceLabel, :jobStatus, :attemptNr, :data, :timeStamp) "
+            "SELECT :PandaID, :prodSourceLabel, :jobStatus, :attemptNr, :data, :timeStamp FROM dual "
+            "WHERE NOT EXISTS ( "
+            "    SELECT 1 FROM {0}.Job_Output_Report "
+            "    WHERE PandaID=:PandaID AND attemptNr=:attemptNr "
+            ") "
         ).format(panda_config.schemaPANDA)
         try:
             retVal = False
@@ -2076,8 +2083,8 @@ class JobStandaloneModule(BaseModule):
                 ":timeStamp": naive_utcnow(),
             }
             self.cur.execute(sqlI + comment, varMap)
-            tmp_log.debug("successfully inserted")
-            retVal = True
+            retVal = bool(self.cur.rowcount > 0)
+            tmp_log.debug("successfully inserted" if retVal else "skip since another caller already inserted it")
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
