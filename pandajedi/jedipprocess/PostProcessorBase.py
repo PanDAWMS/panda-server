@@ -207,13 +207,15 @@ class PostProcessorBase(object):
         return taskCompleteness >= taskSpec.goal
 
     # get final task status
-    def getFinalTaskStatus(self, taskSpec: JediTaskSpec, checkParent: bool = True, update_error_dialog: bool = False) -> str:
+    def getFinalTaskStatus(self, taskSpec: JediTaskSpec, full_parent_check: bool = True, update_error_dialog: bool = False) -> str:
         """
         Get final task status based on the number of files and events, and the status of parent task if needed.
 
         Args:
         - taskSpec: the task specification object
-        - checkParent: if True, check the status of parent task and set failed if the parent task is failed, broken, or aborted. If False, ignore the parent status.
+        - full_parent_check: how the parent task status is used when all input files are processed.
+          If True, set failed if the parent task is failed, broken, or aborted, and finished if the parent task is not done or the master input is mutable.
+          If False, set exhausted if the parent task is exhausted, and done otherwise.
         - update_error_dialog: if True, update error dialog for failed tasks
 
         """
@@ -232,9 +234,15 @@ class PostProcessorBase(object):
                 taskSpec.setErrDiag("failed due to no input", True)
         elif nFiles == nFilesFinished:
             # check parent status
-            if checkParent and taskSpec.parent_tid not in [None, taskSpec.jediTaskID]:
+            if taskSpec.parent_tid not in [None, taskSpec.jediTaskID]:
                 parent_status = self.taskBufferIF.getTaskStatus_JEDI(taskSpec.parent_tid)
-                if parent_status in ["failed", "broken", "aborted"]:
+                if not full_parent_check:
+                    # only an exhausted parent is passed on
+                    if parent_status == "exhausted":
+                        status = "exhausted"
+                    else:
+                        status = "done"
+                elif parent_status in ["failed", "broken", "aborted"]:
                     status = "failed"
                     if update_error_dialog:
                         taskSpec.setErrDiag(f"failed since the parent task is {parent_status} although all files were processed", True)
@@ -292,7 +300,7 @@ class PostProcessorBase(object):
             and not self.isTaskGoalReached(taskSpec)
         ):
             taskSpec.status = "exhausted"
-            if self.getFinalTaskStatus(taskSpec, checkParent=False) == "done":
+            if self.getFinalTaskStatus(taskSpec, full_parent_check=False) == "done":
                 taskSpec.errorDialog = "exhausted since the parent task was incomplete and didn't reach the goal"
             else:
                 taskSpec.errorDialog = "exhausted since the task was incomplete and didn't reach the goal"
