@@ -1834,13 +1834,11 @@ class WorkerModule(BaseModule):
                     "WHERE ROWNUM <= :n_commands "
                 )
             else:
+                # native LIMIT: WrappedCursor's MySQL ROWNUM rewrite mangles an emulated ROWNUM
                 sql = (
-                    "SELECT command_id, command, params, ack_requested, creation_date FROM "
-                    "(SELECT (@rownum:=@rownum+1) AS ROWNUM, command_id, command, params, ack_requested, creation_date FROM "
-                    "(SELECT command_id, command, params, ack_requested, creation_date FROM ATLAS_PANDA.HARVESTER_COMMANDS "
+                    "SELECT command_id, command, params, ack_requested, creation_date FROM ATLAS_PANDA.HARVESTER_COMMANDS "
                     "WHERE harvester_id=:harvester_id AND status=:status "
-                    "ORDER BY creation_date) a, (SELECT @rownum:=0) r ) comm "
-                    "WHERE ROWNUM <= :n_commands "
+                    "ORDER BY creation_date LIMIT :n_commands "
                 )
             self.cur.execute(sql + comment, var_map)
             entries = self.cur.fetchall()
