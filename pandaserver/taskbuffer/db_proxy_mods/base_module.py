@@ -314,11 +314,7 @@ class BaseModule:
             # AttributeError on None.__name__ if that ever stops being true.
             tmp_log.error(f"dump_error_message() called outside an except block\n{''.join(traceback.format_stack())}")
             return
-        err_str = f"{err_type.__name__} {err_value}"
-        err_str.strip()
-        err_str += " "
-        err_str += traceback.format_exc()
-        tmp_log.error(err_str)
+        tmp_log.error(f"{err_type.__name__} {err_value} {traceback.format_exc()}")
 
     # create logger with tag
     def create_tagged_logger(self, comment: str, tag: str | None = None) -> LogWrapper:
@@ -342,12 +338,7 @@ class BaseModule:
         comment = " /* DBProxy.getConfigValue */"
         tmp_log = self.create_tagged_logger(comment)
         varMap = {":component": component, ":key": key, ":app": app}
-        sql = """
-        SELECT value, value_json, type FROM ATLAS_PANDA.CONFIG
-        WHERE component=:component
-        AND key=:key
-        AND app=:app
-        """
+        sql = "SELECT value, value_json, type FROM ATLAS_PANDA.CONFIG WHERE component=:component AND key=:key AND app=:app "
 
         # If VO is specified, select only the config values for this VO or VO independent values
         if vo:
@@ -722,9 +713,11 @@ class BaseModule:
             if varMap[tmpKey] == "NULL":
                 varMap[tmpKey] = None
         # insert
-        sql = "INSERT INTO ATLAS_PANDA.jobs_StatusLog "
-        sql += "(PandaID,modificationTime,jobStatus,prodSourceLabel,cloud,computingSite,modificationHost,modiftime_extended) "
-        sql += "VALUES (:PandaID,CURRENT_DATE,:jobStatus,:prodSourceLabel,:cloud,:computingSite,:modificationHost,CURRENT_TIMESTAMP) "
+        sql = (
+            "INSERT INTO ATLAS_PANDA.jobs_StatusLog "
+            "(PandaID, modificationTime, jobStatus, prodSourceLabel, cloud, computingSite, modificationHost, modiftime_extended) "
+            "VALUES (:PandaID, CURRENT_DATE, :jobStatus, :prodSourceLabel, :cloud, :computingSite, :modificationHost, CURRENT_TIMESTAMP) "
+        )
         try:
             if no_late_bulk_exec:
                 self.cur.execute(sql + comment, varMap)
@@ -913,9 +906,7 @@ class BaseModule:
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         try:
             # sql to set super status
-            sqlCT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlCT += "SET superStatus=:superStatus "
-            sqlCT += "WHERE jediTaskID=:jediTaskID "
+            sqlCT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET superStatus=:superStatus WHERE jediTaskID=:jediTaskID "
             # set super status
             varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":superStatus": superStatus}
             self.cur.execute(sqlCT + comment, varMap)
@@ -930,9 +921,7 @@ class BaseModule:
         comment = " /* JediDBProxy.setDeftStatus_JEDI */"
         tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         try:
-            sqlD = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
-            sqlD += "SET status=:status,timeStamp=CURRENT_DATE "
-            sqlD += "WHERE taskID=:jediTaskID "
+            sqlD = f"UPDATE {panda_config.schemaDEFT}.T_TASK SET status=:status, timeStamp=CURRENT_DATE WHERE taskID=:jediTaskID "
             varMap: dict[str, Any] = {":status": taskStatus, ":jediTaskID": jediTaskID}
             tmpLog.debug(sqlD + comment + str(varMap))
             self.cur.execute(sqlD + comment, varMap)

@@ -1025,7 +1025,7 @@ class TaskRefinerBase(object):
         if not self.taskSpec.splitRule:
             self.taskSpec.splitRule = tmpStr
         else:
-            tmpMatch = re.search(rule_token + "=(-*\d+)(,-*\d+)*", self.taskSpec.splitRule)
+            tmpMatch = re.search(rule_token + r"=(-*\d+)(,-*\d+)*", self.taskSpec.splitRule)
             if tmpMatch is None:
                 # append
                 self.taskSpec.splitRule += f",{tmpStr}"

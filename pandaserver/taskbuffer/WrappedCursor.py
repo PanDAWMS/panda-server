@@ -170,7 +170,7 @@ def convert_query_in_printf_format(sql: str, var_dict_list: list[dict[str, Any]]
             params.append(var_dict[item])
         params_list.append(params)
     # using the printf style syntax
-    sql = re.sub(":[^ $,)\+\-]+", "%s", sql)
+    sql = re.sub(r":[^ $,)\+\-]+", "%s", sql)
     return sql, params_list
 
 
@@ -291,42 +291,42 @@ class WrappedCursor(object):
             print(f"DEBUG execute : original varDict {varDict} ")
             # CURRENT_DATE interval
             sql = re.sub(
-                "CURRENT_DATE\s*-\s*(\d+|:[^\s\)]+)",
-                "DATE_SUB(CURRENT_TIMESTAMP,INTERVAL \g<1> DAY)",
+                r"CURRENT_DATE\s*-\s*(\d+|:[^\s\)]+)",
+                r"DATE_SUB(CURRENT_TIMESTAMP,INTERVAL \g<1> DAY)",
                 sql,
             )
             # CURRENT_DATE
             sql = re.sub("CURRENT_DATE", "CURRENT_TIMESTAMP", sql)
             # SYSDATE interval
             sql = re.sub(
-                "SYSDATE\s*-\s*(\d+|:[^\s\)]+)",
-                "DATE_SUB(SYSDATE,INTERVAL \g<1> DAY)",
+                r"SYSDATE\s*-\s*(\d+|:[^\s\)]+)",
+                r"DATE_SUB(SYSDATE,INTERVAL \g<1> DAY)",
                 sql,
             )
             # SYSDATE
             sql = re.sub("SYSDATE", "SYSDATE()", sql)
             # EMPTY_CLOB()
-            sql = re.sub("EMPTY_CLOB\(\)", "''", sql)
+            sql = re.sub(r"EMPTY_CLOB\(\)", "''", sql)
             # ROWNUM
-            sql = re.sub("(?i)(AND)*\s*ROWNUM.*(\d+)", " LIMIT \g<2>", sql)
-            sql = re.sub("(?i)(WHERE)\s*LIMIT\s*(\d+)", " LIMIT \g<2>", sql)
+            sql = re.sub(r"(?i)(AND)*\s*ROWNUM.*(\d+)", r" LIMIT \g<2>", sql)
+            sql = re.sub(r"(?i)(WHERE)\s*LIMIT\s*(\d+)", r" LIMIT \g<2>", sql)
             # NOWAIT
             sql = re.sub("NOWAIT", "", sql)
             # RETURNING INTO
             returningInto = None
-            m = re.search("RETURNING ([^\s]+) INTO ([^\s]+)", sql, re.I)
+            m = re.search(r"RETURNING ([^\s]+) INTO ([^\s]+)", sql, re.I)
             if m is not None:
                 returningInto = [{"returning": m.group(1), "into": m.group(2)}]
                 self._returningIntoMySQLpre(returningInto, varDict, cur)
                 sql = re.sub(m.group(0), "", sql)
             # Addressing sequence
             if "INSERT" in sql:
-                sql = re.sub("[a-zA-Z\._]+\.nextval", "NULL", sql)
+                sql = re.sub(r"[a-zA-Z\._]+\.nextval", "NULL", sql)
             # schema names
-            sql = re.sub("ATLAS_PANDA\.", panda_config.schemaPANDA + ".", sql)
-            sql = re.sub("ATLAS_PANDAMETA\.", panda_config.schemaMETA + ".", sql)
-            sql = re.sub("ATLAS_GRISLI\.", panda_config.schemaGRISLI + ".", sql)
-            sql = re.sub("ATLAS_PANDAARCH\.", panda_config.schemaPANDAARCH + ".", sql)
+            sql = re.sub(r"ATLAS_PANDA\.", panda_config.schemaPANDA + ".", sql)
+            sql = re.sub(r"ATLAS_PANDAMETA\.", panda_config.schemaMETA + ".", sql)
+            sql = re.sub(r"ATLAS_GRISLI\.", panda_config.schemaGRISLI + ".", sql)
+            sql = re.sub(r"ATLAS_PANDAARCH\.", panda_config.schemaPANDAARCH + ".", sql)
             # bind variables
             newVarDict = {}
             # make sure that :prodDBlockToken will not be replaced by %(prodDBlock)sToken
@@ -500,11 +500,11 @@ class WrappedCursor(object):
     # change schema
     def change_schema(self, sql: str) -> str:
         if panda_config.schemaPANDA != "ATLAS_PANDA":
-            sql = re.sub("ATLAS_PANDA\.", panda_config.schemaPANDA + ".", sql)
+            sql = re.sub(r"ATLAS_PANDA\.", panda_config.schemaPANDA + ".", sql)
         if panda_config.schemaMETA != "ATLAS_PANDAMETA":
-            sql = re.sub("ATLAS_PANDAMETA\.", panda_config.schemaMETA + ".", sql)
+            sql = re.sub(r"ATLAS_PANDAMETA\.", panda_config.schemaMETA + ".", sql)
         if panda_config.schemaGRISLI != "ATLAS_GRISLI":
-            sql = re.sub("ATLAS_GRISLI\.", panda_config.schemaGRISLI + ".", sql)
+            sql = re.sub(r"ATLAS_GRISLI\.", panda_config.schemaGRISLI + ".", sql)
         if panda_config.schemaPANDAARCH != "ATLAS_PANDAARCH":
-            sql = re.sub("ATLAS_PANDAARCH\.", panda_config.schemaPANDAARCH + ".", sql)
+            sql = re.sub(r"ATLAS_PANDAARCH\.", panda_config.schemaPANDAARCH + ".", sql)
         return sql

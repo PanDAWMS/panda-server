@@ -124,7 +124,7 @@ line-length = 160
 # I: import order, in place of isort. ruff's defaults already agree with ruff-format, so
 # there is no profile to set, and they agreed with the isort-formatted tree everywhere but
 # one file.
-select = ["F", "I"]
+select = ["F", "I", "W605"]
 
 # The tree is clean under these flags and the mypy hook in .pre-commit-config.yaml fails on
 # any finding, so a change that introduces one has to fix it. `mypy` with no arguments is

@@ -1118,7 +1118,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 if tmp_file.type == "input":
                     input_lfns.add(tmp_file.lfn)
                     # Removes attemptNr from LFN name
-                    gen_lfn = re.sub("\.\d+$", "", tmp_file.lfn)
+                    gen_lfn = re.sub(r"\.\d+$", "", tmp_file.lfn)
                     input_lfns.add(gen_lfn)
                     if tmp_file.GUID not in ["NULL", "", None]:
                         if tmp_file.dataset not in self.lfn_dataset_map:
@@ -1212,15 +1212,15 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 vals = items[tmp_lfn]
                                 val_map[tmp_lfn] = vals
                                 # Removes attemptNr from LFN name
-                                gen_lfn = re.sub("\.\d+$", "", tmp_lfn)
+                                gen_lfn = re.sub(r"\.\d+$", "", tmp_lfn)
                                 if gen_lfn in lfn_map[dataset]:
                                     # get attemptNr
                                     new_att_nr = 0
-                                    new_mat = re.search("\.(\d+)$", tmp_lfn)
+                                    new_mat = re.search(r"\.(\d+)$", tmp_lfn)
                                     if new_mat is not None:
                                         new_att_nr = int(new_mat.group(1))
                                     old_att_nr = 0
-                                    old_mat = re.search("\.(\d+)$", lfn_map[dataset][gen_lfn])
+                                    old_mat = re.search(r"\.(\d+)$", lfn_map[dataset][gen_lfn])
                                     if old_mat is not None:
                                         old_att_nr = int(old_mat.group(1))
                                     # compare
@@ -1278,7 +1278,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         # get LFN w/o attemptNr
                         # regexp to remove a dot followed by one or more digits at the end of the file name
                         # for example "data_file.123" will become "data_file"
-                        basename = re.sub("\.\d+$", "", file.lfn)
+                        basename = re.sub(r"\.\d+$", "", file.lfn)
                         if basename == file.lfn:
                             # replace
                             if basename in lfn_map[file.dataset]:

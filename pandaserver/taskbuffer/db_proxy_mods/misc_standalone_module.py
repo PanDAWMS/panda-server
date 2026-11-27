@@ -159,8 +159,7 @@ class MiscStandaloneModule(BaseModule):
             # begin transaction
             self.conn.begin()
             # sql to get jediTaskID
-            sqlGF = f"SELECT MAX(jediTaskID) FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlGF += "WHERE userName=:userName AND taskName=:taskName "
+            sqlGF = f"SELECT MAX(jediTaskID) FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE userName=:userName AND taskName=:taskName "
             varMap: dict[str, Any] = {":userName": userName, ":taskName": taskName}
             self.cur.execute(sqlGF + comment, varMap)
             resFJ = self.cur.fetchone()
@@ -276,11 +275,9 @@ class MiscStandaloneModule(BaseModule):
             )
 
         # Get the task information
-        sql = """
-        SELECT jt.cputime, jt.walltime, jt.basewalltime, jt.cpuefficiency, jt.cputimeunit
-        FROM ATLAS_PANDA.jedi_tasks jt
-        WHERE jt.jeditaskid=:jeditaskid
-        """
+        sql = (
+            "SELECT jt.cputime, jt.walltime, jt.basewalltime, jt.cpuefficiency, jt.cputimeunit FROM ATLAS_PANDA.jedi_tasks jt WHERE jt.jeditaskid=:jeditaskid "
+        )
         var_map = {":jeditaskid": task_id}
         self.cur.execute(sql + comment, var_map)
         task_parameters = self.cur.fetchone()
@@ -329,15 +326,15 @@ class MiscStandaloneModule(BaseModule):
             ds_var_names_str, ds_var_map = get_sql_IN_bind_variables(input_datasetIDs, prefix=":dataset")
             var_map.update(ds_var_map)
 
-            sql_select = f"""
-            SELECT jdc.fileid, jdc.nevents, jdc.startevent, jdc.endevent
-            FROM ATLAS_PANDA.JEDI_Dataset_Contents jdc, ATLAS_PANDA.JEDI_Datasets jd
-            WHERE jdc.JEDITaskID = :taskID
-            AND jdc.datasetID IN ({ds_var_names_str})
-            AND jdc.fileID IN ({file_var_names_str})
-            AND jd.datasetID = jdc.datasetID
-            AND jd.masterID IS NULL
-            """
+            sql_select = (
+                "SELECT jdc.fileid, jdc.nevents, jdc.startevent, jdc.endevent "
+                "FROM ATLAS_PANDA.JEDI_Dataset_Contents jdc, ATLAS_PANDA.JEDI_Datasets jd "
+                "WHERE jdc.JEDITaskID = :taskID "
+                f"AND jdc.datasetID IN ({ds_var_names_str}) "
+                f"AND jdc.fileID IN ({file_var_names_str}) "
+                "AND jd.datasetID = jdc.datasetID "
+                "AND jd.masterID IS NULL "
+            )
             self.cur.execute(sql_select + comment, var_map)
 
             result_list = self.cur.fetchall()
@@ -361,19 +358,19 @@ class MiscStandaloneModule(BaseModule):
 
         # Get the corecount and start/end time from the job spec
         var_map = {":task_id": task_id, ":job_id": job_id}
-        sql_select = """
-        SELECT jact4.corecount, jact4.starttime, jact4.endtime
-        FROM ATLAS_PANDA.jobsactive4 jact4
-        WHERE jeditaskid = :task_id AND pandaid = :job_id
-        UNION
-        SELECT jarc4.corecount, jarc4.starttime, jarc4.endtime
-        FROM ATLAS_PANDA.jobsarchived4 jarc4
-        WHERE jeditaskid = :task_id AND pandaid = :job_id
-        UNION
-        SELECT jarch.corecount, jarch.starttime, jarch.endtime
-        FROM ATLAS_PANDAARCH.jobsarchived jarch
-        WHERE jeditaskid = :task_id AND pandaid = :job_id
-        """
+        sql_select = (
+            "SELECT jact4.corecount, jact4.starttime, jact4.endtime "
+            "FROM ATLAS_PANDA.jobsactive4 jact4 "
+            "WHERE jeditaskid = :task_id AND pandaid = :job_id "
+            "UNION "
+            "SELECT jarc4.corecount, jarc4.starttime, jarc4.endtime "
+            "FROM ATLAS_PANDA.jobsarchived4 jarc4 "
+            "WHERE jeditaskid = :task_id AND pandaid = :job_id "
+            "UNION "
+            "SELECT jarch.corecount, jarch.starttime, jarch.endtime "
+            "FROM ATLAS_PANDAARCH.jobsarchived jarch "
+            "WHERE jeditaskid = :task_id AND pandaid = :job_id "
+        )
         self.cur.execute(sql_select + comment, var_map)
 
         results = self.cur.fetchone()
@@ -419,10 +416,7 @@ class MiscStandaloneModule(BaseModule):
                 return None, None
 
             if active:  # only run the update if active mode. Otherwise return what would have been done
-                sql_update_cputime = """
-                UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:new_cputime, cputimeunit=:new_cputime_unit
-                WHERE jeditaskid=:jeditaskid
-                """
+                sql_update_cputime = "UPDATE ATLAS_PANDA.jedi_tasks SET cputime=:new_cputime, cputimeunit=:new_cputime_unit WHERE jeditaskid=:jeditaskid "
                 var_map = {":new_cputime": new_cputime, ":new_cputime_unit": new_cputime_unit, ":jeditaskid": task_id}
                 self.conn.begin()
                 self.cur.execute(sql_update_cputime + comment, var_map)
@@ -456,11 +450,7 @@ class MiscStandaloneModule(BaseModule):
         timeLimit = timeNow - datetime.timedelta(minutes=30)
 
         # update the task if it was not already updated in the last 30 minutes (avoid continuous recalculation)
-        sql = """
-               UPDATE ATLAS_PANDA.jedi_tasks
-               SET walltimeUnit=NULL, modificationTime=:timeNow
-               WHERE jediTaskId=:taskID AND modificationTime < :timeLimit
-               """
+        sql = "UPDATE ATLAS_PANDA.jedi_tasks SET walltimeUnit=NULL, modificationTime=:timeNow WHERE jediTaskId=:taskID AND modificationTime < :timeLimit "
         varMap = {":taskID": taskID, ":timeNow": timeNow, ":timeLimit": timeLimit}
         self.conn.begin()
         self.cur.execute(sql, varMap)
@@ -480,8 +470,7 @@ class MiscStandaloneModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get task parameters
-            sqlRR = f"SELECT jedi_task_parameters FROM {panda_config.schemaDEFT}.T_TASK "
-            sqlRR += "WHERE taskid=:jediTaskID "
+            sqlRR = f"SELECT jedi_task_parameters FROM {panda_config.schemaDEFT}.T_TASK WHERE taskid=:jediTaskID "
             varMap: dict[str, Any] = {":jediTaskID": jediTaskID}
             # start transaction
             self.conn.begin()
@@ -514,12 +503,7 @@ class MiscStandaloneModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get task attributes
-            sqlRR = "SELECT "
-            for attr in attrs:
-                sqlRR += f"{attr},"
-            sqlRR = sqlRR[:-1]
-            sqlRR += f" FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlRR += "WHERE jediTaskID=:jediTaskID "
+            sqlRR = f"SELECT {', '.join(attrs)} FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
             varMap: dict[str, Any] = {":jediTaskID": jediTaskID}
             # start transaction
             self.conn.begin()
@@ -619,12 +603,12 @@ class MiscStandaloneModule(BaseModule):
             if keep_attempt_nr:
                 sqlAB += "SET status=:status "
             else:
-                sqlAB += "SET status=:status,attemptNr=0 "
+                sqlAB += "SET status=:status, attemptNr=0 "
             sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql to update datasets
             sqlD = (
                 f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-                "SET status=:status,nFilesUsed=0,nFilesTobeUsed=nFiles,nFilesFinished=0,nFilesFailed=0 "
+                "SET status=:status, nFilesUsed=0, nFilesTobeUsed=nFiles, nFilesFinished=0, nFilesFailed=0 "
                 "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             )
             # update task status
@@ -686,9 +670,7 @@ class MiscStandaloneModule(BaseModule):
         tmp_log.debug("start")
         try:
             # sql to get event stats
-            sql = f"SELECT status,COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Events "
-            sql += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID "
-            sql += "GROUP BY status "
+            sql = f"SELECT status, COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Events WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID GROUP BY status "
             # start transaction
             self.conn.begin()
             self.cur.arraysize = 10000
@@ -982,8 +964,7 @@ class MiscStandaloneModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"dataset={dataset.name}")
         tmp_log.debug("start")
         sql0 = f"SELECT COUNT(*) FROM {tablename} WHERE vuid=:vuid "
-        sql1 = f"INSERT INTO {tablename} "
-        sql1 += f"({DatasetSpec.columnNames()}) "
+        sql1 = f"INSERT INTO {tablename} ({DatasetSpec.columnNames()}) "
         sql1 += DatasetSpec.bindValuesExpression()
         sql2 = f"SELECT name FROM {tablename} WHERE vuid=:vuid "
         # time information
@@ -993,9 +974,9 @@ class MiscStandaloneModule(BaseModule):
             # subtype
             if dataset.subType in ["", "NULL", None]:
                 # define using name
-                if re.search("_dis\d+$", dataset.name) is not None:
+                if re.search(r"_dis\d+$", dataset.name) is not None:
                     dataset.subType = "dis"
-                elif re.search("_sub\d+$", dataset.name) is not None:
+                elif re.search(r"_sub\d+$", dataset.name) is not None:
                     dataset.subType = "sub"
                 else:
                     dataset.subType = "top"
@@ -1313,7 +1294,7 @@ class MiscStandaloneModule(BaseModule):
                 sql = " INSERT INTO ATLAS_PANDA.SUBCOUNTER_SUBID_SEQ (col) VALUES (NULL) "
                 self.cur.arraysize = 100
                 self.cur.execute(sql + comment, {})
-                sql2 = """ SELECT LAST_INSERT_ID() """
+                sql2 = "SELECT LAST_INSERT_ID() "
                 self.cur.execute(sql2 + comment, {})
                 (sn,) = self.cur.fetchone()
             # commit
@@ -2320,12 +2301,12 @@ class MiscStandaloneModule(BaseModule):
         tmp_log.debug("start")
 
         # SQL to extract the error definitions
-        sql = """
-        SELECT re.retryerror_id, re.errorsource, re.errorcode, re.errorDiag, re.parameters, re.architecture, re.release, re.workqueue_id, ra.retry_action, re.active, ra.active
-        FROM ATLAS_PANDA.RETRYERRORS re, ATLAS_PANDA.RETRYACTIONS ra
-        WHERE re.retryaction=ra.retryaction_id
-        AND (CURRENT_TIMESTAMP < re.expiration_date or re.expiration_date IS NULL)
-        """
+        sql = (
+            "SELECT re.retryerror_id, re.errorsource, re.errorcode, re.errorDiag, re.parameters, re.architecture, re.release, re.workqueue_id, ra.retry_action, re.active, ra.active "
+            "FROM ATLAS_PANDA.RETRYERRORS re, ATLAS_PANDA.RETRYACTIONS ra "
+            "WHERE re.retryaction=ra.retryaction_id "
+            "AND (CURRENT_TIMESTAMP < re.expiration_date or re.expiration_date IS NULL) "
+        )
         self.cur.execute(sql + comment, {})
         definitions = self.cur.fetchall()  # example of output: [('pilotErrorCode', 1, None, None, None, None, 'no_retry', 'Y', 'Y'),...]
 
@@ -2427,13 +2408,13 @@ class MiscStandaloneModule(BaseModule):
                 varMap.update(ds_var_map)
 
                 # Get the minimum maxAttempt value of the files
-                sql_select = f"""
-                select min(maxattempt) from ATLAS_PANDA.JEDI_Dataset_Contents
-                WHERE JEDITaskID = :taskID
-                AND datasetID IN ({ds_var_names_str})
-                AND fileID IN ({file_var_names_str})
-                AND pandaID = :pandaID
-                """
+                sql_select = (
+                    "select min(maxattempt) from ATLAS_PANDA.JEDI_Dataset_Contents "
+                    "WHERE JEDITaskID = :taskID "
+                    f"AND datasetID IN ({ds_var_names_str}) "
+                    f"AND fileID IN ({file_var_names_str}) "
+                    "AND pandaID = :pandaID "
+                )
                 self.cur.execute(sql_select + comment, varMap)
                 try:
                     maxAttempt_select = self.cur.fetchone()[0]
@@ -2444,14 +2425,14 @@ class MiscStandaloneModule(BaseModule):
                 if maxAttempt_select and maxAttempt_select > maxAttempt:
                     varMap[":maxAttempt"] = min(maxAttempt, maxAttempt_select)
 
-                    sql_update = f"""
-                    UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
-                    SET maxAttempt=:maxAttempt
-                    WHERE JEDITaskID = :taskID
-                    AND datasetID IN ({ds_var_names_str})
-                    AND fileID IN ({file_var_names_str})
-                    AND pandaID = :pandaID
-                    """
+                    sql_update = (
+                        "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents "
+                        "SET maxAttempt=:maxAttempt "
+                        "WHERE JEDITaskID = :taskID "
+                        f"AND datasetID IN ({ds_var_names_str}) "
+                        f"AND fileID IN ({file_var_names_str}) "
+                        "AND pandaID = :pandaID "
+                    )
 
                     self.cur.execute(sql_update + comment, varMap)
 
@@ -2509,14 +2490,14 @@ class MiscStandaloneModule(BaseModule):
                 ds_var_names_str, ds_var_map = get_sql_IN_bind_variables(input_dataset_ids, prefix=":dataset")
                 var_map.update(ds_var_map)
 
-                sql_update = f"""
-                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
-                SET maxFailure = maxFailure + 1
-                WHERE JEDITaskID = :taskID
-                AND datasetID IN ({ds_var_names_str})
-                AND fileID IN ({file_var_names_str})
-                AND pandaID = :pandaID
-                """
+                sql_update = (
+                    "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents "
+                    "SET maxFailure = maxFailure + 1 "
+                    "WHERE JEDITaskID = :taskID "
+                    f"AND datasetID IN ({ds_var_names_str}) "
+                    f"AND fileID IN ({file_var_names_str}) "
+                    "AND pandaID = :pandaID "
+                )
 
                 self.cur.execute(sql_update + comment, var_map)
 
@@ -2565,18 +2546,18 @@ class MiscStandaloneModule(BaseModule):
                     file_var_names_str, file_var_map = get_sql_IN_bind_variables(input_fileIDs, prefix=":file")
                     varMap.update(file_var_map)
 
-                    sql_update = f"""
-                    UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
-                    SET maxAttempt=attemptNr
-                    WHERE JEDITaskID = :taskID
-                    AND datasetID=:datasetID
-                    AND fileID IN ({file_var_names_str})
-                    AND maxAttempt IS NOT NULL AND attemptNr IS NOT NULL
-                    AND maxAttempt > attemptNr
-                    AND (maxFailure IS NULL OR failedAttempt IS NULL OR maxFailure > failedAttempt)
-                    AND keepTrack=:keepTrack
-                    AND status=:status
-                    """
+                    sql_update = (
+                        "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents "
+                        "SET maxAttempt=attemptNr "
+                        "WHERE JEDITaskID = :taskID "
+                        "AND datasetID=:datasetID "
+                        f"AND fileID IN ({file_var_names_str}) "
+                        "AND maxAttempt IS NOT NULL AND attemptNr IS NOT NULL "
+                        "AND maxAttempt > attemptNr "
+                        "AND (maxFailure IS NULL OR failedAttempt IS NULL OR maxFailure > failedAttempt) "
+                        "AND keepTrack=:keepTrack "
+                        "AND status=:status "
+                    )
 
                     # update files in 'running' status. These files do NOT need to be counted for the nFiles*
                     varMap[":status"] = "running"
@@ -2589,9 +2570,11 @@ class MiscStandaloneModule(BaseModule):
 
                     # update datasets
                     if rowcount > 0:
-                        sql_dataset = "UPDATE ATLAS_PANDA.JEDI_Datasets "
-                        sql_dataset += "SET nFilesUsed=nFilesUsed+:nDiff,nFilesFailed=nFilesFailed+:nDiff "
-                        sql_dataset += "WHERE jediTaskID=:taskID AND datasetID=:datasetID "
+                        sql_dataset = (
+                            "UPDATE ATLAS_PANDA.JEDI_Datasets "
+                            "SET nFilesUsed=nFilesUsed+:nDiff, nFilesFailed=nFilesFailed+:nDiff "
+                            "WHERE jediTaskID=:taskID AND datasetID=:datasetID "
+                        )
                         varMap = {":taskID": taskID, ":datasetID": datasetID, ":nDiff": rowcount}
                         self.cur.execute(sql_dataset + comment, varMap)
 
@@ -2739,8 +2722,7 @@ class MiscStandaloneModule(BaseModule):
             new_ids = []
             var_map: dict[str, Any] = {":nIDs": num_ids}
             # sql to get fileID
-            sqlFID = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM "
-            sqlFID += "(SELECT level FROM dual CONNECT BY level<=:nIDs) "
+            sqlFID = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM (SELECT level FROM dual CONNECT BY level<=:nIDs) "
             # start transaction
             self.conn.begin()
             self.cur.arraysize = 10000
@@ -3937,8 +3919,7 @@ class MiscStandaloneModule(BaseModule):
         failedRet = False, None
         try:
             # sql
-            sql = f"SELECT {JediDatasetSpec.columnNames()} "
-            sql += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sql = f"SELECT {JediDatasetSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":datasetID": datasetID}
             # begin transaction
             self.conn.begin()
@@ -3973,8 +3954,7 @@ class MiscStandaloneModule(BaseModule):
             # sql
             varMap: dict[str, Any] = {}
             varMap[":jediTaskID"] = jediTaskID
-            sql = f"SELECT {JediDatasetSpec.columnNames()} "
-            sql += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
+            sql = f"SELECT {JediDatasetSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
             if datasetTypes is not None:
                 dstype_var_names_str, dstype_var_map = get_sql_IN_bind_variables(datasetTypes, prefix=":type_", value_as_suffix=True)
                 sql += f"AND type IN ({dstype_var_names_str}) "

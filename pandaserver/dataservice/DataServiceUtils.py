@@ -56,7 +56,7 @@ def checkInvalidCharacters(dataset_name: str) -> bool:
     Returns:
         True if the dataset name is valid, False otherwise.
     """
-    if re.match("^[A-Za-z0-9][A-Za-z0-9\.\-\_/]{1,255}$", dataset_name) is not None:
+    if re.match(r"^[A-Za-z0-9][A-Za-z0-9\.\-\_/]{1,255}$", dataset_name) is not None:
         return True
     return False
 
@@ -273,7 +273,7 @@ def is_top_level_dataset(dataset_name: str) -> bool:
     Returns:
         bool: True if top dataset, False otherwise.
     """
-    return re.sub("_sub\d+$", "", dataset_name) == dataset_name
+    return re.sub(r"_sub\d+$", "", dataset_name) == dataset_name
 
 
 def is_sub_dataset(dataset_name: str) -> bool:
@@ -286,7 +286,7 @@ def is_sub_dataset(dataset_name: str) -> bool:
     Returns:
         bool: True if the dataset name ends with '_sub' followed by one or more digits, False otherwise.
     """
-    return re.search("_sub\d+$", dataset_name) is not None
+    return re.search(r"_sub\d+$", dataset_name) is not None
 
 
 def is_tid_dataset(destination_data_block: str) -> bool:
@@ -299,7 +299,7 @@ def is_tid_dataset(destination_data_block: str) -> bool:
     Returns:
         bool: True if the destination data block ends with '_tid' followed by one or more digits, False otherwise.
     """
-    return re.search("_tid[\d_]+$", destination_data_block) is not None
+    return re.search(r"_tid[\d_]+$", destination_data_block) is not None
 
 
 def is_hammercloud_dataset(destination_data_block: str) -> bool:
@@ -312,7 +312,7 @@ def is_hammercloud_dataset(destination_data_block: str) -> bool:
     Returns:
         bool: True if the destination data block starts with 'hc_test.', False otherwise.
     """
-    return re.search("^hc_test\.", destination_data_block) is not None
+    return re.search(r"^hc_test\.", destination_data_block) is not None
 
 
 def is_user_gangarbt_dataset(destination_data_block: str) -> bool:
@@ -325,7 +325,7 @@ def is_user_gangarbt_dataset(destination_data_block: str) -> bool:
     Returns:
         bool: True if the destination data block starts with 'user.gangarbt.', False otherwise.
     """
-    return re.search("^user\.gangarbt\.", destination_data_block) is not None
+    return re.search(r"^user\.gangarbt\.", destination_data_block) is not None
 
 
 def is_lib_dataset(destination_data_block: str) -> bool:
@@ -338,4 +338,4 @@ def is_lib_dataset(destination_data_block: str) -> bool:
     Returns:
         bool: True if the destination data block ends with '.lib', False otherwise.
     """
-    return re.search("\.lib$", destination_data_block) is not None
+    return re.search(r"\.lib$", destination_data_block) is not None

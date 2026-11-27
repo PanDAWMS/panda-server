@@ -777,12 +777,12 @@ class WorkerModule(BaseModule):
             # update
             owner = CoreUtils.clean_user_id(user)
             var_map = {":harvesterID": harvesterID, ":owner": owner, ":hostName": host}
-            sql_update_instance = "UPDATE ATLAS_PANDA.Harvester_Instances SET owner=:owner,hostName=:hostName,lastUpdate=CURRENT_DATE"
+            sql_update_instance = "UPDATE ATLAS_PANDA.Harvester_Instances SET owner=:owner, hostName=:hostName, lastUpdate=CURRENT_DATE"
             for key in data:
                 val = data[key]
                 if key == "commands":
                     continue
-                sql_update_instance += ",{0}=:{0}".format(key)
+                sql_update_instance += f", {key}=:{key}"
                 if isinstance(val, str) and val.startswith("datetime/"):
                     val = datetime.datetime.strptime(val.split("/")[-1], "%Y-%m-%d %H:%M:%S.%f")
                 var_map[f":{key}"] = val
@@ -1723,8 +1723,7 @@ class WorkerModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment, f"pq={pandaQueueName}")
         tmp_log.debug("start")
         # sql to check
-        sql_check = "SELECT 1 FROM ATLAS_PANDA.Harvester_Slots "
-        sql_check += "WHERE pandaQueueName=:pandaQueueName "
+        sql_check = "SELECT 1 FROM ATLAS_PANDA.Harvester_Slots WHERE pandaQueueName=:pandaQueueName "
         if gshare is None:
             sql_check += "AND gshare IS NULL "
         else:
@@ -1827,21 +1826,20 @@ class WorkerModule(BaseModule):
 
             sql = None
             if self.backend in ["oracle", "postgres"]:
-                sql = """
-                      SELECT command_id, command, params, ack_requested, creation_date FROM
-                          (SELECT command_id, command, params, ack_requested, creation_date FROM ATLAS_PANDA.HARVESTER_COMMANDS
-                              WHERE harvester_id=:harvester_id AND status=:status
-                              ORDER BY creation_date) a
-                      WHERE ROWNUM <= :n_commands
-                      """
+                sql = (
+                    "SELECT command_id, command, params, ack_requested, creation_date FROM "
+                    "(SELECT command_id, command, params, ack_requested, creation_date FROM ATLAS_PANDA.HARVESTER_COMMANDS "
+                    "WHERE harvester_id=:harvester_id AND status=:status "
+                    "ORDER BY creation_date) a "
+                    "WHERE ROWNUM <= :n_commands "
+                )
             else:
-                sql = """
-                      SELECT command_id, command, params, ack_requested, creation_date FROM (SELECT (@rownum:=@rownum+1) AS ROWNUM, command_id, command, params, ack_requested, creation_date FROM
-                          (SELECT command_id, command, params, ack_requested, creation_date FROM ATLAS_PANDA.HARVESTER_COMMANDS
-                              WHERE harvester_id=:harvester_id AND status=:status
-                              ORDER BY creation_date) a, (SELECT @rownum:=0) r ) comm
-                      WHERE ROWNUM <= :n_commands
-                      """
+                # native LIMIT: WrappedCursor's MySQL ROWNUM rewrite mangles an emulated ROWNUM
+                sql = (
+                    "SELECT command_id, command, params, ack_requested, creation_date FROM ATLAS_PANDA.HARVESTER_COMMANDS "
+                    "WHERE harvester_id=:harvester_id AND status=:status "
+                    "ORDER BY creation_date LIMIT :n_commands "
+                )
             self.cur.execute(sql + comment, var_map)
             entries = self.cur.fetchall()
             tmp_log.debug(f"entries {entries}")
@@ -1850,8 +1848,7 @@ class WorkerModule(BaseModule):
             commands = []
             command_ids = []
             for entry in entries:
-                command_dict = {}
-                command_dict["command_id"] = entry[0]
+                command_dict = {"command_id": entry[0]}
                 command_ids.append(entry[0])  # we need to update the commands as dispatched
                 command_dict["command"] = entry[1]
                 command_dict["params"] = entry[2]

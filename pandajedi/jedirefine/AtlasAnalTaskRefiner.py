@@ -39,7 +39,7 @@ class AtlasAnalTaskRefiner(TaskRefinerBase):
             if "sourceURL" in taskParamMap:
                 for tmpItem in taskParamMap["jobParameters"]:
                     if "value" in tmpItem:
-                        tmpItem["value"] = re.sub("\$\{SURL\}", taskParamMap["sourceURL"], tmpItem["value"])
+                        tmpItem["value"] = re.sub(r"\$\{SURL\}", taskParamMap["sourceURL"], tmpItem["value"])
         except Exception:
             pass
         if hasattr(panda_config, "wn_script_base_url"):
@@ -98,7 +98,7 @@ class AtlasAnalTaskRefiner(TaskRefinerBase):
         if "transUses" in taskParamMap and taskParamMap["transUses"]:
             try:
                 ver = taskParamMap["transUses"].split("-")[1]
-                m = re.search("^(\d{2})\.(\d{2})\.", ver)
+                m = re.search(r"^(\d{2})\.(\d{2})\.", ver)
                 if m is not None:
                     major = int(m.group(1))
                     minor = int(m.group(2))
@@ -142,7 +142,7 @@ class AtlasAnalTaskRefiner(TaskRefinerBase):
             try:
                 for tmpItem in taskParamMap["jobParameters"]:
                     if "value" in tmpItem:
-                        tmpM = re.search("--containerImage\s+([^\s]+)", tmpItem["value"])
+                        tmpM = re.search(r"--containerImage\s+([^\s]+)", tmpItem["value"])
                         if tmpM is not None:
                             taskParamMap["container_name"] = tmpM.group(1)
                             break

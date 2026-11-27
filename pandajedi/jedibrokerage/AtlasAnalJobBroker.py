@@ -1013,10 +1013,10 @@ class AtlasAnalJobBroker(JobBrokerBase):
                 transHome = re.sub("^[^-]+-*", "", transHome)
                 transHome = re.sub("_", "-", transHome)
                 if (
-                    re.search("rel_\d+(\n|$)", transHome) is None
+                    re.search("rel_\\d+(\n|$)", transHome) is None
                     and taskSpec.transHome not in ["AnalysisTransforms", None]
-                    and re.search("\d{4}-\d{2}-\d{2}T\d{4}$", transHome) is None
-                    and re.search("-\d+\.\d+\.\d+$", transHome) is None
+                    and re.search(r"\d{4}-\d{2}-\d{2}T\d{4}$", transHome) is None
+                    and re.search(r"-\d+\.\d+\.\d+$", transHome) is None
                 ):
                     # cache is checked
                     siteListWithSW, sitesNoJsonCheck, _ = jsonCheck.check(
@@ -1037,7 +1037,8 @@ class AtlasAnalJobBroker(JobBrokerBase):
                     sitesAuto = copy.copy(siteListWithSW)
 
                 elif (transHome == "" and taskSpec.transUses is not None) or (
-                    re.search("-\d+\.\d+\.\d+$", transHome) is not None and (taskSpec.transUses is None or re.search("-\d+\.\d+$", taskSpec.transUses) is None)
+                    re.search(r"-\d+\.\d+\.\d+$", transHome) is not None
+                    and (taskSpec.transUses is None or re.search(r"-\d+\.\d+$", taskSpec.transUses) is None)
                 ):
                     siteListWithSW = []
                     sitesNoJsonCheck = unified_site_list

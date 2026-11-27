@@ -285,7 +285,7 @@ class JediFileSpec(object):
         if self.lfn is None:
             return tmpFieldStr
         try:
-            tmpMidStrList = re.split("\.|_tid\d+", self.lfn)
+            tmpMidStrList = re.split(r"\.|_tid\d+", self.lfn)
             for tmpFieldNum in fieldNumList:
                 tmpFieldStr += "." + tmpMidStrList[tmpFieldNum - 1]
         except Exception:

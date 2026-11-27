@@ -482,7 +482,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                         zip_files[file.lfn]["rse"] = dataset_destination_map[file_destination_dispatch_block]
 
                 # for subscription
-                if re.search("_sub\d+$", file_destination_dispatch_block) and (not self.add_to_top_only) and self.job.destinationSE != "local":
+                if re.search(r"_sub\d+$", file_destination_dispatch_block) and (not self.add_to_top_only) and self.job.destinationSE != "local":
                     if not self.siteMapper:
                         self.logger.error("SiteMapper is None")
                     else:
@@ -628,7 +628,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         # add data to original dataset
         for destination_dispatch_block in list(id_map):
             orig_dispatch_block = None
-            match = re.search("^(.+)_sub\d+$", destination_dispatch_block)
+            match = re.search(r"^(.+)_sub\d+$", destination_dispatch_block)
             if match:
                 # add files to top-level datasets
                 orig_dispatch_block = sub_to_ds_map[destination_dispatch_block]
@@ -652,7 +652,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         # check consistency of destinationDBlock
         has_sub = False
         for destination_dispatch_block in id_map:
-            match = re.search("^(.+)_sub\d+$", destination_dispatch_block)
+            match = re.search(r"^(.+)_sub\d+$", destination_dispatch_block)
             if match is not None:
                 has_sub = True
                 break

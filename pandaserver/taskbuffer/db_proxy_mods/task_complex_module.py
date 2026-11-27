@@ -147,9 +147,11 @@ class TaskComplexModule(BaseModule):
                 taskDatasetMap[datasetSpec.jediTaskID].append(datasetSpec.datasetID)
             jediTaskIDs = sorted(returnMap.keys())
             # get seq_number
-            sqlSEQ = f"SELECT {JediDatasetSpec.columnNames()} "
-            sqlSEQ += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlSEQ += "WHERE jediTaskID=:jediTaskID AND datasetName=:datasetName "
+            sqlSEQ = (
+                f"SELECT {JediDatasetSpec.columnNames()} "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                "WHERE jediTaskID=:jediTaskID AND datasetName=:datasetName "
+            )
             for jediTaskID in jediTaskIDs:
                 varMap = {":jediTaskID": jediTaskID, ":datasetName": "seq_number"}
                 self.conn.begin()
@@ -265,10 +267,12 @@ class TaskComplexModule(BaseModule):
             # get list of files produced by parent
             if datasetSpec.checkConsistency():
                 # sql to get the list
-                sqlPPC = "SELECT lfn FROM {0}.JEDI_Datasets tabD,{0}.JEDI_Dataset_Contents tabC ".format(panda_config.schemaJEDI)
-                sqlPPC += "WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID "
-                sqlPPC += "AND tabD.jediTaskID=:jediTaskID AND tabD.type IN (:type1,:type2) "
-                sqlPPC += "AND tabD.datasetName IN (:dsName,:didName) AND tabC.status=:fileStatus "
+                sqlPPC = (
+                    f"SELECT lfn FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabC "
+                    "WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID "
+                    "AND tabD.jediTaskID=:jediTaskID AND tabD.type IN (:type1, :type2) "
+                    "AND tabD.datasetName IN (:dsName, :didName) AND tabC.status=:fileStatus "
+                )
                 varMap: dict[str, Any] = {
                     ":type1": "output",
                     ":type2": "log",
@@ -299,10 +303,12 @@ class TaskComplexModule(BaseModule):
             usedFilesToSkip = set()
             if skipFilesUsedBy is not None:
                 # sql to get the list
-                sqlSFU = "SELECT lfn,startEvent,endEvent FROM {0}.JEDI_Datasets tabD,{0}.JEDI_Dataset_Contents tabC ".format(panda_config.schemaJEDI)
-                sqlSFU += "WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID "
-                sqlSFU += "AND tabD.jediTaskID=:jediTaskID AND tabD.type IN (:type1,:type2) "
-                sqlSFU += "AND tabD.datasetName IN (:dsName,:didName) AND tabC.status=:fileStatus "
+                sqlSFU = (
+                    f"SELECT lfn, startEvent, endEvent FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabC "
+                    "WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID "
+                    "AND tabD.jediTaskID=:jediTaskID AND tabD.type IN (:type1, :type2) "
+                    "AND tabD.datasetName IN (:dsName, :didName) AND tabC.status=:fileStatus "
+                )
                 for tmpTaskID in str(skipFilesUsedBy).split(","):
                     varMap = {
                         ":type1": "input",
@@ -576,46 +582,54 @@ class TaskComplexModule(BaseModule):
             # sql to check if task is locked
             sqlTL = f"SELECT status,lockedBy FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE NOWAIT "
             # sql to check dataset status
-            sqlDs = f"SELECT status,nFilesToBeUsed-nFilesUsed,state,nFilesToBeUsed,nFilesUsed FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlDs += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID FOR UPDATE "
-            # sql to get existing files
-            sqlCh = "SELECT fileID,lfn,status,startEvent,endEvent,boundaryID,nEvents,lumiBlockNr,attemptNr,maxAttempt,failedAttempt,maxFailure FROM {0}.JEDI_Dataset_Contents ".format(
-                panda_config.schemaJEDI
+            sqlDs = (
+                f"SELECT status, nFilesToBeUsed-nFilesUsed, state, nFilesToBeUsed, nFilesUsed FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID FOR UPDATE "
             )
-            sqlCh += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID FOR UPDATE "
+            # sql to get existing files
+            sqlCh = (
+                "SELECT fileID, lfn, status, startEvent, endEvent, boundaryID, nEvents, lumiBlockNr, attemptNr, maxAttempt, failedAttempt, maxFailure "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID FOR UPDATE "
+            )
             # sql to count existing files
-            sqlCo = f"SELECT count(*) FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlCo += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlCo = f"SELECT count(*) FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql for insert
             sqlIn = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Dataset_Contents ({JediFileSpec.columnNames()}) "
             sqlIn += JediFileSpec.bindValuesExpression(useSeq=False)
             # sql to get fileID
-            sqlFID = f"SELECT {panda_config.schemaJEDI}.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM "
-            sqlFID += "(SELECT level FROM dual CONNECT BY level<=:nIDs) "
+            sqlFID = f"SELECT {panda_config.schemaJEDI}.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM (SELECT level FROM dual CONNECT BY level<=:nIDs) "
             # sql to update file counts
-            sqlFU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:status "
-            sqlFU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlFU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:status "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            )
             # sql to get master status
-            sqlMS = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlMS += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlMS = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql to update dataset
-            sqlDU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlDU += "SET status=:status,state=:state,stateCheckTime=:stateUpdateTime,"
-            sqlDU += "nFiles=:nFiles,nFilesTobeUsed=:nFilesTobeUsed,nEvents=:nEvents,nFilesMissing=:nFilesMissing "
-            sqlDU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlDU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+                "SET status=:status, state=:state, stateCheckTime=:stateUpdateTime, "
+                "nFiles=:nFiles, nFilesTobeUsed=:nFilesTobeUsed, nEvents=:nEvents, nFilesMissing=:nFilesMissing "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             # sql to update dataset including nFilesUsed
-            sqlDUx = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlDUx += "SET status=:status,state=:state,stateCheckTime=:stateUpdateTime,"
-            sqlDUx += "nFiles=:nFiles,nFilesTobeUsed=:nFilesTobeUsed,nEvents=:nEvents,nFilesUsed=:nFilesUsed,nFilesMissing=:nFilesMissing "
-            sqlDUx += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlDUx = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+                "SET status=:status, state=:state, stateCheckTime=:stateUpdateTime, "
+                "nFiles=:nFiles, nFilesTobeUsed=:nFilesTobeUsed, nEvents=:nEvents, nFilesUsed=:nFilesUsed, nFilesMissing=:nFilesMissing "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             # sql to propagate number of input events to DEFT
-            sqlCE = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
-            sqlCE += "SET total_input_events=LEAST(9999999999,("
-            sqlCE += f"SELECT SUM(nEvents) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlCE += "WHERE jediTaskID=:jediTaskID "
-            sqlCE += f"AND type IN ({INPUT_TYPES_var_str}) "
-            sqlCE += "AND masterID IS NULL)) "
-            sqlCE += "WHERE taskID=:jediTaskID "
+            sqlCE = (
+                f"UPDATE {panda_config.schemaDEFT}.T_TASK "
+                "SET total_input_events=LEAST(9999999999, ("
+                f"SELECT SUM(nEvents) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                "WHERE jediTaskID=:jediTaskID "
+                f"AND type IN ({INPUT_TYPES_var_str}) "
+                "AND masterID IS NULL)) "
+                "WHERE taskID=:jediTaskID "
+            )
             nInsert = 0
             nReady = 0
             nPending = 0
@@ -901,10 +915,12 @@ class TaskComplexModule(BaseModule):
                         if datasetSpec.isMaster() and taskSpec.respectSplitRule() and (useScout or isMutableDataset or datasetSpec.state == "mutable"):
                             tmpDatasetSpecMap: dict[Any, Any] = {}
                             # read files
-                            sqlFR = f"SELECT {JediFileSpec.columnNames()} "
-                            sqlFR += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-                            sqlFR += "jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
-                            sqlFR += "ORDER BY lfn, startEvent "
+                            sqlFR = (
+                                f"SELECT {JediFileSpec.columnNames()} "
+                                f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+                                "jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status "
+                                "ORDER BY lfn, startEvent "
+                            )
                             varMap = {":datasetID": datasetSpec.datasetID, ":jediTaskID": datasetSpec.jediTaskID}
                             if isMutableDataset or datasetSpec.state == "mutable":
                                 varMap[":status"] = "pending"
@@ -1269,22 +1285,26 @@ class TaskComplexModule(BaseModule):
         tmpLog.debug("start")
         try:
             # sql to check status
-            sqlS = f"SELECT status,lockedBy,cloud,prodSourceLabel,frozenTime,nucleus FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlS += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
+            sqlS = (
+                f"SELECT status, lockedBy, cloud, prodSourceLabel, frozenTime, nucleus FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+                "WHERE jediTaskID=:jediTaskID FOR UPDATE "
+            )
             # sql to get number of unassigned datasets
-            sqlD = f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlD += "WHERE jediTaskID=:jediTaskID AND destination IS NULL AND type IN (:type1,:type2) "
+            sqlD = (
+                f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                "WHERE jediTaskID=:jediTaskID AND destination IS NULL AND type IN (:type1, :type2) "
+            )
             # sql to update task
-            sqlU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlU += "SET status=:status,modificationTime=:updateTime,stateChangeTime=CURRENT_DATE,"
-            sqlU += "lockedBy=NULL,lockedTime=NULL,frozenTime=:frozenTime,errorDialog=:errorDialog"
+            sqlU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET status=:status, modificationTime=:updateTime, stateChangeTime=CURRENT_DATE, "
+                "lockedBy=NULL, lockedTime=NULL, frozenTime=:frozenTime, errorDialog=:errorDialog"
+            )
             if taskSpec is not None:
                 sqlU += ",oldStatus=:oldStatus,splitRule=:splitRule"
             sqlU += " WHERE jediTaskID=:jediTaskID "
             # sql to unlock task
-            sqlL = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlL += "SET lockedBy=NULL,lockedTime=NULL "
-            sqlL += "WHERE jediTaskID=:jediTaskID AND status=:status "
+            sqlL = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=NULL, lockedTime=NULL WHERE jediTaskID=:jediTaskID AND status=:status "
             if pid is not None:
                 sqlL += "AND lockedBy=:pid "
             # begin transaction
@@ -1455,8 +1475,9 @@ class TaskComplexModule(BaseModule):
             # insert unknown datasets
             if nRows > 0 and insertUnknown is not None:
                 # sql to check
-                sqlUC = f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-                sqlUC += "WHERE jediTaskID=:jediTaskID AND type=:type AND datasetName=:datasetName "
+                sqlUC = (
+                    f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type=:type AND datasetName=:datasetName "
+                )
                 # sql to insert dataset
                 sqlUI = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Datasets ({JediDatasetSpec.columnNames()}) "
                 sqlUI += JediDatasetSpec.bindValuesExpression()
@@ -1480,12 +1501,14 @@ class TaskComplexModule(BaseModule):
             if nRows > 0:
                 if updateDEFT:
                     # count number of finished jobs
-                    sqlC = "SELECT count(distinct pandaID) "
-                    sqlC += "FROM {0}.JEDI_Datasets tabD,{0}.JEDI_Dataset_Contents tabC ".format(panda_config.schemaJEDI)
-                    sqlC += "WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.jediTaskID=:jediTaskID "
-                    sqlC += "AND tabC.datasetID=tabD.datasetID "
-                    sqlC += "AND tabC.status=:status "
-                    sqlC += "AND masterID IS NULL AND pandaID IS NOT NULL "
+                    sqlC = (
+                        "SELECT count(distinct pandaID) "
+                        f"FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabC "
+                        "WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.jediTaskID=:jediTaskID "
+                        "AND tabC.datasetID=tabD.datasetID "
+                        "AND tabC.status=:status "
+                        "AND masterID IS NULL AND pandaID IS NOT NULL "
+                    )
                     varMap = {":jediTaskID": taskSpec.jediTaskID, ":status": "finished"}
                     self.cur.execute(sqlC + comment, varMap)
                     res = self.cur.fetchone()
@@ -1493,9 +1516,11 @@ class TaskComplexModule(BaseModule):
                         tmpLog.debug("failed to count # of finished jobs when updating DEFT table")
                     else:
                         (nDone,) = res
-                        sqlD = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
-                        sqlD += "SET status=:status,total_done_jobs=:nDone,timeStamp=CURRENT_DATE "
-                        sqlD += "WHERE taskID=:jediTaskID "
+                        sqlD = (
+                            f"UPDATE {panda_config.schemaDEFT}.T_TASK "
+                            "SET status=:status, total_done_jobs=:nDone, timeStamp=CURRENT_DATE "
+                            "WHERE taskID=:jediTaskID "
+                        )
                         varMap = {":status": taskSpec.status, ":jediTaskID": taskSpec.jediTaskID, ":nDone": nDone}
                         tmpLog.debug(sqlD + comment + str(varMap))
                         self.cur.execute(sqlD + comment, varMap)
@@ -1506,8 +1531,7 @@ class TaskComplexModule(BaseModule):
                         deftStatus = "submitting"
                     else:
                         deftStatus = taskSpec.status
-                    sqlD = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
-                    sqlD += "SET status=:status,timeStamp=CURRENT_DATE"
+                    sqlD = f"UPDATE {panda_config.schemaDEFT}.T_TASK SET status=:status, timeStamp=CURRENT_DATE"
                     if taskSpec.status == "scouting":
                         sqlD += ",start_time=CURRENT_DATE"
                     sqlD += " WHERE taskID=:jediTaskID "
@@ -1517,9 +1541,7 @@ class TaskComplexModule(BaseModule):
                     self.setSuperStatus_JEDI(taskSpec.jediTaskID, deftStatus)  # type: ignore[arg-type]  # the id is a column, which is declared optional
                     if taskSpec.status == "running":
                         varMap = {":jediTaskID": taskSpec.jediTaskID}
-                        sqlDS = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
-                        sqlDS += "SET start_time=timeStamp "
-                        sqlDS += "WHERE taskID=:jediTaskID AND start_time IS NULL "
+                        sqlDS = f"UPDATE {panda_config.schemaDEFT}.T_TASK SET start_time=timeStamp WHERE taskID=:jediTaskID AND start_time IS NULL "
                         tmpLog.debug(sqlDS + comment + str(varMap))
                         self.cur.execute(sqlDS + comment, varMap)
                 # status change logging
@@ -1563,9 +1585,11 @@ class TaskComplexModule(BaseModule):
                 ":status4": "toabort",
                 ":status5": "passed",
             }
-            sqlRT = "SELECT tabT.jediTaskID,tabT.status,tabT.eventService,tabT.site,tabT.useJumbo,tabT.splitRule "
-            sqlRT += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlRT += "WHERE tabT.status=tabA.status "
+            sqlRT = (
+                "SELECT tabT.jediTaskID, tabT.status, tabT.eventService, tabT.site, tabT.useJumbo, tabT.splitRule "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status "
+            )
             or_taskids_sql = ""
             if target_tasks:
                 taskids_var_name_key_str, taskids_var_map = get_sql_IN_bind_variables(target_tasks, prefix=":jediTaskID")
@@ -1581,17 +1605,17 @@ class TaskComplexModule(BaseModule):
                 sqlRT += "AND tabT.prodSourceLabel=:prodSourceLabel "
             sqlRT += "AND (lockedBy IS NULL OR lockedTime<:timeLimit) "
             sqlRT += f"AND rownum<{nTasks} "
-            sqlNW = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlNW += "WHERE jediTaskID=:jediTaskID FOR UPDATE NOWAIT"
-            sqlLK = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=:lockedBy,lockedTime=CURRENT_DATE "
-            sqlLK += "WHERE jediTaskID=:jediTaskID AND (lockedBy IS NULL OR lockedTime<:timeLimit) AND status=:status "
-            sqlTS = f"SELECT {JediTaskSpec.columnNames()} "
-            sqlTS += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTS += "WHERE jediTaskID=:jediTaskID "
-            sqlDS = f"SELECT {JediDatasetSpec.columnNames()} "
-            sqlDS += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
-            sqlSC = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET status=:newStatus,modificationTime=:updateTime,stateChangeTime=CURRENT_DATE "
-            sqlSC += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+            sqlNW = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE NOWAIT"
+            sqlLK = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=:lockedBy, lockedTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND (lockedBy IS NULL OR lockedTime<:timeLimit) AND status=:status "
+            )
+            sqlTS = f"SELECT {JediTaskSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+            sqlDS = f"SELECT {JediDatasetSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
+            sqlSC = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET status=:newStatus, modificationTime=:updateTime, stateChangeTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+            )
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = 10000
@@ -1733,11 +1757,14 @@ class TaskComplexModule(BaseModule):
             var_map[":dsStatusRemoved"] = "removed"
             var_map[":timeLimit"] = time_limit
             var_map[":useJumboLack"] = JediTaskSpec.enum_useJumbo["lack"]
-            sql = "SELECT tabT.jediTaskID,datasetID,currentPriority,nFilesToBeUsed-nFilesUsed,tabD.type,tabT.status,"
-            sql += f"tabT.{attr_name_for_group_by},nFiles,nEvents,nFilesWaiting,tabT.useJumbo "
-            sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sql += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
-            sql += "AND tabT.vo=:vo "
+            sql = (
+                "SELECT tabT.jediTaskID, datasetID, currentPriority, nFilesToBeUsed-nFilesUsed, tabD.type, tabT.status, "
+                f"tabT.{attr_name_for_group_by}, nFiles, nEvents, nFilesWaiting, tabT.useJumbo "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_Datasets tabD, "
+                f"{panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
+                "AND tabT.vo=:vo "
+            )
             # work_queue is None only in the target-tasks mode, which does not reach here
             if work_queue.is_global_share:  # type: ignore[union-attr]
                 sql += "AND gshare=:wq_name "
@@ -1794,11 +1821,15 @@ class TaskComplexModule(BaseModule):
         else:
             var_map = {}
             if not simulation_with_file_stat:
-                sql = "SELECT tabT.jediTaskID,datasetID,currentPriority,nFilesToBeUsed-nFilesUsed,tabD.type,tabT.status,"
-                sql += f"tabT.{attr_name_for_group_by},nFiles,nEvents,nFilesWaiting,tabT.useJumbo "
+                sql = (
+                    "SELECT tabT.jediTaskID, datasetID, currentPriority, nFilesToBeUsed-nFilesUsed, tabD.type, tabT.status, "
+                    f"tabT.{attr_name_for_group_by}, nFiles, nEvents, nFilesWaiting, tabT.useJumbo "
+                )
             else:
-                sql = "SELECT tabT.jediTaskID,datasetID,currentPriority,nFilesToBeUsed,tabD.type,tabT.status,"
-                sql += f"tabT.{attr_name_for_group_by},nFiles,nEvents,nFilesWaiting,tabT.useJumbo "
+                sql = (
+                    "SELECT tabT.jediTaskID, datasetID, currentPriority, nFilesToBeUsed, tabD.type, tabT.status, "
+                    f"tabT.{attr_name_for_group_by}, nFiles, nEvents, nFilesWaiting, tabT.useJumbo "
+                )
             sql += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT,{panda_config.schemaJEDI}.JEDI_Datasets tabD "
             tasks_to_loop = target_tasks
             sql += "WHERE tabT.jediTaskID=tabD.jediTaskID "
@@ -2032,23 +2063,25 @@ class TaskComplexModule(BaseModule):
         """
 
         # sql to read a task
-        sql_read_task = f"SELECT {JediTaskSpec.columnNames()} "
-        sql_read_task += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-        sql_read_task += "WHERE jediTaskID=:jediTaskID AND status=:statusInDB "
+        sql_read_task = f"SELECT {JediTaskSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID AND status=:statusInDB "
         if not ignore_lock:
             sql_read_task += "AND lockedBy IS NULL "
         if not is_dry_run:
             sql_read_task += "FOR UPDATE NOWAIT "
         # sql to read a locked task
-        sql_read_locked_task = f"SELECT {JediTaskSpec.columnNames()} "
-        sql_read_locked_task += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-        sql_read_locked_task += "WHERE jediTaskID=:jediTaskID AND status=:statusInDB AND lockedBy=:newLockedBy "
+        sql_read_locked_task = (
+            f"SELECT {JediTaskSpec.columnNames()} "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+            "WHERE jediTaskID=:jediTaskID AND status=:statusInDB AND lockedBy=:newLockedBy "
+        )
         if not is_dry_run:
             sql_read_locked_task += "FOR UPDATE NOWAIT "
         # sql to lock task
-        sql_to_lock_task = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks  "
-        sql_to_lock_task += "SET lockedBy=:newLockedBy,lockedTime=CURRENT_DATE,modificationTime=CURRENT_DATE "
-        sql_to_lock_task += "WHERE jediTaskID=:jediTaskID AND status=:status AND lockedBy IS NULL AND modificationTime<:timeLimit "
+        sql_to_lock_task = (
+            f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks  "
+            "SET lockedBy=:newLockedBy, lockedTime=CURRENT_DATE, modificationTime=CURRENT_DATE "
+            "WHERE jediTaskID=:jediTaskID AND status=:status AND lockedBy IS NULL AND modificationTime<:timeLimit "
+        )
         # sql to check files
         sel_check_files = (
             f"SELECT nFilesToBeUsed-nFilesUsed FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
@@ -2147,9 +2180,11 @@ class TaskComplexModule(BaseModule):
         :return: Tuple of (flag to skip, the number of files for avalanche, dict for the number of HPO samples)
         """
         # sql to count the number of files for avalanche
-        sql_avalanche = f"SELECT SUM(nFiles-nFilesToBeUsed) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-        sql_avalanche += f"WHERE jediTaskID=:jediTaskID AND type IN ({INPUT_TYPES_var_str}) "
-        sql_avalanche += "AND masterID IS NULL "
+        sql_avalanche = (
+            f"SELECT SUM(nFiles-nFilesToBeUsed) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+            f"WHERE jediTaskID=:jediTaskID AND type IN ({INPUT_TYPES_var_str}) "
+            "AND masterID IS NULL "
+        )
         # sql to read DN
         sql_dn = f"SELECT dn FROM {panda_config.schemaMETA}.users WHERE name=:name "
         # sql to update task status
@@ -2157,8 +2192,8 @@ class TaskComplexModule(BaseModule):
             "UPDATE {0}.JEDI_Tasks SET lockedBy=NULL,lockedTime=NULL,status=:status,errorDialog=:err WHERE jediTaskID=:jediTaskID "
         ).format(panda_config.schemaJEDI)
         # sql to get number of events
-        sql_get_n_events = ("SELECT COUNT(*),datasetID FROM {0}.JEDI_Events WHERE jediTaskID=:jediTaskID AND status=:eventStatus GROUP BY datasetID ").format(
-            panda_config.schemaJEDI
+        sql_get_n_events = (
+            f"SELECT COUNT(*), datasetID FROM {panda_config.schemaJEDI}.JEDI_Events WHERE jediTaskID=:jediTaskID AND status=:eventStatus GROUP BY datasetID "
         )
         # sql to get number of ready HPO workers
         sql_get_n_hpo_workers = (
@@ -2232,8 +2267,7 @@ class TaskComplexModule(BaseModule):
                 # number of HPO jobs
                 num_max_hpo_jobs = original_task_spec.get_max_num_jobs()
                 if num_max_hpo_jobs is not None:
-                    sql_n_hpo_jobs = f"SELECT total_req_jobs FROM {panda_config.schemaDEFT}.T_TASK "
-                    sql_n_hpo_jobs += "WHERE taskid=:taskid "
+                    sql_n_hpo_jobs = f"SELECT total_req_jobs FROM {panda_config.schemaDEFT}.T_TASK WHERE taskid=:taskid "
                     var_map = {":taskid": jedi_task_id}
                     self.cur.execute(sql_n_hpo_jobs + comment, var_map)
                     (tmp_num_hpo_jobs,) = self.cur.fetchone()
@@ -2338,29 +2372,32 @@ class TaskComplexModule(BaseModule):
         :return: Tuple of (flag to skip, memory requirements).
         """
         # sql to read memory requirements of files in dataset
-        sql_read_memory = f"""SELECT ramCount FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents
-                   WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID """
+        sql_read_memory = f"SELECT ramCount FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         if not simulation_with_file_stat:
-            sql_read_memory += """AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt)
-                        AND (maxFailure IS NULL OR failedAttempt<maxFailure) """
+            sql_read_memory += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) AND (maxFailure IS NULL OR failedAttempt<maxFailure) "
         sql_read_memory += "GROUP BY ramCount "
         # sql to read memory requirements for fake co-jumbo
         sql_read_memory_for_co_jumbo = re.sub(
             "jediTaskID=:jediTaskID AND datasetID=:datasetID ", "jediTaskID=:jediTaskID AND datasetID=:datasetID AND is_waiting IS NULL ", sql_read_memory
         )
         # sql to check datasets and files with empty requirements
-        sql_check_files = f"SELECT status,attemptNr,maxAttempt,failedAttempt,maxFailure FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-        sql_check_files += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-        sql_check_dataset = f"SELECT nFilesUsed,nFilesToBeUsed,nFilesFinished,nFilesFailed FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-        sql_check_dataset += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_check_files = (
+            f"SELECT status, attemptNr, maxAttempt, failedAttempt, maxFailure FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+            "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        )
+        sql_check_dataset = (
+            f"SELECT nFilesUsed, nFilesToBeUsed, nFilesFinished, nFilesFailed FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+            "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        )
         # sql to update file counts of datasets with empty requirements
-        sql_update_dataset_n_used_files = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=:nFilesUsed "
-        sql_update_dataset_n_used_files += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-        sql_update_dataset_n_unprocessed_files = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesToBeUsed=:nFilesToBeUsed "
-        sql_update_dataset_n_unprocessed_files += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_update_dataset_n_used_files = (
+            f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=:nFilesUsed WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        )
+        sql_update_dataset_n_unprocessed_files = (
+            f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesToBeUsed=:nFilesToBeUsed WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        )
         # sql to update datasets with empty requirements
-        sql_update_dataset_status = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status "
-        sql_update_dataset_status += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_update_dataset_status = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
         to_skip = False
         # See if there are different memory requirements that need to be mapped to different chunks
         var_map: dict[str, Any] = {":jediTaskID": jedi_task_id, ":datasetID": dataset_id}
@@ -2486,9 +2523,9 @@ class TaskComplexModule(BaseModule):
         # sql to read secondary dataset IDs
         sql_read_secondary_dataset_ids = f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
         # sql to read datasets
-        sql_read_datasets = f"SELECT {JediDatasetSpec.columnNames()} "
-        sql_read_datasets += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-        sql_read_datasets += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_read_datasets = (
+            f"SELECT {JediDatasetSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        )
         if not is_dry_run:
             sql_read_datasets += "FOR UPDATE NOWAIT "
         # append secondary dataset IDs
@@ -2653,9 +2690,11 @@ class TaskComplexModule(BaseModule):
             constituent_filter = f"AND (constituent_id IS NULL OR constituent_id NOT IN ({','.join(bind_keys)})) "
 
         # sql to read files
-        sql_read_files = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
-        sql_read_files += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-        sql_read_files += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_read_files = (
+            f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+            "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        )
         sql_read_files += constituent_filter
         if not simulation_with_file_stat:
             sql_read_files += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
@@ -2669,9 +2708,11 @@ class TaskComplexModule(BaseModule):
             "jediTaskID=:jediTaskID AND datasetID=:datasetID ", "jediTaskID=:jediTaskID AND datasetID=:datasetID AND is_waiting IS NULL ", sql_read_files
         )
         # For the cases where the ram count is not set
-        sql_read_files_empty_ram = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
-        sql_read_files_empty_ram += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-        sql_read_files_empty_ram += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_read_files_empty_ram = (
+            f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+            "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        )
         sql_read_files_empty_ram += constituent_filter
         if not simulation_with_file_stat:
             sql_read_files_empty_ram += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
@@ -2688,9 +2729,11 @@ class TaskComplexModule(BaseModule):
         )
 
         # sql to read files without ramcount
-        sql_read_files_ignore_ram = f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
-        sql_read_files_ignore_ram += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
-        sql_read_files_ignore_ram += "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_read_files_ignore_ram = (
+            f"SELECT * FROM (SELECT {JediFileSpec.columnNames()} "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents WHERE "
+            "jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        )
         sql_read_files_ignore_ram += constituent_filter
         if not simulation_with_file_stat:
             sql_read_files_ignore_ram += "AND status=:status AND (maxAttempt IS NULL OR attemptNr<maxAttempt) "
@@ -2705,14 +2748,16 @@ class TaskComplexModule(BaseModule):
             sql_read_files_ignore_ram,
         )
         # sql to update file counts
-        sql_update_file_status = "UPDATE /*+ INDEX_RS_ASC(JEDI_DATASET_CONTENTS (JEDI_DATASET_CONTENTS.JEDITASKID JEDI_DATASET_CONTENTS.DATASETID JEDI_DATASET_CONTENTS.FILEID)) */ {0}.JEDI_Dataset_Contents SET status=:nStatus ".format(
-            panda_config.schemaJEDI
+        sql_update_file_status = (
+            "UPDATE /*+ INDEX_RS_ASC(JEDI_DATASET_CONTENTS (JEDI_DATASET_CONTENTS.JEDITASKID JEDI_DATASET_CONTENTS.DATASETID JEDI_DATASET_CONTENTS.FILEID)) */ "
+            f"{panda_config.schemaJEDI}.JEDI_Dataset_Contents SET status=:nStatus "
+            "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:oStatus "
         )
-        sql_update_file_status += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:oStatus "
 
         # sql to update file usage info in dataset
-        sql_update_file_stat = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=:nFilesUsed "
-        sql_update_file_stat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        sql_update_file_stat = (
+            f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesUsed=:nFilesUsed WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+        )
 
         # determine how many files to read
 
@@ -3001,8 +3046,11 @@ class TaskComplexModule(BaseModule):
                         break
 
                     # duplicate files on demand
-                    tmp_str = f"jediTaskID={jedi_task_id} try to increase files for datasetID={tmp_dataset_spec.datasetID} in duplication cycle {i_duplication_cycle} "
-                    tmp_str += f"since only {tmp_num_already_read_files}/{num_files_to_read_for_the_chunk} files were read "
+                    tmp_str = (
+                        f"jediTaskID={jedi_task_id} try to increase files for datasetID={tmp_dataset_spec.datasetID} "
+                        f"in duplication cycle {i_duplication_cycle} "
+                        f"since only {tmp_num_already_read_files}/{num_files_to_read_for_the_chunk} files were read "
+                    )
                     if tmp_dataset_spec.getEventRatio() is not None:
                         tmp_str += "or {0} events is less than {1}*{2} ".format(
                             total_secondary_events, tmp_dataset_spec.getEventRatio(), sum(total_events_map[primary_dataset_id])
@@ -3457,12 +3505,15 @@ class TaskComplexModule(BaseModule):
         try:
             # sql to get tasks to set scout job data
             varMap: dict[str, Any] = {":status": "running", ":minJobs": 5, ":timeLimit": naive_utcnow() - datetime.timedelta(hours=24)}
-            sqlSCF = "SELECT tabT.jediTaskID "
-            sqlSCF += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA,{1}.T_TASK tabD ".format(panda_config.schemaJEDI, panda_config.schemaDEFT)
-            sqlSCF += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlSCF += "AND tabT.jediTaskID=tabD.taskID AND tabT.modificationTime>:timeLimit "
-            sqlSCF += "AND tabT.status=:status AND tabT.walltimeUnit IS NULL "
-            sqlSCF += "AND tabD.total_done_jobs>=:minJobs "
+            sqlSCF = (
+                "SELECT tabT.jediTaskID "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA, "
+                f"{panda_config.schemaDEFT}.T_TASK tabD "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.jediTaskID=tabD.taskID AND tabT.modificationTime>:timeLimit "
+                "AND tabT.status=:status AND tabT.walltimeUnit IS NULL "
+                "AND tabD.total_done_jobs>=:minJobs "
+            )
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sqlSCF += "AND tabT.vo=:vo "
@@ -3470,10 +3521,12 @@ class TaskComplexModule(BaseModule):
                 varMap[":prodSourceLabel"] = prodSourceLabel
                 sqlSCF += "AND tabT.prodSourceLabel=:prodSourceLabel "
             # sql to update task status
-            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTU += "SET status=:newStatus,modificationTime=CURRENT_DATE,"
-            sqlTU += "errorDialog=:errorDialog,stateChangeTime=CURRENT_DATE "
-            sqlTU += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+            sqlTU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET status=:newStatus, modificationTime=CURRENT_DATE, "
+                "errorDialog=:errorDialog, stateChangeTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+            )
             # begin transaction
             self.conn.begin()
             # get tasks
@@ -3568,10 +3621,12 @@ class TaskComplexModule(BaseModule):
                     varMap[":vo"] = vo
                 if prodSourceLabel is not None:
                     varMap[":prodSourceLabel"] = prodSourceLabel
-                sql = "SELECT tabT.jediTaskID,tabT.status "
-                sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-                sql += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-                sql += "AND tabT.status IN (:taskstatus1,:taskstatus2,:taskstatus3,:taskstatus4,:taskstatus5,:taskstatus6) "
+                sql = (
+                    "SELECT tabT.jediTaskID, tabT.status "
+                    f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                    "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                    "AND tabT.status IN (:taskstatus1, :taskstatus2, :taskstatus3, :taskstatus4, :taskstatus5, :taskstatus6) "
+                )
                 if vo is not None:
                     sql += "AND tabT.vo=:vo "
                 if prodSourceLabel is not None:
@@ -3588,8 +3643,7 @@ class TaskComplexModule(BaseModule):
                 sql += f") AND rownum<={nTasks}"
             else:
                 varMap = {}
-                sql = "SELECT tabT.jediTaskID,tabT.status "
-                sql += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT "
+                sql = f"SELECT tabT.jediTaskID, tabT.status FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT "
                 taskid_var_names_str, taskid_var_map = get_sql_IN_bind_variables(simTasks, prefix=":jediTaskID")
                 sql += f"WHERE jediTaskID IN ({taskid_var_names_str}) "
                 varMap.update(taskid_var_map)
@@ -3619,17 +3673,18 @@ class TaskComplexModule(BaseModule):
                 varMap[":timeLimit"] = timeToCheck
                 if vo is not None:
                     varMap[":vo"] = vo
-                sqlEA = "SELECT jediTaskID,t_status,walltimeUnit, COUNT(*),SUM(CASE WHEN f_status='finished' THEN 1 ELSE 0 END) FROM "
-                sqlEA += "(SELECT DISTINCT tabT.jediTaskID,tabT.status as t_status,tabT.walltimeUnit,tabF.PandaID,tabF.status as f_status "
-                sqlEA += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA,{0}.JEDI_Datasets tabD,{0}.JEDI_Dataset_Contents tabF ".format(
-                    panda_config.schemaJEDI
+                sqlEA = (
+                    "SELECT jediTaskID, t_status, walltimeUnit, COUNT(*), SUM(CASE WHEN f_status='finished' THEN 1 ELSE 0 END) FROM "
+                    "(SELECT DISTINCT tabT.jediTaskID, tabT.status as t_status, tabT.walltimeUnit, tabF.PandaID, tabF.status as f_status "
+                    f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA, "
+                    f"{panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabF "
+                    "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                    "AND tabT.jediTaskID=tabD.jediTaskID "
+                    "AND tabD.jediTaskID=tabF.jediTaskID AND tabD.datasetID=tabF.datasetID "
+                    "AND (tabT.status=:scouting OR (tabT.status=:running AND tabT.walltimeUnit IS NULL)) "
+                    "AND tabT.prodSourceLabel=:prodSourceLabel "
+                    "AND (tabT.assessmentTime IS NULL OR tabT.assessmentTime<:timeLimit) "
                 )
-                sqlEA += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-                sqlEA += "AND tabT.jediTaskID=tabD.jediTaskID "
-                sqlEA += "AND tabD.jediTaskID=tabF.jediTaskID AND tabD.datasetID=tabF.datasetID "
-                sqlEA += "AND (tabT.status=:scouting OR (tabT.status=:running AND tabT.walltimeUnit IS NULL)) "
-                sqlEA += "AND tabT.prodSourceLabel=:prodSourceLabel "
-                sqlEA += "AND (tabT.assessmentTime IS NULL OR tabT.assessmentTime<:timeLimit) "
                 if vo is not None:
                     sqlEA += "AND tabT.vo=:vo "
                 sqlEA += "AND tabT.lockedBy IS NULL "
@@ -3638,15 +3693,17 @@ class TaskComplexModule(BaseModule):
                 varMap.update(INPUT_TYPES_var_map)
                 sqlEA += "AND tabF.PandaID IS NOT NULL "
                 sqlEA += ") "
-                sqlEA += "GROUP BY jediTaskID,t_status,walltimeUnit "
+                sqlEA += "GROUP BY jediTaskID, t_status, walltimeUnit "
                 # get tasks
                 tmpLog.debug(sqlEA + comment + str(varMap))
                 self.cur.execute(sqlEA + comment, varMap)
                 resList = self.cur.fetchall()
                 # update assessmentTime
-                sqlLK = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET assessmentTime=CURRENT_DATE "
-                sqlLK += "WHERE jediTaskID=:jediTaskID AND (assessmentTime IS NULL OR assessmentTime<:timeLimit) "
-                sqlLK += "AND (status=:scouting OR (status=:running AND walltimeUnit IS NULL)) "
+                sqlLK = (
+                    f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET assessmentTime=CURRENT_DATE "
+                    "WHERE jediTaskID=:jediTaskID AND (assessmentTime IS NULL OR assessmentTime<:timeLimit) "
+                    "AND (status=:scouting OR (status=:running AND walltimeUnit IS NULL)) "
+                )
                 # append to list
                 for jediTaskID, taskstatus, walltimeUnit, totJobs, totFinished in resList:
                     # update assessmentTime to avoid frequent check
@@ -3670,10 +3727,12 @@ class TaskComplexModule(BaseModule):
             if simTasks is None:
                 taskstatus = "scouting"
                 varMap = {":taskstatus": taskstatus, ":walltimeUnit": "ava"}
-                sqlFA = "SELECT jediTaskID "
-                sqlFA += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-                sqlFA += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-                sqlFA += "AND tabT.status=:taskstatus "
+                sqlFA = (
+                    "SELECT jediTaskID "
+                    f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                    "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                    "AND tabT.status=:taskstatus "
+                )
                 if prodSourceLabel is not None:
                     sqlFA += "AND prodSourceLabel=:prodSourceLabel "
                     varMap[":prodSourceLabel"] = prodSourceLabel
@@ -3698,54 +3757,72 @@ class TaskComplexModule(BaseModule):
             random.shuffle(jediTaskIDList)
             tmpLog.debug(f"got {len(jediTaskIDList)} tasks")
             # sql to read task
-            sqlRT = f"SELECT {JediTaskSpec.columnNames()} "
-            sqlRT += f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlRT += "WHERE jediTaskID=:jediTaskID AND status=:statusInDB AND lockedBy IS NULL FOR UPDATE NOWAIT "
+            sqlRT = (
+                f"SELECT {JediTaskSpec.columnNames()} "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+                "WHERE jediTaskID=:jediTaskID AND status=:statusInDB AND lockedBy IS NULL FOR UPDATE NOWAIT "
+            )
             # sql to lock task
-            sqlLK = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=:newLockedBy "
-            sqlLK += "WHERE jediTaskID=:jediTaskID AND status=:status AND lockedBy IS NULL "
+            sqlLK = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=:newLockedBy WHERE jediTaskID=:jediTaskID AND status=:status AND lockedBy IS NULL "
+            )
             # sql to read dataset status
-            sqlRD = "SELECT datasetID,status,nFiles,nFilesFinished,nFilesFailed,masterID,state "
-            sqlRD += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlRD += f"WHERE jediTaskID=:jediTaskID AND status=:status AND type IN ({PROCESS_TYPES_var_str}) "
+            sqlRD = (
+                "SELECT datasetID, status, nFiles, nFilesFinished, nFilesFailed, masterID, state "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                f"WHERE jediTaskID=:jediTaskID AND status=:status AND type IN ({PROCESS_TYPES_var_str}) "
+            )
             # sql to check if there is mutable dataset
-            sqlMTC = f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlMTC += "WHERE jediTaskID=:jediTaskID AND state=:state AND masterID IS NULL "
-            sqlMTC += f"AND type IN ({INPUT_TYPES_var_str}) "
+            sqlMTC = (
+                f"SELECT COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                "WHERE jediTaskID=:jediTaskID AND state=:state AND masterID IS NULL "
+                f"AND type IN ({INPUT_TYPES_var_str}) "
+            )
             # sql to update input dataset status
-            sqlDIU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status,modificationTime=CURRENT_DATE "
-            sqlDIU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlDIU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status, modificationTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             # sql to update output/log dataset status
-            sqlDOU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status,modificationTime=CURRENT_DATE "
-            sqlDOU += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
+            sqlDOU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status, modificationTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND type IN (:type1, :type2) "
+            )
             # sql to update status of mutable dataset
-            sqlMUT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status,modificationTime=CURRENT_DATE "
-            sqlMUT += "WHERE jediTaskID=:jediTaskID AND state=:state "
+            sqlMUT = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status, modificationTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND state=:state "
+            )
             # sql to get nFilesToBeUsed of dataset
-            sqlFUD = "SELECT tabD.datasetID,COUNT(*) FROM {0}.JEDI_Datasets tabD,{0}.JEDI_Dataset_Contents tabC ".format(panda_config.schemaJEDI)
-            sqlFUD += "WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID "
-            sqlFUD += f"AND tabD.type IN ({INPUT_TYPES_var_str}) "
-            sqlFUD += "AND tabD.jediTaskID=:jediTaskID AND tabD.masterID IS NULL "
-            sqlFUD += "AND NOT tabC.status IN (:status1,:status2,:status3,:status4) "
-            sqlFUD += "GROUP BY tabD.datasetID "
+            sqlFUD = (
+                f"SELECT tabD.datasetID, COUNT(*) FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabC "
+                "WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID "
+                f"AND tabD.type IN ({INPUT_TYPES_var_str}) "
+                "AND tabD.jediTaskID=:jediTaskID AND tabD.masterID IS NULL "
+                "AND NOT tabC.status IN (:status1, :status2, :status3, :status4) "
+                "GROUP BY tabD.datasetID "
+            )
             # sql to update nFiles of dataset
-            sqlFUU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesToBeUsed=:nFilesToBeUsed,modificationTime=CURRENT_DATE "
-            sqlFUU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlFUU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET nFilesToBeUsed=:nFilesToBeUsed, modificationTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             # sql to update task status
-            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTU += "SET status=:status,modificationTime=CURRENT_DATE,lockedBy=NULL,lockedTime=NULL,"
-            sqlTU += "errorDialog=:errorDialog,splitRule=:splitRule,stateChangeTime=CURRENT_DATE,oldStatus=:oldStatus "
-            sqlTU += "WHERE jediTaskID=:jediTaskID "
+            sqlTU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET status=:status, modificationTime=CURRENT_DATE, lockedBy=NULL, lockedTime=NULL, "
+                "errorDialog=:errorDialog, splitRule=:splitRule, stateChangeTime=CURRENT_DATE, oldStatus=:oldStatus "
+                "WHERE jediTaskID=:jediTaskID "
+            )
             # sql to unlock task
-            sqlTUU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTUU += "SET lockedBy=NULL,lockedTime=NULL "
-            sqlTUU += "WHERE jediTaskID=:jediTaskID AND status=:status "
+            sqlTUU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET lockedBy=NULL, lockedTime=NULL WHERE jediTaskID=:jediTaskID AND status=:status "
             # sql to update split rule
-            sqlUSL = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlUSL += "SET splitRule=:splitRule WHERE jediTaskID=:jediTaskID "
+            sqlUSL = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET splitRule=:splitRule WHERE jediTaskID=:jediTaskID "
             # sql to reset walltimeUnit
-            sqlRWU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET walltimeUnit=NULL "
-            sqlRWU += "WHERE jediTaskID=:jediTaskID AND status=:status AND walltimeUnit IS NOT NULL "
+            sqlRWU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET walltimeUnit=NULL "
+                "WHERE jediTaskID=:jediTaskID AND status=:status AND walltimeUnit IS NOT NULL "
+            )
             # loop over all tasks
             iTasks = 1
             for jediTaskID in jediTaskIDList:
@@ -3981,10 +4058,12 @@ class TaskComplexModule(BaseModule):
                 ":worldCloud": JediTaskSpec.worldCloudName,
                 ":timeLimit": naive_utcnow() - datetime.timedelta(minutes=30),
             }
-            sqlSCF = "SELECT jediTaskID "
-            sqlSCF += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlSCF += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlSCF += "AND tabT.status=:status AND tabT.modificationTime<:timeLimit "
+            sqlSCF = (
+                "SELECT jediTaskID "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.status=:status AND tabT.modificationTime<:timeLimit "
+            )
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sqlSCF += "AND vo=:vo "
@@ -4008,8 +4087,7 @@ class TaskComplexModule(BaseModule):
                 sqlSCF += "AND workQueue_ID=:wq_id "
                 varMap[":wq_id"] = workQueue.queue_id
             sqlSCF += "ORDER BY currentPriority DESC,jediTaskID FOR UPDATE"
-            sqlSPC = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationTime=CURRENT_DATE,errorDialog=NULL "
-            sqlSPC += "WHERE jediTaskID=:jediTaskID "
+            sqlSPC = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationTime=CURRENT_DATE, errorDialog=NULL WHERE jediTaskID=:jediTaskID "
             # begin transaction
             self.conn.begin()
             # get tasks
@@ -4045,10 +4123,12 @@ class TaskComplexModule(BaseModule):
         try:
             # sql to get tasks to assign
             varMap: dict[str, Any] = {":status": "assigning", ":worldCloud": JediTaskSpec.worldCloudName}
-            sqlSCF = "SELECT jediTaskID "
-            sqlSCF += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlSCF += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlSCF += "AND tabT.status=:status "
+            sqlSCF = (
+                "SELECT jediTaskID "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.status=:status "
+            )
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sqlSCF += "AND vo=:vo "
@@ -4105,9 +4185,11 @@ class TaskComplexModule(BaseModule):
                     self.conn.begin()
                     if isinstance(tmpVal, str):
                         # sql to set cloud
-                        sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-                        sql += "SET cloud=:cloud,status=:status,oldStatus=NULL,stateChangeTime=CURRENT_DATE "
-                        sql += "WHERE jediTaskID=:jediTaskID AND cloud IS NULL "
+                        sql = (
+                            f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                            "SET cloud=:cloud, status=:status, oldStatus=NULL, stateChangeTime=CURRENT_DATE "
+                            "WHERE jediTaskID=:jediTaskID AND cloud IS NULL "
+                        )
                         varMap: dict[str, Any] = {":jediTaskID": jediTaskID, ":status": "ready", ":cloud": tmpVal}
                         # set cloud
                         self.cur.execute(sql + comment, varMap)
@@ -4115,9 +4197,11 @@ class TaskComplexModule(BaseModule):
                         tmpLog.debug(f"set cloud={tmpVal} for jediTaskID={jediTaskID} with {nRow}")
                     else:
                         # sql to set destinations for WORLD cloud
-                        sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-                        sql += "SET storageToken=:token,destination=:destination "
-                        sql += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                        sql = (
+                            f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+                            "SET storageToken=:token, destination=:destination "
+                            "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                        )
                         for tmpItem in tmpVal["datasets"]:
                             varMap = {
                                 ":jediTaskID": jediTaskID,
@@ -4128,9 +4212,11 @@ class TaskComplexModule(BaseModule):
                             self.cur.execute(sql + comment, varMap)
                             tmpLog.debug(f"set token={tmpItem['token']} for jediTaskID={jediTaskID} datasetID={tmpItem['datasetID']}")
                         # sql to set ready
-                        sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-                        sql += "SET nucleus=:nucleus,status=:newStatus,oldStatus=NULL,stateChangeTime=CURRENT_DATE,modificationTime=CURRENT_DATE-1/24 "
-                        sql += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+                        sql = (
+                            f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                            "SET nucleus=:nucleus, status=:newStatus, oldStatus=NULL, stateChangeTime=CURRENT_DATE, modificationTime=CURRENT_DATE-1/24 "
+                            "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+                        )
                         varMap = {":jediTaskID": jediTaskID, ":nucleus": tmpVal["nucleus"], ":newStatus": "ready", ":oldStatus": "assigning"}
                         self.cur.execute(sql + comment, varMap)
                         nRow = self.cur.rowcount
@@ -4142,8 +4228,7 @@ class TaskComplexModule(BaseModule):
                         self.setDeftStatus_JEDI(jediTaskID, deftStatus)
                         self.setSuperStatus_JEDI(jediTaskID, deftStatus)
                         # get parameters to enable jumbo
-                        sqlRT = f"SELECT eventService,site,useJumbo,splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-                        sqlRT += "WHERE jediTaskID=:jediTaskID "
+                        sqlRT = f"SELECT eventService, site, useJumbo, splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
                         varMap = {":jediTaskID": jediTaskID}
                         self.cur.execute(sqlRT + comment, varMap)
                         resRT = self.cur.fetchone()
@@ -4240,8 +4325,10 @@ class TaskComplexModule(BaseModule):
                     if isOK:
                         # check task status
                         varMap = {":jediTaskID": jediTaskID}
-                        sqlTC = f"SELECT status,oldStatus,wallTimeUnit,splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-                        sqlTC += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
+                        sqlTC = (
+                            f"SELECT status, oldStatus, wallTimeUnit, splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+                            "WHERE jediTaskID=:jediTaskID FOR UPDATE "
+                        )
                         self.cur.execute(sqlTC + comment, varMap)
                         resTC = self.cur.fetchone()
                         if resTC is None or resTC[0] is None:
@@ -4422,11 +4509,15 @@ class TaskComplexModule(BaseModule):
                                     newJobStatus = "throttled"
                                     oldJobStatus = "activated"
                                 # get jobs, then update them one by one to record each status change
-                                sqlJS = f"SELECT PandaID,cloud,computingSite,prodSourceLabel FROM {panda_config.schemaPANDA}.jobsActive4 "
-                                sqlJS += "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
-                                sqlJT = f"UPDATE {panda_config.schemaPANDA}.jobsActive4 "
-                                sqlJT += "SET jobStatus=:newJobStatus "
-                                sqlJT += "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
+                                sqlJS = (
+                                    f"SELECT PandaID, cloud, computingSite, prodSourceLabel FROM {panda_config.schemaPANDA}.jobsActive4 "
+                                    "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus "
+                                )
+                                sqlJT = (
+                                    f"UPDATE {panda_config.schemaPANDA}.jobsActive4 "
+                                    "SET jobStatus=:newJobStatus "
+                                    "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
+                                )
                                 varMap = {":jediTaskID": jediTaskID, ":oldJobStatus": oldJobStatus}
                                 self.cur.arraysize = 100000
                                 self.cur.execute(sqlJS + comment, varMap)
@@ -4451,10 +4542,12 @@ class TaskComplexModule(BaseModule):
                     continue
                 self.conn.begin()
                 varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=5)
-                sqlOrpS = "SELECT jediTaskID,errorDialog,oldStatus "
-                sqlOrpS += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-                sqlOrpS += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-                sqlOrpS += "AND tabT.status=:status AND tabT.modificationtime<:timeLimit "
+                sqlOrpS = (
+                    "SELECT jediTaskID, errorDialog, oldStatus "
+                    f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                    "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                    "AND tabT.status=:status AND tabT.modificationtime<:timeLimit "
+                )
                 if vo not in [None, "any"]:
                     sqlOrpS += "AND vo=:vo "
                     varMap[":vo"] = vo
@@ -4469,8 +4562,7 @@ class TaskComplexModule(BaseModule):
                     raise RuntimeError("Commit error")
                 # update modtime to avoid immediate reattempts
                 sql_orphaned_lock = f"SELECT modificationtime FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE NOWAIT "
-                sqlOrpU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationtime=CURRENT_DATE "
-                sqlOrpU += "WHERE jediTaskID=:jediTaskID "
+                sqlOrpU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET modificationtime=CURRENT_DATE WHERE jediTaskID=:jediTaskID "
                 for jediTaskID, comComment, oldStatus in resList:
                     self.conn.begin()
                     # lock
@@ -4542,10 +4634,12 @@ class TaskComplexModule(BaseModule):
                 timeoutDate = naive_utcnow() - datetime.timedelta(hours=timeoutLimit)
             # sql to get pending tasks
             varMap: dict[str, Any] = {":status": "pending", ":timeLimit": naive_utcnow() - datetime.timedelta(minutes=timeLimit)}
-            sqlTL = "SELECT jediTaskID,frozenTime,errorDialog,parent_tid,splitRule,startTime "
-            sqlTL += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
-            sqlTL += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
-            sqlTL += "AND tabT.status=:status AND tabT.modificationTime<:timeLimit AND tabT.oldStatus IS NOT NULL "
+            sqlTL = (
+                "SELECT jediTaskID, frozenTime, errorDialog, parent_tid, splitRule, startTime "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Tasks tabT, {panda_config.schemaJEDI}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                "AND tabT.status=:status AND tabT.modificationTime<:timeLimit AND tabT.oldStatus IS NOT NULL "
+            )
             if vo not in [None, "any"]:
                 varMap[":vo"] = vo
                 sqlTL += "AND vo=:vo "
@@ -4556,13 +4650,17 @@ class TaskComplexModule(BaseModule):
                 varMap[":minPriority"] = minPriority
                 sqlTL += "AND currentPriority>=:minPriority "
             # sql to update tasks
-            sqlTU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTU += "SET status=oldStatus,oldStatus=NULL "
-            sqlTU += "WHERE jediTaskID=:jediTaskID AND oldStatus IS NOT NULL AND status=:oldStatus "
+            sqlTU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET status=oldStatus, oldStatus=NULL "
+                "WHERE jediTaskID=:jediTaskID AND oldStatus IS NOT NULL AND status=:oldStatus "
+            )
             # sql to timeout tasks
-            sqlTO = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlTO += "SET status=:newStatus,errorDialog=:errorDialog,modificationtime=CURRENT_DATE,stateChangeTime=CURRENT_DATE "
-            sqlTO += "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+            sqlTO = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                "SET status=:newStatus, errorDialog=:errorDialog, modificationtime=CURRENT_DATE, stateChangeTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND status=:oldStatus "
+            )
             # start transaction
             self.conn.begin()
             self.cur.execute(sqlTL + comment, varMap)
@@ -4641,9 +4739,11 @@ class TaskComplexModule(BaseModule):
             sqlFI += JediFileSpec.bindValuesExpression()
             sqlFI += " RETURNING fileID INTO :newFileID"
             # sql to update LFN
-            sqlFU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-            sqlFU += "SET lfn=:newLFN "
-            sqlFU += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            sqlFU = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                "SET lfn=:newLFN "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            )
             # make datasetSpec
             pandaFileSpec = jobSpec.Files[0]
             timeNow = naive_utcnow()
@@ -4877,10 +4977,12 @@ class TaskComplexModule(BaseModule):
                         scout_metrics_extra = {}
                     # check max attempts
                     varMap = {":jediTaskID": jediTaskID}
-                    sqlMAX = "SELECT MAX(c.maxAttempt) "
-                    sqlMAX += "FROM {0}.JEDI_Datasets d, {0}.JEDI_Dataset_Contents c ".format(panda_config.schemaJEDI)
-                    sqlMAX += "WHERE c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID "
-                    sqlMAX += f"AND d.jediTaskID=:jediTaskID AND d.type IN ({INPUT_TYPES_var_str}) "
+                    sqlMAX = (
+                        "SELECT MAX(c.maxAttempt) "
+                        f"FROM {panda_config.schemaJEDI}.JEDI_Datasets d, {panda_config.schemaJEDI}.JEDI_Dataset_Contents c "
+                        "WHERE c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID "
+                        f"AND d.jediTaskID=:jediTaskID AND d.type IN ({INPUT_TYPES_var_str}) "
+                    )
                     varMap.update(INPUT_TYPES_var_map)
                     self.cur.execute(sqlMAX + comment, varMap)
                     resMAX = self.cur.fetchone()
@@ -4977,10 +5079,12 @@ class TaskComplexModule(BaseModule):
                     else:
                         # get input datasets
                         varMap = {":jediTaskID": jediTaskID}
-                        sqlDS = "SELECT datasetID,masterID,nFiles,nFilesFinished,nFilesFailed,nFilesUsed,status,state,type,datasetName,nFilesMissing "
-                        sqlDS += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-                        sqlDS += "WHERE jediTaskID=:jediTaskID "
-                        sqlDS += f"AND type IN ({INPUT_TYPES_var_str}) "
+                        sqlDS = (
+                            "SELECT datasetID, masterID, nFiles, nFilesFinished, nFilesFailed, nFilesUsed, status, state, type, datasetName, nFilesMissing "
+                            f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                            "WHERE jediTaskID=:jediTaskID "
+                            f"AND type IN ({INPUT_TYPES_var_str}) "
+                        )
                         varMap.update(INPUT_TYPES_var_map)
                         self.cur.execute(sqlDS + comment, varMap)
                         resDS = self.cur.fetchall()
@@ -5253,26 +5357,24 @@ class TaskComplexModule(BaseModule):
         retried_tasks = []
         try:
             # sql to get output datasets of parent task
-            sqlPD = f"SELECT datasetName,containerName FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlPD += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
+            sqlPD = f"SELECT datasetName, containerName FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type IN (:type1, :type2) "
             # sql to get child tasks
-            sqlGT = f"SELECT jediTaskID,status FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlGT += "WHERE parent_tid=:jediTaskID AND parent_tid<>jediTaskID "
+            sqlGT = f"SELECT jediTaskID, status FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE parent_tid=:jediTaskID AND parent_tid<>jediTaskID "
             # sql to get input datasets of child task
-            sqlRD = f"SELECT datasetID,datasetName FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlRD += f"WHERE jediTaskID=:jediTaskID AND type IN ({PROCESS_TYPES_var_str}) "
+            sqlRD = (
+                f"SELECT datasetID, datasetName FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                f"WHERE jediTaskID=:jediTaskID AND type IN ({PROCESS_TYPES_var_str}) "
+            )
             # sql to change task status
-            sqlCT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlCT += "SET status=:status,errorDialog=NULL,stateChangeTime=CURRENT_DATE "
-            sqlCT += "WHERE jediTaskID=:jediTaskID "
+            sqlCT = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET status=:status, errorDialog=NULL, stateChangeTime=CURRENT_DATE WHERE jediTaskID=:jediTaskID "
+            )
             # sql to set mutable to dataset status
-            sqlMD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlMD += "SET state=:state,stateCheckTime=CURRENT_DATE "
-            sqlMD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-            # sql to set dataset status
-            sqlCD = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlCD += "SET status=:status "
-            sqlCD += "WHERE jediTaskID=:jediTaskID AND type=:type "
+            sqlMD = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+                "SET state=:state, stateCheckTime=CURRENT_DATE "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             # begin transaction
             if useCommit:
                 self.conn.begin()
@@ -5535,8 +5637,9 @@ class TaskComplexModule(BaseModule):
         try:
             self.conn.begin()
             # check if task is still running and brokered to the site
-            sqlT = ("SELECT jediTaskID FROM {0}.JEDI_Tasks t WHERE t.jediTaskID=:jediTaskID AND t.site =:site AND t.status IN ('ready','running') ").format(
-                panda_config.schemaJEDI
+            sqlT = (
+                f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks t "
+                "WHERE t.jediTaskID=:jediTaskID AND t.site =:site AND t.status IN ('ready', 'running') "
             )
             varMap: dict[str, Any] = {":jediTaskID": jedi_taskid, ":site": site}
             self.cur.execute(sqlT + comment, varMap)
@@ -5546,8 +5649,9 @@ class TaskComplexModule(BaseModule):
                 tmpLog.debug("no longer brokered to site or not ready/running ; skipped")
                 return None
             # close jobs
-            sqlJC = ("SELECT pandaID FROM {0}.jobsActive4 WHERE jediTaskID=:jediTaskID AND jobStatus='activated' AND computingSite!=:computingSite ").format(
-                panda_config.schemaPANDA
+            sqlJC = (
+                f"SELECT pandaID FROM {panda_config.schemaPANDA}.jobsActive4 "
+                "WHERE jediTaskID=:jediTaskID AND jobStatus='activated' AND computingSite!=:computingSite "
             )
             varMap = {":jediTaskID": jedi_taskid, ":computingSite": site}
             self.cur.execute(sqlJC + comment, varMap)
@@ -5601,8 +5705,10 @@ class TaskComplexModule(BaseModule):
             # check duplication
             duplicatedFlag = False
             if uniqueTaskName is True:
-                sqlDup = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-                sqlDup += "WHERE userName=:userName AND taskName=:taskName AND jediTaskID<>:jediTaskID FOR UPDATE "
+                sqlDup = (
+                    f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+                    "WHERE userName=:userName AND taskName=:taskName AND jediTaskID<>:jediTaskID FOR UPDATE "
+                )
                 varMap: dict[str, Any] = {":userName": taskSpec.userName, ":taskName": taskSpec.taskName, ":jediTaskID": jediTaskID}
                 self.cur.execute(sqlDup + comment, varMap)
                 resDupList = self.cur.fetchall()
@@ -5622,8 +5728,9 @@ class TaskComplexModule(BaseModule):
             varMap = taskSpec.valuesMap(useSeq=False, onlyChanged=True)
             varMap[":jediTaskID"] = jediTaskID
             varMap[":preStatus"] = oldTaskStatus
-            sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET {taskSpec.bindUpdateChangesExpression()} WHERE "
-            sql += "jediTaskID=:jediTaskID AND status=:preStatus "
+            sql = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET {taskSpec.bindUpdateChangesExpression()} WHERE jediTaskID=:jediTaskID AND status=:preStatus "
+            )
             self.cur.execute(sql + comment, varMap)
             nRow = self.cur.rowcount
             tmpLog.debug(f"update {nRow} row in task table")
@@ -5634,8 +5741,7 @@ class TaskComplexModule(BaseModule):
             else:
                 # delete unknown datasets
                 tmpLog.debug("deleting unknown datasets")
-                sql = f"DELETE FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-                sql += "WHERE jediTaskID=:jediTaskID AND type=:type "
+                sql = f"DELETE FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type=:type "
                 varMap = {":jediTaskID": jediTaskID, ":type": JediDatasetSpec.getUnknownInputType()}
                 self.cur.execute(sql + comment, varMap)
                 tmpLog.debug("inserting datasets")
@@ -5766,21 +5872,18 @@ class TaskComplexModule(BaseModule):
                         self.cur.execute(sql + comment, varMap)
                 # check if jobParams is already there
                 varMap = {":jediTaskID": jediTaskID}
-                sql = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_JobParams_Template "
-                sql += "WHERE jediTaskID=:jediTaskID "
+                sql = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_JobParams_Template WHERE jediTaskID=:jediTaskID "
                 self.cur.execute(sql + comment, varMap)
                 resPar = self.cur.fetchone()
                 if resPar is None:
                     # insert job parameters
                     tmpLog.debug("inserting jobParamsTmpl")
                     varMap = {":jediTaskID": jediTaskID, ":templ": jobParamsTemplate}
-                    sql = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_JobParams_Template "
-                    sql += "(jediTaskID,jobParamsTemplate) VALUES (:jediTaskID,:templ) "
+                    sql = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_JobParams_Template (jediTaskID, jobParamsTemplate) VALUES (:jediTaskID, :templ) "
                 else:
                     tmpLog.debug("replacing jobParamsTmpl")
                     varMap = {":jediTaskID": jediTaskID, ":templ": jobParamsTemplate}
-                    sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_JobParams_Template "
-                    sql += "SET jobParamsTemplate=:templ WHERE jediTaskID=:jediTaskID"
+                    sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_JobParams_Template SET jobParamsTemplate=:templ WHERE jediTaskID=:jediTaskID"
                 self.cur.execute(sql + comment, varMap)
                 # update task parameters
                 if taskParams is not None:
@@ -5868,15 +5971,19 @@ class TaskComplexModule(BaseModule):
             parallel_out_map_for_bulk_fetch: list[dict[Any, Any]] = [{} for _ in range(n_files_per_chunk)]
             max_serial_numbers_for_bulk_fetch: list[int | None] = [None] * n_files_per_chunk
             # sql to get dataset
-            sqlD = "SELECT "
-            sqlD += f"datasetID,datasetName,vo,masterID,status,type FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlD += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
+            sqlD = (
+                "SELECT "
+                f"datasetID, datasetName, vo, masterID, status, type FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                "WHERE jediTaskID=:jediTaskID AND type IN (:type1, :type2) "
+            )
             if provenanceID is not None:
                 sqlD += "AND (provenanceID IS NULL OR provenanceID=:provenanceID) "
             # sql to read template
-            sqlR = "SELECT outTempID,datasetID,fileNameTemplate,serialNr,outType,streamName "
-            sqlR += f"FROM {panda_config.schemaJEDI}.JEDI_Output_Template "
-            sqlR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlR = (
+                "SELECT outTempID, datasetID, fileNameTemplate, serialNr, outType, streamName "
+                f"FROM {panda_config.schemaJEDI}.JEDI_Output_Template "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             if not simul:
                 sqlR += "FOR UPDATE "
             # sql to insert files
@@ -5887,22 +5994,22 @@ class TaskComplexModule(BaseModule):
             sqlII = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Dataset_Contents ({JediFileSpec.columnNames()}) "
             sqlII += JediFileSpec.bindValuesExpression(useSeq=False)
             # sql to increment SN
-            sqlU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Output_Template SET serialNr=serialNr+:diff "
-            sqlU += "WHERE jediTaskID=:jediTaskID AND outTempID=:outTempID "
+            sqlU = f"UPDATE {panda_config.schemaJEDI}.JEDI_Output_Template SET serialNr=serialNr+:diff WHERE jediTaskID=:jediTaskID AND outTempID=:outTempID "
             # sql to instantiate template dataset
-            sqlT1 = f"SELECT {JediDatasetSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlT1 += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlT1 = (
+                f"SELECT {JediDatasetSpec.columnNames()} FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             sqlT2 = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Datasets ({JediDatasetSpec.columnNames()}) "
             sqlT2 += JediDatasetSpec.bindValuesExpression()
             sqlT2 += "RETURNING datasetID INTO :newDatasetID "
             # sql to change concrete dataset name
-            sqlCN = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlCN += "SET site=:site,datasetName=:datasetName,destination=:destination "
-            sqlCN += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlCN = (
+                f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
+                "SET site=:site, datasetName=:datasetName, destination=:destination "
+                "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            )
             # sql to set masterID to concrete datasets
-            sqlMC = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlMC += "SET masterID=:masterID "
-            sqlMC += " WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            sqlMC = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET masterID=:masterID WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # current current date
             timeNow = naive_utcnow()
             # begin transaction

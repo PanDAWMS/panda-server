@@ -83,7 +83,7 @@ def clean_user_id(id: str | None) -> str | None:
         # regexes could not be applied to; saying so up front is the same answer
         return None
     try:
-        up = re.compile("/(DC|O|OU|C|L)=[^\/]+")
+        up = re.compile(r"/(DC|O|OU|C|L)=[^\/]+")
         username = up.sub("", id)
         up2 = re.compile("/CN=[0-9]+")
         username = up2.sub("", username)
@@ -96,7 +96,7 @@ def clean_user_id(id: str | None) -> str | None:
         username = username.replace("limited proxy", "")
         username = re.sub("/CN=Robot:[^/]+", "", username)
         username = re.sub("/CN=nickname:[^/]+", "", username)
-        pat = re.compile(".*/CN=([^\/]+)/CN=([^\/]+)")
+        pat = re.compile(r".*/CN=([^\/]+)/CN=([^\/]+)")
         mat = pat.match(username)
         if mat:
             username = mat.group(2)

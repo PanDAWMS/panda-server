@@ -131,10 +131,10 @@ def decodeFileInfo(specialHandling: str) -> tuple[dict[str, dict[str, int]], str
             if tmpItem.startswith(esHeader):
                 tmpItem = re.sub("^" + esHeader, "", tmpItem)
                 # look for event service index
-                tmpMatch = re.search("^(\d+):", tmpItem)
+                tmpMatch = re.search(r"^(\d+):", tmpItem)
                 if tmpMatch is not None:
                     esIndex = tmpMatch.group(1)
-                    tmpItem = re.sub("^(\d+):", "", tmpItem)
+                    tmpItem = re.sub(r"^(\d+):", "", tmpItem)
                 for esItem in tmpItem.split("^"):
                     if esItem == "":
                         continue

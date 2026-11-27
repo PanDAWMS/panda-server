@@ -1228,7 +1228,7 @@ class JobGeneratorThread(WorkerThread):
                     else:
                         jobSpec.cmtConfig = taskSpec.get_platforms()
                     if taskSpec.transHome is not None:
-                        jobSpec.homepackage = re.sub("-(?P<dig>\d+\.)", "/\g<dig>", taskSpec.transHome)
+                        jobSpec.homepackage = re.sub(r"-(?P<dig>\d+\.)", r"/\g<dig>", taskSpec.transHome)
                         jobSpec.homepackage = re.sub("\r", "", jobSpec.homepackage)
                     jobSpec.prodSourceLabel = taskSpec.prodSourceLabel
                     if inputChunk.isMerging:
@@ -1621,7 +1621,7 @@ class JobGeneratorThread(WorkerThread):
                                         break
                             else:
                                 tmpMidStr = jobSpec.prodDBlock.split(":")[-1]
-                                tmpMidStrList = re.split("\.|_tid\d+", tmpMidStr)
+                                tmpMidStrList = re.split(r"\.|_tid\d+", tmpMidStr)
                                 if len(tmpMidStrList) >= max(field_num_to_lfn):
                                     middleName = ""
                                     for tmpFieldNum in field_num_to_lfn:
@@ -2023,7 +2023,7 @@ class JobGeneratorThread(WorkerThread):
             else:
                 jobSpec.cmtConfig = taskSpec.get_platforms()
             if taskSpec.transHome is not None:
-                jobSpec.homepackage = re.sub("-(?P<dig>\d+\.)", "/\g<dig>", taskSpec.transHome)
+                jobSpec.homepackage = re.sub(r"-(?P<dig>\d+\.)", r"/\g<dig>", taskSpec.transHome)
                 jobSpec.homepackage = re.sub("\r", "", jobSpec.homepackage)
             jobSpec.prodSourceLabel = taskParamMap["buildSpec"]["prodSourceLabel"]
             jobSpec.processingType = taskSpec.processingType
@@ -2406,10 +2406,10 @@ class JobGeneratorThread(WorkerThread):
             streamLFNsMap.setdefault(streamName, [])
             streamLFNsMap[streamName].append(tmpFileSpec.lfn)  # type: ignore[arg-type]  # a column, declared optional because a fresh spec has it unset
         # extract placeholders with range expression, e.g., IN[0:2]
-        for tmpMatch in re.finditer("\$\{([^\}]+)\}", parTemplate):
+        for tmpMatch in re.finditer(r"\$\{([^\}]+)\}", parTemplate):
             tmpPatt = tmpMatch.group(1)
             # split to stream name and range expression
-            tmpStRaMatch = re.search("([^\[]+)(.*)", tmpPatt)
+            tmpStRaMatch = re.search(r"([^\[]+)(.*)", tmpPatt)
             if tmpStRaMatch is not None:
                 tmpStream = tmpStRaMatch.group(1)
                 tmpRange = tmpStRaMatch.group(2)
@@ -2449,7 +2449,7 @@ class JobGeneratorThread(WorkerThread):
         # loop over all placeholders
         if self.time_profile_level >= TIME_PROFILE_DEEP:
             tmp_log.debug(stop_watch.get_elapsed_time("placeholders"))
-        for tmpMatch in re.finditer("\$\{([^\}]+)\}", parTemplate):
+        for tmpMatch in re.finditer(r"\$\{([^\}]+)\}", parTemplate):
             placeHolder = tmpMatch.group(1)
             # remove decorators
             streamNames = placeHolder.split("/")[0]
@@ -2511,7 +2511,7 @@ class JobGeneratorThread(WorkerThread):
                     for tmpLFN in listLFN:
                         # keep full LFNs
                         fullLFNList += f"{tmpLFN},"
-                        compactLFNs.append(re.sub("\.\d+$", "", tmpLFN))
+                        compactLFNs.append(re.sub(r"\.\d+$", "", tmpLFN))
                     fullLFNList = fullLFNList[:-1]
                     # find head and tail to convert file.1.pool,file.2.pool,file.4.pool to file.[1,2,4].pool
                     tmpHead = ""
@@ -2531,8 +2531,8 @@ class JobGeneratorThread(WorkerThread):
                         i += 1
                         tmpTail = tmpLFN0[-i:]
                     # remove numbers : ABC_00,00_XYZ -> ABC_,_XYZ
-                    tmpHead = re.sub("\d*$", "", tmpHead)
-                    tmpTail = re.sub("^\d*", "", tmpTail)
+                    tmpHead = re.sub(r"\d*$", "", tmpHead)
+                    tmpTail = re.sub(r"^\d*", "", tmpTail)
                     # create compact parameter
                     compactPar = f"{tmpHead}["
                     for tmpLFN in compactLFNs:
@@ -2543,8 +2543,8 @@ class JobGeneratorThread(WorkerThread):
                     compactPar = compactPar[:-1]
                     compactPar += f"]{tmpTail}"
                     # check contents in []
-                    conMatch = re.search("\[([^\]]+)\]", compactPar)
-                    if conMatch is not None and re.search("^[\d,]+$", conMatch.group(1)) is not None:
+                    conMatch = re.search(r"\[([^\]]+)\]", compactPar)
+                    if conMatch is not None and re.search(r"^[\d,]+$", conMatch.group(1)) is not None:
                         # replace with compact format
                         replaceStr = compactPar
                     else:
@@ -2562,7 +2562,7 @@ class JobGeneratorThread(WorkerThread):
         emptyStreamMap: dict[str, Any] = {}
         for streamName, transientStreamMap in transientStreamCombo.items():
             # remove serial number
-            streamNameBase = re.sub("\d+$", "", streamName)
+            streamNameBase = re.sub(r"\d+$", "", streamName)
             # empty streams
             if streamNameBase not in emptyStreamMap:
                 emptyStreamMap[streamNameBase] = []
@@ -2597,7 +2597,7 @@ class JobGeneratorThread(WorkerThread):
         # remove outputs and params for deleted streams
         for streamName, deletedLFNs in streamToDelete.items():
             # remove params
-            parTemplate = re.sub("--[^=]+=\$\{" + streamName + "\}", "", parTemplate)
+            parTemplate = re.sub(r"--[^=]+=\$\{" + streamName + r"\}", "", parTemplate)
             # remove output files
             if deletedLFNs == []:
                 continue
@@ -2630,7 +2630,7 @@ class JobGeneratorThread(WorkerThread):
         # replace unmerge files
         for jobFileSpec in jobFileList:
             if jobFileSpec.isUnMergedOutput():
-                mergedFileName = re.sub("^panda\.um\.", "", jobFileSpec.lfn)
+                mergedFileName = re.sub(r"^panda\.um\.", "", jobFileSpec.lfn)
                 parTemplate = parTemplate.replace(mergedFileName, jobFileSpec.lfn)
         # remove duplicated panda.um
         parTemplate = parTemplate.replace("panda.um.panda.um.", "panda.um.")
@@ -2655,9 +2655,9 @@ class JobGeneratorThread(WorkerThread):
         # check unresolved placeholders
         if self.time_profile_level >= TIME_PROFILE_DEEP:
             tmp_log.debug(stop_watch.get_elapsed_time("unresolved placeholders"))
-        matchI = re.search("\${IN.*}", parTemplate)
+        matchI = re.search(r"\${IN.*}", parTemplate)
         if matchI is None:
-            matchI = re.search("\${SEQNUMBER}", parTemplate)
+            matchI = re.search(r"\${SEQNUMBER}", parTemplate)
         if matchI is not None:
             raise UnresolvedParam(f"unresolved {matchI.group(0)} when making job parameters")
         # return

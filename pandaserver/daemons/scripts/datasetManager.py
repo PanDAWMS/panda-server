@@ -115,7 +115,7 @@ def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
     def setTobeDeletedToDis(subDsName: str) -> None:
         try:
             # only production sub datasets
-            if subDsName.startswith("user") or subDsName.startswith("group") or re.search("_sub\d+$", subDsName) is None:
+            if subDsName.startswith("user") or subDsName.startswith("group") or re.search(r"_sub\d+$", subDsName) is None:
                 return
             # get _dis names with _sub
             disNameList = taskBuffer.getAssociatedDisDatasets(subDsName)
@@ -127,7 +127,7 @@ def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
                     # another thread already took care of the _dis
                     continue
                 # skip non _dis
-                if re.search("_dis\d+$", tmpDisName) is None:
+                if re.search(r"_dis\d+$", tmpDisName) is None:
                     continue
                 # get dataset
                 _logger.debug(f"setTobeDeletedToDis : try to get {tmpDisName} in DB")
@@ -561,7 +561,7 @@ def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
                 # loop over all datasets
                 for vuid, name, modDate in self.datasets:
                     # only dis datasets
-                    if re.search("_dis\d+$", name) is None:
+                    if re.search(r"_dis\d+$", name) is None:
                         _logger.error(f"Eraser : non disDS {name}")
                         continue
                     # delete
@@ -1026,7 +1026,7 @@ def main(tbuf: "TaskBuffer | None" = None, **kwargs: Any) -> None:
             try:
                 for vuid, name, modDate in self.datasets:
                     # check just in case
-                    if re.search("_sub\d+$", name) is None:
+                    if re.search(r"_sub\d+$", name) is None:
                         _logger.debug(f"skip non sub {name}")
                         continue
                     _logger.debug(f"delete sub {name}")

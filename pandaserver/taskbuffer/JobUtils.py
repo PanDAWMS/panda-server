@@ -72,7 +72,7 @@ def getCoreCount(actualCoreCount: int | None, defCoreCount: int | None, jobMetri
             tmpMatch = None
             if jobMetrics is not None:
                 # extract coreCount
-                tmpMatch = re.search("coreCount=(\d+)", jobMetrics)
+                tmpMatch = re.search(r"coreCount=(\d+)", jobMetrics)
             if tmpMatch is not None:
                 coreCount = int(tmpMatch.group(1))
             else:

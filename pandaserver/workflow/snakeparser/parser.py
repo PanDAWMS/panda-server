@@ -210,7 +210,7 @@ class Parser(object):
                 node.scatter = None
             condition = getattr(job.rule, "condition", None)
             if condition:
-                pattern = f"{param_of('')}(\w+)"
+                pattern = rf"{param_of('')}(\w+)"
                 for param_name in re.findall(pattern, condition):
                     if param_name not in job.rule.params.keys():
                         raise ParamNotFoundException(param_name, job.rule.name)
