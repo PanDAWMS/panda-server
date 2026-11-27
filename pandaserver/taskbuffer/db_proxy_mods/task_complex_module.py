@@ -3693,7 +3693,7 @@ class TaskComplexModule(BaseModule):
                 varMap.update(INPUT_TYPES_var_map)
                 sqlEA += "AND tabF.PandaID IS NOT NULL "
                 sqlEA += ") "
-                sqlEA += "GROUP BY jediTaskID,t_status,walltimeUnit "
+                sqlEA += "GROUP BY jediTaskID, t_status, walltimeUnit "
                 # get tasks
                 tmpLog.debug(sqlEA + comment + str(varMap))
                 self.cur.execute(sqlEA + comment, varMap)
