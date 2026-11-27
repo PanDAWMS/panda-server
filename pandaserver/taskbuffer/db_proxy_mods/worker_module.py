@@ -1848,8 +1848,7 @@ class WorkerModule(BaseModule):
             commands = []
             command_ids = []
             for entry in entries:
-                command_dict = {}
-                command_dict["command_id"] = entry[0]
+                command_dict = {"command_id": entry[0]}
                 command_ids.append(entry[0])  # we need to update the commands as dispatched
                 command_dict["command"] = entry[1]
                 command_dict["params"] = entry[2]
