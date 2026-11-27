@@ -33,7 +33,7 @@ class GenTaskRefiner(TaskRefinerBase):
             if "sourceURL" in taskParamMap:
                 for tmpItem in taskParamMap["jobParameters"]:
                     if "value" in tmpItem:
-                        tmpItem["value"] = re.sub("\$\{SURL\}", taskParamMap["sourceURL"], tmpItem["value"])
+                        tmpItem["value"] = re.sub(r"\$\{SURL\}", taskParamMap["sourceURL"], tmpItem["value"])
         except Exception:
             pass
         # min ram count

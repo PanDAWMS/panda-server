@@ -37,7 +37,7 @@ taskParamMap["log"] = {
     "type": "template",
     "param_type": "log",
     "token": "ddd:.*DATADISK",
-    "destination": "(type=DATADISK)\(dontkeeplog=True)",
+    "destination": r"(type=DATADISK)\(dontkeeplog=True)",
     "offset": 1000,
     "value": f"{logDatasetName}.${{SN}}.log.tgz",
 }

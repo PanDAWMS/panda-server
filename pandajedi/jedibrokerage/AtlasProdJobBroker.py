@@ -823,8 +823,8 @@ class AtlasProdJobBroker(JobBrokerBase):
             need_cvmfs = False
 
             # 3 digits base release or normal tasks
-            if (re.search("-\d+\.\d+\.\d+$", taskSpec.transHome) is not None) or (
-                re.search("rel_\d+(\n|$)", taskSpec.transHome) is None and re.search("\d{4}-\d{2}-\d{2}T\d{4}$", taskSpec.transHome) is None
+            if (re.search(r"-\d+\.\d+\.\d+$", taskSpec.transHome) is not None) or (
+                re.search("rel_\\d+(\n|$)", taskSpec.transHome) is None and re.search(r"\d{4}-\d{2}-\d{2}T\d{4}$", taskSpec.transHome) is None
             ):
                 cvmfs_repo = "atlas"
                 sw_project = taskSpec.transHome.split("-")[0]

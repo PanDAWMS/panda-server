@@ -121,7 +121,7 @@ class AtlasProdTaskRefiner(TaskRefinerBase):
             for tmpKey, tmpOutTemplateMapList in self.outputTemplateMap.items():
                 for tmpOutTemplateMap in tmpOutTemplateMapList:
                     outFileTemplate = tmpOutTemplateMap["filenameTemplate"]
-                    if re.search("\.\d+$", outFileTemplate) is None and not outFileTemplate.endswith(".panda.um"):
+                    if re.search(r"\.\d+$", outFileTemplate) is None and not outFileTemplate.endswith(".panda.um"):
                         tmpOutTemplateMap["filenameTemplate"] = outFileTemplate + ".1"
             # extract input datatype
             datasetTypeListIn = []

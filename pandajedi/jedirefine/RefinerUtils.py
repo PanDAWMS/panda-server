@@ -41,7 +41,7 @@ def encodeJSON(inputMap: Any) -> str:
 
 # extract stream name
 def extractStreamName(valStr: str) -> str | None:
-    tmpMatch = re.search("\$\{([^\}]+)\}", valStr)
+    tmpMatch = re.search(r"\$\{([^\}]+)\}", valStr)
     if tmpMatch is None:
         return None
     # remove decorators

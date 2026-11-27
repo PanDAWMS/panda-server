@@ -109,20 +109,19 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
                 # check
                 tmp_log = LogWrapper(_logger, f"kick_merge < jediTaskID={task_id} dest={destination_block} >")
                 tmp_log.debug("check")
-                sqlC = f"WITH w AS (SELECT PandaID FROM {panda_config.schemaPANDA}.filesTable4 WHERE destinationDBlock=:destinationDBlock) "
-                sqlC += "SELECT COUNT(*) FROM ("
-                sqlC += "SELECT j.PandaID FROM ATLAS_PANDA.jobsActive4 j, w "
-                sqlC += "WHERE j.PandaID=w.PandaID  "
-                sqlC += "AND NOT j.jobStatus IN (:jobStatus1,:jobStatus2) "
-                sqlC += "UNION "
-                sqlC += "SELECT j.PandaID FROM ATLAS_PANDA.jobsDefined4 j, w "
-                sqlC += "WHERE j.PandaID=w.PandaID  "
-                sqlC += "AND NOT j.jobStatus IN (:jobStatus1,:jobStatus2) "
-                sqlC += ") t "
-                var_map = {}
-                var_map[":jobStatus1"] = "failed"
-                var_map[":jobStatus2"] = "merging"
-                var_map[":destinationDBlock"] = destination_block
+                sqlC = (
+                    f"WITH w AS (SELECT PandaID FROM {panda_config.schemaPANDA}.filesTable4 WHERE destinationDBlock=:destinationDBlock) "
+                    "SELECT COUNT(*) FROM ("
+                    "SELECT j.PandaID FROM ATLAS_PANDA.jobsActive4 j, w "
+                    "WHERE j.PandaID=w.PandaID  "
+                    "AND NOT j.jobStatus IN (:jobStatus1, :jobStatus2) "
+                    "UNION "
+                    "SELECT j.PandaID FROM ATLAS_PANDA.jobsDefined4 j, w "
+                    "WHERE j.PandaID=w.PandaID  "
+                    "AND NOT j.jobStatus IN (:jobStatus1, :jobStatus2) "
+                    ") t "
+                )
+                var_map = {":jobStatus1": "failed", ":jobStatus2": "merging", ":destinationDBlock": destination_block}
                 statC, resC = taskBuffer.querySQLS(sqlC, var_map)
                 # finalize if all jobs have processed
                 if resC is not None:
@@ -200,34 +199,28 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
     try:
         timeLimit = naive_utcnow() - datetime.timedelta(hours=2)
         # get PandaIDs
-        var_map = {}
-        var_map[":prodSourceLabel"] = "managed"
-        var_map[":jobStatus"] = "merging"
-        var_map[":timeLimit"] = timeLimit
-        sql = "SELECT distinct jediTaskID FROM ATLAS_PANDA.jobsActive4 "
-        sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus and modificationTime<:timeLimit "
+        var_map = {":prodSourceLabel": "managed", ":jobStatus": "merging", ":timeLimit": timeLimit}
+        sql = (
+            "SELECT distinct jediTaskID FROM ATLAS_PANDA.jobsActive4 "
+            "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus and modificationTime<:timeLimit "
+        )
         tmp, res = taskBuffer.querySQLS(sql, var_map)
 
         for (jediTaskID,) in res:
-            var_map = {}
-            var_map[":jediTaskID"] = jediTaskID
-            var_map[":dsType"] = "trn_log"
+            var_map = {":jediTaskID": jediTaskID, ":dsType": "trn_log"}
             sql = "SELECT datasetID FROM ATLAS_PANDA.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type=:dsType AND nFilesUsed=nFilesTobeUsed "
             tmpP, resD = taskBuffer.querySQLS(sql, var_map)
             for (datasetID,) in resD:
-                var_map = {}
-                var_map[":jediTaskID"] = jediTaskID
-                var_map[":fileStatus"] = "ready"
-                var_map[":datasetID"] = datasetID
-                sql = "SELECT PandaID FROM ATLAS_PANDA.JEDI_Dataset_Contents "
-                sql += "WHERE jediTaskID=:jediTaskID AND datasetid=:datasetID AND status=:fileStatus AND PandaID=OutPandaID AND rownum<=1 "
+                var_map = {":jediTaskID": jediTaskID, ":fileStatus": "ready", ":datasetID": datasetID}
+                sql = (
+                    "SELECT PandaID FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                    "WHERE jediTaskID=:jediTaskID AND datasetid=:datasetID AND status=:fileStatus AND PandaID=OutPandaID AND rownum<=1 "
+                )
                 tmpP, resP = taskBuffer.querySQLS(sql, var_map)
                 if resP == []:
                     continue
                 PandaID = resP[0][0]
-                var_map = {}
-                var_map[":PandaID"] = PandaID
-                var_map[":fileType"] = "log"
+                var_map = {":PandaID": PandaID, ":fileType": "log"}
                 sql = "SELECT d.status FROM ATLAS_PANDA.filesTable4 f,ATLAS_PANDA.datasets d WHERE PandaID=:PandaID AND f.type=:fileType AND d.name=f.destinationDBlock "
                 tmpS, resS = taskBuffer.querySQLS(sql, var_map)
                 if resS is not None:
@@ -259,8 +252,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
         _logger.error(f"check for stuck merging jobs failed with {errType} {errValue}")
 
     # get sites to skip various timeout
-    var_map = {}
-    var_map[":status"] = "paused"
+    var_map = {":status": "paused"}
     sql = "SELECT /* use_json_type */ panda_queue FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.status=:status "
     sitesToSkipTO = set()
     status, res = taskBuffer.querySQLS(sql, var_map)
@@ -299,16 +291,19 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # check heartbeat for analysis jobs
     timeLimit = naive_utcnow() - datetime.timedelta(hours=workflow_timeout_map["analysis"])
-    var_map = {}
-    var_map[":modificationTime"] = timeLimit
-    var_map[":prodSourceLabel1"] = "panda"
-    var_map[":prodSourceLabel2"] = "user"
-    var_map[":jobStatus1"] = "running"
-    var_map[":jobStatus2"] = "starting"
-    var_map[":jobStatus3"] = "stagein"
-    var_map[":jobStatus4"] = "stageout"
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) "
-    sql += "AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) AND modificationTime<:modificationTime"
+    var_map = {
+        ":modificationTime": timeLimit,
+        ":prodSourceLabel1": "panda",
+        ":prodSourceLabel2": "user",
+        ":jobStatus1": "running",
+        ":jobStatus2": "starting",
+        ":jobStatus3": "stagein",
+        ":jobStatus4": "stageout",
+    }
+    sql = (
+        "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) "
+        "AND jobStatus IN (:jobStatus1, :jobStatus2, :jobStatus3, :jobStatus4) AND modificationTime<:modificationTime"
+    )
     status, res = taskBuffer.querySQLS(sql, var_map)
     if res is None:
         _logger.debug(f"# of Anal Watcher : {res}")
@@ -322,13 +317,11 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # check heartbeat for analysis jobs in transferring
     timeLimit = naive_utcnow() - datetime.timedelta(hours=workflow_timeout_map["analysis"])
-    var_map = {}
-    var_map[":modificationTime"] = timeLimit
-    var_map[":prodSourceLabel1"] = "panda"
-    var_map[":prodSourceLabel2"] = "user"
-    var_map[":jobStatus1"] = "transferring"
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-    sql += "AND jobStatus=:jobStatus1 AND modificationTime<:modificationTime"
+    var_map = {":modificationTime": timeLimit, ":prodSourceLabel1": "panda", ":prodSourceLabel2": "user", ":jobStatus1": "transferring"}
+    sql = (
+        "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) "
+        "AND jobStatus=:jobStatus1 AND modificationTime<:modificationTime"
+    )
     status, res = taskBuffer.querySQLS(sql, var_map)
     if res is None:
         _logger.debug(f"# of Transferring Anal Watcher : {res}")
@@ -342,9 +335,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # check heartbeat for sent jobs
     timeLimit = naive_utcnow() - datetime.timedelta(minutes=30)
-    var_map = {}
-    var_map[":jobStatus"] = "sent"
-    var_map[":modificationTime"] = timeLimit
+    var_map = {":jobStatus": "sent", ":modificationTime": timeLimit}
     status, res = taskBuffer.querySQLS(
         "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime",
         var_map,
@@ -373,13 +364,12 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
     if job_output_report_list is not None:
         for panda_id, job_status, attempt_nr, time_stamp in job_output_report_list:
             xmlIDs.add(int(panda_id))
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) AND stateChangeTime != modificationTime"
-    var_map = {}
-    var_map[":modificationTime"] = timeLimit
-    var_map[":endTime"] = timeLimit
-    var_map[":jobStatus"] = "holding"
-    var_map[":prodSourceLabel1"] = "panda"
-    var_map[":prodSourceLabel2"] = "user"
+    sql = (
+        "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+        "WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) "
+        "AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) AND stateChangeTime != modificationTime"
+    )
+    var_map = {":modificationTime": timeLimit, ":endTime": timeLimit, ":jobStatus": "holding", ":prodSourceLabel1": "panda", ":prodSourceLabel2": "user"}
 
     status, res = taskBuffer.querySQLS(sql, var_map)
     if res is None:
@@ -398,13 +388,11 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
     # check heartbeat for high prio production jobs
     timeOutVal = 3
     timeLimit = naive_utcnow() - datetime.timedelta(hours=timeOutVal)
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND currentPriority>:pLimit "
-    sql += "AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime))"
-    var_map = {}
-    var_map[":modificationTime"] = timeLimit
-    var_map[":endTime"] = timeLimit
-    var_map[":jobStatus"] = "holding"
-    var_map[":pLimit"] = 800
+    sql = (
+        "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND currentPriority>:pLimit "
+        "AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime))"
+    )
+    var_map = {":modificationTime": timeLimit, ":endTime": timeLimit, ":jobStatus": "holding", ":pLimit": 800}
     status, res = taskBuffer.querySQLS(sql, var_map)
     if res is None:
         _logger.debug(f"# of High prio Holding Watcher : {res}")
@@ -428,11 +416,11 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
         timeOutVal = 48
     timeOutVal *= 60
     timeLimit = naive_utcnow() - datetime.timedelta(minutes=timeOutVal)
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime))"
-    var_map = {}
-    var_map[":modificationTime"] = timeLimit
-    var_map[":endTime"] = timeLimit
-    var_map[":jobStatus"] = "holding"
+    sql = (
+        "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+        "WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime))"
+    )
+    var_map = {":modificationTime": timeLimit, ":endTime": timeLimit, ":jobStatus": "holding"}
     status, res = taskBuffer.querySQLS(sql, var_map)
     if res is None:
         _logger.debug(f"# of Holding Watcher with timeout {timeOutVal}min: {str(res)}")
@@ -454,11 +442,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
     for workflow in workflows:
         if workflow == "analysis":
             continue
-        var_map = {}
-        var_map[":jobStatus1"] = "running"
-        var_map[":jobStatus2"] = "starting"
-        var_map[":jobStatus3"] = "stagein"
-        var_map[":jobStatus4"] = "stageout"
+        var_map = {":jobStatus1": "running", ":jobStatus2": "starting", ":jobStatus3": "stagein", ":jobStatus4": "stageout"}
         sqlX = sql
         if workflow == "production":
             if len(workflows) > 2:
@@ -511,9 +495,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # kill long-waiting jobs in active table
     timeLimit = naive_utcnow() - datetime.timedelta(days=7)
-    var_map = {}
-    var_map[":jobStatus"] = "activated"
-    var_map[":creationTime"] = timeLimit
+    var_map = {":jobStatus": "activated", ":creationTime": timeLimit}
     status, res = taskBuffer.querySQLS(
         "SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime",
         var_map,
@@ -618,14 +600,15 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
                             nStat["nq"] - statsPerShare[gshare]["nq"] * fractionLimit,
                         )
                         excess = int(math.ceil(excess))
-                        var_map = {}
-                        var_map[":computingSite"] = computingSite
-                        var_map[":gshare"] = gshare
-                        var_map[":jobStatus1"] = "defined"
-                        var_map[":jobStatus2"] = "assigned"
-                        var_map[":jobStatus3"] = "activated"
-                        var_map[":jobStatus4"] = "starting"
-                        var_map[":nRows"] = excess
+                        var_map = {
+                            ":computingSite": computingSite,
+                            ":gshare": gshare,
+                            ":jobStatus1": "defined",
+                            ":jobStatus2": "assigned",
+                            ":jobStatus3": "activated",
+                            ":jobStatus4": "starting",
+                            ":nRows": excess,
+                        }
                         status, res = taskBuffer.querySQLS(sql, var_map)
                         jediJobs = [p for (p,) in res]
                         _logger.debug(f"got {len(jediJobs)} jobs to kill excess={excess}")
@@ -646,38 +629,39 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
     timeLimitSite = naive_utcnow() - datetime.timedelta(hours=inactiveTimeLimitSite)
     timeLimitJob = naive_utcnow() - datetime.timedelta(hours=inactiveTimeLimitJob)
     # get PandaIDs
-    sql = "SELECT distinct computingSite FROM ATLAS_PANDA.jobsActive4 "
-    sql += "WHERE prodSourceLabel=:prodSourceLabel "
-    sql += "AND ((modificationTime<:timeLimit AND jobStatus=:jobStatus1) "
-    sql += "OR (stateChangeTime<:timeLimit AND jobStatus=:jobStatus2)) "
-    sql += "AND lockedby=:lockedby AND currentPriority>=:prioLimit "
-    sql += "AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 "
-    var_map = {}
-    var_map[":prodSourceLabel"] = "managed"
-    var_map[":jobStatus1"] = "activated"
-    var_map[":jobStatus2"] = "starting"
-    var_map[":lockedby"] = "jedi"
-    var_map[":timeLimit"] = timeLimitJob
-    var_map[":prioLimit"] = inactivePrioLimit
-    var_map[":pType1"] = "pmerge"
-    var_map[":rFlag1"] = 2
+    sql = (
+        "SELECT distinct computingSite FROM ATLAS_PANDA.jobsActive4 "
+        "WHERE prodSourceLabel=:prodSourceLabel "
+        "AND ((modificationTime<:timeLimit AND jobStatus=:jobStatus1) "
+        "OR (stateChangeTime<:timeLimit AND jobStatus=:jobStatus2)) "
+        "AND lockedby=:lockedby AND currentPriority>=:prioLimit "
+        "AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 "
+    )
+    var_map = {
+        ":prodSourceLabel": "managed",
+        ":jobStatus1": "activated",
+        ":jobStatus2": "starting",
+        ":lockedby": "jedi",
+        ":timeLimit": timeLimitJob,
+        ":prioLimit": inactivePrioLimit,
+        ":pType1": "pmerge",
+        ":rFlag1": 2,
+    }
     stDS, resDS = taskBuffer.querySQLS(sql, var_map)
-    sqlSS = "SELECT laststart FROM ATLAS_PANDAMETA.siteData "
-    sqlSS += "WHERE site=:site AND flag=:flag AND hours=:hours "
-    sqlPI = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
-    sqlPI += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) "
-    sqlPI += "AND (modificationTime<:timeLimit OR stateChangeTime<:timeLimit) "
-    sqlPI += "AND lockedby=:lockedby AND currentPriority>=:prioLimit "
-    sqlPI += "AND computingSite=:site AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 "
+    sqlSS = "SELECT laststart FROM ATLAS_PANDAMETA.siteData WHERE site=:site AND flag=:flag AND hours=:hours "
+    sqlPI = (
+        "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+        "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1, :jobStatus2) "
+        "AND (modificationTime<:timeLimit OR stateChangeTime<:timeLimit) "
+        "AND lockedby=:lockedby AND currentPriority>=:prioLimit "
+        "AND computingSite=:site AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 "
+    )
     for (tmpSite,) in resDS:
         if tmpSite in sitesToDisableReassign:
             _logger.debug(f"skip reassignJobs at inactive site {tmpSite} since reassign is disabled")
             continue
         # check if the site is inactive
-        var_map = {}
-        var_map[":site"] = tmpSite
-        var_map[":flag"] = "production"
-        var_map[":hours"] = 3
+        var_map = {":site": tmpSite, ":flag": "production", ":hours": 3}
         stSS, resSS = taskBuffer.querySQLS(sqlSS, var_map)
         if resSS is not None and len(resSS) > 0:
             last_start = resSS[0][0]
@@ -686,16 +670,17 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
         site_status = siteMapper.getSite(tmpSite).status
         if stSS is True and ((last_start is not None and last_start < timeLimitSite) or site_status in ["offline", "test"]):
             # get jobs
-            var_map = {}
-            var_map[":prodSourceLabel"] = "managed"
-            var_map[":jobStatus1"] = "activated"
-            var_map[":jobStatus2"] = "starting"
-            var_map[":lockedby"] = "jedi"
-            var_map[":timeLimit"] = timeLimitJob
-            var_map[":prioLimit"] = inactivePrioLimit
-            var_map[":site"] = tmpSite
-            var_map[":pType1"] = "pmerge"
-            var_map[":rFlag1"] = 2
+            var_map = {
+                ":prodSourceLabel": "managed",
+                ":jobStatus1": "activated",
+                ":jobStatus2": "starting",
+                ":lockedby": "jedi",
+                ":timeLimit": timeLimitJob,
+                ":prioLimit": inactivePrioLimit,
+                ":site": tmpSite,
+                ":pType1": "pmerge",
+                ":rFlag1": 2,
+            }
             stPI, resPI = taskBuffer.querySQLS(sqlPI, var_map)
             jediJobs = []
             # reassign
@@ -745,10 +730,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # reassign stalled defined build and non-JEDI jobs
     timeLimit = naive_utcnow() - datetime.timedelta(minutes=timeoutValue)
-    var_map = {}
-    var_map[":jobStatus"] = "defined"
-    var_map[":prodSourceLabel_p"] = "panda"
-    var_map[":timeLimit"] = timeLimit
+    var_map = {":jobStatus": "defined", ":prodSourceLabel_p": "panda", ":timeLimit": timeLimit}
     status, res = taskBuffer.querySQLS(
         "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE ((prodSourceLabel=:prodSourceLabel_p AND transformation LIKE '%build%') OR "
         "lockedBy IS NULL) AND jobStatus=:jobStatus AND creationTime<:timeLimit ORDER BY PandaID",
@@ -848,11 +830,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # kill too long-standing analysis jobs in active table
     timeLimit = naive_utcnow() - datetime.timedelta(days=7)
-    var_map = {}
-    var_map[":prodSourceLabel1"] = "test"
-    var_map[":prodSourceLabel2"] = "panda"
-    var_map[":prodSourceLabel3"] = "user"
-    var_map[":modificationTime"] = timeLimit
+    var_map = {":prodSourceLabel1": "test", ":prodSourceLabel2": "panda", ":prodSourceLabel3": "user", ":modificationTime": timeLimit}
     status, res = taskBuffer.querySQLS(
         "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2 OR prodSourceLabel=:prodSourceLabel3) AND modificationTime<:modificationTime ORDER BY PandaID",
         var_map,
@@ -868,9 +846,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # kill too long pending jobs
     timeLimit = naive_utcnow() - datetime.timedelta(hours=1)
-    var_map = {}
-    var_map[":jobStatus"] = "pending"
-    var_map[":creationTime"] = timeLimit
+    var_map = {":jobStatus": "pending", ":creationTime": timeLimit}
     status, res = taskBuffer.querySQLS(
         "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime ",
         var_map,
@@ -891,12 +867,11 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # kick waiting ES merge jobs which were generated from fake co-jumbo
     timeLimit = naive_utcnow() - datetime.timedelta(minutes=10)
-    var_map = {}
-    var_map[":jobStatus"] = "waiting"
-    var_map[":creationTime"] = timeLimit
-    var_map[":esMerge"] = EventServiceUtils.esMergeJobFlagNumber
-    sql = "SELECT PandaID,computingSite FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
-    sql += "AND eventService=:esMerge ORDER BY jediTaskID "
+    var_map = {":jobStatus": "waiting", ":creationTime": timeLimit, ":esMerge": EventServiceUtils.esMergeJobFlagNumber}
+    sql = (
+        "SELECT PandaID, computingSite FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
+        "AND eventService=:esMerge ORDER BY jediTaskID "
+    )
     status, res = taskBuffer.querySQLS(sql, var_map)
     jobsMap: dict[str, Any] = {}
     if res is not None:
@@ -917,12 +892,11 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # kill too long waiting jobs
     timeLimit = naive_utcnow() - datetime.timedelta(hours=1)
-    var_map = {}
-    var_map[":jobStatus"] = "waiting"
-    var_map[":creationTime"] = timeLimit
-    var_map[":coJumbo"] = EventServiceUtils.coJumboJobFlagNumber
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
-    sql += "AND (eventService IS NULL OR eventService<>:coJumbo) "
+    var_map = {":jobStatus": "waiting", ":creationTime": timeLimit, ":coJumbo": EventServiceUtils.coJumboJobFlagNumber}
+    sql = (
+        "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
+        "WHERE jobStatus=:jobStatus AND creationTime<:creationTime AND (eventService IS NULL OR eventService<>:coJumbo) "
+    )
     status, res = taskBuffer.querySQLS(sql, var_map)
     jobs = []
     if res is not None:
@@ -940,14 +914,17 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # kill too long running ES jobs
     timeLimit = naive_utcnow() - datetime.timedelta(hours=24)
-    var_map = {}
-    var_map[":jobStatus1"] = "running"
-    var_map[":jobStatus2"] = "starting"
-    var_map[":timeLimit"] = timeLimit
-    var_map[":esJob"] = EventServiceUtils.esJobFlagNumber
-    var_map[":coJumbo"] = EventServiceUtils.coJumboJobFlagNumber
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2) AND stateChangeTime<:timeLimit "
-    sql += "AND eventService IN (:esJob,:coJumbo) AND currentPriority>=900 "
+    var_map = {
+        ":jobStatus1": "running",
+        ":jobStatus2": "starting",
+        ":timeLimit": timeLimit,
+        ":esJob": EventServiceUtils.esJobFlagNumber,
+        ":coJumbo": EventServiceUtils.coJumboJobFlagNumber,
+    }
+    sql = (
+        "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
+        "WHERE jobStatus IN (:jobStatus1, :jobStatus2) AND stateChangeTime<:timeLimit AND eventService IN (:esJob, :coJumbo) AND currentPriority>=900 "
+    )
     status, res = taskBuffer.querySQLS(sql, var_map)
     jobs = []
     if res is not None:
@@ -969,13 +946,10 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # kill too long running ES merge jobs
     timeLimit = naive_utcnow() - datetime.timedelta(hours=24)
-    var_map = {}
-    var_map[":jobStatus1"] = "running"
-    var_map[":jobStatus2"] = "starting"
-    var_map[":timeLimit"] = timeLimit
-    var_map[":esMergeJob"] = EventServiceUtils.esMergeJobFlagNumber
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2) AND stateChangeTime<:timeLimit "
-    sql += "AND eventService=:esMergeJob "
+    var_map = {":jobStatus1": "running", ":jobStatus2": "starting", ":timeLimit": timeLimit, ":esMergeJob": EventServiceUtils.esMergeJobFlagNumber}
+    sql = (
+        "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1, :jobStatus2) AND stateChangeTime<:timeLimit AND eventService=:esMergeJob "
+    )
     status, res = taskBuffer.querySQLS(sql, var_map)
     jobs = []
     if res is not None:
@@ -1015,15 +989,16 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
             "FROM p, ATLAS_PANDA.jobs_statuslog s "
             "WHERE s.PandaID=p.PandaID AND s.jobStatus=:s_jobStatus AND s.modificationTime<:modificationTime "
         )
-        var_map = {}
-        var_map[":prodSourceLabel1"] = "user"
-        var_map[":prodSourceLabel2"] = "panda"
-        var_map[":modificationTime"] = sortTimeLimit
-        var_map[":lockedBy"] = "jedi"
-        var_map[":jobStatus1"] = "activated"
-        var_map[":jobStatus2"] = "dummy"
-        var_map[":jobStatus3"] = "starting"
-        var_map[":s_jobStatus"] = "activated"
+        var_map = {
+            ":prodSourceLabel1": "user",
+            ":prodSourceLabel2": "panda",
+            ":modificationTime": sortTimeLimit,
+            ":lockedBy": "jedi",
+            ":jobStatus1": "activated",
+            ":jobStatus2": "dummy",
+            ":jobStatus3": "starting",
+            ":s_jobStatus": "activated",
+        }
         # get jobs older than threshold
         ret, res = taskBuffer.querySQLS(sql, var_map)
         resList = []
@@ -1044,18 +1019,21 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
                 keyList.add(tmpKey)
                 resList.append(tmpItem)
         # get stalled assigned job
-        sqlA = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(creationTime),jediTaskID,processingType,workingGroup "
-        sqlA += "FROM ATLAS_PANDA.jobsDefined4 "
-        sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
-        sqlA += "AND creationTime<:modificationTime AND lockedBy=:lockedBy "
-        sqlA += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType,workingGroup "
-        var_map = {}
-        var_map[":prodSourceLabel1"] = "user"
-        var_map[":prodSourceLabel2"] = "panda"
-        var_map[":modificationTime"] = sortTimeLimit
-        var_map[":lockedBy"] = "jedi"
-        var_map[":jobStatus1"] = "assigned"
-        var_map[":jobStatus2"] = "defined"
+        sqlA = (
+            "SELECT jobDefinitionID, prodUserName, prodUserID, computingSite, MAX(creationTime), jediTaskID, processingType, workingGroup "
+            "FROM ATLAS_PANDA.jobsDefined4 "
+            "WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) AND jobStatus IN (:jobStatus1, :jobStatus2) "
+            "AND creationTime<:modificationTime AND lockedBy=:lockedBy "
+            "GROUP BY jobDefinitionID, prodUserName, prodUserID, computingSite, jediTaskID, processingType, workingGroup "
+        )
+        var_map = {
+            ":prodSourceLabel1": "user",
+            ":prodSourceLabel2": "panda",
+            ":modificationTime": sortTimeLimit,
+            ":lockedBy": "jedi",
+            ":jobStatus1": "assigned",
+            ":jobStatus2": "defined",
+        }
         retA, resA = taskBuffer.querySQLS(sqlA, var_map)
         if resA is not None:
             for tmpItem in resA:
@@ -1074,16 +1052,20 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
                     keyList.add(tmpKey)
                     resList.append(tmpItem)
         # sql to check recent activity
-        sql = "SELECT PandaID,stateChangeTime,jobStatus FROM %s "
-        sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
-        sql += "AND computingSite=:computingSite AND jediTaskID=:jediTaskID "
-        sql += "AND jobStatus NOT IN (:jobStatus1,:jobStatus2,:jobStatus3) "
-        sql += "AND stateChangeTime>:modificationTime "
-        sql += "AND rownum <= 1"
+        sql = (
+            "SELECT PandaID, stateChangeTime, jobStatus FROM %s "
+            "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+            "AND computingSite=:computingSite AND jediTaskID=:jediTaskID "
+            "AND jobStatus NOT IN (:jobStatus1, :jobStatus2, :jobStatus3) "
+            "AND stateChangeTime>:modificationTime "
+            "AND rownum <= 1"
+        )
         # sql to get associated jobs with jediTaskID
-        sqlJJ = "SELECT PandaID FROM %s "
-        sqlJJ += "WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1,:jobS2,:jobS3,:jobS4,:jobS5) "
-        sqlJJ += "AND jobDefinitionID=:jobDefID AND computingSite=:computingSite "
+        sqlJJ = (
+            "SELECT PandaID FROM %s "
+            "WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1, :jobS2, :jobS3, :jobS4, :jobS5) "
+            "AND jobDefinitionID=:jobDefID AND computingSite=:computingSite "
+        )
         timeoutMap = {}
         if resList != []:
             recentRuntimeLimit = naive_utcnow() - datetime.timedelta(hours=3)
@@ -1102,15 +1084,16 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
                 workingGroup,
             ) in resList:
                 # check if jobs with the jobID have run recently
-                var_map = {}
-                var_map[":jediTaskID"] = jediTaskID
-                var_map[":computingSite"] = computingSite
-                var_map[":prodUserName"] = prodUserName
-                var_map[":jobDefinitionID"] = jobDefinitionID
-                var_map[":modificationTime"] = recentRuntimeLimit
-                var_map[":jobStatus1"] = "closed"
-                var_map[":jobStatus2"] = "failed"
-                var_map[":jobStatus3"] = "starting"
+                var_map = {
+                    ":jediTaskID": jediTaskID,
+                    ":computingSite": computingSite,
+                    ":prodUserName": prodUserName,
+                    ":jobDefinitionID": jobDefinitionID,
+                    ":modificationTime": recentRuntimeLimit,
+                    ":jobStatus1": "closed",
+                    ":jobStatus2": "failed",
+                    ":jobStatus3": "starting",
+                }
                 _logger.debug(f" rebro:{iComb}/{nComb}:ID={jobDefinitionID}:{prodUserName} jediTaskID={jediTaskID} site={computingSite}")
                 iComb += 1
                 hasRecentJobs = False
@@ -1159,15 +1142,16 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
                     else:
                         _logger.debug("    -> rebro for JEDI task")
                         killJobs = []
-                        var_map = {}
-                        var_map[":jediTaskID"] = jediTaskID
-                        var_map[":jobDefID"] = jobDefinitionID
-                        var_map[":computingSite"] = computingSite
-                        var_map[":jobS1"] = "defined"
-                        var_map[":jobS2"] = "assigned"
-                        var_map[":jobS3"] = "activated"
-                        var_map[":jobS4"] = "dummy"
-                        var_map[":jobS5"] = "starting"
+                        var_map = {
+                            ":jediTaskID": jediTaskID,
+                            ":jobDefID": jobDefinitionID,
+                            ":computingSite": computingSite,
+                            ":jobS1": "defined",
+                            ":jobS2": "assigned",
+                            ":jobS3": "activated",
+                            ":jobS4": "dummy",
+                            ":jobS5": "starting",
+                        }
                         for tableName in [
                             "ATLAS_PANDA.jobsDefined4",
                             "ATLAS_PANDA.jobsActive4",
@@ -1218,9 +1202,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # kill too long throttled jobs
     timeLimit = naive_utcnow() - datetime.timedelta(days=7)
-    var_map = {}
-    var_map[":jobStatus"] = "throttled"
-    var_map[":creationTime"] = timeLimit
+    var_map = {":jobStatus": "throttled", ":creationTime": timeLimit}
     status, res = taskBuffer.querySQLS(
         "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime ",
         var_map,
@@ -1236,12 +1218,12 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
 
     # check if merge job is valid
     _logger.debug("kill invalid pmerge")
-    var_map = {}
-    var_map[":processingType"] = "pmerge"
-    var_map[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=30)
-    sql = "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.jobsDefined4 WHERE processingType=:processingType AND modificationTime<:timeLimit "
-    sql += "UNION "
-    sql += "SELECT PandaID,jediTaskID FROM ATLAS_PANDA.jobsActive4 WHERE processingType=:processingType AND modificationTime<:timeLimit "
+    var_map = {":processingType": "pmerge", ":timeLimit": naive_utcnow() - datetime.timedelta(minutes=30)}
+    sql = (
+        "SELECT PandaID, jediTaskID FROM ATLAS_PANDA.jobsDefined4 WHERE processingType=:processingType AND modificationTime<:timeLimit "
+        "UNION "
+        "SELECT PandaID, jediTaskID FROM ATLAS_PANDA.jobsActive4 WHERE processingType=:processingType AND modificationTime<:timeLimit "
+    )
     status, res = taskBuffer.querySQLS(sql, var_map)
     nPmerge = 0
     badPmerge = 0
@@ -1303,8 +1285,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
     timeLimit = naive_utcnow() - datetime.timedelta(days=1)
     sqlC = (
         "SELECT hostName,fileName,creationTime,userName FROM ATLAS_PANDAMETA.userCacheUsage "
-        "WHERE creationTime>:timeLimit AND creationTime>modificationTime "
-        "AND (fileName like 'sources%' OR fileName like 'jobO%') "
+        "WHERE creationTime>:timeLimit AND creationTime>modificationTime AND (fileName like 'sources%' OR fileName like 'jobO%') "
     )
     sqlU = "UPDATE ATLAS_PANDAMETA.userCacheUsage SET modificationTime=CURRENT_DATE WHERE userName=:userName AND fileName=:fileName "
     status, res = taskBuffer.querySQLS(sqlC, {":timeLimit": timeLimit})
@@ -1318,9 +1299,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
             s, o = Client.touch_file(base_url, fileName)
             _logger.debug(o)
             if o == "True":
-                var_map = dict()
-                var_map[":userName"] = userName
-                var_map[":fileName"] = fileName
+                var_map = {":userName": userName, ":fileName": fileName}
                 taskBuffer.querySQLS(sqlU, var_map)
 
     _logger.debug("Check sandbox")
@@ -1352,9 +1331,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
                     toDelete = True
                     _logger.debug(f"delete due to creationTime={creationTime}")
             # update or delete
-            var_map = dict()
-            var_map[":userName"] = userName
-            var_map[":fileName"] = fileName
+            var_map = {":userName": userName, ":fileName": fileName}
             if toDelete:
                 taskBuffer.querySQLS(sqlD, var_map)
             else:

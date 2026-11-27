@@ -112,8 +112,8 @@ class AtlasDDMClient(DDMClientBase):
                 # skip duplicated files
                 if skipDuplicate:
                     # extract base LFN and attempt number
-                    baseLFN = re.sub("(\.(\d+))$", "", lfn)
-                    attNrStr = re.sub(baseLFN + "\.*", "", lfn)
+                    baseLFN = re.sub(r"(\.(\d+))$", "", lfn)
+                    attNrStr = re.sub(baseLFN + r"\.*", "", lfn)
                     if attNrStr == "":
                         # without attempt number
                         attNr = -1
@@ -664,7 +664,7 @@ class AtlasDDMClient(DDMClientBase):
             if ignorePandaDS:
                 tmpDsList = []
                 for tmpDS in dsList:
-                    if re.search("_dis\d+$", tmpDS) is not None or re.search("_sub\d+$", tmpDS):
+                    if re.search(r"_dis\d+$", tmpDS) is not None or re.search(r"_sub\d+$", tmpDS):
                         continue
                     tmpDsList.append(tmpDS)
                 dsList = tmpDsList
@@ -890,7 +890,7 @@ class AtlasDDMClient(DDMClientBase):
             # use Atlas.Ideal
             if ".Atlas.Ideal." not in tmpName:
                 continue
-            match = re.search("\.v(\d+)(_*[^\.]*)$", tmpName)
+            match = re.search(r"\.v(\d+)(_*[^\.]*)$", tmpName)
             if match is None:
                 tmpLog.warning(f"cannot extract version number from {tmpName}")
                 continue
