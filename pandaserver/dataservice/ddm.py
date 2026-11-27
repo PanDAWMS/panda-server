@@ -882,7 +882,7 @@ class RucioAPI:
                             pfn_data = tmp_dict["pfns"][pfn]
                             if (rses is None or pfn_data["rse"] in rses) and pfn_data["domain"] == "zip":
                                 zip_file_name = pfn.split("/")[-1]
-                                zip_file_name = re.sub("\?.+$", "", zip_file_name)
+                                zip_file_name = re.sub(r"\?.+$", "", zip_file_name)
                                 ret_val[tmp_did] = client.get_metadata(tmp_scope, zip_file_name)
                                 break
                     data = []
@@ -917,7 +917,7 @@ class RucioAPI:
         for file_info in client.list_files(scope, dataset_name, long=long):
             tmp_lfn = str(file_info["name"])
             if file_list is not None:
-                gen_lfn = re.sub("\.\d+$", "", tmp_lfn)
+                gen_lfn = re.sub(r"\.\d+$", "", tmp_lfn)
                 if tmp_lfn not in file_list and gen_lfn not in file_list:
                     continue
             rucio_attrs = {}
@@ -1323,8 +1323,8 @@ class RucioAPI:
                 # skip duplicated files
                 if skip_duplicate:
                     # extract base LFN and attempt number
-                    baseLFN = re.sub("(\.(\d+))$", "", lfn)
-                    attNrStr = re.sub(baseLFN + "\.*", "", lfn)
+                    baseLFN = re.sub(r"(\.(\d+))$", "", lfn)
+                    attNrStr = re.sub(baseLFN + r"\.*", "", lfn)
                     if attNrStr == "":
                         # without attempt number
                         attNr = -1

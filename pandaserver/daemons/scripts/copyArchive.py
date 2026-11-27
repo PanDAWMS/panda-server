@@ -145,7 +145,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
                             sub_ds_list = []
                             killed_for_bad_record = False
                             for tmpFileSpec in jobSpec.Files:
-                                if tmpFileSpec.type in ["log", "output"] and re.search("_sub\d+$", tmpFileSpec.destinationDBlock) is not None:
+                                if tmpFileSpec.type in ["log", "output"] and re.search(r"_sub\d+$", tmpFileSpec.destinationDBlock) is not None:
                                     if tmpFileSpec.destinationDBlock in sub_ds_names:
                                         continue
                                     sub_ds_names.add(tmpFileSpec.destinationDBlock)
@@ -243,7 +243,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
                         sub_ds_names = set()
                         sub_ds_list = []
                         for tmpFileSpec in jobSpec.Files:
-                            if tmpFileSpec.type in ["log", "output"] and re.search("_sub\d+$", tmpFileSpec.destinationDBlock) is not None:
+                            if tmpFileSpec.type in ["log", "output"] and re.search(r"_sub\d+$", tmpFileSpec.destinationDBlock) is not None:
                                 if tmpFileSpec.destinationDBlock in sub_ds_names:
                                     continue
                                 sub_ds_names.add(tmpFileSpec.destinationDBlock)

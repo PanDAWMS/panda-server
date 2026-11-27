@@ -435,7 +435,7 @@ class JediTaskSpec(object):
     # get the max size per job if defined
     def getMaxSizePerJob(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nGBPerJob"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nGBPerJob"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 nGBPerJob = int(tmpMatch.group(1)) * 1024 * 1024 * 1024
                 return nGBPerJob
@@ -448,7 +448,7 @@ class JediTaskSpec(object):
     # get the max size per merge job if defined
     def getMaxSizePerMergeJob(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nGBPerMergeJob"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nGBPerMergeJob"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 nGBPerJob = int(tmpMatch.group(1)) * 1024 * 1024 * 1024
                 return nGBPerJob
@@ -457,7 +457,7 @@ class JediTaskSpec(object):
     # get the maxnumber of files per job if defined
     def getMaxNumFilesPerJob(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nMaxFilesPerJob"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nMaxFilesPerJob"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -469,7 +469,7 @@ class JediTaskSpec(object):
     # get the maxnumber of files per merge job if defined
     def getMaxNumFilesPerMergeJob(self) -> int:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nMaxFilesPerMergeJob"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nMaxFilesPerMergeJob"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return 50
@@ -477,7 +477,7 @@ class JediTaskSpec(object):
     # get the number of events per merge job if defined
     def getNumEventsPerMergeJob(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nEventsPerMergeJob"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nEventsPerMergeJob"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -491,7 +491,7 @@ class JediTaskSpec(object):
     # get the number of jumbo jobs if defined
     def getNumJumboJobs(self) -> int | None:
         if self.usingJumboJobs() and self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nJumboJobs"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nJumboJobs"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -499,7 +499,7 @@ class JediTaskSpec(object):
     # get the max number of jumbo jobs per site if defined
     def getMaxJumboPerSite(self) -> int:
         if self.usingJumboJobs() and self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["maxJumboPerSite"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["maxJumboPerSite"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return 1
@@ -509,7 +509,7 @@ class JediTaskSpec(object):
         if not self.useEventService():
             return 1
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nSitesPerJob"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nSitesPerJob"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return 1
@@ -517,7 +517,7 @@ class JediTaskSpec(object):
     # get the number of files per job if defined
     def getNumFilesPerJob(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nFilesPerJob"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nFilesPerJob"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 n = int(tmpMatch.group(1))
                 if self.dynamicNumEvents():
@@ -535,7 +535,7 @@ class JediTaskSpec(object):
     # get the number of files per merge job if defined
     def getNumFilesPerMergeJob(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nFilesPerMergeJob"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nFilesPerMergeJob"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -543,7 +543,7 @@ class JediTaskSpec(object):
     # get the number of events per job if defined
     def getNumEventsPerJob(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nEventsPerJob"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nEventsPerJob"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -551,7 +551,7 @@ class JediTaskSpec(object):
     # get offset for random seed
     def getRndmSeedOffset(self) -> int:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["randomSeed"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["randomSeed"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return 0
@@ -559,7 +559,7 @@ class JediTaskSpec(object):
     # get offset for first event
     def getFirstEventOffset(self) -> int:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["firstEvent"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["firstEvent"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return 0
@@ -567,7 +567,7 @@ class JediTaskSpec(object):
     # grouping with boundaryID
     def useGroupWithBoundaryID(self) -> dict[str, Any] | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["groupBoundaryID"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["groupBoundaryID"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 gbID = int(tmpMatch.group(1))
                 # 1 : input - can split,    output - free
@@ -607,7 +607,7 @@ class JediTaskSpec(object):
     # get job cloning type
     def getJobCloningType(self) -> str:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["useJobCloning"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["useJobCloning"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return tmpMatch.group(1)
         return ""
@@ -624,7 +624,7 @@ class JediTaskSpec(object):
     @classmethod
     def noWaitParentSL(cls, splitRule: str | None) -> bool:
         if splitRule is not None:
-            tmpMatch = re.search(cls.splitRuleToken["noWaitParent"] + "=(\d+)", splitRule)
+            tmpMatch = re.search(cls.splitRuleToken["noWaitParent"] + r"=(\d+)", splitRule)
             if tmpMatch is not None:
                 return True
         return False
@@ -648,18 +648,18 @@ class JediTaskSpec(object):
             # new
             self.splitRule = self.splitRuleToken["limitedSites"] + "=" + tag
         else:
-            tmpMatch = re.search(self.splitRuleToken["limitedSites"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["limitedSites"] + r"=(\d+)", self.splitRule)
             if tmpMatch is None:
                 # append
                 self.splitRule += "," + self.splitRuleToken["limitedSites"] + "=" + tag
             else:
                 # replace
-                self.splitRule = re.sub(self.splitRuleToken["limitedSites"] + "=(\d+)", self.splitRuleToken["limitedSites"] + "=" + tag, self.splitRule)
+                self.splitRule = re.sub(self.splitRuleToken["limitedSites"] + r"=(\d+)", self.splitRuleToken["limitedSites"] + "=" + tag, self.splitRule)
 
     # use local IO
     def useLocalIO(self) -> bool:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["useLocalIO"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["useLocalIO"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None and int(tmpMatch.group(1)):
                 return True
         return False
@@ -676,7 +676,7 @@ class JediTaskSpec(object):
     # get the number of events per worker for Event Service
     def getNumEventsPerWorker(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nEventsPerWorker"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nEventsPerWorker"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -686,7 +686,7 @@ class JediTaskSpec(object):
         if not self.useEventService():
             return None
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nEsConsumers"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nEsConsumers"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -719,7 +719,7 @@ class JediTaskSpec(object):
     # use preprocessing
     def usePrePro(self) -> bool:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["usePrePro"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["usePrePro"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) == self.enum_toPreProcess:
                 return True
         return False
@@ -730,21 +730,21 @@ class JediTaskSpec(object):
             # new
             self.splitRule = self.splitRuleToken["usePrePro"] + "=" + self.enum_preProcessed
         else:
-            tmpMatch = re.search(self.splitRuleToken["usePrePro"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["usePrePro"] + r"=(\d+)", self.splitRule)
             if tmpMatch is None:
                 # append
                 self.splitRule += "," + self.splitRuleToken["usePrePro"] + "=" + self.enum_preProcessed
             else:
                 # replace
                 self.splitRule = re.sub(
-                    self.splitRuleToken["usePrePro"] + "=(\d+)", self.splitRuleToken["usePrePro"] + "=" + self.enum_preProcessed, self.splitRule
+                    self.splitRuleToken["usePrePro"] + r"=(\d+)", self.splitRuleToken["usePrePro"] + "=" + self.enum_preProcessed, self.splitRule
                 )
         return
 
     # check preprocessed
     def checkPreProcessed(self) -> bool:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["usePrePro"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["usePrePro"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) == self.enum_preProcessed:
                 return True
         return False
@@ -755,14 +755,14 @@ class JediTaskSpec(object):
             # new
             self.splitRule = self.splitRuleToken["usePrePro"] + "=" + self.enum_postPProcess
         else:
-            tmpMatch = re.search(self.splitRuleToken["usePrePro"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["usePrePro"] + r"=(\d+)", self.splitRule)
             if tmpMatch is None:
                 # append
                 self.splitRule += "," + self.splitRuleToken["usePrePro"] + "=" + self.enum_postPProcess
             else:
                 # replace
                 self.splitRule = re.sub(
-                    self.splitRuleToken["usePrePro"] + "=(\d+)", self.splitRuleToken["usePrePro"] + "=" + self.enum_postPProcess, self.splitRule
+                    self.splitRuleToken["usePrePro"] + r"=(\d+)", self.splitRuleToken["usePrePro"] + "=" + self.enum_postPProcess, self.splitRule
                 )
         return
 
@@ -954,13 +954,13 @@ class JediTaskSpec(object):
             # new
             self.splitRule = self.splitRuleToken[ruleName] + "=" + ruleValue
         else:
-            tmpMatch = re.search(self.splitRuleToken[ruleName] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken[ruleName] + r"=(\d+)", self.splitRule)
             if tmpMatch is None:
                 # append
                 self.splitRule += "," + self.splitRuleToken[ruleName] + "=" + ruleValue
             else:
                 # replace
-                self.splitRule = re.sub(self.splitRuleToken[ruleName] + "=(\d+)", self.splitRuleToken[ruleName] + "=" + ruleValue, self.splitRule)
+                self.splitRule = re.sub(self.splitRuleToken[ruleName] + r"=(\d+)", self.splitRuleToken[ruleName] + "=" + ruleValue, self.splitRule)
 
     # remove split rule
     def removeSplitRule(self, ruleName: str) -> None:
@@ -991,7 +991,7 @@ class JediTaskSpec(object):
         if splitRule is None:
             splitRule = self.splitRule
         if splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["useScout"] + "=(\d+)", splitRule)
+            tmpMatch = re.search(self.splitRuleToken["useScout"] + r"=(\d+)", splitRule)
             if tmpMatch is not None and tmpMatch.group(1) == self.enum_useScout:
                 return True
         return False
@@ -1011,7 +1011,7 @@ class JediTaskSpec(object):
     # post scout
     def isPostScout(self) -> bool:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["useScout"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["useScout"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) == self.enum_postScout:
                 return True
         return False
@@ -1054,7 +1054,7 @@ class JediTaskSpec(object):
     def getFieldNumToLFN(self) -> list[int] | None:
         try:
             if self.splitRule is not None:
-                tmpMatch = re.search(self.splitRuleToken["addNthFieldToLFN"] + "=([,\d]+)", self.splitRule)
+                tmpMatch = re.search(self.splitRuleToken["addNthFieldToLFN"] + r"=([,\d]+)", self.splitRule)
                 if tmpMatch is not None:
                     tmpList = tmpMatch.group(1).split(",")
                     try:
@@ -1069,7 +1069,7 @@ class JediTaskSpec(object):
     # get required success rate for scout jobs
     def getScoutSuccessRate(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["scoutSuccessRate"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["scoutSuccessRate"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -1077,7 +1077,7 @@ class JediTaskSpec(object):
     # get T1 weight
     def getT1Weight(self) -> int:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["t1Weight"] + "=(-*\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["t1Weight"] + r"=(-*\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return 0
@@ -1105,7 +1105,7 @@ class JediTaskSpec(object):
     # check if datasets should be registered or moved
     def toRegisterDatasets(self) -> bool:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["registerDatasets"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["registerDatasets"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) in [self.enum_toRegisterDS, self.enum_moveDS]:
                 return True
         return False
@@ -1113,7 +1113,7 @@ class JediTaskSpec(object):
     # check if datasets should be moved
     def toMoveDatasets(self) -> bool:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["registerDatasets"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["registerDatasets"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) == self.enum_moveDS:
                 return True
         return False
@@ -1133,7 +1133,7 @@ class JediTaskSpec(object):
     # get the max number of attempts for ES events
     def getMaxAttemptES(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["maxAttemptES"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["maxAttemptES"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -1141,7 +1141,7 @@ class JediTaskSpec(object):
     # get the max number of attempts for ES jobs
     def getMaxAttemptEsJob(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["maxAttemptEsJob"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["maxAttemptEsJob"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return self.getMaxAttemptES()
@@ -1182,7 +1182,7 @@ class JediTaskSpec(object):
     # get IP connectivity
     def getIpConnectivity(self) -> str | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["ipConnectivity"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["ipConnectivity"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return self.enum_ipConnectivity[tmpMatch.group(1)]
         return None
@@ -1190,7 +1190,7 @@ class JediTaskSpec(object):
     # get IP connectivity
     def getIpStack(self) -> str | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["ipStack"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["ipStack"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return self.enum_ipStack[tmpMatch.group(1)]
         return None
@@ -1241,7 +1241,7 @@ class JediTaskSpec(object):
     # dynamic number of events
     def dynamicNumEvents(self) -> bool:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["dynamicNumEvents"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["dynamicNumEvents"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return True
         return False
@@ -1249,7 +1249,7 @@ class JediTaskSpec(object):
     # get min granularity for dynamic number of events
     def get_min_granularity(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["dynamicNumEvents"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["dynamicNumEvents"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -1265,7 +1265,7 @@ class JediTaskSpec(object):
     # get alternative stage-out
     def getAltStageOut(self) -> str | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["altStageOut"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["altStageOut"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return self.enum_altStageOut[tmpMatch.group(1)]
         return None
@@ -1285,7 +1285,7 @@ class JediTaskSpec(object):
     # check if LAN is used for input access
     def allowInputLAN(self) -> str | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["allowInputLAN"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["allowInputLAN"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return self.enum_inputLAN[tmpMatch.group(1)]
         return None
@@ -1354,7 +1354,7 @@ class JediTaskSpec(object):
     # get num of input chunks to wait
     def nChunksToWait(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nChunksToWait"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nChunksToWait"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -1362,7 +1362,7 @@ class JediTaskSpec(object):
     # get max walltime
     def getMaxWalltime(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["maxWalltime"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["maxWalltime"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1)) * 60 * 60
         return None
@@ -1374,7 +1374,7 @@ class JediTaskSpec(object):
     # get target size of the largest output to reset NG
     def getTgtMaxOutputForNG(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["tgtMaxOutputForNG"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["tgtMaxOutputForNG"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -1386,7 +1386,7 @@ class JediTaskSpec(object):
     # get min CPU efficiency
     def getMinCpuEfficiency(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["minCpuEfficiency"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["minCpuEfficiency"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -1622,7 +1622,7 @@ class JediTaskSpec(object):
     # get max number of jobs
     def get_max_num_jobs(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["maxNumJobs"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["maxNumJobs"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -1630,7 +1630,7 @@ class JediTaskSpec(object):
     # get total number of jobs
     def get_total_num_jobs(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["totNumJobs"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["totNumJobs"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -1653,7 +1653,7 @@ class JediTaskSpec(object):
     # check if first contents feed
     def is_first_contents_feed(self) -> bool:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["firstContentsFeed"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["firstContentsFeed"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None and tmpMatch.group(1) == self.FirstContentsFeed.TRUE.value:
                 return True
         return False
@@ -1685,7 +1685,7 @@ class JediTaskSpec(object):
     # get max core count
     def get_max_core_count(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["maxCoreCount"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["maxCoreCount"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
@@ -1785,14 +1785,14 @@ class JediTaskSpec(object):
     # get number of events per input
     def get_num_events_per_input(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["nEventsPerInput"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["nEventsPerInput"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None
 
     def get_max_events_per_job(self) -> int | None:
         if self.splitRule is not None:
-            tmpMatch = re.search(self.splitRuleToken["maxEventsPerJob"] + "=(\d+)", self.splitRule)
+            tmpMatch = re.search(self.splitRuleToken["maxEventsPerJob"] + r"=(\d+)", self.splitRule)
             if tmpMatch is not None:
                 return int(tmpMatch.group(1))
         return None

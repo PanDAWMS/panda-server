@@ -80,7 +80,7 @@ class JobComplexModule(BaseModule):
             if key == "jobMetrics":
                 # extract the memory leak from the pilot jobMetrics
                 try:
-                    tmpM = re.search("leak=(-?\d+\.*\d+)", param[key])
+                    tmpM = re.search(r"leak=(-?\d+\.*\d+)", param[key])
                     if tmpM is not None:
                         # keep measurement under 11 digits because of DB declaration
                         memoryLeak = min(int(float(tmpM.group(1))), 10**11 - 1)
@@ -92,7 +92,7 @@ class JobComplexModule(BaseModule):
 
                 # extract the chi2 measurement for the memory leak fitting
                 try:
-                    tmpM = re.search("chi2=(-?\d+\.*\d+)", param[key])
+                    tmpM = re.search(r"chi2=(-?\d+\.*\d+)", param[key])
                     if tmpM is not None:
                         # keep measurement under 11 digits because of DB declaration
                         memory_leak_x2 = min(float(tmpM.group(1)), 10**11 - 1)
@@ -204,8 +204,8 @@ class JobComplexModule(BaseModule):
                         and "batchID" in param
                         and param["batchID"] not in ["", None]
                         and batchID != param["batchID"]
-                        and re.search("^\d+\.*\d+$", batchID) is None
-                        and re.search("^\d+\.*\d+$", param["batchID"]) is None
+                        and re.search(r"^\d+\.*\d+$", batchID) is None
+                        and re.search(r"^\d+\.*\d+$", param["batchID"]) is None
                     ):
                         # invalid batchID
                         tmp_log.debug(
@@ -1434,7 +1434,7 @@ class JobComplexModule(BaseModule):
                                     continue
                                 # loop over all sub datasets
                                 for (tmpDestinationDBlock,) in resGetSub:
-                                    if re.search("_sub\d+$", tmpDestinationDBlock) is None:
+                                    if re.search(r"_sub\d+$", tmpDestinationDBlock) is None:
                                         continue
                                     if tmpDestinationDBlock not in toBeClosedSubList[dJob.jobDefinitionID]:
                                         # set tobeclosed
@@ -1444,7 +1444,7 @@ class JobComplexModule(BaseModule):
                                         # append
                                         toBeClosedSubList[dJob.jobDefinitionID].append(tmpDestinationDBlock)
                                         # close top-level user dataset
-                                        topUserDsName = re.sub("_sub\d+$", "", tmpDestinationDBlock)
+                                        topUserDsName = re.sub(r"_sub\d+$", "", tmpDestinationDBlock)
                                         if not useJEDI and topUserDsName != tmpDestinationDBlock and topUserDsName not in topUserDsList:
                                             # set tobeclosed
                                             varMap = {}
@@ -2778,7 +2778,7 @@ class JobComplexModule(BaseModule):
                                         resLBK = self.cur.fetchone()
                                         if resLBK is not None and resLBK[0] is not None:
                                             outputZipBucketID = None
-                                            tmpPatch = re.search("outputZipBucketID=(\d+)", resLBK[0])
+                                            tmpPatch = re.search(r"outputZipBucketID=(\d+)", resLBK[0])
                                             if tmpPatch is not None:
                                                 outputZipBucketID = tmpPatch.group(1)
                                             outputZipName = None
@@ -2847,11 +2847,11 @@ class JobComplexModule(BaseModule):
                                 tmpInputFileSpec.lfn = esOutputFileMap[esPandaID][tmpInputFileSpec.dataset]
                             # change attemptNr back to the original, which could have been changed by ES merge retry
                             if not useNewFileFormatForES:
-                                origLFN = re.sub("\.\d+$", ".1", tmpInputFileSpec.lfn)
-                                outLFN = re.sub("\.\d+$", ".1", outLFN)
+                                origLFN = re.sub(r"\.\d+$", ".1", tmpInputFileSpec.lfn)
+                                outLFN = re.sub(r"\.\d+$", ".1", outLFN)
                             else:
-                                origLFN = re.sub("\.\d+$", ".1_000", tmpInputFileSpec.lfn)
-                                outLFN = re.sub("\.\d+$", ".1_000", outLFN)
+                                origLFN = re.sub(r"\.\d+$", ".1_000", tmpInputFileSpec.lfn)
+                                outLFN = re.sub(r"\.\d+$", ".1_000", outLFN)
                             # append eventRangeID as suffix
                             tmpInputFileSpec.lfn = origLFN + "." + tmpMapEventRangeID[jobProcessID]["eventRangeID"]
                             # make input/output map
@@ -3196,7 +3196,7 @@ class JobComplexModule(BaseModule):
                     originPandaID = oldPandaIDs[0]
             if originPandaID is None:
                 originPandaID = job.PandaID
-            newJobName = re.sub("\$ORIGINPANDAID", str(originPandaID), job.jobName)
+            newJobName = re.sub(r"\$ORIGINPANDAID", str(originPandaID), job.jobName)
             # update jobName
             if newJobName != job.jobName:
                 job.jobName = newJobName
@@ -3248,12 +3248,12 @@ class JobComplexModule(BaseModule):
                 if file.status not in ["ready", "cached"]:
                     file.status = "unknown"
                 # replace $PANDAID with real PandaID
-                file.lfn = re.sub("\$PANDAID", "%05d" % job.PandaID, file.lfn)  # type: ignore[str-format]  # "NULL" sentinel, see spec_column.py
+                file.lfn = re.sub(r"\$PANDAID", "%05d" % job.PandaID, file.lfn)  # type: ignore[str-format]  # "NULL" sentinel, see spec_column.py
                 # replace $JOBSETID with real jobsetID
                 if job.prodSourceLabel not in ["managed"]:
-                    file.lfn = re.sub("\$JOBSETID", jobsetID_str, file.lfn)
+                    file.lfn = re.sub(r"\$JOBSETID", jobsetID_str, file.lfn)
                     try:
-                        file.lfn = re.sub("\$JEDITASKID", strJediTaskID, file.lfn)
+                        file.lfn = re.sub(r"\$JEDITASKID", strJediTaskID, file.lfn)
                     except Exception:
                         pass
                 # avoid duplicated files for dynamic number of events
@@ -3581,9 +3581,9 @@ class JobComplexModule(BaseModule):
                 tmp_log.debug(f"{job.PandaID} inserted meta jediTaskID:{job.jediTaskID}")
             # job parameters
             if job.prodSourceLabel not in ["managed"]:
-                job.jobParameters = re.sub("\$JOBSETID", jobsetID_str, job.jobParameters)
+                job.jobParameters = re.sub(r"\$JOBSETID", jobsetID_str, job.jobParameters)
                 try:
-                    job.jobParameters = re.sub("\$JEDITASKID", strJediTaskID, job.jobParameters)
+                    job.jobParameters = re.sub(r"\$JEDITASKID", strJediTaskID, job.jobParameters)
                 except Exception:
                     pass
             sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"

@@ -402,7 +402,7 @@ class JediDatasetSpec(object):
     # get the ratio to master
     def getRatioToMaster(self) -> int | float:
         try:
-            tmpMatch = re.search("ratio=(\d+(\.\d+)*)", self.attributes or "")
+            tmpMatch = re.search(r"ratio=(\d+(\.\d+)*)", self.attributes or "")
             if tmpMatch is not None:
                 ratioStr = tmpMatch.group(1)
                 try:
@@ -451,7 +451,7 @@ class JediDatasetSpec(object):
     # get offset
     def getOffset(self) -> int:
         if self.attributes is not None:
-            tmpMatch = re.search(self.attrToken["offset"] + "=(\d+)", self.attributes)
+            tmpMatch = re.search(self.attrToken["offset"] + r"=(\d+)", self.attributes)
             if tmpMatch is not None:
                 offset = int(tmpMatch.group(1))
                 return offset
@@ -465,7 +465,7 @@ class JediDatasetSpec(object):
     def getNumRecords(self) -> int | None:
         if self.attributes is not None:
             for item in self.attributes.split(","):
-                tmpMatch = re.search(self.attrToken["num_records"] + "=(\d+)", item)
+                tmpMatch = re.search(self.attrToken["num_records"] + r"=(\d+)", item)
                 if tmpMatch is not None:
                     num_records = int(tmpMatch.group(1))
                     return num_records
@@ -490,7 +490,7 @@ class JediDatasetSpec(object):
     # get the number of files per job
     def getNumFilesPerJob(self) -> int | None:
         if self.attributes is not None:
-            tmpMatch = re.search(self.attrToken["nFilesPerJob"] + "=(\d+)", self.attributes)
+            tmpMatch = re.search(self.attrToken["nFilesPerJob"] + r"=(\d+)", self.attributes)
             if tmpMatch is not None:
                 num = int(tmpMatch.group(1))
                 return num
@@ -514,7 +514,7 @@ class JediDatasetSpec(object):
     def getTransient(self) -> bool | None:
         if self.attributes is not None:
             for item in self.attributes.split(","):
-                tmpMatch = re.search(self.attrToken["transient"] + "=(\d+)", item)
+                tmpMatch = re.search(self.attrToken["transient"] + r"=(\d+)", item)
                 if tmpMatch is not None:
                     val = int(tmpMatch.group(1))
                     if val == 1:
@@ -567,7 +567,7 @@ class JediDatasetSpec(object):
     def getEventRatio(self) -> int | float | None:
         if self.attributes is not None:
             for item in self.attributes.split(","):
-                tmpMatch = re.search(self.attrToken["eventRatio"] + "=(\d+(\.\d+)*)", item)
+                tmpMatch = re.search(self.attrToken["eventRatio"] + r"=(\d+(\.\d+)*)", item)
                 if tmpMatch is not None:
                     ratioStr = tmpMatch.group(1)
                     try:
@@ -625,7 +625,7 @@ class JediDatasetSpec(object):
         """
         if self.attributes is not None:
             for item in self.attributes.split(","):
-                tmpMatch = re.search(self.attrToken["no_staging"] + "=(\d+)", item)
+                tmpMatch = re.search(self.attrToken["no_staging"] + r"=(\d+)", item)
                 if tmpMatch is not None:
                     num_repr = int(tmpMatch.group(1))
                     value = bool(num_repr)

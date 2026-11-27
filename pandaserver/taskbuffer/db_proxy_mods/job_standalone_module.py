@@ -334,7 +334,7 @@ class JobStandaloneModule(BaseModule):
                 if file.status == "missing":
                     file.GUID = None
                 # collect old subs
-                if job.prodSourceLabel in ["managed", "test"] and file.type in ["output", "log"] and re.search("_sub\d+$", file.destinationDBlock) is not None:
+                if job.prodSourceLabel in ["managed", "test"] and file.type in ["output", "log"] and re.search(r"_sub\d+$", file.destinationDBlock) is not None:
                     if file.destinationDBlock not in oldSubList:
                         oldSubList.append(file.destinationDBlock)
                 # reset status, destinationDBlock and dispatchDBlock
@@ -342,7 +342,7 @@ class JobStandaloneModule(BaseModule):
                     file.status = "unknown"
                 if job.prodSourceLabel not in ["user", "panda"]:
                     file.dispatchDBlock = None
-                file.destinationDBlock = re.sub("_sub\d+$", "", file.destinationDBlock)
+                file.destinationDBlock = re.sub(r"_sub\d+$", "", file.destinationDBlock)
                 # add file
                 job.addFile(file)
                 # update files
@@ -1240,7 +1240,7 @@ class JobStandaloneModule(BaseModule):
         )
 
         # sql for materialized view
-        sql_mv = re.sub("COUNT\(\*\)", "SUM(njobs)", sql)
+        sql_mv = re.sub(r"COUNT\(\*\)", "SUM(njobs)", sql)
         sql_mv = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sql_mv)
 
         ret: dict[str, Any] = {}
@@ -1387,7 +1387,7 @@ class JobStandaloneModule(BaseModule):
             )
 
         # sql for materialized view
-        sql_active_mv = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql)
+        sql_active_mv = re.sub(r"COUNT\(\*\)", "SUM(num_of_jobs)", sql)
         sql_active_mv = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sql_active_mv)
 
         ret: dict[str, Any] = {}
@@ -1481,7 +1481,7 @@ class JobStandaloneModule(BaseModule):
         )
 
         # sql for materialized view
-        sql_active_mv = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql_active)
+        sql_active_mv = re.sub(r"COUNT\(\*\)", "SUM(num_of_jobs)", sql_active)
         sql_active_mv = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sql_active_mv)
 
         ret: dict[str, Any] = {}

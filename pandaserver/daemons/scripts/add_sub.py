@@ -71,7 +71,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
             lostat, loout = commands_get_status_output(com)
             useLogTgz = True
             if lostat == 0:
-                match = re.search("^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", loout)
+                match = re.search(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", loout)
                 if match is not None:
                     startTime = datetime.datetime(*time.strptime(match.group(0), "%Y-%m-%d %H:%M:%S")[:6])
                     # current log contains all info
@@ -100,7 +100,7 @@ def main(argv: Sequence[str] = (), tbuf: "TaskBuffer | None" = None, **kwargs: A
                     errMsg = f"failed to expand/copy {tmpDispLogName} with : {loout}"
                     raise RuntimeError(errMsg)
                 # search string
-                sStr = "^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*"
+                sStr = r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*"
                 sStr += "method=(.+),site=(.+),node=(.+),type=(.+)"
                 # read
                 logFH = open(tmp_logName)

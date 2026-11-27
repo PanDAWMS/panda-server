@@ -94,7 +94,7 @@ class DDMHandler(threading.Thread):
             # activate jobs in jobsDefined
             Activator(self.task_buffer, dataset).run()
         if dataset.type == "output":
-            if dataset.name is not None and re.search("^panda\..*_zip$", dataset.name) is not None:
+            if dataset.name is not None and re.search(r"^panda\..*_zip$", dataset.name) is not None:
                 # start unmerge jobs
                 Activator(self.task_buffer, dataset, enforce=True).run()
             else:

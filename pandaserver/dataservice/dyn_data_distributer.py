@@ -609,8 +609,8 @@ class DynDataDistributer:
                         or tmp_dataset_name.startswith("user")
                         or tmp_dataset_name.startswith("group")
                         or tmp_dataset_name.startswith("archive")
-                        or re.search("_sub\d+$", tmp_dataset_name) is not None
-                        or re.search("_dis\d+$", tmp_dataset_name) is not None
+                        or re.search(r"_sub\d+$", tmp_dataset_name) is not None
+                        or re.search(r"_dis\d+$", tmp_dataset_name) is not None
                         or re.search("_shadow$", tmp_dataset_name) is not None
                     ):
                         continue
